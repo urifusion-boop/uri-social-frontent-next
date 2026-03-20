@@ -37,59 +37,59 @@ const Navbar = () => {
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-1 group">
             <div className="relative">
               <Image
                 src="/images/uri-logo.png"
                 alt="URI Social"
-                width={40}
-                height={40}
-                className="h-10 w-auto transition-transform duration-300 group-hover:scale-110"
+                width={32}
+                height={32}
+                className="h-8 w-auto transition-transform duration-300 group-hover:scale-110"
               />
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-bold tracking-tight text-foreground">
+              <span className="text-lg font-bold tracking-tight" style={{ color: 'black' }}>
                 URI
               </span>
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
                 Social
               </span>
             </div>
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-6">
             <button
               onClick={() => scrollTo("how-it-works")}
-              className="text-sm font-bold uppercase tracking-wide transition-colors duration-150"
+              className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
             >
               How It Works
             </button>
             <button
               onClick={() => scrollTo("pricing")}
-              className="text-sm font-bold uppercase tracking-wide transition-colors duration-150"
+              className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
             >
               Pricing
             </button>
             <button
               onClick={() => scrollTo("faq")}
-              className="text-sm font-bold uppercase tracking-wide transition-colors duration-150"
+              className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
             >
               FAQ
             </button>
             <Link
               href="/workspace"
-              className="text-sm font-bold uppercase tracking-wide transition-colors duration-150"
+              className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
             >
               Sign In
             </Link>
-            <button className="comic-btn px-5 py-2.5 rounded-lg text-sm" style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}>
+            <button className="comic-btn px-4 py-2 rounded-lg text-xs" style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}>
               Get Started Free
             </button>
           </div>
@@ -154,25 +154,25 @@ const Navbar = () => {
 // Comic Hero Section
 const HeroSection = () => {
   return (
-    <section className="relative min-h-screen flex items-center halftone-bg overflow-hidden pt-16" style={{ backgroundColor: 'hsl(340, 74%, 42%)' }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24 relative z-10">
+    <section className="relative flex items-center halftone-bg overflow-hidden pt-20 pb-12" style={{ backgroundColor: 'hsl(340, 74%, 42%)', minHeight: '85vh' }}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12 relative z-10">
         {/* Comic headline */}
-        <div className="text-center mb-12">
-          <h1 className="comic-headline text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-black mb-6" style={{ color: 'white' }}>
+        <div className="text-center mb-8">
+          <h1 className="comic-headline text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-black mb-4" style={{ color: 'white' }}>
             YOUR SOCIAL MEDIA MANAGER{" "}
             <span className="highlight-strip">JUST CLOCKED IN.</span>
           </h1>
-          <p className="text-lg sm:text-xl font-semibold max-w-2xl mx-auto leading-relaxed" style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+          <p className="text-base sm:text-lg font-semibold max-w-2xl mx-auto leading-relaxed" style={{ color: 'rgba(255, 255, 255, 0.85)' }}>
             Meet Jane — she creates posts, publishes on time, monitors trends, replies to customers, and writes you a performance report every week. She never takes leave. She never asks for a raise. She just... delivers.
           </p>
         </div>
 
         {/* Before/After Comic Panels */}
-        <div className="grid md:grid-cols-2 gap-6 lg:gap-8 max-w-5xl mx-auto mb-12">
+        <div className="grid md:grid-cols-2 gap-4 lg:gap-6 max-w-5xl mx-auto mb-8">
           {/* BEFORE Panel */}
           <div className="comic-panel relative" style={{ backgroundColor: 'white' }}>
             <div className="comic-caption absolute top-3 left-3 z-10">PANEL 1: BEFORE JANE</div>
-            <div className="p-6 pt-14">
+            <div className="p-4 pt-12">
               {/* SVG Character - stressed */}
               <div className="flex justify-center mb-4">
                 <svg width="120" height="140" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -205,7 +205,7 @@ const HeroSection = () => {
           {/* AFTER Panel */}
           <div className="comic-panel relative" style={{ backgroundColor: 'white' }}>
             <div className="comic-caption absolute top-3 left-3 z-10" style={{ background: 'hsl(var(--uri-green))', color: 'white', borderColor: 'hsl(var(--foreground))' }}>PANEL 2: AFTER JANE</div>
-            <div className="p-6 pt-14">
+            <div className="p-4 pt-12">
               <div className="flex justify-center mb-4">
                 <svg width="120" height="140" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <circle cx="60" cy="40" r="28" fill="#8D6E63" stroke="hsl(var(--foreground))" strokeWidth="3"/>
@@ -235,17 +235,17 @@ const HeroSection = () => {
         </div>
 
         {/* CTAs */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-          <button className="comic-btn px-8 py-4 rounded-lg text-base" style={{ backgroundColor: 'black', color: 'white' }}>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+          <button className="comic-btn px-6 py-3 rounded-lg text-sm" style={{ backgroundColor: 'black', color: 'white' }}>
             HIRE JANE — IT'S FREE
           </button>
-          <button className="comic-btn px-8 py-4 rounded-lg text-base" style={{ backgroundColor: 'white', color: 'hsl(340, 74%, 42%)' }}>
+          <button className="comic-btn px-6 py-3 rounded-lg text-sm" style={{ backgroundColor: 'white', color: 'hsl(340, 74%, 42%)' }}>
             SEE HER IN ACTION
           </button>
         </div>
 
         {/* Trust bar */}
-        <div className="text-center mt-10 space-y-3">
+        <div className="text-center mt-6 space-y-2">
           <p className="text-sm font-bold uppercase tracking-wider" style={{ color: 'rgba(255, 255, 255, 0.7)' }}>TRUSTED BY 200+ BUSINESSES ACROSS NIGERIA · GHANA · KENYA · SOUTH AFRICA</p>
           <div className="flex justify-center -space-x-2">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -264,6 +264,175 @@ const HeroSection = () => {
       <div className="absolute top-24 right-8 hidden lg:block action-word !text-xs animate-float-slow">TRENDING!</div>
       <div className="absolute bottom-32 left-12 hidden lg:block action-word !text-xs !rotate-[6deg] animate-float-medium" style={{ background: 'hsl(var(--uri-green))', color: 'white', borderColor: 'hsl(var(--foreground))' }}>APPROVED!</div>
       <div className="absolute top-1/2 right-16 hidden lg:block action-word !text-xs !rotate-[-8deg] animate-float-fast" style={{ background: 'hsl(var(--primary-foreground))', color: 'hsl(var(--primary))', borderColor: 'hsl(var(--foreground))' }}>SCHEDULED!</div>
+    </section>
+  );
+};
+
+// Social Posts Carousel Section
+const SocialPostsCarousel = () => {
+  const posts = [
+    {
+      platform: "Instagram",
+      color: "text-pink-500",
+      brandName: "Lagos Bites",
+      handle: "@lagosbites",
+      avatar: "LB",
+      avatarBg: "bg-gradient-to-br from-pink-500 to-orange-400",
+      caption: "New Jollof Rice bowl just dropped! Our weekend special is here and trust us — you don't want to miss this one. Order now on our app!",
+      hashtags: "#LagosBites #JollofRice #NaijaFood #WeekendVibes",
+      likes: "2,847",
+      comments: "183",
+      image: "/images/post-jollof.jpg",
+    },
+    {
+      platform: "X.com",
+      color: "text-foreground",
+      brandName: "FreshFit Gym",
+      handle: "@freshfit_ng",
+      avatar: "FF",
+      avatarBg: "bg-uri-green",
+      caption: "Your Monday motivation just arrived. Consistency beats intensity. Show up today, even if it's just for 20 minutes.",
+      hashtags: "#FitnessNigeria #MondayMotivation #GymLife",
+      likes: "1,204",
+      comments: "89",
+      image: "/images/post-fitness.jpg",
+    },
+    {
+      platform: "Facebook",
+      color: "text-blue-600",
+      brandName: "Aura Beauty Studio",
+      handle: "Aura Beauty Studio",
+      avatar: "AB",
+      avatarBg: "bg-uri-purple",
+      caption: "Glow up season is HERE! Book your bridal makeup trial this week and get 15% off your wedding day package.",
+      hashtags: "#AuraBeauty #BridalMakeup #LagosWedding",
+      likes: "956",
+      comments: "124",
+      image: "/images/post-beauty.jpg",
+    },
+    {
+      platform: "LinkedIn",
+      color: "text-blue-700",
+      brandName: "Pulse Agency",
+      handle: "Pulse Creative Agency",
+      avatar: "PA",
+      avatarBg: "bg-uri-blue",
+      caption: "We helped a client go from 200 to 12,000 followers in 90 days — without a single paid ad. Here's what we learned:",
+      hashtags: "#SocialMediaMarketing #AgencyLife",
+      likes: "3,412",
+      comments: "267",
+      image: "/images/post-analytics.jpg",
+    },
+  ];
+
+  const posts2 = [
+    {
+      platform: "TikTok",
+      color: "text-foreground",
+      brandName: "Chef Nkem",
+      handle: "@chefnkem",
+      avatar: "CN",
+      avatarBg: "bg-gradient-to-br from-pink-500 to-cyan-400",
+      caption: "POV: You tried making Egusi soup for the first time and your Nigerian friend is JUDGING.",
+      hashtags: "#NigerianFood #EgusiSoup #CookingTikTok",
+      likes: "48.2K",
+      comments: "2,891",
+      image: "/images/post-egusi.jpg",
+    },
+    {
+      platform: "Pinterest",
+      color: "text-red-600",
+      brandName: "Accra Interiors",
+      handle: "@accrainteriors",
+      avatar: "AI",
+      avatarBg: "bg-red-500",
+      caption: "Minimalist Afro-modern living room inspo. Earthy tones, local textiles, clean lines.",
+      hashtags: "#InteriorDesign #AfricanDecor #HomeInspo",
+      likes: "5,621",
+      comments: "312",
+      image: "/images/post-interior.jpg",
+    },
+    {
+      platform: "Instagram",
+      color: "text-pink-500",
+      brandName: "Sweet Tooth Lagos",
+      handle: "@sweettooth_lag",
+      avatar: "ST",
+      avatarBg: "bg-gradient-to-br from-pink-300 to-purple-400",
+      caption: "Ice cream weather is every weather in Lagos! Come grab our new Cookies & Cream cone.",
+      hashtags: "#SweetToothLagos #IceCream #LagosEats",
+      likes: "3,567",
+      comments: "289",
+      image: "/images/post-icecream.jpg",
+    },
+  ];
+
+  const PostCard = ({ post }: { post: typeof posts[0] }) => (
+    <div className="w-[320px] flex-shrink-0 comic-panel" style={{ backgroundColor: 'white' }}>
+      <div className="flex items-center justify-between p-4 pb-2">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-full ${post.avatarBg} flex items-center justify-center text-white font-black text-xs`} style={{ borderWidth: '2px', borderStyle: 'solid', borderColor: 'black' }}>
+            {post.avatar}
+          </div>
+          <div>
+            <p className="text-sm font-black leading-tight" style={{ color: 'black' }}>{post.brandName}</p>
+            <p className="text-xs font-semibold" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>{post.handle}</p>
+          </div>
+        </div>
+      </div>
+      <div className="mx-4 h-40 rounded-lg overflow-hidden" style={{ borderWidth: '2px', borderStyle: 'solid', borderColor: 'black' }}>
+        <Image
+          src={post.image}
+          alt={post.brandName}
+          width={320}
+          height={160}
+          className="w-full h-full object-cover"
+        />
+      </div>
+      <div className="p-4 pt-3">
+        <p className="text-xs font-semibold leading-relaxed mb-2" style={{ color: 'black', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {post.caption}
+        </p>
+        <p className="text-[10px] font-bold mb-3" style={{ color: 'hsl(207, 90%, 54%)', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{post.hashtags}</p>
+        <div className="flex items-center gap-4 text-xs font-bold pt-2" style={{ borderTop: '2px solid rgba(0, 0, 0, 0.1)', color: 'rgba(0, 0, 0, 0.5)' }}>
+          <span>{post.likes} likes</span>
+          <span>{post.comments} comments</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <section className="py-16 lg:py-20 overflow-hidden" style={{ backgroundColor: 'hsl(12, 100%, 98%)' }}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
+        <div className="text-center">
+          <div className="comic-caption inline-block mb-4">LIVE EXAMPLES</div>
+          <h2 className="comic-headline text-3xl sm:text-4xl lg:text-5xl font-black mb-3" style={{ color: 'black', transform: 'rotate(-1deg)' }}>
+            Posts <span className="highlight-strip">Jane creates.</span> Every day.
+          </h2>
+          <p className="font-semibold max-w-xl mx-auto" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+            Real content for real brands — across every platform that matters.
+          </p>
+        </div>
+      </div>
+
+      {/* First row - scrolls left */}
+      <div className="relative mb-5">
+        <div className="flex gap-5 animate-marquee-slow pl-4" style={{ width: 'max-content' }}>
+          {[...posts, ...posts, ...posts].map((post, i) => (
+            <PostCard key={`row1-${i}`} post={post} />
+          ))}
+        </div>
+      </div>
+
+      {/* Second row - scrolls right (reverse) */}
+      <div className="relative">
+        <div className="flex gap-5 animate-marquee-reverse pl-4" style={{ width: 'max-content' }}>
+          {[...posts2, ...posts2, ...posts2].map((post, i) => (
+            <PostCard key={`row2-${i}`} post={post} />
+          ))}
+        </div>
+      </div>
     </section>
   );
 };
@@ -757,6 +926,7 @@ export default function Home() {
     <main className="min-h-screen">
       <Navbar />
       <HeroSection />
+      <SocialPostsCarousel />
       <HowItWorksSection />
       <PricingSection />
       <FAQSection />
