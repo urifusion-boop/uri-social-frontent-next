@@ -480,7 +480,7 @@ function BrandSetupPageContent() {
   useEffect(() => {
     if (!userDetails?.userId) return;
     BrandProfileService.isOnboardingDone().then((done) => {
-      if (done) router.replace('/social-media');
+      if (done) router.replace('/workspace');
       else setCheckingExisting(false);
     });
   }, [userDetails, router]);
@@ -576,7 +576,7 @@ function BrandSetupPageContent() {
     };
     try {
       await BrandProfileService.complete(profile);
-      router.push('/social-media');
+      router.push('/workspace');
     } catch {
       setSaving(false);
     }

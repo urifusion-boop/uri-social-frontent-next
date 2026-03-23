@@ -20,7 +20,7 @@ const DashboardLayout = ({ children, excludeHeader = false }: DashboardLayoutPro
       {!excludeHeader && (
         <AppBar position="fixed" sx={{ backgroundColor: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', zIndex: 1200 }}>
           <Toolbar sx={{ justifyContent: 'space-between' }}>
-            <Box display="flex" alignItems="center" gap={1} sx={{ cursor: 'pointer' }} onClick={() => router.push('/social-media')}>
+            <Box display="flex" alignItems="center" gap={1} sx={{ cursor: 'pointer' }} onClick={() => router.push('/workspace')}>
               <Box sx={{ backgroundColor: '#CD1B78', p: '6px', borderRadius: '8px', display: 'flex' }}>
                 <MdOutlineCampaign size={20} color="#fff" />
               </Box>
