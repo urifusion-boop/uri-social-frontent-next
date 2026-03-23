@@ -4,8 +4,8 @@ const http = require('http');
 module.exports = async function (context, req) {
   let path = context.bindingData.path || "";
 
-  // Strip leading /api if present to avoid double /api prefix
-  path = path.replace(/^api\//, "");
+  // Strip leading api/ or /api/ if present to avoid double /api prefix
+  path = path.replace(/^\/?api\//, "");
   const backendUrl = `https://20.164.0.168/${path}`;
 
   context.log(`Proxying request to: ${backendUrl}`);
@@ -17,12 +17,20 @@ module.exports = async function (context, req) {
     // Prepare request body
     const bodyString = req.body ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body)) : '';
 
+    // Forward all relevant headers
+    const headers = {
+      'Content-Type': req.headers['content-type'] || 'application/json',
+    };
+
+    // Forward Authorization header if present (case-insensitive)
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+
     const options = {
       method: req.method,
-      headers: {
-        'Content-Type': req.headers['content-type'] || 'application/json',
-        'Authorization': req.headers['authorization'] || '',
-      },
+      headers: headers,
       // Allow self-signed certificates
       rejectUnauthorized: false,
     };
