@@ -48,6 +48,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
   const sc = statusColors[draft.status ?? 'draft'] ?? statusColors.draft;
@@ -195,7 +196,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
             src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
             alt={`AI-generated image for ${draft.platform}`}
             onLoad={() => setImageLoaded(true)}
-            style={{ width: '100%', display: imageLoaded ? 'block' : 'none', maxHeight: 320, objectFit: 'cover' }}
+            onClick={() => setLightboxOpen(true)}
+            style={{ width: '100%', display: imageLoaded ? 'block' : 'none', maxHeight: 320, objectFit: 'cover', cursor: 'pointer' }}
           />
         </Box>
       )}
@@ -327,6 +329,24 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
             Confirm Schedule
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Image lightbox */}
+      <Dialog open={lightboxOpen} onClose={() => setLightboxOpen(false)} maxWidth="md" fullWidth>
+        <DialogActions sx={{ p: 1, justifyContent: 'flex-end' }}>
+          <Button onClick={() => setLightboxOpen(false)} size="small" sx={{ minWidth: 0, textTransform: 'none' }}>
+            Close
+          </Button>
+        </DialogActions>
+        <DialogContent sx={{ p: 2, pt: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000' }}>
+          {draft.image_url && (
+            <img
+              src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
+              alt={`AI-generated image for ${draft.platform}`}
+              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }}
+            />
+          )}
+        </DialogContent>
       </Dialog>
 
       {/* Deny panel */}

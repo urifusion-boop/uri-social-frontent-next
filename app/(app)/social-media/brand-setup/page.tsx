@@ -11,7 +11,7 @@ import Grid from '@mui/material/GridLegacy';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCheckCircle, FaFacebook, FaInstagram } from 'react-icons/fa';
+import { FaArrowLeft, FaCheckCircle, FaFacebook, FaImage, FaInstagram, FaTimes } from 'react-icons/fa';
 import { MdOutlineCampaign } from 'react-icons/md';
 
 // ─── Step order ──────────────────────────────────────────────────────────────
@@ -408,6 +408,9 @@ function BrandSetupPageContent() {
 
   // ── Voice sample ──────────────────────────────────────────────
   const [voiceSample, setVoiceSample] = useState('');
+  const [sampleTemplateUrls, setSampleTemplateUrls] = useState<string[]>([]);
+  const [sampleTemplateUploading, setSampleTemplateUploading] = useState(false);
+  const [sampleTemplateError, setSampleTemplateError] = useState('');
 
   // ── Pillars ───────────────────────────────────────────────────
   const allPillars = ['Behind the Scenes', 'Product Highlights', 'Tips & Education', 'Customer Stories', 'Promotions', 'Team & Culture', 'Industry News', 'Trending & Seasonal'];
@@ -547,6 +550,7 @@ function BrandSetupPageContent() {
       personality_quiz: quiz,
       derived_voice: deriveVoice(),
       voice_sample: voiceSample,
+      sample_template_urls: sampleTemplateUrls.length > 0 ? sampleTemplateUrls : undefined,
       platform_tones: platformTones,
       same_tone_everywhere: sameTone,
       content_pillars: pillars,
@@ -1127,7 +1131,107 @@ function BrandSetupPageContent() {
                   </Box>
                 </Box>
               )}
-              <Box display="flex" gap={1.5} alignItems="center" mt={2}>
+
+              {/* ── Template / design samples ── */}
+              <Box mt={2.5}>
+                <FieldLabel sub="(optional — images or PDFs)">Sample designs or content templates</FieldLabel>
+                <Hint>Upload posts, flyers, or any content that nails your visual style — I'll use these as reference.</Hint>
+
+                <Box
+                  component="label"
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 1,
+                    border: `2px dashed ${sampleTemplateUrls.length > 0 ? primary : '#E0DEF7'}`,
+                    borderRadius: '12px',
+                    p: 2.5,
+                    mt: 1,
+                    cursor: sampleTemplateUploading ? 'not-allowed' : 'pointer',
+                    background: sampleTemplateUrls.length > 0 ? `${primary}08` : '#FAFAFA',
+                    transition: 'border-color 0.2s, background 0.2s',
+                    '&:hover': { borderColor: primary, background: `${primary}08` },
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf"
+                    multiple
+                    style={{ display: 'none' }}
+                    disabled={sampleTemplateUploading}
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      if (!files.length) return;
+                      setSampleTemplateError('');
+                      setSampleTemplateUploading(true);
+                      try {
+                        const results = await Promise.all(files.map((f) => BrandProfileService.uploadSampleTemplate(f)));
+                        const urls = results.flatMap((r) => (r.status && r.responseData?.file_url ? [r.responseData.file_url] : []));
+                        if (urls.length) {
+                          setSampleTemplateUrls((prev) => [...prev, ...urls]);
+                        } else {
+                          setSampleTemplateError('Upload failed. Please try again.');
+                        }
+                      } catch {
+                        setSampleTemplateError('Upload failed. Please try again.');
+                      } finally {
+                        setSampleTemplateUploading(false);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                  {sampleTemplateUploading ? (
+                    <CircularProgress size={24} sx={{ color: primary }} />
+                  ) : (
+                    <>
+                      <FaImage size={22} color={primary} />
+                      <Typography sx={{ fontSize: 12.5, color: '#6B7280', textAlign: 'center' }}>
+                        Click to upload sample designs<br />
+                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>PNG, JPG, WEBP or PDF · up to 5 files</span>
+                      </Typography>
+                    </>
+                  )}
+                </Box>
+
+                {sampleTemplateError && (
+                  <Typography sx={{ fontSize: 12, color: '#DC2626', mt: 0.75 }}>{sampleTemplateError}</Typography>
+                )}
+
+                {sampleTemplateUrls.length > 0 && (
+                  <Box display="flex" flexWrap="wrap" gap={1} mt={1.5}>
+                    {sampleTemplateUrls.map((url, i) => (
+                      <Box
+                        key={i}
+                        sx={{ position: 'relative', width: 72, height: 72, borderRadius: '8px', overflow: 'hidden', border: '1px solid #E5E7EB', flexShrink: 0 }}
+                      >
+                        {url.endsWith('.pdf') ? (
+                          <Box display="flex" alignItems="center" justifyContent="center" sx={{ width: '100%', height: '100%', background: '#F3F4F6' }}>
+                            <Typography sx={{ fontSize: 10, color: '#6B7280', textAlign: 'center', px: 0.5 }}>PDF</Typography>
+                          </Box>
+                        ) : (
+                          <Image src={url} alt={`sample ${i + 1}`} fill style={{ objectFit: 'cover' }} />
+                        )}
+                        <Box
+                          component="button"
+                          onClick={() => setSampleTemplateUrls((prev) => prev.filter((_, idx) => idx !== i))}
+                          sx={{
+                            position: 'absolute', top: 2, right: 2,
+                            background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%',
+                            width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', p: 0,
+                          }}
+                        >
+                          <FaTimes size={9} color="#fff" />
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+
+              <Box display="flex" gap={1.5} alignItems="center" mt={2.5}>
                 <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
                   Continue →
                 </CustomButton>

@@ -33,6 +33,7 @@ export interface BrandProfileData {
   personality_quiz?: Record<string, string>;
   derived_voice?: string;
   voice_sample?: string;
+  sample_template_urls?: string[];
   platform_tones?: Record<string, string>;
   same_tone_everywhere?: boolean;
   content_pillars?: string[];
@@ -75,6 +76,13 @@ export class BrandProfileService {
     const form = new FormData();
     form.append('file', file);
     const res: AxiosResponse<UriResponse<{ logo_url: string }>> = await UriHttpClient.getClient().post(`${BASE}/logo`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    return res.data;
+  }
+
+  static async uploadSampleTemplate(file: File): Promise<UriResponse<{ file_url: string }>> {
+    const form = new FormData();
+    form.append('file', file);
+    const res: AxiosResponse<UriResponse<{ file_url: string }>> = await UriHttpClient.getClient().post(`${BASE}/sample-template`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
     return res.data;
   }
 
