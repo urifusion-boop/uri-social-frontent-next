@@ -1,0 +1,179 @@
+import { UriHttpClient } from '@/src/configs/http.config';
+import { socialMediaAgentRoutes } from '@/src/constants/routes/socialMediaAgentRoutes';
+import { UriResponse } from '@/src/models/responses/UriResponse';
+import { AxiosResponse } from 'axios';
+
+export interface BrandContext {
+  brand_name?: string;
+  industry?: string;
+  business_description?: string;
+  tagline?: string;
+  brand_voice?: string;
+  target_audience?: string;
+  key_products_services?: string[];
+  brand_colors?: string[];
+}
+
+export interface ConnectFacebookPayload {
+  platform: string;
+  page_access_token: string;
+}
+
+export interface GenerateContentPayload {
+  seed_content: string;
+  platforms: string[];
+  seed_type?: string;
+  include_images?: boolean;
+  brand_context?: BrandContext;
+}
+
+export interface RefinePayload {
+  draft_id: string;
+  refinements: {
+    content?: string;
+    hashtags?: string[];
+  };
+}
+
+export interface ApprovePayload {
+  draft_ids: string[];
+  schedule_option: 'immediate' | 'schedule' | 'save_draft';
+  scheduled_datetime?: string;
+}
+
+export interface DenyPayload {
+  draft_ids: string[];
+  denial_reason: string;
+  request_regeneration?: boolean;
+}
+
+export interface SocialConnection {
+  platform: string;
+  page_name?: string;
+  fan_count?: number;
+  status: 'active' | 'expired';
+  page_id?: string;
+}
+
+export interface ContentDraft {
+  id?: string;
+  draft_id?: string;
+  platform: string;
+  content: string;
+  hashtags?: string[];
+  status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'denied' | 'scheduled';
+  approval_status?: 'pending' | 'approved' | 'denied';
+  image_url?: string;
+  has_image?: boolean;
+  created_at?: string;
+  scheduled_datetime?: string;
+  auto_generated?: boolean;
+}
+
+export interface ContentCalendarResponse {
+  drafts: ContentDraft[];
+}
+
+export interface ScheduledContentResponse {
+  scheduled_drafts: ContentDraft[];
+}
+
+export interface ConnectInsightsPayload {
+  influencer_id: string;
+  platform: string;
+  social_user_id?: string;
+  insights: Record<string, unknown>;
+}
+
+export interface AnalyticsContext {
+  connected: boolean;
+  connected_platforms: string[];
+  accounts_analysed: number;
+  industries_detected: string[];
+  last_synced_at?: string;
+}
+
+export interface AutoGenerateSettings {
+  enabled: boolean;
+  platforms: string[];
+  frequency: 'daily' | 'weekly';
+  include_images: boolean;
+  brand_context?: BrandContext;
+  last_run_at?: string;
+  last_run_draft_count?: number;
+  next_run_at?: string;
+  analytics_context?: AnalyticsContext;
+}
+
+export class SocialMediaAgentService {
+  static async connectFacebookToken(payload: ConnectFacebookPayload): Promise<UriResponse<SocialConnection>> {
+    const response: Awaited<AxiosResponse<UriResponse<SocialConnection>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.connectFacebookToken, payload);
+    return response.data;
+  }
+
+  static async getConnections(): Promise<UriResponse<{ connections: Record<string, SocialConnection[]>; connected_platforms: string[]; total_connections: number }>> {
+    const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.getConnections);
+    return response.data;
+  }
+
+  static async disconnectPlatform(platform: string): Promise<UriResponse<string>> {
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(`${socialMediaAgentRoutes.disconnectPlatform}/${platform}`);
+    return response.data;
+  }
+
+  static async generateContent(payload: GenerateContentPayload): Promise<UriResponse<ContentDraft[]>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentDraft[]>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateContent, payload, { timeout: 300000 });
+    return response.data;
+  }
+
+  static async refineContent(payload: RefinePayload): Promise<UriResponse<ContentDraft>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentDraft>>> = await UriHttpClient.getClient().put(socialMediaAgentRoutes.refineContent, payload);
+    return response.data;
+  }
+
+  static async approveContent(payload: ApprovePayload): Promise<UriResponse<string>> {
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.approveContent, payload);
+    return response.data;
+  }
+
+  static async deleteDraft(draftId: string): Promise<UriResponse<string>> {
+    const response = await UriHttpClient.getClient().delete(`${socialMediaAgentRoutes.deleteDraft}/${draftId}`);
+    return response.data;
+  }
+
+  static async denyContent(payload: DenyPayload): Promise<UriResponse<string>> {
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.denyContent, payload);
+    return response.data;
+  }
+
+  static async getContentCalendar(params?: Record<string, string>): Promise<UriResponse<ContentCalendarResponse>> {
+    const query = params ? '?' + new URLSearchParams(params).toString() : '';
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarResponse>>> = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.contentCalendar}${query}`);
+    return response.data;
+  }
+
+  static async getScheduled(): Promise<UriResponse<ScheduledContentResponse>> {
+    const response: Awaited<AxiosResponse<UriResponse<ScheduledContentResponse>>> = await UriHttpClient.getClient().get(socialMediaAgentRoutes.scheduledContent);
+    return response.data;
+  }
+
+  static async getAutoGenerateSettings(): Promise<UriResponse<AutoGenerateSettings>> {
+    const response: Awaited<AxiosResponse<UriResponse<AutoGenerateSettings>>> = await UriHttpClient.getClient().get(socialMediaAgentRoutes.autoGenerateSettings);
+    return response.data;
+  }
+
+  static async updateAutoGenerateSettings(payload: Omit<AutoGenerateSettings, 'last_run_at' | 'last_run_draft_count' | 'next_run_at'>): Promise<UriResponse<AutoGenerateSettings>> {
+    const response: Awaited<AxiosResponse<UriResponse<AutoGenerateSettings>>> = await UriHttpClient.getClient().put(socialMediaAgentRoutes.autoGenerateSettings, payload);
+    return response.data;
+  }
+
+  static async connectInsights(payload: ConnectInsightsPayload): Promise<UriResponse<{ saved: boolean; platform: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ saved: boolean; platform: string }>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.autoGenerateConnectInsights, payload);
+    return response.data;
+  }
+
+  static async triggerAutoGenerate(): Promise<UriResponse<{ message: string; user_id: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ message: string; user_id: string }>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.autoGenerateTrigger);
+    return response.data;
+  }
+}

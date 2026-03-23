@@ -87,15 +87,15 @@ export default function Navbar() {
               Contact
             </Link>
             <Link
-              href="/workspace"
+              href="/login"
               className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
             >
               Sign In
             </Link>
-            <button className="comic-btn px-4 py-2 rounded-lg text-xs" style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}>
+            <Link href="/login?tab=signup" className="comic-btn px-4 py-2 rounded-lg text-xs" style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}>
               Get Started Free
-            </button>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -150,16 +150,16 @@ export default function Navbar() {
               Contact
             </Link>
             <Link
-              href="/workspace"
+              href="/login"
               className="block w-full text-left text-sm font-bold py-2 px-4 uppercase"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
               onClick={() => setOpen(false)}
             >
               Sign In
             </Link>
-            <button className="w-full comic-btn px-5 py-2.5 rounded-lg text-sm" style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}>
+            <Link href="/login?tab=signup" className="block w-full comic-btn px-5 py-2.5 rounded-lg text-sm text-center" style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }} onClick={() => setOpen(false)}>
               Get Started Free
-            </button>
+            </Link>
           </motion.div>
         )}
       </div>
