@@ -24,12 +24,12 @@ export interface AuthResponseData {
 
 export class AuthService {
   static async loginApi(data: LoginRequest): Promise<UriResponse<AuthResponseData>> {
-    const response: AxiosResponse<UriResponse<AuthResponseData>> = await UriHttpClient.getClient().post('/auth/login', data);
+    const response: AxiosResponse<UriResponse<AuthResponseData>> = await UriHttpClient.getClient().post('/social-media/auth/login', data);
     return response.data;
   }
 
   static async signupApi(data: SignupRequest): Promise<UriResponse<AuthResponseData>> {
-    const response: AxiosResponse<UriResponse<AuthResponseData>> = await UriHttpClient.getClient().post('/auth/signup', data);
+    const response: AxiosResponse<UriResponse<AuthResponseData>> = await UriHttpClient.getClient().post('/social-media/auth/signup', data);
     return response.data;
   }
 }
