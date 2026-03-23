@@ -39,7 +39,7 @@ jobs:
           ###### End of Repository/Build Configurations ######
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
-          NEXT_PUBLIC_URI_API_BASE_URL: http://20.164.0.168:9003
+          NEXT_PUBLIC_URI_API_BASE_URL: https://20.164.0.168/social-media
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'

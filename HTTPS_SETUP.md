@@ -1,245 +1,139 @@
-# Setting Up HTTPS for Backend API
+# HTTPS Setup for URI Social Backend
 
-## Problem
-Your frontend is HTTPS (`https://brave-coast-0ea49a50f2.azurestaticapps.net`) but your backend is HTTP (`http://20.164.0.168:9003`). This causes **Mixed Content** errors where browsers block HTTP requests from HTTPS pages.
+## ✅ HTTPS Already Configured!
 
-## Solution Options
+The VM already has an **nginx-ssl** container handling HTTPS termination for all services. We've added URI Social Backend to this existing setup.
 
-### Option 1: Setup Domain + SSL (Recommended for Production)
+## Current Configuration
 
-#### Step 1: Add DNS Record
-Point a subdomain to your VM IP:
-```
-Type: A Record
-Name: api-dev (or api-staging)
-Value: 20.164.0.168
-TTL: 300
+### Backend Access Points
 
-Result: api-dev.uricreative.com → 20.164.0.168
-```
+| Service | HTTP Port | HTTPS Path | Container |
+|---------|-----------|------------|-----------|
+| URI Gateway | 8443 | `https://20.164.0.168/` | uri-gateway.api |
+| Academy Backend | 8004 | `https://20.164.0.168/academy/` | academy-backend.api |
+| **URI Social Backend** | 9003 | **`https://20.164.0.168/social-media/`** | uri-agent.api |
 
-#### Step 2: Install Nginx + Let's Encrypt on VM
-```bash
-# SSH into VM
-ssh -i ~/.ssh/uridev.pem uridev@20.164.0.168
+### How It Works
 
-# Install nginx
-sudo apt-get update
-sudo apt-get install -y nginx certbot python3-certbot-nginx
+1. **nginx-ssl container** listens on ports 80 and 443
+2. **HTTP → HTTPS redirect** automatically applied
+3. **Reverse proxy** routes HTTPS traffic to backend containers:
+   - `https://20.164.0.168/social-media/*` → `http://uri-agent.api:80/*`
+4. **Self-signed SSL certificate** already configured at `/home/uridev/nginx-ssl/ssl/`
 
-# Create nginx configuration
-sudo nano /etc/nginx/sites-available/uri-social-backend
-```
+## Frontend Configuration
 
-**Nginx Configuration:**
-```nginx
-server {
-    listen 80;
-    server_name api-dev.uricreative.com;
+### Azure Static Web Apps (Staging)
+**File:** `.github/workflows/azure-static-web-apps-brave-coast-0ea49a50f.yml`
 
-    location / {
-        proxy_pass http://localhost:9003;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-```bash
-# Enable the site
-sudo ln -s /etc/nginx/sites-available/uri-social-backend /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-
-# Get SSL certificate (Let's Encrypt)
-sudo certbot --nginx -d api-dev.uricreative.com
-
-# Follow prompts and choose "2: Redirect HTTP to HTTPS"
-```
-
-#### Step 3: Update Frontend Environment Variable
-Update workflow file:
 ```yaml
 env:
-  NEXT_PUBLIC_URI_API_BASE_URL: https://api-dev.uricreative.com
+  NEXT_PUBLIC_URI_API_BASE_URL: https://20.164.0.168/social-media
 ```
 
----
-
-### Option 2: Temporary Workaround (Development Only)
-
-For local testing, you can:
-
-1. **Run frontend with HTTP locally:**
-   ```bash
-   # Don't deploy to Azure, just run locally
-   npm run dev
-   # Access at http://localhost:3000
-   ```
-
-2. **Or disable browser security (NOT RECOMMENDED):**
-   - Chrome: Launch with `--disable-web-security`
-   - Only for testing!
-
----
-
-### Option 3: Azure Application Gateway (Enterprise)
-
-Use Azure Application Gateway as a reverse proxy, but this is expensive and overkill for your use case.
-
----
-
-## Recommended: Option 1 (Domain + SSL)
-
-This is the **proper production solution** that gives you:
-- ✅ HTTPS encryption
-- ✅ No mixed content errors
-- ✅ Professional setup
-- ✅ Free SSL with Let's Encrypt
-- ✅ Auto-renewal of certificates
-
-### Complete Setup Commands
+### Local Development
+**File:** `.env.local`
 
 ```bash
-# 1. SSH into VM
-ssh -i ~/.ssh/uridev.pem uridev@20.164.0.168
-
-# 2. Install nginx and certbot
-sudo apt-get update
-sudo apt-get install -y nginx certbot python3-certbot-nginx
-
-# 3. Create nginx config
-sudo tee /etc/nginx/sites-available/uri-social-backend > /dev/null <<'EOF'
-server {
-    listen 80;
-    server_name api-dev.uricreative.com;
-
-    location / {
-        proxy_pass http://localhost:9003;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-EOF
-
-# 4. Enable site
-sudo ln -s /etc/nginx/sites-available/uri-social-backend /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-
-# 5. Get SSL certificate (run this AFTER DNS is configured)
-sudo certbot --nginx -d api-dev.uricreative.com --non-interactive --agree-tos --email urifusion@gmail.com --redirect
-
-# 6. Set up auto-renewal
-sudo systemctl enable certbot.timer
-sudo systemctl start certbot.timer
-
-# 7. Verify setup
-curl https://api-dev.uricreative.com/health
+NEXT_PUBLIC_URI_API_BASE_URL=http://localhost:9003
 ```
 
-### Update Azure Firewall (if needed)
+## Testing the Setup
+
 ```bash
-# Allow HTTP/HTTPS traffic
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw status
-```
+# Test HTTP redirect
+curl -I http://20.164.0.168/social-media/
+# Should return: 301 → https://20.164.0.168/social-media/
 
----
-
-## After Setup
-
-### Update Frontend Workflow
-`.github/workflows/azure-static-web-apps-brave-coast-0ea49a50f.yml`:
-```yaml
-env:
-  NODE_OPTIONS: "--max_old_space_size=4096"
-  NEXT_PUBLIC_URI_API_BASE_URL: https://api-dev.uricreative.com  # Changed from HTTP to HTTPS
-```
-
-### Update Local Development
-`.env.local`:
-```bash
-NEXT_PUBLIC_URI_API_BASE_URL=https://api-dev.uricreative.com
-```
-
----
-
-## Verification
-
-After setup, test:
-```bash
-# Test HTTP redirect to HTTPS
-curl -I http://api-dev.uricreative.com
-# Should return: 301 Moved Permanently → https://
-
-# Test HTTPS endpoint
-curl https://api-dev.uricreative.com/
+# Test HTTPS endpoint (with self-signed cert)
+curl -k https://20.164.0.168/social-media/
 # Should return: {"message":"URI Agent — Social Media Manager API is running"}
 
-# Test from browser
-# Open: https://brave-coast-0ea49a50f2.azurestaticapps.net
-# Open DevTools → Network tab
-# API calls should go to: https://api-dev.uricreative.com
-# No mixed content errors!
+# Test from VM
+ssh -i ~/.ssh/uridev.pem uridev@20.164.0.168 "curl -k https://localhost/social-media/"
 ```
 
----
+## Configuration Files
 
-## Timeline
+### Nginx Configuration Location
+```
+Host Path: /home/uridev/nginx-ssl/nginx.conf
+Container Path: /etc/nginx/conf.d/default.conf
+Backup: /home/uridev/nginx-ssl/nginx.conf.backup
+```
 
-1. **Add DNS Record** (you do this): 5 minutes
-2. **Wait for DNS propagation**: 5-30 minutes
-3. **Run setup commands on VM**: 10 minutes
-4. **Update frontend workflow**: 2 minutes
-5. **Push and deploy**: 5 minutes
+### SSL Certificates
+```
+Host Path: /home/uridev/nginx-ssl/ssl/
+Container Path: /etc/nginx/ssl/
+Files: cert.pem, key.pem
+```
 
-**Total time: ~30-60 minutes**
+## Impact on Other Services
 
----
+✅ **No impact** on existing services:
+- All services continue working as before
+- Each service has its own location block
+- URI Social Backend added as `/social-media/` path
+- No port conflicts (each service uses unique path)
 
-## Cost
+## Docker Compose Setup
 
-- **Domain**: Already have uricreative.com ($0)
-- **SSL Certificate**: FREE (Let's Encrypt)
-- **Nginx**: FREE (open source)
-- **VM**: Already have ($0 additional)
+The nginx-ssl container is managed via:
+```
+Location: /home/uridev/nginx-ssl/docker-compose.yml
+```
 
-**Total additional cost: $0** 🎉
+To reload nginx configuration:
+```bash
+docker exec nginx-ssl nginx -t      # Test config
+docker exec nginx-ssl nginx -s reload  # Reload config
+```
 
----
+## Self-Signed Certificate Note
 
-## Why This is Better Than HTTP
+The VM uses a **self-signed SSL certificate**, which means:
 
-| Feature | HTTP | HTTPS |
-|---------|------|-------|
-| **Browser Compatibility** | ❌ Blocked by modern browsers | ✅ Works everywhere |
-| **Security** | ❌ Unencrypted | ✅ Encrypted |
-| **SEO** | ❌ Lower ranking | ✅ Better ranking |
-| **Trust** | ❌ "Not Secure" warning | ✅ Padlock icon |
-| **Mixed Content** | ❌ Causes errors | ✅ No issues |
-| **Professional** | ❌ Looks amateur | ✅ Production-ready |
+- ✅ **Works for development/staging**
+- ✅ **Solves mixed content issues**
+- ✅ **Encrypts traffic**
+- ⚠️ **Browsers show "Not Secure" warning** (expected for self-signed certs)
+- ⚠️ **Need to add `-k` flag with curl**
 
----
+### For Production: Use Let's Encrypt
 
-## Need Help?
+If you want a **valid SSL certificate** without browser warnings:
 
-The setup is straightforward, but if you encounter issues:
-1. Check DNS propagation: `nslookup api-dev.uricreative.com`
-2. Check nginx: `sudo nginx -t`
-3. Check SSL: `sudo certbot certificates`
-4. Check firewall: `sudo ufw status`
-5. Check logs: `sudo tail -f /var/log/nginx/error.log`
+1. **Add DNS record:**
+   ```
+   Type: A Record
+   Name: api
+   Value: 20.164.0.168
+   Result: api.uricreative.com → 20.164.0.168
+   ```
+
+2. **Update nginx-ssl configuration:**
+   ```bash
+   # Update server_name in nginx.conf
+   server_name api.uricreative.com;  # Instead of IP
+   ```
+
+3. **Get Let's Encrypt certificate:**
+   ```bash
+   docker exec nginx-ssl certbot --nginx -d api.uricreative.com
+   ```
+
+4. **Update frontend:**
+   ```yaml
+   NEXT_PUBLIC_URI_API_BASE_URL: https://api.uricreative.com/social-media
+   ```
+
+## Summary
+
+✅ **HTTPS is already working!**
+✅ **No additional setup needed for staging**
+✅ **Other containers unaffected**
+✅ **Mixed content issues resolved**
+
+The frontend can now safely call the backend via HTTPS from the Azure Static Web App.
