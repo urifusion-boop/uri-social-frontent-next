@@ -3,13 +3,6 @@
     "rewrite": "/index.html",
     "exclude": ["/images/*.{png,jpg,gif,ico}", "/*.{css,js}"]
   },
-  "routes": [
-    {
-      "route": "/api/*",
-      "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      "rewrite": "https://20.164.0.168/{url}"
-    }
-  ],
   "responseOverrides": {
     "404": {
       "rewrite": "/404.html",

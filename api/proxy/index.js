@@ -6,7 +6,7 @@ module.exports = async function (context, req) {
 
   // Strip leading /api if present to avoid double /api prefix
   path = path.replace(/^api\//, "");
-  const backendUrl = `https://20.164.0.168/social-media/${path}`;
+  const backendUrl = `https://20.164.0.168/${path}`;
 
   context.log(`Proxying request to: ${backendUrl}`);
 
