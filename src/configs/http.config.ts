@@ -20,6 +20,9 @@ class UriHttpClient {
         const tokens = this.getStoredTokens();
         if (tokens?.accessToken) {
           config.headers.Authorization = `Bearer ${tokens.accessToken}`;
+          console.log(`[HTTP] Adding auth header for ${config.url}`);
+        } else {
+          console.warn(`[HTTP] No access token found for ${config.url}`);
         }
         return config;
       },

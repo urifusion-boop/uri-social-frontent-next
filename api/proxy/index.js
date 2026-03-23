@@ -8,7 +8,8 @@ module.exports = async function (context, req) {
   path = path.replace(/^\/?api\//, "");
   const backendUrl = `https://20.164.0.168/${path}`;
 
-  context.log(`Proxying request to: ${backendUrl}`);
+  context.log(`Proxying ${req.method} request to: ${backendUrl}`);
+  context.log(`Request headers:`, JSON.stringify(Object.keys(req.headers)));
 
   // Get the appropriate protocol handler
   const protocol = backendUrl.startsWith('https') ? https : http;
@@ -26,6 +27,9 @@ module.exports = async function (context, req) {
     const authHeader = req.headers['authorization'] || req.headers['Authorization'];
     if (authHeader) {
       headers['Authorization'] = authHeader;
+      context.log(`Authorization header found: ${authHeader.substring(0, 20)}...`);
+    } else {
+      context.log(`⚠️ No Authorization header found in request`);
     }
 
     const options = {
