@@ -29,6 +29,14 @@ const statusColors: Record<string, { bg: string; color: string }> = {
   denied: { bg: '#FEE2E2', color: '#991B1B' },
 };
 
+// Industry-standard aspect ratios per platform
+const PLATFORM_ASPECT: Record<string, string> = {
+  linkedin:  '1200 / 628',  // 1.91:1 — LinkedIn recommended
+  twitter:   '16 / 9',      // 1200×675 — Twitter/X standard
+  facebook:  '1200 / 630',  // 1.91:1 — Facebook recommended
+  instagram: '4 / 5',       // 1080×1350 — highest reach on Instagram
+};
+
 const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
   const [draft, setDraft] = useState<ContentDraft>(initialDraft);
 
@@ -168,39 +176,61 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
         </Box>
       )}
 
-      {/* Generated image — skeleton while loading, then the actual image */}
-      {!editing && draft.image_url && (
-        <Box mb={1.5} sx={{ borderRadius: '8px', overflow: 'hidden', border: '1px solid #E5E7EB', position: 'relative' }}>
-          {!imageLoaded && (
-            <Box
-              sx={{
-                height: 200,
-                background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
-                backgroundSize: '200% 100%',
-                animation: 'shimmer 2s infinite',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                '@keyframes shimmer': {
-                  '0%': { backgroundPosition: '200% 0' },
-                  '100%': { backgroundPosition: '-200% 0' },
-                },
+      {/* Generated image — correct platform aspect ratio, skeleton while loading */}
+      {!editing && draft.image_url && (() => {
+        const specs = (draft as any).image_specs;
+        const aspect = specs?.width && specs?.height
+          ? `${specs.width} / ${specs.height}`
+          : PLATFORM_ASPECT[draft.platform] ?? '16 / 9';
+        return (
+          <Box
+            mb={1.5}
+            sx={{
+              borderRadius: '8px',
+              overflow: 'hidden',
+              border: '1px solid #E5E7EB',
+              aspectRatio: aspect,
+              width: '100%',
+              background: '#F3F4F6',
+              position: 'relative',
+            }}
+          >
+            {!imageLoaded && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 2s infinite',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  '@keyframes shimmer': {
+                    '0%': { backgroundPosition: '200% 0' },
+                    '100%': { backgroundPosition: '-200% 0' },
+                  },
+                }}
+              >
+                <Typography fontSize="12px" color="#9CA3AF">Loading image…</Typography>
+              </Box>
+            )}
+            <img
+              src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
+              alt={`AI-generated image for ${draft.platform}`}
+              onLoad={() => setImageLoaded(true)}
+              onClick={() => setLightboxOpen(true)}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: imageLoaded ? 'block' : 'none',
+                cursor: 'pointer',
               }}
-            >
-              <Typography fontSize="12px" color="#9CA3AF">
-                Loading image…
-              </Typography>
-            </Box>
-          )}
-          <img
-            src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
-            alt={`AI-generated image for ${draft.platform}`}
-            onLoad={() => setImageLoaded(true)}
-            onClick={() => setLightboxOpen(true)}
-            style={{ width: '100%', display: imageLoaded ? 'block' : 'none', maxHeight: 320, objectFit: 'cover', cursor: 'pointer' }}
-          />
-        </Box>
-      )}
+            />
+          </Box>
+        );
+      })()}
       {!editing && !draft.image_url && (draft.has_image || draft.auto_generated) && (
         <Box
           mb={1.5}
