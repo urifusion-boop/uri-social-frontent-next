@@ -54,14 +54,23 @@ class UriHttpClient {
     if (error.response) {
       switch (error.response.status) {
         case 401:
-          this.clearUserData();
-          window.dispatchEvent(new CustomEvent('unauthorized'));
+          // Only clear on auth endpoints, not on resource not found
+          if (error.config?.url?.includes('/auth/')) {
+            this.clearUserData();
+            window.dispatchEvent(new CustomEvent('unauthorized'));
+          }
           return Promise.reject(error.response);
         case 403:
-          this.clearUserData();
-          window.dispatchEvent(new CustomEvent('unauthorized'));
+          // Only clear tokens if it's an authentication issue, not authorization
+          // Don't clear on brand-profile 403 as user might not have completed onboarding
+          const isBrandProfile = error.config?.url?.includes('/brand-profile');
+          if (!isBrandProfile) {
+            this.clearUserData();
+            window.dispatchEvent(new CustomEvent('unauthorized'));
+          }
           return Promise.reject(error.response);
         case 404:
+          // 404 means resource not found, not authentication failure - don't clear tokens
           return Promise.resolve(error.response);
         default:
           return Promise.resolve(error.response);

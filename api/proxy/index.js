@@ -23,13 +23,13 @@ module.exports = async function (context, req) {
       'Content-Type': req.headers['content-type'] || 'application/json',
     };
 
-    // Forward Authorization header if present (case-insensitive)
+    // Azure Functions lowercases all header names, so check for lowercase 'authorization'
     const authHeader = req.headers['authorization'] || req.headers['Authorization'];
     if (authHeader) {
       headers['Authorization'] = authHeader;
-      context.log(`Authorization header found: ${authHeader.substring(0, 20)}...`);
+      context.log(`✅ Authorization header found and forwarding: Bearer ${authHeader.substring(7, 27)}...`);
     } else {
-      context.log(`⚠️ No Authorization header found in request`);
+      context.log(`⚠️ No Authorization header found. Available headers:`, Object.keys(req.headers));
     }
 
     const options = {
@@ -52,6 +52,11 @@ module.exports = async function (context, req) {
       });
 
       proxyRes.on('end', () => {
+        context.log(`Backend responded with status: ${proxyRes.statusCode}`);
+        if (proxyRes.statusCode >= 400) {
+          context.log(`Error response body: ${body.substring(0, 200)}`);
+        }
+
         context.res = {
           status: proxyRes.statusCode,
           headers: {
