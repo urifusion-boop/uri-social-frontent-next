@@ -1,6 +1,8 @@
 'use client';
 
 import { Suspense } from 'react';
+
+export const dynamic = 'force-dynamic';
 import { SocialConnection, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
 import ConnectFacebookModal from '@/src/components/app/social-media/ConnectFacebookModal';
