@@ -1,11 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandProfileData, BrandProfileService } from '@/src/api/BrandProfileService';
-import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { AutoGenerateSettings, ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { ReactNode } from 'react';
+import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
+import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
+import DraftCard from '@/src/components/app/social-media/DraftCard';
+import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -162,485 +166,202 @@ const statusLabels: Record<string, string> = { queue: 'Needs Review', draft: 'Dr
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-const SchedulePage = ({ onJane }: { onJane: () => void }) => {
-  const [posts, setPosts] = useState<PostItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState('all');
-  const [platformFilter, setPlatformFilter] = useState('all');
-  const [selected, setSelected] = useState<string[]>([]);
-  const [showCreate, setShowCreate] = useState(false);
-  const [createMode, setCreateMode] = useState<'ai' | 'manual'>('ai');
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [aiThinking, setAiThinking] = useState(false);
-  const [aiResult, setAiResult] = useState<ContentDraft[] | null>(null);
-  const [manualCaption, setManualCaption] = useState('');
-  const [manualPlatform, setManualPlatform] = useState('Instagram');
-  const [manualPillar, setManualPillar] = useState('Product');
-  const [manualDate, setManualDate] = useState('');
-  const [calendarDay, setCalendarDay] = useState<number | null>(null);
+type ContentTab = 'create' | 'drafts' | 'scheduled' | 'auto';
 
-  const mondayMs = getMondayMs();
+const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
+  const [activeTab, setActiveTab] = useState<ContentTab>('create');
+  const activeTabRef = useRef<ContentTab>('create');
+  const [drafts, setDrafts] = useState<ContentDraft[]>([]);
+  const [scheduled, setScheduled] = useState<ContentDraft[]>([]);
+  const [autoSettings, setAutoSettings] = useState<AutoGenerateSettings | null>(null);
+  const [loadingDrafts, setLoadingDrafts] = useState(false);
+  const [draftsError, setDraftsError] = useState(false);
+  const [loadingScheduled, setLoadingScheduled] = useState(false);
+  const [loadingAuto, setLoadingAuto] = useState(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const weekDates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(mondayMs + i * 86400000);
-    return `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`;
-  });
-
-  const todayIdx = (() => {
-    const dow = new Date().getDay();
-    return dow === 0 ? 6 : dow - 1;
-  })();
-
-  const load = async () => {
-    setLoading(true);
+  const fetchDrafts = useCallback(async (silent = false) => {
+    if (!silent) setLoadingDrafts(true);
+    setDraftsError(false);
     try {
-      const [calRes, schRes] = await Promise.all([
-        SocialMediaAgentService.getContentCalendar(),
-        SocialMediaAgentService.getScheduled(),
-      ]);
-      const allDrafts: ContentDraft[] = [
-        ...(calRes.status ? (calRes.responseData?.drafts ?? []) : []),
-        ...(schRes.status ? (schRes.responseData?.scheduled_drafts ?? []) : []),
-      ];
-      // Deduplicate by id
-      const seen = new Set<string>();
-      const unique = allDrafts.filter(d => {
-        const key = d.id ?? d.draft_id ?? '';
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      setPosts(unique.map(d => draftToItem(d, mondayMs)));
-    } finally { setLoading(false); }
-  };
+      const response = await SocialMediaAgentService.getContentCalendar();
+      if (response.status && response.responseData) {
+        const allDrafts = response.responseData.drafts ?? [];
+        const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'ready_to_publish', 'denied', 'replaced']);
+        const filtered = allDrafts.filter((d: ContentDraft) => {
+          const s = d.status; const a = d.approval_status;
+          if (s) return !EXCLUDE.has(s);
+          if (a) return a === 'pending';
+          return true;
+        });
+        setDrafts(filtered);
+        const stillPending = filtered.some((d: ContentDraft) => d.has_image && !d.image_url);
+        if (stillPending && activeTabRef.current === 'drafts') {
+          pollTimerRef.current = setTimeout(() => fetchDrafts(true), 4000);
+        }
+      } else { setDraftsError(true); }
+    } catch { setDraftsError(true); }
+    finally { if (!silent) setLoadingDrafts(false); }
+  }, []);
 
-  useEffect(() => { load(); }, []);
-
-  const filtered = posts.filter(p => {
-    if (filter !== 'all' && p.status !== filter) return false;
-    if (platformFilter !== 'all' && p.platform.toLowerCase() !== platformFilter) return false;
-    if (calendarDay !== null && p.dayIndex !== calendarDay) return false;
-    return true;
-  });
-
-  const queueCount = posts.filter(p => p.status === 'queue').length;
-  const draftCount = posts.filter(p => p.status === 'draft').length;
-  const schedCount = posts.filter(p => p.status === 'scheduled').length;
-  const pubCount   = posts.filter(p => p.status === 'published').length;
-
-  const toggleSelect = (id: string) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
-  const selectAll = () => setSelected(filtered.map(p => p.id));
-  const clearSelect = () => setSelected([]);
-
-  const approvePost = async (post: PostItem) => {
-    const draftId = post.raw?.draft_id ?? post.raw?.id ?? post.id;
-    await SocialMediaAgentService.approveContent({ draft_ids: [draftId], schedule_option: 'save_draft' });
-    setPosts(ps => ps.map(x => x.id === post.id ? { ...x, status: 'scheduled' } : x));
-  };
-
-  const rejectPost = async (post: PostItem) => {
-    const draftId = post.raw?.draft_id ?? post.raw?.id ?? post.id;
-    await SocialMediaAgentService.denyContent({ draft_ids: [draftId], denial_reason: 'Rejected' });
-    setPosts(ps => ps.filter(x => x.id !== post.id));
-  };
-
-  const deletePost = async (post: PostItem) => {
-    const draftId = post.raw?.draft_id ?? post.raw?.id ?? post.id;
-    try { await SocialMediaAgentService.deleteDraft(draftId); } catch { /* ignore */ }
-    setPosts(ps => ps.filter(x => x.id !== post.id));
-  };
-
-  const bulkApprove = async () => {
-    const toApprove = posts.filter(x => selected.includes(x.id) && x.status === 'queue');
-    for (const p of toApprove) await approvePost(p);
-    clearSelect();
-  };
-
-  const bulkDelete = async () => {
-    const toDel = posts.filter(x => selected.includes(x.id));
-    for (const p of toDel) await deletePost(p);
-    clearSelect();
-  };
-
-  const handleAiCreate = async () => {
-    if (!aiPrompt.trim()) return;
-    setAiThinking(true);
+  const fetchScheduled = useCallback(async () => {
+    setLoadingScheduled(true);
     try {
-      const res = await SocialMediaAgentService.generateContent({
-        seed_content: aiPrompt,
-        platforms: ['instagram', 'facebook'],
-        include_images: false,
-      });
-      const drafts: ContentDraft[] = (res as unknown as { responseData: { drafts: ContentDraft[] } }).responseData?.drafts ?? [];
-      if (res.status && drafts.length > 0) {
-        setAiResult(drafts);
-        setPosts(ps => [...ps, ...drafts.map(d => draftToItem(d, mondayMs))]);
-      }
-    } finally { setAiThinking(false); }
-  };
+      const r = await SocialMediaAgentService.getScheduled();
+      if (r.status && r.responseData) setScheduled(r.responseData.scheduled_drafts ?? []);
+    } catch { /* no-op */ }
+    finally { setLoadingScheduled(false); }
+  }, []);
 
-  const addManualPost = () => {
-    if (!manualCaption.trim()) return;
-    const newPost: PostItem = {
-      id: 'man' + Date.now(),
-      status: 'draft',
-      platform: manualPlatform,
-      pillar: manualPillar,
-      caption: manualCaption,
-      time: manualDate ? new Date(manualDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : undefined,
-      comp: 50,
-      lastEdited: 'Just now',
-    };
-    setPosts(ps => [...ps, newPost]);
-    setManualCaption(''); setManualDate(''); setShowCreate(false);
-  };
+  const fetchAuto = useCallback(async () => {
+    setLoadingAuto(true);
+    try {
+      const r = await SocialMediaAgentService.getAutoGenerateSettings();
+      if (r.status && r.responseData) setAutoSettings(r.responseData);
+    } catch { /* no-op */ }
+    finally { setLoadingAuto(false); }
+  }, []);
 
-  const calPosts = posts.filter(p => (p.status === 'queue' || p.status === 'scheduled') && p.dayIndex != null);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    if (activeTab === 'drafts') fetchDrafts();
+    if (activeTab === 'scheduled') fetchScheduled();
+    if (activeTab === 'auto') fetchAuto();
+  }, [activeTab, fetchDrafts, fetchScheduled, fetchAuto]);
+
+  useEffect(() => () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current); }, []);
+
+  const handleGenerated = () => { setActiveTab('drafts'); fetchDrafts(); };
+  const handleRefreshDrafts = useCallback(() => { if (activeTabRef.current === 'drafts') fetchDrafts(); }, [fetchDrafts]);
+
+  const tabs: { key: ContentTab; label: string; count?: number }[] = [
+    { key: 'create', label: 'Create' },
+    { key: 'drafts', label: 'Drafts', count: drafts.length },
+    { key: 'scheduled', label: 'Scheduled', count: scheduled.length },
+    { key: 'auto', label: 'Auto' },
+  ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f5f4f0', position: 'relative' }}>
-
-      {/* Top bar */}
-      <div style={{ padding: '16px 24px', background: '#fff', borderBottom: '1px solid #edecea', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111', margin: 0 }}>Posting Schedule</h1>
-          <p style={{ fontSize: 12.5, color: '#999', margin: '2px 0 0' }}>Plan, review, and track all your content</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Quick stats */}
-          <div style={{ display: 'flex', gap: 4, marginRight: 8 }}>
-            {([
-              { label: 'Review', key: 'queue', count: queueCount, color: '#C2185B' },
-              { label: 'Drafts', key: 'draft', count: draftCount, color: '#888' },
-              { label: 'Scheduled', key: 'scheduled', count: schedCount, color: '#4caf50' },
-              { label: 'Published', key: 'published', count: pubCount, color: '#1565c0' },
-            ] as { label: string; key: string; count: number; color: string }[]).map(s => (
-              <button key={s.key} onClick={() => setFilter(filter === s.key ? 'all' : s.key)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, background: filter === s.key ? `${s.color}15` : 'transparent', border: filter === s.key ? `1.5px solid ${s.color}40` : '1.5px solid transparent', cursor: 'pointer', fontFamily: 'var(--wf)' }}>
-                <div style={{ width: 7, height: 7, borderRadius: '50%', background: s.color }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: s.color }}>{s.count}</span>
-                <span style={{ fontSize: 11.5, color: '#999' }}>{s.label}</span>
-              </button>
-            ))}
-          </div>
-          <button onClick={load} style={{ width: 32, height: 32, borderRadius: 7, border: '1.5px solid #e5e3df', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <I n="refresh" s={13} c={loading ? '#C2185B' : '#999'} />
-          </button>
-          <button onClick={() => { setShowCreate(true); setAiResult(null); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 9, border: 'none', background: '#C2185B', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--wf)', boxShadow: '0 2px 8px rgba(194,24,91,.25)' }}>
-            <I n="plus" s={16} c="#fff" /> New Post
-          </button>
-        </div>
-      </div>
-
-      {/* Weekly calendar strip */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #edecea', padding: '12px 24px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <I n="calendar" s={16} c="#C2185B" />
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#222' }}>This Week</span>
-          <span style={{ fontSize: 12, color: '#999' }}>{weekDates[0]} — {weekDates[6]}</span>
-          {calendarDay !== null && (
-            <button onClick={() => setCalendarDay(null)} style={{ fontSize: 11, color: '#C2185B', background: 'rgba(194,24,91,.08)', border: 'none', padding: '2px 8px', borderRadius: 4, cursor: 'pointer', fontFamily: 'var(--wf)', fontWeight: 600 }}>Clear filter ×</button>
-          )}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6, paddingBottom: 12 }}>
-          {WEEK_DAYS.map((day, i) => {
-            const dayPosts = calPosts.filter(p => p.dayIndex === i);
-            const isToday = i === todayIdx;
-            const isSel = calendarDay === i;
-            return (
-              <button key={day} onClick={() => setCalendarDay(isSel ? null : i)} style={{ padding: '8px 6px', borderRadius: 10, border: isSel ? '2px solid #C2185B' : isToday ? '2px solid rgba(194,24,91,.3)' : '1.5px solid #edecea', background: isSel ? 'rgba(194,24,91,.04)' : isToday ? 'rgba(194,24,91,.02)' : '#fafaf8', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--wf)', minHeight: 72, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: isToday ? '#C2185B' : '#999', textTransform: 'uppercase', letterSpacing: 0.5 }}>{day}</span>
-                  <span style={{ fontSize: 10, color: isToday ? '#C2185B' : '#bbb' }}>{weekDates[i].split(' ')[1]}</span>
-                </div>
-                {isToday && <div style={{ fontSize: 8, fontWeight: 700, color: '#C2185B', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Today</div>}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-                  {dayPosts.slice(0, 3).map(p => (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 5px', borderRadius: 4, background: `${statusColors[p.status]}08`, borderLeft: `2px solid ${statusColors[p.status]}` }}>
-                      <PlatformDot p={p.platform} s={5} />
-                      <span style={{ fontSize: 8.5, color: '#555', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.caption.slice(0, 20)}</span>
-                    </div>
-                  ))}
-                  {dayPosts.length === 0 && <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 9, color: '#ddd' }}>Empty</span></div>}
-                </div>
-                {dayPosts.length > 0 && <div style={{ fontSize: 9, color: '#999', textAlign: 'right', marginTop: 2 }}>{dayPosts.length} post{dayPosts.length > 1 ? 's' : ''}</div>}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Filter bar + bulk actions */}
-      <div style={{ padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fafaf8', borderBottom: '1px solid #f0eeea' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {[{ id: 'all', label: 'All' }, { id: 'queue', label: 'Needs Review' }, { id: 'draft', label: 'Drafts' }, { id: 'scheduled', label: 'Scheduled' }, { id: 'published', label: 'Published' }].map(f => (
-            <button key={f.id} onClick={() => setFilter(f.id)} style={{ padding: '5px 12px', borderRadius: 6, border: filter === f.id ? '1.5px solid #222' : '1.5px solid #e5e3df', background: filter === f.id ? '#222' : '#fff', color: filter === f.id ? '#fff' : '#666', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--wf)' }}>{f.label}</button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Header */}
+      <div style={{ padding: '18px 24px 0', borderBottom: '1px solid #edecea' }}>
+        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <I n="calendar" s={18} c="#C2185B" />Content Manager
+        </h2>
+        <div style={{ display: 'flex', gap: 0, borderBottom: 'none' }}>
+          {tabs.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              style={{
+                padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
+                fontSize: 13.5, fontWeight: 600, fontFamily: 'var(--wf)',
+                color: activeTab === t.key ? '#C2185B' : '#888',
+                borderBottom: activeTab === t.key ? '2.5px solid #C2185B' : '2.5px solid transparent',
+                display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+              }}
+            >
+              {t.label}
+              {t.count != null && t.count > 0 && (
+                <span style={{ background: activeTab === t.key ? '#C2185B' : '#e5e3df', color: activeTab === t.key ? '#fff' : '#666', borderRadius: 10, fontSize: 10.5, fontWeight: 700, padding: '1px 6px' }}>
+                  {t.count}
+                </span>
+              )}
+            </button>
           ))}
-          <span style={{ width: 1, height: 20, background: '#e5e3df', margin: '0 4px' }} />
-          <select value={platformFilter} onChange={e => setPlatformFilter(e.target.value)} style={{ padding: '5px 10px', borderRadius: 6, border: '1.5px solid #e5e3df', fontSize: 11.5, fontFamily: 'var(--wf)', outline: 'none', color: '#666', cursor: 'pointer', background: '#fff' }}>
-            <option value="all">All Platforms</option>
-            <option value="instagram">Instagram</option>
-            <option value="linkedin">LinkedIn</option>
-            <option value="x">X / Twitter</option>
-            <option value="facebook">Facebook</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {selected.length > 0 && (
-            <>
-              <Bd>{selected.length} selected</Bd>
-              <button onClick={bulkApprove} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 6, border: 'none', background: '#111', color: '#E91E63', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--wf)' }}><I n="check" s={13} c="#E91E63" />Approve All</button>
-              <button onClick={bulkDelete} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 6, border: '1.5px solid rgba(155,44,61,.2)', background: '#fff', color: '#9b2c3d', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--wf)' }}><I n="trash" s={13} c="#9b2c3d" />Delete</button>
-              <button onClick={clearSelect} style={{ padding: '5px 10px', borderRadius: 6, border: '1.5px solid #e5e3df', background: '#fff', color: '#888', fontSize: 11.5, cursor: 'pointer', fontFamily: 'var(--wf)' }}>Clear</button>
-            </>
-          )}
-          {selected.length === 0 && filtered.length > 0 && (
-            <button onClick={selectAll} style={{ padding: '5px 10px', borderRadius: 6, border: '1.5px solid #e5e3df', background: '#fff', color: '#888', fontSize: 11.5, cursor: 'pointer', fontFamily: 'var(--wf)' }}>Select all</button>
-          )}
-          <span style={{ fontSize: 11.5, color: '#bbb' }}>{filtered.length} posts</span>
         </div>
       </div>
 
-      {/* Content list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 24px 20px' }}>
-        {filter === 'queue' && queueCount > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(194,24,91,.03)', border: '1px solid rgba(194,24,91,.1)' }}>
-            <JaneAvatar size={22} />
-            <span style={{ fontSize: 12.5, color: '#555' }}><strong style={{ color: '#C2185B' }}>URI Agent</strong> drafted {queueCount} post{queueCount > 1 ? 's' : ''} waiting for your approval.</span>
-          </div>
-        )}
-        {filter === 'draft' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(0,0,0,.02)', border: '1px solid #edecea' }}>
-            <I n="edit" s={15} c="#999" />
-            <span style={{ fontSize: 12.5, color: '#555' }}>Works in progress. Generate content from Workspace or create manually.</span>
-          </div>
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+        {activeTab === 'create' && (
+          <ContentGeneratorForm onGenerated={handleGenerated} />
         )}
 
-        {filtered.length === 0 && !loading && (
-          <div style={{ textAlign: 'center', padding: '48px 20px' }}>
-            <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(0,0,0,.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}><I n="calendar" s={22} c="#ccc" /></div>
-            <h4 style={{ fontSize: 14, fontWeight: 700, color: '#333', margin: '0 0 4px' }}>No posts here</h4>
-            <p style={{ fontSize: 12.5, color: '#999', margin: '0 0 12px' }}>Create a new post to get started.</p>
-            <button onClick={() => setShowCreate(true)} style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: '#C2185B', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--wf)' }}>New Post</button>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {filtered.map(post => {
-            const isSel = selected.includes(post.id);
-            return (
-              <div key={post.id} style={{ borderRadius: 11, border: isSel ? '2px solid #C2185B' : '1px solid #edecea', background: '#fff', overflow: 'hidden', transition: 'border-color .12s' }}>
-                <div style={{ display: 'flex', gap: 12, padding: '12px 14px', alignItems: 'center' }}>
-                  {/* Checkbox */}
-                  <button onClick={() => toggleSelect(post.id)} style={{ width: 20, height: 20, borderRadius: 5, border: isSel ? 'none' : '2px solid #ddd', background: isSel ? '#C2185B' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, padding: 0 }}>
-                    {isSel && <I n="check" s={12} c="#fff" />}
-                  </button>
-                  {/* Thumbnail */}
-                  <div style={{ width: 44, height: 44, borderRadius: 9, background: platformGradient(post.platform), flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                    {post.image_url
-                      ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <I n="image" s={16} c="rgba(255,255,255,.3)" />}
-                  </div>
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3, flexWrap: 'wrap' }}>
-                      <PlatformDot p={post.platform} />
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#222' }}>{post.platform.charAt(0).toUpperCase() + post.platform.slice(1)}</span>
-                      {post.pillar && <Bd>{post.pillar}</Bd>}
-                      <Bd v={post.status === 'queue' ? 'default' : post.status === 'draft' ? 'muted' : post.status === 'scheduled' ? 'success' : 'muted'}>{statusLabels[post.status]}</Bd>
-                      {post.auto && <Bd v="warning">Auto</Bd>}
-                      {post.top && <Bd v="success">Top Performer</Bd>}
-                    </div>
-                    <p style={{ fontSize: 12, color: '#666', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.caption}</p>
-                    {post.hashtags && post.hashtags.length > 0 && (
-                      <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
-                        {post.hashtags.slice(0, 4).map(h => <span key={h} style={{ fontSize: 10.5, color: '#C2185B', fontWeight: 500 }}>#{h}</span>)}
-                      </div>
-                    )}
-                  </div>
-                  {/* Meta */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-                    {post.time && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <I n="clock" s={12} c={post.status === 'scheduled' ? '#4caf50' : '#bbb'} />
-                        <span style={{ fontSize: 11.5, color: post.status === 'scheduled' ? '#2e7d32' : '#999', fontWeight: post.status === 'scheduled' ? 600 : 400 }}>{post.time}</span>
-                      </div>
-                    )}
-                    {post.comp != null && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, width: 80 }}>
-                        <div style={{ flex: 1, height: 3, borderRadius: 99, background: '#f0eeea', overflow: 'hidden' }}>
-                          <div style={{ width: `${post.comp}%`, height: '100%', borderRadius: 99, background: post.comp > 70 ? '#4caf50' : post.comp > 40 ? '#FFC107' : '#C2185B' }} />
-                        </div>
-                        <span style={{ fontSize: 10, color: '#999' }}>{post.comp}%</span>
-                      </div>
-                    )}
-                    {post.pub && <span style={{ fontSize: 11, color: '#bbb' }}>{post.pub}</span>}
-                  </div>
-                  {/* Actions */}
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                    {post.status === 'queue' && (
-                      <>
-                        <button onClick={() => approvePost(post)} title="Approve" style={{ width: 32, height: 32, borderRadius: 7, border: 'none', background: '#111', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><I n="check" s={14} c="#E91E63" /></button>
-                        <button onClick={() => rejectPost(post)} title="Reject" style={{ width: 32, height: 32, borderRadius: 7, border: '1.5px solid rgba(155,44,61,.15)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><I n="x" s={14} c="#9b2c3d" /></button>
-                      </>
-                    )}
-                    {post.status === 'draft' && (
-                      <>
-                        <button title="Ask Agent" style={{ width: 32, height: 32, borderRadius: 7, border: 'none', background: '#111', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><I n="sparkle" s={14} c="#E91E63" /></button>
-                        <button title="Edit" style={{ width: 32, height: 32, borderRadius: 7, border: '1.5px solid #e5e3df', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><I n="edit" s={14} c="#888" /></button>
-                      </>
-                    )}
-                    {post.status === 'scheduled' && (
-                      <>
-                        <button title="Preview" style={{ width: 32, height: 32, borderRadius: 7, border: '1.5px solid #e5e3df', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><I n="eye" s={14} c="#888" /></button>
-                        <button title="Reschedule" style={{ width: 32, height: 32, borderRadius: 7, border: '1.5px solid #e5e3df', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><I n="clock" s={14} c="#888" /></button>
-                      </>
-                    )}
-                    {post.status === 'published' && (
-                      <>
-                        <button title="Repurpose" style={{ width: 32, height: 32, borderRadius: 7, border: '1.5px solid #e5e3df', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><I n="copy" s={14} c="#888" /></button>
-                        <button title="Share" style={{ width: 32, height: 32, borderRadius: 7, border: '1.5px solid #e5e3df', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><I n="share" s={14} c="#888" /></button>
-                      </>
-                    )}
-                    <button onClick={() => deletePost(post)} title="Delete" style={{ width: 32, height: 32, borderRadius: 7, border: '1.5px solid rgba(155,44,61,.1)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><I n="trash" s={14} c="#ccc" /></button>
-                  </div>
-                </div>
-                {/* Published metrics row */}
-                {post.status === 'published' && post.eng && (
-                  <div style={{ display: 'flex', borderTop: '1px solid #f5f4f0', background: '#fafaf8' }}>
-                    {([
-                      { l: 'Engagements', v: post.eng },
-                      { l: 'Reach', v: post.reach },
-                      { l: 'Comments', v: post.comments },
-                      { l: 'Shares', v: post.shares },
-                      ...(post.saves ? [{ l: 'Saves', v: post.saves }] : []),
-                    ] as { l: string; v: string | number | undefined }[]).map((m, idx, arr) => (
-                      <div key={m.l} style={{ flex: 1, padding: '8px 12px', borderRight: idx < arr.length - 1 ? '1px solid #f0eeea' : 'none', textAlign: 'center' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#222' }}>{m.v ?? '—'}</div>
-                        <div style={{ fontSize: 9.5, color: '#999' }}>{m.l}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+        {activeTab === 'drafts' && (
+          <>
+            {loadingDrafts ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+                <div style={{ width: 28, height: 28, border: '3px solid #f0e6f0', borderTop: '3px solid #C2185B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
               </div>
-            );
-          })}
-        </div>
+            ) : draftsError ? (
+              <CMEmptyState message="Could not load drafts." retry={fetchDrafts} />
+            ) : drafts.length === 0 ? (
+              <CMEmptyState message="No drafts yet. Generate content from the Create tab." />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {drafts.map(draft => (
+                  <DraftCard key={draft.draft_id ?? draft.id} draft={draft} onRefresh={fetchDrafts} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'scheduled' && (
+          <>
+            {loadingScheduled ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+                <div style={{ width: 28, height: 28, border: '3px solid #f0e6f0', borderTop: '3px solid #C2185B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              </div>
+            ) : scheduled.length === 0 ? (
+              <CMEmptyState message="No scheduled posts. Approve a draft and choose 'Schedule' to add one." />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {scheduled.map(item => (
+                  <ScheduledCard key={item.draft_id ?? item.id} draft={item} onRefresh={fetchScheduled} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'auto' && (
+          <>
+            {loadingAuto ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+                <div style={{ width: 28, height: 28, border: '3px solid #f0e6f0', borderTop: '3px solid #C2185B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              </div>
+            ) : (
+              <AutoGenerateTab
+                settings={autoSettings}
+                onGenerated={handleGenerated}
+                onSettingsChange={fetchAuto}
+                onRefreshDrafts={handleRefreshDrafts}
+              />
+            )}
+          </>
+        )}
       </div>
 
-      {/* Bottom Jane bar */}
-      <div style={{ padding: '10px 24px 14px', borderTop: '1px solid #edecea', background: '#fff', display: 'flex', gap: 8, alignItems: 'center' }}>
+      {/* Jane footer bar */}
+      <div style={{ padding: '10px 24px 14px', borderTop: '1px solid #edecea', background: '#fff', display: 'flex', gap: 7, alignItems: 'center' }}>
         <JaneAvatar size={26} />
-        <input placeholder="Ask URI Agent about your schedule..." style={{ flex: 1, padding: '9px 13px', borderRadius: 9, border: '1.5px solid #e5e3df', fontSize: 13, fontFamily: 'var(--wf)', outline: 'none', background: '#fafal8' }}
-          onKeyDown={e => { if (e.key === 'Enter') onJane(); }} />
+        <input
+          placeholder="Ask Jane about your content..."
+          style={{ flex: 1, padding: '9px 13px', borderRadius: 9, border: '1.5px solid #e5e3df', fontSize: 13, fontFamily: 'var(--wf)', outline: 'none', background: '#fafaf8' }}
+          onKeyDown={e => { if (e.key === 'Enter') onJane(); }}
+        />
         <button onClick={onJane} style={{ width: 32, height: 32, borderRadius: 7, border: 'none', background: '#C2185B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <I n="send" s={13} c="#fff" />
         </button>
       </div>
-
-      {/* Create post slide-over */}
-      {showCreate && (
-        <>
-          <div onClick={() => { setShowCreate(false); setAiResult(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.3)', zIndex: 100 }} />
-          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 460, background: '#fff', boxShadow: '-8px 0 40px rgba(0,0,0,.1)', zIndex: 101, display: 'flex', flexDirection: 'column', fontFamily: 'var(--wf)' }}>
-            {/* Header */}
-            <div style={{ padding: '18px 22px', borderBottom: '1px solid #edecea', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: 0 }}>New Post</h2>
-              <button onClick={() => { setShowCreate(false); setAiResult(null); }} style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid #e5e3df', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <I n="x" s={16} c="#888" />
-              </button>
-            </div>
-            {/* Mode toggle */}
-            <div style={{ padding: '16px 22px 0' }}>
-              <div style={{ display: 'flex', gap: 3, background: '#f5f4f0', borderRadius: 10, padding: 3 }}>
-                <button onClick={() => setCreateMode('ai')} style={{ flex: 1, padding: 9, borderRadius: 8, background: createMode === 'ai' ? '#fff' : 'transparent', border: 'none', fontFamily: 'var(--wf)', fontSize: 13, fontWeight: createMode === 'ai' ? 700 : 500, color: createMode === 'ai' ? '#C2185B' : '#999', cursor: 'pointer', boxShadow: createMode === 'ai' ? '0 1px 4px rgba(0,0,0,.06)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <I n="sparkle" s={14} c={createMode === 'ai' ? '#C2185B' : '#ccc'} /> Ask Agent
-                </button>
-                <button onClick={() => setCreateMode('manual')} style={{ flex: 1, padding: 9, borderRadius: 8, background: createMode === 'manual' ? '#fff' : 'transparent', border: 'none', fontFamily: 'var(--wf)', fontSize: 13, fontWeight: createMode === 'manual' ? 700 : 500, color: createMode === 'manual' ? '#111' : '#999', cursor: 'pointer', boxShadow: createMode === 'manual' ? '0 1px 4px rgba(0,0,0,.06)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <I n="edit" s={14} c={createMode === 'manual' ? '#111' : '#ccc'} /> Write Manually
-                </button>
-              </div>
-            </div>
-            {/* Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px' }}>
-              {createMode === 'ai' ? (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                    <JaneAvatar size={28} />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#C2185B' }}>URI Agent</div>
-                      <div style={{ fontSize: 11.5, color: '#999' }}>Describe what you want and I'll draft it in your brand voice.</div>
-                    </div>
-                  </div>
-                  <textarea value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} placeholder="e.g. Create a post announcing our new product launch. Make it exciting with a sense of urgency..." rows={4} style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e5e3df', fontSize: 13.5, fontFamily: 'var(--wf)', outline: 'none', resize: 'vertical', background: '#fafaf8', boxSizing: 'border-box', lineHeight: 1.6 } as React.CSSProperties} />
-                  <button onClick={handleAiCreate} disabled={!aiPrompt.trim() || aiThinking} style={{ marginTop: 10, width: '100%', padding: 11, borderRadius: 9, border: 'none', background: aiPrompt.trim() && !aiThinking ? '#C2185B' : '#eee', color: aiPrompt.trim() && !aiThinking ? '#fff' : '#ccc', fontWeight: 700, fontSize: 13.5, cursor: aiPrompt.trim() && !aiThinking ? 'pointer' : 'default', fontFamily: 'var(--wf)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    {aiThinking ? 'Generating...' : <><I n="sparkle" s={15} c="#fff" /> Generate Draft</>}
-                  </button>
-                  {aiResult && aiResult.length > 0 && (
-                    <div style={{ marginTop: 18, borderRadius: 12, border: '1px solid rgba(194,24,91,.15)', background: 'rgba(194,24,91,.02)', padding: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-                        <JaneAvatar size={20} />
-                        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#C2185B' }}>Agent's drafts</span>
-                        <Bd v="success">Ready</Bd>
-                      </div>
-                      {aiResult.map(d => (
-                        <div key={d.id ?? d.draft_id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #edecea', padding: 14, marginBottom: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-                            <PlatformDot p={d.platform} /><span style={{ fontSize: 12, fontWeight: 600 }}>{d.platform}</span>
-                          </div>
-                          <p style={{ fontSize: 13, color: '#333', lineHeight: 1.6, margin: '0 0 6px', whiteSpace: 'pre-line' }}>{d.content.slice(0, 160)}{d.content.length > 160 ? '…' : ''}</p>
-                          <div style={{ display: 'flex', gap: 4 }}>{(d.hashtags ?? []).slice(0, 4).map(h => <span key={h} style={{ fontSize: 11, color: '#C2185B', fontWeight: 500 }}>#{h}</span>)}</div>
-                        </div>
-                      ))}
-                      <button onClick={() => { setShowCreate(false); setAiResult(null); setAiPrompt(''); }} style={{ width: '100%', padding: 10, borderRadius: 8, border: 'none', background: '#111', color: '#E91E63', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--wf)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                        <I n="check" s={14} c="#E91E63" /> View in Queue
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 5 }}>Platform</label>
-                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                      {['Instagram', 'LinkedIn', 'X', 'Facebook'].map(plat => (
-                        <button key={plat} onClick={() => setManualPlatform(plat)} style={{ padding: '6px 12px', borderRadius: 7, border: manualPlatform === plat ? '1.5px solid #222' : '1.5px solid #e5e3df', background: manualPlatform === plat ? '#222' : '#fff', color: manualPlatform === plat ? '#fff' : '#666', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--wf)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <PlatformDot p={plat} s={6} />{plat}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 5 }}>Content Pillar</label>
-                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                      {['Product', 'Education', 'BTS', 'Customer', 'Promotion', 'Culture', 'Industry', 'Trending'].map(p => (
-                        <button key={p} onClick={() => setManualPillar(p)} style={{ padding: '5px 11px', borderRadius: 6, border: manualPillar === p ? '1.5px solid #C2185B' : '1.5px solid #e5e3df', background: manualPillar === p ? 'rgba(194,24,91,.06)' : '#fff', color: manualPillar === p ? '#C2185B' : '#666', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--wf)' }}>{p}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 5 }}>Caption</label>
-                    <textarea value={manualCaption} onChange={e => setManualCaption(e.target.value)} placeholder="Write your caption here..." rows={5} style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e5e3df', fontSize: 13.5, fontFamily: 'var(--wf)', outline: 'none', resize: 'vertical', background: '#fafaf8', boxSizing: 'border-box', lineHeight: 1.6 } as React.CSSProperties} />
-                  </div>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 5 }}>Schedule (optional)</label>
-                    <input type="datetime-local" value={manualDate} onChange={e => setManualDate(e.target.value)} style={{ width: '100%', padding: '10px 13px', borderRadius: 9, border: '1.5px solid #e5e3df', fontSize: 13, fontFamily: 'var(--wf)', outline: 'none', background: '#fafaf8', boxSizing: 'border-box' } as React.CSSProperties} />
-                  </div>
-                  <button onClick={addManualPost} disabled={!manualCaption.trim()} style={{ width: '100%', padding: 11, borderRadius: 9, border: 'none', background: manualCaption.trim() ? '#C2185B' : '#eee', color: manualCaption.trim() ? '#fff' : '#ccc', fontWeight: 700, fontSize: 13.5, cursor: manualCaption.trim() ? 'pointer' : 'default', fontFamily: 'var(--wf)' }}>
-                    {manualDate ? 'Schedule Post' : 'Save as Draft'}
-                  </button>
-                  <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 9, background: 'rgba(194,24,91,.03)', border: '1px solid rgba(194,24,91,.1)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <JaneAvatar size={20} />
-                    <span style={{ fontSize: 12, color: '#666' }}>Want the agent to improve this? Switch to <button onClick={() => setCreateMode('ai')} style={{ background: 'none', border: 'none', color: '#C2185B', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--wf)', fontSize: 12, padding: 0, textDecoration: 'underline' }}>Ask Agent</button> mode.</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 };
+
+const CMEmptyState = ({ message, retry }: { message: string; retry?: () => void }) => (
+  <div style={{ border: '2px dashed #e5e3df', borderRadius: 14, padding: '40px 24px', textAlign: 'center', background: '#fafaf8' }}>
+    <I n="calendar" s={36} c="#d1d5db" />
+    <p style={{ fontSize: 13.5, color: '#9ca3af', marginTop: 12 }}>{message}</p>
+    {retry && (
+      <button onClick={retry} style={{ marginTop: 8, background: 'none', border: 'none', color: '#C2185B', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--wf)' }}>
+        Retry
+      </button>
+    )}
+  </div>
+);
 
 /* ── SubPage wrapper ─────────────────────────────────────────────────────── */
 const SubPage = ({ title, icon, desc, children, onJane }: { title: string; icon: string; desc: string; children: ReactNode; onJane: () => void }) => (
@@ -877,7 +598,7 @@ export default function WorkspaceDashboard() {
 
   const PAGES: Record<string, ReactNode> = {
     messages: <MessagesPage onJane={goWorkspace} />,
-    schedule: <SchedulePage onJane={goWorkspace} />,
+    schedule: <ContentManagerPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} brandName={brandName} />,
     intel: <IntelPage onJane={goWorkspace} />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} />,
