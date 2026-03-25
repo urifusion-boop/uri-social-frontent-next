@@ -16,7 +16,7 @@ class UriHttpClient {
     // Fallback to localhost for local development
     const apiUrl = baseUrl || 'http://localhost:9003';
 
-    console.log(`[HTTP] Using API base URL: ${apiUrl} (NODE_ENV: ${process.env.NODE_ENV})`);
+    console.log(`[HTTP] Initializing with API base URL: ${apiUrl} (Environment: ${process.env.NODE_ENV})`);
     return apiUrl;
   }
 
