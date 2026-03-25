@@ -19,6 +19,9 @@ jobs:
         with:
           submodules: true
           lfs: false
+          clean: true
+      - name: Clear Azure cache
+        run: echo "CACHE_BUST=$(date +%s)" >> $GITHUB_ENV
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -34,7 +37,8 @@ jobs:
           ###### End of Repository/Build Configurations ######
         env:
           NEXT_PUBLIC_URI_API_BASE_URL_DEV: ${{ secrets.NEXT_PUBLIC_URI_API_BASE_URL_DEV }}
-          NODE_ENV: development
+          NODE_ENV: production
+          CACHE_BUST: ${{ env.CACHE_BUST }}
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
