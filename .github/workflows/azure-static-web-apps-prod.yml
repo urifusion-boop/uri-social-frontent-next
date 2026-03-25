@@ -39,7 +39,8 @@ jobs:
           ###### End of Repository/Build Configurations ######
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
-          NEXT_PUBLIC_URI_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_URI_API_BASE_URL_PROD }}
+          NEXT_PUBLIC_URI_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_URI_API_BASE_URL }}
+          NODE_ENV: production
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'

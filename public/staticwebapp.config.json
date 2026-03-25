@@ -1,12 +1,24 @@
 {
+  "routes": [
+    {
+      "route": "/api/*",
+      "allowedRoles": ["anonymous"]
+    }
+  ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/_next/*", "/favicon.ico", "*.{css,js,jpg,jpeg,png,gif,svg,webp,ico,woff,woff2,ttf,eot}"]
+    "exclude": ["/images/*.{png,jpg,gif,ico}", "/*.{css,js}", "/api/*"]
   },
   "responseOverrides": {
     "404": {
-      "rewrite": "/index.html",
-      "statusCode": 200
+      "rewrite": "/404.html",
+      "statusCode": 404
     }
+  },
+  "globalHeaders": {
+    "content-security-policy": "default-src 'self' https: 'unsafe-inline' 'unsafe-eval'"
+  },
+  "mimeTypes": {
+    ".json": "application/json"
   }
 }

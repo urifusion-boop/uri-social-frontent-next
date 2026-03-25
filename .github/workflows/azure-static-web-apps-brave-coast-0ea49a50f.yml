@@ -33,7 +33,8 @@ jobs:
           output_location: "out" # Built app content directory - optional
           ###### End of Repository/Build Configurations ######
         env:
-          NEXT_PUBLIC_URI_API_BASE_URL: /api
+          NEXT_PUBLIC_URI_API_BASE_URL_DEV: ${{ secrets.NEXT_PUBLIC_URI_API_BASE_URL_DEV }}
+          NODE_ENV: development
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'

@@ -4,9 +4,25 @@ import { STORE_KEYS } from './store.config';
 class UriHttpClient {
   private static client: AxiosInstance;
 
+  private static getApiBaseUrl(): string {
+    // Check if we're in production or development/staging
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+
+    // Use DEV variable for development/staging, regular variable for production
+    const baseUrl = isDevelopment
+      ? process.env.NEXT_PUBLIC_URI_API_BASE_URL_DEV
+      : process.env.NEXT_PUBLIC_URI_API_BASE_URL;
+
+    // Fallback to localhost for local development
+    const apiUrl = baseUrl || 'http://localhost:9003';
+
+    console.log(`[HTTP] Using API base URL: ${apiUrl} (NODE_ENV: ${process.env.NODE_ENV})`);
+    return apiUrl;
+  }
+
   static initialize() {
     this.client = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_URI_API_BASE_URL || 'http://localhost:9003',
+      baseURL: this.getApiBaseUrl(),
       withCredentials: false,
       headers: {
         'Content-Type': 'application/json',
@@ -63,15 +79,19 @@ class UriHttpClient {
         case 403:
           // Only clear tokens if it's an authentication issue, not authorization
           // Don't clear on brand-profile 403 as user might not have completed onboarding
+          // Don't clear on connect endpoints as these might have other authorization issues
           const isBrandProfile = error.config?.url?.includes('/brand-profile');
-          if (!isBrandProfile) {
+          const isConnectEndpoint = error.config?.url?.includes('/connect');
+          if (!isBrandProfile && !isConnectEndpoint) {
             this.clearUserData();
             window.dispatchEvent(new CustomEvent('unauthorized'));
           }
           return Promise.reject(error.response);
         case 404:
           // 404 means resource not found, not authentication failure - don't clear tokens
-          return Promise.resolve(error.response);
+          // This can happen if Azure Functions proxy isn't deployed properly
+          console.warn(`[HTTP] 404 error for ${error.config?.url} - keeping tokens`);
+          return Promise.reject(error.response);
         default:
           return Promise.resolve(error.response);
       }
