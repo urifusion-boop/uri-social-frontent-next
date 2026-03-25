@@ -661,8 +661,10 @@ export default function WorkspaceDashboard() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800;900&display=swap');
         :root{--wf:'Urbanist',sans-serif}
-        .workspace-root *{box-sizing:border-box;margin:0;padding:0}
+        .workspace-root *{box-sizing:border-box}
         .workspace-root{font-family:var(--wf)}
+        .workspace-root>*:not(.MuiBox-root):not([class*="Mui"]){margin:0;padding:0}
+        @keyframes spin{to{transform:rotate(360deg)}}
         .workspace-root ::-webkit-scrollbar{width:5px}
         .workspace-root ::-webkit-scrollbar-thumb{background:#ddd;border-radius:99px}
         .workspace-root input:focus,.workspace-root textarea:focus,.workspace-root select:focus{outline:none}
