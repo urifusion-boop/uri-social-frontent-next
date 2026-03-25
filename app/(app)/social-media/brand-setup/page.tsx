@@ -36,7 +36,6 @@ const STEPS = [
   'notifications',
   'language',
   'preview',
-  'feedback',
 ] as const;
 type Step = (typeof STEPS)[number];
 
@@ -442,7 +441,7 @@ function BrandSetupPageContent() {
   const allCtas = ['Link in bio', 'Shop now', 'DM us', 'Book a call', 'Learn more', 'Sign up', 'Download', 'Visit our website', 'Use code...'];
 
   // ── Audience ──────────────────────────────────────────────────
-  const [audienceAge, setAudienceAge] = useState('');
+  const [audienceAge, setAudienceAge] = useState<string[]>([]);
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
   const [goal, setGoal] = useState('');
 
@@ -471,7 +470,7 @@ function BrandSetupPageContent() {
 
   // ── Language ──────────────────────────────────────────────────
   const [languages, setLanguages] = useState<string[]>([]);
-  const [region, setRegion] = useState('');
+  const [region, setRegion] = useState<string[]>([]);
 
   // ── Feedback ──────────────────────────────────────────────────
   const [postFeedback, setPostFeedback] = useState('');
@@ -532,8 +531,8 @@ function BrandSetupPageContent() {
 
   const connectedPlatforms = targetPlatforms.length > 0 ? targetPlatforms : ['Instagram', 'LinkedIn'];
 
-  // Progress: ignore welcome (step 0) and feedback (last step)
-  const progressibleSteps = STEPS.length - 2;
+  // Progress: ignore welcome (step 0) only
+  const progressibleSteps = STEPS.length - 1;
   const progressStep = Math.max(0, step - 1);
   const progressPct = progressibleSteps > 0 ? (progressStep / progressibleSteps) * 100 : 0;
 
@@ -1407,10 +1406,10 @@ function BrandSetupPageContent() {
             <AgentBubble primary={primary}>Who are we trying to reach? This shapes what I write, when I post, and where.</AgentBubble>
             <Grid container spacing={2.5} mt={0}>
               <Grid item xs={12}>
-                <FieldLabel>Target audience age range</FieldLabel>
+                <FieldLabel sub="(select all that apply)">Target audience age range</FieldLabel>
                 <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                   {['Gen Z (18-24)', 'Millennials (25-40)', 'Gen X (41-56)', 'Boomers (57+)', 'Everyone'].map((a) => (
-                    <Chip key={a} label={a} active={audienceAge === a} onClick={() => setAudienceAge(a)} primary={primary} />
+                    <Chip key={a} label={a} active={audienceAge.includes(a)} onClick={() => toggle(audienceAge, setAudienceAge, a)} primary={primary} />
                   ))}
                 </Box>
               </Grid>
@@ -1825,10 +1824,10 @@ function BrandSetupPageContent() {
                 </Box>
               </Grid>
               <Grid item xs={12}>
-                <FieldLabel>Region / market</FieldLabel>
+                <FieldLabel sub="(select all that apply)">Region / market</FieldLabel>
                 <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                   {['Nigeria', 'West Africa', 'Pan-African', 'United States', 'United Kingdom', 'Global / International', 'Other'].map((r) => (
-                    <Chip key={r} label={r} active={region === r} onClick={() => setRegion(r)} primary={primary} />
+                    <Chip key={r} label={r} active={region.includes(r)} onClick={() => toggle(region, setRegion, r)} primary={primary} />
                   ))}
                 </Box>
               </Grid>
@@ -1872,7 +1871,7 @@ function BrandSetupPageContent() {
                     { l: 'Approval', v: approval || '—' },
                     { l: 'Top pillars', v: pillars.slice(0, 2).join(', ') || '—' },
                     { l: 'Languages', v: languages.join(', ') || '—' },
-                    { l: 'Region', v: region || '—' },
+                    { l: 'Region', v: region.join(', ') || '—' },
                   ].map((item) => (
                     <Grid item xs={6} key={item.l}>
                       <Typography sx={{ fontSize: 10.5, color: '#9CA3AF', mb: 0.25, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{item.l}</Typography>
@@ -1890,20 +1889,8 @@ function BrandSetupPageContent() {
                 )}
               </Box>
             </Box>
-            <Box mt={2.5}>
-              <CustomButton mode="primary" onClick={next} style={{ padding: '10px 28px' }}>
-                Looks good →
-              </CustomButton>
-            </Box>
-          </Box>
-        );
-
-      // ══ FEEDBACK ═════════════════════════════════════════════════
-      case 'feedback':
-        return (
-          <Box>
-            <AgentBubble primary={primary}>Almost done! Does this profile capture your brand accurately?</AgentBubble>
-            <Box mt={1.5}>
+            <Box mt={2.5} sx={{ borderTop: '1px solid #F3F4F6', pt: 2.5 }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#374151', mb: 1.5 }}>Does this profile capture your brand accurately?</Typography>
               <Box display="flex" gap={1.5} mb={2}>
                 {[
                   { e: '🎯', l: 'Nailed it!', v: 'great' },
@@ -1918,14 +1905,15 @@ function BrandSetupPageContent() {
                   <UriTextarea value="" onChange={() => {}} placeholder="Tell me what's off — I'll factor it in..." rows={3} />
                 </Box>
               )}
-              {postFeedback && (
-                <Box>
-                  <CustomButton mode="primary" onClick={handleComplete} loading={saving} style={{ padding: '12px 32px', width: '100%' }}>
-                    {saving ? 'Setting up your workspace...' : 'Go to Dashboard →'}
-                  </CustomButton>
-                  <Typography sx={{ fontSize: 12, color: '#9CA3AF', mt: 1.5, textAlign: 'center' }}>Your brand profile is saved. Edit it anytime in Settings → Brand Profile.</Typography>
-                </Box>
-              )}
+              <CustomButton
+                mode="primary"
+                onClick={handleComplete}
+                loading={saving}
+                style={{ padding: '12px 32px', width: '100%', opacity: postFeedback ? 1 : 0.45 }}
+              >
+                {saving ? 'Setting up your workspace...' : 'Go to Dashboard →'}
+              </CustomButton>
+              <Typography sx={{ fontSize: 12, color: '#9CA3AF', mt: 1.5, textAlign: 'center' }}>Your brand profile is saved. Edit it anytime in Settings → Brand Profile.</Typography>
             </Box>
           </Box>
         );
@@ -1968,8 +1956,8 @@ function BrandSetupPageContent() {
             <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f', letterSpacing: -0.3 }}>UriCreative</Typography>
           </Box>
 
-          {/* Progress bar (hidden on welcome and feedback) */}
-          {step > 0 && step < STEPS.length - 1 && (
+          {/* Progress bar (hidden on welcome only) */}
+          {step > 0 && (
             <Box sx={{ flex: 1, maxWidth: 240, mx: 3 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
                 <Typography sx={{ fontSize: 11, fontWeight: 600, color: primary }}>{Math.round(progressPct)}% complete</Typography>
@@ -2040,8 +2028,8 @@ function BrandSetupPageContent() {
               boxShadow: '1px 1px 6px 3px #00000011',
             }}
           >
-            {/* Step section heading (shown for non-welcome/feedback steps) */}
-            {step > 0 && step < STEPS.length - 1 && (
+            {/* Step section heading (shown for non-welcome steps) */}
+            {step > 0 && (
               <Box mb={2.5}>
                 <Divider sx={{ mb: 2.5 }}>
                   <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, px: 1 }}>
@@ -2066,7 +2054,6 @@ function BrandSetupPageContent() {
                       notifications: '🔔 Notifications',
                       language: '🌍 Language & Region',
                       preview: '👁️ Profile Preview',
-                      feedback: '💬 Final Feedback',
                     }[STEPS[step]] || ''}
                   </Typography>
                 </Divider>

@@ -32,4 +32,9 @@ export class AuthService {
     const response: AxiosResponse<UriResponse<AuthResponseData>> = await UriHttpClient.getClient().post('/social-media/auth/signup', data);
     return response.data;
   }
+
+  static async googleAuth(code: string, redirectUri: string): Promise<UriResponse<AuthResponseData>> {
+    const response: AxiosResponse<UriResponse<AuthResponseData>> = await UriHttpClient.getClient().post('/social-media/auth/google', { code, redirect_uri: redirectUri });
+    return response.data;
+  }
 }
