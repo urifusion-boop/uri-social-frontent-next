@@ -17,7 +17,7 @@ import {
   Collapse,
 } from '@mui/material';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { MdOutlineCampaign, MdVisibility, MdVisibilityOff, MdCheckCircle, MdError } from 'react-icons/md';
 
 // Helper function to get user-friendly error messages
@@ -52,6 +52,24 @@ const getErrorMessage = (error: string, isLogin: boolean): string => {
 };
 
 function LoginPageContent() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <CircularProgress sx={{ color: '#CD1B78' }} />
+      </Box>
+    );
+  }
+
+  return <LoginContent />;
+}
+
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { saveUserTokens, saveUserDetails } = useAuth();

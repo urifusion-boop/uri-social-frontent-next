@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState as useClientState } from 'react';
 import { SocialConnection, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
 import ConnectFacebookModal from '@/src/components/app/social-media/ConnectFacebookModal';
@@ -9,10 +9,28 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { Box, Button, CircularProgress, Typography } from '@mui/material';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { MdOutlineCampaign } from 'react-icons/md';
 
 function SocialAccountsPageContent() {
+  const [mounted, setMounted] = useClientState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <CircularProgress sx={{ color: '#CD1B78' }} />
+      </Box>
+    );
+  }
+
+  return <SocialAccountsContent />;
+}
+
+function SocialAccountsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [connections, setConnections] = useState<SocialConnection[]>([]);
