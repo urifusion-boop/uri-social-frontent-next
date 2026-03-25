@@ -1,13 +1,8 @@
 {
-  "routes": [
-    {
-      "route": "/api/*",
-      "allowedRoles": ["anonymous"]
-    }
-  ],
+  "routes": [],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/images/*.{png,jpg,gif,ico}", "/*.{css,js}", "/api/*"]
+    "exclude": ["/images/*.{png,jpg,gif,ico}", "/*.{css,js}"]
   },
   "responseOverrides": {
     "404": {
