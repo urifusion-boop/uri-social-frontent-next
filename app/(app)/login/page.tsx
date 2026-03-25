@@ -35,7 +35,9 @@ const getErrorMessage = (error: string, isLogin: boolean): string => {
     return 'Access forbidden. Please check your credentials.';
   }
   if (errorLower.includes('404') || errorLower.includes('not found')) {
-    return isLogin ? 'Account not found. Please check your email or create a new account.' : 'Service temporarily unavailable. Please try again.';
+    return isLogin
+      ? 'Account not found. Please check your email or create a new account.'
+      : 'Service temporarily unavailable. Please try again.';
   }
   if (errorLower.includes('500') || errorLower.includes('internal server')) {
     return 'Server error occurred. Please try again in a moment.';
@@ -55,6 +57,7 @@ function LoginPageContent() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Mount on client side only
     setMounted(true);
   }, []);
 
@@ -73,9 +76,7 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { saveUserTokens, saveUserDetails } = useAuth();
-  const [tab, setTab] = useState<'login' | 'signup'>(
-    searchParams.get('tab') === 'signup' ? 'signup' : 'login'
-  );
+  const [tab, setTab] = useState<'login' | 'signup'>(searchParams.get('tab') === 'signup' ? 'signup' : 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -152,8 +153,17 @@ function LoginContent() {
         router.push('/social-media');
       }, 1000);
     } catch (err: unknown) {
-      const e = err as { data?: { detail?: string; responseMessage?: string }; message?: string; response?: { data?: { detail?: string } } };
-      const detail = e?.response?.data?.detail || e?.data?.detail || e?.data?.responseMessage || e?.message || 'Something went wrong.';
+      const e = err as {
+        data?: { detail?: string; responseMessage?: string };
+        message?: string;
+        response?: { data?: { detail?: string } };
+      };
+      const detail =
+        e?.response?.data?.detail ||
+        e?.data?.detail ||
+        e?.data?.responseMessage ||
+        e?.message ||
+        'Something went wrong.';
       setError(getErrorMessage(detail, tab === 'login'));
     } finally {
       setLoading(false);
@@ -256,7 +266,13 @@ function LoginContent() {
           </Collapse>
 
           {/* Form */}
-          <Box component="form" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+          <Box
+            component="form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSubmit();
+            }}
+          >
             {/* Name fields for signup */}
             {tab === 'signup' && (
               <Fade in timeout={300}>
@@ -331,11 +347,7 @@ function LoginContent() {
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowPassword(!showPassword)}
-                      edge="end"
-                      sx={{ color: '#6B7280' }}
-                    >
+                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" sx={{ color: '#6B7280' }}>
                       {showPassword ? <MdVisibilityOff size={20} /> : <MdVisibility size={20} />}
                     </IconButton>
                   </InputAdornment>

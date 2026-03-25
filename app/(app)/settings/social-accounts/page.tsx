@@ -1,5 +1,6 @@
 'use client';
 
+// Force rebuild - v2
 import { Suspense, useEffect, useState as useClientState } from 'react';
 import { SocialConnection, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
@@ -16,7 +17,9 @@ function SocialAccountsPageContent() {
   const [mounted, setMounted] = useClientState(false);
 
   useEffect(() => {
+    // Mount on client side only
     setMounted(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!mounted) {
@@ -91,7 +94,16 @@ function SocialAccountsContent() {
                   <MdOutlineCampaign size={24} color="#fff" />
                 </Box>
                 <Box>
-                  <Typography sx={{ fontSize: 'clamp(20px, 1.5vw + 10px, 28px)', color: '#212529', fontWeight: 800, lineHeight: 1 }}>Social Accounts</Typography>
+                  <Typography
+                    sx={{
+                      fontSize: 'clamp(20px, 1.5vw + 10px, 28px)',
+                      color: '#212529',
+                      fontWeight: 800,
+                      lineHeight: 1,
+                    }}
+                  >
+                    Social Accounts
+                  </Typography>
                   <Typography fontSize="13px" color="#6B7280" mt={0.25}>
                     Manage connected social media platforms
                   </Typography>
@@ -150,7 +162,11 @@ function SocialAccountsContent() {
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 640 }}>
                 {connections.map((conn) => (
-                  <ConnectedAccountCard key={`${conn.platform}-${conn.page_id}`} connection={conn} onDisconnect={fetchConnections} />
+                  <ConnectedAccountCard
+                    key={`${conn.platform}-${conn.page_id}`}
+                    connection={conn}
+                    onDisconnect={fetchConnections}
+                  />
                 ))}
               </Box>
             )}
