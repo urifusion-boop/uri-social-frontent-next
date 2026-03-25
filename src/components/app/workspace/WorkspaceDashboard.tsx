@@ -243,33 +243,83 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8f7f5' }}>
       {/* Header */}
-      <div style={{ padding: '18px 24px 0', borderBottom: '1px solid #edecea' }}>
-        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <I n="calendar" s={18} c="#C2185B" />Content Manager
-        </h2>
-        <div style={{ display: 'flex', gap: 0, borderBottom: 'none' }}>
-          {tabs.map(t => (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
-              style={{
-                padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
-                fontSize: 13.5, fontWeight: 600, fontFamily: 'var(--wf)',
-                color: activeTab === t.key ? '#C2185B' : '#888',
-                borderBottom: activeTab === t.key ? '2.5px solid #C2185B' : '2.5px solid transparent',
-                display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
-              }}
-            >
-              {t.label}
-              {t.count != null && t.count > 0 && (
-                <span style={{ background: activeTab === t.key ? '#C2185B' : '#e5e3df', color: activeTab === t.key ? '#fff' : '#666', borderRadius: 10, fontSize: 10.5, fontWeight: 700, padding: '1px 6px' }}>
-                  {t.count}
-                </span>
-              )}
-            </button>
-          ))}
+      <div style={{ padding: '20px 24px 0', background: '#fff', borderBottom: '1px solid #edecea' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#880E4F,#E91E63)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <I n="calendar" s={17} c="#fff" />
+            </div>
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>Content Manager</h2>
+              <p style={{ fontSize: 11.5, color: '#999', margin: 0 }}>Create, review and schedule your posts</p>
+            </div>
+          </div>
+          {/* Quick stats */}
+          <div style={{ display: 'flex', gap: 12 }}>
+            {drafts.length > 0 && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#C2185B', lineHeight: 1 }}>{drafts.length}</div>
+                <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>DRAFTS</div>
+              </div>
+            )}
+            {scheduled.length > 0 && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#0a66c2', lineHeight: 1 }}>{scheduled.length}</div>
+                <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>SCHEDULED</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tab bar */}
+        <div style={{ display: 'flex', gap: 2 }}>
+          {tabs.map(t => {
+            const active = activeTab === t.key;
+            const icons: Record<ContentTab, string> = { create: 'plus', drafts: 'edit', scheduled: 'clock', auto: 'sparkle' };
+            return (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                style={{
+                  padding: '9px 14px 10px',
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: active ? 700 : 500,
+                  fontFamily: 'var(--wf)',
+                  color: active ? '#C2185B' : '#777',
+                  borderBottom: active ? '2.5px solid #C2185B' : '2.5px solid transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  whiteSpace: 'nowrap',
+                  transition: 'color .15s',
+                  outline: 'none',
+                }}
+              >
+                <I n={icons[t.key]} s={13} c={active ? '#C2185B' : '#aaa'} />
+                {t.label}
+                {t.count != null && t.count > 0 && (
+                  <span style={{
+                    background: active ? '#C2185B' : '#ede9e8',
+                    color: active ? '#fff' : '#777',
+                    borderRadius: 20,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '1px 7px',
+                    lineHeight: '16px',
+                    minWidth: 18,
+                    textAlign: 'center',
+                  }}>
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -282,9 +332,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
         {activeTab === 'drafts' && (
           <>
             {loadingDrafts ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
-                <div style={{ width: 28, height: 28, border: '3px solid #f0e6f0', borderTop: '3px solid #C2185B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-              </div>
+              <CMSpinner />
             ) : draftsError ? (
               <CMEmptyState message="Could not load drafts." retry={fetchDrafts} />
             ) : drafts.length === 0 ? (
@@ -302,9 +350,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
         {activeTab === 'scheduled' && (
           <>
             {loadingScheduled ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
-                <div style={{ width: 28, height: 28, border: '3px solid #f0e6f0', borderTop: '3px solid #C2185B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-              </div>
+              <CMSpinner />
             ) : scheduled.length === 0 ? (
               <CMEmptyState message="No scheduled posts. Approve a draft and choose 'Schedule' to add one." />
             ) : (
@@ -320,9 +366,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
         {activeTab === 'auto' && (
           <>
             {loadingAuto ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
-                <div style={{ width: 28, height: 28, border: '3px solid #f0e6f0', borderTop: '3px solid #C2185B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-              </div>
+              <CMSpinner />
             ) : (
               <AutoGenerateTab
                 settings={autoSettings}
@@ -351,8 +395,15 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   );
 };
 
+const CMSpinner = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 0', gap: 12 }}>
+    <div style={{ width: 32, height: 32, border: '3px solid #f0e6f0', borderTop: '3px solid #C2185B', borderRadius: '50%', animation: 'spin 0.75s linear infinite' }} />
+    <span style={{ fontSize: 12.5, color: '#bbb', fontWeight: 500 }}>Loading…</span>
+  </div>
+);
+
 const CMEmptyState = ({ message, retry }: { message: string; retry?: () => void }) => (
-  <div style={{ border: '2px dashed #e5e3df', borderRadius: 14, padding: '40px 24px', textAlign: 'center', background: '#fafaf8' }}>
+  <div style={{ border: '2px dashed #e5e3df', borderRadius: 14, padding: '48px 24px', textAlign: 'center', background: '#fff', margin: '4px 0' }}>
     <I n="calendar" s={36} c="#d1d5db" />
     <p style={{ fontSize: 13.5, color: '#9ca3af', marginTop: 12 }}>{message}</p>
     {retry && (
