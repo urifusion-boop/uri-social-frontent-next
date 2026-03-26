@@ -105,7 +105,7 @@ function LoginContent() {
         saveUserTokens({ accessToken, refreshToken: '' });
         saveUserDetails({ userId, email: userEmail, firstName: fName, lastName: lName });
         setSuccess('Signed in with Google! Redirecting...');
-        setTimeout(() => router.push('/social-media'), 1000);
+        setTimeout(() => router.push('/workspace'), 1000);
       })
       .catch(() => setError('Google sign-in failed. Please try again.'))
       .finally(() => setGoogleLoading(false));
@@ -185,7 +185,7 @@ function LoginContent() {
 
       // Redirect after a brief delay
       setTimeout(() => {
-        router.push('/social-media');
+        router.push('/workspace');
       }, 1000);
     } catch (err: unknown) {
       const e = err as {

@@ -561,10 +561,13 @@ export default function WorkspaceDashboard() {
   const feedEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    BrandProfileService.isOnboardingDone().then((done) => {
+      if (!done) router.replace('/social-media/brand-setup');
+    });
     BrandProfileService.get().then(res => {
       if (res.status && res.responseData) setProfile(res.responseData);
     });
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     const name = profile?.brand_name ?? 'your brand';
