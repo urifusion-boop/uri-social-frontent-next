@@ -489,23 +489,402 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => (
   </SubPage>
 );
 
-const PlaybookPage = ({ onJane, profile }: { onJane: () => void; profile: BrandProfileData | null }) => (
-  <SubPage title="Brand Playbook" icon="book" desc="Everything URI Agent knows about your brand" onJane={onJane}>
-    {[
-      { t: 'Brand Identity', items: [profile?.brand_name, profile?.industry, profile?.product_description].filter(Boolean) as string[] },
-      { t: 'Voice', items: [profile?.derived_voice].filter(Boolean) as string[] },
-      { t: 'Content Pillars', items: (profile?.content_pillars ?? []) as string[] },
-      { t: 'Guardrails', items: [profile?.guardrails?.avoid_topics ? `Avoid: ${profile.guardrails.avoid_topics}` : null, profile?.guardrails?.emoji_usage ? `Emoji: ${profile.guardrails.emoji_usage}` : null].filter(Boolean) as string[] },
-    ].map(s => (
-      <div key={s.t} style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px', marginBottom: 8 }}>
-        <h3 style={{ fontSize: 13.5, fontWeight: 700, color: '#111', marginBottom: 8 }}>{s.t}</h3>
-        {(s.items.length > 0 ? s.items : ['—']).map((item, i) => (
-          <div key={i} style={{ fontSize: 12.5, color: '#555', padding: '4px 0', borderBottom: i < s.items.length - 1 ? '1px solid #f5f4f0' : 'none' }}>{item}</div>
-        ))}
-      </div>
-    ))}
-  </SubPage>
+/* ── Playbook helpers ────────────────────────────────────────────────────── */
+const pbTgl = <T,>(arr: T[], set: (v: T[]) => void, val: T) =>
+  set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
+
+const PbInput = ({ value, onChange, placeholder, textarea }: { value: string; onChange: (v: string) => void; placeholder?: string; textarea?: boolean }) => {
+  const base: React.CSSProperties = { width: '100%', padding: '8px 11px', borderRadius: 8, border: '1.5px solid #e5e3df', fontSize: 13, fontFamily: 'var(--wf)', outline: 'none', background: '#fafaf8', color: '#111', resize: 'vertical' };
+  return textarea
+    ? <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={3} style={base} />
+    : <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={base} />;
+};
+
+const PbChip = ({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) => (
+  <button onClick={onClick} style={{ padding: '5px 13px', borderRadius: 20, border: `1.5px solid ${active ? '#C2185B' : '#e5e3df'}`, background: active ? '#fdf0f6' : '#fff', color: active ? '#C2185B' : '#555', fontSize: 12.5, fontWeight: active ? 700 : 500, cursor: 'pointer', fontFamily: 'var(--wf)' }}>
+    {label}
+  </button>
 );
+
+const PbSection = ({ title, children }: { title: string; children: ReactNode }) => (
+  <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px', marginBottom: 10 }}>
+    <h3 style={{ fontSize: 12, fontWeight: 700, color: '#C2185B', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>{title}</h3>
+    {children}
+  </div>
+);
+
+const PbRow = ({ label, value, editing, input }: { label: string; value?: string | string[]; editing: boolean; input: ReactNode }) => (
+  <div style={{ marginBottom: 12 }}>
+    <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{label}</div>
+    {editing ? input : (
+      <div style={{ fontSize: 13, color: Array.isArray(value) ? '#374151' : (value ? '#111' : '#bbb'), fontWeight: Array.isArray(value) ? 400 : 500 }}>
+        {Array.isArray(value) ? (value.length > 0 ? value.join(', ') : '—') : (value || '—')}
+      </div>
+    )}
+  </div>
+);
+
+const PlaybookPage = ({ onJane, profile, onProfileUpdate }: { onJane: () => void; profile: BrandProfileData | null; onProfileUpdate: (p: BrandProfileData) => void }) => {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // editable state
+  const [brandName, setBrandName] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [website, setWebsite] = useState('');
+  const [description, setDescription] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [voiceSample, setVoiceSample] = useState('');
+  const [colors, setColors] = useState<string[]>([]);
+  const [newColor, setNewColor] = useState('');
+  const [pillars, setPillars] = useState<string[]>([]);
+  const [newPillar, setNewPillar] = useState('');
+  const [formats, setFormats] = useState<string[]>([]);
+  const [avoidTopics, setAvoidTopics] = useState('');
+  const [bannedWords, setBannedWords] = useState('');
+  const [emojiUsage, setEmojiUsage] = useState('');
+  const [maxHash, setMaxHash] = useState('');
+  const [compliance, setCompliance] = useState('');
+  const [ctaStyles, setCtaStyles] = useState<string[]>([]);
+  const [defaultLink, setDefaultLink] = useState('');
+  const [audienceAge, setAudienceAge] = useState<string[]>([]);
+  const [primaryGoal, setPrimaryGoal] = useState('');
+  const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
+  const [competitors, setCompetitors] = useState(['', '', '']);
+  const [languages, setLanguages] = useState<string[]>([]);
+  const [region, setRegion] = useState<string[]>([]);
+  const [cadence, setCadence] = useState('');
+  const [approval, setApproval] = useState('');
+
+  const startEdit = () => {
+    if (!profile) return;
+    setBrandName(profile.brand_name ?? '');
+    setIndustry(profile.industry ?? '');
+    setWebsite(profile.website ?? '');
+    setDescription(profile.product_description ?? '');
+    setTagline((profile as BrandProfileData & { tagline?: string }).tagline ?? '');
+    setVoiceSample(profile.voice_sample ?? '');
+    setColors([...(profile.brand_colors ?? [])]);
+    setPillars([...(profile.content_pillars ?? [])]);
+    setFormats([...(profile.preferred_formats ?? [])]);
+    setAvoidTopics(profile.guardrails?.avoid_topics ?? '');
+    setBannedWords(profile.guardrails?.banned_words ?? '');
+    setEmojiUsage(profile.guardrails?.emoji_usage ?? '');
+    setMaxHash(profile.guardrails?.max_hashtags ?? '');
+    setCompliance(profile.guardrails?.compliance_notes ?? '');
+    setCtaStyles([...(profile.cta_styles ?? [])]);
+    setDefaultLink(profile.default_link ?? '');
+    const age = profile.audience_age_range;
+    setAudienceAge(Array.isArray(age) ? age : (age ? [age] : []));
+    setPrimaryGoal(profile.primary_goal ?? '');
+    setTargetPlatforms([...(profile.target_platforms ?? [])]);
+    const comps = profile.competitor_handles ?? [];
+    setCompetitors([comps[0] ?? '', comps[1] ?? '', comps[2] ?? '']);
+    setLanguages([...(profile.languages ?? [])]);
+    const reg = profile.region;
+    setRegion(Array.isArray(reg) ? reg : (reg ? [reg] : []));
+    setCadence(profile.posting_cadence ?? '');
+    setApproval(profile.approval_workflow ?? '');
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated: BrandProfileData = {
+        ...profile,
+        brand_name: brandName,
+        industry,
+        website,
+        product_description: description,
+        voice_sample: voiceSample,
+        brand_colors: colors,
+        content_pillars: pillars,
+        preferred_formats: formats,
+        guardrails: { avoid_topics: avoidTopics, banned_words: bannedWords, emoji_usage: emojiUsage, max_hashtags: maxHash, compliance_notes: compliance },
+        cta_styles: ctaStyles,
+        default_link: defaultLink,
+        audience_age_range: audienceAge,
+        primary_goal: primaryGoal,
+        target_platforms: targetPlatforms,
+        competitor_handles: competitors.filter(Boolean),
+        languages,
+        region,
+        posting_cadence: cadence,
+        approval_workflow: approval,
+      };
+      await BrandProfileService.save(updated);
+      onProfileUpdate(updated);
+      setEditing(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const p = profile;
+  const ageVal = p?.audience_age_range;
+  const ageDisplay = Array.isArray(ageVal) ? ageVal : (ageVal ? [ageVal] : []);
+  const regVal = p?.region;
+  const regDisplay = Array.isArray(regVal) ? regVal : (regVal ? [regVal] : []);
+
+  const ALL_FORMATS = ['Reels / Short video', 'Carousel posts', 'Static image', 'Long-form article', 'Infographic', 'Story', 'Thread / X post', 'Poll', 'Live session'];
+  const ALL_CTA = ['Link in bio', 'Shop now', 'DM us', 'Book a call', 'Learn more', 'Sign up', 'Download', 'Visit our website', 'Use code...'];
+  const ALL_AGES = ['Gen Z (18-24)', 'Millennials (25-40)', 'Gen X (41-56)', 'Boomers (57+)', 'Everyone'];
+  const ALL_GOALS = ['Brand Awareness', 'Drive Sales', 'Grow Following', 'Build Community', 'Lead Generation', 'Website Traffic'];
+  const ALL_PLATFORMS = ['Instagram', 'Facebook', 'X / Twitter', 'LinkedIn', 'TikTok', 'Pinterest', 'YouTube'];
+  const ALL_LANGS = ['English', 'Yoruba', 'Pidgin', 'French', 'Hausa', 'Igbo', 'Swahili', 'Other'];
+  const ALL_REGIONS = ['Nigeria', 'West Africa', 'Pan-African', 'United States', 'United Kingdom', 'Global / International', 'Other'];
+  const ALL_CADENCE = ['Daily', '3–4x per week', '2–3x per week', 'Weekly', 'Bi-weekly'];
+  const ALL_APPROVAL = ['Auto-publish', 'Review before publishing'];
+
+  return (
+    <SubPage title="Brand Playbook" icon="book" desc="Everything URI Agent knows about your brand" onJane={onJane}>
+      {/* Action bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        {saved && !editing && (
+          <span style={{ fontSize: 12.5, color: '#16a34a', fontWeight: 600 }}>✓ Changes saved</span>
+        )}
+        {!saved && <span />}
+        {!editing ? (
+          <button onClick={startEdit} style={{ padding: '7px 16px', borderRadius: 8, border: '1.5px solid #C2185B', background: '#fff', color: '#C2185B', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--wf)' }}>
+            Edit Profile
+          </button>
+        ) : (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setEditing(false)} style={{ padding: '7px 14px', borderRadius: 8, border: '1.5px solid #e5e3df', background: '#fff', color: '#666', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--wf)' }}>
+              Cancel
+            </button>
+            <button onClick={handleSave} disabled={saving} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: '#C2185B', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--wf)', opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Brand Identity */}
+      <PbSection title="Brand Identity">
+        <PbRow label="Brand name" value={p?.brand_name} editing={editing} input={<PbInput value={brandName} onChange={setBrandName} placeholder="e.g. Paystack" />} />
+        <PbRow label="Industry" value={p?.industry} editing={editing} input={<PbInput value={industry} onChange={setIndustry} placeholder="e.g. Fintech" />} />
+        <PbRow label="Website" value={p?.website} editing={editing} input={<PbInput value={website} onChange={setWebsite} placeholder="https://..." />} />
+        <PbRow label="Description" value={p?.product_description} editing={editing} input={<PbInput value={description} onChange={setDescription} placeholder="What does your business do?" textarea />} />
+      </PbSection>
+
+      {/* Brand Colors */}
+      <PbSection title="Brand Colors">
+        {!editing ? (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {(p?.brand_colors ?? []).length > 0 ? (p?.brand_colors ?? []).map((c, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 6, background: c, border: '1px solid #edecea' }} />
+                <span style={{ fontSize: 12.5, color: '#555' }}>{c}</span>
+              </div>
+            )) : <span style={{ fontSize: 13, color: '#bbb' }}>—</span>}
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+              {colors.map((c, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 8, border: '1.5px solid #e5e3df', background: '#fff' }}>
+                  <div style={{ width: 16, height: 16, borderRadius: 4, background: c }} />
+                  <span style={{ fontSize: 12.5 }}>{c}</span>
+                  <button onClick={() => setColors(colors.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#bbb', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0, marginLeft: 2 }}>×</button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <PbInput value={newColor} onChange={setNewColor} placeholder="#CD1B78" />
+              <button onClick={() => { if (newColor.trim()) { setColors([...colors, newColor.trim()]); setNewColor(''); } }} style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px solid #C2185B', background: '#fff', color: '#C2185B', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--wf)' }}>
+                + Add
+              </button>
+            </div>
+          </div>
+        )}
+      </PbSection>
+
+      {/* Brand Voice */}
+      <PbSection title="Brand Voice">
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Personality traits</div>
+          <div style={{ fontSize: 13, color: '#111' }}>
+            {p?.derived_voice || (p?.personality_quiz ? Object.values(p.personality_quiz).join(', ') : '—')}
+          </div>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <PbRow label="Voice sample" value={p?.voice_sample} editing={editing} input={<PbInput value={voiceSample} onChange={setVoiceSample} placeholder="A sample of how your brand writes..." textarea />} />
+        </div>
+      </PbSection>
+
+      {/* Content Strategy */}
+      <PbSection title="Content Strategy">
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Content pillars</div>
+          {!editing ? (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {(p?.content_pillars ?? []).length > 0 ? (p?.content_pillars ?? []).map((pl, i) => (
+                <span key={i} style={{ padding: '4px 12px', borderRadius: 20, background: '#fdf0f6', color: '#C2185B', fontSize: 12.5, fontWeight: 600 }}>{typeof pl === 'string' ? pl : (pl as { theme?: string }).theme ?? String(pl)}</span>
+              )) : <span style={{ fontSize: 13, color: '#bbb' }}>—</span>}
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                {pillars.map((pl, i) => (
+                  <span key={i} style={{ padding: '4px 10px', borderRadius: 20, background: '#fdf0f6', color: '#C2185B', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {pl}
+                    <button onClick={() => setPillars(pillars.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#C2185B', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+                  </span>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <PbInput value={newPillar} onChange={setNewPillar} placeholder="e.g. Education" />
+                <button onClick={() => { if (newPillar.trim()) { setPillars([...pillars, newPillar.trim()]); setNewPillar(''); } }} style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px solid #C2185B', background: '#fff', color: '#C2185B', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--wf)' }}>
+                  + Add
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Preferred formats</div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: (p?.preferred_formats ?? []).length > 0 ? '#111' : '#bbb' }}>
+              {(p?.preferred_formats ?? []).join(', ') || '—'}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ALL_FORMATS.map(f => <PbChip key={f} label={f} active={formats.includes(f)} onClick={() => pbTgl(formats, setFormats, f)} />)}
+            </div>
+          )}
+        </div>
+      </PbSection>
+
+      {/* Audience */}
+      <PbSection title="Audience">
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Age range</div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: ageDisplay.length > 0 ? '#111' : '#bbb' }}>{ageDisplay.join(', ') || '—'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ALL_AGES.map(a => <PbChip key={a} label={a} active={audienceAge.includes(a)} onClick={() => pbTgl(audienceAge, setAudienceAge, a)} />)}
+            </div>
+          )}
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Primary goal</div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: p?.primary_goal ? '#111' : '#bbb' }}>{p?.primary_goal || '—'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ALL_GOALS.map(g => <PbChip key={g} label={g} active={primaryGoal === g} onClick={() => setPrimaryGoal(g === primaryGoal ? '' : g)} />)}
+            </div>
+          )}
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Priority platforms</div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: (p?.target_platforms ?? []).length > 0 ? '#111' : '#bbb' }}>{(p?.target_platforms ?? []).join(', ') || '—'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ALL_PLATFORMS.map(pl => <PbChip key={pl} label={pl} active={targetPlatforms.includes(pl)} onClick={() => pbTgl(targetPlatforms, setTargetPlatforms, pl)} />)}
+            </div>
+          )}
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Competitor handles</div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: (p?.competitor_handles ?? []).filter(Boolean).length > 0 ? '#111' : '#bbb' }}>
+              {(p?.competitor_handles ?? []).filter(Boolean).map(c => `@${c}`).join(', ') || '—'}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {competitors.map((c, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 13, color: '#999' }}>@</span>
+                  <PbInput value={c} onChange={v => { const cp = [...competitors]; cp[i] = v; setCompetitors(cp); }} placeholder={['e.g. competitor_brand', 'e.g. aspirational_brand', 'e.g. another_brand'][i]} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </PbSection>
+
+      {/* Language & Region */}
+      <PbSection title="Language & Region">
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Languages</div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: (p?.languages ?? []).length > 0 ? '#111' : '#bbb' }}>{(p?.languages ?? []).join(', ') || '—'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ALL_LANGS.map(l => <PbChip key={l} label={l} active={languages.includes(l)} onClick={() => pbTgl(languages, setLanguages, l)} />)}
+            </div>
+          )}
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Region / market</div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: regDisplay.length > 0 ? '#111' : '#bbb' }}>{regDisplay.join(', ') || '—'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ALL_REGIONS.map(r => <PbChip key={r} label={r} active={region.includes(r)} onClick={() => pbTgl(region, setRegion, r)} />)}
+            </div>
+          )}
+        </div>
+      </PbSection>
+
+      {/* Guardrails */}
+      <PbSection title="Guardrails">
+        <PbRow label="Topics to avoid" value={p?.guardrails?.avoid_topics} editing={editing} input={<PbInput value={avoidTopics} onChange={setAvoidTopics} placeholder="e.g. Politics, religion..." />} />
+        <PbRow label="Banned words / phrases" value={p?.guardrails?.banned_words} editing={editing} input={<PbInput value={bannedWords} onChange={setBannedWords} placeholder="Comma separated" />} />
+        <PbRow label="Emoji usage" value={p?.guardrails?.emoji_usage} editing={editing} input={<PbInput value={emojiUsage} onChange={setEmojiUsage} placeholder="e.g. Minimal, 1–2 per post" />} />
+        <PbRow label="Max hashtags" value={p?.guardrails?.max_hashtags} editing={editing} input={<PbInput value={maxHash} onChange={setMaxHash} placeholder="e.g. 5" />} />
+        <PbRow label="Compliance notes" value={p?.guardrails?.compliance_notes} editing={editing} input={<PbInput value={compliance} onChange={setCompliance} placeholder="Any regulatory or legal notes..." textarea />} />
+      </PbSection>
+
+      {/* CTAs */}
+      <PbSection title="Call to Action">
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>CTA styles</div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: (p?.cta_styles ?? []).length > 0 ? '#111' : '#bbb' }}>{(p?.cta_styles ?? []).join(', ') || '—'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ALL_CTA.map(c => <PbChip key={c} label={c} active={ctaStyles.includes(c)} onClick={() => pbTgl(ctaStyles, setCtaStyles, c)} />)}
+            </div>
+          )}
+        </div>
+        <PbRow label="Default link" value={p?.default_link} editing={editing} input={<PbInput value={defaultLink} onChange={setDefaultLink} placeholder="https://..." />} />
+      </PbSection>
+
+      {/* Posting & Workflow */}
+      <PbSection title="Posting & Workflow">
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Posting cadence</div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: p?.posting_cadence ? '#111' : '#bbb' }}>{p?.posting_cadence || '—'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ALL_CADENCE.map(c => <PbChip key={c} label={c} active={cadence === c} onClick={() => setCadence(c === cadence ? '' : c)} />)}
+            </div>
+          )}
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Approval workflow</div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: p?.approval_workflow ? '#111' : '#bbb' }}>{p?.approval_workflow || '—'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ALL_APPROVAL.map(a => <PbChip key={a} label={a} active={approval === a} onClick={() => setApproval(a === approval ? '' : a)} />)}
+            </div>
+          )}
+        </div>
+      </PbSection>
+    </SubPage>
+  );
+};
 
 const SettingsPage = ({ onJane, brandName }: { onJane: () => void; brandName: string }) => (
   <SubPage title="Settings & Plan" icon="settings" desc="Manage your account, billing, and team" onJane={onJane}>
@@ -655,7 +1034,7 @@ export default function WorkspaceDashboard() {
     schedule: <ContentManagerPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} brandName={brandName} />,
     intel: <IntelPage onJane={goWorkspace} />,
-    playbook: <PlaybookPage onJane={goWorkspace} profile={profile} />,
+    playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
     settings: <SettingsPage onJane={goWorkspace} brandName={brandName} />,
   };
 
