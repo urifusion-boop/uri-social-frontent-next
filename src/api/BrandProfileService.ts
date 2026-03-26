@@ -41,7 +41,7 @@ export interface BrandProfileData {
   guardrails?: BrandGuardrails;
   cta_styles?: string[];
   default_link?: string;
-  audience_age_range?: string;
+  audience_age_range?: string | string[];
   target_platforms?: string[];
   primary_goal?: string;
   competitor_handles?: string[];
@@ -55,7 +55,7 @@ export interface BrandProfileData {
   notification_channel?: string;
   team_members?: BrandTeamMember[];
   languages?: string[];
-  region?: string;
+  region?: string | string[];
   onboarding_completed?: boolean;
   created_at?: string;
   updated_at?: string;
