@@ -176,4 +176,53 @@ export class SocialMediaAgentService {
     const response: Awaited<AxiosResponse<UriResponse<{ message: string; user_id: string }>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.autoGenerateTrigger);
     return response.data;
   }
+
+  static async getPerformance(days = 30): Promise<UriResponse<PerformanceData>> {
+    const response: Awaited<AxiosResponse<UriResponse<PerformanceData>>> = await UriHttpClient.getClient().get(`/social-media/performance?days=${days}`);
+    return response.data;
+  }
+}
+
+export interface PerformancePost {
+  draft_id: string;
+  platform_post_id: string;
+  platform: string;
+  content_preview: string;
+  published_at: string;
+  image_url?: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  views: number;
+  impressions: number;
+  reach: number;
+  engagement_rate: number;
+}
+
+export interface PerformancePlatformSummary {
+  posts: number;
+  impressions: number;
+  reach: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  avg_engagement_rate: number;
+}
+
+export interface PerformanceData {
+  has_data: boolean;
+  total_published: number;
+  date_range_days: number;
+  summary: {
+    total_posts: number;
+    total_impressions: number;
+    total_reach: number;
+    total_likes: number;
+    total_comments: number;
+    total_shares: number;
+    total_views: number;
+    avg_engagement_rate: number;
+  };
+  by_platform: Record<string, PerformancePlatformSummary>;
+  top_posts: PerformancePost[];
 }

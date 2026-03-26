@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandProfileData, BrandProfileService } from '@/src/api/BrandProfileService';
-import { AutoGenerateSettings, ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { AutoGenerateSettings, ContentDraft, PerformanceData, PerformancePost, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { ReactNode } from 'react';
@@ -459,26 +459,166 @@ const MessagesPage = ({ onJane }: { onJane: () => void }) => (
   </SubPage>
 );
 
-const PerformancePage = ({ onJane, brandName }: { onJane: () => void; brandName: string }) => (
-  <SubPage title="Performance Memos" icon="chart" desc="Analysis of your brand performance" onJane={onJane}>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 18 }}>
-      {[{ l: 'Reach', v: '—' }, { l: 'Engagement', v: '—' }, { l: 'Followers', v: '—' }].map(s => (
-        <div key={s.l} style={{ padding: 16, background: '#fff', borderRadius: 12, border: '1px solid #edecea' }}>
-          <div style={{ fontSize: 11.5, color: '#999', marginBottom: 5 }}>{s.l}</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#111' }}>{s.v}</div>
-          <div style={{ fontSize: 11, color: '#bbb', marginTop: 3 }}>Connect social accounts</div>
-        </div>
-      ))}
+const PLATFORM_COLORS: Record<string, string> = {
+  instagram: '#E1306C', facebook: '#1877F2', linkedin: '#0A66C2',
+  x: '#000', twitter: '#1DA1F2', tiktok: '#010101', youtube: '#FF0000',
+  threads: '#000', bluesky: '#0085FF', pinterest: '#E60023',
+};
+
+const fmt = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n);
+const platformIcon: Record<string, string> = { instagram: '📸', facebook: '👥', linkedin: '💼', x: '𝕏', twitter: '𝕏', tiktok: '🎵', youtube: '▶️', threads: '🧵', bluesky: '🦋', pinterest: '📌' };
+
+const PerformancePage = ({ onJane }: { onJane: () => void }) => {
+  const [data, setData] = useState<PerformanceData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [days, setDays] = useState(30);
+  const [expandedPost, setExpandedPost] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(false);
+    SocialMediaAgentService.getPerformance(days)
+      .then(res => { if (res.status && res.responseData) setData(res.responseData); else setError(true); })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [days]);
+
+  const statCard = (label: string, value: string | number, sub?: string, color = '#111') => (
+    <div style={{ padding: '14px 16px', background: '#fff', borderRadius: 12, border: '1px solid #edecea' }}>
+      <div style={{ fontSize: 11, color: '#999', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: '#bbb', marginTop: 4 }}>{sub}</div>}
     </div>
-    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
-        <JaneAvatar size={22} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#C2185B' }}>URI Agent Memo</span>
+  );
+
+  return (
+    <SubPage title="Performance" icon="chart" desc="Real-time insights from your published posts via Outstand" onJane={onJane}>
+      {/* Range selector */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {[7, 30, 90].map(d => (
+          <button key={d} onClick={() => setDays(d)} style={{ padding: '5px 14px', borderRadius: 20, border: `1.5px solid ${days === d ? '#C2185B' : '#e5e3df'}`, background: days === d ? '#fdf0f6' : '#fff', color: days === d ? '#C2185B' : '#666', fontSize: 12.5, fontWeight: days === d ? 700 : 500, cursor: 'pointer', fontFamily: 'var(--wf)' }}>
+            {d}d
+          </button>
+        ))}
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb', alignSelf: 'center' }}>Last {days} days</span>
       </div>
-      <p style={{ fontSize: 13, color: '#555', lineHeight: 1.7, margin: 0 }}>Connect your social accounts in <strong>Settings → Social Accounts</strong> to start tracking real performance data for <strong>{brandName}</strong>. Once connected, I'll surface insights and recommendations here weekly.</p>
-    </div>
-  </SubPage>
-);
+
+      {loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            {[0,1,2,3].map(i => <div key={i} style={{ height: 80, borderRadius: 12, background: 'linear-gradient(90deg, #f5f4f0 25%, #edecea 50%, #f5f4f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }} />)}
+          </div>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 24, textAlign: 'center' }}>
+          <I n="chart" s={32} c="#e5e3df" />
+          <div style={{ fontSize: 13, color: '#999', marginTop: 10 }}>Could not load performance data. Please try again.</div>
+        </div>
+      )}
+
+      {!loading && !error && data && !data.has_data && (
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 28, textAlign: 'center' }}>
+          <I n="chart" s={36} c="rgba(194,24,91,.25)" />
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111', marginTop: 12, marginBottom: 6 }}>No published posts yet</div>
+          <div style={{ fontSize: 13, color: '#999', lineHeight: 1.6 }}>Generate and publish content from the <strong>Workspace</strong> tab. Analytics will appear here once posts are live.</div>
+        </div>
+      )}
+
+      {!loading && !error && data?.has_data && (
+        <>
+          {/* Summary stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+            {statCard('Impressions', fmt(data.summary.total_impressions), `${data.summary.total_posts} posts`)}
+            {statCard('Reach', fmt(data.summary.total_reach))}
+            {statCard('Engagement', fmt(data.summary.total_likes + data.summary.total_comments + data.summary.total_shares))}
+            {statCard('Avg. Eng. Rate', `${data.summary.avg_engagement_rate}%`, undefined, data.summary.avg_engagement_rate >= 3 ? '#16a34a' : data.summary.avg_engagement_rate >= 1 ? '#d97706' : '#C2185B')}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+            {statCard('Likes', fmt(data.summary.total_likes))}
+            {statCard('Comments', fmt(data.summary.total_comments))}
+            {statCard('Shares', fmt(data.summary.total_shares))}
+          </div>
+
+          {/* Per-platform breakdown */}
+          {Object.keys(data.by_platform).length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px', marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#C2185B', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>By Platform</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {Object.entries(data.by_platform).map(([pl, stats]) => (
+                  <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: (PLATFORM_COLORS[pl] ?? '#666') + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                      {platformIcon[pl] ?? '🌐'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>{pl}</span>
+                        <span style={{ fontSize: 12, color: '#999' }}>{stats.posts} post{stats.posts !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 14 }}>
+                        {[['Impressions', fmt(stats.impressions)], ['Reach', fmt(stats.reach)], ['Eng.', `${stats.avg_engagement_rate}%`]].map(([l, v]) => (
+                          <div key={l}>
+                            <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Top posts */}
+          {data.top_posts.length > 0 && (
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#C2185B', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>Top Posts</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {data.top_posts.map((post: PerformancePost) => (
+                  <div key={post.draft_id}>
+                    <div
+                      onClick={() => setExpandedPost(expandedPost === post.draft_id ? null : post.draft_id)}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid #f0eeec', cursor: 'pointer', background: expandedPost === post.draft_id ? '#fdf8fc' : '#fafaf8' }}
+                    >
+                      <div style={{ width: 28, height: 28, borderRadius: 7, background: (PLATFORM_COLORS[post.platform] ?? '#666') + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>
+                        {platformIcon[post.platform] ?? '🌐'}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, color: '#374151', lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {post.content_preview || '(No preview)'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, marginTop: 5 }}>
+                          {[['👁', fmt(post.impressions)], ['❤️', fmt(post.likes)], ['💬', fmt(post.comments)], ['🔁', fmt(post.shares)]].map(([ic, v]) => (
+                            <span key={ic as string} style={{ fontSize: 11.5, color: '#666' }}>{ic} {v}</span>
+                          ))}
+                          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#C2185B', fontWeight: 700 }}>{post.engagement_rate}%</span>
+                        </div>
+                      </div>
+                    </div>
+                    {expandedPost === post.draft_id && (
+                      <div style={{ padding: '10px 12px 12px', background: '#fdf8fc', borderRadius: '0 0 10px 10px', border: '1px solid #f0eeec', borderTop: 'none', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                        {[['Views', fmt(post.views)], ['Reach', fmt(post.reach)], ['Engagement Rate', `${post.engagement_rate}%`]].map(([l, v]) => (
+                          <div key={l as string}>
+                            <div style={{ fontSize: 10.5, color: '#bbb', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 }}>{l}</div>
+                            <div style={{ fontSize: 15, fontWeight: 800, color: '#111' }}>{v}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </SubPage>
+  );
+};
 
 const IntelPage = ({ onJane }: { onJane: () => void }) => (
   <SubPage title="Market Intel" icon="globe" desc="What people say about your brand across the web" onJane={onJane}>
@@ -1032,7 +1172,7 @@ export default function WorkspaceDashboard() {
   const PAGES: Record<string, ReactNode> = {
     messages: <MessagesPage onJane={goWorkspace} />,
     schedule: <ContentManagerPage onJane={goWorkspace} />,
-    performance: <PerformancePage onJane={goWorkspace} brandName={brandName} />,
+    performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
     settings: <SettingsPage onJane={goWorkspace} brandName={brandName} />,
@@ -1047,6 +1187,7 @@ export default function WorkspaceDashboard() {
         .workspace-root{font-family:var(--wf)}
         .workspace-root>*:not(.MuiBox-root):not([class*="Mui"]){margin:0;padding:0}
         @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
         .workspace-root ::-webkit-scrollbar{width:5px}
         .workspace-root ::-webkit-scrollbar-thumb{background:#ddd;border-radius:99px}
         .workspace-root input:focus,.workspace-root textarea:focus,.workspace-root select:focus{outline:none}
