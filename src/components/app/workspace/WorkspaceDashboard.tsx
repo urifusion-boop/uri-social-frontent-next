@@ -1063,6 +1063,19 @@ const NAV = [
   { id: 'settings', icon: 'settings', label: 'Settings & Plan' },
 ];
 
+const MOBILE_TABS = [
+  { id: 'workspace', icon: 'home', label: 'Jane' },
+  { id: 'schedule', icon: 'calendar', label: 'Schedule' },
+  { id: 'performance', icon: 'chart', label: 'Analytics' },
+  { id: 'playbook', icon: 'book', label: 'Playbook' },
+  { id: 'more', icon: 'settings', label: 'More' },
+];
+
+const MORE_NAV = [
+  { id: 'intel', icon: 'globe', label: 'Market Intel' },
+  { id: 'settings', icon: 'settings', label: 'Settings & Plan' },
+];
+
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -1077,6 +1090,8 @@ export default function WorkspaceDashboard() {
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const feedEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1087,6 +1102,13 @@ export default function WorkspaceDashboard() {
       if (res.status && res.responseData) setProfile(res.responseData);
     });
   }, [router]);
+
+  useEffect(() => {
+    const ck = () => setIsMobile(window.innerWidth < 768);
+    ck();
+    window.addEventListener('resize', ck);
+    return () => window.removeEventListener('resize', ck);
+  }, []);
 
   useEffect(() => {
     const name = profile?.brand_name ?? 'your brand';
@@ -1195,10 +1217,10 @@ export default function WorkspaceDashboard() {
         @keyframes wStatusFade{0%{opacity:0;transform:translateY(3px)}12%{opacity:1;transform:translateY(0)}88%{opacity:1}100%{opacity:0;transform:translateY(-3px)}}
       `}</style>
 
-      <div className="workspace-root" style={{ display: 'flex', height: '100vh', fontFamily: 'var(--wf)', background: '#f5f4f0', opacity: ready ? 1 : 0, transition: 'opacity .3s' }}>
+      <div className="workspace-root" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100vh', fontFamily: 'var(--wf)', background: '#f5f4f0', opacity: ready ? 1 : 0, transition: 'opacity .3s' }}>
 
-        {/* SIDEBAR */}
-        <div style={{ width: 224, background: '#1a0a12', display: 'flex', flexDirection: 'column', padding: '18px 0', flexShrink: 0 }}>
+        {/* SIDEBAR — desktop only */}
+        {!isMobile && <div style={{ width: 224, background: '#1a0a12', display: 'flex', flexDirection: 'column', padding: '18px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 18px', marginBottom: 26 }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, background: 'linear-gradient(135deg,#C2185B,#E91E63)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ color: '#fff', fontWeight: 900, fontSize: 13 }}>U</span>
@@ -1238,23 +1260,33 @@ export default function WorkspaceDashboard() {
               <I n="logout" s={14} c="rgba(255,255,255,.2)" />
             </button>
           </div>
-        </div>
+        </div>}
 
         {/* MAIN */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Topbar */}
-          <div style={{ padding: '9px 24px', background: '#fff', borderBottom: '1px solid #edecea', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#4caf50', boxShadow: '0 0 7px rgba(76,175,80,.4)' }} />
-              <span style={{ fontSize: 12.5, color: '#666' }}>
-                <strong style={{ color: '#C2185B' }}>URI Agent</strong> is active:{' '}
-                <span key={sIdx} style={{ animation: 'wStatusFade 5s linear', display: 'inline-block' }}>{STATUS_MSGS[sIdx]}</span>
+          <div style={{ padding: isMobile ? '8px 14px' : '9px 24px', background: '#fff', borderBottom: '1px solid #edecea', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 7 : 9 }}>
+              {isMobile && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginRight: 4 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: 6, background: 'linear-gradient(135deg,#C2185B,#E91E63)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ color: '#fff', fontWeight: 900, fontSize: 11 }}>U</span>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>URI <span style={{ fontWeight: 400, color: '#999' }}>Social</span></span>
+                </div>
+              )}
+              {!isMobile && <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#4caf50', boxShadow: '0 0 7px rgba(76,175,80,.4)' }} />}
+              <span style={{ fontSize: isMobile ? 11 : 12.5, color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: isMobile ? 160 : 'none' }}>
+                {!isMobile && <><strong style={{ color: '#C2185B' }}>URI Agent</strong> is active:{' '}</>}
+                <span key={sIdx} style={{ animation: 'wStatusFade 5s linear', display: 'inline-block' }}>
+                  {isMobile ? STATUS_MSGS[sIdx].slice(0, 28) + '…' : STATUS_MSGS[sIdx]}
+                </span>
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <button onClick={() => router.push('/settings/social-accounts')} style={{ width: 32, height: 32, borderRadius: 7, border: '1px solid #e5e3df', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {!isMobile && <button onClick={() => router.push('/settings/social-accounts')} style={{ width: 32, height: 32, borderRadius: 7, border: '1px solid #e5e3df', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <I n="settings" s={14} c="#666" />
-              </button>
+              </button>}
               <button onClick={() => router.push('/social-media/brand-setup')} style={{ width: 32, height: 32, borderRadius: 7, border: '1px solid #e5e3df', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Edit Brand Setup">
                 <I n="edit" s={14} c="#666" />
               </button>
@@ -1265,7 +1297,7 @@ export default function WorkspaceDashboard() {
           <div style={{ flex: 1, overflow: 'hidden' }}>
             {nav === 'workspace' ? (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px 8px' }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '14px 14px 8px' : '18px 24px 8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                     <div style={{ flex: 1, height: 1, background: '#edecea' }} />
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#ccc', letterSpacing: 0.5, textTransform: 'uppercase' }}>
@@ -1276,20 +1308,20 @@ export default function WorkspaceDashboard() {
                   {feed.map(msg => (
                     <div key={msg.id} style={{ marginBottom: 20 }}>
                       {msg.type === 'user' ? (
-                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                          <div style={{ maxWidth: 500 }}>
+                        <div style={{ display: 'flex', gap: isMobile ? 6 : 10, justifyContent: 'flex-end' }}>
+                          <div style={{ maxWidth: isMobile ? '88%' : 500 }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, marginBottom: 4 }}>
                               <span style={{ fontSize: 10.5, color: '#bbb' }}>{msg.time}</span>
                               <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>You</span>
                             </div>
-                            <div style={{ padding: '11px 16px', borderRadius: '14px 3px 14px 14px', background: '#1a0a12', color: '#f3d0df', fontSize: 13, lineHeight: 1.6 }}>{msg.content}</div>
+                            <div style={{ padding: isMobile ? '9px 12px' : '11px 16px', borderRadius: '14px 3px 14px 14px', background: '#1a0a12', color: '#f3d0df', fontSize: 13, lineHeight: 1.6 }}>{msg.content}</div>
                           </div>
-                          <UserAvatar size={30} initials={brandInitials} />
+                          {!isMobile && <UserAvatar size={30} initials={brandInitials} />}
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                          <JaneAvatar size={30} />
-                          <div style={{ maxWidth: 560, flex: 1 }}>
+                        <div style={{ display: 'flex', gap: isMobile ? 6 : 10, alignItems: 'flex-start' }}>
+                          <JaneAvatar size={isMobile ? 26 : 30} />
+                          <div style={{ maxWidth: isMobile ? '90%' : 560, flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
                               <span style={{ fontSize: 12, fontWeight: 700, color: '#C2185B' }}>URI Agent</span>
                               <span style={{ fontSize: 10, color: '#C2185B', background: 'rgba(194,24,91,.07)', padding: '1px 6px', borderRadius: 3, fontWeight: 600 }}>AI</span>
@@ -1313,7 +1345,7 @@ export default function WorkspaceDashboard() {
                   )}
                   <div ref={feedEnd} />
                 </div>
-                <div style={{ padding: '10px 24px 16px', background: 'linear-gradient(0deg,#f5f4f0 80%,transparent)' }}>
+                <div style={{ padding: isMobile ? `8px 14px ${isMobile ? 'calc(8px + env(safe-area-inset-bottom, 0px))' : '16px'}` : '10px 24px 16px', background: 'linear-gradient(0deg,#f5f4f0 80%,transparent)' }}>
                   <div style={{ display: 'flex', gap: 7, alignItems: 'flex-end', background: '#fff', borderRadius: 13, border: '1.5px solid #e5e3df', padding: '5px 5px 5px 16px', boxShadow: '0 3px 16px rgba(0,0,0,.05)' }}>
                     <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
                       placeholder="Tell URI Agent what to create — e.g. 'Write 3 posts about our new product launch'"
@@ -1329,7 +1361,70 @@ export default function WorkspaceDashboard() {
               </div>
             ) : PAGES[nav]}
           </div>
+
+          {/* BOTTOM NAV — mobile only */}
+          {isMobile && (
+            <div style={{ display: 'flex', background: '#fff', borderTop: '1px solid #edecea', paddingBottom: 'env(safe-area-inset-bottom, 0px)', flexShrink: 0 }}>
+              {MOBILE_TABS.map(t => {
+                const isActive = t.id === 'more' ? moreOpen : nav === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      if (t.id === 'more') { setMoreOpen(o => !o); }
+                      else { setNav(t.id); setMoreOpen(false); }
+                    }}
+                    style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '7px 0 5px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--wf)' }}
+                  >
+                    <I n={t.icon} s={20} c={isActive ? '#C2185B' : '#bbb'} />
+                    <span style={{ fontSize: 9.5, fontWeight: isActive ? 700 : 500, color: isActive ? '#C2185B' : '#bbb' }}>{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {/* MORE DRAWER — mobile only */}
+        {isMobile && moreOpen && (
+          <>
+            <div onClick={() => setMoreOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.25)', zIndex: 200 }} />
+            <div style={{ position: 'fixed', bottom: 56, left: 0, right: 0, background: '#fff', borderRadius: '16px 16px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,.12)', zIndex: 201, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+              {/* Handle */}
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: '#e5e3df' }} />
+              </div>
+              {/* User card */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px 14px', borderBottom: '1px solid #f0eeea' }}>
+                {profile?.logo_url
+                  ? <img src={profile.logo_url} alt="logo" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+                  : <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#880E4F,#C2185B)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>{brandInitials}</span></div>}
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{brandName}</div>
+                  <div style={{ fontSize: 11, color: '#999' }}>Free Plan</div>
+                </div>
+              </div>
+              {/* More nav items */}
+              {MORE_NAV.map(n => (
+                <button
+                  key={n.id}
+                  onClick={() => { setNav(n.id); setMoreOpen(false); }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', background: nav === n.id ? 'rgba(194,24,91,.05)' : 'none', border: 'none', borderLeft: nav === n.id ? '3px solid #E91E63' : '3px solid transparent', cursor: 'pointer', fontFamily: 'var(--wf)', fontSize: 14, fontWeight: nav === n.id ? 600 : 500, color: nav === n.id ? '#C2185B' : '#333', textAlign: 'left' }}
+                >
+                  <I n={n.icon} s={18} c={nav === n.id ? '#C2185B' : '#888'} />
+                  {n.label}
+                </button>
+              ))}
+              <button
+                onClick={() => { logoutUser(); setMoreOpen(false); }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px 18px', background: 'none', border: 'none', borderTop: '1px solid #f0eeea', cursor: 'pointer', fontFamily: 'var(--wf)', fontSize: 14, fontWeight: 500, color: '#999', textAlign: 'left', marginTop: 4 }}
+              >
+                <I n="logout" s={18} c="#ccc" />
+                Sign out
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </>
   );
