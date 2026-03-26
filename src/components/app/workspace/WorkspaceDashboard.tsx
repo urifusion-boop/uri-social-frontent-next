@@ -1055,7 +1055,7 @@ const STATUS_MSGS = [
 
 const NAV = [
   { id: 'workspace', icon: 'home', label: 'Workspace' },
-  { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
+  // { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
   { id: 'schedule', icon: 'calendar', label: 'Posting Schedule' },
   { id: 'performance', icon: 'chart', label: 'Performance' },
   { id: 'intel', icon: 'globe', label: 'Market Intel' },
