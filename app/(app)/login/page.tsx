@@ -17,7 +17,7 @@ import {
   Collapse,
 } from '@mui/material';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { MdOutlineCampaign, MdVisibility, MdVisibilityOff, MdCheckCircle, MdError } from 'react-icons/md';
 
 // Helper function to get user-friendly error messages
@@ -90,9 +90,14 @@ function LoginContent() {
   const [passwordError, setPasswordError] = useState('');
 
   // Handle Google OAuth callback — fires when Google redirects back with ?code=
+  const googleCallbackFired = useRef(false);
   useEffect(() => {
     const code = searchParams.get('code');
-    if (!code) return;
+    if (!code || googleCallbackFired.current) return;
+    // Mark immediately — prevents Strict Mode double-fire and refresh re-use
+    googleCallbackFired.current = true;
+    // Strip ?code= from the URL right away so a page refresh won't re-submit the spent code
+    window.history.replaceState({}, document.title, window.location.pathname);
     const redirectUri = window.location.origin + '/login';
     setGoogleLoading(true);
     AuthService.googleAuth(code, redirectUri)
