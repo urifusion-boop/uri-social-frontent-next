@@ -1220,7 +1220,7 @@ export default function WorkspaceDashboard() {
               <button key={n.id} onClick={() => setNav(n.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 18px', background: nav === n.id ? 'rgba(194,24,91,.1)' : 'transparent', border: 'none', borderLeft: nav === n.id ? '2.5px solid #E91E63' : '2.5px solid transparent', fontFamily: 'var(--wf)', fontSize: 12.5, color: nav === n.id ? '#fce4ec' : 'rgba(255,255,255,.35)', fontWeight: nav === n.id ? 600 : 400, cursor: 'pointer', textAlign: 'left', transition: 'all .12s' }}>
                 <I n={n.icon} s={15} c={nav === n.id ? '#E91E63' : 'rgba(255,255,255,.22)'} />
                 <span style={{ flex: 1 }}>{n.label}</span>
-                {n.count != null && n.count > 0 && <span style={{ background: '#E91E63', color: '#fff', fontSize: 9.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4 }}>{n.count}</span>}
+                {(n as any).count != null && (n as any).count > 0 && <span style={{ background: '#E91E63', color: '#fff', fontSize: 9.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4 }}>{(n as any).count}</span>}
               </button>
             ))}
           </div>

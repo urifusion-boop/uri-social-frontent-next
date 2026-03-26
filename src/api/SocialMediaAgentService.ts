@@ -25,6 +25,7 @@ export interface GenerateContentPayload {
   seed_type?: string;
   include_images?: boolean;
   brand_context?: BrandContext;
+  reference_image?: string;
 }
 
 export interface RefinePayload {
