@@ -1,6 +1,7 @@
 'use client';
 
 import { AuthService } from '@/src/api/AuthService';
+import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import {
   Box,
@@ -101,7 +102,7 @@ function LoginContent() {
     const redirectUri = window.location.origin + '/login';
     setGoogleLoading(true);
     AuthService.googleAuth(code, redirectUri)
-      .then((res) => {
+      .then(async (res) => {
         if (!res.status || !res.responseData) {
           setError(res.responseMessage || 'Google sign-in failed. Please try again.');
           return;
@@ -110,7 +111,8 @@ function LoginContent() {
         saveUserTokens({ accessToken, refreshToken: '' });
         saveUserDetails({ userId, email: userEmail, firstName: fName, lastName: lName });
         setSuccess('Signed in with Google! Redirecting...');
-        setTimeout(() => router.push('/workspace'), 1000);
+        const onboardingDone = await BrandProfileService.isOnboardingDone();
+        setTimeout(() => router.push(onboardingDone ? '/workspace' : '/social-media/brand-setup'), 1000);
       })
       .catch(() => setError('Google sign-in failed. Please try again.'))
       .finally(() => setGoogleLoading(false));
@@ -185,12 +187,11 @@ function LoginContent() {
       saveUserTokens({ accessToken, refreshToken: '' });
       saveUserDetails({ userId, email: userEmail, firstName: fName, lastName: lName });
 
-      // Show success message
       setSuccess(tab === 'login' ? 'Login successful! Redirecting...' : 'Account created successfully! Redirecting...');
 
-      // Redirect after a brief delay
+      const onboardingDone = await BrandProfileService.isOnboardingDone();
       setTimeout(() => {
-        router.push('/workspace');
+        router.push(onboardingDone ? '/workspace' : '/social-media/brand-setup');
       }, 1000);
     } catch (err: unknown) {
       const e = err as {
