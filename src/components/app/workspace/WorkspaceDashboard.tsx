@@ -317,7 +317,7 @@ interface PostItem {
 ═══════════════════════════════════════════════════════════════════════════ */
 type ContentTab = 'create' | 'drafts' | 'scheduled' | 'auto';
 
-const ContentManagerPage = () => {
+const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
   const activeTabRef = useRef<ContentTab>('create');
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
