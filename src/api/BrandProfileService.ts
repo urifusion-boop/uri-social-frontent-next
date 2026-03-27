@@ -41,7 +41,7 @@ export interface BrandProfileData {
   guardrails?: BrandGuardrails;
   cta_styles?: string[];
   default_link?: string;
-  audience_age_range?: string;
+  audience_age_range?: string | string[];
   target_platforms?: string[];
   primary_goal?: string;
   competitor_handles?: string[];
@@ -55,7 +55,7 @@ export interface BrandProfileData {
   notification_channel?: string;
   team_members?: BrandTeamMember[];
   languages?: string[];
-  region?: string;
+  region?: string | string[];
   onboarding_completed?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -75,14 +75,22 @@ export class BrandProfileService {
   static async uploadLogo(file: File): Promise<UriResponse<{ logo_url: string }>> {
     const form = new FormData();
     form.append('file', file);
-    const res: AxiosResponse<UriResponse<{ logo_url: string }>> = await UriHttpClient.getClient().post(`${BASE}/logo`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    const res: AxiosResponse<UriResponse<{ logo_url: string }>> = await UriHttpClient.getClient().post(
+      `${BASE}/logo`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
     return res.data;
   }
 
   static async uploadSampleTemplate(file: File): Promise<UriResponse<{ file_url: string }>> {
     const form = new FormData();
     form.append('file', file);
-    const res: AxiosResponse<UriResponse<{ file_url: string }>> = await UriHttpClient.getClient().post(`${BASE}/sample-template`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    const res: AxiosResponse<UriResponse<{ file_url: string }>> = await UriHttpClient.getClient().post(
+      `${BASE}/sample-template`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
     return res.data;
   }
 

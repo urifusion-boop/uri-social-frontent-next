@@ -36,7 +36,6 @@ const STEPS = [
   'notifications',
   'language',
   'preview',
-  'feedback',
 ] as const;
 type Step = (typeof STEPS)[number];
 
@@ -79,7 +78,19 @@ const AgentBubble = ({ children, primary }: { children: React.ReactNode; primary
 );
 
 /** Pill-shaped toggle chip */
-const Chip = ({ label, active, onClick, emoji, primary }: { label: string; active: boolean; onClick: () => void; emoji?: string; primary: string }) => (
+const Chip = ({
+  label,
+  active,
+  onClick,
+  emoji,
+  primary,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  emoji?: string;
+  primary: string;
+}) => (
   <Box
     component="button"
     onClick={onClick}
@@ -118,10 +129,22 @@ const FieldLabel = ({ children, sub }: { children: React.ReactNode; sub?: string
 );
 
 /** Hint text below a field */
-const Hint = ({ children }: { children: React.ReactNode }) => <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mt: 0.5, lineHeight: 1.5 }}>{children}</Typography>;
+const Hint = ({ children }: { children: React.ReactNode }) => (
+  <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mt: 0.5, lineHeight: 1.5 }}>{children}</Typography>
+);
 
 /** Standard text input styled to match the Uri InputField component */
-const UriInput = ({ value, onChange, placeholder, type = 'text' }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) => (
+const UriInput = ({
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+}) => (
   <Box
     component="input"
     type={type}
@@ -146,7 +169,17 @@ const UriInput = ({ value, onChange, placeholder, type = 'text' }: { value: stri
 );
 
 /** Standard textarea */
-const UriTextarea = ({ value, onChange, placeholder, rows = 3 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) => (
+const UriTextarea = ({
+  value,
+  onChange,
+  placeholder,
+  rows = 3,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  rows?: number;
+}) => (
   <Box
     component="textarea"
     value={value}
@@ -173,7 +206,21 @@ const UriTextarea = ({ value, onChange, placeholder, rows = 3 }: { value: string
 );
 
 /** Large option card (like select-workflow style) */
-const OptionCard = ({ emoji, label, desc, active, onClick, primary }: { emoji: string; label: string; desc?: string; active: boolean; onClick: () => void; primary: string }) => (
+const OptionCard = ({
+  emoji,
+  label,
+  desc,
+  active,
+  onClick,
+  primary,
+}: {
+  emoji: string;
+  label: string;
+  desc?: string;
+  active: boolean;
+  onClick: () => void;
+  primary: string;
+}) => (
   <Box
     component="button"
     onClick={onClick}
@@ -190,7 +237,9 @@ const OptionCard = ({ emoji, label, desc, active, onClick, primary }: { emoji: s
     }}
   >
     <Typography sx={{ fontSize: 22, mb: 0.5 }}>{emoji}</Typography>
-    <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: active ? primary : '#374151', mb: desc ? 0.25 : 0 }}>{label}</Typography>
+    <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: active ? primary : '#374151', mb: desc ? 0.25 : 0 }}>
+      {label}
+    </Typography>
     {desc && <Typography sx={{ fontSize: 11, color: '#9CA3AF', lineHeight: 1.3 }}>{desc}</Typography>}
   </Box>
 );
@@ -228,7 +277,11 @@ const PersonalityPair = ({
         }}
       >
         <Typography sx={{ fontSize: 18, mb: 0.5 }}>{opt.emoji}</Typography>
-        <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: selected === opt.value ? primary : '#374151', mb: 0.25 }}>{opt.label}</Typography>
+        <Typography
+          sx={{ fontSize: 12.5, fontWeight: 600, color: selected === opt.value ? primary : '#374151', mb: 0.25 }}
+        >
+          {opt.label}
+        </Typography>
         <Typography sx={{ fontSize: 11, color: '#9CA3AF', lineHeight: 1.4 }}>{opt.example}</Typography>
       </Box>
     ))}
@@ -236,7 +289,15 @@ const PersonalityPair = ({
 );
 
 /** Drag-to-rank list */
-const PillarRanker = ({ items, onReorder, primary }: { items: string[]; onReorder: (v: string[]) => void; primary: string }) => {
+const PillarRanker = ({
+  items,
+  onReorder,
+  primary,
+}: {
+  items: string[];
+  onReorder: (v: string[]) => void;
+  primary: string;
+}) => {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   return (
     <Box display="flex" flexDirection="column" gap={0.75}>
@@ -296,8 +357,33 @@ const PillarRanker = ({ items, onReorder, primary }: { items: string[]; onReorde
 };
 
 /** Colour picker */
-const ColorPicker = ({ colors, onChange, primary }: { colors: string[]; onChange: (c: string[]) => void; primary: string }) => {
-  const presets = ['#C91A79', '#7C3AED', '#0F3460', '#0891B2', '#059669', '#D97706', '#DC2626', '#E76F51', '#264653', '#2D6A4F', '#533483', '#EC4899', '#6B21A8', '#1D4ED8', '#0369A1', '#374151'];
+const ColorPicker = ({
+  colors,
+  onChange,
+  primary,
+}: {
+  colors: string[];
+  onChange: (c: string[]) => void;
+  primary: string;
+}) => {
+  const presets = [
+    '#C91A79',
+    '#7C3AED',
+    '#0F3460',
+    '#0891B2',
+    '#059669',
+    '#D97706',
+    '#DC2626',
+    '#E76F51',
+    '#264653',
+    '#2D6A4F',
+    '#533483',
+    '#EC4899',
+    '#6B21A8',
+    '#1D4ED8',
+    '#0369A1',
+    '#374151',
+  ];
   return (
     <Box>
       <Box display="flex" gap={0.75} flexWrap="wrap" mb={1}>
@@ -328,7 +414,18 @@ const ColorPicker = ({ colors, onChange, primary }: { colors: string[]; onChange
           type="text"
           placeholder="#hex"
           maxLength={7}
-          sx={{ width: 90, height: 36, px: 1.25, borderRadius: '8px', border: '1px solid #E0DEF7', background: '#F7F7FD', fontSize: 12.5, color: '#374151', outline: 'none', fontFamily: 'inherit' }}
+          sx={{
+            width: 90,
+            height: 36,
+            px: 1.25,
+            borderRadius: '8px',
+            border: '1px solid #E0DEF7',
+            background: '#F7F7FD',
+            fontSize: 12.5,
+            color: '#374151',
+            outline: 'none',
+            fontFamily: 'inherit',
+          }}
           onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
             const t = e.currentTarget;
             if (e.key === 'Enter' && t.value.match(/^#[0-9a-fA-F]{6}$/) && colors.length < 3) {
@@ -356,7 +453,9 @@ function BrandSetupPageContent() {
   const [checkingExisting, setCheckingExisting] = useState(true);
 
   // ── Connect accounts ──────────────────────────────────────────
-  const [connectPhase, setConnectPhase] = useState<'selecting' | 'connecting' | 'pending' | 'finalizing' | 'success'>('selecting');
+  const [connectPhase, setConnectPhase] = useState<'selecting' | 'connecting' | 'pending' | 'finalizing' | 'success'>(
+    'selecting'
+  );
   const [selectedConnectPlatform, setSelectedConnectPlatform] = useState<string | null>(null);
   const [connectSessionToken, setConnectSessionToken] = useState<string | null>(null);
   const [availablePages, setAvailablePages] = useState<AvailablePage[]>([]);
@@ -381,8 +480,18 @@ function BrandSetupPageContent() {
   const quizData = [
     {
       id: 'formality',
-      optA: { emoji: '👔', label: 'Polished & Professional', value: 'formal', example: '"We\'re excited to share our latest."' },
-      optB: { emoji: '🤙', label: 'Casual & Conversational', value: 'casual', example: '"Y\'all are gonna LOVE this drop."' },
+      optA: {
+        emoji: '👔',
+        label: 'Polished & Professional',
+        value: 'formal',
+        example: '"We\'re excited to share our latest."',
+      },
+      optB: {
+        emoji: '🤙',
+        label: 'Casual & Conversational',
+        value: 'casual',
+        example: '"Y\'all are gonna LOVE this drop."',
+      },
     },
     {
       id: 'humor',
@@ -413,7 +522,16 @@ function BrandSetupPageContent() {
   const [sampleTemplateError, setSampleTemplateError] = useState('');
 
   // ── Pillars ───────────────────────────────────────────────────
-  const allPillars = ['Behind the Scenes', 'Product Highlights', 'Tips & Education', 'Customer Stories', 'Promotions', 'Team & Culture', 'Industry News', 'Trending & Seasonal'];
+  const allPillars = [
+    'Behind the Scenes',
+    'Product Highlights',
+    'Tips & Education',
+    'Customer Stories',
+    'Promotions',
+    'Team & Culture',
+    'Industry News',
+    'Trending & Seasonal',
+  ];
   const [pillars, setPillars] = useState<string[]>([]);
 
   // ── Formats ───────────────────────────────────────────────────
@@ -439,10 +557,20 @@ function BrandSetupPageContent() {
   // ── CTA ───────────────────────────────────────────────────────
   const [ctaStyle, setCtaStyle] = useState<string[]>([]);
   const [defaultLink, setDefaultLink] = useState('');
-  const allCtas = ['Link in bio', 'Shop now', 'DM us', 'Book a call', 'Learn more', 'Sign up', 'Download', 'Visit our website', 'Use code...'];
+  const allCtas = [
+    'Link in bio',
+    'Shop now',
+    'DM us',
+    'Book a call',
+    'Learn more',
+    'Sign up',
+    'Download',
+    'Visit our website',
+    'Use code...',
+  ];
 
   // ── Audience ──────────────────────────────────────────────────
-  const [audienceAge, setAudienceAge] = useState('');
+  const [audienceAge, setAudienceAge] = useState<string[]>([]);
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
   const [goal, setGoal] = useState('');
 
@@ -471,7 +599,7 @@ function BrandSetupPageContent() {
 
   // ── Language ──────────────────────────────────────────────────
   const [languages, setLanguages] = useState<string[]>([]);
-  const [region, setRegion] = useState('');
+  const [region, setRegion] = useState<string[]>([]);
 
   // ── Feedback ──────────────────────────────────────────────────
   const [postFeedback, setPostFeedback] = useState('');
@@ -519,7 +647,8 @@ function BrandSetupPageContent() {
 
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const prev = () => setStep((s) => Math.max(s - 1, 0));
-  const toggle = <T,>(arr: T[], setArr: (v: T[]) => void, val: T, max?: number) => setArr(arr.includes(val) ? arr.filter((x) => x !== val) : max && arr.length >= max ? arr : [...arr, val]);
+  const toggle = <T,>(arr: T[], setArr: (v: T[]) => void, val: T, max?: number) =>
+    setArr(arr.includes(val) ? arr.filter((x) => x !== val) : max && arr.length >= max ? arr : [...arr, val]);
 
   const deriveVoice = () => {
     if (quiz.humor === 'witty') return 'witty';
@@ -532,8 +661,8 @@ function BrandSetupPageContent() {
 
   const connectedPlatforms = targetPlatforms.length > 0 ? targetPlatforms : ['Instagram', 'LinkedIn'];
 
-  // Progress: ignore welcome (step 0) and feedback (last step)
-  const progressibleSteps = STEPS.length - 2;
+  // Progress: ignore welcome (step 0) only
+  const progressibleSteps = STEPS.length - 1;
   const progressStep = Math.max(0, step - 1);
   const progressPct = progressibleSteps > 0 ? (progressStep / progressibleSteps) * 100 : 0;
 
@@ -555,7 +684,13 @@ function BrandSetupPageContent() {
       same_tone_everywhere: sameTone,
       content_pillars: pillars,
       preferred_formats: formats,
-      guardrails: { avoid_topics: avoidTopics, banned_words: bannedWords, emoji_usage: useEmoji, max_hashtags: maxHash, compliance_notes: compliance },
+      guardrails: {
+        avoid_topics: avoidTopics,
+        banned_words: bannedWords,
+        emoji_usage: useEmoji,
+        max_hashtags: maxHash,
+        compliance_notes: compliance,
+      },
       cta_styles: ctaStyle,
       default_link: defaultLink,
       audience_age_range: audienceAge,
@@ -605,9 +740,12 @@ function BrandSetupPageContent() {
                 <MdOutlineCampaign size={28} color="#fff" />
               </Box>
             </Box>
-            <Typography sx={{ fontSize: { xs: 22, md: 26 }, fontWeight: 700, color: '#0d0e0f', mb: 1 }}>Meet your AI social media manager</Typography>
+            <Typography sx={{ fontSize: { xs: 22, md: 26 }, fontWeight: 700, color: '#0d0e0f', mb: 1 }}>
+              Meet your AI social media manager
+            </Typography>
             <Typography sx={{ fontSize: 14, color: '#6C727F', maxWidth: 440, mx: 'auto', mb: 3, lineHeight: 1.6 }}>
-              Let's spend a few minutes so I can learn everything about your brand — then I'll create content that sounds like you wrote it.
+              Let's spend a few minutes so I can learn everything about your brand — then I'll create content that
+              sounds like you wrote it.
             </Typography>
             <Box display="flex" gap={1} justifyContent="center" flexWrap="wrap" mb={3}>
               {[
@@ -637,7 +775,9 @@ function BrandSetupPageContent() {
                 </Box>
               ))}
             </Box>
-            <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mb: 3 }}>⏱ About 5–7 minutes · Skip any step · Progress saves at the end</Typography>
+            <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mb: 3 }}>
+              ⏱ About 5–7 minutes · Skip any step · Progress saves at the end
+            </Typography>
             <CustomButton mode="primary" onClick={next} style={{ padding: '12px 32px' }}>
               Let's get started →
             </CustomButton>
@@ -647,8 +787,22 @@ function BrandSetupPageContent() {
       // ══ CONNECT ACCOUNTS ═════════════════════════════════════════
       case 'connectAccounts': {
         const LIVE_PLATFORMS = [
-          { id: 'facebook', name: 'Facebook', icon: FaFacebook, color: '#1877F2', bg: '#E7F0FD', description: 'Pages you manage' },
-          { id: 'instagram', name: 'Instagram', icon: FaInstagram, color: '#E4405F', bg: '#FDE7EC', description: 'Business & creator accounts' },
+          {
+            id: 'facebook',
+            name: 'Facebook',
+            icon: FaFacebook,
+            color: '#1877F2',
+            bg: '#E7F0FD',
+            description: 'Pages you manage',
+          },
+          {
+            id: 'instagram',
+            name: 'Instagram',
+            icon: FaInstagram,
+            color: '#E4405F',
+            bg: '#FDE7EC',
+            description: 'Business & creator accounts',
+          },
         ];
 
         const handleInitiateConnect = async () => {
@@ -675,7 +829,9 @@ function BrandSetupPageContent() {
           try {
             const res = await SocialAccountService.finalizeConnection(connectSessionToken, selectedPageIds);
             if (res.status && res.responseData) {
-              setConnectedAccountNames((res.responseData.accounts_connected ?? []).map((a) => a.account_name || a.username));
+              setConnectedAccountNames(
+                (res.responseData.accounts_connected ?? []).map((a) => a.account_name || a.username)
+              );
               setConnectPhase('success');
             } else {
               setConnectPhase('pending');
@@ -685,13 +841,16 @@ function BrandSetupPageContent() {
           }
         };
 
-        const handlePageToggle = (id: string) => setSelectedPageIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+        const handlePageToggle = (id: string) =>
+          setSelectedPageIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
         if (connectPhase === 'connecting' || connectPhase === 'finalizing') {
           return (
             <Box textAlign="center" py={4}>
               <CircularProgress size={48} sx={{ color: primary, mb: 2 }} />
-              <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{connectPhase === 'finalizing' ? 'Connecting your accounts...' : 'Loading your accounts...'}</Typography>
+              <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>
+                {connectPhase === 'finalizing' ? 'Connecting your accounts...' : 'Loading your accounts...'}
+              </Typography>
             </Box>
           );
         }
@@ -699,10 +858,14 @@ function BrandSetupPageContent() {
         if (connectPhase === 'pending') {
           return (
             <Box>
-              <AgentBubble primary={primary}>Great! Choose which {connectNetworkName} accounts you want to manage through Uri Creative.</AgentBubble>
+              <AgentBubble primary={primary}>
+                Great! Choose which {connectNetworkName} accounts you want to manage through Uri Creative.
+              </AgentBubble>
               <Box mt={1.5} display="flex" flexDirection="column" gap={1.25} mb={2.5}>
                 {availablePages.length === 0 ? (
-                  <Typography sx={{ fontSize: 13, color: '#6C727F', py: 2, textAlign: 'center' }}>No accounts found. Make sure you have admin access to at least one page.</Typography>
+                  <Typography sx={{ fontSize: 13, color: '#6C727F', py: 2, textAlign: 'center' }}>
+                    No accounts found. Make sure you have admin access to at least one page.
+                  </Typography>
                 ) : (
                   availablePages.map((page) => {
                     const isSelected = selectedPageIds.includes(page.id);
@@ -725,15 +888,33 @@ function BrandSetupPageContent() {
                         }}
                       >
                         {page.profilePictureUrl ? (
-                          <img src={page.profilePictureUrl} alt={page.name} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
+                          <img
+                            src={page.profilePictureUrl}
+                            alt={page.name}
+                            style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
+                          />
                         ) : (
-                          <Box sx={{ width: 40, height: 40, borderRadius: '50%', bgcolor: '#E0DEF7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Box
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: '50%',
+                              bgcolor: '#E0DEF7',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
                             <Typography sx={{ fontWeight: 700, color: '#6C727F' }}>{page.name.charAt(0)}</Typography>
                           </Box>
                         )}
                         <Box flex={1}>
-                          <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: '#374151' }}>{page.name}</Typography>
-                          {page.username && <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>@{page.username}</Typography>}
+                          <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: '#374151' }}>
+                            {page.name}
+                          </Typography>
+                          {page.username && (
+                            <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>@{page.username}</Typography>
+                          )}
                         </Box>
                         <Checkbox
                           checked={isSelected}
@@ -747,13 +928,30 @@ function BrandSetupPageContent() {
                 )}
               </Box>
               <Box display="flex" gap={1.5} alignItems="center">
-                <CustomButton mode="primary" onClick={handleFinalize} disabled={selectedPageIds.length === 0} style={{ padding: '10px 24px', opacity: selectedPageIds.length > 0 ? 1 : 0.5 }}>
-                  Connect {selectedPageIds.length > 0 ? `${selectedPageIds.length} account${selectedPageIds.length !== 1 ? 's' : ''}` : 'accounts'}
+                <CustomButton
+                  mode="primary"
+                  onClick={handleFinalize}
+                  disabled={selectedPageIds.length === 0}
+                  style={{ padding: '10px 24px', opacity: selectedPageIds.length > 0 ? 1 : 0.5 }}
+                >
+                  Connect{' '}
+                  {selectedPageIds.length > 0
+                    ? `${selectedPageIds.length} account${selectedPageIds.length !== 1 ? 's' : ''}`
+                    : 'accounts'}
                 </CustomButton>
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   Skip for now
                 </Typography>
@@ -766,9 +964,12 @@ function BrandSetupPageContent() {
           return (
             <Box textAlign="center" py={2}>
               <FaCheckCircle size={48} color="#4CAF50" style={{ marginBottom: 12 }} />
-              <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#374151', mb: 0.75 }}>Accounts connected!</Typography>
+              <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#374151', mb: 0.75 }}>
+                Accounts connected!
+              </Typography>
               <Typography sx={{ fontSize: 13, color: '#9CA3AF', mb: 2.5 }}>
-                {connectedAccountNames.join(', ')} {connectedAccountNames.length === 1 ? 'is' : 'are'} ready to publish to.
+                {connectedAccountNames.join(', ')} {connectedAccountNames.length === 1 ? 'is' : 'are'} ready to publish
+                to.
               </Typography>
               <Box display="flex" gap={1.5} justifyContent="center" alignItems="center">
                 <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
@@ -780,7 +981,16 @@ function BrandSetupPageContent() {
                     setConnectPhase('selecting');
                     setSelectedConnectPlatform(null);
                   }}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   Connect another
                 </Typography>
@@ -792,7 +1002,9 @@ function BrandSetupPageContent() {
         // Default: selecting phase
         return (
           <Box>
-            <AgentBubble primary={primary}>To publish content, connect a social account. You can add more platforms anytime.</AgentBubble>
+            <AgentBubble primary={primary}>
+              To publish content, connect a social account. You can add more platforms anytime.
+            </AgentBubble>
             <Box mt={1.5} display="flex" flexDirection="column" gap={1.5} mb={2.5}>
               {LIVE_PLATFORMS.map((platform) => {
                 const IconComponent = platform.icon;
@@ -815,7 +1027,18 @@ function BrandSetupPageContent() {
                       '&:hover': { borderColor: primary },
                     }}
                   >
-                    <Box sx={{ width: 44, height: 44, borderRadius: '10px', bgcolor: platform.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Box
+                      sx={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: '10px',
+                        bgcolor: platform.bg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
                       <IconComponent size={24} color={platform.color} />
                     </Box>
                     <Box flex={1}>
@@ -827,17 +1050,37 @@ function BrandSetupPageContent() {
                 );
               })}
               <Box sx={{ px: 2, py: 1.25, borderRadius: '10px', border: '1px dashed #E0DEF7', background: '#FAFAFA' }}>
-                <Typography sx={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>LinkedIn, TikTok, YouTube, X — coming soon</Typography>
+                <Typography sx={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
+                  LinkedIn, TikTok, YouTube, X — coming soon
+                </Typography>
               </Box>
             </Box>
             <Box display="flex" gap={1.5} alignItems="center">
-              <CustomButton mode="primary" onClick={handleInitiateConnect} disabled={!selectedConnectPlatform} style={{ padding: '10px 24px', opacity: selectedConnectPlatform ? 1 : 0.5 }}>
-                Connect {selectedConnectPlatform ? LIVE_PLATFORMS.find((p) => p.id === selectedConnectPlatform)?.name : 'account'} →
+              <CustomButton
+                mode="primary"
+                onClick={handleInitiateConnect}
+                disabled={!selectedConnectPlatform}
+                style={{ padding: '10px 24px', opacity: selectedConnectPlatform ? 1 : 0.5 }}
+              >
+                Connect{' '}
+                {selectedConnectPlatform
+                  ? LIVE_PLATFORMS.find((p) => p.id === selectedConnectPlatform)?.name
+                  : 'account'}{' '}
+                →
               </CustomButton>
               <Typography
                 component="button"
                 onClick={next}
-                sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                sx={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#9CA3AF',
+                  fontSize: 12.5,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 3,
+                  p: 0,
+                }}
               >
                 I'll do this later
               </Typography>
@@ -850,7 +1093,9 @@ function BrandSetupPageContent() {
       case 'basics':
         return (
           <Box>
-            <AgentBubble primary={primary}>First things first — what's your brand called? Tell me a bit about what you do.</AgentBubble>
+            <AgentBubble primary={primary}>
+              First things first — what's your brand called? Tell me a bit about what you do.
+            </AgentBubble>
             <Grid container spacing={2.5} mt={0}>
               <Grid item xs={12}>
                 <FieldLabel sub="*">Brand / Business Name</FieldLabel>
@@ -902,7 +1147,12 @@ function BrandSetupPageContent() {
               </Grid>
               <Grid item xs={12}>
                 <FieldLabel sub="(1–2 sentences)">What does your business do?</FieldLabel>
-                <UriTextarea value={productDesc} onChange={setProductDesc} placeholder="e.g. We help Lagos SMEs grow their online presence with AI-powered content." rows={3} />
+                <UriTextarea
+                  value={productDesc}
+                  onChange={setProductDesc}
+                  placeholder="e.g. We help Lagos SMEs grow their online presence with AI-powered content."
+                  rows={3}
+                />
               </Grid>
               <Grid item xs={12}>
                 <Box display="flex" gap={1.5} alignItems="center">
@@ -912,7 +1162,16 @@ function BrandSetupPageContent() {
                   <Typography
                     component="button"
                     onClick={next}
-                    sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                      p: 0,
+                    }}
                   >
                     I'll do this later
                   </Typography>
@@ -926,7 +1185,9 @@ function BrandSetupPageContent() {
       case 'identity':
         return (
           <Box>
-            <AgentBubble primary={primary}>Upload your logo and pick your brand colors — I'll use these in every post I create.</AgentBubble>
+            <AgentBubble primary={primary}>
+              Upload your logo and pick your brand colors — I'll use these in every post I create.
+            </AgentBubble>
             <Grid container spacing={2.5} mt={0}>
               <Grid item xs={12}>
                 <FieldLabel sub="(PNG, JPG, WEBP or SVG · max 5 MB)">Brand Logo</FieldLabel>
@@ -981,13 +1242,20 @@ function BrandSetupPageContent() {
                     <CircularProgress size={28} sx={{ color: primary }} />
                   ) : logoUrl ? (
                     <>
-                      <img src={logoUrl} alt="brand logo" style={{ maxHeight: 60, maxWidth: 180, objectFit: 'contain', borderRadius: 8 }} onError={() => setLogoUrl('')} />
+                      <img
+                        src={logoUrl}
+                        alt="brand logo"
+                        style={{ maxHeight: 60, maxWidth: 180, objectFit: 'contain', borderRadius: 8 }}
+                        onError={() => setLogoUrl('')}
+                      />
                       <Typography sx={{ fontSize: 11.5, color: primary, fontWeight: 600 }}>Click to replace</Typography>
                     </>
                   ) : (
                     <>
                       <Typography sx={{ fontSize: 22 }}>🖼️</Typography>
-                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Click to upload your logo</Typography>
+                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                        Click to upload your logo
+                      </Typography>
                       <Typography sx={{ fontSize: 11.5, color: '#9CA3AF' }}>PNG, JPG, WEBP, SVG · max 5 MB</Typography>
                     </>
                   )}
@@ -1014,7 +1282,10 @@ function BrandSetupPageContent() {
                 {colors.length > 0 && (
                   <Box display="flex" gap={1} alignItems="center" mt={1.5}>
                     {colors.map((c) => (
-                      <Box key={c} sx={{ width: 26, height: 26, borderRadius: '6px', background: c, border: '1px solid #E0DEF7' }} />
+                      <Box
+                        key={c}
+                        sx={{ width: 26, height: 26, borderRadius: '6px', background: c, border: '1px solid #E0DEF7' }}
+                      />
                     ))}
                     <Typography sx={{ fontSize: 11.5, color: '#9CA3AF' }}>Your brand palette</Typography>
                   </Box>
@@ -1028,7 +1299,16 @@ function BrandSetupPageContent() {
                   <Typography
                     component="button"
                     onClick={next}
-                    sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                      p: 0,
+                    }}
                   >
                     I'll do this later
                   </Typography>
@@ -1042,17 +1322,38 @@ function BrandSetupPageContent() {
       case 'personality':
         return (
           <Box>
-            <AgentBubble primary={primary}>My favourite part ✨ For each pair, pick the one that sounds more like your brand.</AgentBubble>
+            <AgentBubble primary={primary}>
+              My favourite part ✨ For each pair, pick the one that sounds more like your brand.
+            </AgentBubble>
             <Box mt={1}>
               {quizData.map((q) => (
-                <PersonalityPair key={q.id} optA={q.optA} optB={q.optB} selected={quiz[q.id]} onSelect={(v) => setQuiz((p) => ({ ...p, [q.id]: v }))} primary={primary} />
+                <PersonalityPair
+                  key={q.id}
+                  optA={q.optA}
+                  optB={q.optB}
+                  selected={quiz[q.id]}
+                  onSelect={(v) => setQuiz((p) => ({ ...p, [q.id]: v }))}
+                  primary={primary}
+                />
               ))}
               {Object.keys(quiz).length >= 2 && (
                 <Box sx={{ background: '#F7F7FD', border: '1px solid #E0DEF7', borderRadius: '10px', p: 1.75, mb: 2 }}>
                   <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mb: 1 }}>Your voice profile:</Typography>
                   <Box display="flex" gap={0.75} flexWrap="wrap">
                     {Object.values(quiz).map((v) => (
-                      <Box key={v} sx={{ background: primary, color: '#fff', borderRadius: 99, px: 1.5, py: 0.375, fontSize: 11.5, fontWeight: 600, textTransform: 'capitalize' }}>
+                      <Box
+                        key={v}
+                        sx={{
+                          background: primary,
+                          color: '#fff',
+                          borderRadius: 99,
+                          px: 1.5,
+                          py: 0.375,
+                          fontSize: 11.5,
+                          fontWeight: 600,
+                          textTransform: 'capitalize',
+                        }}
+                      >
                         {v}
                       </Box>
                     ))}
@@ -1066,7 +1367,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1079,11 +1389,27 @@ function BrandSetupPageContent() {
       case 'platformTone':
         return (
           <Box>
-            <AgentBubble primary={primary}>Should I use the same voice everywhere, or adjust my tone per platform?</AgentBubble>
+            <AgentBubble primary={primary}>
+              Should I use the same voice everywhere, or adjust my tone per platform?
+            </AgentBubble>
             <Box mt={1.5}>
               <Box display="flex" gap={1.5} mb={2}>
-                <OptionCard emoji="🔗" label="Same everywhere" desc="One consistent voice" active={sameTone} onClick={() => setSameTone(true)} primary={primary} />
-                <OptionCard emoji="🎭" label="Customize per platform" desc="Adjust tone by channel" active={!sameTone} onClick={() => setSameTone(false)} primary={primary} />
+                <OptionCard
+                  emoji="🔗"
+                  label="Same everywhere"
+                  desc="One consistent voice"
+                  active={sameTone}
+                  onClick={() => setSameTone(true)}
+                  primary={primary}
+                />
+                <OptionCard
+                  emoji="🎭"
+                  label="Customize per platform"
+                  desc="Adjust tone by channel"
+                  active={!sameTone}
+                  onClick={() => setSameTone(false)}
+                  primary={primary}
+                />
               </Box>
               {!sameTone && (
                 <Box display="flex" flexDirection="column" gap={2} mb={2}>
@@ -1092,7 +1418,13 @@ function BrandSetupPageContent() {
                       <FieldLabel>{p}</FieldLabel>
                       <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                         {toneOptions.map((t) => (
-                          <Chip key={t} label={t} active={platformTones[p] === t} onClick={() => setPlatformTones((prev) => ({ ...prev, [p]: t }))} primary={primary} />
+                          <Chip
+                            key={t}
+                            label={t}
+                            active={platformTones[p] === t}
+                            onClick={() => setPlatformTones((prev) => ({ ...prev, [p]: t }))}
+                            primary={primary}
+                          />
                         ))}
                       </Box>
                     </Box>
@@ -1106,7 +1438,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1119,15 +1460,25 @@ function BrandSetupPageContent() {
       case 'voiceSample':
         return (
           <Box>
-            <AgentBubble primary={primary}>Got a caption, email, or piece of writing that really sounds like your brand? Paste it here — real examples beat any quiz.</AgentBubble>
+            <AgentBubble primary={primary}>
+              Got a caption, email, or piece of writing that really sounds like your brand? Paste it here — real
+              examples beat any quiz.
+            </AgentBubble>
             <Box mt={1.5}>
               <FieldLabel sub="(optional but powerful)">Sample of your brand voice</FieldLabel>
-              <UriTextarea value={voiceSample} onChange={setVoiceSample} placeholder="Paste your best caption, a paragraph from your site, or an email that nailed your tone..." rows={5} />
+              <UriTextarea
+                value={voiceSample}
+                onChange={setVoiceSample}
+                placeholder="Paste your best caption, a paragraph from your site, or an email that nailed your tone..."
+                rows={5}
+              />
               {voiceSample.length > 30 && (
                 <Box sx={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', p: 1.5, mt: 1.5 }}>
                   <Box display="flex" alignItems="center" gap={0.75}>
                     <FaCheckCircle color="#16A34A" size={13} />
-                    <Typography sx={{ fontSize: 12.5, color: '#166534' }}>Locked in — I'll mirror this tone in everything I write.</Typography>
+                    <Typography sx={{ fontSize: 12.5, color: '#166534' }}>
+                      Locked in — I'll mirror this tone in everything I write.
+                    </Typography>
                   </Box>
                 </Box>
               )}
@@ -1135,7 +1486,9 @@ function BrandSetupPageContent() {
               {/* ── Template / design samples ── */}
               <Box mt={2.5}>
                 <FieldLabel sub="(optional — images or PDFs)">Sample designs or content templates</FieldLabel>
-                <Hint>Upload posts, flyers, or any content that nails your visual style — I'll use these as reference.</Hint>
+                <Hint>
+                  Upload posts, flyers, or any content that nails your visual style — I'll use these as reference.
+                </Hint>
 
                 <Box
                   component="label"
@@ -1167,8 +1520,12 @@ function BrandSetupPageContent() {
                       setSampleTemplateError('');
                       setSampleTemplateUploading(true);
                       try {
-                        const results = await Promise.all(files.map((f) => BrandProfileService.uploadSampleTemplate(f)));
-                        const urls = results.flatMap((r) => (r.status && r.responseData?.file_url ? [r.responseData.file_url] : []));
+                        const results = await Promise.all(
+                          files.map((f) => BrandProfileService.uploadSampleTemplate(f))
+                        );
+                        const urls = results.flatMap((r) =>
+                          r.status && r.responseData?.file_url ? [r.responseData.file_url] : []
+                        );
                         if (urls.length) {
                           setSampleTemplateUrls((prev) => [...prev, ...urls]);
                         } else {
@@ -1188,7 +1545,8 @@ function BrandSetupPageContent() {
                     <>
                       <FaImage size={22} color={primary} />
                       <Typography sx={{ fontSize: 12.5, color: '#6B7280', textAlign: 'center' }}>
-                        Click to upload sample designs<br />
+                        Click to upload sample designs
+                        <br />
                         <span style={{ fontSize: 11, color: '#9CA3AF' }}>PNG, JPG, WEBP or PDF · up to 5 files</span>
                       </Typography>
                     </>
@@ -1204,11 +1562,26 @@ function BrandSetupPageContent() {
                     {sampleTemplateUrls.map((url, i) => (
                       <Box
                         key={i}
-                        sx={{ position: 'relative', width: 72, height: 72, borderRadius: '8px', overflow: 'hidden', border: '1px solid #E5E7EB', flexShrink: 0 }}
+                        sx={{
+                          position: 'relative',
+                          width: 72,
+                          height: 72,
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          border: '1px solid #E5E7EB',
+                          flexShrink: 0,
+                        }}
                       >
                         {url.endsWith('.pdf') ? (
-                          <Box display="flex" alignItems="center" justifyContent="center" sx={{ width: '100%', height: '100%', background: '#F3F4F6' }}>
-                            <Typography sx={{ fontSize: 10, color: '#6B7280', textAlign: 'center', px: 0.5 }}>PDF</Typography>
+                          <Box
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
+                            sx={{ width: '100%', height: '100%', background: '#F3F4F6' }}
+                          >
+                            <Typography sx={{ fontSize: 10, color: '#6B7280', textAlign: 'center', px: 0.5 }}>
+                              PDF
+                            </Typography>
                           </Box>
                         ) : (
                           <Image src={url} alt={`sample ${i + 1}`} fill style={{ objectFit: 'cover' }} />
@@ -1217,10 +1590,19 @@ function BrandSetupPageContent() {
                           component="button"
                           onClick={() => setSampleTemplateUrls((prev) => prev.filter((_, idx) => idx !== i))}
                           sx={{
-                            position: 'absolute', top: 2, right: 2,
-                            background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%',
-                            width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', p: 0,
+                            position: 'absolute',
+                            top: 2,
+                            right: 2,
+                            background: 'rgba(0,0,0,0.55)',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: 18,
+                            height: 18,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            p: 0,
                           }}
                         >
                           <FaTimes size={9} color="#fff" />
@@ -1238,7 +1620,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1251,12 +1642,20 @@ function BrandSetupPageContent() {
       case 'pillars':
         return (
           <Box>
-            <AgentBubble primary={primary}>What do you want to talk about? Pick 3–5 content pillars, then drag to rank by priority.</AgentBubble>
+            <AgentBubble primary={primary}>
+              What do you want to talk about? Pick 3–5 content pillars, then drag to rank by priority.
+            </AgentBubble>
             <Box mt={1.5}>
               <FieldLabel>Select 3–5 content pillars</FieldLabel>
               <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75} mb={2}>
                 {allPillars.map((p) => (
-                  <Chip key={p} label={p} active={pillars.includes(p)} onClick={() => toggle(pillars, setPillars, p, 5)} primary={primary} />
+                  <Chip
+                    key={p}
+                    label={p}
+                    active={pillars.includes(p)}
+                    onClick={() => toggle(pillars, setPillars, p, 5)}
+                    primary={primary}
+                  />
                 ))}
               </Box>
               {pillars.length >= 2 && (
@@ -1274,7 +1673,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1287,12 +1695,21 @@ function BrandSetupPageContent() {
       case 'formats':
         return (
           <Box>
-            <AgentBubble primary={primary}>What content formats do you prefer? I'll focus on these and skip formats you don't want.</AgentBubble>
+            <AgentBubble primary={primary}>
+              What content formats do you prefer? I'll focus on these and skip formats you don't want.
+            </AgentBubble>
             <Box mt={1.5}>
               <FieldLabel sub="(select all that apply)">Preferred content formats</FieldLabel>
               <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75} mb={1.5}>
                 {allFormats.map((fmt) => (
-                  <Chip key={fmt.name} label={fmt.name} emoji={fmt.emoji} active={formats.includes(fmt.name)} onClick={() => toggle(formats, setFormats, fmt.name)} primary={primary} />
+                  <Chip
+                    key={fmt.name}
+                    label={fmt.name}
+                    emoji={fmt.emoji}
+                    active={formats.includes(fmt.name)}
+                    onClick={() => toggle(formats, setFormats, fmt.name)}
+                    primary={primary}
+                  />
                 ))}
               </Box>
               <Hint>I'll create a mix weighted toward your top choices. You can adjust anytime.</Hint>
@@ -1303,7 +1720,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1316,11 +1742,19 @@ function BrandSetupPageContent() {
       case 'guardrails':
         return (
           <Box>
-            <AgentBubble primary={primary}>Every good team member needs boundaries. Tell me what to avoid — topics, words, or rules I should always follow.</AgentBubble>
+            <AgentBubble primary={primary}>
+              Every good team member needs boundaries. Tell me what to avoid — topics, words, or rules I should always
+              follow.
+            </AgentBubble>
             <Grid container spacing={2} mt={0}>
               <Grid item xs={12}>
                 <FieldLabel sub="(e.g. politics, religion, competitors)">Topics to avoid</FieldLabel>
-                <UriTextarea value={avoidTopics} onChange={setAvoidTopics} placeholder="Never mention competitor brands, avoid political commentary..." rows={2} />
+                <UriTextarea
+                  value={avoidTopics}
+                  onChange={setAvoidTopics}
+                  placeholder="Never mention competitor brands, avoid political commentary..."
+                  rows={2}
+                />
               </Grid>
               <Grid item xs={12}>
                 <FieldLabel>Words or phrases to never use</FieldLabel>
@@ -1334,7 +1768,13 @@ function BrandSetupPageContent() {
                     { l: 'Sparingly', v: 'some' },
                     { l: 'Never', v: 'no' },
                   ].map((o) => (
-                    <Chip key={o.v} label={o.l} active={useEmoji === o.v} onClick={() => setUseEmoji(o.v)} primary={primary} />
+                    <Chip
+                      key={o.v}
+                      label={o.l}
+                      active={useEmoji === o.v}
+                      onClick={() => setUseEmoji(o.v)}
+                      primary={primary}
+                    />
                   ))}
                 </Box>
               </Grid>
@@ -1348,7 +1788,12 @@ function BrandSetupPageContent() {
               </Grid>
               <Grid item xs={12}>
                 <FieldLabel sub="(optional — finance, health, legal)">Compliance notes</FieldLabel>
-                <UriTextarea value={compliance} onChange={setCompliance} placeholder="All health claims need disclaimers..." rows={2} />
+                <UriTextarea
+                  value={compliance}
+                  onChange={setCompliance}
+                  placeholder="All health claims need disclaimers..."
+                  rows={2}
+                />
               </Grid>
               <Grid item xs={12}>
                 <Box display="flex" gap={1.5} alignItems="center">
@@ -1358,7 +1803,16 @@ function BrandSetupPageContent() {
                   <Typography
                     component="button"
                     onClick={next}
-                    sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                      p: 0,
+                    }}
                   >
                     I'll do this later
                   </Typography>
@@ -1372,12 +1826,21 @@ function BrandSetupPageContent() {
       case 'cta':
         return (
           <Box>
-            <AgentBubble primary={primary}>What call-to-action style fits your brand? And is there a default link you always want to drive traffic to?</AgentBubble>
+            <AgentBubble primary={primary}>
+              What call-to-action style fits your brand? And is there a default link you always want to drive traffic
+              to?
+            </AgentBubble>
             <Box mt={1.5}>
               <FieldLabel sub="(select all that fit)">Preferred CTAs</FieldLabel>
               <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75} mb={2.5}>
                 {allCtas.map((c) => (
-                  <Chip key={c} label={c} active={ctaStyle.includes(c)} onClick={() => toggle(ctaStyle, setCtaStyle, c)} primary={primary} />
+                  <Chip
+                    key={c}
+                    label={c}
+                    active={ctaStyle.includes(c)}
+                    onClick={() => toggle(ctaStyle, setCtaStyle, c)}
+                    primary={primary}
+                  />
                 ))}
               </Box>
               <FieldLabel sub="(optional)">Default link</FieldLabel>
@@ -1391,7 +1854,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1404,13 +1876,21 @@ function BrandSetupPageContent() {
       case 'audience':
         return (
           <Box>
-            <AgentBubble primary={primary}>Who are we trying to reach? This shapes what I write, when I post, and where.</AgentBubble>
+            <AgentBubble primary={primary}>
+              Who are we trying to reach? This shapes what I write, when I post, and where.
+            </AgentBubble>
             <Grid container spacing={2.5} mt={0}>
               <Grid item xs={12}>
-                <FieldLabel>Target audience age range</FieldLabel>
+                <FieldLabel sub="(select all that apply)">Target audience age range</FieldLabel>
                 <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                   {['Gen Z (18-24)', 'Millennials (25-40)', 'Gen X (41-56)', 'Boomers (57+)', 'Everyone'].map((a) => (
-                    <Chip key={a} label={a} active={audienceAge === a} onClick={() => setAudienceAge(a)} primary={primary} />
+                    <Chip
+                      key={a}
+                      label={a}
+                      active={audienceAge.includes(a)}
+                      onClick={() => toggle(audienceAge, setAudienceAge, a)}
+                      primary={primary}
+                    />
                   ))}
                 </Box>
               </Grid>
@@ -1426,14 +1906,28 @@ function BrandSetupPageContent() {
                     { n: 'Pinterest', e: '📌' },
                     { n: 'YouTube', e: '▶️' },
                   ].map((p) => (
-                    <Chip key={p.n} label={p.n} emoji={p.e} active={targetPlatforms.includes(p.n)} onClick={() => toggle(targetPlatforms, setTargetPlatforms, p.n)} primary={primary} />
+                    <Chip
+                      key={p.n}
+                      label={p.n}
+                      emoji={p.e}
+                      active={targetPlatforms.includes(p.n)}
+                      onClick={() => toggle(targetPlatforms, setTargetPlatforms, p.n)}
+                      primary={primary}
+                    />
                   ))}
                 </Box>
               </Grid>
               <Grid item xs={12}>
                 <FieldLabel>Primary goal</FieldLabel>
                 <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
-                  {['Brand Awareness', 'Drive Sales', 'Grow Following', 'Build Community', 'Lead Generation', 'Website Traffic'].map((g) => (
+                  {[
+                    'Brand Awareness',
+                    'Drive Sales',
+                    'Grow Following',
+                    'Build Community',
+                    'Lead Generation',
+                    'Website Traffic',
+                  ].map((g) => (
                     <Chip key={g} label={g} active={goal === g} onClick={() => setGoal(g)} primary={primary} />
                   ))}
                 </Box>
@@ -1446,7 +1940,16 @@ function BrandSetupPageContent() {
                   <Typography
                     component="button"
                     onClick={next}
-                    sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                      p: 0,
+                    }}
                   >
                     I'll do this later
                   </Typography>
@@ -1460,7 +1963,9 @@ function BrandSetupPageContent() {
       case 'competitors':
         return (
           <Box>
-            <AgentBubble primary={primary}>Who are your competitors or brands you admire? I'll monitor them and flag opportunities.</AgentBubble>
+            <AgentBubble primary={primary}>
+              Who are your competitors or brands you admire? I'll monitor them and flag opportunities.
+            </AgentBubble>
             <Box mt={1.5}>
               <FieldLabel sub="(up to 3)">Competitor / aspirational handles</FieldLabel>
               <Box display="flex" flexDirection="column" gap={1} mt={0.75} mb={2}>
@@ -1486,7 +1991,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1499,7 +2013,9 @@ function BrandSetupPageContent() {
       case 'calendar':
         return (
           <Box>
-            <AgentBubble primary={primary}>Any important dates? Product launches, sales, anniversaries — I'll plan content around them automatically.</AgentBubble>
+            <AgentBubble primary={primary}>
+              Any important dates? Product launches, sales, anniversaries — I'll plan content around them automatically.
+            </AgentBubble>
             <Box mt={1.5}>
               <FieldLabel>Key dates</FieldLabel>
               <Box display="flex" gap={1} mt={0.75} mb={1.5}>
@@ -1557,14 +2073,27 @@ function BrandSetupPageContent() {
               {keyDates.length > 0 && (
                 <Box display="flex" flexDirection="column" gap={0.75} mb={2}>
                   {keyDates.map((d, i) => (
-                    <Box key={i} display="flex" alignItems="center" gap={1} sx={{ background: '#F7F7FD', border: '1px solid #E0DEF7', borderRadius: '8px', px: 1.5, py: 1 }}>
+                    <Box
+                      key={i}
+                      display="flex"
+                      alignItems="center"
+                      gap={1}
+                      sx={{ background: '#F7F7FD', border: '1px solid #E0DEF7', borderRadius: '8px', px: 1.5, py: 1 }}
+                    >
                       <Typography sx={{ fontWeight: 600, fontSize: 12.5, color: '#374151' }}>{d.date}</Typography>
                       <Typography sx={{ color: '#9CA3AF', fontSize: 12 }}>—</Typography>
                       <Typography sx={{ flex: 1, fontSize: 12.5, color: '#374151' }}>{d.label}</Typography>
                       <Box
                         component="button"
                         onClick={() => setKeyDates((p) => p.filter((_, idx) => idx !== i))}
-                        sx={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 16, lineHeight: 1 }}
+                        sx={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#9CA3AF',
+                          fontSize: 16,
+                          lineHeight: 1,
+                        }}
                       >
                         ×
                       </Box>
@@ -1579,7 +2108,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1603,7 +2141,14 @@ function BrandSetupPageContent() {
                   { l: 'Weekly', e: '🌱' },
                   { l: 'Let AI decide', e: '🤖' },
                 ].map((o) => (
-                  <Chip key={o.l} label={o.l} emoji={o.e} active={cadence === o.l} onClick={() => setCadence(o.l)} primary={primary} />
+                  <Chip
+                    key={o.l}
+                    label={o.l}
+                    emoji={o.e}
+                    active={cadence === o.l}
+                    onClick={() => setCadence(o.l)}
+                    primary={primary}
+                  />
                 ))}
               </Box>
               <Box display="flex" gap={1.5} alignItems="center">
@@ -1613,7 +2158,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1626,13 +2180,36 @@ function BrandSetupPageContent() {
       case 'postingTimes':
         return (
           <Box>
-            <AgentBubble primary={primary}>When should I post? I can figure out the optimal times, or you can set preferences.</AgentBubble>
+            <AgentBubble primary={primary}>
+              When should I post? I can figure out the optimal times, or you can set preferences.
+            </AgentBubble>
             <Box mt={1.5}>
               <FieldLabel>Posting time strategy</FieldLabel>
               <Box display="flex" gap={1.5} mb={2} mt={0.75}>
-                <OptionCard emoji="🤖" label="AI Optimal" desc="I'll pick the best times" active={timeMode === 'ai'} onClick={() => setTimeMode('ai')} primary={primary} />
-                <OptionCard emoji="☀️" label="General Preference" desc="Pick broad time-of-day slots" active={timeMode === 'general'} onClick={() => setTimeMode('general')} primary={primary} />
-                <OptionCard emoji="🕐" label="Set Per-Platform" desc="Choose specific time windows" active={timeMode === 'custom'} onClick={() => setTimeMode('custom')} primary={primary} />
+                <OptionCard
+                  emoji="🤖"
+                  label="AI Optimal"
+                  desc="I'll pick the best times"
+                  active={timeMode === 'ai'}
+                  onClick={() => setTimeMode('ai')}
+                  primary={primary}
+                />
+                <OptionCard
+                  emoji="☀️"
+                  label="General Preference"
+                  desc="Pick broad time-of-day slots"
+                  active={timeMode === 'general'}
+                  onClick={() => setTimeMode('general')}
+                  primary={primary}
+                />
+                <OptionCard
+                  emoji="🕐"
+                  label="Set Per-Platform"
+                  desc="Choose specific time windows"
+                  active={timeMode === 'custom'}
+                  onClick={() => setTimeMode('custom')}
+                  primary={primary}
+                />
               </Box>
               {timeMode === 'general' && (
                 <Box mb={2}>
@@ -1650,7 +2227,14 @@ function BrandSetupPageContent() {
                         label={t.l}
                         emoji={t.e}
                         active={(timePrefs.general || '').includes(t.l)}
-                        onClick={() => setTimePrefs((p) => ({ ...p, general: (p.general || '').includes(t.l) ? (p.general || '').replace(t.l + ',', '') : `${p.general || ''}${t.l},` }))}
+                        onClick={() =>
+                          setTimePrefs((p) => ({
+                            ...p,
+                            general: (p.general || '').includes(t.l)
+                              ? (p.general || '').replace(t.l + ',', '')
+                              : `${p.general || ''}${t.l},`,
+                          }))
+                        }
                         primary={primary}
                       />
                     ))}
@@ -1659,7 +2243,9 @@ function BrandSetupPageContent() {
               )}
               {timeMode === 'ai' && (
                 <Box sx={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', p: 1.5, mb: 2 }}>
-                  <Typography sx={{ fontSize: 12.5, color: '#166534' }}>✨ I'll analyze when your audience is most active and schedule posts for peak engagement.</Typography>
+                  <Typography sx={{ fontSize: 12.5, color: '#166534' }}>
+                    ✨ I'll analyze when your audience is most active and schedule posts for peak engagement.
+                  </Typography>
                 </Box>
               )}
               <Box display="flex" gap={1.5} alignItems="center">
@@ -1669,7 +2255,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1686,9 +2281,30 @@ function BrandSetupPageContent() {
             <Box mt={1.5}>
               <FieldLabel>Approval workflow</FieldLabel>
               <Box display="flex" gap={1.5} mb={2} mt={0.75}>
-                <OptionCard emoji="👀" label="Review first" desc="I queue posts for your approval" active={approval === 'review'} onClick={() => setApproval('review')} primary={primary} />
-                <OptionCard emoji="⚡" label="Auto-publish" desc="I post on schedule" active={approval === 'auto'} onClick={() => setApproval('auto')} primary={primary} />
-                <OptionCard emoji="🔀" label="Hybrid" desc="Auto for recurring, review for campaigns" active={approval === 'hybrid'} onClick={() => setApproval('hybrid')} primary={primary} />
+                <OptionCard
+                  emoji="👀"
+                  label="Review first"
+                  desc="I queue posts for your approval"
+                  active={approval === 'review'}
+                  onClick={() => setApproval('review')}
+                  primary={primary}
+                />
+                <OptionCard
+                  emoji="⚡"
+                  label="Auto-publish"
+                  desc="I post on schedule"
+                  active={approval === 'auto'}
+                  onClick={() => setApproval('auto')}
+                  primary={primary}
+                />
+                <OptionCard
+                  emoji="🔀"
+                  label="Hybrid"
+                  desc="Auto for recurring, review for campaigns"
+                  active={approval === 'hybrid'}
+                  onClick={() => setApproval('hybrid')}
+                  primary={primary}
+                />
               </Box>
               {(approval === 'review' || approval === 'hybrid') && (
                 <Box mb={2}>
@@ -1721,7 +2337,9 @@ function BrandSetupPageContent() {
                         }}
                       >
                         <Typography sx={{ fontSize: 20 }}>{ch.emoji}</Typography>
-                        <Typography sx={{ flex: 1, fontWeight: 600, fontSize: 13, color: '#374151' }}>{ch.name}</Typography>
+                        <Typography sx={{ flex: 1, fontWeight: 600, fontSize: 13, color: '#374151' }}>
+                          {ch.name}
+                        </Typography>
                         <Box
                           sx={{
                             width: 18,
@@ -1735,7 +2353,9 @@ function BrandSetupPageContent() {
                             flexShrink: 0,
                           }}
                         >
-                          {approvalChannels.includes(ch.name) && <Typography sx={{ color: '#fff', fontSize: 11, lineHeight: 1 }}>✓</Typography>}
+                          {approvalChannels.includes(ch.name) && (
+                            <Typography sx={{ color: '#fff', fontSize: 11, lineHeight: 1 }}>✓</Typography>
+                          )}
                         </Box>
                       </Box>
                     ))}
@@ -1744,7 +2364,10 @@ function BrandSetupPageContent() {
               )}
               {approval === 'auto' && (
                 <Box sx={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', p: 1.5, mb: 2 }}>
-                  <Typography sx={{ fontSize: 12.5, color: '#166534' }}>⚡ I'll publish posts automatically on schedule. You can still pause or edit any queued post from your dashboard.</Typography>
+                  <Typography sx={{ fontSize: 12.5, color: '#166534' }}>
+                    ⚡ I'll publish posts automatically on schedule. You can still pause or edit any queued post from
+                    your dashboard.
+                  </Typography>
                 </Box>
               )}
               <Box display="flex" gap={1.5} alignItems="center">
@@ -1754,7 +2377,16 @@ function BrandSetupPageContent() {
                 <Typography
                   component="button"
                   onClick={next}
-                  sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
                 >
                   I'll do this later
                 </Typography>
@@ -1772,8 +2404,21 @@ function BrandSetupPageContent() {
               <Grid item xs={12}>
                 <FieldLabel sub="(select all)">Notify me when...</FieldLabel>
                 <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
-                  {['Post ready for review', 'Post published', 'Weekly performance report', 'Trending topic in your niche', 'Content calendar needs refill', 'Engagement spike detected'].map((ev) => (
-                    <Chip key={ev} label={ev} active={notifEvents.includes(ev)} onClick={() => toggle(notifEvents, setNotifEvents, ev)} primary={primary} />
+                  {[
+                    'Post ready for review',
+                    'Post published',
+                    'Weekly performance report',
+                    'Trending topic in your niche',
+                    'Content calendar needs refill',
+                    'Engagement spike detected',
+                  ].map((ev) => (
+                    <Chip
+                      key={ev}
+                      label={ev}
+                      active={notifEvents.includes(ev)}
+                      onClick={() => toggle(notifEvents, setNotifEvents, ev)}
+                      primary={primary}
+                    />
                   ))}
                 </Box>
               </Grid>
@@ -1788,7 +2433,14 @@ function BrandSetupPageContent() {
                     { l: 'Slack', e: '💼' },
                     { l: 'Telegram', e: '✈️' },
                   ].map((c) => (
-                    <Chip key={c.l} label={c.l} emoji={c.e} active={notifChannel === c.l} onClick={() => setNotifChannel(c.l)} primary={primary} />
+                    <Chip
+                      key={c.l}
+                      label={c.l}
+                      emoji={c.e}
+                      active={notifChannel === c.l}
+                      onClick={() => setNotifChannel(c.l)}
+                      primary={primary}
+                    />
                   ))}
                 </Box>
               </Grid>
@@ -1800,7 +2452,16 @@ function BrandSetupPageContent() {
                   <Typography
                     component="button"
                     onClick={next}
-                    sx={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, p: 0 }}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                      p: 0,
+                    }}
                   >
                     I'll do this later
                   </Typography>
@@ -1814,21 +2475,43 @@ function BrandSetupPageContent() {
       case 'language':
         return (
           <Box>
-            <AgentBubble primary={primary}>What language(s) should I write in? Any regional preferences — like local slang or cultural references?</AgentBubble>
+            <AgentBubble primary={primary}>
+              What language(s) should I write in? Any regional preferences — like local slang or cultural references?
+            </AgentBubble>
             <Grid container spacing={2.5} mt={0}>
               <Grid item xs={12}>
                 <FieldLabel sub="(select all)">Content languages</FieldLabel>
                 <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                   {['English', 'Yoruba', 'Pidgin', 'French', 'Hausa', 'Igbo', 'Swahili', 'Other'].map((l) => (
-                    <Chip key={l} label={l} active={languages.includes(l)} onClick={() => toggle(languages, setLanguages, l)} primary={primary} />
+                    <Chip
+                      key={l}
+                      label={l}
+                      active={languages.includes(l)}
+                      onClick={() => toggle(languages, setLanguages, l)}
+                      primary={primary}
+                    />
                   ))}
                 </Box>
               </Grid>
               <Grid item xs={12}>
-                <FieldLabel>Region / market</FieldLabel>
+                <FieldLabel sub="(select all that apply)">Region / market</FieldLabel>
                 <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
-                  {['Nigeria', 'West Africa', 'Pan-African', 'United States', 'United Kingdom', 'Global / International', 'Other'].map((r) => (
-                    <Chip key={r} label={r} active={region === r} onClick={() => setRegion(r)} primary={primary} />
+                  {[
+                    'Nigeria',
+                    'West Africa',
+                    'Pan-African',
+                    'United States',
+                    'United Kingdom',
+                    'Global / International',
+                    'Other',
+                  ].map((r) => (
+                    <Chip
+                      key={r}
+                      label={r}
+                      active={region.includes(r)}
+                      onClick={() => toggle(region, setRegion, r)}
+                      primary={primary}
+                    />
                   ))}
                 </Box>
               </Grid>
@@ -1846,14 +2529,33 @@ function BrandSetupPageContent() {
         return (
           <Box>
             <AgentBubble primary={primary}>
-              Here's a summary of the brand profile I've built for <strong>{brandName || 'your brand'}</strong>. Everything looks good?
+              Here's a summary of the brand profile I've built for <strong>{brandName || 'your brand'}</strong>.
+              Everything looks good?
             </AgentBubble>
-            <Box mt={1.5} sx={{ background: '#fff', border: '1px solid #E0DEF7', borderRadius: '14px', overflow: 'hidden' }}>
+            <Box
+              mt={1.5}
+              sx={{ background: '#fff', border: '1px solid #E0DEF7', borderRadius: '14px', overflow: 'hidden' }}
+            >
               {/* Profile header strip */}
               <Box sx={{ background: `linear-gradient(135deg, ${primary}, ${primary}cc)`, px: 2.5, py: 2 }}>
-                <Typography sx={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.5, color: 'rgba(255,255,255,0.7)', fontWeight: 700, mb: 0.5 }}>Brand Profile</Typography>
-                <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>{brandName || 'Your Brand'}</Typography>
-                {industry && <Typography sx={{ fontSize: 12.5, color: 'rgba(255,255,255,0.75)', mt: 0.25 }}>{industry}</Typography>}
+                <Typography
+                  sx={{
+                    fontSize: 11,
+                    textTransform: 'uppercase',
+                    letterSpacing: 1.5,
+                    color: 'rgba(255,255,255,0.7)',
+                    fontWeight: 700,
+                    mb: 0.5,
+                  }}
+                >
+                  Brand Profile
+                </Typography>
+                <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>
+                  {brandName || 'Your Brand'}
+                </Typography>
+                {industry && (
+                  <Typography sx={{ fontSize: 12.5, color: 'rgba(255,255,255,0.75)', mt: 0.25 }}>{industry}</Typography>
+                )}
               </Box>
               {/* Profile grid */}
               <Box sx={{ px: 2.5, py: 2 }}>
@@ -1872,60 +2574,98 @@ function BrandSetupPageContent() {
                     { l: 'Approval', v: approval || '—' },
                     { l: 'Top pillars', v: pillars.slice(0, 2).join(', ') || '—' },
                     { l: 'Languages', v: languages.join(', ') || '—' },
-                    { l: 'Region', v: region || '—' },
+                    { l: 'Region', v: region.join(', ') || '—' },
                   ].map((item) => (
                     <Grid item xs={6} key={item.l}>
-                      <Typography sx={{ fontSize: 10.5, color: '#9CA3AF', mb: 0.25, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{item.l}</Typography>
-                      <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: '#374151', lineHeight: 1.3 }}>{item.v}</Typography>
+                      <Typography
+                        sx={{
+                          fontSize: 10.5,
+                          color: '#9CA3AF',
+                          mb: 0.25,
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                        }}
+                      >
+                        {item.l}
+                      </Typography>
+                      <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: '#374151', lineHeight: 1.3 }}>
+                        {item.v}
+                      </Typography>
                     </Grid>
                   ))}
                 </Grid>
                 {colors.length > 0 && (
-                  <Box display="flex" alignItems="center" gap={1} mt={2} pt={1.5} sx={{ borderTop: '1px solid #F3F4F6' }}>
-                    <Typography sx={{ fontSize: 10.5, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Brand colors</Typography>
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    gap={1}
+                    mt={2}
+                    pt={1.5}
+                    sx={{ borderTop: '1px solid #F3F4F6' }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: 10.5,
+                        color: '#9CA3AF',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      Brand colors
+                    </Typography>
                     {colors.map((c) => (
-                      <Box key={c} sx={{ width: 18, height: 18, borderRadius: '5px', background: c, border: '1px solid #E0DEF7' }} />
+                      <Box
+                        key={c}
+                        sx={{ width: 18, height: 18, borderRadius: '5px', background: c, border: '1px solid #E0DEF7' }}
+                      />
                     ))}
                   </Box>
                 )}
               </Box>
             </Box>
-            <Box mt={2.5}>
-              <CustomButton mode="primary" onClick={next} style={{ padding: '10px 28px' }}>
-                Looks good →
-              </CustomButton>
-            </Box>
-          </Box>
-        );
-
-      // ══ FEEDBACK ═════════════════════════════════════════════════
-      case 'feedback':
-        return (
-          <Box>
-            <AgentBubble primary={primary}>Almost done! Does this profile capture your brand accurately?</AgentBubble>
-            <Box mt={1.5}>
+            <Box mt={2.5} sx={{ borderTop: '1px solid #F3F4F6', pt: 2.5 }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#374151', mb: 1.5 }}>
+                Does this profile capture your brand accurately?
+              </Typography>
               <Box display="flex" gap={1.5} mb={2}>
                 {[
                   { e: '🎯', l: 'Nailed it!', v: 'great' },
                   { e: '👍', l: 'Close enough', v: 'okay' },
                   { e: '🔄', l: 'Needs work', v: 'miss' },
                 ].map((o) => (
-                  <OptionCard key={o.v} emoji={o.e} label={o.l} active={postFeedback === o.v} onClick={() => setPostFeedback(o.v)} primary={primary} />
+                  <OptionCard
+                    key={o.v}
+                    emoji={o.e}
+                    label={o.l}
+                    active={postFeedback === o.v}
+                    onClick={() => setPostFeedback(o.v)}
+                    primary={primary}
+                  />
                 ))}
               </Box>
               {postFeedback && postFeedback !== 'great' && (
                 <Box mb={2}>
-                  <UriTextarea value="" onChange={() => {}} placeholder="Tell me what's off — I'll factor it in..." rows={3} />
+                  <UriTextarea
+                    value=""
+                    onChange={() => {}}
+                    placeholder="Tell me what's off — I'll factor it in..."
+                    rows={3}
+                  />
                 </Box>
               )}
-              {postFeedback && (
-                <Box>
-                  <CustomButton mode="primary" onClick={handleComplete} loading={saving} style={{ padding: '12px 32px', width: '100%' }}>
-                    {saving ? 'Setting up your workspace...' : 'Go to Dashboard →'}
-                  </CustomButton>
-                  <Typography sx={{ fontSize: 12, color: '#9CA3AF', mt: 1.5, textAlign: 'center' }}>Your brand profile is saved. Edit it anytime in Settings → Brand Profile.</Typography>
-                </Box>
-              )}
+              <CustomButton
+                mode="primary"
+                onClick={handleComplete}
+                loading={saving}
+                style={{ padding: '12px 32px', width: '100%', opacity: postFeedback ? 1 : 0.45 }}
+              >
+                {saving ? 'Setting up your workspace...' : 'Go to Dashboard →'}
+              </CustomButton>
+              <Typography sx={{ fontSize: 12, color: '#9CA3AF', mt: 1.5, textAlign: 'center' }}>
+                Your brand profile is saved. Edit it anytime in Settings → Brand Profile.
+              </Typography>
             </Box>
           </Box>
         );
@@ -1938,7 +2678,15 @@ function BrandSetupPageContent() {
   // ─── Loading state while checking existing profile ────────────
   if (checkingExisting) {
     return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: themeColors.background }}>
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: themeColors.background,
+        }}
+      >
         <CircularProgress sx={{ color: primary }} />
       </Box>
     );
@@ -1965,14 +2713,18 @@ function BrandSetupPageContent() {
           {/* Logo */}
           <Box display="flex" alignItems="center" gap={1}>
             <Image src="/assets/images/logo.png" alt="Uri logo" width={32} height={32} />
-            <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f', letterSpacing: -0.3 }}>UriCreative</Typography>
+            <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f', letterSpacing: -0.3 }}>
+              UriCreative
+            </Typography>
           </Box>
 
-          {/* Progress bar (hidden on welcome and feedback) */}
-          {step > 0 && step < STEPS.length - 1 && (
+          {/* Progress bar (hidden on welcome only) */}
+          {step > 0 && (
             <Box sx={{ flex: 1, maxWidth: 240, mx: 3 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                <Typography sx={{ fontSize: 11, fontWeight: 600, color: primary }}>{Math.round(progressPct)}% complete</Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 600, color: primary }}>
+                  {Math.round(progressPct)}% complete
+                </Typography>
                 <Typography sx={{ fontSize: 11, color: '#9CA3AF' }}>
                   {progressStep}/{progressibleSteps}
                 </Typography>
@@ -1984,7 +2736,10 @@ function BrandSetupPageContent() {
                   height: 5,
                   borderRadius: 3,
                   background: '#F3F4F6',
-                  '& .MuiLinearProgress-bar': { background: `linear-gradient(90deg, ${primary}, ${primary}cc)`, borderRadius: 3 },
+                  '& .MuiLinearProgress-bar': {
+                    background: `linear-gradient(90deg, ${primary}, ${primary}cc)`,
+                    borderRadius: 3,
+                  },
                 }}
               />
             </Box>
@@ -2040,11 +2795,20 @@ function BrandSetupPageContent() {
               boxShadow: '1px 1px 6px 3px #00000011',
             }}
           >
-            {/* Step section heading (shown for non-welcome/feedback steps) */}
-            {step > 0 && step < STEPS.length - 1 && (
+            {/* Step section heading (shown for non-welcome steps) */}
+            {step > 0 && (
               <Box mb={2.5}>
                 <Divider sx={{ mb: 2.5 }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, px: 1 }}>
+                  <Typography
+                    sx={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: '#9CA3AF',
+                      textTransform: 'uppercase',
+                      letterSpacing: 1,
+                      px: 1,
+                    }}
+                  >
                     {{
                       welcome: '',
                       connectAccounts: '🔗 Connect Accounts',
@@ -2066,7 +2830,6 @@ function BrandSetupPageContent() {
                       notifications: '🔔 Notifications',
                       language: '🌍 Language & Region',
                       preview: '👁️ Profile Preview',
-                      feedback: '💬 Final Feedback',
                     }[STEPS[step]] || ''}
                   </Typography>
                 </Divider>
@@ -2079,7 +2842,9 @@ function BrandSetupPageContent() {
 
         {/* ── Footer ───────────────────────────────────────────── */}
         <Box sx={{ py: 1.5, textAlign: 'center', borderTop: '1px solid #F3F4F6', background: '#fff' }}>
-          <Typography sx={{ fontSize: 11.5, color: '#9CA3AF' }}>Progress saves when you complete setup · Update your brand profile anytime in Settings</Typography>
+          <Typography sx={{ fontSize: 11.5, color: '#9CA3AF' }}>
+            Progress saves when you complete setup · Update your brand profile anytime in Settings
+          </Typography>
         </Box>
       </Box>
     </>

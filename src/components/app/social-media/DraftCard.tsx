@@ -4,7 +4,21 @@ import { ReactElement } from 'react';
 import { ApprovePayload, ContentDraft, DenyPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
-import { Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Menu, MenuItem, TextField, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  Checkbox,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
+  Menu,
+  MenuItem,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { useEffect, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
 import DraftEditor from './DraftEditor';
@@ -27,6 +41,14 @@ const statusColors: Record<string, { bg: string; color: string }> = {
   approved: { bg: '#D1FAE5', color: '#065F46' },
   published: { bg: '#DBEAFE', color: '#1E40AF' },
   denied: { bg: '#FEE2E2', color: '#991B1B' },
+};
+
+// Industry-standard aspect ratios per platform
+const PLATFORM_ASPECT: Record<string, string> = {
+  linkedin: '1200 / 628', // 1.91:1 — LinkedIn recommended
+  twitter: '16 / 9', // 1200×675 — Twitter/X standard
+  facebook: '1200 / 630', // 1.91:1 — Facebook recommended
+  instagram: '4 / 5', // 1080×1350 — highest reach on Instagram
 };
 
 const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
@@ -65,7 +87,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
       };
       const response = await SocialMediaAgentService.approveContent(payload);
       if (response.status) {
-        ToastService.showToast(option === 'immediate' ? 'Published!' : option === 'schedule' ? 'Scheduled!' : 'Saved as draft', ToastTypeEnum.Success);
+        ToastService.showToast(
+          option === 'immediate' ? 'Published!' : option === 'schedule' ? 'Scheduled!' : 'Saved as draft',
+          ToastTypeEnum.Success
+        );
         onRefresh();
       } else {
         ToastService.showToast(response.responseMessage || 'Approve failed', ToastTypeEnum.Error);
@@ -146,8 +171,18 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
           size="small"
           sx={{ background: pc.bg, color: pc.color, fontWeight: 600, fontSize: '11px', height: 24 }}
         />
-        <Chip label={(draft.status ?? draft.approval_status ?? 'pending').replace('_', ' ')} size="small" sx={{ background: sc.bg, color: sc.color, fontWeight: 600, fontSize: '11px', height: 24 }} />
-        {draft.auto_generated && <Chip label="Auto" size="small" sx={{ background: '#CCFBF1', color: '#0F766E', fontWeight: 700, fontSize: '11px', height: 24 }} />}
+        <Chip
+          label={(draft.status ?? draft.approval_status ?? 'pending').replace('_', ' ')}
+          size="small"
+          sx={{ background: sc.bg, color: sc.color, fontWeight: 600, fontSize: '11px', height: 24 }}
+        />
+        {draft.auto_generated && (
+          <Chip
+            label="Auto"
+            size="small"
+            sx={{ background: '#CCFBF1', color: '#0F766E', fontWeight: 700, fontSize: '11px', height: 24 }}
+          />
+        )}
       </Box>
 
       {/* Content */}
@@ -168,39 +203,70 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
         </Box>
       )}
 
-      {/* Generated image — skeleton while loading, then the actual image */}
-      {!editing && draft.image_url && (
-        <Box mb={1.5} sx={{ borderRadius: '8px', overflow: 'hidden', border: '1px solid #E5E7EB', position: 'relative' }}>
-          {!imageLoaded && (
+      {/* Generated image — correct platform aspect ratio, skeleton while loading */}
+      {!editing &&
+        draft.image_url &&
+        (() => {
+          const specs = (draft as { image_specs?: { width?: number; height?: number } }).image_specs;
+          const aspect =
+            specs?.width && specs?.height
+              ? `${specs.width} / ${specs.height}`
+              : (PLATFORM_ASPECT[draft.platform] ?? '16 / 9');
+          return (
             <Box
+              mb={1.5}
               sx={{
-                height: 200,
-                background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
-                backgroundSize: '200% 100%',
-                animation: 'shimmer 2s infinite',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                '@keyframes shimmer': {
-                  '0%': { backgroundPosition: '200% 0' },
-                  '100%': { backgroundPosition: '-200% 0' },
-                },
+                borderRadius: '8px',
+                overflow: 'hidden',
+                border: '1px solid #E5E7EB',
+                aspectRatio: aspect,
+                width: '100%',
+                background: '#F3F4F6',
+                position: 'relative',
               }}
             >
-              <Typography fontSize="12px" color="#9CA3AF">
-                Loading image…
-              </Typography>
+              {!imageLoaded && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+                    backgroundSize: '200% 100%',
+                    animation: 'shimmer 2s infinite',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    '@keyframes shimmer': {
+                      '0%': { backgroundPosition: '200% 0' },
+                      '100%': { backgroundPosition: '-200% 0' },
+                    },
+                  }}
+                >
+                  <Typography fontSize="12px" color="#9CA3AF">
+                    Loading image…
+                  </Typography>
+                </Box>
+              )}
+              <img
+                src={
+                  draft.image_url.startsWith('/')
+                    ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}`
+                    : draft.image_url
+                }
+                alt={`AI-generated image for ${draft.platform}`}
+                onLoad={() => setImageLoaded(true)}
+                onClick={() => setLightboxOpen(true)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: imageLoaded ? 'block' : 'none',
+                  cursor: 'pointer',
+                }}
+              />
             </Box>
-          )}
-          <img
-            src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
-            alt={`AI-generated image for ${draft.platform}`}
-            onLoad={() => setImageLoaded(true)}
-            onClick={() => setLightboxOpen(true)}
-            style={{ width: '100%', display: imageLoaded ? 'block' : 'none', maxHeight: 320, objectFit: 'cover', cursor: 'pointer' }}
-          />
-        </Box>
-      )}
+          );
+        })()}
       {!editing && !draft.image_url && (draft.has_image || draft.auto_generated) && (
         <Box
           mb={1.5}
@@ -242,7 +308,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
       {/* Action row */}
       {!editing && (
         <Box display="flex" gap={1} flexWrap="wrap" mt={1}>
-          <Button size="small" variant="outlined" onClick={() => setEditing(true)} sx={{ textTransform: 'none', fontSize: '12px' }}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setEditing(true)}
+            sx={{ textTransform: 'none', fontSize: '12px' }}
+          >
             Edit
           </Button>
           <Button
@@ -259,7 +330,14 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
           >
             Approve
           </Button>
-          <Button size="small" variant="outlined" color="error" disabled={loading} onClick={() => setDenyOpen(true)} sx={{ textTransform: 'none', fontSize: '12px' }}>
+          <Button
+            size="small"
+            variant="outlined"
+            color="error"
+            disabled={loading}
+            onClick={() => setDenyOpen(true)}
+            sx={{ textTransform: 'none', fontSize: '12px' }}
+          >
             Deny
           </Button>
           <Button
@@ -338,10 +416,16 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
             Close
           </Button>
         </DialogActions>
-        <DialogContent sx={{ p: 2, pt: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000' }}>
+        <DialogContent
+          sx={{ p: 2, pt: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000' }}
+        >
           {draft.image_url && (
             <img
-              src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
+              src={
+                draft.image_url.startsWith('/')
+                  ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}`
+                  : draft.image_url
+              }
               alt={`AI-generated image for ${draft.platform}`}
               style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }}
             />
@@ -374,15 +458,29 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
             size="small"
           />
           <FormControlLabel
-            control={<Checkbox checked={requestRegen} onChange={(e) => setRequestRegen(e.target.checked)} size="small" />}
+            control={
+              <Checkbox checked={requestRegen} onChange={(e) => setRequestRegen(e.target.checked)} size="small" />
+            }
             label={<Typography fontSize="12px">Request regeneration</Typography>}
             sx={{ mb: 1.5 }}
           />
           <Box display="flex" gap={1}>
-            <Button size="small" variant="contained" color="error" onClick={handleDeny} disabled={loading || !denyReason.trim()} sx={{ textTransform: 'none', fontSize: '12px' }}>
+            <Button
+              size="small"
+              variant="contained"
+              color="error"
+              onClick={handleDeny}
+              disabled={loading || !denyReason.trim()}
+              sx={{ textTransform: 'none', fontSize: '12px' }}
+            >
               {loading ? 'Denying...' : 'Confirm Deny'}
             </Button>
-            <Button size="small" variant="outlined" onClick={() => setDenyOpen(false)} sx={{ textTransform: 'none', fontSize: '12px' }}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => setDenyOpen(false)}
+              sx={{ textTransform: 'none', fontSize: '12px' }}
+            >
               Cancel
             </Button>
           </Box>

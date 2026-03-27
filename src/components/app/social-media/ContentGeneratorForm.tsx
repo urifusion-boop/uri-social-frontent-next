@@ -3,10 +3,22 @@
 import { GenerateContentPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
-import { Box, Button, Checkbox, CircularProgress, FormControlLabel, FormGroup, Switch, TextField, Tooltip, Typography } from '@mui/material';
-import { useState } from 'react';
+import {
+  Box,
+  Button,
+  Checkbox,
+  CircularProgress,
+  FormControlLabel,
+  FormGroup,
+  IconButton,
+  Switch,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import { useRef, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
-import { MdImage, MdInfoOutline } from 'react-icons/md';
+import { MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
 
 const PLATFORMS = [
   { key: 'facebook', label: 'Facebook', icon: <FaFacebook size={16} color="#1877F2" /> },
@@ -24,8 +36,38 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
   const [includeImages, setIncludeImages] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [referenceImageName, setReferenceImageName] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const togglePlatform = (key: string) => setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
+  const togglePlatform = (key: string) =>
+    setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      ToastService.showToast('Please upload an image file', ToastTypeEnum.Error);
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      ToastService.showToast('Image must be under 10MB', ToastTypeEnum.Error);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setReferenceImage(reader.result as string);
+      setReferenceImageName(file.name);
+    };
+    reader.readAsDataURL(file);
+    // Reset so same file can be re-uploaded
+    e.target.value = '';
+  };
+
+  const removeReferenceImage = () => {
+    setReferenceImage(null);
+    setReferenceImageName('');
+  };
 
   const handleGenerate = async () => {
     if (seedContent.trim().length < 10) {
@@ -44,6 +86,9 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         platforms: selectedPlatforms,
         include_images: includeImages,
       };
+      if (referenceImage) {
+        payload.reference_image = referenceImage;
+      }
       const response = await SocialMediaAgentService.generateContent(payload);
 
       if (response.status) {
@@ -52,8 +97,9 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
       } else {
         ToastService.showToast(response.responseMessage || 'Generation failed', ToastTypeEnum.Error);
       }
-    } catch (err: any) {
-      ToastService.showToast(err?.data?.responseMessage || 'Generation failed', ToastTypeEnum.Error);
+    } catch (err: unknown) {
+      const error = err as { data?: { responseMessage?: string } };
+      ToastService.showToast(error?.data?.responseMessage || 'Generation failed', ToastTypeEnum.Error);
     } finally {
       setLoading(false);
     }
@@ -79,6 +125,95 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         sx={{ mb: 3 }}
       />
 
+      {/* Reference image upload */}
+      <Typography fontSize="14px" color="#374151" mb={1} fontWeight={500}>
+        Reference image{' '}
+        <Typography component="span" fontSize="12px" color="#9CA3AF" fontWeight={400}>
+          (optional)
+        </Typography>
+      </Typography>
+      <Typography fontSize="12px" color="#6B7280" mb={1.5}>
+        Upload a photo to give the AI visual context — e.g. a birthday photo, product shot, or event image. The AI will
+        analyse it and write more specific, niche content.
+      </Typography>
+
+      {referenceImage ? (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            border: '1px solid #CD1B78',
+            borderRadius: '10px',
+            px: 2,
+            py: 1.5,
+            mb: 3,
+            background: '#FDF2F8',
+          }}
+        >
+          <Box
+            component="img"
+            src={referenceImage}
+            alt="Reference"
+            sx={{ width: 56, height: 56, objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }}
+          />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography fontSize="13px" fontWeight={600} color="#111827" noWrap>
+              {referenceImageName}
+            </Typography>
+            <Typography fontSize="12px" color="#6B7280">
+              The AI will use this image as visual context
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={removeReferenceImage} sx={{ flexShrink: 0 }}>
+            <MdClose size={18} color="#6B7280" />
+          </IconButton>
+        </Box>
+      ) : (
+        <Box
+          onClick={() => fileInputRef.current?.click()}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            border: '1.5px dashed #E5E7EB',
+            borderRadius: '10px',
+            px: 2,
+            py: 1.75,
+            mb: 3,
+            cursor: 'pointer',
+            background: '#FAFAFA',
+            transition: 'all 0.15s',
+            '&:hover': { borderColor: '#CD1B78', background: '#FDF2F8' },
+          }}
+        >
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: '8px',
+              background: '#F3F4F6',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <MdUpload size={20} color="#9CA3AF" />
+          </Box>
+          <Box>
+            <Typography fontSize="13px" fontWeight={600} color="#374151">
+              Upload reference image
+            </Typography>
+            <Typography fontSize="12px" color="#9CA3AF">
+              JPG, PNG, WEBP up to 10MB
+            </Typography>
+          </Box>
+        </Box>
+      )}
+
+      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+
       <Typography fontSize="14px" color="#374151" mb={1} fontWeight={500}>
         Target Platforms
       </Typography>
@@ -86,7 +221,14 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         {PLATFORMS.map(({ key, label, icon }) => (
           <FormControlLabel
             key={key}
-            control={<Checkbox checked={selectedPlatforms.includes(key)} onChange={() => togglePlatform(key)} size="small" sx={{ '&.Mui-checked': { color: '#CD1B78' } }} />}
+            control={
+              <Checkbox
+                checked={selectedPlatforms.includes(key)}
+                onChange={() => togglePlatform(key)}
+                size="small"
+                sx={{ '&.Mui-checked': { color: '#CD1B78' } }}
+              />
+            }
             label={
               <Box display="flex" alignItems="center" gap={0.75}>
                 {icon}
@@ -125,7 +267,18 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         onClick={() => setIncludeImages((v) => !v)}
       >
         <Box display="flex" alignItems="center" gap={1.5}>
-          <Box sx={{ width: 36, height: 36, borderRadius: '8px', background: includeImages ? '#CD1B78' : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: '8px',
+              background: includeImages ? '#CD1B78' : '#F3F4F6',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
             <MdImage size={20} color={includeImages ? '#fff' : '#9CA3AF'} />
           </Box>
           <Box>
@@ -133,7 +286,9 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
               Include AI-generated image
             </Typography>
             <Typography fontSize="12px" color="#6B7280">
-              Generate a relevant image alongside the post copy
+              {referenceImage
+                ? 'Generate an image inspired by your reference photo'
+                : 'Generate a relevant image alongside the post copy'}
             </Typography>
           </Box>
         </Box>

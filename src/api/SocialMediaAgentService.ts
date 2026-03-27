@@ -25,6 +25,7 @@ export interface GenerateContentPayload {
   seed_type?: string;
   include_images?: boolean;
   brand_context?: BrandContext;
+  reference_image?: string;
 }
 
 export interface RefinePayload {
@@ -107,32 +108,53 @@ export interface AutoGenerateSettings {
 
 export class SocialMediaAgentService {
   static async connectFacebookToken(payload: ConnectFacebookPayload): Promise<UriResponse<SocialConnection>> {
-    const response: Awaited<AxiosResponse<UriResponse<SocialConnection>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.connectFacebookToken, payload);
+    const response: Awaited<AxiosResponse<UriResponse<SocialConnection>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.connectFacebookToken,
+      payload
+    );
     return response.data;
   }
 
-  static async getConnections(): Promise<UriResponse<{ connections: Record<string, SocialConnection[]>; connected_platforms: string[]; total_connections: number }>> {
+  static async getConnections(): Promise<
+    UriResponse<{
+      connections: Record<string, SocialConnection[]>;
+      connected_platforms: string[];
+      total_connections: number;
+    }>
+  > {
     const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.getConnections);
     return response.data;
   }
 
   static async disconnectPlatform(platform: string): Promise<UriResponse<string>> {
-    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(`${socialMediaAgentRoutes.disconnectPlatform}/${platform}`);
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
+      `${socialMediaAgentRoutes.disconnectPlatform}/${platform}`
+    );
     return response.data;
   }
 
   static async generateContent(payload: GenerateContentPayload): Promise<UriResponse<ContentDraft[]>> {
-    const response: Awaited<AxiosResponse<UriResponse<ContentDraft[]>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateContent, payload, { timeout: 300000 });
+    const response: Awaited<AxiosResponse<UriResponse<ContentDraft[]>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateContent,
+      payload,
+      { timeout: 300000 }
+    );
     return response.data;
   }
 
   static async refineContent(payload: RefinePayload): Promise<UriResponse<ContentDraft>> {
-    const response: Awaited<AxiosResponse<UriResponse<ContentDraft>>> = await UriHttpClient.getClient().put(socialMediaAgentRoutes.refineContent, payload);
+    const response: Awaited<AxiosResponse<UriResponse<ContentDraft>>> = await UriHttpClient.getClient().put(
+      socialMediaAgentRoutes.refineContent,
+      payload
+    );
     return response.data;
   }
 
   static async approveContent(payload: ApprovePayload): Promise<UriResponse<string>> {
-    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.approveContent, payload);
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.approveContent,
+      payload
+    );
     return response.data;
   }
 
@@ -142,38 +164,107 @@ export class SocialMediaAgentService {
   }
 
   static async denyContent(payload: DenyPayload): Promise<UriResponse<string>> {
-    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.denyContent, payload);
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.denyContent,
+      payload
+    );
     return response.data;
   }
 
   static async getContentCalendar(params?: Record<string, string>): Promise<UriResponse<ContentCalendarResponse>> {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
-    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarResponse>>> = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.contentCalendar}${query}`);
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarResponse>>> = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.contentCalendar}${query}`
+    );
     return response.data;
   }
 
   static async getScheduled(): Promise<UriResponse<ScheduledContentResponse>> {
-    const response: Awaited<AxiosResponse<UriResponse<ScheduledContentResponse>>> = await UriHttpClient.getClient().get(socialMediaAgentRoutes.scheduledContent);
+    const response: Awaited<AxiosResponse<UriResponse<ScheduledContentResponse>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.scheduledContent
+    );
     return response.data;
   }
 
   static async getAutoGenerateSettings(): Promise<UriResponse<AutoGenerateSettings>> {
-    const response: Awaited<AxiosResponse<UriResponse<AutoGenerateSettings>>> = await UriHttpClient.getClient().get(socialMediaAgentRoutes.autoGenerateSettings);
+    const response: Awaited<AxiosResponse<UriResponse<AutoGenerateSettings>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.autoGenerateSettings
+    );
     return response.data;
   }
 
-  static async updateAutoGenerateSettings(payload: Omit<AutoGenerateSettings, 'last_run_at' | 'last_run_draft_count' | 'next_run_at'>): Promise<UriResponse<AutoGenerateSettings>> {
-    const response: Awaited<AxiosResponse<UriResponse<AutoGenerateSettings>>> = await UriHttpClient.getClient().put(socialMediaAgentRoutes.autoGenerateSettings, payload);
+  static async updateAutoGenerateSettings(
+    payload: Omit<AutoGenerateSettings, 'last_run_at' | 'last_run_draft_count' | 'next_run_at'>
+  ): Promise<UriResponse<AutoGenerateSettings>> {
+    const response: Awaited<AxiosResponse<UriResponse<AutoGenerateSettings>>> = await UriHttpClient.getClient().put(
+      socialMediaAgentRoutes.autoGenerateSettings,
+      payload
+    );
     return response.data;
   }
 
-  static async connectInsights(payload: ConnectInsightsPayload): Promise<UriResponse<{ saved: boolean; platform: string }>> {
-    const response: Awaited<AxiosResponse<UriResponse<{ saved: boolean; platform: string }>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.autoGenerateConnectInsights, payload);
+  static async connectInsights(
+    payload: ConnectInsightsPayload
+  ): Promise<UriResponse<{ saved: boolean; platform: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ saved: boolean; platform: string }>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.autoGenerateConnectInsights, payload);
     return response.data;
   }
 
   static async triggerAutoGenerate(): Promise<UriResponse<{ message: string; user_id: string }>> {
-    const response: Awaited<AxiosResponse<UriResponse<{ message: string; user_id: string }>>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.autoGenerateTrigger);
+    const response: Awaited<AxiosResponse<UriResponse<{ message: string; user_id: string }>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.autoGenerateTrigger);
     return response.data;
   }
+
+  static async getPerformance(days = 30): Promise<UriResponse<PerformanceData>> {
+    const response: Awaited<AxiosResponse<UriResponse<PerformanceData>>> = await UriHttpClient.getClient().get(
+      `/social-media/performance?days=${days}`
+    );
+    return response.data;
+  }
+}
+
+export interface PerformancePost {
+  draft_id: string;
+  platform_post_id: string;
+  platform: string;
+  content_preview: string;
+  published_at: string;
+  image_url?: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  views: number;
+  impressions: number;
+  reach: number;
+  engagement_rate: number;
+}
+
+export interface PerformancePlatformSummary {
+  posts: number;
+  impressions: number;
+  reach: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  avg_engagement_rate: number;
+}
+
+export interface PerformanceData {
+  has_data: boolean;
+  total_published: number;
+  date_range_days: number;
+  summary: {
+    total_posts: number;
+    total_impressions: number;
+    total_reach: number;
+    total_likes: number;
+    total_comments: number;
+    total_shares: number;
+    total_views: number;
+    avg_engagement_rate: number;
+  };
+  by_platform: Record<string, PerformancePlatformSummary>;
+  top_posts: PerformancePost[];
 }
