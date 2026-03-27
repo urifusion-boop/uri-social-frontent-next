@@ -620,6 +620,14 @@ function BrandSetupPageContent() {
     const connected = searchParams.get('connected');
 
     if (connected === 'pending' && typeof sessionToken === 'string' && sessionToken) {
+      // If the connection was initiated from settings, redirect back there
+      const connectSource = localStorage.getItem('outstand_connect_source');
+      if (connectSource === 'settings') {
+        localStorage.removeItem('outstand_connect_source');
+        router.replace(`/settings/social-accounts?sessionToken=${encodeURIComponent(sessionToken)}&connected=pending`);
+        return;
+      }
+
       setConnectSessionToken(sessionToken);
       setStep(STEPS.indexOf('connectAccounts'));
       setConnectPhase('connecting');

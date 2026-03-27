@@ -89,7 +89,12 @@ function SocialAccountsContent() {
       const res = await SocialAccountService.initiateConnection([platformId], 'settings');
       if (res.status && res.responseData?.auth_urls) {
         const url = res.responseData.auth_urls[platformId];
-        if (url) { window.location.href = url; return; }
+        if (url) {
+          // Store intent so brand-setup can redirect back here if Outstand strips ?source= from callback
+          localStorage.setItem('outstand_connect_source', 'settings');
+          window.location.href = url;
+          return;
+        }
       }
       ToastService.showToast('Could not start connection. Please try again.', ToastTypeEnum.Error);
     } catch {
