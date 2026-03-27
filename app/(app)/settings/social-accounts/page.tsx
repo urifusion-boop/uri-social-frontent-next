@@ -6,6 +6,7 @@ import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { Box, CircularProgress, Typography } from '@mui/material';
+import { ArrowBack } from '@mui/icons-material';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 
@@ -117,6 +118,7 @@ function SocialAccountsContent() {
         setAvailablePages([]);
         setSelectedPageIds([]);
         fetchConnections();
+        router.push('/workspace');
       } else {
         ToastService.showToast('Finalization failed. Please try again.', ToastTypeEnum.Error);
         setPhase('pending');
@@ -144,7 +146,15 @@ function SocialAccountsContent() {
       <Box sx={{ backgroundColor: '#FAFAFA', minHeight: '100vh', pt: '52px' }}>
         {/* Header */}
         <Box sx={{ background: '#fff', px: 3, py: 3, borderBottom: '1px solid #E5E7EB' }}>
-          <Typography sx={{ fontSize: 22, fontWeight: 800, color: '#111' }}>Social Accounts</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
+            <Typography sx={{ fontSize: 22, fontWeight: 800, color: '#111' }}>Social Accounts</Typography>
+            <button
+              onClick={() => router.push('/workspace')}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: '1.5px solid #e5e3df', borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 600, color: '#555', cursor: 'pointer' }}
+            >
+              <ArrowBack sx={{ fontSize: 16 }} /> Workspace
+            </button>
+          </Box>
           <Typography sx={{ fontSize: 13, color: '#6B7280', mt: 0.25 }}>
             Connect your social media accounts to publish and schedule posts
           </Typography>
