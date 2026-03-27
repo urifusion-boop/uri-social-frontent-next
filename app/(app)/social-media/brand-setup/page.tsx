@@ -607,11 +607,28 @@ function BrandSetupPageContent() {
   // ─── Init ────────────────────────────────────────────────────
   useEffect(() => {
     if (!userDetails?.userId) return;
+
+    // If this is an OAuth callback return, handle it before checking onboarding
+    // (otherwise completed-onboarding users get redirected to /workspace immediately)
+    const connected = searchParams.get('connected');
+    const sessionToken = searchParams.get('sessionToken');
+    if (connected === 'pending' && sessionToken) {
+      const connectSource = localStorage.getItem('outstand_connect_source');
+      if (connectSource === 'settings') {
+        localStorage.removeItem('outstand_connect_source');
+        router.replace(`/settings/social-accounts?sessionToken=${encodeURIComponent(sessionToken)}&connected=pending`);
+        return;
+      }
+      // Onboarding OAuth callback — don't redirect to workspace
+      setCheckingExisting(false);
+      return;
+    }
+
     BrandProfileService.isOnboardingDone().then((done) => {
       if (done) router.replace('/workspace');
       else setCheckingExisting(false);
     });
-  }, [userDetails, router]);
+  }, [userDetails, router, searchParams]);
 
   // Detect OAuth callback return from Outstand (?sessionToken=...&connected=pending)
   useEffect(() => {
@@ -620,7 +637,7 @@ function BrandSetupPageContent() {
     const connected = searchParams.get('connected');
 
     if (connected === 'pending' && typeof sessionToken === 'string' && sessionToken) {
-      // If the connection was initiated from settings, redirect back there
+      // Settings redirect already handled above in the init effect
       const connectSource = localStorage.getItem('outstand_connect_source');
       if (connectSource === 'settings') {
         localStorage.removeItem('outstand_connect_source');
