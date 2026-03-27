@@ -693,7 +693,7 @@ function BrandSetupPageContent() {
       },
       cta_styles: ctaStyle,
       default_link: defaultLink,
-      audience_age_range: audienceAge,
+      audience_age_range: audienceAge.join(', '),
       target_platforms: targetPlatforms,
       primary_goal: goal,
       competitor_handles: competitors.filter(Boolean),
@@ -706,7 +706,7 @@ function BrandSetupPageContent() {
       notification_events: notifEvents,
       notification_channel: notifChannel,
       languages,
-      region,
+      region: region.join(', '),
       onboarding_completed: true,
     };
     try {

@@ -1434,12 +1434,12 @@ const PlaybookPage = ({
         },
         cta_styles: ctaStyles,
         default_link: defaultLink,
-        audience_age_range: audienceAge,
+        audience_age_range: audienceAge.join(', '),
         primary_goal: primaryGoal,
         target_platforms: targetPlatforms,
         competitor_handles: competitors.filter(Boolean),
         languages,
-        region,
+        region: region.join(', '),
         posting_cadence: cadence,
         approval_workflow: approval,
       };
@@ -1676,6 +1676,21 @@ const PlaybookPage = ({
               </button>
             </div>
           </div>
+        )}
+      </PbSection>
+
+      {/* Sample Templates */}
+      <PbSection title="Sample Templates">
+        {(p?.sample_template_urls ?? []).length > 0 ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {(p?.sample_template_urls ?? []).map((url, i) => (
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                <img src={url} alt={`Template ${i + 1}`} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '1.5px solid #e5e3df' }} />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <span style={{ fontSize: 13, color: '#bbb' }}>No sample templates uploaded yet.</span>
         )}
       </PbSection>
 
