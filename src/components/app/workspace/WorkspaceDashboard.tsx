@@ -274,7 +274,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
         </div>
 
         {/* Tab bar */}
-        <div style={{ display: 'flex', gap: 2 }}>
+        <div className="tab-scroll" style={{ display: 'flex', gap: 2, overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any, scrollbarWidth: 'none' as any, msOverflowStyle: 'none' as any }}>
           {tabs.map(t => {
             const active = activeTab === t.key;
             const icons: Record<ContentTab, string> = { create: 'plus', drafts: 'edit', scheduled: 'clock', auto: 'sparkle' };
@@ -1210,8 +1210,9 @@ export default function WorkspaceDashboard() {
         .workspace-root>*:not(.MuiBox-root):not([class*="Mui"]){margin:0;padding:0}
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-        .workspace-root ::-webkit-scrollbar{width:5px}
+        .workspace-root ::-webkit-scrollbar{width:5px;height:5px}
         .workspace-root ::-webkit-scrollbar-thumb{background:#ddd;border-radius:99px}
+        .workspace-root .tab-scroll::-webkit-scrollbar{display:none}
         .workspace-root input:focus,.workspace-root textarea:focus,.workspace-root select:focus{outline:none}
         @keyframes wTypeBounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
         @keyframes wStatusFade{0%{opacity:0;transform:translateY(3px)}12%{opacity:1;transform:translateY(0)}88%{opacity:1}100%{opacity:0;transform:translateY(-3px)}}
