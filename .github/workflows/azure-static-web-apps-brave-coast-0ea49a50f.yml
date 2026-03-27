@@ -37,6 +37,7 @@ jobs:
           ###### End of Repository/Build Configurations ######
         env:
           NEXT_PUBLIC_URI_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_URI_API_BASE_URL_DEV }}
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
           NODE_ENV: production
           CACHE_BUST: ${{ env.CACHE_BUST }}
 
