@@ -11,7 +11,9 @@ import Grid from '@mui/material/GridLegacy';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCheckCircle, FaFacebook, FaImage, FaInstagram, FaTimes } from 'react-icons/fa';
+import { FaArrowLeft, FaCheckCircle, FaFacebook, FaImage, FaInstagram, FaLinkedin, FaTimes, FaWhatsapp } from 'react-icons/fa';
+import { FaXTwitter } from 'react-icons/fa6';
+import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { MdOutlineCampaign } from 'react-icons/md';
 
 // ─── Step order ──────────────────────────────────────────────────────────────
@@ -363,6 +365,7 @@ function BrandSetupPageContent() {
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
   const [connectNetworkName, setConnectNetworkName] = useState('');
   const [connectedAccountNames, setConnectedAccountNames] = useState<string[]>([]);
+  const [whatsappPhone, setWhatsappPhone] = useState('');
 
   // ── Basics ────────────────────────────────────────────────────
   const [brandName, setBrandName] = useState('');
@@ -486,12 +489,26 @@ function BrandSetupPageContent() {
   }, [userDetails, router]);
 
   // Detect OAuth callback return from Outstand (?sessionToken=...&connected=pending)
+  // or LinkedIn/X callback (?connected=true&platform=linkedin&username=...)
   useEffect(() => {
     if (checkingExisting) return;
     const sessionToken = searchParams.get('sessionToken');
     const connected = searchParams.get('connected');
+    const platform = searchParams.get('platform');
+    const username = searchParams.get('username');
 
-    if (connected === 'pending' && typeof sessionToken === 'string' && sessionToken) {
+    if (connected === 'true' && platform) {
+      // New LinkedIn / X OAuth callback
+      const displayName = username ? decodeURIComponent(username) : platform;
+      setConnectedAccountNames((prev) => [...prev, displayName]);
+      setStep(STEPS.indexOf('connectAccounts'));
+      setConnectPhase('success');
+      router.replace('/social-media/brand-setup');
+    } else if (connected === 'false' && platform) {
+      setStep(STEPS.indexOf('connectAccounts'));
+      setConnectPhase('selecting');
+      router.replace('/social-media/brand-setup');
+    } else if (connected === 'pending' && typeof sessionToken === 'string' && sessionToken) {
       setConnectSessionToken(sessionToken);
       setStep(STEPS.indexOf('connectAccounts'));
       setConnectPhase('connecting');
@@ -647,12 +664,52 @@ function BrandSetupPageContent() {
       // ══ CONNECT ACCOUNTS ═════════════════════════════════════════
       case 'connectAccounts': {
         const LIVE_PLATFORMS = [
-          { id: 'facebook', name: 'Facebook', icon: FaFacebook, color: '#1877F2', bg: '#E7F0FD', description: 'Pages you manage' },
-          { id: 'instagram', name: 'Instagram', icon: FaInstagram, color: '#E4405F', bg: '#FDE7EC', description: 'Business & creator accounts' },
+          { id: 'facebook', name: 'Facebook', icon: FaFacebook, color: '#1877F2', bg: '#E7F0FD', description: 'Pages you manage', flow: 'outstand' },
+          { id: 'instagram', name: 'Instagram', icon: FaInstagram, color: '#E4405F', bg: '#FDE7EC', description: 'Business & creator accounts', flow: 'outstand' },
+          { id: 'linkedin', name: 'LinkedIn', icon: FaLinkedin, color: '#0A66C2', bg: '#E8F1FB', description: 'Professional profile & company pages', flow: 'popup' },
+          { id: 'x', name: 'X (Twitter)', icon: FaXTwitter, color: '#000000', bg: '#F0F0F0', description: 'Post tweets and threads', flow: 'popup' },
+          { id: 'whatsapp', name: 'WhatsApp', icon: FaWhatsapp, color: '#25D366', bg: '#E8F9EF', description: 'Receive AI drafts via WhatsApp', flow: 'phone' },
         ];
 
         const handleInitiateConnect = async () => {
           if (!selectedConnectPlatform) return;
+          const platform = LIVE_PLATFORMS.find((p) => p.id === selectedConnectPlatform);
+          if (!platform) return;
+
+          if (platform.flow === 'phone') {
+            // WhatsApp — handled inline, no redirect needed
+            if (!whatsappPhone.trim()) return;
+            setConnectPhase('connecting');
+            try {
+              const res = await SocialConnectionService.whatsappConnect(whatsappPhone.trim());
+              if (res.status) {
+                setConnectedAccountNames((prev) => [...prev, whatsappPhone.trim()]);
+                setConnectPhase('success');
+              } else {
+                setConnectPhase('selecting');
+              }
+            } catch {
+              setConnectPhase('selecting');
+            }
+            return;
+          }
+
+          if (platform.flow === 'popup') {
+            setConnectPhase('connecting');
+            try {
+              const res = platform.id === 'linkedin'
+                ? await SocialConnectionService.linkedinConnect()
+                : await SocialConnectionService.xConnect();
+              if (res.status && res.responseData?.auth_url) {
+                window.location.href = res.responseData.auth_url;
+                return;
+              }
+            } catch { /* fall through */ }
+            setConnectPhase('selecting');
+            return;
+          }
+
+          // Outstand flow (Facebook / Instagram)
           setConnectPhase('connecting');
           try {
             const res = await SocialAccountService.initiateConnection([selectedConnectPlatform]);
@@ -790,6 +847,7 @@ function BrandSetupPageContent() {
         }
 
         // Default: selecting phase
+        const selectedPlatformDef = LIVE_PLATFORMS.find((p) => p.id === selectedConnectPlatform);
         return (
           <Box>
             <AgentBubble primary={primary}>To publish content, connect a social account. You can add more platforms anytime.</AgentBubble>
@@ -798,41 +856,50 @@ function BrandSetupPageContent() {
                 const IconComponent = platform.icon;
                 const isSelected = selectedConnectPlatform === platform.id;
                 return (
-                  <Box
-                    key={platform.id}
-                    onClick={() => setSelectedConnectPlatform(platform.id)}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 2,
-                      p: 2,
-                      borderRadius: '12px',
-                      border: '2px solid',
-                      borderColor: isSelected ? primary : '#E0DEF7',
-                      background: isSelected ? `${primary}0D` : '#fff',
-                      cursor: 'pointer',
-                      transition: 'all 0.18s',
-                      '&:hover': { borderColor: primary },
-                    }}
-                  >
-                    <Box sx={{ width: 44, height: 44, borderRadius: '10px', bgcolor: platform.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <IconComponent size={24} color={platform.color} />
+                  <Box key={platform.id}>
+                    <Box
+                      onClick={() => setSelectedConnectPlatform(platform.id)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        p: 2,
+                        borderRadius: '12px',
+                        border: '2px solid',
+                        borderColor: isSelected ? primary : '#E0DEF7',
+                        background: isSelected ? `${primary}0D` : '#fff',
+                        cursor: 'pointer',
+                        transition: 'all 0.18s',
+                        '&:hover': { borderColor: primary },
+                      }}
+                    >
+                      <Box sx={{ width: 44, height: 44, borderRadius: '10px', bgcolor: platform.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <IconComponent size={24} color={platform.color} />
+                      </Box>
+                      <Box flex={1}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>{platform.name}</Typography>
+                        <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>{platform.description}</Typography>
+                      </Box>
+                      {isSelected && <FaCheckCircle size={18} color={primary} />}
                     </Box>
-                    <Box flex={1}>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>{platform.name}</Typography>
-                      <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>{platform.description}</Typography>
-                    </Box>
-                    {isSelected && <FaCheckCircle size={18} color={primary} />}
+                    {isSelected && platform.flow === 'phone' && (
+                      <Box sx={{ mt: 1, px: 0.5 }}>
+                        <UriInput type="tel" value={whatsappPhone} onChange={setWhatsappPhone} placeholder="+1 234 567 8900" />
+                        <Hint>Enter phone in E.164 format (e.g. +1 234 567 8900)</Hint>
+                      </Box>
+                    )}
                   </Box>
                 );
               })}
-              <Box sx={{ px: 2, py: 1.25, borderRadius: '10px', border: '1px dashed #E0DEF7', background: '#FAFAFA' }}>
-                <Typography sx={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>LinkedIn, TikTok, YouTube, X — coming soon</Typography>
-              </Box>
             </Box>
             <Box display="flex" gap={1.5} alignItems="center">
-              <CustomButton mode="primary" onClick={handleInitiateConnect} disabled={!selectedConnectPlatform} style={{ padding: '10px 24px', opacity: selectedConnectPlatform ? 1 : 0.5 }}>
-                Connect {selectedConnectPlatform ? LIVE_PLATFORMS.find((p) => p.id === selectedConnectPlatform)?.name : 'account'} →
+              <CustomButton
+                mode="primary"
+                onClick={handleInitiateConnect}
+                disabled={!selectedConnectPlatform || (selectedPlatformDef?.flow === 'phone' && !whatsappPhone.trim())}
+                style={{ padding: '10px 24px', opacity: (!selectedConnectPlatform || (selectedPlatformDef?.flow === 'phone' && !whatsappPhone.trim())) ? 0.5 : 1 }}
+              >
+                Connect {selectedPlatformDef?.name ?? 'account'} →
               </CustomButton>
               <Typography
                 component="button"

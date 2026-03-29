@@ -42,7 +42,7 @@ function LoginPageContent() {
       const { accessToken, userId, email: userEmail, firstName: fName, lastName: lName } = res.responseData;
       saveUserTokens({ accessToken, refreshToken: '' });
       saveUserDetails({ userId, email: userEmail, firstName: fName, lastName: lName });
-      router.push('/social-media');
+      router.push('/workspace');
     } catch (err: unknown) {
       const e = err as { data?: { detail?: string }; message?: string };
       const detail = e?.data?.detail || e?.message || 'Something went wrong.';
