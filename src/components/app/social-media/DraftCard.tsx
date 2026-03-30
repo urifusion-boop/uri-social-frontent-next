@@ -41,6 +41,8 @@ const statusColors: Record<string, { bg: string; color: string }> = {
   approved: { bg: '#D1FAE5', color: '#065F46' },
   published: { bg: '#DBEAFE', color: '#1E40AF' },
   denied: { bg: '#FEE2E2', color: '#991B1B' },
+  publish_failed: { bg: '#FEE2E2', color: '#991B1B' },
+  scheduled: { bg: '#EDE9FE', color: '#5B21B6' },
 };
 
 // Industry-standard aspect ratios per platform
