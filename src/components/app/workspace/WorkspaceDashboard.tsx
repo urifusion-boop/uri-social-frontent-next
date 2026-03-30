@@ -790,7 +790,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const WA_CACHE_KEY = 'uri_wa_connection';
 
   const withTimeout = <T,>(p: Promise<T>, ms = 6000): Promise<T | null> =>
-    Promise.race([p, new Promise<null>((res) => setTimeout(() => res(null), ms))]);
+    Promise.race([p.catch(() => null), new Promise<null>((res) => setTimeout(() => res(null), ms))]);
 
   const saveWaCache = (phone: string) => {
     try { localStorage.setItem(WA_CACHE_KEY, JSON.stringify({ linked: true, phone })); } catch { /* noop */ }
@@ -805,33 +805,36 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
 
   const loadStatuses = async () => {
     setLoading(true);
-    const [li, x, wa, fbIg] = await Promise.all([
-      withTimeout(SocialConnectionService.linkedinStatus()),
-      withTimeout(SocialConnectionService.xStatus()),
-      withTimeout(SocialConnectionService.whatsappStatus()),
-      withTimeout(SocialMediaAgentService.getConnections()),
-    ]);
-    const next: Record<string, PlatformStatus> = {};
-    next.linkedin = li?.responseData ?? { linked: false };
-    next.x = x?.responseData ?? { linked: false };
-    const waFromApi = wa?.responseData;
-    if (waFromApi) {
-      next.whatsapp = waFromApi;
-      if (waFromApi.linked && waFromApi.phone) saveWaCache(waFromApi.phone);
-      if (!waFromApi.linked) clearWaCache();
-    } else {
-      next.whatsapp = readWaCache();
+    try {
+      const [li, x, wa, fbIg] = await Promise.all([
+        withTimeout(SocialConnectionService.linkedinStatus()),
+        withTimeout(SocialConnectionService.xStatus()),
+        withTimeout(SocialConnectionService.whatsappStatus()),
+        withTimeout(SocialMediaAgentService.getConnections()),
+      ]);
+      const next: Record<string, PlatformStatus> = {};
+      next.linkedin = li?.responseData ?? { linked: false };
+      next.x = x?.responseData ?? { linked: false };
+      const waFromApi = wa?.responseData;
+      if (waFromApi) {
+        next.whatsapp = waFromApi;
+        if (waFromApi.linked && waFromApi.phone) saveWaCache(waFromApi.phone);
+        if (!waFromApi.linked) clearWaCache();
+      } else {
+        next.whatsapp = readWaCache();
+      }
+      if (fbIg?.responseData) {
+        const conns = fbIg.responseData.connections ?? {};
+        next.facebook = { linked: !!conns.facebook?.length, account_name: conns.facebook?.[0]?.page_name };
+        next.instagram = { linked: !!conns.instagram?.length, account_name: conns.instagram?.[0]?.page_name };
+      } else {
+        next.facebook = { linked: false };
+        next.instagram = { linked: false };
+      }
+      setStatuses(next);
+    } finally {
+      setLoading(false);
     }
-    if (fbIg?.responseData) {
-      const conns = fbIg.responseData.connections ?? {};
-      next.facebook = { linked: !!conns.facebook?.length, account_name: conns.facebook?.[0]?.page_name };
-      next.instagram = { linked: !!conns.instagram?.length, account_name: conns.instagram?.[0]?.page_name };
-    } else {
-      next.facebook = { linked: false };
-      next.instagram = { linked: false };
-    }
-    setStatuses(next);
-    setLoading(false);
   };
 
   useEffect(() => { loadStatuses(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
