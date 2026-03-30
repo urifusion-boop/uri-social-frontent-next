@@ -9,9 +9,12 @@ import {
   PerformancePost,
   SocialMediaAgentService,
 } from '@/src/api/SocialMediaAgentService';
+import { PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { ReactNode } from 'react';
+import { FaFacebook, FaInstagram, FaLinkedin, FaWhatsapp } from 'react-icons/fa';
+import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
@@ -756,6 +759,191 @@ const SubPage = ({
     </div>
   </div>
 );
+
+/* ── Connections page ───────────────────────────────────────────────────── */
+const PLATFORM_ICON: Record<string, ReactNode> = {
+  linkedin: <FaLinkedin size={22} color="#0A66C2" />,
+  x: <FaXTwitter size={22} color="#000" />,
+  whatsapp: <FaWhatsapp size={22} color="#25D366" />,
+  facebook: <FaFacebook size={22} color="#1877F2" />,
+  instagram: <FaInstagram size={22} color="#E4405F" />,
+};
+
+const PLATFORMS = [
+  { id: 'linkedin', label: 'LinkedIn', color: '#0A66C2', bg: '#E8F1FB', flow: 'oauth' },
+  { id: 'x', label: 'X (Twitter)', color: '#000', bg: '#F0F0F0', flow: 'oauth' },
+  { id: 'whatsapp', label: 'WhatsApp', color: '#25D366', bg: '#E8F9EF', flow: 'phone' },
+  { id: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#E7F0FD', flow: 'outstand' },
+  { id: 'instagram', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC', flow: 'outstand' },
+];
+
+const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
+  const router = useRouter();
+  const [statuses, setStatuses] = useState<Record<string, PlatformStatus>>({});
+  const [loading, setLoading] = useState(true);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState<string | null>(null);
+  const [waPhone, setWaPhone] = useState('');
+  const [waExpanded, setWaExpanded] = useState(false);
+  const [waError, setWaError] = useState('');
+
+  const WA_CACHE_KEY = 'uri_wa_connection';
+
+  const withTimeout = <T,>(p: Promise<T>, ms = 6000): Promise<T | null> =>
+    Promise.race([p, new Promise<null>((res) => setTimeout(() => res(null), ms))]);
+
+  const saveWaCache = (phone: string) => {
+    try { localStorage.setItem(WA_CACHE_KEY, JSON.stringify({ linked: true, phone })); } catch { /* noop */ }
+  };
+  const clearWaCache = () => {
+    try { localStorage.removeItem(WA_CACHE_KEY); } catch { /* noop */ }
+  };
+  const readWaCache = (): PlatformStatus => {
+    try { const raw = localStorage.getItem(WA_CACHE_KEY); if (raw) return JSON.parse(raw) as PlatformStatus; } catch { /* noop */ }
+    return { linked: false };
+  };
+
+  const loadStatuses = async () => {
+    setLoading(true);
+    const [li, x, wa, fbIg] = await Promise.all([
+      withTimeout(SocialConnectionService.linkedinStatus()),
+      withTimeout(SocialConnectionService.xStatus()),
+      withTimeout(SocialConnectionService.whatsappStatus()),
+      withTimeout(SocialMediaAgentService.getConnections()),
+    ]);
+    const next: Record<string, PlatformStatus> = {};
+    next.linkedin = li?.responseData ?? { linked: false };
+    next.x = x?.responseData ?? { linked: false };
+    const waFromApi = wa?.responseData;
+    if (waFromApi) {
+      next.whatsapp = waFromApi;
+      if (waFromApi.linked && waFromApi.phone) saveWaCache(waFromApi.phone);
+      if (!waFromApi.linked) clearWaCache();
+    } else {
+      next.whatsapp = readWaCache();
+    }
+    if (fbIg?.responseData) {
+      const conns = fbIg.responseData.connections ?? {};
+      next.facebook = { linked: !!conns.facebook?.length, account_name: conns.facebook?.[0]?.page_name };
+      next.instagram = { linked: !!conns.instagram?.length, account_name: conns.instagram?.[0]?.page_name };
+    } else {
+      next.facebook = { linked: false };
+      next.instagram = { linked: false };
+    }
+    setStatuses(next);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadStatuses(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleConnect = async (id: string, flow: string) => {
+    if (flow === 'outstand') { router.push('/social-media/brand-setup'); return; }
+    if (flow === 'phone') { setWaExpanded(true); return; }
+    setConnecting(id);
+    try {
+      const res = id === 'linkedin'
+        ? await SocialConnectionService.linkedinConnect()
+        : await SocialConnectionService.xConnect();
+      if (res.status && res.responseData?.auth_url) window.location.href = res.responseData.auth_url;
+    } finally { setConnecting(null); }
+  };
+
+  const handleWhatsappSubmit = async () => {
+    if (!waPhone.trim()) return;
+    setWaError('');
+    setConnecting('whatsapp');
+    try {
+      const res = await SocialConnectionService.whatsappConnect(waPhone.trim());
+      const detail = (res as unknown as { detail?: string }).detail;
+      if (res.status) {
+        const phone = res.responseData?.phone ?? waPhone.trim();
+        saveWaCache(phone);
+        setWaExpanded(false);
+        setWaPhone('');
+        setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone } }));
+      } else if (detail?.toLowerCase().includes('already linked') || detail?.toLowerCase().includes('already connected')) {
+        saveWaCache(waPhone.trim());
+        setWaExpanded(false);
+        setWaPhone('');
+        setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone: waPhone.trim() } }));
+      } else {
+        setWaError(detail || res.responseMessage || 'Failed to connect. Please try again.');
+      }
+    } catch { setWaError('Something went wrong. Please try again.'); }
+    finally { setConnecting(null); }
+  };
+
+  const handleDisconnect = async (id: string) => {
+    setDisconnecting(id);
+    try {
+      if (id === 'linkedin') await SocialConnectionService.linkedinDisconnect();
+      else if (id === 'x') await SocialConnectionService.xDisconnect();
+      else if (id === 'whatsapp') await SocialConnectionService.whatsappDisconnect();
+      setStatuses((prev) => ({ ...prev, [id]: { linked: false } }));
+    } finally { setDisconnecting(null); }
+  };
+
+  return (
+    <SubPage title="Connected Accounts" icon="share" desc="Manage your social media platform connections" onJane={onJane}>
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 40 }}>
+          <div style={{ width: 28, height: 28, border: '3px solid #edecea', borderTopColor: '#C2185B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {PLATFORMS.map((p) => {
+            const s = statuses[p.id];
+            const linked = s?.linked ?? false;
+            const isBusy = disconnecting === p.id || connecting === p.id;
+            return (
+              <div key={p.id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: `1.5px solid ${linked ? p.color + '44' : '#edecea'}`, background: linked ? p.bg : '#fff', transition: 'all .15s' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 11, background: linked ? '#fff' : p.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
+                    {PLATFORM_ICON[p.id]}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111' }}>{p.label}</div>
+                    {linked
+                      ? <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>{s?.account_name || s?.username || s?.phone || 'Connected'}</div>
+                      : <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>Not connected</div>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: linked ? '#4caf50' : '#ddd', boxShadow: linked ? '0 0 6px rgba(76,175,80,.5)' : 'none' }} />
+                    {linked ? (
+                      ['facebook', 'instagram'].includes(p.id) ? null : (
+                        <button type="button" onClick={() => handleDisconnect(p.id)} disabled={isBusy} style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid #edecea', background: '#fff', fontSize: 12, color: '#888', cursor: 'pointer', fontFamily: 'var(--wf)', opacity: isBusy ? 0.5 : 1 }}>
+                          {disconnecting === p.id ? '...' : 'Disconnect'}
+                        </button>
+                      )
+                    ) : (
+                      <button type="button" onClick={() => handleConnect(p.id, p.flow)} disabled={isBusy} style={{ padding: '5px 14px', borderRadius: 7, border: 'none', background: p.color, fontSize: 12, color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'var(--wf)', opacity: isBusy ? 0.5 : 1 }}>
+                        {connecting === p.id ? '...' : 'Connect'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {p.id === 'whatsapp' && waExpanded && !linked && (
+                  <div style={{ padding: '12px 16px', background: '#f9f9f9', borderRadius: '0 0 12px 12px', border: '1.5px solid #25D36644', borderTop: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <input type="tel" placeholder="+1 234 567 8900" value={waPhone} onChange={(e) => setWaPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleWhatsappSubmit()} aria-label="WhatsApp phone number" style={{ padding: '9px 13px', borderRadius: 8, border: '1.5px solid #25D366', fontSize: 13, fontFamily: 'var(--wf)', outline: 'none', background: '#fff' }} />
+                    {waError && <div style={{ fontSize: 12, color: '#e53935' }}>{waError}</div>}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" onClick={handleWhatsappSubmit} disabled={!waPhone.trim() || connecting === 'whatsapp'} style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: '#25D366', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--wf)', opacity: !waPhone.trim() || connecting === 'whatsapp' ? 0.5 : 1 }}>
+                        {connecting === 'whatsapp' ? 'Connecting...' : 'Connect WhatsApp'}
+                      </button>
+                      <button type="button" onClick={() => { setWaExpanded(false); setWaError(''); }} style={{ padding: '7px 12px', borderRadius: 7, border: '1px solid #edecea', background: '#fff', color: '#888', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--wf)' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </SubPage>
+  );
+};
 
 /* ── Subpages ────────────────────────────────────────────────────────────── */
 const MessagesPage = ({ onJane }: { onJane: () => void }) => (
@@ -2311,6 +2499,7 @@ const NAV = [
   { id: 'workspace', icon: 'home', label: 'Workspace' },
   // { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
   { id: 'schedule', icon: 'calendar', label: 'Posting Schedule' },
+  { id: 'connections', icon: 'share', label: 'Connected Accounts' },
   { id: 'performance', icon: 'chart', label: 'Performance' },
   { id: 'intel', icon: 'globe', label: 'Market Intel' },
   { id: 'playbook', icon: 'book', label: 'Brand Playbook' },
@@ -2548,6 +2737,7 @@ export default function WorkspaceDashboard() {
   const PAGES: Record<string, ReactNode> = {
     messages: <MessagesPage onJane={goWorkspace} />,
     schedule: <ContentManagerPage onJane={goWorkspace} />,
+    connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
