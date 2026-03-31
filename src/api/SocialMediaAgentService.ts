@@ -245,6 +245,13 @@ export class SocialMediaAgentService {
     );
     return response.data;
   }
+
+  static async getAccountMetrics(days = 30): Promise<UriResponse<AccountMetricsData>> {
+    const response: Awaited<AxiosResponse<UriResponse<AccountMetricsData>>> = await UriHttpClient.getClient().get(
+      `/social-media/account-metrics?days=${days}`
+    );
+    return response.data;
+  }
 }
 
 export interface PerformancePost {
@@ -289,4 +296,33 @@ export interface PerformanceData {
   };
   by_platform: Record<string, PerformancePlatformSummary>;
   top_posts: PerformancePost[];
+}
+
+export interface AccountMetricItem {
+  account_id: string;
+  network: string;
+  page_name?: string;
+  category?: string;
+  followers_count: number;
+  following_count: number | null;
+  posts_count: number | null;
+  engagement: {
+    views: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    reposts: number;
+    quotes: number;
+  } | null;
+  engagement_note?: string;
+  platform_specific: Record<string, unknown>;
+  period: {
+    since: number;
+    until: number;
+  };
+}
+
+export interface AccountMetricsData {
+  has_data: boolean;
+  accounts: AccountMetricItem[];
 }

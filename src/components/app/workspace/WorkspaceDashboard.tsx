@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandProfileData, BrandProfileService } from '@/src/api/BrandProfileService';
 import {
+  AccountMetricItem,
+  AccountMetricsData,
   AutoGenerateSettings,
   ContentDraft,
   PerformanceData,
@@ -1233,12 +1235,23 @@ const platformIcon: Record<string, string> = {
   pinterest: '📌',
 };
 
+const PLATFORM_ENGAGEMENT_NOTE: Record<string, string> = {
+  facebook: 'Facebook only provides follower count at the account level.',
+  instagram: 'Instagram only provides follower, following, and media count.',
+  linkedin: 'LinkedIn only provides follower count at the account level.',
+  bluesky: 'BlueSky has limited metric support.',
+};
+
 const PerformancePage = ({ onJane }: { onJane: () => void }) => {
+  const [view, setView] = useState<'posts' | 'accounts'>('posts');
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [days, setDays] = useState(30);
   const [expandedPost, setExpandedPost] = useState<string | null>(null);
+  const [accountData, setAccountData] = useState<AccountMetricsData | null>(null);
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [accountError, setAccountError] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -1250,6 +1263,18 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
+  }, [days]);
+
+  useEffect(() => {
+    setAccountLoading(true);
+    setAccountError(false);
+    SocialMediaAgentService.getAccountMetrics(days)
+      .then((res) => {
+        if (res.status && res.responseData) setAccountData(res.responseData);
+        else setAccountError(true);
+      })
+      .catch(() => setAccountError(true))
+      .finally(() => setAccountLoading(false));
   }, [days]);
 
   const statCard = (label: string, value: string | number, sub?: string, color = '#111') => (
@@ -1275,9 +1300,43 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
     <SubPage
       title="Performance"
       icon="chart"
-      desc="Real-time insights from your published posts via Outstand"
+      desc={view === 'posts' ? 'Real-time insights from your published posts via Outstand' : 'Account-level metrics for your connected social profiles'}
       onJane={onJane}
     >
+      {/* View toggle */}
+      <div
+        style={{
+          display: 'inline-flex',
+          background: '#f5f4f0',
+          borderRadius: 22,
+          padding: 3,
+          marginBottom: 14,
+        }}
+      >
+        {(['posts', 'accounts'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            style={{
+              padding: '5px 16px',
+              borderRadius: 18,
+              border: 'none',
+              background: view === v ? '#fff' : 'transparent',
+              color: view === v ? '#C2185B' : '#888',
+              fontSize: 12.5,
+              fontWeight: view === v ? 700 : 500,
+              cursor: 'pointer',
+              fontFamily: 'var(--wf)',
+              boxShadow: view === v ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
+              transition: 'all 0.15s',
+              textTransform: 'capitalize',
+            }}
+          >
+            {v === 'posts' ? 'Posts' : 'Accounts'}
+          </button>
+        ))}
+      </div>
+
       {/* Range selector */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
         {[7, 30, 90].map((d) => (
@@ -1302,281 +1361,452 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
         <span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb', alignSelf: 'center' }}>Last {days} days</span>
       </div>
 
-      {loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
-                style={{
-                  height: 80,
-                  borderRadius: 12,
-                  background: 'linear-gradient(90deg, #f5f4f0 25%, #edecea 50%, #f5f4f0 75%)',
-                  backgroundSize: '200% 100%',
-                  animation: 'shimmer 1.5s infinite',
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!loading && error && (
-        <div
-          style={{
-            background: '#fff',
-            borderRadius: 12,
-            border: '1px solid #edecea',
-            padding: 24,
-            textAlign: 'center',
-          }}
-        >
-          <I n="chart" s={32} c="#e5e3df" />
-          <div style={{ fontSize: 13, color: '#999', marginTop: 10 }}>
-            Could not load performance data. Please try again.
-          </div>
-        </div>
-      )}
-
-      {!loading && !error && data && !data.has_data && (
-        <div
-          style={{
-            background: '#fff',
-            borderRadius: 12,
-            border: '1px solid #edecea',
-            padding: 28,
-            textAlign: 'center',
-          }}
-        >
-          <I n="chart" s={36} c="rgba(194,24,91,.25)" />
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#111', marginTop: 12, marginBottom: 6 }}>
-            No published posts yet
-          </div>
-          <div style={{ fontSize: 13, color: '#999', lineHeight: 1.6 }}>
-            Generate and publish content from the <strong>Workspace</strong> tab. Analytics will appear here once posts
-            are live.
-          </div>
-        </div>
-      )}
-
-      {!loading && !error && data?.has_data && (
+      {/* ── POSTS VIEW ── */}
+      {view === 'posts' && (
         <>
-          {/* Summary stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
-            {statCard('Impressions', fmt(data.summary.total_impressions), `${data.summary.total_posts} posts`)}
-            {statCard('Reach', fmt(data.summary.total_reach))}
-            {statCard(
-              'Engagement',
-              fmt(data.summary.total_likes + data.summary.total_comments + data.summary.total_shares)
-            )}
-            {statCard(
-              'Avg. Eng. Rate',
-              `${data.summary.avg_engagement_rate}%`,
-              undefined,
-              data.summary.avg_engagement_rate >= 3
-                ? '#16a34a'
-                : data.summary.avg_engagement_rate >= 1
-                  ? '#d97706'
-                  : '#C2185B'
-            )}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
-            {statCard('Likes', fmt(data.summary.total_likes))}
-            {statCard('Comments', fmt(data.summary.total_comments))}
-            {statCard('Shares', fmt(data.summary.total_shares))}
-          </div>
-
-          {/* Per-platform breakdown */}
-          {Object.keys(data.by_platform).length > 0 && (
-            <div
-              style={{
-                background: '#fff',
-                borderRadius: 12,
-                border: '1px solid #edecea',
-                padding: '16px 18px',
-                marginBottom: 16,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: '#C2185B',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.8,
-                  marginBottom: 12,
-                }}
-              >
-                By Platform
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {Object.entries(data.by_platform).map(([pl, stats]) => (
-                  <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 8,
-                        background: (PLATFORM_COLORS[pl] ?? '#666') + '18',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 16,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {platformIcon[pl] ?? '🌐'}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          marginBottom: 3,
-                        }}
-                      >
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>
-                          {pl}
-                        </span>
-                        <span style={{ fontSize: 12, color: '#999' }}>
-                          {stats.posts} post{stats.posts !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: 14 }}>
-                        {[
-                          ['Impressions', fmt(stats.impressions)],
-                          ['Reach', fmt(stats.reach)],
-                          ['Eng.', `${stats.avg_engagement_rate}%`],
-                        ].map(([l, v]) => (
-                          <div key={l}>
-                            <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+          {loading && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                {[0, 1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      height: 80,
+                      borderRadius: 12,
+                      background: 'linear-gradient(90deg, #f5f4f0 25%, #edecea 50%, #f5f4f0 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 1.5s infinite',
+                    }}
+                  />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Top posts */}
-          {data.top_posts.length > 0 && (
-            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: '#C2185B',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.8,
-                  marginBottom: 12,
-                }}
-              >
-                Top Posts
+          {!loading && error && (
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 12,
+                border: '1px solid #edecea',
+                padding: 24,
+                textAlign: 'center',
+              }}
+            >
+              <I n="chart" s={32} c="#e5e3df" />
+              <div style={{ fontSize: 13, color: '#999', marginTop: 10 }}>
+                Could not load performance data. Please try again.
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {data.top_posts.map((post: PerformancePost) => (
-                  <div key={post.draft_id}>
-                    <div
-                      onClick={() => setExpandedPost(expandedPost === post.draft_id ? null : post.draft_id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 10,
-                        padding: '10px 12px',
-                        borderRadius: 10,
-                        border: '1px solid #f0eeec',
-                        cursor: 'pointer',
-                        background: expandedPost === post.draft_id ? '#fdf8fc' : '#fafaf8',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 7,
-                          background: (PLATFORM_COLORS[post.platform] ?? '#666') + '18',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 14,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {platformIcon[post.platform] ?? '🌐'}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
+            </div>
+          )}
+
+          {!loading && !error && data && !data.has_data && (
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 12,
+                border: '1px solid #edecea',
+                padding: 28,
+                textAlign: 'center',
+              }}
+            >
+              <I n="chart" s={36} c="rgba(194,24,91,.25)" />
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111', marginTop: 12, marginBottom: 6 }}>
+                No published posts yet
+              </div>
+              <div style={{ fontSize: 13, color: '#999', lineHeight: 1.6 }}>
+                Generate and publish content from the <strong>Workspace</strong> tab. Analytics will appear here once
+                posts are live.
+              </div>
+            </div>
+          )}
+
+          {!loading && !error && data?.has_data && (
+            <>
+              {/* Summary stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+                {statCard('Impressions', fmt(data.summary.total_impressions), `${data.summary.total_posts} posts`)}
+                {statCard('Reach', fmt(data.summary.total_reach))}
+                {statCard(
+                  'Engagement',
+                  fmt(data.summary.total_likes + data.summary.total_comments + data.summary.total_shares)
+                )}
+                {statCard(
+                  'Avg. Eng. Rate',
+                  `${data.summary.avg_engagement_rate}%`,
+                  undefined,
+                  data.summary.avg_engagement_rate >= 3
+                    ? '#16a34a'
+                    : data.summary.avg_engagement_rate >= 1
+                      ? '#d97706'
+                      : '#C2185B'
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+                {statCard('Likes', fmt(data.summary.total_likes))}
+                {statCard('Comments', fmt(data.summary.total_comments))}
+                {statCard('Shares', fmt(data.summary.total_shares))}
+              </div>
+
+              {/* Per-platform breakdown */}
+              {Object.keys(data.by_platform).length > 0 && (
+                <div
+                  style={{
+                    background: '#fff',
+                    borderRadius: 12,
+                    border: '1px solid #edecea',
+                    padding: '16px 18px',
+                    marginBottom: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: '#C2185B',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.8,
+                      marginBottom: 12,
+                    }}
+                  >
+                    By Platform
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {Object.entries(data.by_platform).map(([pl, stats]) => (
+                      <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div
                           style={{
-                            fontSize: 12.5,
-                            color: '#374151',
-                            lineHeight: 1.45,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
+                            width: 32,
+                            height: 32,
+                            borderRadius: 8,
+                            background: (PLATFORM_COLORS[pl] ?? '#666') + '18',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 16,
+                            flexShrink: 0,
                           }}
                         >
-                          {post.content_preview || '(No preview)'}
+                          {platformIcon[pl] ?? '🌐'}
                         </div>
-                        <div style={{ display: 'flex', gap: 12, marginTop: 5 }}>
-                          {[
-                            ['👁', fmt(post.impressions)],
-                            ['❤️', fmt(post.likes)],
-                            ['💬', fmt(post.comments)],
-                            ['🔁', fmt(post.shares)],
-                          ].map(([ic, v]) => (
-                            <span key={ic as string} style={{ fontSize: 11.5, color: '#666' }}>
-                              {ic} {v}
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              marginBottom: 3,
+                            }}
+                          >
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>
+                              {pl}
                             </span>
-                          ))}
-                          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#C2185B', fontWeight: 700 }}>
-                            {post.engagement_rate}%
-                          </span>
+                            <span style={{ fontSize: 12, color: '#999' }}>
+                              {stats.posts} post{stats.posts !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 14 }}>
+                            {[
+                              ['Impressions', fmt(stats.impressions)],
+                              ['Reach', fmt(stats.reach)],
+                              ['Eng.', `${stats.avg_engagement_rate}%`],
+                            ].map(([l, v]) => (
+                              <div key={l}>
+                                <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    {expandedPost === post.draft_id && (
-                      <div
-                        style={{
-                          padding: '10px 12px 12px',
-                          background: '#fdf8fc',
-                          borderRadius: '0 0 10px 10px',
-                          border: '1px solid #f0eeec',
-                          borderTop: 'none',
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(3, 1fr)',
-                          gap: 8,
-                        }}
-                      >
-                        {[
-                          ['Views', fmt(post.views)],
-                          ['Reach', fmt(post.reach)],
-                          ['Engagement Rate', `${post.engagement_rate}%`],
-                        ].map(([l, v]) => (
-                          <div key={l as string}>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Top posts */}
+              {data.top_posts.length > 0 && (
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: '#C2185B',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.8,
+                      marginBottom: 12,
+                    }}
+                  >
+                    Top Posts
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {data.top_posts.map((post: PerformancePost) => (
+                      <div key={post.draft_id}>
+                        <div
+                          onClick={() => setExpandedPost(expandedPost === post.draft_id ? null : post.draft_id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 10,
+                            padding: '10px 12px',
+                            borderRadius: 10,
+                            border: '1px solid #f0eeec',
+                            cursor: 'pointer',
+                            background: expandedPost === post.draft_id ? '#fdf8fc' : '#fafaf8',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 7,
+                              background: (PLATFORM_COLORS[post.platform] ?? '#666') + '18',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 14,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {platformIcon[post.platform] ?? '🌐'}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                             <div
                               style={{
-                                fontSize: 10.5,
-                                color: '#bbb',
-                                textTransform: 'uppercase',
-                                letterSpacing: 0.4,
-                                marginBottom: 2,
+                                fontSize: 12.5,
+                                color: '#374151',
+                                lineHeight: 1.45,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
                               }}
                             >
-                              {l}
+                              {post.content_preview || '(No preview)'}
                             </div>
-                            <div style={{ fontSize: 15, fontWeight: 800, color: '#111' }}>{v}</div>
+                            <div style={{ display: 'flex', gap: 12, marginTop: 5 }}>
+                              {[
+                                ['👁', fmt(post.impressions)],
+                                ['❤️', fmt(post.likes)],
+                                ['💬', fmt(post.comments)],
+                                ['🔁', fmt(post.shares)],
+                              ].map(([ic, v]) => (
+                                <span key={ic as string} style={{ fontSize: 11.5, color: '#666' }}>
+                                  {ic} {v}
+                                </span>
+                              ))}
+                              <span style={{ marginLeft: 'auto', fontSize: 11, color: '#C2185B', fontWeight: 700 }}>
+                                {post.engagement_rate}%
+                              </span>
+                            </div>
                           </div>
-                        ))}
+                        </div>
+                        {expandedPost === post.draft_id && (
+                          <div
+                            style={{
+                              padding: '10px 12px 12px',
+                              background: '#fdf8fc',
+                              borderRadius: '0 0 10px 10px',
+                              border: '1px solid #f0eeec',
+                              borderTop: 'none',
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(3, 1fr)',
+                              gap: 8,
+                            }}
+                          >
+                            {[
+                              ['Views', fmt(post.views)],
+                              ['Reach', fmt(post.reach)],
+                              ['Engagement Rate', `${post.engagement_rate}%`],
+                            ].map(([l, v]) => (
+                              <div key={l as string}>
+                                <div
+                                  style={{
+                                    fontSize: 10.5,
+                                    color: '#bbb',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.4,
+                                    marginBottom: 2,
+                                  }}
+                                >
+                                  {l}
+                                </div>
+                                <div style={{ fontSize: 15, fontWeight: 800, color: '#111' }}>{v}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── ACCOUNTS VIEW ── */}
+      {view === 'accounts' && (
+        <>
+          {accountLoading && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      height: 110,
+                      borderRadius: 12,
+                      background: 'linear-gradient(90deg, #f5f4f0 25%, #edecea 50%, #f5f4f0 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 1.5s infinite',
+                    }}
+                  />
                 ))}
               </div>
+            </div>
+          )}
+
+          {!accountLoading && accountError && (
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 12,
+                border: '1px solid #edecea',
+                padding: 24,
+                textAlign: 'center',
+              }}
+            >
+              <I n="chart" s={32} c="#e5e3df" />
+              <div style={{ fontSize: 13, color: '#999', marginTop: 10 }}>
+                Could not load account metrics. Please try again.
+              </div>
+            </div>
+          )}
+
+          {!accountLoading && !accountError && accountData && !accountData.has_data && (
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 12,
+                border: '1px solid #edecea',
+                padding: 28,
+                textAlign: 'center',
+              }}
+            >
+              <I n="chart" s={36} c="rgba(194,24,91,.25)" />
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111', marginTop: 12, marginBottom: 6 }}>
+                No connected accounts
+              </div>
+              <div style={{ fontSize: 13, color: '#999', lineHeight: 1.6 }}>
+                Connect your social profiles in <strong>Settings</strong> to view account-level metrics.
+              </div>
+            </div>
+          )}
+
+          {!accountLoading && !accountError && accountData?.has_data && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {accountData.accounts.map((acc: AccountMetricItem) => (
+                <div
+                  key={acc.account_id}
+                  style={{
+                    background: '#fff',
+                    borderRadius: 12,
+                    border: '1px solid #edecea',
+                    padding: '16px 18px',
+                  }}
+                >
+                  {/* Account header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 9,
+                        background: (PLATFORM_COLORS[acc.network] ?? '#666') + '18',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 18,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {platformIcon[acc.network] ?? '🌐'}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>
+                        {acc.page_name ?? acc.network}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#bbb', textTransform: 'capitalize' }}>
+                        {acc.category ?? acc.network}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Follower stats — only show fields that aren't null */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                    {[
+                      ['Followers', acc.followers_count],
+                      ...(acc.following_count != null ? [['Following', acc.following_count]] : []),
+                      ...(acc.posts_count != null ? [['Posts', acc.posts_count]] : []),
+                    ].map(([l, v]) => (
+                      <div
+                        key={l as string}
+                        style={{ background: '#fafaf8', borderRadius: 8, padding: '10px 14px' }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 10.5,
+                            color: '#bbb',
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.4,
+                            marginBottom: 3,
+                          }}
+                        >
+                          {l}
+                        </div>
+                        <div style={{ fontSize: 17, fontWeight: 800, color: '#111' }}>{fmt(v as number)}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Engagement over period */}
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#C2185B',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.6,
+                      marginBottom: 8,
+                    }}
+                  >
+                    Engagement · Last {days}d
+                  </div>
+                  {acc.engagement ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {[
+                        ['Views', fmt(acc.engagement.views)],
+                        ['Likes', fmt(acc.engagement.likes)],
+                        ['Comments', fmt(acc.engagement.comments)],
+                        ['Shares', fmt(acc.engagement.shares)],
+                        ['Reposts', fmt(acc.engagement.reposts)],
+                        ['Quotes', fmt(acc.engagement.quotes)],
+                      ].map(([l, v]) => (
+                        <div key={l as string} style={{ minWidth: 60 }}>
+                          <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: '#bbb', fontStyle: 'italic' }}>
+                      {acc.engagement_note ?? PLATFORM_ENGAGEMENT_NOTE[acc.network] ?? 'Engagement data unavailable for this period.'}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </>
