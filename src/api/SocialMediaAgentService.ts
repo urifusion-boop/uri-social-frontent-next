@@ -42,6 +42,28 @@ export interface ApprovePayload {
   scheduled_datetime?: string;
 }
 
+export interface ApprovePublishResult {
+  success: boolean;
+  error?: string;
+  post_id?: string;
+}
+
+export interface ApprovedDraft {
+  draft_id: string;
+  platform: string;
+  status: string;
+  scheduled_date?: string | null;
+  publish_result?: ApprovePublishResult;
+}
+
+export interface ApproveResult {
+  approved_drafts: ApprovedDraft[];
+  errors: string[];
+  schedule_option: string;
+  scheduled_datetime: string | null;
+  approved_at: string;
+}
+
 export interface DenyPayload {
   draft_ids: string[];
   denial_reason: string;
@@ -150,8 +172,8 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async approveContent(payload: ApprovePayload): Promise<UriResponse<string>> {
-    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().post(
+  static async approveContent(payload: ApprovePayload): Promise<UriResponse<ApproveResult>> {
+    const response: Awaited<AxiosResponse<UriResponse<ApproveResult>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.approveContent,
       payload
     );

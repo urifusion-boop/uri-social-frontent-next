@@ -1,7 +1,8 @@
 'use client';
 
 import { ReactElement } from 'react';
-import { ApprovePayload, ContentDraft, DenyPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { ApprovePayload, ApprovedDraft, ContentDraft, DenyPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import {
@@ -88,7 +89,47 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
         ...(datetime ? { scheduled_datetime: new Date(datetime).toISOString() } : {}),
       };
       const response = await SocialMediaAgentService.approveContent(payload);
+
       if (response.status) {
+        // Check if any draft's publish_result indicates the agent backend
+        // didn't actually post it (e.g. "not implemented yet" for LinkedIn/X).
+        // In that case fall back to calling the platform publish endpoint directly.
+        if (option === 'immediate') {
+          const approved: ApprovedDraft[] = response.responseData?.approved_drafts ?? [];
+          const thisResult = approved.find((a) => a.draft_id === draftId);
+
+          if (thisResult?.publish_result && !thisResult.publish_result.success) {
+            // Agent backend didn't publish — call the platform endpoint directly
+            const platform = draft.platform?.toLowerCase();
+            try {
+              if (platform === 'linkedin') {
+                const pubRes = await SocialConnectionService.linkedinPublish({ content: draft.content });
+                if (pubRes.status) {
+                  ToastService.showToast('Published to LinkedIn! ✅', ToastTypeEnum.Success);
+                  onRefresh();
+                  return;
+                } else {
+                  ToastService.showToast(pubRes.responseMessage || 'LinkedIn publish failed', ToastTypeEnum.Error);
+                  return;
+                }
+              } else if (platform === 'x' || platform === 'twitter') {
+                const pubRes = await SocialConnectionService.xPublish({ content: draft.content });
+                if (pubRes.status) {
+                  ToastService.showToast('Published to X! ✅', ToastTypeEnum.Success);
+                  onRefresh();
+                  return;
+                } else {
+                  ToastService.showToast(pubRes.responseMessage || 'X publish failed', ToastTypeEnum.Error);
+                  return;
+                }
+              }
+            } catch {
+              ToastService.showToast(`Failed to publish to ${draft.platform}. Make sure your account is connected.`, ToastTypeEnum.Error);
+              return;
+            }
+          }
+        }
+
         ToastService.showToast(
           option === 'immediate' ? 'Published!' : option === 'schedule' ? 'Scheduled!' : 'Saved as draft',
           ToastTypeEnum.Success
