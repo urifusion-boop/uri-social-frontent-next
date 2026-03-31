@@ -123,8 +123,21 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
                   return;
                 }
               }
-            } catch {
-              ToastService.showToast(`Failed to publish to ${draft.platform}. Make sure your account is connected.`, ToastTypeEnum.Error);
+            } catch (pubErr: unknown) {
+              // Network timeout or connection drop — the post may have still gone through
+              // on the platform side. Show a non-alarming message and refresh drafts.
+              const isNetworkError =
+                pubErr instanceof Error &&
+                (pubErr.message.includes('network') ||
+                  pubErr.message.includes('timeout') ||
+                  pubErr.message.includes('connection'));
+              ToastService.showToast(
+                isNetworkError
+                  ? `Check your ${draft.platform} — the post may have been published (network timeout).`
+                  : `Failed to publish to ${draft.platform}. Please check your connection is still active.`,
+                isNetworkError ? ToastTypeEnum.Warning : ToastTypeEnum.Error
+              );
+              onRefresh(); // refresh anyway — draft status may have changed server-side
               return;
             }
           }
