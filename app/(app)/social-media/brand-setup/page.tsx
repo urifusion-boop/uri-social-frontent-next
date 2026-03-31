@@ -11,7 +11,16 @@ import Grid from '@mui/material/GridLegacy';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCheckCircle, FaFacebook, FaImage, FaInstagram, FaLinkedin, FaTimes, FaWhatsapp } from 'react-icons/fa';
+import {
+  FaArrowLeft,
+  FaCheckCircle,
+  FaFacebook,
+  FaImage,
+  FaInstagram,
+  FaLinkedin,
+  FaTimes,
+  FaWhatsapp,
+} from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { MdOutlineCampaign } from 'react-icons/md';
@@ -821,11 +830,51 @@ function BrandSetupPageContent() {
       // ══ CONNECT ACCOUNTS ═════════════════════════════════════════
       case 'connectAccounts': {
         const LIVE_PLATFORMS = [
-          { id: 'facebook', name: 'Facebook', icon: FaFacebook, color: '#1877F2', bg: '#E7F0FD', description: 'Pages you manage', flow: 'outstand' },
-          { id: 'instagram', name: 'Instagram', icon: FaInstagram, color: '#E4405F', bg: '#FDE7EC', description: 'Business & creator accounts', flow: 'outstand' },
-          { id: 'linkedin', name: 'LinkedIn', icon: FaLinkedin, color: '#0A66C2', bg: '#E8F1FB', description: 'Professional profile & company pages', flow: 'popup' },
-          { id: 'x', name: 'X (Twitter)', icon: FaXTwitter, color: '#000000', bg: '#F0F0F0', description: 'Post tweets and threads', flow: 'popup' },
-          { id: 'whatsapp', name: 'WhatsApp', icon: FaWhatsapp, color: '#25D366', bg: '#E8F9EF', description: 'Receive AI drafts via WhatsApp', flow: 'phone' },
+          {
+            id: 'facebook',
+            name: 'Facebook',
+            icon: FaFacebook,
+            color: '#1877F2',
+            bg: '#E7F0FD',
+            description: 'Pages you manage',
+            flow: 'outstand',
+          },
+          {
+            id: 'instagram',
+            name: 'Instagram',
+            icon: FaInstagram,
+            color: '#E4405F',
+            bg: '#FDE7EC',
+            description: 'Business & creator accounts',
+            flow: 'outstand',
+          },
+          {
+            id: 'linkedin',
+            name: 'LinkedIn',
+            icon: FaLinkedin,
+            color: '#0A66C2',
+            bg: '#E8F1FB',
+            description: 'Professional profile & company pages',
+            flow: 'popup',
+          },
+          {
+            id: 'x',
+            name: 'X (Twitter)',
+            icon: FaXTwitter,
+            color: '#000000',
+            bg: '#F0F0F0',
+            description: 'Post tweets and threads',
+            flow: 'popup',
+          },
+          {
+            id: 'whatsapp',
+            name: 'WhatsApp',
+            icon: FaWhatsapp,
+            color: '#25D366',
+            bg: '#E8F9EF',
+            description: 'Receive AI drafts via WhatsApp',
+            flow: 'phone',
+          },
         ];
 
         const handleInitiateConnect = async () => {
@@ -854,9 +903,10 @@ function BrandSetupPageContent() {
           if (platform.flow === 'popup') {
             setConnectPhase('connecting');
             try {
-              const res = platform.id === 'linkedin'
-                ? await SocialConnectionService.linkedinConnect()
-                : await SocialConnectionService.xConnect();
+              const res =
+                platform.id === 'linkedin'
+                  ? await SocialConnectionService.linkedinConnect()
+                  : await SocialConnectionService.xConnect();
               if (res.status && res.responseData?.auth_url) {
                 const authUrl = res.responseData.auth_url;
                 // Try popup first; fall back to full-page redirect if blocked
@@ -889,7 +939,9 @@ function BrandSetupPageContent() {
                 }, 800);
                 return;
               }
-            } catch { /* fall through */ }
+            } catch {
+              /* fall through */
+            }
             setConnectPhase('selecting');
             return;
           }
@@ -1116,18 +1168,36 @@ function BrandSetupPageContent() {
                         '&:hover': { borderColor: primary },
                       }}
                     >
-                      <Box sx={{ width: 44, height: 44, borderRadius: '10px', bgcolor: platform.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Box
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '10px',
+                          bgcolor: platform.bg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
                         <IconComponent size={24} color={platform.color} />
                       </Box>
                       <Box flex={1}>
-                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>{platform.name}</Typography>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>
+                          {platform.name}
+                        </Typography>
                         <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>{platform.description}</Typography>
                       </Box>
                       {isSelected && <FaCheckCircle size={18} color={primary} />}
                     </Box>
                     {isSelected && platform.flow === 'phone' && (
                       <Box sx={{ mt: 1, px: 0.5 }}>
-                        <UriInput type="tel" value={whatsappPhone} onChange={setWhatsappPhone} placeholder="+1 234 567 8900" />
+                        <UriInput
+                          type="tel"
+                          value={whatsappPhone}
+                          onChange={setWhatsappPhone}
+                          placeholder="+1 234 567 8900"
+                        />
                         <Hint>Enter phone in E.164 format (e.g. +1 234 567 8900)</Hint>
                       </Box>
                     )}
@@ -1140,7 +1210,13 @@ function BrandSetupPageContent() {
                 mode="primary"
                 onClick={handleInitiateConnect}
                 disabled={!selectedConnectPlatform || (selectedPlatformDef?.flow === 'phone' && !whatsappPhone.trim())}
-                style={{ padding: '10px 24px', opacity: (!selectedConnectPlatform || (selectedPlatformDef?.flow === 'phone' && !whatsappPhone.trim())) ? 0.5 : 1 }}
+                style={{
+                  padding: '10px 24px',
+                  opacity:
+                    !selectedConnectPlatform || (selectedPlatformDef?.flow === 'phone' && !whatsappPhone.trim())
+                      ? 0.5
+                      : 1,
+                }}
               >
                 Connect {selectedPlatformDef?.name ?? 'account'} →
               </CustomButton>

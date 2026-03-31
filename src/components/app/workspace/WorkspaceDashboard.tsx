@@ -339,7 +339,15 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
         const allDrafts = response.responseData.drafts ?? [];
-        const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'ready_to_publish', 'denied', 'replaced', 'publish_failed']);
+        const EXCLUDE = new Set([
+          'published',
+          'scheduled',
+          'approved',
+          'ready_to_publish',
+          'denied',
+          'replaced',
+          'publish_failed',
+        ]);
         const filtered = allDrafts.filter((d: ContentDraft) => {
           const s = d.status;
           const a = d.approval_status;
@@ -793,13 +801,26 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     Promise.race([p.catch(() => null), new Promise<null>((res) => setTimeout(() => res(null), ms))]);
 
   const saveWaCache = (phone: string) => {
-    try { localStorage.setItem(WA_CACHE_KEY, JSON.stringify({ linked: true, phone })); } catch { /* noop */ }
+    try {
+      localStorage.setItem(WA_CACHE_KEY, JSON.stringify({ linked: true, phone }));
+    } catch {
+      /* noop */
+    }
   };
   const clearWaCache = () => {
-    try { localStorage.removeItem(WA_CACHE_KEY); } catch { /* noop */ }
+    try {
+      localStorage.removeItem(WA_CACHE_KEY);
+    } catch {
+      /* noop */
+    }
   };
   const readWaCache = (): PlatformStatus => {
-    try { const raw = localStorage.getItem(WA_CACHE_KEY); if (raw) return JSON.parse(raw) as PlatformStatus; } catch { /* noop */ }
+    try {
+      const raw = localStorage.getItem(WA_CACHE_KEY);
+      if (raw) return JSON.parse(raw) as PlatformStatus;
+    } catch {
+      /* noop */
+    }
     return { linked: false };
   };
 
@@ -837,7 +858,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }
   };
 
-  useEffect(() => { loadStatuses(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    loadStatuses();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openOAuthPopup = (authUrl: string, onClose: () => void) => {
     const popup = window.open(authUrl, 'uri-oauth', 'width=620,height=700,left=200,top=80');
@@ -855,13 +878,18 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const handleConnect = async (id: string, flow: string) => {
-    if (flow === 'outstand') { router.push('/social-media/brand-setup'); return; }
-    if (flow === 'phone') { setWaExpanded(true); return; }
+    if (flow === 'outstand') {
+      router.push('/social-media/brand-setup');
+      return;
+    }
+    if (flow === 'phone') {
+      setWaExpanded(true);
+      return;
+    }
     setConnecting(id);
     try {
-      const res = id === 'linkedin'
-        ? await SocialConnectionService.linkedinConnect()
-        : await SocialConnectionService.xConnect();
+      const res =
+        id === 'linkedin' ? await SocialConnectionService.linkedinConnect() : await SocialConnectionService.xConnect();
       if (res.status && res.responseData?.auth_url) {
         openOAuthPopup(res.responseData.auth_url, () => {
           setConnecting(null);
@@ -869,7 +897,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         });
         return; // connecting state cleared inside onClose callback
       }
-    } catch { /* fall through */ }
+    } catch {
+      /* fall through */
+    }
     setConnecting(null);
   };
 
@@ -886,7 +916,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         setWaExpanded(false);
         setWaPhone('');
         setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone } }));
-      } else if (detail?.toLowerCase().includes('already linked') || detail?.toLowerCase().includes('already connected')) {
+      } else if (
+        detail?.toLowerCase().includes('already linked') ||
+        detail?.toLowerCase().includes('already connected')
+      ) {
         saveWaCache(waPhone.trim());
         setWaExpanded(false);
         setWaPhone('');
@@ -894,8 +927,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       } else {
         setWaError(detail || res.responseMessage || 'Failed to connect. Please try again.');
       }
-    } catch { setWaError('Something went wrong. Please try again.'); }
-    finally { setConnecting(null); }
+    } catch {
+      setWaError('Something went wrong. Please try again.');
+    } finally {
+      setConnecting(null);
+    }
   };
 
   const handleDisconnect = async (id: string) => {
@@ -905,14 +941,30 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       else if (id === 'x') await SocialConnectionService.xDisconnect();
       else if (id === 'whatsapp') await SocialConnectionService.whatsappDisconnect();
       setStatuses((prev) => ({ ...prev, [id]: { linked: false } }));
-    } finally { setDisconnecting(null); }
+    } finally {
+      setDisconnecting(null);
+    }
   };
 
   return (
-    <SubPage title="Connected Accounts" icon="share" desc="Manage your social media platform connections" onJane={onJane}>
+    <SubPage
+      title="Connected Accounts"
+      icon="share"
+      desc="Manage your social media platform connections"
+      onJane={onJane}
+    >
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 40 }}>
-          <div style={{ width: 28, height: 28, border: '3px solid #edecea', borderTopColor: '#C2185B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              border: '3px solid #edecea',
+              borderTopColor: '#C2185B',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+            }}
+          />
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -922,40 +974,165 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             const isBusy = disconnecting === p.id || connecting === p.id;
             return (
               <div key={p.id}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: `1.5px solid ${linked ? p.color + '44' : '#edecea'}`, background: linked ? p.bg : '#fff', transition: 'all .15s' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 11, background: linked ? '#fff' : p.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    padding: '14px 16px',
+                    borderRadius: 12,
+                    border: `1.5px solid ${linked ? p.color + '44' : '#edecea'}`,
+                    background: linked ? p.bg : '#fff',
+                    transition: 'all .15s',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 11,
+                      background: linked ? '#fff' : p.bg,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: '0 1px 4px rgba(0,0,0,.06)',
+                    }}
+                  >
                     {PLATFORM_ICON[p.id]}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111' }}>{p.label}</div>
-                    {linked
-                      ? <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>{s?.account_name || s?.username || s?.phone || 'Connected'}</div>
-                      : <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>Not connected</div>}
+                    {linked ? (
+                      <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>
+                        {s?.account_name || s?.username || s?.phone || 'Connected'}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>Not connected</div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: linked ? '#4caf50' : '#ddd', boxShadow: linked ? '0 0 6px rgba(76,175,80,.5)' : 'none' }} />
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: linked ? '#4caf50' : '#ddd',
+                        boxShadow: linked ? '0 0 6px rgba(76,175,80,.5)' : 'none',
+                      }}
+                    />
                     {linked ? (
                       ['facebook', 'instagram'].includes(p.id) ? null : (
-                        <button type="button" onClick={() => handleDisconnect(p.id)} disabled={isBusy} style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid #edecea', background: '#fff', fontSize: 12, color: '#888', cursor: 'pointer', fontFamily: 'var(--wf)', opacity: isBusy ? 0.5 : 1 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleDisconnect(p.id)}
+                          disabled={isBusy}
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #edecea',
+                            background: '#fff',
+                            fontSize: 12,
+                            color: '#888',
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                          }}
+                        >
                           {disconnecting === p.id ? '...' : 'Disconnect'}
                         </button>
                       )
                     ) : (
-                      <button type="button" onClick={() => handleConnect(p.id, p.flow)} disabled={isBusy} style={{ padding: '5px 14px', borderRadius: 7, border: 'none', background: p.color, fontSize: 12, color: '#fff', cursor: 'pointer', fontWeight: 600, fontFamily: 'var(--wf)', opacity: isBusy ? 0.5 : 1 }}>
+                      <button
+                        type="button"
+                        onClick={() => handleConnect(p.id, p.flow)}
+                        disabled={isBusy}
+                        style={{
+                          padding: '5px 14px',
+                          borderRadius: 7,
+                          border: 'none',
+                          background: p.color,
+                          fontSize: 12,
+                          color: '#fff',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontFamily: 'var(--wf)',
+                          opacity: isBusy ? 0.5 : 1,
+                        }}
+                      >
                         {connecting === p.id ? '...' : 'Connect'}
                       </button>
                     )}
                   </div>
                 </div>
                 {p.id === 'whatsapp' && waExpanded && !linked && (
-                  <div style={{ padding: '12px 16px', background: '#f9f9f9', borderRadius: '0 0 12px 12px', border: '1.5px solid #25D36644', borderTop: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <input type="tel" placeholder="+1 234 567 8900" value={waPhone} onChange={(e) => setWaPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleWhatsappSubmit()} aria-label="WhatsApp phone number" style={{ padding: '9px 13px', borderRadius: 8, border: '1.5px solid #25D366', fontSize: 13, fontFamily: 'var(--wf)', outline: 'none', background: '#fff' }} />
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: '#f9f9f9',
+                      borderRadius: '0 0 12px 12px',
+                      border: '1.5px solid #25D36644',
+                      borderTop: 'none',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <input
+                      type="tel"
+                      placeholder="+1 234 567 8900"
+                      value={waPhone}
+                      onChange={(e) => setWaPhone(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleWhatsappSubmit()}
+                      aria-label="WhatsApp phone number"
+                      style={{
+                        padding: '9px 13px',
+                        borderRadius: 8,
+                        border: '1.5px solid #25D366',
+                        fontSize: 13,
+                        fontFamily: 'var(--wf)',
+                        outline: 'none',
+                        background: '#fff',
+                      }}
+                    />
                     {waError && <div style={{ fontSize: 12, color: '#e53935' }}>{waError}</div>}
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" onClick={handleWhatsappSubmit} disabled={!waPhone.trim() || connecting === 'whatsapp'} style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: '#25D366', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--wf)', opacity: !waPhone.trim() || connecting === 'whatsapp' ? 0.5 : 1 }}>
+                      <button
+                        type="button"
+                        onClick={handleWhatsappSubmit}
+                        disabled={!waPhone.trim() || connecting === 'whatsapp'}
+                        style={{
+                          padding: '7px 16px',
+                          borderRadius: 7,
+                          border: 'none',
+                          background: '#25D366',
+                          color: '#fff',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--wf)',
+                          opacity: !waPhone.trim() || connecting === 'whatsapp' ? 0.5 : 1,
+                        }}
+                      >
                         {connecting === 'whatsapp' ? 'Connecting...' : 'Connect WhatsApp'}
                       </button>
-                      <button type="button" onClick={() => { setWaExpanded(false); setWaError(''); }} style={{ padding: '7px 12px', borderRadius: 7, border: '1px solid #edecea', background: '#fff', color: '#888', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--wf)' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWaExpanded(false);
+                          setWaError('');
+                        }}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: 7,
+                          border: '1px solid #edecea',
+                          background: '#fff',
+                          color: '#888',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--wf)',
+                        }}
+                      >
                         Cancel
                       </button>
                     </div>
@@ -1904,7 +2081,17 @@ const PlaybookPage = ({
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               {(p?.sample_template_urls ?? []).map((url, i) => (
                 <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                  <img src={url} alt={`Template ${i + 1}`} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '1.5px solid #e5e3df' }} />
+                  <img
+                    src={url}
+                    alt={`Template ${i + 1}`}
+                    style={{
+                      width: 90,
+                      height: 90,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                      border: '1.5px solid #e5e3df',
+                    }}
+                  />
                 </a>
               ))}
             </div>
@@ -1916,19 +2103,42 @@ const PlaybookPage = ({
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: templateUrls.length > 0 ? 12 : 0 }}>
               {templateUrls.map((url, i) => (
                 <div key={i} style={{ position: 'relative' }}>
-                  <img src={url} alt={`Template ${i + 1}`} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '1.5px solid #e5e3df', display: 'block' }} />
+                  <img
+                    src={url}
+                    alt={`Template ${i + 1}`}
+                    style={{
+                      width: 90,
+                      height: 90,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                      border: '1.5px solid #e5e3df',
+                      display: 'block',
+                    }}
+                  />
                   <button
                     onClick={() => setTemplateUrls(templateUrls.filter((_, j) => j !== i))}
                     style={{
-                      position: 'absolute', top: -6, right: -6,
-                      width: 20, height: 20, borderRadius: '50%',
-                      background: '#ef4444', border: 'none', color: '#fff',
-                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      position: 'absolute',
+                      top: -6,
+                      right: -6,
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: '#ef4444',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       lineHeight: 1,
                     }}
                     title="Remove"
-                  >×</button>
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
@@ -1956,9 +2166,13 @@ const PlaybookPage = ({
               onClick={() => templateInputRef.current?.click()}
               disabled={uploadingTemplate}
               style={{
-                padding: '7px 14px', borderRadius: 8,
-                border: '1.5px dashed #C2185B', background: '#fff',
-                color: '#C2185B', fontSize: 12.5, fontWeight: 700,
+                padding: '7px 14px',
+                borderRadius: 8,
+                border: '1.5px dashed #C2185B',
+                background: '#fff',
+                color: '#C2185B',
+                fontSize: 12.5,
+                fontWeight: 700,
                 cursor: uploadingTemplate ? 'not-allowed' : 'pointer',
                 opacity: uploadingTemplate ? 0.6 : 1,
                 fontFamily: 'var(--wf)',
