@@ -858,7 +858,35 @@ function BrandSetupPageContent() {
                 ? await SocialConnectionService.linkedinConnect()
                 : await SocialConnectionService.xConnect();
               if (res.status && res.responseData?.auth_url) {
-                window.location.href = res.responseData.auth_url;
+                const authUrl = res.responseData.auth_url;
+                // Try popup first; fall back to full-page redirect if blocked
+                const popup = window.open(authUrl, 'uri-oauth', 'width=620,height=700,left=200,top=80');
+                if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+                  // Popup blocked — full-page redirect
+                  window.location.href = authUrl;
+                  return;
+                }
+                // Popup opened — poll for close then check query params on return
+                const timer = setInterval(() => {
+                  if (popup.closed) {
+                    clearInterval(timer);
+                    setConnectPhase('selecting');
+                    // Re-check URL params in case the page was redirected back by backend
+                    const params = new URLSearchParams(window.location.search);
+                    const cbConnected = params.get('connected');
+                    const cbPlatform = params.get('platform');
+                    const cbUsername = params.get('username');
+                    if (cbConnected === 'true' && cbPlatform) {
+                      const displayName = cbUsername ? decodeURIComponent(cbUsername) : cbPlatform;
+                      setConnectedAccountNames((prev) => [...prev, displayName]);
+                      setConnectPhase('success');
+                      router.replace('/social-media/brand-setup');
+                    } else if (cbConnected === 'false' && cbPlatform) {
+                      setConnectPhase('selecting');
+                      router.replace('/social-media/brand-setup');
+                    }
+                  }
+                }, 800);
                 return;
               }
             } catch { /* fall through */ }

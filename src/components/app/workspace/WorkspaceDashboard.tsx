@@ -839,6 +839,21 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
 
   useEffect(() => { loadStatuses(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const openOAuthPopup = (authUrl: string, onClose: () => void) => {
+    const popup = window.open(authUrl, 'uri-oauth', 'width=620,height=700,left=200,top=80');
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      // Popup was blocked — fall back to full-page redirect
+      window.location.href = authUrl;
+      return;
+    }
+    const timer = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(timer);
+        onClose();
+      }
+    }, 800);
+  };
+
   const handleConnect = async (id: string, flow: string) => {
     if (flow === 'outstand') { router.push('/social-media/brand-setup'); return; }
     if (flow === 'phone') { setWaExpanded(true); return; }
@@ -847,8 +862,15 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       const res = id === 'linkedin'
         ? await SocialConnectionService.linkedinConnect()
         : await SocialConnectionService.xConnect();
-      if (res.status && res.responseData?.auth_url) window.location.href = res.responseData.auth_url;
-    } finally { setConnecting(null); }
+      if (res.status && res.responseData?.auth_url) {
+        openOAuthPopup(res.responseData.auth_url, () => {
+          setConnecting(null);
+          loadStatuses(); // refresh linked status after OAuth completes
+        });
+        return; // connecting state cleared inside onClose callback
+      }
+    } catch { /* fall through */ }
+    setConnecting(null);
   };
 
   const handleWhatsappSubmit = async () => {
