@@ -291,7 +291,6 @@ function SocialAccountsContent() {
               const isConnected = connectedPlatformIds.has(pl.id);
               const isConnecting = connectingPlatform === pl.id;
               const isInstagram = pl.id === 'instagram';
-              const facebookConnected = connectedPlatformIds.has('facebook');
               return (
                 <Box key={pl.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5, background: '#fff', borderRadius: 2, border: '1px solid #e5e3df' }}>
                   <Box sx={{ width: 36, height: 36, borderRadius: 10, background: pl.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
@@ -301,24 +300,12 @@ function SocialAccountsContent() {
                     <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{pl.label}</Typography>
                     {isInstagram && !isConnected && (
                       <Typography sx={{ fontSize: 11, color: '#999', mt: 0.25 }}>
-                        Connected via Facebook — select your Instagram account when connecting Facebook
+                        Requires an Instagram Business or Creator account
                       </Typography>
                     )}
                   </Box>
                   {isConnected ? (
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#16a34a', background: '#dcfce7', padding: '2px 10px', borderRadius: 20 }}>Connected</span>
-                  ) : isInstagram ? (
-                    <button
-                      onClick={() => handleConnect('facebook')}
-                      disabled={isConnecting || connectingPlatform === 'facebook'}
-                      style={{
-                        padding: '6px 14px', borderRadius: 8, border: '1.5px solid #1877F2',
-                        background: '#fff', color: '#1877F2', fontSize: 12.5, fontWeight: 700,
-                        cursor: 'pointer', fontFamily: 'var(--wf)', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {facebookConnected ? 'Re-connect Facebook' : 'Connect via Facebook'}
-                    </button>
                   ) : (
                     <button
                       onClick={() => handleConnect(pl.id)}
