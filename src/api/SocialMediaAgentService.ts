@@ -252,6 +252,57 @@ export class SocialMediaAgentService {
     );
     return response.data;
   }
+
+  static async getCalendarPlan(): Promise<UriResponse<ContentCalendarPlan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> =
+      await UriHttpClient.getClient().get(socialMediaAgentRoutes.calendarPlan);
+    return response.data;
+  }
+
+  static async generateCalendarPlan(
+    platforms: string[],
+    force = false
+  ): Promise<UriResponse<ContentCalendarPlan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> =
+      await UriHttpClient.getClient().post(
+        socialMediaAgentRoutes.calendarPlanGenerate,
+        { platforms, force_regenerate: force },
+        { timeout: 120000 }
+      );
+    return response.data;
+  }
+
+  static async regenerateCalendarDay(
+    planId: string,
+    dayIndex: number
+  ): Promise<UriResponse<ContentCalendarPlan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> =
+      await UriHttpClient.getClient().post(
+        `${socialMediaAgentRoutes.calendarDayBase}/${planId}/day/${dayIndex}/regenerate`
+      );
+    return response.data;
+  }
+
+  static async createDraftFromCalendarDay(
+    planId: string,
+    dayIndex: number,
+    platforms: string[],
+    includeImages = false
+  ): Promise<UriResponse<{ drafts: ContentDraft[] }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ drafts: ContentDraft[] }>>> =
+      await UriHttpClient.getClient().post(
+        `${socialMediaAgentRoutes.calendarDayBase}/${planId}/day/${dayIndex}/create-draft`,
+        { platforms, include_images: includeImages },
+        { timeout: 300000 }
+      );
+    return response.data;
+  }
+
+  static async getTodaySuggestion(): Promise<UriResponse<TodaySuggestion>> {
+    const response: Awaited<AxiosResponse<UriResponse<TodaySuggestion>>> =
+      await UriHttpClient.getClient().get(socialMediaAgentRoutes.calendarToday);
+    return response.data;
+  }
 }
 
 export interface PerformancePost {
@@ -296,6 +347,41 @@ export interface PerformanceData {
   };
   by_platform: Record<string, PerformancePlatformSummary>;
   top_posts: PerformancePost[];
+}
+
+export interface CalendarDayItem {
+  day_index: number;
+  date: string;
+  content_type: 'educational' | 'relatable' | 'promotional' | 'behind_the_scenes' | 'engagement';
+  title: string;
+  description: string;
+  platforms: string[];
+  acted_on: boolean;
+  acted_on_draft_ids: string[];
+  regenerated_count: number;
+  last_regenerated_at: string | null;
+}
+
+export interface ContentCalendarPlan {
+  plan_id: string;
+  week_start: string;
+  generated_at: string;
+  platforms: string[];
+  days: CalendarDayItem[];
+  content_mix: Record<string, number>;
+  brand_snapshot: {
+    brand_name?: string;
+    industry?: string;
+    brand_voice?: string;
+    target_audience?: string;
+  };
+}
+
+export interface TodaySuggestion {
+  has_plan: boolean;
+  plan_id?: string;
+  day_index?: number;
+  today?: CalendarDayItem;
 }
 
 export interface AccountMetricItem {

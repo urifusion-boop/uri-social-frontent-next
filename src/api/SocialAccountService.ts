@@ -9,6 +9,7 @@ export interface AvailablePage {
   name: string;
   username?: string;
   profilePictureUrl?: string;
+  network?: string;
 }
 
 export interface PendingConnection {

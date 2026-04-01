@@ -11,6 +11,7 @@ import {
   PerformancePost,
   SocialMediaAgentService,
 } from '@/src/api/SocialMediaAgentService';
+import ContentCalendarTab from '@/src/components/app/social-media/ContentCalendarTab';
 import { PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter } from 'next/navigation';
@@ -320,7 +321,7 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'scheduled' | 'auto';
+type ContentTab = 'create' | 'drafts' | 'scheduled' | 'auto' | 'calendar';
 
 const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
@@ -423,6 +424,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     { key: 'create', label: 'Create' },
     { key: 'drafts', label: 'Drafts', count: drafts.length },
     { key: 'scheduled', label: 'Scheduled', count: scheduled.length },
+    { key: 'calendar', label: 'Calendar' },
     { key: 'auto', label: 'Auto' },
   ];
 
@@ -490,6 +492,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
               create: 'plus',
               drafts: 'edit',
               scheduled: 'clock',
+              calendar: 'calendar',
               auto: 'sparkle',
             };
             return (
@@ -575,6 +578,10 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
               </div>
             )}
           </>
+        )}
+
+        {activeTab === 'calendar' && (
+          <ContentCalendarTab onGenerated={handleGenerated} />
         )}
 
         {activeTab === 'auto' && (

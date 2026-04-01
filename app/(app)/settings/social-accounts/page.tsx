@@ -184,32 +184,47 @@ function SocialAccountsContent() {
                     </Typography>
                   ) : (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
-                      {availablePages.map((page) => (
-                        <Box
-                          key={page.id}
-                          onClick={() => setSelectedPageIds((prev) =>
-                            prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
-                          )}
-                          sx={{
-                            display: 'flex', alignItems: 'center', gap: 1.5,
-                            p: 1.5, borderRadius: 1.5, cursor: 'pointer',
-                            border: `2px solid ${selectedPageIds.includes(page.id) ? '#C2185B' : '#e5e3df'}`,
-                            background: selectedPageIds.includes(page.id) ? '#fdf0f6' : '#fff',
-                            transition: 'all 0.15s',
-                          }}
-                        >
-                          {page.profilePictureUrl && (
-                            <img src={page.profilePictureUrl} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} />
-                          )}
-                          <Box>
-                            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{page.name}</Typography>
-                            {page.username && <Typography sx={{ fontSize: 11, color: '#999' }}>@{page.username}</Typography>}
+                      {availablePages.map((page) => {
+                        const isInstagram = page.type === 'instagram_business_account' || page.network === 'instagram';
+                        const typeLabel = isInstagram ? { emoji: '📸', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC' } : { emoji: '📘', label: 'Facebook Page', color: '#1877F2', bg: '#E7F0FD' };
+                        return (
+                          <Box
+                            key={page.id}
+                            onClick={() => setSelectedPageIds((prev) =>
+                              prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
+                            )}
+                            sx={{
+                              display: 'flex', alignItems: 'center', gap: 1.5,
+                              p: 1.5, borderRadius: 1.5, cursor: 'pointer',
+                              border: `2px solid ${selectedPageIds.includes(page.id) ? '#C2185B' : '#e5e3df'}`,
+                              background: selectedPageIds.includes(page.id) ? '#fdf0f6' : '#fff',
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            <Box sx={{ position: 'relative', flexShrink: 0 }}>
+                              {page.profilePictureUrl ? (
+                                <img src={page.profilePictureUrl} alt="" style={{ width: 36, height: 36, borderRadius: '50%', display: 'block' }} />
+                              ) : (
+                                <Box sx={{ width: 36, height: 36, borderRadius: '50%', background: typeLabel.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{typeLabel.emoji}</Box>
+                              )}
+                              {/* Platform badge overlay */}
+                              <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: '50%', background: typeLabel.bg, border: '1.5px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9 }}>
+                                {typeLabel.emoji}
+                              </Box>
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{page.name}</Typography>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: typeLabel.color, background: typeLabel.bg, padding: '1px 7px', borderRadius: 20 }}>{typeLabel.label}</span>
+                              </Box>
+                              {page.username && <Typography sx={{ fontSize: 11, color: '#999' }}>@{page.username}</Typography>}
+                            </Box>
+                            <Box sx={{ ml: 'auto', flexShrink: 0, width: 18, height: 18, borderRadius: '50%', border: '2px solid', borderColor: selectedPageIds.includes(page.id) ? '#C2185B' : '#ccc', background: selectedPageIds.includes(page.id) ? '#C2185B' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {selectedPageIds.includes(page.id) && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                            </Box>
                           </Box>
-                          <Box sx={{ ml: 'auto', width: 18, height: 18, borderRadius: '50%', border: '2px solid', borderColor: selectedPageIds.includes(page.id) ? '#C2185B' : '#ccc', background: selectedPageIds.includes(page.id) ? '#C2185B' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {selectedPageIds.includes(page.id) && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
-                          </Box>
-                        </Box>
-                      ))}
+                        );
+                      })}
                     </Box>
                   )}
                   <Box sx={{ display: 'flex', gap: 1 }}>
@@ -275,14 +290,35 @@ function SocialAccountsContent() {
             {PLATFORMS.map((pl) => {
               const isConnected = connectedPlatformIds.has(pl.id);
               const isConnecting = connectingPlatform === pl.id;
+              const isInstagram = pl.id === 'instagram';
+              const facebookConnected = connectedPlatformIds.has('facebook');
               return (
                 <Box key={pl.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5, background: '#fff', borderRadius: 2, border: '1px solid #e5e3df' }}>
                   <Box sx={{ width: 36, height: 36, borderRadius: 10, background: pl.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
                     {pl.emoji}
                   </Box>
-                  <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#111', flex: 1 }}>{pl.label}</Typography>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{pl.label}</Typography>
+                    {isInstagram && !isConnected && (
+                      <Typography sx={{ fontSize: 11, color: '#999', mt: 0.25 }}>
+                        Connected via Facebook — select your Instagram account when connecting Facebook
+                      </Typography>
+                    )}
+                  </Box>
                   {isConnected ? (
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#16a34a', background: '#dcfce7', padding: '2px 10px', borderRadius: 20 }}>Connected</span>
+                  ) : isInstagram ? (
+                    <button
+                      onClick={() => handleConnect('facebook')}
+                      disabled={isConnecting || connectingPlatform === 'facebook'}
+                      style={{
+                        padding: '6px 14px', borderRadius: 8, border: '1.5px solid #1877F2',
+                        background: '#fff', color: '#1877F2', fontSize: 12.5, fontWeight: 700,
+                        cursor: 'pointer', fontFamily: 'var(--wf)', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {facebookConnected ? 'Re-connect Facebook' : 'Connect via Facebook'}
+                    </button>
                   ) : (
                     <button
                       onClick={() => handleConnect(pl.id)}
