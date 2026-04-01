@@ -311,12 +311,29 @@ function SocialAccountsContent() {
                     <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{pl.label}</Typography>
                     {isInstagram && !isConnected && (
                       <Typography sx={{ fontSize: 11, color: '#999', mt: 0.25 }}>
-                        Requires an Instagram Business or Creator account
+                        {connectedPlatformIds.has('facebook')
+                          ? 'Connect Facebook first — Instagram is detected automatically'
+                          : 'Connected automatically when you connect your Facebook Page'}
                       </Typography>
                     )}
                   </Box>
                   {isConnected ? (
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#16a34a', background: '#dcfce7', padding: '2px 10px', borderRadius: 20 }}>Connected</span>
+                  ) : isInstagram && !connectedPlatformIds.has('facebook') ? (
+                    <button
+                      onClick={() => handleConnect('facebook')}
+                      disabled={connectingPlatform === 'facebook'}
+                      title="Instagram Business accounts are connected via Facebook"
+                      style={{
+                        padding: '6px 14px', borderRadius: 8, border: '1.5px solid #1877F2',
+                        background: '#fff', color: '#1877F2', fontSize: 12.5, fontWeight: 700,
+                        cursor: connectingPlatform === 'facebook' ? 'not-allowed' : 'pointer',
+                        opacity: connectingPlatform === 'facebook' ? 0.6 : 1,
+                        fontFamily: 'var(--wf)',
+                      }}
+                    >
+                      {connectingPlatform === 'facebook' ? 'Opening…' : 'Connect via Facebook'}
+                    </button>
                   ) : (
                     <button
                       onClick={() => handleConnect(pl.id)}
