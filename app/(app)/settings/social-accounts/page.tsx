@@ -186,18 +186,24 @@ function SocialAccountsContent() {
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
                       {availablePages.map((page) => {
                         const isInstagram = page.type === 'instagram_business_account' || page.network === 'instagram';
-                        const typeLabel = isInstagram ? { emoji: '📸', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC' } : { emoji: '📘', label: 'Facebook Page', color: '#1877F2', bg: '#E7F0FD' };
+                        const isAutoConnect = !!page.auto_connect;
+                        const typeLabel = isInstagram
+                          ? { emoji: '📸', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC' }
+                          : { emoji: '📘', label: 'Facebook Page', color: '#1877F2', bg: '#E7F0FD' };
+                        const isSelected = selectedPageIds.includes(page.id);
                         return (
                           <Box
                             key={page.id}
-                            onClick={() => setSelectedPageIds((prev) =>
+                            onClick={() => !isAutoConnect && setSelectedPageIds((prev) =>
                               prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
                             )}
                             sx={{
                               display: 'flex', alignItems: 'center', gap: 1.5,
-                              p: 1.5, borderRadius: 1.5, cursor: 'pointer',
-                              border: `2px solid ${selectedPageIds.includes(page.id) ? '#C2185B' : '#e5e3df'}`,
-                              background: selectedPageIds.includes(page.id) ? '#fdf0f6' : '#fff',
+                              p: 1.5, borderRadius: 1.5,
+                              cursor: isAutoConnect ? 'default' : 'pointer',
+                              border: `2px solid ${isAutoConnect ? '#e5e3df' : isSelected ? '#C2185B' : '#e5e3df'}`,
+                              background: isAutoConnect ? '#fafaf8' : isSelected ? '#fdf0f6' : '#fff',
+                              opacity: isAutoConnect ? 0.85 : 1,
                               transition: 'all 0.15s',
                             }}
                           >
@@ -207,7 +213,6 @@ function SocialAccountsContent() {
                               ) : (
                                 <Box sx={{ width: 36, height: 36, borderRadius: '50%', background: typeLabel.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{typeLabel.emoji}</Box>
                               )}
-                              {/* Platform badge overlay */}
                               <Box sx={{ position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: '50%', background: typeLabel.bg, border: '1.5px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9 }}>
                                 {typeLabel.emoji}
                               </Box>
@@ -216,12 +221,18 @@ function SocialAccountsContent() {
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
                                 <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{page.name}</Typography>
                                 <span style={{ fontSize: 10, fontWeight: 700, color: typeLabel.color, background: typeLabel.bg, padding: '1px 7px', borderRadius: 20 }}>{typeLabel.label}</span>
+                                {isAutoConnect && (
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20 }}>Auto</span>
+                                )}
                               </Box>
                               {page.username && <Typography sx={{ fontSize: 11, color: '#999' }}>@{page.username}</Typography>}
+                              {isAutoConnect && <Typography sx={{ fontSize: 11, color: '#999' }}>Connected automatically via Facebook</Typography>}
                             </Box>
-                            <Box sx={{ ml: 'auto', flexShrink: 0, width: 18, height: 18, borderRadius: '50%', border: '2px solid', borderColor: selectedPageIds.includes(page.id) ? '#C2185B' : '#ccc', background: selectedPageIds.includes(page.id) ? '#C2185B' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {selectedPageIds.includes(page.id) && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
-                            </Box>
+                            {!isAutoConnect && (
+                              <Box sx={{ ml: 'auto', flexShrink: 0, width: 18, height: 18, borderRadius: '50%', border: '2px solid', borderColor: isSelected ? '#C2185B' : '#ccc', background: isSelected ? '#C2185B' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                              </Box>
+                            )}
                           </Box>
                         );
                       })}

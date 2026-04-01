@@ -10,6 +10,8 @@ export interface AvailablePage {
   username?: string;
   profilePictureUrl?: string;
   network?: string;
+  auto_connect?: boolean;
+  linked_page_id?: string;
 }
 
 export interface PendingConnection {
