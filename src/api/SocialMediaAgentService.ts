@@ -180,6 +180,15 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async regenerateImage(draftId: string, feedback: string): Promise<UriResponse<{ draft_id: string; status: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/regenerate-image`,
+      { feedback },
+      { timeout: 15000 }
+    );
+    return response.data;
+  }
+
   static async deleteDraft(draftId: string): Promise<UriResponse<string>> {
     const response = await UriHttpClient.getClient().delete(`${socialMediaAgentRoutes.deleteDraft}/${draftId}`);
     return response.data;

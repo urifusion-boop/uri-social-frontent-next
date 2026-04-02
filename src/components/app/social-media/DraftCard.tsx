@@ -73,7 +73,11 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageHovered, setImageHovered] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [imageEditOpen, setImageEditOpen] = useState(false);
+  const [imageFeedback, setImageFeedback] = useState('');
+  const [imageRegenerating, setImageRegenerating] = useState(false);
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
   const sc = statusColors[draft.status ?? 'draft'] ?? statusColors.draft;
@@ -271,6 +275,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
           return (
             <Box
               mb={1.5}
+              onMouseEnter={() => setImageHovered(true)}
+              onMouseLeave={() => setImageHovered(false)}
               sx={{
                 borderRadius: '8px',
                 overflow: 'hidden',
@@ -320,6 +326,36 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
                   cursor: 'pointer',
                 }}
               />
+              {imageLoaded && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 8,
+                    right: 8,
+                    opacity: imageHovered ? 1 : 0,
+                    transition: 'opacity 0.15s',
+                  }}
+                >
+                  <Button
+                    size="small"
+                    onClick={(e) => { e.stopPropagation(); setImageEditOpen(true); }}
+                    sx={{
+                      minWidth: 0,
+                      px: 1,
+                      py: 0.5,
+                      fontSize: '11px',
+                      background: 'rgba(0,0,0,0.55)',
+                      color: '#fff',
+                      backdropFilter: 'blur(4px)',
+                      borderRadius: '6px',
+                      textTransform: 'none',
+                      '&:hover': { background: 'rgba(0,0,0,0.75)' },
+                    }}
+                  >
+                    ✏️ Edit image
+                  </Button>
+                </Box>
+              )}
             </Box>
           );
         })()}
@@ -487,6 +523,64 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
             />
           )}
         </DialogContent>
+      </Dialog>
+
+      {/* Image edit feedback dialog */}
+      <Dialog open={imageEditOpen} onClose={() => { if (!imageRegenerating) setImageEditOpen(false); }} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: '15px', fontWeight: 600 }}>Regenerate image</DialogTitle>
+        <DialogContent>
+          <Typography fontSize="13px" color="#6B7280" mb={1.5}>
+            Tell the AI what to change about the current image.
+          </Typography>
+          <TextField
+            autoFocus
+            multiline
+            rows={3}
+            fullWidth
+            placeholder="e.g. Make it more vibrant, show a person working at a laptop in a Lagos office, use the brand's deep purple colour..."
+            value={imageFeedback}
+            onChange={(e) => setImageFeedback(e.target.value)}
+            disabled={imageRegenerating}
+            sx={{ fontSize: '13px' }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          <Button
+            onClick={() => { setImageEditOpen(false); setImageFeedback(''); }}
+            disabled={imageRegenerating}
+            sx={{ textTransform: 'none', fontSize: '13px' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!imageFeedback.trim() || imageRegenerating}
+            onClick={async () => {
+              const draftId = draft.draft_id ?? draft.id ?? '';
+              setImageRegenerating(true);
+              try {
+                const res = await SocialMediaAgentService.regenerateImage(draftId, imageFeedback.trim());
+                if (res.status) {
+                  setDraft((prev) => ({ ...prev, image_url: undefined as unknown as string, has_image: true }));
+                  setImageLoaded(false);
+                  setImageEditOpen(false);
+                  setImageFeedback('');
+                  ToastService.showToast('Generating new image…', ToastTypeEnum.Success);
+                  onRefresh();
+                } else {
+                  ToastService.showToast(res.responseMessage || 'Failed to start image regeneration', ToastTypeEnum.Error);
+                }
+              } catch {
+                ToastService.showToast('Failed to start image regeneration', ToastTypeEnum.Error);
+              } finally {
+                setImageRegenerating(false);
+              }
+            }}
+            sx={{ textTransform: 'none', fontSize: '13px', background: '#6F5ED3', '&:hover': { background: '#5A4DB8' } }}
+          >
+            {imageRegenerating ? 'Starting…' : 'Regenerate'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Deny panel */}
