@@ -84,7 +84,7 @@ export interface ContentDraft {
   platform: string;
   content: string;
   hashtags?: string[];
-  status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'denied' | 'scheduled';
+  status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'denied' | 'scheduled' | 'ready_to_publish' | 'replaced' | 'publish_failed' | 'refined';
   approval_status?: 'pending' | 'approved' | 'denied';
   image_url?: string;
   has_image?: boolean;
