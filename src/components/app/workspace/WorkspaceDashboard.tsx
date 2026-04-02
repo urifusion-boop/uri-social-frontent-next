@@ -349,7 +349,6 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
           'published',
           'scheduled',
           'approved',
-          'ready_to_publish',
           'denied',
           'replaced',
           'publish_failed',
@@ -393,7 +392,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     try {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
-        const saved = (response.responseData.drafts ?? []).filter((d: ContentDraft) => d.status === 'approved' || d.status === 'publish_failed');
+        const saved = (response.responseData.drafts ?? []).filter((d: ContentDraft) => d.status === 'approved' || d.status === 'ready_to_publish' || (d.status as string) === 'publish_failed');
         setSavedDrafts(saved);
       }
     } catch {
