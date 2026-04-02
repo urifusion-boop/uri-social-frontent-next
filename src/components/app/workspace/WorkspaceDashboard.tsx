@@ -181,6 +181,7 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       />
     ),
     filter: <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />,
+    bookmark: <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />,
   };
   return (
     <svg
@@ -321,12 +322,14 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'scheduled' | 'auto' | 'calendar';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar';
 
 const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
   const activeTabRef = useRef<ContentTab>('create');
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
+  const [savedDrafts, setSavedDrafts] = useState<ContentDraft[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(false);
   const [scheduled, setScheduled] = useState<ContentDraft[]>([]);
   const [autoSettings, setAutoSettings] = useState<AutoGenerateSettings | null>(null);
   const [loadingDrafts, setLoadingDrafts] = useState(false);
@@ -385,6 +388,21 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     }
   }, []);
 
+  const fetchSaved = useCallback(async () => {
+    setLoadingSaved(true);
+    try {
+      const response = await SocialMediaAgentService.getContentCalendar();
+      if (response.status && response.responseData) {
+        const saved = (response.responseData.drafts ?? []).filter((d: ContentDraft) => d.status === 'approved');
+        setSavedDrafts(saved);
+      }
+    } catch {
+      /* no-op */
+    } finally {
+      setLoadingSaved(false);
+    }
+  }, []);
+
   const fetchAuto = useCallback(async () => {
     setLoadingAuto(true);
     try {
@@ -401,9 +419,10 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     activeTabRef.current = activeTab;
     if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     if (activeTab === 'drafts') fetchDrafts();
+    if (activeTab === 'saved') fetchSaved();
     if (activeTab === 'scheduled') fetchScheduled();
     if (activeTab === 'auto') fetchAuto();
-  }, [activeTab, fetchDrafts, fetchScheduled, fetchAuto]);
+  }, [activeTab, fetchDrafts, fetchSaved, fetchScheduled, fetchAuto]);
 
   useEffect(
     () => () => {
@@ -423,6 +442,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const tabs: { key: ContentTab; label: string; count?: number }[] = [
     { key: 'create', label: 'Create' },
     { key: 'drafts', label: 'Drafts', count: drafts.length },
+    { key: 'saved', label: 'Saved', count: savedDrafts.length },
     { key: 'scheduled', label: 'Scheduled', count: scheduled.length },
     { key: 'calendar', label: 'Calendar' },
     { key: 'auto', label: 'Auto' },
@@ -491,6 +511,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
             const icons: Record<ContentTab, string> = {
               create: 'plus',
               drafts: 'edit',
+              saved: 'bookmark',
               scheduled: 'clock',
               calendar: 'calendar',
               auto: 'sparkle',
@@ -558,6 +579,22 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {drafts.map((draft) => (
                   <DraftCard key={draft.draft_id ?? draft.id} draft={draft} onRefresh={fetchDrafts} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'saved' && (
+          <>
+            {loadingSaved ? (
+              <CMSpinner />
+            ) : savedDrafts.length === 0 ? (
+              <CMEmptyState message="No saved drafts yet. Approve a draft and choose 'Save Draft' to keep it here." />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {savedDrafts.map((draft) => (
+                  <DraftCard key={draft.draft_id ?? draft.id} draft={draft} onRefresh={fetchSaved} />
                 ))}
               </div>
             )}
