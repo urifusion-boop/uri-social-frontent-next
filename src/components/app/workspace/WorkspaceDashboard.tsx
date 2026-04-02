@@ -393,7 +393,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     try {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
-        const saved = (response.responseData.drafts ?? []).filter((d: ContentDraft) => d.status === 'approved');
+        const saved = (response.responseData.drafts ?? []).filter((d: ContentDraft) => d.status === 'approved' || d.status === 'publish_failed');
         setSavedDrafts(saved);
       }
     } catch {
