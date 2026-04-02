@@ -45,7 +45,7 @@ export default function SocialMediaPage() {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
         const allDrafts = response.responseData.drafts ?? [];
-        const EXCLUDE_FROM_DRAFTS = new Set(['published', 'scheduled', 'approved', 'ready_to_publish', 'denied', 'replaced']);
+        const EXCLUDE_FROM_DRAFTS = new Set(['published', 'scheduled', 'ready_to_publish', 'denied', 'replaced']);
         const filtered = allDrafts.filter((d) => {
           const s = d.status;
           const a = d.approval_status;
