@@ -220,38 +220,39 @@ function LoginContent() {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #FDF2F8 0%, #F9FAFB 100%)',
         px: 2,
-        py: 4,
+        py: { xs: 10, sm: 12 },
       }}
     >
       <Fade in timeout={500}>
         <Box
           sx={{
             background: '#fff',
-            borderRadius: '20px',
-            p: { xs: 3, md: 4 },
-            maxWidth: 480,
+            borderRadius: '16px',
+            p: { xs: 2.5, md: 3 },
+            maxWidth: 440,
             width: '100%',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+            my: 'auto',
           }}
         >
           {/* Header */}
-          <Box display="flex" alignItems="center" gap={1.5} mb={4}>
+          <Box display="flex" alignItems="center" gap={1.5} mb={3}>
             <Box
               sx={{
                 backgroundColor: '#CD1B78',
-                p: '10px',
-                borderRadius: '12px',
+                p: '8px',
+                borderRadius: '10px',
                 display: 'flex',
                 boxShadow: '0 4px 12px rgba(205, 27, 120, 0.3)',
               }}
             >
-              <MdOutlineCampaign size={28} color="#fff" />
+              <MdOutlineCampaign size={24} color="#fff" />
             </Box>
             <Box>
-              <Typography fontWeight={800} fontSize="22px" color="#111827">
+              <Typography fontWeight={800} fontSize="20px" color="#111827">
                 URI Agent
               </Typography>
-              <Typography fontSize="13px" color="#6B7280" fontWeight={500}>
+              <Typography fontSize="12px" color="#6B7280" fontWeight={500}>
                 Social Media Manager
               </Typography>
             </Box>
@@ -268,7 +269,7 @@ function LoginContent() {
               setPasswordError('');
             }}
             sx={{
-              mb: 3,
+              mb: 2.5,
               '& .MuiTab-root': {
                 textTransform: 'none',
                 fontWeight: 600,
@@ -286,9 +287,9 @@ function LoginContent() {
           {/* Success Message */}
           <Collapse in={!!success}>
             <Alert
-              icon={<MdCheckCircle fontSize={20} />}
+              icon={<MdCheckCircle fontSize={18} />}
               severity="success"
-              sx={{ mb: 2, borderRadius: '10px', fontWeight: 500 }}
+              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '13px', py: 0.5 }}
             >
               {success}
             </Alert>
@@ -297,9 +298,9 @@ function LoginContent() {
           {/* Error Message */}
           <Collapse in={!!error}>
             <Alert
-              icon={<MdError fontSize={20} />}
+              icon={<MdError fontSize={18} />}
               severity="error"
-              sx={{ mb: 2, borderRadius: '10px', fontWeight: 500 }}
+              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '13px', py: 0.5 }}
               onClose={() => setError('')}
             >
               {error}
@@ -317,7 +318,7 @@ function LoginContent() {
             {/* Name fields for signup */}
             {tab === 'signup' && (
               <Fade in timeout={300}>
-                <Box display="flex" gap={2} mb={2}>
+                <Box display="flex" gap={1.5} mb={1.5}>
                   <TextField
                     label="First Name"
                     fullWidth
@@ -362,7 +363,7 @@ function LoginContent() {
               error={!!emailError}
               helperText={emailError}
               sx={{
-                mb: 2,
+                mb: 1.5,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '10px',
                   '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
@@ -395,7 +396,7 @@ function LoginContent() {
                 ),
               }}
               sx={{
-                mb: 3,
+                mb: 2,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '10px',
                   '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
@@ -434,7 +435,7 @@ function LoginContent() {
           </Box>
 
           {/* Divider */}
-          <Box display="flex" alignItems="center" gap={1.5} my={2.5}>
+          <Box display="flex" alignItems="center" gap={1.5} my={2}>
             <Box sx={{ flex: 1, height: '1px', background: '#E5E7EB' }} />
             <Typography fontSize="12px" color="#9CA3AF" fontWeight={500}>
               or continue with
@@ -489,7 +490,7 @@ function LoginContent() {
 
           {/* Footer text */}
           {tab === 'login' && (
-            <Typography fontSize="13px" color="#6B7280" textAlign="center" mt={3}>
+            <Typography fontSize="13px" color="#6B7280" textAlign="center" mt={2.5}>
               Don't have an account?{' '}
               <Typography
                 component="span"
@@ -505,7 +506,7 @@ function LoginContent() {
           )}
 
           {tab === 'signup' && (
-            <Typography fontSize="13px" color="#6B7280" textAlign="center" mt={3}>
+            <Typography fontSize="13px" color="#6B7280" textAlign="center" mt={2.5}>
               Already have an account?{' '}
               <Typography
                 component="span"
