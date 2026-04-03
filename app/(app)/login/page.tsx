@@ -26,11 +26,19 @@ const getErrorMessage = (error: string, isLogin: boolean): string => {
   const errorLower = error.toLowerCase();
 
   // Handle specific error cases
-  if (errorLower.includes('401') || errorLower.includes('invalid email or password')) {
+  if (
+    errorLower.includes('401') ||
+    errorLower.includes('invalid email or password') ||
+    errorLower.includes('invalid credentials')
+  ) {
     return 'Invalid email or password. Please check your credentials and try again.';
   }
-  if (errorLower.includes('409') || errorLower.includes('already exists')) {
-    return 'An account with this email already exists. Please login instead.';
+  if (
+    errorLower.includes('409') ||
+    errorLower.includes('already exists') ||
+    errorLower.includes('user with this email')
+  ) {
+    return 'An account with this email already exists. Please sign in instead or use a different email.';
   }
   if (errorLower.includes('403') || errorLower.includes('forbidden')) {
     return 'Access forbidden. Please check your credentials.';
@@ -43,11 +51,14 @@ const getErrorMessage = (error: string, isLogin: boolean): string => {
   if (errorLower.includes('500') || errorLower.includes('internal server')) {
     return 'Server error occurred. Please try again in a moment.';
   }
-  if (errorLower.includes('network') || errorLower.includes('connection')) {
-    return 'Network error. Please check your internet connection.';
+  if (errorLower.includes('network') || errorLower.includes('connection') || errorLower.includes('failed to fetch')) {
+    return 'Network error. Please check your internet connection and try again.';
   }
   if (errorLower.includes('timeout')) {
     return 'Request timed out. Please try again.';
+  }
+  if (errorLower.includes('cors') || errorLower.includes('blocked')) {
+    return 'Connection blocked. Please contact support if this persists.';
   }
 
   // Return the original error if no specific match
