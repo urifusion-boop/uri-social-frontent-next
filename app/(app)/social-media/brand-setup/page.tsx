@@ -2864,10 +2864,23 @@ function BrandSetupPageContent() {
         >
           {/* Logo */}
           <Box display="flex" alignItems="center" gap={1}>
-            <Image src="/assets/images/logo.png" alt="Uri logo" width={32} height={32} />
-            <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f', letterSpacing: -0.3 }}>
-              UriCreative
-            </Typography>
+            <Image src="/images/uri-logo.png" alt="URI Social" width={32} height={32} className="h-8 w-auto" />
+            <Box display="flex" flexDirection="column">
+              <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#000', letterSpacing: -0.3, lineHeight: 1.2 }}>
+                URI
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: 'rgba(0,0,0,0.5)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                }}
+              >
+                Social
+              </Typography>
+            </Box>
           </Box>
 
           {/* Progress bar (hidden on welcome only) */}
