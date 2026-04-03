@@ -278,21 +278,24 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
           <Box display="flex" gap={1} flexWrap="wrap">
             {POST_TYPES.map(({ key, label, icon, subtitle }) => {
               const active = postType === key;
+              const disabled = key === 'carousel' || key === 'story';
               return (
                 <Box
                   key={key}
-                  onClick={() => setPostType(key)}
+                  onClick={() => !disabled && setPostType(key)}
                   sx={{
                     border: '1px solid',
                     borderColor: active ? '#CD1B78' : '#E5E7EB',
                     borderRadius: '10px',
                     px: 2,
                     py: 1.25,
-                    cursor: 'pointer',
-                    background: active ? '#FDF2F8' : '#fff',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    background: disabled ? '#F9FAFB' : active ? '#FDF2F8' : '#fff',
                     minWidth: 120,
                     userSelect: 'none',
+                    opacity: disabled ? 0.45 : 1,
                     transition: 'all 0.15s',
+                    position: 'relative',
                   }}
                 >
                   <Typography fontSize="20px" lineHeight={1} mb={0.5}>
@@ -302,7 +305,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
                     {label}
                   </Typography>
                   <Typography fontSize="11px" color="#6B7280">
-                    {subtitle}
+                    {disabled ? 'Coming soon' : subtitle}
                   </Typography>
                 </Box>
               );
