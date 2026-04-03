@@ -29,14 +29,22 @@ const HeroSection = () => {
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row gap-3 items-start mb-6">
               <button
-                className="comic-btn px-6 py-3 rounded-lg text-sm"
-                style={{ backgroundColor: 'black', color: 'white' }}
+                className="comic-btn px-6 py-3 rounded-lg text-sm font-bold"
+                style={{
+                  backgroundColor: 'black',
+                  color: 'white',
+                  border: '3px solid black',
+                }}
               >
                 HIRE JANE — IT'S FREE
               </button>
               <button
-                className="comic-btn px-6 py-3 rounded-lg text-sm"
-                style={{ backgroundColor: 'white', color: 'hsl(340, 74%, 42%)' }}
+                className="comic-btn px-6 py-3 rounded-lg text-sm font-bold"
+                style={{
+                  backgroundColor: 'white',
+                  color: 'hsl(340, 74%, 42%)',
+                  border: '3px solid black',
+                }}
               >
                 SEE HER IN ACTION
               </button>
