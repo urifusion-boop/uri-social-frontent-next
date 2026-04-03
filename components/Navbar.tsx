@@ -66,19 +66,27 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-3 group">
             <div className="relative">
               <Image
-                src="/images/uri-logo.png"
+                src="/images/urilogo-nobg.png"
                 alt="URI Social"
-                width={40}
-                height={40}
-                className="h-10 w-auto transition-transform duration-300 group-hover:scale-110"
+                width={44}
+                height={44}
+                className="h-11 w-auto transition-transform duration-300 group-hover:scale-110"
               />
             </div>
-            <span className="text-xl font-bold tracking-tight" style={{ color: 'black' }}>
-              URI Social
-            </span>
+            <div className="flex flex-col leading-none">
+              <span className="text-xl font-black tracking-tight" style={{ color: 'black' }}>
+                URI
+              </span>
+              <span
+                className="text-xs font-semibold tracking-wider uppercase"
+                style={{ color: 'rgba(0, 0, 0, 0.6)', marginTop: '2px' }}
+              >
+                Social
+              </span>
+            </div>
           </Link>
 
           {/* Desktop Navigation */}
