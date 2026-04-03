@@ -26,6 +26,8 @@ export interface GenerateContentPayload {
   include_images?: boolean;
   brand_context?: BrandContext;
   reference_image?: string;
+  post_type?: 'feed' | 'carousel' | 'story';
+  num_slides?: number;
 }
 
 export interface RefinePayload {
@@ -78,19 +80,39 @@ export interface SocialConnection {
   page_id?: string;
 }
 
+export interface CarouselSlide {
+  headline: string;
+  body: string;
+  image_url?: string;
+  image_specs?: { width: number; height: number };
+}
+
 export interface ContentDraft {
   id?: string;
   draft_id?: string;
   platform: string;
   content: string;
   hashtags?: string[];
-  status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'denied' | 'scheduled' | 'ready_to_publish' | 'replaced' | 'publish_failed' | 'refined';
+  status?:
+    | 'draft'
+    | 'pending_approval'
+    | 'approved'
+    | 'published'
+    | 'denied'
+    | 'scheduled'
+    | 'ready_to_publish'
+    | 'replaced'
+    | 'publish_failed'
+    | 'refined';
   approval_status?: 'pending' | 'approved' | 'denied';
   image_url?: string;
   has_image?: boolean;
   created_at?: string;
   scheduled_datetime?: string;
   auto_generated?: boolean;
+  post_type?: 'feed' | 'carousel' | 'story';
+  slides?: CarouselSlide[];
+  image_specs?: { width: number; height: number };
 }
 
 export interface ContentCalendarResponse {
@@ -180,7 +202,10 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async regenerateImage(draftId: string, feedback: string): Promise<UriResponse<{ draft_id: string; status: string }>> {
+  static async regenerateImage(
+    draftId: string,
+    feedback: string
+  ): Promise<UriResponse<{ draft_id: string; status: string }>> {
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.deleteDraft}/${draftId}/regenerate-image`,
       { feedback },
@@ -263,32 +288,25 @@ export class SocialMediaAgentService {
   }
 
   static async getCalendarPlan(): Promise<UriResponse<ContentCalendarPlan>> {
-    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> =
-      await UriHttpClient.getClient().get(socialMediaAgentRoutes.calendarPlan);
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.calendarPlan
+    );
     return response.data;
   }
 
-  static async generateCalendarPlan(
-    platforms: string[],
-    force = false
-  ): Promise<UriResponse<ContentCalendarPlan>> {
-    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> =
-      await UriHttpClient.getClient().post(
-        socialMediaAgentRoutes.calendarPlanGenerate,
-        { platforms, force_regenerate: force },
-        { timeout: 120000 }
-      );
+  static async generateCalendarPlan(platforms: string[], force = false): Promise<UriResponse<ContentCalendarPlan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.calendarPlanGenerate,
+      { platforms, force_regenerate: force },
+      { timeout: 120000 }
+    );
     return response.data;
   }
 
-  static async regenerateCalendarDay(
-    planId: string,
-    dayIndex: number
-  ): Promise<UriResponse<ContentCalendarPlan>> {
-    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> =
-      await UriHttpClient.getClient().post(
-        `${socialMediaAgentRoutes.calendarDayBase}/${planId}/day/${dayIndex}/regenerate`
-      );
+  static async regenerateCalendarDay(planId: string, dayIndex: number): Promise<UriResponse<ContentCalendarPlan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.calendarDayBase}/${planId}/day/${dayIndex}/regenerate`
+    );
     return response.data;
   }
 
@@ -308,8 +326,9 @@ export class SocialMediaAgentService {
   }
 
   static async getTodaySuggestion(): Promise<UriResponse<TodaySuggestion>> {
-    const response: Awaited<AxiosResponse<UriResponse<TodaySuggestion>>> =
-      await UriHttpClient.getClient().get(socialMediaAgentRoutes.calendarToday);
+    const response: Awaited<AxiosResponse<UriResponse<TodaySuggestion>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.calendarToday
+    );
     return response.data;
   }
 }

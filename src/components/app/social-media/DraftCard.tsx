@@ -1,7 +1,13 @@
 'use client';
 
 import { ReactElement } from 'react';
-import { ApprovePayload, ApprovedDraft, ContentDraft, DenyPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import {
+  ApprovePayload,
+  ApprovedDraft,
+  ContentDraft,
+  DenyPayload,
+  SocialMediaAgentService,
+} from '@/src/api/SocialMediaAgentService';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
@@ -15,6 +21,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
+  IconButton,
   Menu,
   MenuItem,
   TextField,
@@ -22,6 +29,7 @@ import {
 } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
+import { MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import DraftEditor from './DraftEditor';
 
 interface DraftCardProps {
@@ -62,7 +70,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
   useEffect(() => {
     if (!editing) setDraft(initialDraft);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status]);
+  }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
   const [editing, setEditing] = useState(false);
   const [denyOpen, setDenyOpen] = useState(false);
   const [denyReason, setDenyReason] = useState('');
@@ -78,6 +86,22 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
   const [imageEditOpen, setImageEditOpen] = useState(false);
   const [imageFeedback, setImageFeedback] = useState('');
   const [imageRegenerating, setImageRegenerating] = useState(false);
+  const [slideIndex, setSlideIndex] = useState(0);
+
+  const postType = draft.post_type ?? 'feed';
+  const slides = draft.slides ?? [];
+  const isCarousel = postType === 'carousel' && slides.length > 0;
+  const isStory = postType === 'story';
+  const totalSlides = slides.length;
+  const currentSlide = isCarousel ? slides[slideIndex] : null;
+
+  // Reset slide index when draft changes
+  useEffect(() => {
+    setSlideIndex(0);
+    setImageLoaded(false);
+  }, [draft.id]);
+
+  const resolveUrl = (url: string) => (url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${url}` : url);
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
   const sc = statusColors[draft.status ?? 'draft'] ?? statusColors.draft;
@@ -243,6 +267,20 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
             sx={{ background: '#CCFBF1', color: '#0F766E', fontWeight: 700, fontSize: '11px', height: 24 }}
           />
         )}
+        {postType === 'carousel' && (
+          <Chip
+            label="Carousel"
+            size="small"
+            sx={{ background: '#EDE9FE', color: '#5B21B6', fontWeight: 700, fontSize: '11px', height: 24 }}
+          />
+        )}
+        {postType === 'story' && (
+          <Chip
+            label="Story"
+            size="small"
+            sx={{ background: '#FEF3C7', color: '#92400E', fontWeight: 700, fontSize: '11px', height: 24 }}
+          />
+        )}
       </Box>
 
       {/* Content */}
@@ -263,11 +301,278 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
         </Box>
       )}
 
-      {/* Generated image — correct platform aspect ratio, skeleton while loading */}
+      {/* ── Carousel image viewer ── */}
+      {!editing && isCarousel && (
+        <Box mb={1.5}>
+          <Box
+            sx={{
+              borderRadius: '8px',
+              overflow: 'hidden',
+              border: '1px solid #E5E7EB',
+              aspectRatio: '1 / 1',
+              width: '100%',
+              background: '#F3F4F6',
+              position: 'relative',
+            }}
+          >
+            {/* Slide counter */}
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 8,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'rgba(0,0,0,0.5)',
+                borderRadius: '12px',
+                px: 1,
+                py: 0.25,
+                zIndex: 2,
+              }}
+            >
+              <Typography fontSize="11px" color="#fff" fontWeight={600}>
+                {slideIndex + 1} / {totalSlides}
+              </Typography>
+            </Box>
+
+            {/* Shimmer when no slide image yet */}
+            {!currentSlide?.image_url && (draft.has_image || draft.auto_generated) && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 2s infinite',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  '@keyframes shimmer': {
+                    '0%': { backgroundPosition: '200% 0' },
+                    '100%': { backgroundPosition: '-200% 0' },
+                  },
+                }}
+              >
+                <Typography fontSize="12px" color="#9CA3AF">
+                  Generating slide image…
+                </Typography>
+              </Box>
+            )}
+
+            {currentSlide?.image_url && (
+              <>
+                {!imageLoaded && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 2s infinite',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      '@keyframes shimmer': {
+                        '0%': { backgroundPosition: '200% 0' },
+                        '100%': { backgroundPosition: '-200% 0' },
+                      },
+                    }}
+                  >
+                    <Typography fontSize="12px" color="#9CA3AF">
+                      Loading image…
+                    </Typography>
+                  </Box>
+                )}
+                <img
+                  src={resolveUrl(currentSlide.image_url)}
+                  alt={`Carousel slide ${slideIndex + 1}`}
+                  onLoad={() => setImageLoaded(true)}
+                  onClick={() => setLightboxOpen(true)}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: imageLoaded ? 'block' : 'none',
+                    cursor: 'pointer',
+                  }}
+                />
+              </>
+            )}
+
+            {/* Prev / Next arrows */}
+            {totalSlides > 1 && (
+              <>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    setSlideIndex((i) => Math.max(0, i - 1));
+                    setImageLoaded(false);
+                  }}
+                  disabled={slideIndex === 0}
+                  sx={{
+                    position: 'absolute',
+                    left: 4,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'rgba(255,255,255,0.85)',
+                    zIndex: 2,
+                    '&:hover': { background: '#fff' },
+                    '&.Mui-disabled': { opacity: 0.3 },
+                  }}
+                >
+                  <MdChevronLeft size={20} />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    setSlideIndex((i) => Math.min(totalSlides - 1, i + 1));
+                    setImageLoaded(false);
+                  }}
+                  disabled={slideIndex === totalSlides - 1}
+                  sx={{
+                    position: 'absolute',
+                    right: 4,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'rgba(255,255,255,0.85)',
+                    zIndex: 2,
+                    '&:hover': { background: '#fff' },
+                    '&.Mui-disabled': { opacity: 0.3 },
+                  }}
+                >
+                  <MdChevronRight size={20} />
+                </IconButton>
+              </>
+            )}
+          </Box>
+
+          {/* Slide headline + body */}
+          {currentSlide && (currentSlide.headline || currentSlide.body) && (
+            <Box mt={1} sx={{ border: '1px solid #E5E7EB', borderRadius: '8px', p: 1.25, background: '#F9FAFB' }}>
+              {currentSlide.headline && (
+                <Typography fontSize="13px" fontWeight={700} color="#111827" mb={0.25}>
+                  {currentSlide.headline}
+                </Typography>
+              )}
+              {currentSlide.body && (
+                <Typography fontSize="12px" color="#6B7280" lineHeight={1.5}>
+                  {currentSlide.body}
+                </Typography>
+              )}
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* ── Story image (9:16) ── */}
+      {!editing && isStory && draft.image_url && (
+        <Box
+          mb={1.5}
+          onMouseEnter={() => setImageHovered(true)}
+          onMouseLeave={() => setImageHovered(false)}
+          sx={{
+            borderRadius: '8px',
+            overflow: 'hidden',
+            border: '1px solid #E5E7EB',
+            aspectRatio: '9 / 16',
+            width: '50%',
+            background: '#F3F4F6',
+            position: 'relative',
+          }}
+        >
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              background: 'rgba(0,0,0,0.55)',
+              borderRadius: '6px',
+              px: 0.75,
+              py: 0.25,
+              zIndex: 2,
+            }}
+          >
+            <Typography fontSize="10px" fontWeight={700} color="#fff" letterSpacing={0.5}>
+              STORY
+            </Typography>
+          </Box>
+          {!imageLoaded && (
+            <Box
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 2s infinite',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                '@keyframes shimmer': {
+                  '0%': { backgroundPosition: '200% 0' },
+                  '100%': { backgroundPosition: '-200% 0' },
+                },
+              }}
+            >
+              <Typography fontSize="12px" color="#9CA3AF">
+                Loading image…
+              </Typography>
+            </Box>
+          )}
+          <img
+            src={resolveUrl(draft.image_url)}
+            alt="Story image"
+            onLoad={() => setImageLoaded(true)}
+            onClick={() => setLightboxOpen(true)}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: imageLoaded ? 'block' : 'none',
+              cursor: 'pointer',
+            }}
+          />
+          {imageLoaded && (
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 8,
+                right: 8,
+                opacity: imageHovered ? 1 : 0,
+                transition: 'opacity 0.15s',
+              }}
+            >
+              <Button
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setImageEditOpen(true);
+                }}
+                sx={{
+                  minWidth: 0,
+                  px: 1,
+                  py: 0.5,
+                  fontSize: '11px',
+                  background: 'rgba(0,0,0,0.55)',
+                  color: '#fff',
+                  backdropFilter: 'blur(4px)',
+                  borderRadius: '6px',
+                  textTransform: 'none',
+                  '&:hover': { background: 'rgba(0,0,0,0.75)' },
+                }}
+              >
+                ✏️ Edit image
+              </Button>
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* ── Feed image — correct platform aspect ratio, skeleton while loading ── */}
       {!editing &&
+        !isCarousel &&
+        !isStory &&
         draft.image_url &&
         (() => {
-          const specs = (draft as { image_specs?: { width?: number; height?: number } }).image_specs;
+          const specs = draft.image_specs;
           const aspect =
             specs?.width && specs?.height
               ? `${specs.width} / ${specs.height}`
@@ -310,11 +615,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
                 </Box>
               )}
               <img
-                src={
-                  draft.image_url.startsWith('/')
-                    ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}`
-                    : draft.image_url
-                }
+                src={resolveUrl(draft.image_url)}
                 alt={`AI-generated image for ${draft.platform}`}
                 onLoad={() => setImageLoaded(true)}
                 onClick={() => setLightboxOpen(true)}
@@ -338,7 +639,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
                 >
                   <Button
                     size="small"
-                    onClick={(e) => { e.stopPropagation(); setImageEditOpen(true); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setImageEditOpen(true);
+                    }}
                     sx={{
                       minWidth: 0,
                       px: 1,
@@ -526,7 +830,14 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
       </Dialog>
 
       {/* Image edit feedback dialog */}
-      <Dialog open={imageEditOpen} onClose={() => { if (!imageRegenerating) setImageEditOpen(false); }} maxWidth="xs" fullWidth>
+      <Dialog
+        open={imageEditOpen}
+        onClose={() => {
+          if (!imageRegenerating) setImageEditOpen(false);
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle sx={{ fontSize: '15px', fontWeight: 600 }}>Regenerate image</DialogTitle>
         <DialogContent>
           <Typography fontSize="13px" color="#6B7280" mb={1.5}>
@@ -546,7 +857,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
           <Button
-            onClick={() => { setImageEditOpen(false); setImageFeedback(''); }}
+            onClick={() => {
+              setImageEditOpen(false);
+              setImageFeedback('');
+            }}
             disabled={imageRegenerating}
             sx={{ textTransform: 'none', fontSize: '13px' }}
           >
@@ -568,7 +882,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
                   ToastService.showToast('Generating new image…', ToastTypeEnum.Success);
                   onRefresh();
                 } else {
-                  ToastService.showToast(res.responseMessage || 'Failed to start image regeneration', ToastTypeEnum.Error);
+                  ToastService.showToast(
+                    res.responseMessage || 'Failed to start image regeneration',
+                    ToastTypeEnum.Error
+                  );
                 }
               } catch {
                 ToastService.showToast('Failed to start image regeneration', ToastTypeEnum.Error);
@@ -576,7 +893,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
                 setImageRegenerating(false);
               }
             }}
-            sx={{ textTransform: 'none', fontSize: '13px', background: '#6F5ED3', '&:hover': { background: '#5A4DB8' } }}
+            sx={{
+              textTransform: 'none',
+              fontSize: '13px',
+              background: '#6F5ED3',
+              '&:hover': { background: '#5A4DB8' },
+            }}
           >
             {imageRegenerating ? 'Starting…' : 'Regenerate'}
           </Button>
