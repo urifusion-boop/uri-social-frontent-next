@@ -125,7 +125,7 @@ const WhatsAppPhoneMockup = () => {
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
         onClick={() => setIsPaused((p) => !p)}
-        style={{ transform: 'rotate(10deg)' }}
+        style={{ transform: 'rotate(8deg)' }}
       >
         {/* Phone Frame */}
         <div
