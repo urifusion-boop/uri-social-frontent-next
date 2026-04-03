@@ -42,6 +42,28 @@ export interface ApprovePayload {
   scheduled_datetime?: string;
 }
 
+export interface ApprovePublishResult {
+  success: boolean;
+  error?: string;
+  post_id?: string;
+}
+
+export interface ApprovedDraft {
+  draft_id: string;
+  platform: string;
+  status: string;
+  scheduled_date?: string | null;
+  publish_result?: ApprovePublishResult;
+}
+
+export interface ApproveResult {
+  approved_drafts: ApprovedDraft[];
+  errors: string[];
+  schedule_option: string;
+  scheduled_datetime: string | null;
+  approved_at: string;
+}
+
 export interface DenyPayload {
   draft_ids: string[];
   denial_reason: string;
@@ -62,7 +84,7 @@ export interface ContentDraft {
   platform: string;
   content: string;
   hashtags?: string[];
-  status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'denied' | 'scheduled';
+  status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'denied' | 'scheduled' | 'ready_to_publish' | 'replaced' | 'publish_failed' | 'refined';
   approval_status?: 'pending' | 'approved' | 'denied';
   image_url?: string;
   has_image?: boolean;
@@ -150,10 +172,19 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async approveContent(payload: ApprovePayload): Promise<UriResponse<string>> {
-    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().post(
+  static async approveContent(payload: ApprovePayload): Promise<UriResponse<ApproveResult>> {
+    const response: Awaited<AxiosResponse<UriResponse<ApproveResult>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.approveContent,
       payload
+    );
+    return response.data;
+  }
+
+  static async regenerateImage(draftId: string, feedback: string): Promise<UriResponse<{ draft_id: string; status: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/regenerate-image`,
+      { feedback },
+      { timeout: 15000 }
     );
     return response.data;
   }
@@ -223,6 +254,64 @@ export class SocialMediaAgentService {
     );
     return response.data;
   }
+
+  static async getAccountMetrics(days = 30): Promise<UriResponse<AccountMetricsData>> {
+    const response: Awaited<AxiosResponse<UriResponse<AccountMetricsData>>> = await UriHttpClient.getClient().get(
+      `/social-media/account-metrics?days=${days}`
+    );
+    return response.data;
+  }
+
+  static async getCalendarPlan(): Promise<UriResponse<ContentCalendarPlan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> =
+      await UriHttpClient.getClient().get(socialMediaAgentRoutes.calendarPlan);
+    return response.data;
+  }
+
+  static async generateCalendarPlan(
+    platforms: string[],
+    force = false
+  ): Promise<UriResponse<ContentCalendarPlan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> =
+      await UriHttpClient.getClient().post(
+        socialMediaAgentRoutes.calendarPlanGenerate,
+        { platforms, force_regenerate: force },
+        { timeout: 120000 }
+      );
+    return response.data;
+  }
+
+  static async regenerateCalendarDay(
+    planId: string,
+    dayIndex: number
+  ): Promise<UriResponse<ContentCalendarPlan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarPlan>>> =
+      await UriHttpClient.getClient().post(
+        `${socialMediaAgentRoutes.calendarDayBase}/${planId}/day/${dayIndex}/regenerate`
+      );
+    return response.data;
+  }
+
+  static async createDraftFromCalendarDay(
+    planId: string,
+    dayIndex: number,
+    platforms: string[],
+    includeImages = false
+  ): Promise<UriResponse<{ drafts: ContentDraft[] }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ drafts: ContentDraft[] }>>> =
+      await UriHttpClient.getClient().post(
+        `${socialMediaAgentRoutes.calendarDayBase}/${planId}/day/${dayIndex}/create-draft`,
+        { platforms, include_images: includeImages },
+        { timeout: 300000 }
+      );
+    return response.data;
+  }
+
+  static async getTodaySuggestion(): Promise<UriResponse<TodaySuggestion>> {
+    const response: Awaited<AxiosResponse<UriResponse<TodaySuggestion>>> =
+      await UriHttpClient.getClient().get(socialMediaAgentRoutes.calendarToday);
+    return response.data;
+  }
 }
 
 export interface PerformancePost {
@@ -267,4 +356,68 @@ export interface PerformanceData {
   };
   by_platform: Record<string, PerformancePlatformSummary>;
   top_posts: PerformancePost[];
+}
+
+export interface CalendarDayItem {
+  day_index: number;
+  date: string;
+  content_type: 'educational' | 'relatable' | 'promotional' | 'behind_the_scenes' | 'engagement';
+  title: string;
+  description: string;
+  platforms: string[];
+  acted_on: boolean;
+  acted_on_draft_ids: string[];
+  regenerated_count: number;
+  last_regenerated_at: string | null;
+}
+
+export interface ContentCalendarPlan {
+  plan_id: string;
+  week_start: string;
+  generated_at: string;
+  platforms: string[];
+  days: CalendarDayItem[];
+  content_mix: Record<string, number>;
+  brand_snapshot: {
+    brand_name?: string;
+    industry?: string;
+    brand_voice?: string;
+    target_audience?: string;
+  };
+}
+
+export interface TodaySuggestion {
+  has_plan: boolean;
+  plan_id?: string;
+  day_index?: number;
+  today?: CalendarDayItem;
+}
+
+export interface AccountMetricItem {
+  account_id: string;
+  network: string;
+  page_name?: string;
+  category?: string;
+  followers_count: number;
+  following_count: number | null;
+  posts_count: number | null;
+  engagement: {
+    views: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    reposts: number;
+    quotes: number;
+  } | null;
+  engagement_note?: string;
+  platform_specific: Record<string, unknown>;
+  period: {
+    since: number;
+    until: number;
+  };
+}
+
+export interface AccountMetricsData {
+  has_data: boolean;
+  accounts: AccountMetricItem[];
 }

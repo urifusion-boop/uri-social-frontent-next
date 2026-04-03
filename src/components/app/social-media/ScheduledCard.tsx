@@ -4,10 +4,17 @@ import { ReactElement } from 'react';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
-import { Box, Button, Chip, Typography } from '@mui/material';
+import { Box, Button, Chip, Dialog, DialogActions, DialogContent, Typography } from '@mui/material';
 import { useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
 import { MdCalendarToday, MdOutlineSchedule } from 'react-icons/md';
+
+const PLATFORM_ASPECT: Record<string, string> = {
+  linkedin: '1200 / 628',
+  twitter: '16 / 9',
+  facebook: '1200 / 630',
+  instagram: '4 / 5',
+};
 
 interface ScheduledCardProps {
   draft: ContentDraft & { scheduled_date?: string };
@@ -52,6 +59,8 @@ const getCountdown = (raw?: string): string => {
 const ScheduledCard = ({ draft, onRefresh }: ScheduledCardProps) => {
   const [confirmUnschedule, setConfirmUnschedule] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
   const scheduledDate = (draft as any).scheduled_date ?? draft.scheduled_datetime;
@@ -159,15 +168,64 @@ const ScheduledCard = ({ draft, onRefresh }: ScheduledCardProps) => {
         )}
 
         {/* Image thumbnail if present */}
-        {draft.image_url && (
-          <Box mb={1.5} sx={{ borderRadius: '8px', overflow: 'hidden', border: '1px solid #E5E7EB', maxHeight: 160 }}>
-            <img
-              src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
-              alt="Scheduled post image"
-              style={{ width: '100%', display: 'block', objectFit: 'cover', maxHeight: 160 }}
-            />
-          </Box>
-        )}
+        {draft.image_url &&
+          (() => {
+            const specs = (draft as { image_specs?: { width?: number; height?: number } }).image_specs;
+            const aspect =
+              specs?.width && specs?.height
+                ? `${specs.width} / ${specs.height}`
+                : (PLATFORM_ASPECT[draft.platform] ?? '16 / 9');
+            return (
+              <Box
+                mb={1.5}
+                sx={{
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  border: '1px solid #E5E7EB',
+                  aspectRatio: aspect,
+                  width: '100%',
+                  background: '#F3F4F6',
+                  position: 'relative',
+                }}
+              >
+                {!imageLoaded && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 2s infinite',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      '@keyframes shimmer': {
+                        '0%': { backgroundPosition: '200% 0' },
+                        '100%': { backgroundPosition: '-200% 0' },
+                      },
+                    }}
+                  >
+                    <Typography fontSize="12px" color="#9CA3AF">
+                      Loading image…
+                    </Typography>
+                  </Box>
+                )}
+                <img
+                  src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
+                  alt="Scheduled post image"
+                  onLoad={() => setImageLoaded(true)}
+                  onClick={() => setLightboxOpen(true)}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: imageLoaded ? 'block' : 'none',
+                    cursor: 'pointer',
+                  }}
+                />
+              </Box>
+            );
+          })()}
 
         {/* Action */}
         <Box display="flex" justifyContent="flex-end">
@@ -184,6 +242,26 @@ const ScheduledCard = ({ draft, onRefresh }: ScheduledCardProps) => {
           </Button>
         </Box>
       </Box>
+
+      {/* Image lightbox */}
+      <Dialog open={lightboxOpen} onClose={() => setLightboxOpen(false)} maxWidth="md" fullWidth>
+        <DialogActions sx={{ p: 1, justifyContent: 'flex-end' }}>
+          <Button onClick={() => setLightboxOpen(false)} size="small" sx={{ minWidth: 0, textTransform: 'none' }}>
+            Close
+          </Button>
+        </DialogActions>
+        <DialogContent
+          sx={{ p: 2, pt: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000' }}
+        >
+          {draft.image_url && (
+            <img
+              src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
+              alt="Scheduled post image"
+              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };

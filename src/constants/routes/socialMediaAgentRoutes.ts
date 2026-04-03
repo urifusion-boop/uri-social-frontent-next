@@ -19,7 +19,11 @@ type ISocialMediaAgentApi =
   | 'scheduledContent'
   | 'autoGenerateSettings'
   | 'autoGenerateTrigger'
-  | 'autoGenerateConnectInsights';
+  | 'autoGenerateConnectInsights'
+  | 'calendarPlan'
+  | 'calendarPlanGenerate'
+  | 'calendarDayBase'
+  | 'calendarToday';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -38,6 +42,10 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   autoGenerateSettings: '/auto-generate/settings',
   autoGenerateTrigger: '/auto-generate/trigger',
   autoGenerateConnectInsights: '/auto-generate/connect-insights',
+  calendarPlan: '/content-calendar/plan',
+  calendarPlanGenerate: '/content-calendar/plan/generate',
+  calendarDayBase: '/content-calendar/plan',
+  calendarToday: '/content-calendar/today',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(URI_INSIGHTS_PATH, rawSocialMediaAgentRoutes);

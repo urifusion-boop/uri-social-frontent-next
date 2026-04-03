@@ -1,7 +1,8 @@
 'use client';
 
 import { ReactElement } from 'react';
-import { ApprovePayload, ContentDraft, DenyPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { ApprovePayload, ApprovedDraft, ContentDraft, DenyPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import {
@@ -41,6 +42,8 @@ const statusColors: Record<string, { bg: string; color: string }> = {
   approved: { bg: '#D1FAE5', color: '#065F46' },
   published: { bg: '#DBEAFE', color: '#1E40AF' },
   denied: { bg: '#FEE2E2', color: '#991B1B' },
+  publish_failed: { bg: '#FEE2E2', color: '#991B1B' },
+  scheduled: { bg: '#EDE9FE', color: '#5B21B6' },
 };
 
 // Industry-standard aspect ratios per platform
@@ -70,7 +73,11 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageHovered, setImageHovered] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [imageEditOpen, setImageEditOpen] = useState(false);
+  const [imageFeedback, setImageFeedback] = useState('');
+  const [imageRegenerating, setImageRegenerating] = useState(false);
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
   const sc = statusColors[draft.status ?? 'draft'] ?? statusColors.draft;
@@ -86,7 +93,60 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
         ...(datetime ? { scheduled_datetime: new Date(datetime).toISOString() } : {}),
       };
       const response = await SocialMediaAgentService.approveContent(payload);
+
       if (response.status) {
+        // Check if any draft's publish_result indicates the agent backend
+        // didn't actually post it (e.g. "not implemented yet" for LinkedIn/X).
+        // In that case fall back to calling the platform publish endpoint directly.
+        if (option === 'immediate') {
+          const approved: ApprovedDraft[] = response.responseData?.approved_drafts ?? [];
+          const thisResult = approved.find((a) => a.draft_id === draftId);
+
+          if (thisResult?.publish_result && !thisResult.publish_result.success) {
+            // Agent backend didn't publish — call the platform endpoint directly
+            const platform = draft.platform?.toLowerCase();
+            try {
+              if (platform === 'linkedin') {
+                const pubRes = await SocialConnectionService.linkedinPublish({ content: draft.content });
+                if (pubRes.status) {
+                  ToastService.showToast('Published to LinkedIn! ✅', ToastTypeEnum.Success);
+                  onRefresh();
+                  return;
+                } else {
+                  ToastService.showToast(pubRes.responseMessage || 'LinkedIn publish failed', ToastTypeEnum.Error);
+                  return;
+                }
+              } else if (platform === 'x' || platform === 'twitter') {
+                const pubRes = await SocialConnectionService.xPublish({ content: draft.content });
+                if (pubRes.status) {
+                  ToastService.showToast('Published to X! ✅', ToastTypeEnum.Success);
+                  onRefresh();
+                  return;
+                } else {
+                  ToastService.showToast(pubRes.responseMessage || 'X publish failed', ToastTypeEnum.Error);
+                  return;
+                }
+              }
+            } catch (pubErr: unknown) {
+              // Network timeout or connection drop — the post may have still gone through
+              // on the platform side. Show a non-alarming message and refresh drafts.
+              const isNetworkError =
+                pubErr instanceof Error &&
+                (pubErr.message.includes('network') ||
+                  pubErr.message.includes('timeout') ||
+                  pubErr.message.includes('connection'));
+              ToastService.showToast(
+                isNetworkError
+                  ? `Check your ${draft.platform} — the post may have been published (network timeout).`
+                  : `Failed to publish to ${draft.platform}. Please check your connection is still active.`,
+                isNetworkError ? ToastTypeEnum.Warning : ToastTypeEnum.Error
+              );
+              onRefresh(); // refresh anyway — draft status may have changed server-side
+              return;
+            }
+          }
+        }
+
         ToastService.showToast(
           option === 'immediate' ? 'Published!' : option === 'schedule' ? 'Scheduled!' : 'Saved as draft',
           ToastTypeEnum.Success
@@ -215,6 +275,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
           return (
             <Box
               mb={1.5}
+              onMouseEnter={() => setImageHovered(true)}
+              onMouseLeave={() => setImageHovered(false)}
               sx={{
                 borderRadius: '8px',
                 overflow: 'hidden',
@@ -264,6 +326,36 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
                   cursor: 'pointer',
                 }}
               />
+              {imageLoaded && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 8,
+                    right: 8,
+                    opacity: imageHovered ? 1 : 0,
+                    transition: 'opacity 0.15s',
+                  }}
+                >
+                  <Button
+                    size="small"
+                    onClick={(e) => { e.stopPropagation(); setImageEditOpen(true); }}
+                    sx={{
+                      minWidth: 0,
+                      px: 1,
+                      py: 0.5,
+                      fontSize: '11px',
+                      background: 'rgba(0,0,0,0.55)',
+                      color: '#fff',
+                      backdropFilter: 'blur(4px)',
+                      borderRadius: '6px',
+                      textTransform: 'none',
+                      '&:hover': { background: 'rgba(0,0,0,0.75)' },
+                    }}
+                  >
+                    ✏️ Edit image
+                  </Button>
+                </Box>
+              )}
             </Box>
           );
         })()}
@@ -431,6 +523,64 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
             />
           )}
         </DialogContent>
+      </Dialog>
+
+      {/* Image edit feedback dialog */}
+      <Dialog open={imageEditOpen} onClose={() => { if (!imageRegenerating) setImageEditOpen(false); }} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: '15px', fontWeight: 600 }}>Regenerate image</DialogTitle>
+        <DialogContent>
+          <Typography fontSize="13px" color="#6B7280" mb={1.5}>
+            Tell the AI what to change about the current image.
+          </Typography>
+          <TextField
+            autoFocus
+            multiline
+            rows={3}
+            fullWidth
+            placeholder="e.g. Make it more vibrant, show a person working at a laptop in a Lagos office, use the brand's deep purple colour..."
+            value={imageFeedback}
+            onChange={(e) => setImageFeedback(e.target.value)}
+            disabled={imageRegenerating}
+            sx={{ fontSize: '13px' }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          <Button
+            onClick={() => { setImageEditOpen(false); setImageFeedback(''); }}
+            disabled={imageRegenerating}
+            sx={{ textTransform: 'none', fontSize: '13px' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!imageFeedback.trim() || imageRegenerating}
+            onClick={async () => {
+              const draftId = draft.draft_id ?? draft.id ?? '';
+              setImageRegenerating(true);
+              try {
+                const res = await SocialMediaAgentService.regenerateImage(draftId, imageFeedback.trim());
+                if (res.status) {
+                  setDraft((prev) => ({ ...prev, image_url: undefined as unknown as string, has_image: true }));
+                  setImageLoaded(false);
+                  setImageEditOpen(false);
+                  setImageFeedback('');
+                  ToastService.showToast('Generating new image…', ToastTypeEnum.Success);
+                  onRefresh();
+                } else {
+                  ToastService.showToast(res.responseMessage || 'Failed to start image regeneration', ToastTypeEnum.Error);
+                }
+              } catch {
+                ToastService.showToast('Failed to start image regeneration', ToastTypeEnum.Error);
+              } finally {
+                setImageRegenerating(false);
+              }
+            }}
+            sx={{ textTransform: 'none', fontSize: '13px', background: '#6F5ED3', '&:hover': { background: '#5A4DB8' } }}
+          >
+            {imageRegenerating ? 'Starting…' : 'Regenerate'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Deny panel */}

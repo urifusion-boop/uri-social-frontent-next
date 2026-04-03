@@ -11,7 +11,18 @@ import Grid from '@mui/material/GridLegacy';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCheckCircle, FaFacebook, FaImage, FaInstagram, FaTimes } from 'react-icons/fa';
+import {
+  FaArrowLeft,
+  FaCheckCircle,
+  FaFacebook,
+  FaImage,
+  FaInstagram,
+  FaLinkedin,
+  FaTimes,
+  FaWhatsapp,
+} from 'react-icons/fa';
+import { FaXTwitter } from 'react-icons/fa6';
+import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { MdOutlineCampaign } from 'react-icons/md';
 
 // ─── Step order ──────────────────────────────────────────────────────────────
@@ -462,6 +473,7 @@ function BrandSetupPageContent() {
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
   const [connectNetworkName, setConnectNetworkName] = useState('');
   const [connectedAccountNames, setConnectedAccountNames] = useState<string[]>([]);
+  const [whatsappPhone, setWhatsappPhone] = useState('');
 
   // ── Basics ────────────────────────────────────────────────────
   const [brandName, setBrandName] = useState('');
@@ -607,19 +619,50 @@ function BrandSetupPageContent() {
   // ─── Init ────────────────────────────────────────────────────
   useEffect(() => {
     if (!userDetails?.userId) return;
+
+    // If this is an OAuth callback return, handle it before checking onboarding
+    // (otherwise completed-onboarding users get redirected to /workspace immediately)
+    const connected = searchParams.get('connected');
+    const sessionToken = searchParams.get('sessionToken');
+    if (connected === 'pending' && sessionToken) {
+      const connectSource = localStorage.getItem('outstand_connect_source');
+      if (connectSource === 'settings') {
+        localStorage.removeItem('outstand_connect_source');
+        router.replace(`/settings/social-accounts?sessionToken=${encodeURIComponent(sessionToken)}&connected=pending`);
+        return;
+      }
+      // Onboarding OAuth callback — don't redirect to workspace
+      setCheckingExisting(false);
+      return;
+    }
+
     BrandProfileService.isOnboardingDone().then((done) => {
       if (done) router.replace('/workspace');
       else setCheckingExisting(false);
     });
-  }, [userDetails, router]);
+  }, [userDetails, router, searchParams]);
 
   // Detect OAuth callback return from Outstand (?sessionToken=...&connected=pending)
+  // or LinkedIn/X callback (?connected=true&platform=linkedin&username=...)
   useEffect(() => {
     if (checkingExisting) return;
     const sessionToken = searchParams.get('sessionToken');
     const connected = searchParams.get('connected');
+    const platform = searchParams.get('platform');
+    const username = searchParams.get('username');
 
-    if (connected === 'pending' && typeof sessionToken === 'string' && sessionToken) {
+    if (connected === 'true' && platform) {
+      // New LinkedIn / X OAuth callback
+      const displayName = username ? decodeURIComponent(username) : platform;
+      setConnectedAccountNames((prev) => [...prev, displayName]);
+      setStep(STEPS.indexOf('connectAccounts'));
+      setConnectPhase('success');
+      router.replace('/social-media/brand-setup');
+    } else if (connected === 'false' && platform) {
+      setStep(STEPS.indexOf('connectAccounts'));
+      setConnectPhase('selecting');
+      router.replace('/social-media/brand-setup');
+    } else if (connected === 'pending' && typeof sessionToken === 'string' && sessionToken) {
       setConnectSessionToken(sessionToken);
       setStep(STEPS.indexOf('connectAccounts'));
       setConnectPhase('connecting');
@@ -693,7 +736,7 @@ function BrandSetupPageContent() {
       },
       cta_styles: ctaStyle,
       default_link: defaultLink,
-      audience_age_range: audienceAge,
+      audience_age_range: audienceAge.join(', '),
       target_platforms: targetPlatforms,
       primary_goal: goal,
       competitor_handles: competitors.filter(Boolean),
@@ -706,7 +749,7 @@ function BrandSetupPageContent() {
       notification_events: notifEvents,
       notification_channel: notifChannel,
       languages,
-      region,
+      region: region.join(', '),
       onboarding_completed: true,
     };
     try {
@@ -794,6 +837,7 @@ function BrandSetupPageContent() {
             color: '#1877F2',
             bg: '#E7F0FD',
             description: 'Pages you manage',
+            flow: 'outstand',
           },
           {
             id: 'instagram',
@@ -802,11 +846,107 @@ function BrandSetupPageContent() {
             color: '#E4405F',
             bg: '#FDE7EC',
             description: 'Business & creator accounts',
+            flow: 'outstand',
+          },
+          {
+            id: 'linkedin',
+            name: 'LinkedIn',
+            icon: FaLinkedin,
+            color: '#0A66C2',
+            bg: '#E8F1FB',
+            description: 'Professional profile & company pages',
+            flow: 'popup',
+          },
+          {
+            id: 'x',
+            name: 'X (Twitter)',
+            icon: FaXTwitter,
+            color: '#000000',
+            bg: '#F0F0F0',
+            description: 'Post tweets and threads',
+            flow: 'popup',
+          },
+          {
+            id: 'whatsapp',
+            name: 'WhatsApp',
+            icon: FaWhatsapp,
+            color: '#25D366',
+            bg: '#E8F9EF',
+            description: 'Receive AI drafts via WhatsApp',
+            flow: 'phone',
           },
         ];
 
         const handleInitiateConnect = async () => {
           if (!selectedConnectPlatform) return;
+          const platform = LIVE_PLATFORMS.find((p) => p.id === selectedConnectPlatform);
+          if (!platform) return;
+
+          if (platform.flow === 'phone') {
+            // WhatsApp — handled inline, no redirect needed
+            if (!whatsappPhone.trim()) return;
+            setConnectPhase('connecting');
+            try {
+              const res = await SocialConnectionService.whatsappConnect(whatsappPhone.trim());
+              if (res.status) {
+                setConnectedAccountNames((prev) => [...prev, whatsappPhone.trim()]);
+                setConnectPhase('success');
+              } else {
+                setConnectPhase('selecting');
+              }
+            } catch {
+              setConnectPhase('selecting');
+            }
+            return;
+          }
+
+          if (platform.flow === 'popup') {
+            setConnectPhase('connecting');
+            try {
+              const res =
+                platform.id === 'linkedin'
+                  ? await SocialConnectionService.linkedinConnect()
+                  : await SocialConnectionService.xConnect();
+              if (res.status && res.responseData?.auth_url) {
+                const authUrl = res.responseData.auth_url;
+                // Try popup first; fall back to full-page redirect if blocked
+                const popup = window.open(authUrl, 'uri-oauth', 'width=620,height=700,left=200,top=80');
+                if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+                  // Popup blocked — full-page redirect
+                  window.location.href = authUrl;
+                  return;
+                }
+                // Popup opened — poll for close then check query params on return
+                const timer = setInterval(() => {
+                  if (popup.closed) {
+                    clearInterval(timer);
+                    setConnectPhase('selecting');
+                    // Re-check URL params in case the page was redirected back by backend
+                    const params = new URLSearchParams(window.location.search);
+                    const cbConnected = params.get('connected');
+                    const cbPlatform = params.get('platform');
+                    const cbUsername = params.get('username');
+                    if (cbConnected === 'true' && cbPlatform) {
+                      const displayName = cbUsername ? decodeURIComponent(cbUsername) : cbPlatform;
+                      setConnectedAccountNames((prev) => [...prev, displayName]);
+                      setConnectPhase('success');
+                      router.replace('/social-media/brand-setup');
+                    } else if (cbConnected === 'false' && cbPlatform) {
+                      setConnectPhase('selecting');
+                      router.replace('/social-media/brand-setup');
+                    }
+                  }
+                }, 800);
+                return;
+              }
+            } catch {
+              /* fall through */
+            }
+            setConnectPhase('selecting');
+            return;
+          }
+
+          // Outstand flow (Facebook / Instagram)
           setConnectPhase('connecting');
           try {
             const res = await SocialAccountService.initiateConnection([selectedConnectPlatform]);
@@ -1000,6 +1140,7 @@ function BrandSetupPageContent() {
         }
 
         // Default: selecting phase
+        const selectedPlatformDef = LIVE_PLATFORMS.find((p) => p.id === selectedConnectPlatform);
         return (
           <Box>
             <AgentBubble primary={primary}>
@@ -1010,63 +1151,74 @@ function BrandSetupPageContent() {
                 const IconComponent = platform.icon;
                 const isSelected = selectedConnectPlatform === platform.id;
                 return (
-                  <Box
-                    key={platform.id}
-                    onClick={() => setSelectedConnectPlatform(platform.id)}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 2,
-                      p: 2,
-                      borderRadius: '12px',
-                      border: '2px solid',
-                      borderColor: isSelected ? primary : '#E0DEF7',
-                      background: isSelected ? `${primary}0D` : '#fff',
-                      cursor: 'pointer',
-                      transition: 'all 0.18s',
-                      '&:hover': { borderColor: primary },
-                    }}
-                  >
+                  <Box key={platform.id}>
                     <Box
+                      onClick={() => setSelectedConnectPlatform(platform.id)}
                       sx={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: '10px',
-                        bgcolor: platform.bg,
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
+                        gap: 2,
+                        p: 2,
+                        borderRadius: '12px',
+                        border: '2px solid',
+                        borderColor: isSelected ? primary : '#E0DEF7',
+                        background: isSelected ? `${primary}0D` : '#fff',
+                        cursor: 'pointer',
+                        transition: 'all 0.18s',
+                        '&:hover': { borderColor: primary },
                       }}
                     >
-                      <IconComponent size={24} color={platform.color} />
+                      <Box
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '10px',
+                          bgcolor: platform.bg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <IconComponent size={24} color={platform.color} />
+                      </Box>
+                      <Box flex={1}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>
+                          {platform.name}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>{platform.description}</Typography>
+                      </Box>
+                      {isSelected && <FaCheckCircle size={18} color={primary} />}
                     </Box>
-                    <Box flex={1}>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>{platform.name}</Typography>
-                      <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>{platform.description}</Typography>
-                    </Box>
-                    {isSelected && <FaCheckCircle size={18} color={primary} />}
+                    {isSelected && platform.flow === 'phone' && (
+                      <Box sx={{ mt: 1, px: 0.5 }}>
+                        <UriInput
+                          type="tel"
+                          value={whatsappPhone}
+                          onChange={setWhatsappPhone}
+                          placeholder="+1 234 567 8900"
+                        />
+                        <Hint>Enter phone in E.164 format (e.g. +1 234 567 8900)</Hint>
+                      </Box>
+                    )}
                   </Box>
                 );
               })}
-              <Box sx={{ px: 2, py: 1.25, borderRadius: '10px', border: '1px dashed #E0DEF7', background: '#FAFAFA' }}>
-                <Typography sx={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
-                  LinkedIn, TikTok, YouTube, X — coming soon
-                </Typography>
-              </Box>
             </Box>
             <Box display="flex" gap={1.5} alignItems="center">
               <CustomButton
                 mode="primary"
                 onClick={handleInitiateConnect}
-                disabled={!selectedConnectPlatform}
-                style={{ padding: '10px 24px', opacity: selectedConnectPlatform ? 1 : 0.5 }}
+                disabled={!selectedConnectPlatform || (selectedPlatformDef?.flow === 'phone' && !whatsappPhone.trim())}
+                style={{
+                  padding: '10px 24px',
+                  opacity:
+                    !selectedConnectPlatform || (selectedPlatformDef?.flow === 'phone' && !whatsappPhone.trim())
+                      ? 0.5
+                      : 1,
+                }}
               >
-                Connect{' '}
-                {selectedConnectPlatform
-                  ? LIVE_PLATFORMS.find((p) => p.id === selectedConnectPlatform)?.name
-                  : 'account'}{' '}
-                →
+                Connect {selectedPlatformDef?.name ?? 'account'} →
               </CustomButton>
               <Typography
                 component="button"

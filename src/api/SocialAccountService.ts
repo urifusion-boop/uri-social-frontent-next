@@ -9,6 +9,9 @@ export interface AvailablePage {
   name: string;
   username?: string;
   profilePictureUrl?: string;
+  network?: string;
+  auto_connect?: boolean;
+  linked_page_id?: string;
 }
 
 export interface PendingConnection {
@@ -26,8 +29,8 @@ export interface ConnectedAccount {
 }
 
 export class SocialAccountService {
-  static async initiateConnection(platforms: string[]): Promise<UriResponse<{ auth_urls: Record<string, string> }>> {
-    const response: AxiosResponse<UriResponse<{ auth_urls: Record<string, string> }>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.initiateConnection, { platforms });
+  static async initiateConnection(platforms: string[], source: 'onboarding' | 'settings' = 'onboarding'): Promise<UriResponse<{ auth_urls: Record<string, string> }>> {
+    const response: AxiosResponse<UriResponse<{ auth_urls: Record<string, string> }>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.initiateConnection, { platforms, source });
     return response.data;
   }
 

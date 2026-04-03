@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MdOutlineCampaign } from 'react-icons/md';
 
-type TabKey = 'create' | 'drafts' | 'scheduled' | 'auto';
+type TabKey = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto';
 
 export default function SocialMediaPage() {
   const router = useRouter();
@@ -20,6 +20,8 @@ export default function SocialMediaPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('create');
   const activeTabRef = useRef<TabKey>('create');
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
+  const [savedDrafts, setSavedDrafts] = useState<ContentDraft[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(false);
   const [scheduled, setScheduled] = useState<ContentDraft[]>([]);
   const [autoSettings, setAutoSettings] = useState<AutoGenerateSettings | null>(null);
   const [loadingDrafts, setLoadingDrafts] = useState(false);
@@ -69,6 +71,21 @@ export default function SocialMediaPage() {
     }
   }, []);
 
+  const fetchSaved = useCallback(async () => {
+    setLoadingSaved(true);
+    try {
+      const response = await SocialMediaAgentService.getContentCalendar();
+      if (response.status && response.responseData) {
+        const saved = (response.responseData.drafts ?? []).filter((d) => d.status === 'approved');
+        setSavedDrafts(saved);
+      }
+    } catch {
+      // no-op
+    } finally {
+      setLoadingSaved(false);
+    }
+  }, []);
+
   const fetchScheduled = useCallback(async () => {
     setLoadingScheduled(true);
     try {
@@ -101,9 +118,10 @@ export default function SocialMediaPage() {
     activeTabRef.current = activeTab;
     if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     if (activeTab === 'drafts') fetchDrafts();
+    if (activeTab === 'saved') fetchSaved();
     if (activeTab === 'scheduled') fetchScheduled();
     if (activeTab === 'auto') fetchAutoSettings();
-  }, [activeTab, fetchDrafts, fetchScheduled, fetchAutoSettings]);
+  }, [activeTab, fetchDrafts, fetchSaved, fetchScheduled, fetchAutoSettings]);
 
   useEffect(() => () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current); }, []);
 
@@ -160,6 +178,7 @@ export default function SocialMediaPage() {
           >
             <Tab label="Create" value="create" />
             <Tab label={`Drafts${drafts.length > 0 ? ` (${drafts.length})` : ''}`} value="drafts" />
+            <Tab label={`Saved${savedDrafts.length > 0 ? ` (${savedDrafts.length})` : ''}`} value="saved" />
             <Tab label={`Scheduled${scheduled.length > 0 ? ` (${scheduled.length})` : ''}`} value="scheduled" />
             <Tab label="Auto" value="auto" />
           </Tabs>
@@ -182,6 +201,24 @@ export default function SocialMediaPage() {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 720 }}>
                   {drafts.map((draft) => (
                     <DraftCard key={draft.draft_id ?? draft.id} draft={draft} onRefresh={fetchDrafts} />
+                  ))}
+                </Box>
+              )}
+            </>
+          )}
+
+          {activeTab === 'saved' && (
+            <>
+              {loadingSaved ? (
+                <Box display="flex" justifyContent="center" py={8}>
+                  <CircularProgress sx={{ color: '#CD1B78' }} />
+                </Box>
+              ) : savedDrafts.length === 0 ? (
+                <EmptyState message="No saved drafts yet. Approve a draft and choose 'Save Draft' to keep it here." />
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 720 }}>
+                  {savedDrafts.map((draft) => (
+                    <DraftCard key={draft.draft_id ?? draft.id} draft={draft} onRefresh={fetchSaved} />
                   ))}
                 </Box>
               )}

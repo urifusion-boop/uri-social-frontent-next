@@ -7,10 +7,15 @@ import Footer from "./Footer";
 export default function PageLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // Don't show Navbar/Footer on workspace/dashboard routes
-  const isWorkspace = pathname?.startsWith("/workspace") || pathname?.startsWith("/dashboard");
+  // Don't show Navbar/Footer on app routes
+  const isApp =
+    pathname?.startsWith("/workspace") ||
+    pathname?.startsWith("/dashboard") ||
+    pathname?.startsWith("/social-media") ||
+    pathname?.startsWith("/settings") ||
+    pathname === "/login";
 
-  if (isWorkspace) {
+  if (isApp) {
     return <>{children}</>;
   }
 
