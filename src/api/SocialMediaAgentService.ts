@@ -78,6 +78,7 @@ export interface SocialConnection {
   fan_count?: number;
   status: 'active' | 'expired';
   page_id?: string;
+  outstand_account_id?: string;
 }
 
 export interface CarouselSlide {
