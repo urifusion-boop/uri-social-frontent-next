@@ -31,7 +31,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   pendingConnection: '/connect/pending',
   finalizeConnection: '/connect/finalize',
   getConnections: '/connections',
-  disconnectPlatform: '/connections',
+  disconnectPlatform: '/connections/account',
   generateContent: '/generate-content',
   refineContent: '/refine',
   approveContent: '/approve',
@@ -48,4 +48,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   calendarToday: '/content-calendar/today',
 };
 
-export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(URI_INSIGHTS_PATH, rawSocialMediaAgentRoutes);
+export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(
+  URI_INSIGHTS_PATH,
+  rawSocialMediaAgentRoutes
+);

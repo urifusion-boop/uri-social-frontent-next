@@ -345,14 +345,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
         const allDrafts = response.responseData.drafts ?? [];
-        const EXCLUDE = new Set([
-          'published',
-          'scheduled',
-          'approved',
-          'denied',
-          'replaced',
-          'publish_failed',
-        ]);
+        const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'denied', 'replaced', 'publish_failed']);
         const filtered = allDrafts.filter((d: ContentDraft) => {
           const s = d.status;
           const a = d.approval_status;
@@ -392,7 +385,10 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     try {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
-        const saved = (response.responseData.drafts ?? []).filter((d: ContentDraft) => d.status === 'approved' || d.status === 'ready_to_publish' || (d.status as string) === 'publish_failed');
+        const saved = (response.responseData.drafts ?? []).filter(
+          (d: ContentDraft) =>
+            d.status === 'approved' || d.status === 'ready_to_publish' || (d.status as string) === 'publish_failed'
+        );
         setSavedDrafts(saved);
       }
     } catch {
@@ -616,9 +612,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
           </>
         )}
 
-        {activeTab === 'calendar' && (
-          <ContentCalendarTab onGenerated={handleGenerated} />
-        )}
+        {activeTab === 'calendar' && <ContentCalendarTab onGenerated={handleGenerated} />}
 
         {activeTab === 'auto' && (
           <>
@@ -1343,7 +1337,11 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
     <SubPage
       title="Performance"
       icon="chart"
-      desc={view === 'posts' ? 'Real-time insights from your published posts via Outstand' : 'Account-level metrics for your connected social profiles'}
+      desc={
+        view === 'posts'
+          ? 'Real-time insights from your published posts via Outstand'
+          : 'Account-level metrics for your connected social profiles'
+      }
       onJane={onJane}
     >
       {/* View toggle */}
@@ -1570,7 +1568,9 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
 
               {/* Top posts */}
               {data.top_posts.length > 0 && (
-                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}>
+                <div
+                  style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}
+                >
                   <div
                     style={{
                       fontSize: 12,
@@ -1778,9 +1778,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                       {platformIcon[acc.network] ?? '🌐'}
                     </div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>
-                        {acc.page_name ?? acc.network}
-                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{acc.page_name ?? acc.network}</div>
                       <div style={{ fontSize: 11, color: '#bbb', textTransform: 'capitalize' }}>
                         {acc.category ?? acc.network}
                       </div>
@@ -1794,10 +1792,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                       ...(acc.following_count != null ? [['Following', acc.following_count]] : []),
                       ...(acc.posts_count != null ? [['Posts', acc.posts_count]] : []),
                     ].map(([l, v]) => (
-                      <div
-                        key={l as string}
-                        style={{ background: '#fafaf8', borderRadius: 8, padding: '10px 14px' }}
-                      >
+                      <div key={l as string} style={{ background: '#fafaf8', borderRadius: 8, padding: '10px 14px' }}>
                         <div
                           style={{
                             fontSize: 10.5,
@@ -1845,7 +1840,9 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                     </div>
                   ) : (
                     <div style={{ fontSize: 12, color: '#bbb', fontStyle: 'italic' }}>
-                      {acc.engagement_note ?? PLATFORM_ENGAGEMENT_NOTE[acc.network] ?? 'Engagement data unavailable for this period.'}
+                      {acc.engagement_note ??
+                        PLATFORM_ENGAGEMENT_NOTE[acc.network] ??
+                        'Engagement data unavailable for this period.'}
                     </div>
                   )}
                 </div>
@@ -2045,6 +2042,10 @@ const PlaybookPage = ({
   const [templateUrls, setTemplateUrls] = useState<string[]>([]);
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
   const templateInputRef = useRef<HTMLInputElement>(null);
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState('');
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const startEdit = () => {
     if (!profile) return;
@@ -2076,6 +2077,8 @@ const PlaybookPage = ({
     setCadence(profile.posting_cadence ?? '');
     setApproval(profile.approval_workflow ?? '');
     setTemplateUrls([...(profile.sample_template_urls ?? [])]);
+    setLogoUrl(profile.logo_url ?? '');
+    setLogoError('');
     setEditing(true);
   };
 
@@ -2110,6 +2113,7 @@ const PlaybookPage = ({
         posting_cadence: cadence,
         approval_workflow: approval,
         sample_template_urls: templateUrls,
+        logo_url: logoUrl || undefined,
       };
       await BrandProfileService.save(updated);
       onProfileUpdate(updated);
@@ -2239,6 +2243,85 @@ const PlaybookPage = ({
 
       {/* Brand Identity */}
       <PbSection title="Brand Identity">
+        {/* Logo row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 0',
+            borderBottom: '1px solid #f3f1ee',
+          }}
+        >
+          <span style={{ fontSize: 12.5, color: '#888', fontWeight: 600, minWidth: 120 }}>Logo</span>
+          {!editing ? (
+            p?.logo_url ? (
+              <img
+                src={p.logo_url}
+                alt="brand logo"
+                style={{ maxHeight: 44, maxWidth: 140, objectFit: 'contain', borderRadius: 6 }}
+              />
+            ) : (
+              <span style={{ fontSize: 13, color: '#bbb' }}>—</span>
+            )
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setLogoError('');
+                  setLogoUploading(true);
+                  try {
+                    const res = await BrandProfileService.uploadLogo(file);
+                    if (res.status && res.responseData?.logo_url) {
+                      setLogoUrl(res.responseData.logo_url);
+                    } else {
+                      setLogoError('Upload failed. Please try again.');
+                    }
+                  } catch {
+                    setLogoError('Upload failed. Please try again.');
+                  } finally {
+                    setLogoUploading(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {logoUrl && (
+                  <img
+                    src={logoUrl}
+                    alt="logo preview"
+                    style={{ maxHeight: 36, maxWidth: 120, objectFit: 'contain', borderRadius: 4 }}
+                  />
+                )}
+                <button
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={logoUploading}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: 7,
+                    border: '1.5px solid #C2185B',
+                    background: '#fff',
+                    color: '#C2185B',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: logoUploading ? 'not-allowed' : 'pointer',
+                    fontFamily: 'var(--wf)',
+                    opacity: logoUploading ? 0.6 : 1,
+                  }}
+                >
+                  {logoUploading ? 'Uploading…' : logoUrl ? 'Replace logo' : 'Upload logo'}
+                </button>
+              </div>
+              {logoError && <span style={{ fontSize: 11.5, color: '#EF4444' }}>{logoError}</span>}
+            </div>
+          )}
+        </div>
         <PbRow
           label="Brand name"
           value={p?.brand_name}

@@ -27,6 +27,19 @@ const PLATFORMS = [
   { key: 'linkedin', label: 'LinkedIn', icon: <FaLinkedin size={16} color="#0A66C2" /> },
 ];
 
+const POST_TYPES: Array<{
+  key: 'feed' | 'carousel' | 'story';
+  label: string;
+  icon: string;
+  subtitle: string;
+}> = [
+  { key: 'feed', label: 'Feed Post', icon: '📄', subtitle: 'Standard single post' },
+  { key: 'carousel', label: 'Carousel', icon: '🎠', subtitle: '3–5 swipeable slides' },
+  { key: 'story', label: 'Story', icon: '📱', subtitle: '24-hour full-screen story' },
+];
+
+const NUM_SLIDES_OPTIONS = [2, 3, 4, 5];
+
 interface ContentGeneratorFormProps {
   onGenerated: () => void;
 }
@@ -39,6 +52,10 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [referenceImageName, setReferenceImageName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [postType, setPostType] = useState<'feed' | 'carousel' | 'story'>('feed');
+  const [numSlides, setNumSlides] = useState(3);
+
+  const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook');
 
   const togglePlatform = (key: string) =>
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
@@ -85,6 +102,8 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         seed_content: seedContent.trim(),
         platforms: selectedPlatforms,
         include_images: includeImages,
+        post_type: postType,
+        ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
       };
       if (referenceImage) {
         payload.reference_image = referenceImage;
@@ -120,7 +139,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         rows={6}
         value={seedContent}
         onChange={(e) => setSeedContent(e.target.value)}
-        inputProps={{ maxLength: 5000 }}
+        slotProps={{ htmlInput: { maxLength: 5000 } }}
         helperText={`${charCount}/5000 characters (min 10)`}
         sx={{ mb: 3 }}
       />
@@ -250,6 +269,95 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         ))}
       </FormGroup>
 
+      {/* Post type selector — only for Instagram/Facebook */}
+      {showPostTypeSelector && (
+        <Box mb={3}>
+          <Typography fontSize="14px" color="#374151" mb={1} fontWeight={500}>
+            Post Format
+          </Typography>
+          <Box display="flex" gap={1} flexWrap="wrap">
+            {POST_TYPES.map(({ key, label, icon, subtitle }) => {
+              const active = postType === key;
+              const disabled = key === 'carousel' || key === 'story';
+              return (
+                <Box
+                  key={key}
+                  onClick={() => !disabled && setPostType(key)}
+                  sx={{
+                    border: '1px solid',
+                    borderColor: active ? '#CD1B78' : '#E5E7EB',
+                    borderRadius: '10px',
+                    px: 2,
+                    py: 1.25,
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    background: disabled ? '#F9FAFB' : active ? '#FDF2F8' : '#fff',
+                    minWidth: 120,
+                    userSelect: 'none',
+                    opacity: disabled ? 0.45 : 1,
+                    transition: 'all 0.15s',
+                    position: 'relative',
+                  }}
+                >
+                  <Typography fontSize="20px" lineHeight={1} mb={0.5}>
+                    {icon}
+                  </Typography>
+                  <Typography fontSize="13px" fontWeight={600} color={active ? '#CD1B78' : '#111827'}>
+                    {label}
+                  </Typography>
+                  <Typography fontSize="11px" color="#6B7280">
+                    {disabled ? 'Coming soon' : subtitle}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
+
+          {/* Story note */}
+          {postType === 'story' && (
+            <Box
+              mt={1.5}
+              sx={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '8px', px: 1.5, py: 1 }}
+            >
+              <Typography fontSize="12px" color="#92400E">
+                Stories use a 9:16 vertical image format (1080 × 1920 px).
+              </Typography>
+            </Box>
+          )}
+
+          {/* Carousel num_slides selector */}
+          {postType === 'carousel' && (
+            <Box mt={1.5} display="flex" alignItems="center" gap={1}>
+              <Typography fontSize="13px" color="#374151" fontWeight={500}>
+                Number of slides:
+              </Typography>
+              {NUM_SLIDES_OPTIONS.map((n) => (
+                <Box
+                  key={n}
+                  onClick={() => setNumSlides(n)}
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '6px',
+                    border: '1px solid',
+                    borderColor: numSlides === n ? '#CD1B78' : '#E5E7EB',
+                    background: numSlides === n ? '#FDF2F8' : '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }}
+                >
+                  <Typography fontSize="13px" fontWeight={600} color={numSlides === n ? '#CD1B78' : '#374151'}>
+                    {n}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </Box>
+      )}
+
       <Box
         sx={{
           display: 'flex',
@@ -286,9 +394,13 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
               Include AI-generated image
             </Typography>
             <Typography fontSize="12px" color="#6B7280">
-              {referenceImage
-                ? 'Generate an image inspired by your reference photo'
-                : 'Generate a relevant image alongside the post copy'}
+              {postType === 'carousel'
+                ? 'Generate an image for each carousel slide'
+                : postType === 'story'
+                  ? 'Generate a vertical 9:16 image for the story'
+                  : referenceImage
+                    ? 'Generate an image inspired by your reference photo'
+                    : 'Generate a relevant image alongside the post copy'}
             </Typography>
           </Box>
         </Box>
