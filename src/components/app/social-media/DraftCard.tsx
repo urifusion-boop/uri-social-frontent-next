@@ -780,7 +780,13 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
             fullWidth
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
-            inputProps={{ min: new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16) }}
+            inputProps={{
+              min: (() => {
+                const d = new Date(Date.now() + 5 * 60 * 1000);
+                const pad = (n: number) => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+              })(),
+            }}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
