@@ -1,26 +1,26 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
-import { useState, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, User, Settings, LogOut, LayoutDashboard } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useAuth } from "@/src/providers/AuthProvider";
+import Image from 'next/image';
+import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Menu, X, User, Settings, LogOut, LayoutDashboard } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/src/providers/AuthProvider';
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const isHomePage = pathname === "/";
+  const isHomePage = pathname === '/';
   const { isAuthenticated, userDetails, logoutUser } = useAuth();
 
   const handlePricingClick = (e: React.MouseEvent) => {
     if (isHomePage) {
       e.preventDefault();
       setOpen(false);
-      document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -55,32 +55,35 @@ export default function Navbar() {
     <motion.nav
       initial={{ y: -100 }}
       animate={{ y: 0 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
       className="fixed top-0 left-0 right-0 z-50"
       style={{
         backgroundColor: 'rgba(252, 243, 239, 0.9)',
         backdropFilter: 'blur(12px)',
-        borderBottom: '3px solid black'
+        borderBottom: '3px solid black',
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-1 group">
+          <Link href="/" className="flex items-center gap-3 group">
             <div className="relative">
               <Image
-                src="/images/uri-logo.png"
+                src="/images/urilogo-nobg.png"
                 alt="URI Social"
-                width={32}
-                height={32}
-                className="h-8 w-auto transition-transform duration-300 group-hover:scale-110"
+                width={44}
+                height={44}
+                className="h-11 w-auto transition-transform duration-300 group-hover:scale-110"
               />
             </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-bold tracking-tight" style={{ color: 'black' }}>
+            <div className="flex flex-col leading-none">
+              <span className="text-xl font-black tracking-tight" style={{ color: 'black' }}>
                 URI
               </span>
-              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
+              <span
+                className="text-xs font-semibold tracking-wider uppercase"
+                style={{ color: 'rgba(0, 0, 0, 0.6)', marginTop: '2px' }}
+              >
                 Social
               </span>
             </div>
@@ -146,8 +149,12 @@ export default function Navbar() {
                       style={{ backgroundColor: 'rgba(252, 243, 239, 1)', border: '3px solid black' }}
                     >
                       <div className="p-3" style={{ borderBottom: '2px solid black' }}>
-                        <p className="font-bold text-sm" style={{ color: 'black' }}>{getDisplayName()}</p>
-                        <p className="text-xs" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>{userDetails?.email}</p>
+                        <p className="font-bold text-sm" style={{ color: 'black' }}>
+                          {getDisplayName()}
+                        </p>
+                        <p className="text-xs" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                          {userDetails?.email}
+                        </p>
                       </div>
 
                       <button
@@ -158,7 +165,9 @@ export default function Navbar() {
                         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
                       >
                         <LayoutDashboard size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                        <span className="text-sm font-semibold" style={{ color: 'black' }}>Dashboard</span>
+                        <span className="text-sm font-semibold" style={{ color: 'black' }}>
+                          Dashboard
+                        </span>
                       </button>
 
                       <button
@@ -169,7 +178,9 @@ export default function Navbar() {
                         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
                       >
                         <Settings size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                        <span className="text-sm font-semibold" style={{ color: 'black' }}>Settings</span>
+                        <span className="text-sm font-semibold" style={{ color: 'black' }}>
+                          Settings
+                        </span>
                       </button>
 
                       <button
@@ -178,7 +189,9 @@ export default function Navbar() {
                         style={{ borderTop: '2px solid black' }}
                       >
                         <LogOut size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                        <span className="text-sm font-semibold" style={{ color: 'black' }}>Logout</span>
+                        <span className="text-sm font-semibold" style={{ color: 'black' }}>
+                          Logout
+                        </span>
                       </button>
                     </motion.div>
                   )}
@@ -193,7 +206,11 @@ export default function Navbar() {
                 >
                   Sign In
                 </Link>
-                <Link href="/login?tab=signup" className="comic-btn px-4 py-2 rounded-lg text-xs" style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}>
+                <Link
+                  href="/login?tab=signup"
+                  className="comic-btn px-4 py-2 rounded-lg text-xs"
+                  style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}
+                >
                   Get Started Free
                 </Link>
               </>
@@ -263,8 +280,12 @@ export default function Navbar() {
                       {getInitials()}
                     </div>
                     <div>
-                      <p className="font-bold text-sm" style={{ color: 'black' }}>{getDisplayName()}</p>
-                      <p className="text-xs" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>{userDetails?.email}</p>
+                      <p className="font-bold text-sm" style={{ color: 'black' }}>
+                        {getDisplayName()}
+                      </p>
+                      <p className="text-xs" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                        {userDetails?.email}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -277,7 +298,9 @@ export default function Navbar() {
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
                 >
                   <LayoutDashboard size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                  <span className="text-sm font-bold uppercase" style={{ color: 'rgba(0, 0, 0, 0.7)' }}>Dashboard</span>
+                  <span className="text-sm font-bold uppercase" style={{ color: 'rgba(0, 0, 0, 0.7)' }}>
+                    Dashboard
+                  </span>
                 </button>
 
                 <button
@@ -288,7 +311,9 @@ export default function Navbar() {
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
                 >
                   <Settings size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                  <span className="text-sm font-bold uppercase" style={{ color: 'rgba(0, 0, 0, 0.7)' }}>Settings</span>
+                  <span className="text-sm font-bold uppercase" style={{ color: 'rgba(0, 0, 0, 0.7)' }}>
+                    Settings
+                  </span>
                 </button>
 
                 <button
@@ -299,7 +324,9 @@ export default function Navbar() {
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
                 >
                   <LogOut size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                  <span className="text-sm font-bold uppercase" style={{ color: 'rgba(0, 0, 0, 0.7)' }}>Logout</span>
+                  <span className="text-sm font-bold uppercase" style={{ color: 'rgba(0, 0, 0, 0.7)' }}>
+                    Logout
+                  </span>
                 </button>
               </>
             ) : (
@@ -312,7 +339,12 @@ export default function Navbar() {
                 >
                   Sign In
                 </Link>
-                <Link href="/login?tab=signup" className="block w-full comic-btn px-5 py-2.5 rounded-lg text-sm text-center" style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }} onClick={() => setOpen(false)}>
+                <Link
+                  href="/login?tab=signup"
+                  className="block w-full comic-btn px-5 py-2.5 rounded-lg text-sm text-center"
+                  style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}
+                  onClick={() => setOpen(false)}
+                >
                   Get Started Free
                 </Link>
               </>

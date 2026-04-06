@@ -119,19 +119,20 @@ const WhatsAppPhoneMockup = () => {
   }, []);
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center w-full max-w-[280px] sm:max-w-[300px] lg:max-w-[320px] mx-auto">
       <div
-        className="hero-phone relative"
+        className="hero-phone relative w-full"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
         onClick={() => setIsPaused((p) => !p)}
+        style={{ transform: 'rotate(8deg)' }}
       >
         {/* Phone Frame */}
         <div
-          className="relative w-[260px] sm:w-[280px] lg:w-[320px] rounded-[40px] border-[3px] border-foreground overflow-hidden"
+          className="relative w-full rounded-[32px] sm:rounded-[40px] border-[2px] sm:border-[3px] border-foreground overflow-hidden"
           style={{
             aspectRatio: '320/640',
-            boxShadow: '0 20px 60px rgba(0,0,0,.12)',
+            boxShadow: '0 15px 50px rgba(0,0,0,.1)',
             background: '#ECE5DD',
           }}
         >
