@@ -368,20 +368,27 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     }
   }, []);
 
-  const fetchScheduled = useCallback(async () => {
-    setLoadingScheduled(true);
+  const fetchScheduled = useCallback(async (silent = false) => {
+    if (!silent) setLoadingScheduled(true);
     try {
       const r = await SocialMediaAgentService.getScheduled();
-      if (r.status && r.responseData) setScheduled(r.responseData.scheduled_drafts ?? []);
+      if (r.status && r.responseData) {
+        const items: ContentDraft[] = r.responseData.scheduled_drafts ?? [];
+        setScheduled(items);
+        const stillPending = items.some((d: ContentDraft) => d.has_image && !d.image_url);
+        if (stillPending && activeTabRef.current === 'scheduled') {
+          pollTimerRef.current = setTimeout(() => fetchScheduled(true), 4000);
+        }
+      }
     } catch {
       /* no-op */
     } finally {
-      setLoadingScheduled(false);
+      if (!silent) setLoadingScheduled(false);
     }
   }, []);
 
-  const fetchSaved = useCallback(async () => {
-    setLoadingSaved(true);
+  const fetchSaved = useCallback(async (silent = false) => {
+    if (!silent) setLoadingSaved(true);
     try {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
@@ -390,11 +397,15 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
             d.status === 'approved' || d.status === 'ready_to_publish' || (d.status as string) === 'publish_failed'
         );
         setSavedDrafts(saved);
+        const stillPending = saved.some((d: ContentDraft) => d.has_image && !d.image_url);
+        if (stillPending && activeTabRef.current === 'saved') {
+          pollTimerRef.current = setTimeout(() => fetchSaved(true), 4000);
+        }
       }
     } catch {
       /* no-op */
     } finally {
-      setLoadingSaved(false);
+      if (!silent) setLoadingSaved(false);
     }
   }, []);
 

@@ -68,7 +68,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
   // Sync from parent when the parent refreshes (e.g. image_url arrives after background generation).
   // Only update while not editing so we don't discard the user's in-progress changes.
   useEffect(() => {
-    if (!editing) setDraft(initialDraft);
+    if (!editing) {
+      setDraft(initialDraft);
+      // Reset imageLoaded so the img onLoad fires again for the new URL,
+      // preventing the shimmer from staying stuck after a refresh.
+      setImageLoaded(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
   const [editing, setEditing] = useState(false);
