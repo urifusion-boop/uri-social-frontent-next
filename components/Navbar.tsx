@@ -2,11 +2,12 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, User, Settings, LogOut, LayoutDashboard } from 'lucide-react';
+import { Menu, X, Settings, LogOut, LayoutDashboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/src/providers/AuthProvider';
+import CreditBalance from './CreditBalance';
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
@@ -122,81 +123,113 @@ export default function Navbar() {
             </Link>
 
             {isAuthenticated ? (
-              <div className="relative">
-                <button
-                  onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-black/5 transition-colors"
-                  style={{ border: '2px solid black' }}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
-                    style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}
+              <>
+                {/* Credit Balance - PRD 7.1 */}
+                <CreditBalance />
+
+                <div className="relative">
+                  <button
+                    onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-black/5 transition-colors"
+                    style={{ border: '2px solid black' }}
                   >
-                    {getInitials()}
-                  </div>
-                  <span className="text-sm font-semibold" style={{ color: 'black' }}>
-                    {getDisplayName()}
-                  </span>
-                </button>
-
-                <AnimatePresence>
-                  {profileMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg overflow-hidden"
-                      style={{ backgroundColor: 'rgba(252, 243, 239, 1)', border: '3px solid black' }}
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+                      style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}
                     >
-                      <div className="p-3" style={{ borderBottom: '2px solid black' }}>
-                        <p className="font-bold text-sm" style={{ color: 'black' }}>
-                          {getDisplayName()}
-                        </p>
-                        <p className="text-xs" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                          {userDetails?.email}
-                        </p>
-                      </div>
+                      {getInitials()}
+                    </div>
+                    <span className="text-sm font-semibold" style={{ color: 'black' }}>
+                      {getDisplayName()}
+                    </span>
+                  </button>
 
-                      <button
-                        onClick={() => {
-                          setProfileMenuOpen(false);
-                          router.push('/social-media');
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
+                  <AnimatePresence>
+                    {profileMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg overflow-hidden"
+                        style={{ backgroundColor: 'rgba(252, 243, 239, 1)', border: '3px solid black' }}
                       >
-                        <LayoutDashboard size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                        <span className="text-sm font-semibold" style={{ color: 'black' }}>
-                          Dashboard
-                        </span>
-                      </button>
+                        <div className="p-3" style={{ borderBottom: '2px solid black' }}>
+                          <p className="font-bold text-sm" style={{ color: 'black' }}>
+                            {getDisplayName()}
+                          </p>
+                          <p className="text-xs" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                            {userDetails?.email}
+                          </p>
+                        </div>
 
-                      <button
-                        onClick={() => {
-                          setProfileMenuOpen(false);
-                          router.push('/social-media/settings');
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
-                      >
-                        <Settings size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                        <span className="text-sm font-semibold" style={{ color: 'black' }}>
-                          Settings
-                        </span>
-                      </button>
+                        <button
+                          onClick={() => {
+                            setProfileMenuOpen(false);
+                            router.push('/social-media');
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
+                        >
+                          <LayoutDashboard size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
+                          <span className="text-sm font-semibold" style={{ color: 'black' }}>
+                            Dashboard
+                          </span>
+                        </button>
 
-                      <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
-                        style={{ borderTop: '2px solid black' }}
-                      >
-                        <LogOut size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                        <span className="text-sm font-semibold" style={{ color: 'black' }}>
-                          Logout
-                        </span>
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                        <button
+                          onClick={() => {
+                            setProfileMenuOpen(false);
+                            router.push('/billing');
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={2}
+                            stroke="currentColor"
+                            className="w-[18px] h-[18px]"
+                            style={{ color: 'hsl(340, 74%, 42%)' }}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"
+                            />
+                          </svg>
+                          <span className="text-sm font-semibold" style={{ color: 'black' }}>
+                            Billing & Credits
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setProfileMenuOpen(false);
+                            router.push('/social-media/settings');
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
+                        >
+                          <Settings size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
+                          <span className="text-sm font-semibold" style={{ color: 'black' }}>
+                            Settings
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
+                          style={{ borderTop: '2px solid black' }}
+                        >
+                          <LogOut size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
+                          <span className="text-sm font-semibold" style={{ color: 'black' }}>
+                            Logout
+                          </span>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </>
             ) : (
               <>
                 <Link

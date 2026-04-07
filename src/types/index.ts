@@ -10,4 +10,9 @@ export interface UserDto {
   lastName?: string;
   role?: string;
   userType?: string;
+  // PRD 7.1: Credit Balance (added for billing system)
+  creditBalance?: number;
+  creditsRemaining?: number;
+  subscriptionTier?: string | null;
+  lowCreditWarning?: boolean; // PRD 7.3: True when credits ≤ 3
 }

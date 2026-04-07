@@ -4,6 +4,7 @@ import { STORE_KEYS } from '@/src/configs/store.config';
 import { ITokenDetails, UserDto } from '@/src/types';
 import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { BillingService } from '@/src/api/BillingService';
 
 interface IAuthContext {
   userDetails: UserDto | null;
@@ -13,6 +14,7 @@ interface IAuthContext {
   saveUserDetails: (data: UserDto) => void;
   saveUserTokens: (data: ITokenDetails) => void;
   logoutUser: () => void;
+  refreshCreditBalance: () => Promise<void>; // PRD 7.1: Fetch latest credit balance
 }
 
 const AuthContext = createContext<IAuthContext>({} as IAuthContext);
@@ -33,6 +35,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isPending, setIsPending] = useState(true);
 
+  // PRD 7.1: Fetch credit balance on mount and auth change
+  const refreshCreditBalance = useCallback(async () => {
+    if (!isAuthenticated || !tokenDetails?.accessToken) return;
+
+    try {
+      const balance = await BillingService.getCreditBalance();
+      setUserDetails((prev) => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          creditsRemaining: balance.credits_remaining,
+          creditBalance: balance.total_credits,
+          subscriptionTier: balance.subscription_tier,
+          lowCreditWarning: balance.low_credit_warning,
+        };
+        localStorage.setItem(STORE_KEYS.USER_DETAILS, JSON.stringify(updated));
+        return updated;
+      });
+    } catch (error) {
+      console.error('Failed to fetch credit balance:', error);
+      // Don't fail auth if credit fetch fails
+    }
+  }, [isAuthenticated, tokenDetails]);
+
   useEffect(() => {
     const storedUserDetails = localStorage.getItem(STORE_KEYS.USER_DETAILS);
     const storedUserTokens = localStorage.getItem(STORE_KEYS.USER_TOKENS);
@@ -52,6 +78,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     setIsPending(false);
   }, [pathname]);
+
+  // Fetch credit balance when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated && !isPending) {
+      refreshCreditBalance();
+    }
+  }, [isAuthenticated, isPending, refreshCreditBalance]);
 
   const saveUserDetails = (details: UserDto) => {
     localStorage.setItem(STORE_KEYS.USER_DETAILS, JSON.stringify(details));
@@ -83,6 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         saveUserDetails,
         saveUserTokens,
         logoutUser,
+        refreshCreditBalance,
       }}
     >
       {children}
