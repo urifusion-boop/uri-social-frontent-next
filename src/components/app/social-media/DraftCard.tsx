@@ -878,6 +878,25 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             disabled={imageRegenerating}
             sx={{ fontSize: '13px' }}
           />
+          {/* PRD 4.2: Image retry cost warning */}
+          {draft.image_retry_count && draft.image_retry_count >= 1 && (
+            <Box
+              sx={{
+                mt: 1.5,
+                p: 1.5,
+                borderRadius: '8px',
+                background: '#FFFBEB',
+                border: '1px solid #FCD34D',
+              }}
+            >
+              <Typography fontSize="12px" color="#D97706" fontWeight={600}>
+                ⚠️ This action will use 1 credit
+              </Typography>
+              <Typography fontSize="11px" color="#92400E" mt={0.5}>
+                First image retry is free. Subsequent retries cost 1 credit each.
+              </Typography>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
           <Button
@@ -897,8 +916,44 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               const draftId = draft.draft_id ?? draft.id ?? '';
               setImageRegenerating(true);
               try {
+                // PRD 4.2: First retry is free, second retry requires confirmation
                 const res = await SocialMediaAgentService.regenerateImage(draftId, imageFeedback.trim());
-                if (res.status) {
+
+                // Backend returns requires_confirmation: true for second retry
+                if (res.responseData?.requires_confirmation && !res.responseData?.confirmed) {
+                  // Show confirmation - user needs to confirm they want to use 1 credit
+                  const confirmed = window.confirm(
+                    'This action will use 1 credit. Continue?\n\nFirst image retry is free. Additional retries cost 1 credit each.'
+                  );
+                  if (!confirmed) {
+                    setImageRegenerating(false);
+                    return;
+                  }
+                  // Retry with confirmation
+                  const confirmedRes = await SocialMediaAgentService.regenerateImage(
+                    draftId,
+                    imageFeedback.trim(),
+                    true
+                  );
+                  if (confirmedRes.status) {
+                    setDraft((prev) => ({ ...prev, image_url: undefined as unknown as string, has_image: true }));
+                    setImageLoaded(false);
+                    setImageEditOpen(false);
+                    setImageFeedback('');
+                    ToastService.showToast('Generating new image…', ToastTypeEnum.Success);
+                    onRefresh();
+                  } else {
+                    // PRD 8: Handle 402 out of credits
+                    if (confirmedRes.responseCode === 402) {
+                      ToastService.showToast('Out of credits. Upgrade to continue.', ToastTypeEnum.Error);
+                    } else {
+                      ToastService.showToast(
+                        confirmedRes.responseMessage || 'Failed to start image regeneration',
+                        ToastTypeEnum.Error
+                      );
+                    }
+                  }
+                } else if (res.status) {
                   setDraft((prev) => ({ ...prev, image_url: undefined as unknown as string, has_image: true }));
                   setImageLoaded(false);
                   setImageEditOpen(false);
@@ -906,13 +961,23 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                   ToastService.showToast('Generating new image…', ToastTypeEnum.Success);
                   onRefresh();
                 } else {
-                  ToastService.showToast(
-                    res.responseMessage || 'Failed to start image regeneration',
-                    ToastTypeEnum.Error
-                  );
+                  // PRD 8: Handle 402 out of credits
+                  if (res.responseCode === 402) {
+                    ToastService.showToast('Out of credits. Upgrade to continue.', ToastTypeEnum.Error);
+                  } else {
+                    ToastService.showToast(
+                      res.responseMessage || 'Failed to start image regeneration',
+                      ToastTypeEnum.Error
+                    );
+                  }
                 }
-              } catch {
-                ToastService.showToast('Failed to start image regeneration', ToastTypeEnum.Error);
+              } catch (error: unknown) {
+                const err = error as { response?: { status?: number } };
+                if (err?.response?.status === 402) {
+                  ToastService.showToast('Out of credits. Upgrade to continue.', ToastTypeEnum.Error);
+                } else {
+                  ToastService.showToast('Failed to start image regeneration', ToastTypeEnum.Error);
+                }
               } finally {
                 setImageRegenerating(false);
               }

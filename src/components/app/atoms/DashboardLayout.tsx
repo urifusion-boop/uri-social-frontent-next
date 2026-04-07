@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ReactNode } from 'react';
 import { MdOutlineCampaign } from 'react-icons/md';
 import UserProfileMenu from './UserProfileMenu';
+import CreditDisplay from './CreditDisplay';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -19,7 +20,10 @@ const DashboardLayout = ({ children, excludeHeader = false }: DashboardLayoutPro
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#FAFAFA' }}>
       {!excludeHeader && (
-        <AppBar position="fixed" sx={{ backgroundColor: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', zIndex: 1200 }}>
+        <AppBar
+          position="fixed"
+          sx={{ backgroundColor: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', zIndex: 1200 }}
+        >
           <Toolbar sx={{ justifyContent: 'space-between' }}>
             {/* Logo/Brand */}
             <Box
@@ -29,7 +33,7 @@ const DashboardLayout = ({ children, excludeHeader = false }: DashboardLayoutPro
               sx={{
                 cursor: 'pointer',
                 transition: 'opacity 0.2s',
-                '&:hover': { opacity: 0.8 }
+                '&:hover': { opacity: 0.8 },
               }}
               onClick={() => router.push('/social-media')}
             >
@@ -41,8 +45,11 @@ const DashboardLayout = ({ children, excludeHeader = false }: DashboardLayoutPro
               </Typography>
             </Box>
 
-            {/* User Profile Menu */}
-            {isAuthenticated && <UserProfileMenu />}
+            {/* Credit Display & User Profile Menu */}
+            <Box display="flex" alignItems="center" gap={2}>
+              {isAuthenticated && <CreditDisplay />}
+              {isAuthenticated && <UserProfileMenu />}
+            </Box>
           </Toolbar>
         </AppBar>
       )}

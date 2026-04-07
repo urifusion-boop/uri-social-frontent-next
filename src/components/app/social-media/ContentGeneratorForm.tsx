@@ -1,6 +1,7 @@
 'use client';
 
 import { GenerateContentPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { BillingService } from '@/src/api/BillingService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import {
@@ -16,9 +17,11 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
 import { MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
+import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
+import LowCreditWarning from '../atoms/LowCreditWarning';
 
 const PLATFORMS = [
   { key: 'facebook', label: 'Facebook', icon: <FaFacebook size={16} color="#1877F2" /> },
@@ -55,6 +58,11 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const [postType, setPostType] = useState<'feed' | 'carousel' | 'story'>('feed');
   const [numSlides, setNumSlides] = useState(3);
 
+  // Billing modals
+  const [outOfCreditsOpen, setOutOfCreditsOpen] = useState(false);
+  const [lowCreditWarningOpen, setLowCreditWarningOpen] = useState(false);
+  const [creditsRemaining, setCreditsRemaining] = useState<number>(0);
+
   const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook');
 
   const togglePlatform = (key: string) =>
@@ -86,6 +94,23 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
     setReferenceImageName('');
   };
 
+  // Check credits before generation
+  useEffect(() => {
+    const checkCredits = async () => {
+      try {
+        const balance = await BillingService.getCreditBalance();
+        setCreditsRemaining(balance.credits_remaining);
+        // Show low credit warning if 5 or fewer credits (PRD 7.3)
+        if (balance.low_credit_warning && balance.credits_remaining > 0 && balance.credits_remaining <= 5) {
+          setLowCreditWarningOpen(true);
+        }
+      } catch (error) {
+        console.error('Failed to check credits:', error);
+      }
+    };
+    checkCredits();
+  }, []);
+
   const handleGenerate = async () => {
     if (seedContent.trim().length < 10) {
       ToastService.showToast('Seed content must be at least 10 characters', ToastTypeEnum.Error);
@@ -94,6 +119,17 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
     if (selectedPlatforms.length === 0) {
       ToastService.showToast('Select at least one platform', ToastTypeEnum.Error);
       return;
+    }
+
+    // PRD Section 8: Check if user has credits before generating
+    try {
+      const canGenerate = await BillingService.canGenerateContent();
+      if (!canGenerate.can_generate || canGenerate.blocked) {
+        setOutOfCreditsOpen(true);
+        return;
+      }
+    } catch (error) {
+      console.error('Credit check failed:', error);
     }
 
     setLoading(true);
@@ -113,12 +149,25 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
       if (response.status) {
         ToastService.showToast('Content generated! Check your Drafts tab.', ToastTypeEnum.Success);
         onGenerated();
+        // Refresh credit count
+        const balance = await BillingService.getCreditBalance();
+        setCreditsRemaining(balance.credits_remaining);
       } else {
-        ToastService.showToast(response.responseMessage || 'Generation failed', ToastTypeEnum.Error);
+        // PRD Section 8: Handle 402 Payment Required
+        if (response.responseCode === 402) {
+          setOutOfCreditsOpen(true);
+        } else {
+          ToastService.showToast(response.responseMessage || 'Generation failed', ToastTypeEnum.Error);
+        }
       }
     } catch (err: unknown) {
-      const error = err as { data?: { responseMessage?: string } };
-      ToastService.showToast(error?.data?.responseMessage || 'Generation failed', ToastTypeEnum.Error);
+      const error = err as { response?: { status?: number; data?: { responseMessage?: string } } };
+      // PRD Section 8: Handle 402 Payment Required from API
+      if (error?.response?.status === 402) {
+        setOutOfCreditsOpen(true);
+      } else {
+        ToastService.showToast(error?.response?.data?.responseMessage || 'Generation failed', ToastTypeEnum.Error);
+      }
     } finally {
       setLoading(false);
     }
@@ -441,6 +490,14 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
       >
         {loading ? 'Generating...' : 'Generate Content'}
       </Button>
+
+      {/* Billing Modals */}
+      <OutOfCreditsModal open={outOfCreditsOpen} onClose={() => setOutOfCreditsOpen(false)} />
+      <LowCreditWarning
+        open={lowCreditWarningOpen}
+        onClose={() => setLowCreditWarningOpen(false)}
+        creditsRemaining={creditsRemaining}
+      />
     </Box>
   );
 };

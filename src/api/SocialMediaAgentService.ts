@@ -205,11 +205,12 @@ export class SocialMediaAgentService {
 
   static async regenerateImage(
     draftId: string,
-    feedback: string
-  ): Promise<UriResponse<{ draft_id: string; status: string }>> {
+    feedback: string,
+    confirmed?: boolean
+  ): Promise<UriResponse<{ draft_id: string; status: string; requires_confirmation?: boolean; confirmed?: boolean }>> {
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.deleteDraft}/${draftId}/regenerate-image`,
-      { feedback },
+      { feedback, confirmed: confirmed || false },
       { timeout: 15000 }
     );
     return response.data;
