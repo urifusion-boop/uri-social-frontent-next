@@ -35,6 +35,9 @@ import DraftEditor from './DraftEditor';
 interface DraftCardProps {
   draft: ContentDraft;
   onRefresh: () => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelectToggle?: (draftId: string) => void;
 }
 
 const platformChip: Record<string, { icon: ReactElement; color: string; bg: string }> = {
@@ -62,13 +65,18 @@ const PLATFORM_ASPECT: Record<string, string> = {
   instagram: '4 / 5', // 1080×1350 — highest reach on Instagram
 };
 
-const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
+const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSelectToggle }: DraftCardProps) => {
   const [draft, setDraft] = useState<ContentDraft>(initialDraft);
 
   // Sync from parent when the parent refreshes (e.g. image_url arrives after background generation).
   // Only update while not editing so we don't discard the user's in-progress changes.
   useEffect(() => {
-    if (!editing) setDraft(initialDraft);
+    if (!editing) {
+      setDraft(initialDraft);
+      // Reset imageLoaded so the img onLoad fires again for the new URL,
+      // preventing the shimmer from staying stuck after a refresh.
+      setImageLoaded(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
   const [editing, setEditing] = useState(false);
@@ -240,15 +248,25 @@ const DraftCard = ({ draft: initialDraft, onRefresh }: DraftCardProps) => {
   return (
     <Box
       sx={{
-        border: '1px solid #E5E7EB',
+        border: selected ? '2px solid #CD1B78' : '1px solid #E5E7EB',
         borderRadius: '12px',
         p: 2.5,
-        background: '#fff',
+        background: selected ? '#FDF2F8' : '#fff',
         boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+        transition: 'border-color 0.15s, background 0.15s',
       }}
     >
       {/* Header row */}
       <Box display="flex" alignItems="center" gap={1} mb={1.5} flexWrap="wrap">
+        {selectable && (
+          <Checkbox
+            checked={!!selected}
+            onChange={() => onSelectToggle?.(draft.draft_id ?? draft.id ?? '')}
+            onClick={(e) => e.stopPropagation()}
+            size="small"
+            sx={{ p: 0, mr: 0.5, color: '#CD1B78', '&.Mui-checked': { color: '#CD1B78' } }}
+          />
+        )}
         <Chip
           icon={pc.icon ?? undefined}
           label={draft.platform.charAt(0).toUpperCase() + draft.platform.slice(1)}

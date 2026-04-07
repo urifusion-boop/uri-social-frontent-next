@@ -11,6 +11,8 @@ import {
   PerformancePost,
   SocialMediaAgentService,
 } from '@/src/api/SocialMediaAgentService';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import ContentCalendarTab from '@/src/components/app/social-media/ContentCalendarTab';
 import { PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { useAuth } from '@/src/providers/AuthProvider';
@@ -338,6 +340,49 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const [loadingAuto, setLoadingAuto] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Multi-select batch scheduling
+  const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
+  const [batchScheduleOpen, setBatchScheduleOpen] = useState(false);
+  const [batchScheduledAt, setBatchScheduledAt] = useState('');
+  const [batchScheduling, setBatchScheduling] = useState(false);
+
+  const toggleDraftSelection = (id: string) => {
+    setSelectedDraftIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBatchSchedule = async () => {
+    if (!batchScheduledAt) return;
+    setBatchScheduling(true);
+    try {
+      const response = await SocialMediaAgentService.approveContent({
+        draft_ids: Array.from(selectedDraftIds),
+        schedule_option: 'schedule',
+        scheduled_datetime: new Date(batchScheduledAt).toISOString(),
+      });
+      if (response.status) {
+        ToastService.showToast(
+          `${selectedDraftIds.size} post${selectedDraftIds.size > 1 ? 's' : ''} scheduled`,
+          ToastTypeEnum.Success
+        );
+        setSelectedDraftIds(new Set());
+        setBatchScheduleOpen(false);
+        setBatchScheduledAt('');
+        fetchDrafts();
+      } else {
+        ToastService.showToast(response.responseMessage || 'Scheduling failed', ToastTypeEnum.Error);
+      }
+    } catch {
+      ToastService.showToast('Scheduling failed', ToastTypeEnum.Error);
+    } finally {
+      setBatchScheduling(false);
+    }
+  };
+
   const fetchDrafts = useCallback(async (silent = false) => {
     if (!silent) setLoadingDrafts(true);
     setDraftsError(false);
@@ -368,20 +413,27 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     }
   }, []);
 
-  const fetchScheduled = useCallback(async () => {
-    setLoadingScheduled(true);
+  const fetchScheduled = useCallback(async (silent = false) => {
+    if (!silent) setLoadingScheduled(true);
     try {
       const r = await SocialMediaAgentService.getScheduled();
-      if (r.status && r.responseData) setScheduled(r.responseData.scheduled_drafts ?? []);
+      if (r.status && r.responseData) {
+        const items: ContentDraft[] = r.responseData.scheduled_drafts ?? [];
+        setScheduled(items);
+        const stillPending = items.some((d: ContentDraft) => d.has_image && !d.image_url);
+        if (stillPending && activeTabRef.current === 'scheduled') {
+          pollTimerRef.current = setTimeout(() => fetchScheduled(true), 4000);
+        }
+      }
     } catch {
       /* no-op */
     } finally {
-      setLoadingScheduled(false);
+      if (!silent) setLoadingScheduled(false);
     }
   }, []);
 
-  const fetchSaved = useCallback(async () => {
-    setLoadingSaved(true);
+  const fetchSaved = useCallback(async (silent = false) => {
+    if (!silent) setLoadingSaved(true);
     try {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
@@ -390,11 +442,15 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
             d.status === 'approved' || d.status === 'ready_to_publish' || (d.status as string) === 'publish_failed'
         );
         setSavedDrafts(saved);
+        const stillPending = saved.some((d: ContentDraft) => d.has_image && !d.image_url);
+        if (stillPending && activeTabRef.current === 'saved') {
+          pollTimerRef.current = setTimeout(() => fetchSaved(true), 4000);
+        }
       }
     } catch {
       /* no-op */
     } finally {
-      setLoadingSaved(false);
+      if (!silent) setLoadingSaved(false);
     }
   }, []);
 
@@ -413,6 +469,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   useEffect(() => {
     activeTabRef.current = activeTab;
     if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    setSelectedDraftIds(new Set());
     if (activeTab === 'drafts') fetchDrafts();
     if (activeTab === 'saved') fetchSaved();
     if (activeTab === 'scheduled') fetchScheduled();
@@ -571,10 +628,159 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
             ) : drafts.length === 0 ? (
               <CMEmptyState message="No drafts yet. Generate content from the Create tab." />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {drafts.map((draft) => (
-                  <DraftCard key={draft.draft_id ?? draft.id} draft={draft} onRefresh={fetchDrafts} />
-                ))}
+              <>
+                {/* Batch action bar */}
+                {selectedDraftIds.size > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      background: '#fff',
+                      border: '1.5px solid #CD1B78',
+                      borderRadius: 10,
+                      padding: '10px 16px',
+                      marginBottom: 12,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#CD1B78', flex: 1 }}>
+                      {selectedDraftIds.size} post{selectedDraftIds.size > 1 ? 's' : ''} selected
+                    </span>
+                    <button
+                      onClick={() => setBatchScheduleOpen(true)}
+                      style={{
+                        background: '#CD1B78',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '6px 16px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Schedule All
+                    </button>
+                    <button
+                      onClick={() => setSelectedDraftIds(new Set())}
+                      style={{
+                        background: 'none',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: 8,
+                        padding: '6px 12px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: '#6B7280',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {drafts.map((draft) => {
+                    const draftId = draft.draft_id ?? draft.id ?? '';
+                    return (
+                      <DraftCard
+                        key={draftId}
+                        draft={draft}
+                        onRefresh={fetchDrafts}
+                        selectable
+                        selected={selectedDraftIds.has(draftId)}
+                        onSelectToggle={toggleDraftSelection}
+                      />
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Batch schedule dialog */}
+            {batchScheduleOpen && (
+              <div
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  background: 'rgba(0,0,0,0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 1300,
+                }}
+                onClick={() => setBatchScheduleOpen(false)}
+              >
+                <div
+                  style={{
+                    background: '#fff',
+                    borderRadius: 16,
+                    padding: 28,
+                    width: 360,
+                    maxWidth: '90vw',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p style={{ fontSize: 17, fontWeight: 700, color: '#111', margin: '0 0 4px' }}>
+                    Schedule {selectedDraftIds.size} post{selectedDraftIds.size > 1 ? 's' : ''}
+                  </p>
+                  <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 20px' }}>
+                    All selected posts will be scheduled for the same time.
+                  </p>
+                  <input
+                    type="datetime-local"
+                    value={batchScheduledAt}
+                    onChange={(e) => setBatchScheduledAt(e.target.value)}
+                    min={(() => {
+                      const d = new Date(Date.now() + 5 * 60 * 1000);
+                      const pad = (n: number) => String(n).padStart(2, '0');
+                      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                    })()}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: '1.5px solid #E5E7EB',
+                      fontSize: 14,
+                      marginBottom: 20,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => setBatchScheduleOpen(false)}
+                      style={{
+                        padding: '8px 18px',
+                        borderRadius: 8,
+                        border: '1.5px solid #E5E7EB',
+                        background: '#fff',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: '#374151',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleBatchSchedule}
+                      disabled={!batchScheduledAt || batchScheduling}
+                      style={{
+                        padding: '8px 18px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: !batchScheduledAt || batchScheduling ? '#E5E7EB' : '#CD1B78',
+                        color: !batchScheduledAt || batchScheduling ? '#9CA3AF' : '#fff',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: !batchScheduledAt || batchScheduling ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {batchScheduling ? 'Scheduling...' : 'Confirm Schedule'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </>
