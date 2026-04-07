@@ -93,7 +93,8 @@ class UriHttpClient {
           console.warn(`[HTTP] 404 error for ${error.config?.url} - keeping tokens`);
           return Promise.reject(error.response);
         default:
-          return Promise.resolve(error.response);
+          // Reject all other errors (including 409 Conflict) so they can be caught by try-catch
+          return Promise.reject(error.response);
       }
     }
     return Promise.reject(error);
