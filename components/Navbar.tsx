@@ -100,7 +100,7 @@ export default function Navbar() {
               How It Works
             </Link>
             <Link
-              href="/#pricing"
+              href="/pricing"
               onClick={handlePricingClick}
               className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
