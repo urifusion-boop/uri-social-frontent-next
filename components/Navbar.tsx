@@ -77,17 +77,9 @@ export default function Navbar() {
                 className="h-11 w-auto transition-transform duration-300 group-hover:scale-110"
               />
             </div>
-            <div className="flex flex-col leading-none">
-              <span className="text-xl font-black tracking-tight" style={{ color: 'black' }}>
-                URI
-              </span>
-              <span
-                className="text-xs font-semibold tracking-wider uppercase"
-                style={{ color: 'rgba(0, 0, 0, 0.6)', marginTop: '2px' }}
-              >
-                Social
-              </span>
-            </div>
+            <span className="text-sm font-semibold tracking-wider uppercase" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+              Social
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
