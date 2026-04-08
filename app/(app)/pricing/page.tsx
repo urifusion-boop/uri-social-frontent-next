@@ -90,7 +90,7 @@ export default function PricingPage() {
         </div>
 
         {/* Pricing Cards Grid */}
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 mb-16">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 mb-16 items-stretch">
           {tiers
             .filter((tier) => tier.tier_id !== 'custom')
             .map((tier) => {
@@ -101,7 +101,7 @@ export default function PricingPage() {
               return (
                 <Card
                   key={tier.tier_id}
-                  className={`relative flex flex-col ${
+                  className={`relative flex flex-col h-full ${
                     popular
                       ? 'border-2 border-[#CD1B78] shadow-lg ring-2 ring-[#CD1B78] ring-opacity-20'
                       : 'border border-gray-200 hover:border-gray-300'
@@ -123,16 +123,16 @@ export default function PricingPage() {
                     </div>
                   )}
 
-                  <CardHeader className="pb-4">
+                  <CardHeader className="pb-4 min-h-[80px] flex flex-col justify-start">
                     <CardTitle className="text-xl font-bold text-gray-900">{tier.name}</CardTitle>
                     <CardDescription className="text-sm text-gray-500 mt-1">
                       {tier.credits} campaigns • ₦{pricePerCredit}/campaign
                     </CardDescription>
                   </CardHeader>
 
-                  <CardContent className="flex-1 pb-6">
+                  <CardContent className="flex-1 pb-6 flex flex-col">
                     {/* Price */}
-                    <div className="mb-6">
+                    <div className="mb-6 min-h-[60px]">
                       <div className="flex items-baseline gap-1">
                         <span className="text-4xl font-extrabold text-[#CD1B78]">
                           {BillingService.formatNGN(tier.price_ngn)}
@@ -142,7 +142,7 @@ export default function PricingPage() {
                     </div>
 
                     {/* Features */}
-                    <ul className="space-y-3">
+                    <ul className="space-y-3 flex-1">
                       {tier.features.map((feature, idx) => (
                         <li key={idx} className="flex items-start gap-2.5">
                           <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
@@ -152,7 +152,7 @@ export default function PricingPage() {
                     </ul>
                   </CardContent>
 
-                  <CardFooter className="pt-0">
+                  <CardFooter className="pt-0 mt-auto">
                     <Button
                       onClick={() => handleSelectPlan(tier.tier_id)}
                       disabled={!tier.is_active || subscribing === tier.tier_id || current}
