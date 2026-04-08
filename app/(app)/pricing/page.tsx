@@ -152,7 +152,7 @@ export default function PricingPage() {
                     </ul>
                   </CardContent>
 
-                  <CardFooter className="pt-0 mt-auto">
+                  <CardFooter className="pt-2 mt-auto">
                     <Button
                       onClick={() => handleSelectPlan(tier.tier_id)}
                       disabled={!tier.is_active || subscribing === tier.tier_id || current}

@@ -91,9 +91,9 @@ const HeroSection = () => {
           </div>
 
           {/* Right Side — WhatsApp Phone Mockup */}
-          {/* <div className="flex-shrink-0 relative w-full lg:w-auto flex justify-center lg:justify-end mt-4 lg:mt-0">
+          <div className="flex-shrink-0 relative w-full lg:w-auto flex justify-center lg:justify-end mt-4 lg:mt-0">
             <WhatsAppPhoneMockup />
-          </div> */}
+          </div>
         </div>
       </div>
 
