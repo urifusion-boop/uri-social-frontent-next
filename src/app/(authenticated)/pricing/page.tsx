@@ -74,7 +74,7 @@ const PricingPage = () => {
 
   return (
     <DashboardLayout>
-      <Box sx={{ background: 'linear-gradient(135deg, #FDF2F8 0%, #F9FAFB 100%)', minHeight: '100vh', py: 6 }}>
+      <Box sx={{ backgroundColor: '#FAFAFA', minHeight: '100vh', py: 6 }}>
         <Container maxWidth="lg">
           {/* Header */}
           <Box textAlign="center" mb={6}>
@@ -99,45 +99,46 @@ const PricingPage = () => {
           </Box>
 
           {/* Pricing Cards */}
-          <Box display="grid" gridTemplateColumns={{ xs: '1fr', md: 'repeat(3, 1fr)' }} gap={3}>
+          <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }} gap={3}>
             {tiers.map((tier) => {
-              const isPopular = tier.name === 'Pro';
+              const isPopular = tier.name === 'Growth Plan';
               const isCurrent = currentBalance?.tier === tier.name;
               const pricePerCredit = (tier.price_ngn / tier.credits).toFixed(0);
 
               return (
                 <Card
                   key={tier.tier_id}
-                  elevation={isPopular ? 8 : 2}
+                  elevation={isPopular ? 4 : 1}
                   sx={{
                     position: 'relative',
+                    backgroundColor: '#fff',
                     border: isPopular ? '2px solid #CD1B78' : '1px solid #E5E7EB',
-                    borderRadius: '16px',
-                    transform: isPopular ? 'scale(1.05)' : 'scale(1)',
+                    borderRadius: '12px',
                     transition: 'all 0.2s',
-                    '&:hover': { transform: isPopular ? 'scale(1.07)' : 'scale(1.02)' },
+                    '&:hover': {
+                      boxShadow: isPopular ? '0 8px 24px rgba(205, 27, 120, 0.15)' : '0 4px 12px rgba(0, 0, 0, 0.08)',
+                    },
                   }}
                 >
                   {isPopular && (
                     <Box
                       sx={{
                         position: 'absolute',
-                        top: -12,
+                        top: -10,
                         left: '50%',
                         transform: 'translateX(-50%)',
-                        background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
+                        background: '#CD1B78',
                         color: '#fff',
                         px: 2,
                         py: 0.5,
-                        borderRadius: '20px',
+                        borderRadius: '16px',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 0.5,
-                        boxShadow: '0 4px 12px rgba(205, 27, 120, 0.4)',
                       }}
                     >
-                      <MdStar size={14} />
-                      <Typography fontSize="11px" fontWeight={700} letterSpacing={0.5}>
+                      <MdStar size={12} />
+                      <Typography fontSize="10px" fontWeight={700} letterSpacing={0.8}>
                         MOST POPULAR
                       </Typography>
                     </Box>
@@ -180,7 +181,7 @@ const PricingPage = () => {
                     {/* Subscribe Button */}
                     <Button
                       fullWidth
-                      variant={isPopular ? 'contained' : 'outlined'}
+                      variant={isCurrent ? 'outlined' : 'contained'}
                       disabled={!tier.is_active || subscribing === tier.tier_id || isCurrent}
                       onClick={() => handleSubscribe(tier.tier_id)}
                       sx={{
@@ -188,15 +189,20 @@ const PricingPage = () => {
                         fontWeight: 600,
                         py: 1.25,
                         fontSize: '14px',
-                        ...(isPopular
+                        borderRadius: '8px',
+                        ...(isCurrent
                           ? {
-                              background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
-                              '&:hover': { background: 'linear-gradient(135deg, #A01560 0%, #CD1B78 100%)' },
+                              borderColor: '#E5E7EB',
+                              color: '#6B7280',
+                              backgroundColor: '#F9FAFB',
                             }
                           : {
-                              borderColor: '#CD1B78',
-                              color: '#CD1B78',
-                              '&:hover': { borderColor: '#A01560', background: '#FDF2F8' },
+                              background: '#CD1B78',
+                              color: '#fff',
+                              '&:hover': {
+                                background: '#A01560',
+                                boxShadow: '0 4px 12px rgba(205, 27, 120, 0.25)',
+                              },
                             }),
                       }}
                     >
@@ -205,7 +211,7 @@ const PricingPage = () => {
                       ) : isCurrent ? (
                         'Current Plan'
                       ) : (
-                        `Subscribe to ${tier.name}`
+                        'Subscribe Now'
                       )}
                     </Button>
                   </CardContent>
