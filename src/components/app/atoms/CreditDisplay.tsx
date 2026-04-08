@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 /**
  * CreditDisplay - Shows user's remaining credits in the header
  * PRD Section 5.1: Display credits_remaining prominently
- * PRD Section 5.2: Low credit warning at 5 credits
+ * PRD Section 7.3: Low credit warning at 3 credits
  */
 const CreditDisplay = () => {
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
@@ -51,7 +51,8 @@ const CreditDisplay = () => {
     return null;
   }
 
-  const isLow = creditsRemaining <= 5 && creditsRemaining > 0;
+  // PRD 7.3: Low credit warning when credits <= 3
+  const isLow = creditsRemaining <= 3 && creditsRemaining > 0;
   const isEmpty = creditsRemaining === 0;
 
   return (

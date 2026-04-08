@@ -100,8 +100,8 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
       try {
         const balance = await BillingService.getCreditBalance();
         setCreditsRemaining(balance.credits_remaining);
-        // Show low credit warning if 5 or fewer credits (PRD 7.3)
-        if (balance.low_credit_warning && balance.credits_remaining > 0 && balance.credits_remaining <= 5) {
+        // PRD 7.3: Show low credit warning when credits <= 3
+        if (balance.low_credit_warning && balance.credits_remaining > 0 && balance.credits_remaining <= 3) {
           setLowCreditWarningOpen(true);
         }
       } catch (error) {
