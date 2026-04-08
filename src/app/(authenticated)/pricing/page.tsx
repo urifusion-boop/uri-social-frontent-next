@@ -183,7 +183,7 @@ const PricingPage = () => {
                       {/* Subscribe Button */}
                       <Button
                         fullWidth
-                        variant={isCurrent ? 'outlined' : 'contained'}
+                        variant="contained"
                         disabled={!tier.is_active || subscribing === tier.tier_id || isCurrent}
                         onClick={() => handleSubscribe(tier.tier_id)}
                         sx={{
@@ -192,20 +192,18 @@ const PricingPage = () => {
                           py: 1.25,
                           fontSize: '14px',
                           borderRadius: '8px',
-                          ...(isCurrent
-                            ? {
-                                borderColor: '#E5E7EB',
-                                color: '#6B7280',
-                                backgroundColor: '#F9FAFB',
-                              }
-                            : {
-                                background: '#CD1B78',
-                                color: '#fff',
-                                '&:hover': {
-                                  background: '#A01560',
-                                  boxShadow: '0 4px 12px rgba(205, 27, 120, 0.25)',
-                                },
-                              }),
+                          backgroundColor: isCurrent ? '#F9FAFB' : '#CD1B78',
+                          color: isCurrent ? '#6B7280' : '#fff',
+                          border: isCurrent ? '1px solid #E5E7EB' : 'none',
+                          '&:hover': {
+                            backgroundColor: isCurrent ? '#F9FAFB' : '#A01560',
+                            boxShadow: isCurrent ? 'none' : '0 4px 12px rgba(205, 27, 120, 0.25)',
+                          },
+                          '&.Mui-disabled': {
+                            backgroundColor: isCurrent ? '#F9FAFB' : '#CD1B78',
+                            color: isCurrent ? '#6B7280' : '#fff',
+                            opacity: 0.6,
+                          },
                         }}
                       >
                         {subscribing === tier.tier_id ? (
