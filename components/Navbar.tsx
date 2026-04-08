@@ -17,14 +17,6 @@ export default function Navbar() {
   const isHomePage = pathname === '/';
   const { isAuthenticated, userDetails, logoutUser } = useAuth();
 
-  const handlePricingClick = (e: React.MouseEvent) => {
-    if (isHomePage) {
-      e.preventDefault();
-      setOpen(false);
-      document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
   const getInitials = () => {
     const firstName = userDetails?.firstName || '';
     const lastName = userDetails?.lastName || '';
@@ -100,7 +92,6 @@ export default function Navbar() {
             </Link>
             <Link
               href="/pricing"
-              onClick={handlePricingClick}
               className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
             >
@@ -277,10 +268,10 @@ export default function Navbar() {
               How It Works
             </Link>
             <Link
-              href="/#pricing"
-              onClick={handlePricingClick}
+              href="/pricing"
               className="block w-full text-left text-sm font-bold py-2 px-4 uppercase"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
+              onClick={() => setOpen(false)}
             >
               Pricing
             </Link>
