@@ -99,125 +99,127 @@ const PricingPage = () => {
           </Box>
 
           {/* Pricing Cards */}
-          <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }} gap={3}>
-            {tiers.map((tier) => {
-              const isPopular = tier.name === 'Growth Plan';
-              const isCurrent = currentBalance?.tier === tier.name;
-              const pricePerCredit = (tier.price_ngn / tier.credits).toFixed(0);
+          <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }} gap={3}>
+            {tiers
+              .filter((tier) => tier.tier_id !== 'custom') // Hide Custom Plan - it's pay-as-you-go, not subscription
+              .map((tier) => {
+                const isPopular = tier.name === 'Growth Plan';
+                const isCurrent = currentBalance?.tier === tier.name;
+                const pricePerCredit = (tier.price_ngn / tier.credits).toFixed(0);
 
-              return (
-                <Card
-                  key={tier.tier_id}
-                  elevation={isPopular ? 4 : 1}
-                  sx={{
-                    position: 'relative',
-                    backgroundColor: '#fff',
-                    border: isPopular ? '2px solid #CD1B78' : '1px solid #E5E7EB',
-                    borderRadius: '12px',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      boxShadow: isPopular ? '0 8px 24px rgba(205, 27, 120, 0.15)' : '0 4px 12px rgba(0, 0, 0, 0.08)',
-                    },
-                  }}
-                >
-                  {isPopular && (
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        top: -10,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        background: '#CD1B78',
-                        color: '#fff',
-                        px: 2,
-                        py: 0.5,
-                        borderRadius: '16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                      }}
-                    >
-                      <MdStar size={12} />
-                      <Typography fontSize="10px" fontWeight={700} letterSpacing={0.8}>
-                        MOST POPULAR
+                return (
+                  <Card
+                    key={tier.tier_id}
+                    elevation={isPopular ? 4 : 1}
+                    sx={{
+                      position: 'relative',
+                      backgroundColor: '#fff',
+                      border: isPopular ? '2px solid #CD1B78' : '1px solid #E5E7EB',
+                      borderRadius: '12px',
+                      transition: 'all 0.2s',
+                      '&:hover': {
+                        boxShadow: isPopular ? '0 8px 24px rgba(205, 27, 120, 0.15)' : '0 4px 12px rgba(0, 0, 0, 0.08)',
+                      },
+                    }}
+                  >
+                    {isPopular && (
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          top: -10,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: '#CD1B78',
+                          color: '#fff',
+                          px: 2,
+                          py: 0.5,
+                          borderRadius: '16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                        }}
+                      >
+                        <MdStar size={12} />
+                        <Typography fontSize="10px" fontWeight={700} letterSpacing={0.8}>
+                          MOST POPULAR
+                        </Typography>
+                      </Box>
+                    )}
+
+                    <CardContent sx={{ p: 3 }}>
+                      {/* Tier Name */}
+                      <Typography fontSize="20px" fontWeight={700} color="#111827" mb={1}>
+                        {tier.name}
                       </Typography>
-                    </Box>
-                  )}
 
-                  <CardContent sx={{ p: 3 }}>
-                    {/* Tier Name */}
-                    <Typography fontSize="20px" fontWeight={700} color="#111827" mb={1}>
-                      {tier.name}
-                    </Typography>
+                      {/* Price */}
+                      <Box display="flex" alignItems="baseline" gap={0.5} mb={0.5}>
+                        <Typography fontSize="32px" fontWeight={800} color="#CD1B78">
+                          {BillingService.formatNGN(tier.price_ngn)}
+                        </Typography>
+                        <Typography fontSize="14px" color="#6B7280">
+                          /month
+                        </Typography>
+                      </Box>
 
-                    {/* Price */}
-                    <Box display="flex" alignItems="baseline" gap={0.5} mb={0.5}>
-                      <Typography fontSize="32px" fontWeight={800} color="#CD1B78">
-                        {BillingService.formatNGN(tier.price_ngn)}
+                      {/* Credits */}
+                      <Typography fontSize="14px" color="#6B7280" mb={1}>
+                        {tier.credits} campaigns • ₦{pricePerCredit}/campaign
                       </Typography>
-                      <Typography fontSize="14px" color="#6B7280">
-                        /month
-                      </Typography>
-                    </Box>
 
-                    {/* Credits */}
-                    <Typography fontSize="14px" color="#6B7280" mb={1}>
-                      {tier.credits} campaigns • ₦{pricePerCredit}/campaign
-                    </Typography>
+                      {/* Features */}
+                      <Divider sx={{ my: 2 }} />
+                      <Box display="flex" flexDirection="column" gap={1.25} mb={3}>
+                        {tier.features.map((feature, idx) => (
+                          <Box key={idx} display="flex" alignItems="flex-start" gap={1}>
+                            <MdCheck size={18} color="#10B981" style={{ flexShrink: 0, marginTop: 2 }} />
+                            <Typography fontSize="13px" color="#374151" lineHeight={1.6}>
+                              {feature}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
 
-                    {/* Features */}
-                    <Divider sx={{ my: 2 }} />
-                    <Box display="flex" flexDirection="column" gap={1.25} mb={3}>
-                      {tier.features.map((feature, idx) => (
-                        <Box key={idx} display="flex" alignItems="flex-start" gap={1}>
-                          <MdCheck size={18} color="#10B981" style={{ flexShrink: 0, marginTop: 2 }} />
-                          <Typography fontSize="13px" color="#374151" lineHeight={1.6}>
-                            {feature}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-
-                    {/* Subscribe Button */}
-                    <Button
-                      fullWidth
-                      variant={isCurrent ? 'outlined' : 'contained'}
-                      disabled={!tier.is_active || subscribing === tier.tier_id || isCurrent}
-                      onClick={() => handleSubscribe(tier.tier_id)}
-                      sx={{
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        py: 1.25,
-                        fontSize: '14px',
-                        borderRadius: '8px',
-                        ...(isCurrent
-                          ? {
-                              borderColor: '#E5E7EB',
-                              color: '#6B7280',
-                              backgroundColor: '#F9FAFB',
-                            }
-                          : {
-                              background: '#CD1B78',
-                              color: '#fff',
-                              '&:hover': {
-                                background: '#A01560',
-                                boxShadow: '0 4px 12px rgba(205, 27, 120, 0.25)',
-                              },
-                            }),
-                      }}
-                    >
-                      {subscribing === tier.tier_id ? (
-                        <CircularProgress size={20} color="inherit" />
-                      ) : isCurrent ? (
-                        'Current Plan'
-                      ) : (
-                        'Subscribe Now'
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      {/* Subscribe Button */}
+                      <Button
+                        fullWidth
+                        variant={isCurrent ? 'outlined' : 'contained'}
+                        disabled={!tier.is_active || subscribing === tier.tier_id || isCurrent}
+                        onClick={() => handleSubscribe(tier.tier_id)}
+                        sx={{
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          py: 1.25,
+                          fontSize: '14px',
+                          borderRadius: '8px',
+                          ...(isCurrent
+                            ? {
+                                borderColor: '#E5E7EB',
+                                color: '#6B7280',
+                                backgroundColor: '#F9FAFB',
+                              }
+                            : {
+                                background: '#CD1B78',
+                                color: '#fff',
+                                '&:hover': {
+                                  background: '#A01560',
+                                  boxShadow: '0 4px 12px rgba(205, 27, 120, 0.25)',
+                                },
+                              }),
+                        }}
+                      >
+                        {subscribing === tier.tier_id ? (
+                          <CircularProgress size={20} color="inherit" />
+                        ) : isCurrent ? (
+                          'Current Plan'
+                        ) : (
+                          'Subscribe Now'
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
           </Box>
 
           {/* FAQ / Additional Info */}
