@@ -45,8 +45,23 @@ const DashboardLayout = ({ children, excludeHeader = false }: DashboardLayoutPro
               </Typography>
             </Box>
 
-            {/* Credit Display & User Profile Menu */}
-            <Box display="flex" alignItems="center" gap={2}>
+            {/* Navigation & User Menu */}
+            <Box display="flex" alignItems="center" gap={3}>
+              {isAuthenticated && (
+                <Box
+                  sx={{
+                    cursor: 'pointer',
+                    color: '#6B7280',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    transition: 'color 0.2s',
+                    '&:hover': { color: '#CD1B78' },
+                  }}
+                  onClick={() => router.push('/pricing')}
+                >
+                  Pricing
+                </Box>
+              )}
               {isAuthenticated && <CreditDisplay />}
               {isAuthenticated && <UserProfileMenu />}
             </Box>
