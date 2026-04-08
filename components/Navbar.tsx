@@ -67,7 +67,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
+          <Link href="/" className="flex items-center gap-2.5 group">
             <div className="relative">
               <Image
                 src="/images/urilogo-nobg.png"
@@ -77,8 +77,15 @@ export default function Navbar() {
                 className="h-11 w-auto transition-transform duration-300 group-hover:scale-110"
               />
             </div>
-            <span className="text-sm font-semibold tracking-wider uppercase" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-              Social
+            <span
+              className="text-lg font-light tracking-wide lowercase italic transition-all duration-300 group-hover:tracking-wider"
+              style={{
+                color: '#CD1B78',
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                letterSpacing: '0.5px',
+              }}
+            >
+              social
             </span>
           </Link>
 
