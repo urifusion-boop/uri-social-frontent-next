@@ -121,4 +121,4 @@ import WhatsAppPhoneMockup from './WhatsAppPhoneMockup';
 //   );
 // };
 
-export default HeroSection;
+// export default HeroSection;
