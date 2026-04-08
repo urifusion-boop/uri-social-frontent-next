@@ -19,6 +19,7 @@ const PLATFORM_ASPECT: Record<string, string> = {
 interface ScheduledCardProps {
   draft: ContentDraft & { scheduled_date?: string };
   onRefresh: () => void;
+  onUnscheduled?: () => void;
 }
 
 const platformChip: Record<string, { icon: ReactElement; color: string; bg: string }> = {
@@ -56,14 +57,15 @@ const getCountdown = (raw?: string): string => {
   return `in ${m}m`;
 };
 
-const ScheduledCard = ({ draft, onRefresh }: ScheduledCardProps) => {
+const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) => {
   const [confirmUnschedule, setConfirmUnschedule] = useState(false);
   const [loading, setLoading] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
-  const scheduledDate = (draft as any).scheduled_date ?? draft.scheduled_datetime;
+  const scheduledDate =
+    (draft as ContentDraft & { scheduled_date?: string }).scheduled_date ?? draft.scheduled_datetime;
 
   const handleUnschedule = async () => {
     if (!confirmUnschedule) {
@@ -73,10 +75,11 @@ const ScheduledCard = ({ draft, onRefresh }: ScheduledCardProps) => {
     setLoading(true);
     try {
       const draftId = draft.draft_id ?? draft.id ?? '';
-      const response = await SocialMediaAgentService.deleteDraft(draftId);
+      const response = await SocialMediaAgentService.unscheduleDraft(draftId);
       if (response.status) {
-        ToastService.showToast('Post unscheduled and removed', ToastTypeEnum.Success);
+        ToastService.showToast('Post moved back to Drafts', ToastTypeEnum.Success);
         onRefresh();
+        onUnscheduled?.();
       } else {
         ToastService.showToast(response.responseMessage || 'Failed', ToastTypeEnum.Error);
         setConfirmUnschedule(false);
@@ -136,7 +139,11 @@ const ScheduledCard = ({ draft, onRefresh }: ScheduledCardProps) => {
             size="small"
             sx={{ background: pc.bg, color: pc.color, fontWeight: 600, fontSize: '11px', height: 24 }}
           />
-          <Chip label="Scheduled" size="small" sx={{ background: '#EDE9FE', color: '#5B21B6', fontWeight: 600, fontSize: '11px', height: 24 }} />
+          <Chip
+            label="Scheduled"
+            size="small"
+            sx={{ background: '#EDE9FE', color: '#5B21B6', fontWeight: 600, fontSize: '11px', height: 24 }}
+          />
         </Box>
 
         {/* Content preview */}
@@ -211,7 +218,11 @@ const ScheduledCard = ({ draft, onRefresh }: ScheduledCardProps) => {
                   </Box>
                 )}
                 <img
-                  src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
+                  src={
+                    draft.image_url.startsWith('/')
+                      ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}`
+                      : draft.image_url
+                  }
                   alt="Scheduled post image"
                   onLoad={() => setImageLoaded(true)}
                   onClick={() => setLightboxOpen(true)}
@@ -255,7 +266,11 @@ const ScheduledCard = ({ draft, onRefresh }: ScheduledCardProps) => {
         >
           {draft.image_url && (
             <img
-              src={draft.image_url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}` : draft.image_url}
+              src={
+                draft.image_url.startsWith('/')
+                  ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}`
+                  : draft.image_url
+              }
               alt="Scheduled post image"
               style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }}
             />

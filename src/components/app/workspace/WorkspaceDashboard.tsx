@@ -811,7 +811,12 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {scheduled.map((item) => (
-                  <ScheduledCard key={item.draft_id ?? item.id} draft={item} onRefresh={fetchScheduled} />
+                  <ScheduledCard
+                    key={item.draft_id ?? item.id}
+                    draft={item}
+                    onRefresh={fetchScheduled}
+                    onUnscheduled={fetchDrafts}
+                  />
                 ))}
               </div>
             )}

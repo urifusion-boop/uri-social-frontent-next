@@ -238,6 +238,13 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async unscheduleDraft(draftId: string): Promise<UriResponse<{ draft_id: string; status: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/unschedule`
+    );
+    return response.data;
+  }
+
   static async getScheduled(): Promise<UriResponse<ScheduledContentResponse>> {
     const response: Awaited<AxiosResponse<UriResponse<ScheduledContentResponse>>> = await UriHttpClient.getClient().get(
       socialMediaAgentRoutes.scheduledContent
