@@ -1,24 +1,27 @@
 'use client';
 
 /**
- * Interactive Pricing Page
- * PRD Section 5: Plan Structure - All 5 subscription tiers
- * PRD Section 6.3: Payment Flow - Initiates SQUAD checkout
+ * Pricing Page - Modern, Professional Design
+ * PRD Section 5: Plan Structure
+ * PRD Section 6.3: Payment Flow - SQUAD Integration
+ * Brand colors: Pink (#CD1B78), White, Gray
  */
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { BillingService, SubscriptionTier } from '@/src/api/BillingService';
-import { Check, Zap, TrendingUp, Briefcase, Star } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Check, Loader2 } from 'lucide-react';
 
 export default function PricingPage() {
   const router = useRouter();
   const { isAuthenticated, userDetails } = useAuth();
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTier, setSelectedTier] = useState<string | null>(null);
-  const [purchasing, setPurchasing] = useState(false);
+  const [subscribing, setSubscribing] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTiers();
@@ -41,8 +44,7 @@ export default function PricingPage() {
       return;
     }
 
-    setSelectedTier(tierId);
-    setPurchasing(true);
+    setSubscribing(tierId);
 
     try {
       // PRD 6.3: Initialize SQUAD payment
@@ -53,40 +55,7 @@ export default function PricingPage() {
     } catch (error: unknown) {
       console.error('Payment initialization failed:', error);
       alert(error instanceof Error ? error.message : 'Failed to initialize payment. Please try again.');
-      setPurchasing(false);
-      setSelectedTier(null);
-    }
-  };
-
-  const getTierIcon = (tierId: string) => {
-    switch (tierId) {
-      case 'starter':
-        return <Zap className="w-8 h-8" />;
-      case 'growth':
-        return <TrendingUp className="w-8 h-8" />;
-      case 'pro':
-        return <Star className="w-8 h-8" />;
-      case 'agency':
-        return <Briefcase className="w-8 h-8" />;
-      default:
-        return <Check className="w-8 h-8" />;
-    }
-  };
-
-  const getTierColor = (tierId: string) => {
-    switch (tierId) {
-      case 'starter':
-        return 'from-blue-500 to-cyan-500';
-      case 'growth':
-        return 'from-green-500 to-emerald-500';
-      case 'pro':
-        return 'from-purple-500 to-pink-500';
-      case 'agency':
-        return 'from-orange-500 to-red-500';
-      case 'custom':
-        return 'from-gray-700 to-gray-900';
-      default:
-        return 'from-gray-500 to-gray-700';
+      setSubscribing(null);
     }
   };
 
@@ -94,182 +63,148 @@ export default function PricingPage() {
     return userDetails?.subscriptionTier === tierId;
   };
 
-  const isRecommended = (tierId: string) => {
-    return tierId === 'growth'; // PRD: Growth plan is best value
+  const isPopular = (tierId: string) => {
+    return tierId === 'growth';
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-pink-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading pricing plans...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="h-8 w-8 animate-spin text-[#CD1B78]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-pink-50 to-purple-50 pt-24 pb-16 px-4">
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-black mb-6" style={{ color: 'black' }}>
-            Choose Your Plan
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-700 max-w-3xl mx-auto font-medium">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl mb-4">Choose Your Plan</h1>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
             1 Credit = 1 Complete Content Campaign with AI-generated images and multi-platform formatting
           </p>
-          <div className="mt-8 inline-flex items-center gap-2 px-6 py-3 bg-yellow-100 border-3 border-yellow-400 rounded-full">
-            <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <span className="font-bold text-yellow-800">First retry FREE • Second retry = 1 credit</span>
-          </div>
+          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border border-yellow-300 px-4 py-1.5">
+            ⚡ First retry FREE • Second retry = 1 credit
+          </Badge>
         </div>
 
-        {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-12">
-          {tiers.map((tier) => (
-            <div
-              key={tier.tier_id}
-              className={`
-                relative rounded-2xl border-4 border-black p-6 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]
-                transition-all duration-300 hover:shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]
-                hover:translate-x-[-4px] hover:translate-y-[-4px]
-                ${isRecommended(tier.tier_id) ? 'xl:col-span-1 lg:scale-105' : ''}
-              `}
-            >
-              {/* Recommended Badge */}
-              {isRecommended(tier.tier_id) && (
-                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <div
-                    className={`px-4 py-1 rounded-full bg-gradient-to-r ${getTierColor(tier.tier_id)} text-white text-xs font-bold uppercase shadow-lg`}
-                  >
-                    Most Popular
-                  </div>
-                </div>
-              )}
+        {/* Pricing Cards Grid */}
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 mb-16">
+          {tiers
+            .filter((tier) => tier.tier_id !== 'custom')
+            .map((tier) => {
+              const current = isCurrentPlan(tier.tier_id);
+              const popular = isPopular(tier.tier_id);
+              const pricePerCredit = (tier.price_ngn / tier.credits).toFixed(0);
 
-              {/* Current Plan Badge */}
-              {isCurrentPlan(tier.tier_id) && (
-                <div className="absolute top-4 right-4">
-                  <div className="px-3 py-1 rounded-full bg-green-500 text-white text-xs font-bold">Current</div>
-                </div>
-              )}
+              return (
+                <Card
+                  key={tier.tier_id}
+                  className={`relative flex flex-col ${
+                    popular
+                      ? 'border-2 border-[#CD1B78] shadow-lg ring-2 ring-[#CD1B78] ring-opacity-20'
+                      : 'border border-gray-200 hover:border-gray-300'
+                  } transition-all duration-200 hover:shadow-md bg-white`}
+                >
+                  {/* Popular Badge */}
+                  {popular && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-[#CD1B78] hover:bg-[#CD1B78] text-white px-4 py-1 text-xs font-semibold uppercase tracking-wide">
+                        Most Popular
+                      </Badge>
+                    </div>
+                  )}
 
-              {/* Icon */}
-              <div
-                className={`w-16 h-16 rounded-xl bg-gradient-to-br ${getTierColor(tier.tier_id)} flex items-center justify-center text-white mb-4`}
-              >
-                {getTierIcon(tier.tier_id)}
-              </div>
+                  {/* Current Badge */}
+                  {current && (
+                    <div className="absolute top-4 right-4">
+                      <Badge className="bg-green-500 hover:bg-green-500 text-white text-xs">Current</Badge>
+                    </div>
+                  )}
 
-              {/* Tier Name */}
-              <h3 className="text-2xl font-black mb-2" style={{ color: 'black' }}>
-                {tier.name}
-              </h3>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-xl font-bold text-gray-900">{tier.name}</CardTitle>
+                    <CardDescription className="text-sm text-gray-500 mt-1">
+                      {tier.credits} campaigns • ₦{pricePerCredit}/campaign
+                    </CardDescription>
+                  </CardHeader>
 
-              {/* Price */}
-              <div className="mb-6">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black" style={{ color: 'black' }}>
-                    {BillingService.formatNGN(tier.price_ngn)}
-                  </span>
-                  {tier.tier_id !== 'custom' && <span className="text-gray-600 font-semibold">/month</span>}
-                </div>
-                <p className="text-sm text-gray-600 font-medium mt-1">
-                  {tier.tier_id === 'custom'
-                    ? 'Per credit'
-                    : `${tier.credits} credits • ${BillingService.formatNGN(tier.price_per_credit)}/credit`}
-                </p>
-              </div>
+                  <CardContent className="flex-1 pb-6">
+                    {/* Price */}
+                    <div className="mb-6">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-4xl font-extrabold text-[#CD1B78]">
+                          {BillingService.formatNGN(tier.price_ngn)}
+                        </span>
+                        <span className="text-gray-500 text-sm font-medium">/month</span>
+                      </div>
+                    </div>
 
-              {/* Features */}
-              <ul className="space-y-3 mb-6">
-                {tier.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-gray-700 font-medium">{feature}</span>
-                  </li>
-                ))}
-              </ul>
+                    {/* Features */}
+                    <ul className="space-y-3">
+                      {tier.features.map((feature, idx) => (
+                        <li key={idx} className="flex items-start gap-2.5">
+                          <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
+                          <span className="text-sm text-gray-700 leading-relaxed">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
 
-              {/* CTA Button */}
-              <button
-                onClick={() => handleSelectPlan(tier.tier_id)}
-                disabled={(purchasing && selectedTier === tier.tier_id) || isCurrentPlan(tier.tier_id)}
-                className={`
-                  w-full py-3 px-6 rounded-xl font-bold text-white transition-all duration-200
-                  ${
-                    isCurrentPlan(tier.tier_id)
-                      ? 'bg-gray-400 cursor-not-allowed'
-                      : `bg-gradient-to-r ${getTierColor(tier.tier_id)} hover:scale-105 active:scale-95 shadow-lg`
-                  }
-                  ${purchasing && selectedTier === tier.tier_id ? 'opacity-50 cursor-wait' : ''}
-                `}
-              >
-                {purchasing && selectedTier === tier.tier_id ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        fill="none"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    Processing...
-                  </span>
-                ) : isCurrentPlan(tier.tier_id) ? (
-                  'Current Plan'
-                ) : (
-                  'Subscribe Now'
-                )}
-              </button>
-            </div>
-          ))}
+                  <CardFooter className="pt-0">
+                    <Button
+                      onClick={() => handleSelectPlan(tier.tier_id)}
+                      disabled={!tier.is_active || subscribing === tier.tier_id || current}
+                      className={`w-full font-semibold ${
+                        current
+                          ? 'bg-gray-100 text-gray-500 hover:bg-gray-100 cursor-not-allowed'
+                          : 'bg-[#CD1B78] hover:bg-[#A01560] text-white'
+                      }`}
+                    >
+                      {subscribing === tier.tier_id ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : current ? (
+                        'Current Plan'
+                      ) : (
+                        'Subscribe Now'
+                      )}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
         </div>
 
-        {/* PRD Details Section */}
-        <div className="max-w-4xl mx-auto mt-16">
-          <div className="bg-white rounded-2xl border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-            <h2 className="text-3xl font-black mb-6" style={{ color: 'black' }}>
-              How Credits Work
-            </h2>
-
-            <div className="space-y-6">
+        {/* How It Works Section */}
+        <div className="max-w-4xl mx-auto">
+          <Card className="border-2 border-gray-200 bg-white">
+            <CardHeader>
+              <CardTitle className="text-2xl font-bold text-gray-900">How Credits Work</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
               {/* Credit Usage */}
               <div>
-                <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span className="text-2xl">💳</span>
                   Credit Usage
                 </h3>
-                <ul className="space-y-2 ml-8 text-gray-700">
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
+                <ul className="space-y-2 ml-8">
+                  <li className="flex items-start gap-2 text-gray-700">
+                    <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
                     <span>1 credit = 1 complete content campaign (image + caption + multi-platform formatting)</span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
+                  <li className="flex items-start gap-2 text-gray-700">
+                    <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
                     <span>
                       First retry is <strong>FREE</strong>
                     </span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
+                  <li className="flex items-start gap-2 text-gray-700">
+                    <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
                     <span>Second retry costs 1 credit</span>
                   </li>
                 </ul>
@@ -277,59 +212,68 @@ export default function PricingPage() {
 
               {/* Text & Image Rules */}
               <div>
-                <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span className="text-2xl">✏️</span>
                   Text & Image Rules
                 </h3>
-                <ul className="space-y-2 ml-8 text-gray-700">
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
+                <ul className="space-y-2 ml-8">
+                  <li className="flex items-start gap-2 text-gray-700">
+                    <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
                     <span>
                       <strong>Unlimited text rewrites</strong> (caption edits, tone changes, platform variations) — NO
                       COST
                     </span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
+                  <li className="flex items-start gap-2 text-gray-700">
+                    <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
                     <span>First image retry is FREE</span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
+                  <li className="flex items-start gap-2 text-gray-700">
+                    <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
                     <span>Second image retry costs 1 credit</span>
                   </li>
                 </ul>
               </div>
 
-              {/* Monthly Reset */}
+              {/* Monthly Billing */}
               <div>
-                <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span className="text-2xl">🔄</span>
                   Monthly Billing
                 </h3>
-                <ul className="space-y-2 ml-8 text-gray-700">
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 font-bold">ℹ️</span>
+                <ul className="space-y-2 ml-8">
+                  <li className="flex items-start gap-2 text-gray-700">
+                    <Check className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
                     <span>Credits reset every billing cycle (monthly)</span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 font-bold">ℹ️</span>
+                  <li className="flex items-start gap-2 text-gray-700">
+                    <Check className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
                     <span>Unused credits do NOT rollover (subscription plans only)</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-gray-700">
+                    <Check className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                    <span>Cancel anytime — you'll retain access until your billing period ends</span>
                   </li>
                 </ul>
               </div>
-            </div>
-          </div>
+
+              {/* Payment Info */}
+              <div className="pt-4 border-t border-gray-200">
+                <p className="text-sm text-gray-600 text-center">
+                  Payments processed securely via <strong className="text-gray-900">SQUAD</strong>. Nigerian business
+                  payments powered by SQUAD Payment Gateway.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Back to Dashboard */}
         {isAuthenticated && (
           <div className="text-center mt-12">
-            <button
-              onClick={() => router.push('/social-media')}
-              className="px-8 py-3 rounded-xl bg-white border-3 border-black font-bold hover:bg-gray-50 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-2px] hover:translate-y-[-2px]"
-            >
+            <Button onClick={() => router.push('/social-media')} variant="outline" className="px-8">
               Back to Dashboard
-            </button>
+            </Button>
           </div>
         )}
       </div>
