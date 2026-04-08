@@ -1,8 +1,15 @@
 {
   "routes": [],
   "navigationFallback": {
-    "rewrite": "/index.html",
-    "exclude": ["/images/*.{png,jpg,gif,ico}", "/*.{css,js}"]
+    "rewrite": "/404.html",
+    "exclude": [
+      "/images/*.{png,jpg,gif,ico}",
+      "/*.{css,js}",
+      "/*.html",
+      "/_next/*",
+      "/pricing.html",
+      "/pricing/index.html"
+    ]
   },
   "responseOverrides": {
     "404": {
