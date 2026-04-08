@@ -5,21 +5,21 @@ import WhatsAppPhoneMockup from './WhatsAppPhoneMockup';
 const HeroSection = () => {
   return (
     <section
-      className="relative min-h-screen flex items-center halftone-bg overflow-hidden pt-20 sm:pt-24 pb-12 sm:pb-16"
+      className="relative min-h-screen flex items-center halftone-bg overflow-hidden pt-16 sm:pt-20 pb-12 sm:pb-16"
       style={{ backgroundColor: 'hsl(340, 74%, 42%)' }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 relative z-10 w-full">
-        <div className="flex flex-col lg:flex-row items-center gap-8 sm:gap-10 lg:gap-16">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-8 sm:gap-10 lg:gap-12">
           {/* Left Side — Headline + CTAs */}
-          <div className="flex-1 text-left w-full lg:w-auto lg:max-w-2xl">
+          <div className="flex-1 text-left w-full lg:w-auto lg:max-w-xl xl:max-w-2xl">
             <h1
-              className="comic-headline text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black mb-4 sm:mb-5 leading-tight"
+              className="comic-headline text-2xl sm:text-3xl md:text-4xl lg:text-4xl xl:text-5xl font-black mb-5 sm:mb-6 leading-tight"
               style={{ color: 'white' }}
             >
               YOUR SOCIAL MEDIA MANAGER <span className="highlight-strip">JUST CLOCKED IN.</span>
             </h1>
             <p
-              className="text-sm sm:text-base md:text-lg font-semibold max-w-full lg:max-w-xl leading-relaxed mb-5 sm:mb-6"
+              className="text-sm sm:text-base md:text-lg font-semibold max-w-full lg:max-w-lg leading-relaxed mb-6 sm:mb-7"
               style={{ color: 'rgba(255, 255, 255, 0.9)' }}
             >
               Meet Jane — she creates posts, publishes on time, monitors trends, replies to customers, and writes you a
@@ -27,7 +27,7 @@ const HeroSection = () => {
             </p>
 
             {/* CTAs */}
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-start mb-5 sm:mb-6 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-start mb-6 sm:mb-7 w-full sm:w-auto">
               <button
                 className="comic-btn px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm font-bold w-full sm:w-auto"
                 style={{
@@ -51,9 +51,9 @@ const HeroSection = () => {
             </div>
 
             {/* Trust bar */}
-            <div className="text-left space-y-2 w-full">
+            <div className="text-left space-y-3 w-full">
               <p
-                className="text-xs sm:text-sm font-bold uppercase tracking-wider"
+                className="text-xs sm:text-sm font-bold uppercase tracking-wider leading-relaxed"
                 style={{ color: 'rgba(255, 255, 255, 0.7)' }}
               >
                 TRUSTED BY 200+ BUSINESSES ACROSS NIGERIA · GHANA · KENYA · SOUTH AFRICA
@@ -91,7 +91,7 @@ const HeroSection = () => {
           </div>
 
           {/* Right Side — WhatsApp Phone Mockup */}
-          <div className="flex-shrink-0 relative w-full lg:w-auto max-w-md lg:max-w-lg flex justify-center items-center mt-4 lg:mt-0">
+          <div className="flex-shrink-0 relative w-full lg:w-auto max-w-sm lg:max-w-md flex justify-center lg:justify-start items-center mt-4 lg:mt-0 lg:-ml-8">
             <WhatsAppPhoneMockup />
           </div>
         </div>
