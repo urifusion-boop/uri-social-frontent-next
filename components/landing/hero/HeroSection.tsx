@@ -9,9 +9,9 @@ const HeroSection = () => {
       style={{ backgroundColor: 'hsl(340, 74%, 42%)' }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 relative z-10 w-full">
-        <div className="flex flex-col lg:flex-row items-center lg:items-start gap-8 sm:gap-10 lg:gap-12">
+        <div className="flex flex-col lg:flex-row items-center gap-8 sm:gap-10 lg:gap-16">
           {/* Left Side — Headline + CTAs */}
-          <div className="flex-1 text-left w-full lg:w-auto">
+          <div className="flex-1 text-left w-full lg:w-auto lg:max-w-2xl">
             <h1
               className="comic-headline text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black mb-4 sm:mb-5 leading-tight"
               style={{ color: 'white' }}
@@ -91,7 +91,7 @@ const HeroSection = () => {
           </div>
 
           {/* Right Side — WhatsApp Phone Mockup */}
-          <div className="flex-shrink-0 relative w-full lg:w-auto flex justify-center lg:justify-end mt-4 lg:mt-0">
+          <div className="flex-shrink-0 relative w-full lg:w-auto max-w-md lg:max-w-lg flex justify-center items-center mt-4 lg:mt-0">
             <WhatsAppPhoneMockup />
           </div>
         </div>
