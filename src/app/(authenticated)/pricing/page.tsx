@@ -4,13 +4,15 @@ import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
 import { BillingService, SubscriptionTier } from '@/src/api/BillingService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { Box, Button, Card, CardContent, Chip, CircularProgress, Container, Divider, Typography } from '@mui/material';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useEffect, useState } from 'react';
-import { MdCheck, MdStar } from 'react-icons/md';
+import { Check, Loader2 } from 'lucide-react';
 
 /**
- * Pricing Page - PRD Section 5 & 6
- * Displays subscription tiers with SQUAD payment integration
+ * Pricing Page - Modern redesign with Tailwind + shadcn
+ * Clean, professional, brand-focused design
  */
 const PricingPage = () => {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
@@ -49,7 +51,6 @@ const PricingPage = () => {
     setSubscribing(tierId);
     try {
       const response = await BillingService.initializePayment(tierId);
-      // Redirect to SQUAD checkout page
       window.location.href = response.payment_url;
     } catch (error: unknown) {
       console.error('Payment initialization failed:', error);
@@ -65,43 +66,34 @@ const PricingPage = () => {
   if (loading) {
     return (
       <DashboardLayout>
-        <Container maxWidth="lg" sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
-          <CircularProgress sx={{ color: '#CD1B78' }} />
-        </Container>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <Loader2 className="h-8 w-8 animate-spin text-[#CD1B78]" />
+        </div>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <Box sx={{ backgroundColor: '#FAFAFA', minHeight: '100vh', py: 6 }}>
-        <Container maxWidth="lg">
+      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <Box textAlign="center" mb={6}>
-            <Typography fontSize="36px" fontWeight={800} color="#111827" mb={2}>
-              Choose Your Plan
-            </Typography>
-            <Typography fontSize="16px" color="#6B7280" maxWidth={600} mx="auto">
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl mb-4">Choose Your Plan</h1>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Generate high-quality social media campaigns with AI. Pay only for what you use. Credits renew monthly.
-            </Typography>
+            </p>
             {currentBalance && currentBalance.tier && (
-              <Chip
-                label={`Current Plan: ${currentBalance.tier} • ${currentBalance.credits} credits remaining`}
-                sx={{
-                  mt: 2,
-                  background: '#CD1B78',
-                  color: '#fff',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                }}
-              />
+              <Badge className="mt-4 bg-[#CD1B78] hover:bg-[#A01560] text-white px-4 py-1.5">
+                Current Plan: {currentBalance.tier} • {currentBalance.credits} credits remaining
+              </Badge>
             )}
-          </Box>
+          </div>
 
-          {/* Pricing Cards */}
-          <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }} gap={3}>
+          {/* Pricing Cards Grid */}
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {tiers
-              .filter((tier) => tier.tier_id !== 'custom') // Hide Custom Plan - it's pay-as-you-go, not subscription
+              .filter((tier) => tier.tier_id !== 'custom')
               .map((tier) => {
                 const isPopular = tier.name === 'Growth Plan';
                 const isCurrent = currentBalance?.tier === tier.name;
@@ -110,130 +102,92 @@ const PricingPage = () => {
                 return (
                   <Card
                     key={tier.tier_id}
-                    elevation={isPopular ? 4 : 1}
-                    sx={{
-                      position: 'relative',
-                      backgroundColor: '#fff',
-                      border: isPopular ? '2px solid #CD1B78' : '1px solid #E5E7EB',
-                      borderRadius: '12px',
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        boxShadow: isPopular ? '0 8px 24px rgba(205, 27, 120, 0.15)' : '0 4px 12px rgba(0, 0, 0, 0.08)',
-                      },
-                    }}
+                    className={`relative flex flex-col ${
+                      isPopular
+                        ? 'border-2 border-[#CD1B78] shadow-lg ring-2 ring-[#CD1B78] ring-opacity-20'
+                        : 'border border-gray-200 hover:border-gray-300'
+                    } transition-all duration-200 hover:shadow-md bg-white`}
                   >
+                    {/* Popular Badge */}
                     {isPopular && (
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          top: -10,
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          background: '#CD1B78',
-                          color: '#fff',
-                          px: 2,
-                          py: 0.5,
-                          borderRadius: '16px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 0.5,
-                        }}
-                      >
-                        <MdStar size={12} />
-                        <Typography fontSize="10px" fontWeight={700} letterSpacing={0.8}>
-                          MOST POPULAR
-                        </Typography>
-                      </Box>
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                        <Badge className="bg-[#CD1B78] hover:bg-[#CD1B78] text-white px-4 py-1 text-xs font-semibold uppercase tracking-wide">
+                          Most Popular
+                        </Badge>
+                      </div>
                     )}
 
-                    <CardContent sx={{ p: 3 }}>
-                      {/* Tier Name */}
-                      <Typography fontSize="20px" fontWeight={700} color="#111827" mb={1}>
-                        {tier.name}
-                      </Typography>
-
-                      {/* Price */}
-                      <Box display="flex" alignItems="baseline" gap={0.5} mb={0.5}>
-                        <Typography fontSize="32px" fontWeight={800} color="#CD1B78">
-                          {BillingService.formatNGN(tier.price_ngn)}
-                        </Typography>
-                        <Typography fontSize="14px" color="#6B7280">
-                          /month
-                        </Typography>
-                      </Box>
-
-                      {/* Credits */}
-                      <Typography fontSize="14px" color="#6B7280" mb={1}>
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-xl font-bold text-gray-900">{tier.name}</CardTitle>
+                      <CardDescription className="text-sm text-gray-500 mt-1">
                         {tier.credits} campaigns • ₦{pricePerCredit}/campaign
-                      </Typography>
+                      </CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="flex-1 pb-6">
+                      {/* Price */}
+                      <div className="mb-6">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-4xl font-extrabold text-[#CD1B78]">
+                            {BillingService.formatNGN(tier.price_ngn)}
+                          </span>
+                          <span className="text-gray-500 text-sm font-medium">/month</span>
+                        </div>
+                      </div>
 
                       {/* Features */}
-                      <Divider sx={{ my: 2 }} />
-                      <Box display="flex" flexDirection="column" gap={1.25} mb={3}>
+                      <ul className="space-y-3">
                         {tier.features.map((feature, idx) => (
-                          <Box key={idx} display="flex" alignItems="flex-start" gap={1}>
-                            <MdCheck size={18} color="#10B981" style={{ flexShrink: 0, marginTop: 2 }} />
-                            <Typography fontSize="13px" color="#374151" lineHeight={1.6}>
-                              {feature}
-                            </Typography>
-                          </Box>
+                          <li key={idx} className="flex items-start gap-2.5">
+                            <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
+                            <span className="text-sm text-gray-700 leading-relaxed">{feature}</span>
+                          </li>
                         ))}
-                      </Box>
+                      </ul>
+                    </CardContent>
 
-                      {/* Subscribe Button */}
+                    <CardFooter className="pt-0">
                       <Button
-                        fullWidth
-                        variant="contained"
-                        disabled={!tier.is_active || subscribing === tier.tier_id || isCurrent}
                         onClick={() => handleSubscribe(tier.tier_id)}
-                        sx={{
-                          textTransform: 'none',
-                          fontWeight: 600,
-                          py: 1.25,
-                          fontSize: '14px',
-                          borderRadius: '8px',
-                          backgroundColor: isCurrent ? '#F9FAFB' : '#CD1B78',
-                          color: isCurrent ? '#6B7280' : '#fff',
-                          border: isCurrent ? '1px solid #E5E7EB' : 'none',
-                          '&:hover': {
-                            backgroundColor: isCurrent ? '#F9FAFB' : '#A01560',
-                            boxShadow: isCurrent ? 'none' : '0 4px 12px rgba(205, 27, 120, 0.25)',
-                          },
-                          '&.Mui-disabled': {
-                            backgroundColor: isCurrent ? '#F9FAFB' : '#CD1B78',
-                            color: isCurrent ? '#6B7280' : '#fff',
-                            opacity: 0.6,
-                          },
-                        }}
+                        disabled={!tier.is_active || subscribing === tier.tier_id || isCurrent}
+                        className={`w-full font-semibold ${
+                          isCurrent
+                            ? 'bg-gray-100 text-gray-500 hover:bg-gray-100 cursor-not-allowed'
+                            : 'bg-[#CD1B78] hover:bg-[#A01560] text-white'
+                        }`}
                       >
                         {subscribing === tier.tier_id ? (
-                          <CircularProgress size={20} color="inherit" />
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing...
+                          </>
                         ) : isCurrent ? (
                           'Current Plan'
                         ) : (
                           'Subscribe Now'
                         )}
                       </Button>
-                    </CardContent>
+                    </CardFooter>
                   </Card>
                 );
               })}
-          </Box>
+          </div>
 
-          {/* FAQ / Additional Info */}
-          <Box mt={8} textAlign="center" maxWidth={700} mx="auto">
-            <Typography fontSize="14px" color="#6B7280" lineHeight={1.8}>
-              <strong>How it works:</strong> Credits reset monthly on your subscription anniversary. Unused credits
-              don't roll over. First campaign generation uses 1 credit. Additional retries may cost 1 credit (first
-              retry is free). Cancel anytime — you'll retain access until your billing period ends.
-            </Typography>
-            <Typography fontSize="12px" color="#9CA3AF" mt={2}>
-              Payments processed securely via <strong>SQUAD</strong>. Nigerian business payments powered by SQUAD
-              Payment Gateway.
-            </Typography>
-          </Box>
-        </Container>
-      </Box>
+          {/* Footer Info */}
+          <div className="mt-16 text-center max-w-3xl mx-auto">
+            <p className="text-sm text-gray-600 leading-relaxed">
+              <strong className="font-semibold text-gray-900">How it works:</strong> Credits reset monthly on your
+              subscription anniversary. Unused credits don't roll over. First campaign generation uses 1 credit.
+              Additional retries may cost 1 credit (first retry is free). Cancel anytime — you'll retain access until
+              your billing period ends.
+            </p>
+            <p className="text-xs text-gray-500 mt-4">
+              Payments processed securely via <strong className="text-gray-700">SQUAD</strong>. Nigerian business
+              payments powered by SQUAD Payment Gateway.
+            </p>
+          </div>
+        </div>
+      </div>
     </DashboardLayout>
   );
 };
