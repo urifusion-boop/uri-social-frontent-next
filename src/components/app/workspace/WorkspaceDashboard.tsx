@@ -815,7 +815,10 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                     key={item.draft_id ?? item.id}
                     draft={item}
                     onRefresh={fetchScheduled}
-                    onUnscheduled={fetchDrafts}
+                    onUnscheduled={() => {
+                      fetchDrafts();
+                      setActiveTab('drafts');
+                    }}
                   />
                 ))}
               </div>
