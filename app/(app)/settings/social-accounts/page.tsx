@@ -201,7 +201,7 @@ function SocialAccountsContent() {
               </Typography>
             </Box>
             <button
-              onClick={() => router.push('/settings')}
+              onClick={() => router.push('/workspace?tab=settings')}
               style={{
                 display: 'flex',
                 alignItems: 'center',

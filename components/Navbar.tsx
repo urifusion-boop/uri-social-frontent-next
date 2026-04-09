@@ -143,7 +143,7 @@ export default function Navbar() {
                           <button
                             onClick={() => {
                               setProfileMenuOpen(false);
-                              router.push('/social-media');
+                              router.push('/workspace');
                             }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
                           >
@@ -178,7 +178,7 @@ export default function Navbar() {
                           <button
                             onClick={() => {
                               setProfileMenuOpen(false);
-                              router.push('/settings');
+                              router.push('/workspace?tab=settings');
                             }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
                           >
@@ -297,7 +297,7 @@ export default function Navbar() {
                 <button
                   onClick={() => {
                     setOpen(false);
-                    router.push('/social-media');
+                    router.push('/workspace');
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
                 >
@@ -310,7 +310,7 @@ export default function Navbar() {
                 <button
                   onClick={() => {
                     setOpen(false);
-                    router.push('/settings');
+                    router.push('/workspace?tab=settings');
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
                 >

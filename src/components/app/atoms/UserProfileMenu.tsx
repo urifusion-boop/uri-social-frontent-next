@@ -26,7 +26,7 @@ const UserProfileMenu = () => {
   };
 
   const handleSettings = () => {
-    router.push('/settings/social-accounts');
+    router.push('/workspace?tab=settings');
     handleClose();
   };
 
