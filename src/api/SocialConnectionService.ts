@@ -9,6 +9,7 @@ export interface PlatformStatus {
   connected_at?: string;
   phone?: string;
   linked_at?: string;
+  outstand_account_id?: string;
 }
 
 export interface PublishPayload {
@@ -26,7 +27,8 @@ export class SocialConnectionService {
   // ── LinkedIn ──────────────────────────────────────────────────────────────
 
   static async linkedinConnect(): Promise<UriResponse<{ auth_url: string }>> {
-    const res: AxiosResponse<UriResponse<{ auth_url: string }>> = await UriHttpClient.getClient().post('/linkedin/connect');
+    const res: AxiosResponse<UriResponse<{ auth_url: string }>> =
+      await UriHttpClient.getClient().post('/linkedin/connect');
     return res.data;
   }
 
@@ -41,7 +43,10 @@ export class SocialConnectionService {
   }
 
   static async linkedinPublish(payload: PublishPayload): Promise<UriResponse<PublishResult>> {
-    const res: AxiosResponse<UriResponse<PublishResult>> = await UriHttpClient.getClient().post('/linkedin/publish', payload);
+    const res: AxiosResponse<UriResponse<PublishResult>> = await UriHttpClient.getClient().post(
+      '/linkedin/publish',
+      payload
+    );
     return res.data;
   }
 
@@ -70,7 +75,10 @@ export class SocialConnectionService {
   // ── WhatsApp ──────────────────────────────────────────────────────────────
 
   static async whatsappConnect(phone: string): Promise<UriResponse<{ phone: string }>> {
-    const res: AxiosResponse<UriResponse<{ phone: string }>> = await UriHttpClient.getClient().post('/whatsapp/connect', { phone });
+    const res: AxiosResponse<UriResponse<{ phone: string }>> = await UriHttpClient.getClient().post(
+      '/whatsapp/connect',
+      { phone }
+    );
     return res.data;
   }
 

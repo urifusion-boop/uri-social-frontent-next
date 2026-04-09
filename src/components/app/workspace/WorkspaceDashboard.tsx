@@ -1099,8 +1099,16 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       }
       if (fbIg?.responseData) {
         const conns = fbIg.responseData.connections ?? {};
-        next.facebook = { linked: !!conns.facebook?.length, account_name: conns.facebook?.[0]?.page_name };
-        next.instagram = { linked: !!conns.instagram?.length, account_name: conns.instagram?.[0]?.page_name };
+        next.facebook = {
+          linked: !!conns.facebook?.length,
+          account_name: conns.facebook?.[0]?.page_name,
+          outstand_account_id: conns.facebook?.[0]?.outstand_account_id,
+        };
+        next.instagram = {
+          linked: !!conns.instagram?.length,
+          account_name: conns.instagram?.[0]?.page_name,
+          outstand_account_id: conns.instagram?.[0]?.outstand_account_id,
+        };
       } else {
         next.facebook = { linked: false };
         next.instagram = { linked: false };
@@ -1193,6 +1201,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       if (id === 'linkedin') await SocialConnectionService.linkedinDisconnect();
       else if (id === 'x') await SocialConnectionService.xDisconnect();
       else if (id === 'whatsapp') await SocialConnectionService.whatsappDisconnect();
+      else if ((id === 'facebook' || id === 'instagram') && statuses[id]?.outstand_account_id) {
+        await SocialMediaAgentService.disconnectPlatform(statuses[id].outstand_account_id!);
+      }
       setStatuses((prev) => ({ ...prev, [id]: { linked: false } }));
     } finally {
       setDisconnecting(null);
@@ -1275,26 +1286,24 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       }}
                     />
                     {linked ? (
-                      ['facebook', 'instagram'].includes(p.id) ? null : (
-                        <button
-                          type="button"
-                          onClick={() => handleDisconnect(p.id)}
-                          disabled={isBusy}
-                          style={{
-                            padding: '5px 12px',
-                            borderRadius: 7,
-                            border: '1px solid #edecea',
-                            background: '#fff',
-                            fontSize: 12,
-                            color: '#888',
-                            cursor: 'pointer',
-                            fontFamily: 'var(--wf)',
-                            opacity: isBusy ? 0.5 : 1,
-                          }}
-                        >
-                          {disconnecting === p.id ? '...' : 'Disconnect'}
-                        </button>
-                      )
+                      <button
+                        type="button"
+                        onClick={() => handleDisconnect(p.id)}
+                        disabled={isBusy}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: 7,
+                          border: '1px solid #edecea',
+                          background: '#fff',
+                          fontSize: 12,
+                          color: '#888',
+                          cursor: 'pointer',
+                          fontFamily: 'var(--wf)',
+                          opacity: isBusy ? 0.5 : 1,
+                        }}
+                      >
+                        {disconnecting === p.id ? '...' : 'Disconnect'}
+                      </button>
                     ) : (
                       <button
                         type="button"
