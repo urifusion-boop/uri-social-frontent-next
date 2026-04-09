@@ -148,14 +148,14 @@ function SocialAccountsContent() {
   const connectedPlatformIds = new Set(connections.map((c) => c.platform?.toLowerCase()));
 
   return (
-    <DashboardLayout excludeHeader>
-      <Box sx={{ backgroundColor: '#FAFAFA', minHeight: '100vh', pt: '52px' }}>
+    <DashboardLayout>
+      <Box sx={{ backgroundColor: '#FAFAFA', minHeight: '100vh', pt: '64px' }}>
         {/* Header */}
         <Box sx={{ background: '#fff', px: 3, py: 3, borderBottom: '1px solid #E5E7EB' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
             <Typography sx={{ fontSize: 22, fontWeight: 800, color: '#111' }}>Social Accounts</Typography>
             <button
-              onClick={() => router.push('/workspace')}
+              onClick={() => router.push('/settings')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -170,7 +170,7 @@ function SocialAccountsContent() {
                 cursor: 'pointer',
               }}
             >
-              <ArrowBack sx={{ fontSize: 16 }} /> Workspace
+              <ArrowBack sx={{ fontSize: 16 }} /> Settings
             </button>
           </Box>
           <Typography sx={{ fontSize: 13, color: '#6B7280', mt: 0.25 }}>
