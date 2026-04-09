@@ -675,7 +675,8 @@ function BrandSetupPageContent() {
             const pages = res.responseData.available_pages ?? [];
             setAvailablePages(pages);
             setConnectNetworkName(res.responseData.network ?? '');
-            if (pages.length === 1) setSelectedPageIds([pages[0].id]);
+            const selectable = pages.filter((p) => !p.auto_connect);
+            if (selectable.length === 1) setSelectedPageIds([selectable[0].id]);
             setConnectPhase('pending');
           } else {
             setConnectPhase('selecting');
@@ -1009,11 +1010,13 @@ function BrandSetupPageContent() {
                   </Typography>
                 ) : (
                   availablePages.map((page) => {
+                    const isInstagram = page.type === 'instagram_business_account' || page.network === 'instagram';
+                    const isAutoConnect = !!page.auto_connect;
                     const isSelected = selectedPageIds.includes(page.id);
                     return (
                       <Box
                         key={page.id}
-                        onClick={() => handlePageToggle(page.id)}
+                        onClick={() => !isAutoConnect && handlePageToggle(page.id)}
                         sx={{
                           display: 'flex',
                           alignItems: 'center',
@@ -1021,11 +1024,12 @@ function BrandSetupPageContent() {
                           p: 2,
                           borderRadius: '12px',
                           border: '2px solid',
-                          borderColor: isSelected ? primary : '#E0DEF7',
-                          background: isSelected ? `${primary}0D` : '#fff',
-                          cursor: 'pointer',
+                          borderColor: isAutoConnect ? '#D1FAE5' : isSelected ? primary : '#E0DEF7',
+                          background: isAutoConnect ? '#F0FDF4' : isSelected ? `${primary}0D` : '#fff',
+                          cursor: isAutoConnect ? 'default' : 'pointer',
                           transition: 'all 0.18s',
-                          '&:hover': { borderColor: primary },
+                          '&:hover': { borderColor: isAutoConnect ? '#D1FAE5' : primary },
+                          opacity: isAutoConnect ? 0.9 : 1,
                         }}
                       >
                         {page.profilePictureUrl ? (
@@ -1040,34 +1044,105 @@ function BrandSetupPageContent() {
                               width: 40,
                               height: 40,
                               borderRadius: '50%',
-                              bgcolor: '#E0DEF7',
+                              bgcolor: isInstagram ? '#FDE7EC' : '#E0DEF7',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
+                              fontSize: 20,
                             }}
                           >
-                            <Typography sx={{ fontWeight: 700, color: '#6C727F' }}>{page.name.charAt(0)}</Typography>
+                            {isInstagram ? '📸' : '📘'}
                           </Box>
                         )}
                         <Box flex={1}>
-                          <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: '#374151' }}>
-                            {page.name}
-                          </Typography>
+                          <Box display="flex" alignItems="center" gap={0.75} flexWrap="wrap">
+                            <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: '#374151' }}>
+                              {page.name}
+                            </Typography>
+                            {isInstagram && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: '#E4405F',
+                                  background: '#FDE7EC',
+                                  padding: '1px 7px',
+                                  borderRadius: 20,
+                                }}
+                              >
+                                Instagram
+                              </span>
+                            )}
+                            {isAutoConnect && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: '#16a34a',
+                                  background: '#dcfce7',
+                                  padding: '1px 7px',
+                                  borderRadius: 20,
+                                }}
+                              >
+                                Auto
+                              </span>
+                            )}
+                          </Box>
                           {page.username && (
                             <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>@{page.username}</Typography>
                           )}
+                          {isAutoConnect && (
+                            <Typography sx={{ fontSize: 11, color: '#9CA3AF' }}>
+                              Connected automatically via Facebook
+                            </Typography>
+                          )}
                         </Box>
-                        <Checkbox
-                          checked={isSelected}
-                          onChange={() => handlePageToggle(page.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          sx={{ p: 0, color: '#E0DEF7', '&.Mui-checked': { color: primary } }}
-                        />
+                        {!isAutoConnect && (
+                          <Checkbox
+                            checked={isSelected}
+                            onChange={() => handlePageToggle(page.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            sx={{ p: 0, color: '#E0DEF7', '&.Mui-checked': { color: primary } }}
+                          />
+                        )}
                       </Box>
                     );
                   })
                 )}
               </Box>
+              {/* Instagram-not-detected notice */}
+              {(() => {
+                const fbPages = availablePages.filter(
+                  (p) => p.type !== 'instagram_business_account' && p.network !== 'instagram'
+                );
+                const igLinkedIds = new Set(
+                  availablePages
+                    .filter((p) => p.type === 'instagram_business_account' || p.network === 'instagram')
+                    .map((p) => p.linked_page_id)
+                );
+                const pagesWithoutIg = fbPages.filter((p) => !igLinkedIds.has(p.id));
+                if (pagesWithoutIg.length === 0 || availablePages.length === 0) return null;
+                return (
+                  <Box
+                    sx={{
+                      mb: 2,
+                      p: 1.5,
+                      borderRadius: '10px',
+                      background: '#FEF9C3',
+                      border: '1px solid #FDE68A',
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#92400E', mb: 0.5 }}>
+                      Instagram not detected for: {pagesWithoutIg.map((p) => p.name).join(', ')}
+                    </Typography>
+                    <Typography sx={{ fontSize: 11, color: '#78350F', lineHeight: 1.5 }}>
+                      To connect Instagram, link a Professional (Business or Creator) Instagram account to this Facebook
+                      Page via <strong>Facebook Page Settings → Linked Accounts → Instagram</strong>, then reconnect
+                      here.
+                    </Typography>
+                  </Box>
+                );
+              })()}
               <Box display="flex" gap={1.5} alignItems="center">
                 <CustomButton
                   mode="primary"

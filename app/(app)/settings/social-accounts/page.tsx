@@ -302,6 +302,39 @@ function SocialAccountsContent() {
                   })
                 )}
               </Box>
+              {/* Instagram-not-detected notice */}
+              {(() => {
+                const fbPages = availablePages.filter(
+                  (p) => p.type !== 'instagram_business_account' && p.network !== 'instagram'
+                );
+                const igLinkedIds = new Set(
+                  availablePages
+                    .filter((p) => p.type === 'instagram_business_account' || p.network === 'instagram')
+                    .map((p) => p.linked_page_id)
+                );
+                const pagesWithoutIg = fbPages.filter((p) => !igLinkedIds.has(p.id));
+                if (pagesWithoutIg.length === 0 || availablePages.length === 0) return null;
+                return (
+                  <Box
+                    sx={{
+                      mb: 2,
+                      p: 1.5,
+                      borderRadius: '10px',
+                      background: '#FEF9C3',
+                      border: '1px solid #FDE68A',
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#92400E', mb: 0.5 }}>
+                      Instagram not detected for: {pagesWithoutIg.map((p) => p.name).join(', ')}
+                    </Typography>
+                    <Typography sx={{ fontSize: 11, color: '#78350F', lineHeight: 1.5 }}>
+                      To connect Instagram, link a Professional (Business or Creator) Instagram account to this Facebook
+                      Page via <strong>Facebook Page Settings → Linked Accounts → Instagram</strong>, then reconnect
+                      here.
+                    </Typography>
+                  </Box>
+                );
+              })()}
               <Box display="flex" gap={1.5} alignItems="center">
                 <CustomButton
                   mode="primary"
