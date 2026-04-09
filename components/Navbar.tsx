@@ -115,18 +115,15 @@ export default function Navbar() {
                 <div className="relative">
                   <button
                     onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-black/5 transition-colors"
-                    style={{ border: '2px solid black' }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
                   >
                     <div
                       className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
-                      style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}
+                      style={{ backgroundColor: '#CD1B78', color: 'white' }}
                     >
                       {getInitials()}
                     </div>
-                    <span className="text-sm font-semibold" style={{ color: 'black' }}>
-                      {getDisplayName()}
-                    </span>
+                    <span className="text-sm font-semibold text-gray-900">{getDisplayName()}</span>
                   </button>
 
                   <AnimatePresence>
@@ -135,81 +132,70 @@ export default function Navbar() {
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg overflow-hidden"
-                        style={{ backgroundColor: 'rgba(252, 243, 239, 1)', border: '3px solid black' }}
+                        className="absolute right-0 mt-2 w-56 rounded-xl shadow-xl overflow-hidden bg-white border border-gray-200"
                       >
-                        <div className="p-3" style={{ borderBottom: '2px solid black' }}>
-                          <p className="font-bold text-sm" style={{ color: 'black' }}>
-                            {getDisplayName()}
-                          </p>
-                          <p className="text-xs" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                            {userDetails?.email}
-                          </p>
+                        <div className="p-4 border-b border-gray-100">
+                          <p className="font-semibold text-sm text-gray-900">{getDisplayName()}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{userDetails?.email}</p>
                         </div>
 
-                        <button
-                          onClick={() => {
-                            setProfileMenuOpen(false);
-                            router.push('/social-media');
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
-                        >
-                          <LayoutDashboard size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                          <span className="text-sm font-semibold" style={{ color: 'black' }}>
-                            Dashboard
-                          </span>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setProfileMenuOpen(false);
-                            router.push('/billing');
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth={2}
-                            stroke="currentColor"
-                            className="w-[18px] h-[18px]"
-                            style={{ color: 'hsl(340, 74%, 42%)' }}
+                        <div className="py-1">
+                          <button
+                            onClick={() => {
+                              setProfileMenuOpen(false);
+                              router.push('/social-media');
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"
-                            />
-                          </svg>
-                          <span className="text-sm font-semibold" style={{ color: 'black' }}>
-                            Billing & Credits
-                          </span>
-                        </button>
+                            <LayoutDashboard size={18} className="text-gray-600" />
+                            <span className="text-sm font-medium text-gray-700">Dashboard</span>
+                          </button>
 
-                        <button
-                          onClick={() => {
-                            setProfileMenuOpen(false);
-                            router.push('/social-media/settings');
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
-                        >
-                          <Settings size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                          <span className="text-sm font-semibold" style={{ color: 'black' }}>
-                            Settings
-                          </span>
-                        </button>
+                          <button
+                            onClick={() => {
+                              setProfileMenuOpen(false);
+                              router.push('/billing');
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth={2}
+                              stroke="currentColor"
+                              className="w-[18px] h-[18px] text-gray-600"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"
+                              />
+                            </svg>
+                            <span className="text-sm font-medium text-gray-700">Billing & Credits</span>
+                          </button>
 
-                        <button
-                          onClick={handleLogout}
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
-                          style={{ borderTop: '2px solid black' }}
-                        >
-                          <LogOut size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                          <span className="text-sm font-semibold" style={{ color: 'black' }}>
-                            Logout
-                          </span>
-                        </button>
+                          <button
+                            onClick={() => {
+                              setProfileMenuOpen(false);
+                              router.push('/social-media/settings');
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                          >
+                            <Settings size={18} className="text-gray-600" />
+                            <span className="text-sm font-medium text-gray-700">Settings</span>
+                          </button>
+                        </div>
+
+                        <div className="border-t border-gray-100 py-1">
+                          <button
+                            onClick={handleLogout}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 transition-colors text-left"
+                          >
+                            <LogOut size={18} className="text-red-600" />
+                            <span className="text-sm font-medium text-red-600">Logout</span>
+                          </button>
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
