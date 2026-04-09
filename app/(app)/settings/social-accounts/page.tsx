@@ -3,27 +3,51 @@
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
 import { SocialMediaAgentService, SocialConnection } from '@/src/api/SocialMediaAgentService';
 import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
+import CustomButton from '@/src/components/app/atoms/CustomButton';
+import useCustomTheme from '@/src/hooks/theme.hook';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
+import { Box, CircularProgress, Checkbox, Typography } from '@mui/material';
+import { ArrowBack } from '@mui/icons-material';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Check, Loader2 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { FaFacebook, FaInstagram, FaLinkedin, FaCheckCircle, FaTimes } from 'react-icons/fa';
+import { FaXTwitter } from 'react-icons/fa6';
+import { BsYoutube, BsPinterest, BsTiktok } from 'react-icons/bs';
 
 const PLATFORMS = [
-  { id: 'facebook', label: 'Facebook', emoji: '📘', color: '#1877F2', bg: '#E7F0FD' },
-  { id: 'instagram', label: 'Instagram', emoji: '📸', color: '#E4405F', bg: '#FDE7EC' },
-  { id: 'linkedin', label: 'LinkedIn', emoji: '💼', color: '#0A66C2', bg: '#E7F0FA' },
-  { id: 'twitter', label: 'X / Twitter', emoji: '𝕏', color: '#000', bg: '#F0F0F0' },
-  { id: 'tiktok', label: 'TikTok', emoji: '🎵', color: '#010101', bg: '#F0F0F0' },
-  { id: 'youtube', label: 'YouTube', emoji: '▶️', color: '#FF0000', bg: '#FFEDED' },
-  { id: 'pinterest', label: 'Pinterest', emoji: '📌', color: '#E60023', bg: '#FFEAEC' },
+  { id: 'facebook', label: 'Facebook', icon: FaFacebook, emoji: '📘', color: '#1877F2', bg: '#E7F0FD' },
+  { id: 'instagram', label: 'Instagram', icon: FaInstagram, emoji: '📸', color: '#E4405F', bg: '#FDE7EC' },
+  { id: 'linkedin', label: 'LinkedIn', icon: FaLinkedin, emoji: '💼', color: '#0A66C2', bg: '#E7F0FA' },
+  { id: 'twitter', label: 'X / Twitter', icon: FaXTwitter, emoji: '𝕏', color: '#000', bg: '#F0F0F0' },
+  { id: 'tiktok', label: 'TikTok', icon: BsTiktok, emoji: '🎵', color: '#010101', bg: '#F0F0F0' },
+  { id: 'youtube', label: 'YouTube', icon: BsYoutube, emoji: '▶️', color: '#FF0000', bg: '#FFEDED' },
+  { id: 'pinterest', label: 'Pinterest', icon: BsPinterest, emoji: '📌', color: '#E60023', bg: '#FFEAEC' },
 ];
+
+const AgentBubble = ({ children, primary }: { children: React.ReactNode; primary: string }) => (
+  <Box
+    sx={{
+      p: 2,
+      borderRadius: '12px',
+      background: `linear-gradient(135deg, ${primary}, ${primary}cc)`,
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: 500,
+      lineHeight: 1.5,
+      boxShadow: `0 2px 8px ${primary}33`,
+      mb: 2,
+    }}
+  >
+    {children}
+  </Box>
+);
 
 function SocialAccountsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { themeColors } = useCustomTheme();
+  const primary = themeColors.primary;
 
   const [connections, setConnections] = useState<SocialConnection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +82,7 @@ function SocialAccountsContent() {
     fetchConnections();
   }, [fetchConnections]);
 
-  // Handle OAuth callback return (?sessionToken=...&connected=pending)
+  // Handle OAuth callback return
   useEffect(() => {
     const connected = searchParams.get('connected');
     const token = searchParams.get('sessionToken');
@@ -144,257 +168,391 @@ function SocialAccountsContent() {
     }
   };
 
+  const handlePageToggle = (id: string) =>
+    setSelectedPageIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
   const connectedPlatformIds = new Set(connections.map((c) => c.platform?.toLowerCase()));
+
+  if (phase === 'finalizing') {
+    return (
+      <DashboardLayout>
+        <Box sx={{ background: themeColors.background, minHeight: '100vh', pt: '80px', px: 3 }}>
+          <Box sx={{ maxWidth: 680, mx: 'auto', textAlign: 'center', py: 6 }}>
+            <CircularProgress size={48} sx={{ color: primary, mb: 2 }} />
+            <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>
+              Connecting your accounts...
+            </Typography>
+          </Box>
+        </Box>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto">
+      <Box sx={{ background: themeColors.background, minHeight: '100vh', pt: '80px', px: 3, pb: 6 }}>
+        <Box sx={{ maxWidth: 680, mx: 'auto' }}>
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Social Accounts</h1>
-              <p className="text-gray-600">Connect your social media accounts to publish and schedule posts</p>
-            </div>
-            <Button variant="outline" onClick={() => router.push('/settings')} className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Settings
-            </Button>
-          </div>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+            <Box>
+              <Typography sx={{ fontSize: 24, fontWeight: 800, color: '#111', mb: 0.5 }}>Social Accounts</Typography>
+              <Typography sx={{ fontSize: 13, color: '#6B7280' }}>
+                Connect your social media accounts to publish and schedule posts
+              </Typography>
+            </Box>
+            <button
+              onClick={() => router.push('/settings')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                background: 'none',
+                border: '1.5px solid #E0DEF7',
+                borderRadius: 8,
+                padding: '6px 14px',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#555',
+                cursor: 'pointer',
+              }}
+            >
+              <ArrowBack sx={{ fontSize: 16 }} /> Settings
+            </button>
+          </Box>
 
           {/* Page selection overlay */}
-          {phase !== 'idle' && (
-            <Card className="mb-6">
-              <CardContent className="p-6">
-                {phase === 'finalizing' ? (
-                  <div className="text-center py-4">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#CD1B78] mx-auto mb-3" />
-                    <p className="text-sm text-gray-600">Connecting accounts…</p>
-                  </div>
+          {phase === 'pending' && (
+            <Box
+              sx={{
+                background: '#fff',
+                borderRadius: '20px',
+                p: 3.5,
+                boxShadow: '1px 1px 6px 3px #00000011',
+                mb: 3,
+              }}
+            >
+              <AgentBubble primary={primary}>
+                Great! Choose which {networkName} accounts you want to manage through URI Social.
+              </AgentBubble>
+              <Box mt={1.5} display="flex" flexDirection="column" gap={1.25} mb={2.5}>
+                {availablePages.length === 0 ? (
+                  <Typography sx={{ fontSize: 13, color: '#6C727F', py: 2, textAlign: 'center' }}>
+                    No accounts found. Make sure you have admin access to at least one page.
+                  </Typography>
                 ) : (
-                  <>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      Select {networkName} accounts to connect
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-4">Choose which pages or accounts you want URI to manage.</p>
-                    {availablePages.length === 0 ? (
-                      <p className="text-sm text-gray-500 text-center py-4">
-                        No accounts found. Make sure you have admin access to at least one page.
-                      </p>
-                    ) : (
-                      <div className="space-y-2 mb-4">
-                        {availablePages.map((page) => {
-                          const isInstagram =
-                            page.type === 'instagram_business_account' || page.network === 'instagram';
-                          const isAutoConnect = !!page.auto_connect;
-                          const isSelected = selectedPageIds.includes(page.id);
-                          return (
-                            <div
-                              key={page.id}
-                              onClick={() =>
-                                !isAutoConnect &&
-                                setSelectedPageIds((prev) =>
-                                  prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
-                                )
-                              }
-                              className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                                isAutoConnect
-                                  ? 'border-gray-200 bg-gray-50 opacity-75 cursor-default'
-                                  : isSelected
-                                    ? 'border-[#CD1B78] bg-pink-50'
-                                    : 'border-gray-200 bg-white hover:border-[#CD1B78]'
-                              }`}
-                            >
-                              <div className="relative">
-                                {page.profilePictureUrl ? (
-                                  <img src={page.profilePictureUrl} alt="" className="w-10 h-10 rounded-full" />
-                                ) : (
-                                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-lg">
-                                    {isInstagram ? '📸' : '📘'}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-sm font-semibold text-gray-900">{page.name}</span>
-                                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                                    {isInstagram ? 'Instagram' : 'Facebook'}
-                                  </span>
-                                  {isAutoConnect && (
-                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                                      Auto
-                                    </span>
-                                  )}
-                                </div>
-                                {page.username && <p className="text-xs text-gray-500">@{page.username}</p>}
-                                {isAutoConnect && (
-                                  <p className="text-xs text-gray-500">Connected automatically via Facebook</p>
-                                )}
-                              </div>
-                              {!isAutoConnect && (
-                                <div
-                                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                                    isSelected ? 'border-[#CD1B78] bg-[#CD1B78]' : 'border-gray-300'
-                                  }`}
-                                >
-                                  {isSelected && <Check className="w-3 h-3 text-white" />}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setPhase('idle');
-                          setSessionToken(null);
-                          setAvailablePages([]);
-                          setSelectedPageIds([]);
+                  availablePages.map((page) => {
+                    const isSelected = selectedPageIds.includes(page.id);
+                    const isInstagram = page.type === 'instagram_business_account' || page.network === 'instagram';
+                    return (
+                      <Box
+                        key={page.id}
+                        onClick={() => handlePageToggle(page.id)}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          p: 2,
+                          borderRadius: '12px',
+                          border: '2px solid',
+                          borderColor: isSelected ? primary : '#E0DEF7',
+                          background: isSelected ? `${primary}0D` : '#fff',
+                          cursor: 'pointer',
+                          transition: 'all 0.18s',
+                          '&:hover': { borderColor: primary },
                         }}
                       >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleFinalize}
-                        disabled={selectedPageIds.length === 0}
-                        className="bg-[#CD1B78] hover:bg-[#A01560] text-white"
-                      >
-                        Connect {selectedPageIds.length > 0 ? `(${selectedPageIds.length})` : ''}
-                      </Button>
-                    </div>
-                  </>
+                        {page.profilePictureUrl ? (
+                          <img
+                            src={page.profilePictureUrl}
+                            alt={page.name}
+                            style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <Box
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: '50%',
+                              bgcolor: isInstagram ? '#FDE7EC' : '#E7F0FD',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 18,
+                            }}
+                          >
+                            {isInstagram ? '📸' : '📘'}
+                          </Box>
+                        )}
+                        <Box flex={1}>
+                          <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: '#374151' }}>
+                            {page.name}
+                          </Typography>
+                          {page.username && (
+                            <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>@{page.username}</Typography>
+                          )}
+                        </Box>
+                        <Checkbox
+                          checked={isSelected}
+                          onChange={() => handlePageToggle(page.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          sx={{ p: 0, color: '#E0DEF7', '&.Mui-checked': { color: primary } }}
+                        />
+                      </Box>
+                    );
+                  })
                 )}
-              </CardContent>
-            </Card>
+              </Box>
+              <Box display="flex" gap={1.5} alignItems="center">
+                <CustomButton
+                  mode="primary"
+                  onClick={handleFinalize}
+                  disabled={selectedPageIds.length === 0}
+                  style={{ padding: '10px 24px', opacity: selectedPageIds.length > 0 ? 1 : 0.5 }}
+                >
+                  Connect{' '}
+                  {selectedPageIds.length > 0
+                    ? `${selectedPageIds.length} account${selectedPageIds.length !== 1 ? 's' : ''}`
+                    : 'accounts'}
+                </CustomButton>
+                <Typography
+                  component="button"
+                  onClick={() => {
+                    setPhase('idle');
+                    setSessionToken(null);
+                    setAvailablePages([]);
+                    setSelectedPageIds([]);
+                  }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
+                >
+                  Cancel
+                </Typography>
+              </Box>
+            </Box>
           )}
 
           {/* Connected accounts */}
           {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-[#CD1B78]" />
-            </div>
+            <Box display="flex" justifyContent="center" py={6}>
+              <CircularProgress sx={{ color: primary }} />
+            </Box>
           ) : (
-            <>
+            <Box
+              sx={{
+                background: '#fff',
+                borderRadius: '20px',
+                p: 3.5,
+                boxShadow: '1px 1px 6px 3px #00000011',
+              }}
+            >
               {connections.length > 0 && (
-                <div className="mb-8">
-                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Connected</h2>
-                  <div className="space-y-2">
+                <Box sx={{ mb: 4 }}>
+                  <Typography
+                    sx={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#9CA3AF',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.8,
+                      mb: 1.5,
+                    }}
+                  >
+                    Connected
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                     {connections.map((conn, i) => {
                       const pl = PLATFORMS.find((p) => p.id === conn.platform?.toLowerCase());
+                      const IconComponent = pl?.icon || FaCheckCircle;
                       return (
-                        <Card key={i}>
-                          <CardContent className="flex items-center gap-4 p-4">
-                            <div
-                              className="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
-                              style={{ backgroundColor: pl?.bg ?? '#f0f0f0' }}
+                        <Box
+                          key={i}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            p: 1.5,
+                            borderRadius: '10px',
+                            border: '1px solid #E0DEF7',
+                            background: '#FAFBFC',
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: '8px',
+                              background: pl?.bg ?? '#f0f0f0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <IconComponent size={20} color={pl?.color ?? '#666'} />
+                          </Box>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography
+                              sx={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}
                             >
-                              {pl?.emoji ?? '🌐'}
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm font-semibold text-gray-900 capitalize">{conn.platform}</p>
-                              <p className="text-xs text-gray-600">{conn.page_name ?? 'Connected'}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700">
-                                Active
-                              </span>
-                              <button
-                                onClick={() => handleDisconnect(conn.outstand_account_id ?? '')}
-                                className="text-gray-400 hover:text-red-600 text-xl leading-none px-2"
-                                title="Disconnect"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          </CardContent>
-                        </Card>
+                              {conn.platform}
+                            </Typography>
+                            <Typography sx={{ fontSize: 11.5, color: '#6B7280' }}>
+                              {conn.page_name ?? 'Connected'}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box
+                              sx={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: '#16a34a',
+                                background: '#dcfce7',
+                                px: 1.5,
+                                py: 0.5,
+                                borderRadius: '20px',
+                              }}
+                            >
+                              Active
+                            </Box>
+                            <button
+                              onClick={() => handleDisconnect(conn.outstand_account_id ?? '')}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#bbb',
+                                fontSize: 22,
+                                cursor: 'pointer',
+                                lineHeight: 1,
+                                padding: '0 4px',
+                              }}
+                              title="Disconnect"
+                            >
+                              <FaTimes />
+                            </button>
+                          </Box>
+                        </Box>
                       );
                     })}
-                  </div>
-                </div>
+                  </Box>
+                </Box>
               )}
 
               {/* Available platforms */}
-              <div>
-                <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
-                  {connections.length > 0 ? 'Add More Accounts' : 'Connect an Account'}
-                </h2>
-                <div className="space-y-2">
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: '#9CA3AF',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.8,
+                    mb: 1.5,
+                  }}
+                >
+                  {connections.length > 0 ? 'Connect Another Account' : 'Connect an Account'}
+                </Typography>
+                <AgentBubble primary={primary}>
+                  To publish content, connect a social account. You can add more platforms anytime.
+                </AgentBubble>
+                <Box mt={1.5} display="flex" flexDirection="column" gap={1.5}>
                   {PLATFORMS.map((pl) => {
                     const isConnected = connectedPlatformIds.has(pl.id);
                     const isConnecting = connectingPlatform === pl.id;
                     const isInstagram = pl.id === 'instagram';
+                    const IconComponent = pl.icon;
                     return (
-                      <Card key={pl.id}>
-                        <CardContent className="flex items-center gap-4 p-4">
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
-                            style={{ backgroundColor: pl.bg }}
-                          >
-                            {pl.emoji}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900">{pl.label}</p>
-                            {isInstagram && !isConnected && (
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                {connectedPlatformIds.has('facebook')
-                                  ? 'Connected automatically when you connect Facebook'
-                                  : 'Connect Facebook first — Instagram is detected automatically'}
-                              </p>
-                            )}
-                          </div>
-                          {isConnected ? (
-                            <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-green-100 text-green-700">
-                              Connected
-                            </span>
-                          ) : isInstagram && !connectedPlatformIds.has('facebook') ? (
-                            <Button
-                              onClick={() => handleConnect('facebook')}
-                              disabled={connectingPlatform === 'facebook'}
-                              variant="outline"
-                              size="sm"
-                              style={{ borderColor: '#1877F2', color: '#1877F2' }}
-                            >
-                              {connectingPlatform === 'facebook' ? (
-                                <>
-                                  <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                                  Opening…
-                                </>
-                              ) : (
-                                'Connect via Facebook'
-                              )}
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={() => handleConnect(pl.id)}
-                              disabled={isConnecting}
-                              variant="outline"
-                              size="sm"
-                              style={{ borderColor: pl.color, color: pl.color }}
-                            >
-                              {isConnecting ? (
-                                <>
-                                  <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                                  Opening…
-                                </>
-                              ) : (
-                                'Connect'
-                              )}
-                            </Button>
+                      <Box
+                        key={pl.id}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          p: 2,
+                          borderRadius: '12px',
+                          border: '2px solid #E0DEF7',
+                          background: '#fff',
+                          transition: 'all 0.18s',
+                          '&:hover': { borderColor: isConnected ? '#E0DEF7' : primary },
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: '10px',
+                            bgcolor: pl.bg,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <IconComponent size={24} color={pl.color} />
+                        </Box>
+                        <Box flex={1}>
+                          <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>{pl.label}</Typography>
+                          {isInstagram && !isConnected && (
+                            <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mt: 0.25 }}>
+                              {connectedPlatformIds.has('facebook')
+                                ? 'Connected automatically via Facebook'
+                                : 'Connect Facebook first — Instagram is detected automatically'}
+                            </Typography>
                           )}
-                        </CardContent>
-                      </Card>
+                        </Box>
+                        {isConnected ? (
+                          <Box
+                            sx={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: '#16a34a',
+                              background: '#dcfce7',
+                              px: 2,
+                              py: 1,
+                              borderRadius: '20px',
+                            }}
+                          >
+                            Connected
+                          </Box>
+                        ) : isInstagram && !connectedPlatformIds.has('facebook') ? (
+                          <CustomButton
+                            mode="secondary"
+                            onClick={() => handleConnect('facebook')}
+                            disabled={connectingPlatform === 'facebook'}
+                            style={{
+                              padding: '8px 16px',
+                              fontSize: 12,
+                              opacity: connectingPlatform === 'facebook' ? 0.6 : 1,
+                            }}
+                          >
+                            {connectingPlatform === 'facebook' ? 'Opening...' : 'Connect via Facebook'}
+                          </CustomButton>
+                        ) : (
+                          <CustomButton
+                            mode="secondary"
+                            onClick={() => handleConnect(pl.id)}
+                            disabled={isConnecting}
+                            style={{ padding: '8px 20px', fontSize: 12, opacity: isConnecting ? 0.6 : 1 }}
+                          >
+                            {isConnecting ? 'Opening...' : 'Connect'}
+                          </CustomButton>
+                        )}
+                      </Box>
                     );
                   })}
-                </div>
-              </div>
-            </>
+                </Box>
+              </Box>
+            </Box>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
     </DashboardLayout>
   );
 }
@@ -403,9 +561,9 @@ export default function SocialAccountsPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex justify-center items-center min-h-screen">
-          <Loader2 className="w-8 h-8 animate-spin text-[#CD1B78]" />
-        </div>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+          <CircularProgress sx={{ color: '#CD1B78' }} />
+        </Box>
       }
     >
       <SocialAccountsContent />
