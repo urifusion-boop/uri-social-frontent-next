@@ -498,7 +498,6 @@ function SocialAccountsContent() {
                   {PLATFORMS.map((pl) => {
                     const isConnected = connectedPlatformIds.has(pl.id);
                     const isConnecting = connectingPlatform === pl.id;
-                    const isInstagram = pl.id === 'instagram';
                     const IconComponent = pl.icon;
                     return (
                       <Box
@@ -531,13 +530,6 @@ function SocialAccountsContent() {
                         </Box>
                         <Box flex={1}>
                           <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>{pl.label}</Typography>
-                          {isInstagram && !isConnected && (
-                            <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mt: 0.25 }}>
-                              {connectedPlatformIds.has('facebook')
-                                ? 'Connected automatically via Facebook'
-                                : 'Connect Facebook first — Instagram is detected automatically'}
-                            </Typography>
-                          )}
                         </Box>
                         {isConnected ? (
                           <Box
@@ -553,19 +545,6 @@ function SocialAccountsContent() {
                           >
                             Connected
                           </Box>
-                        ) : isInstagram && !connectedPlatformIds.has('facebook') ? (
-                          <CustomButton
-                            mode="secondary"
-                            onClick={() => handleConnect('facebook')}
-                            disabled={connectingPlatform === 'facebook'}
-                            style={{
-                              padding: '8px 16px',
-                              fontSize: 12,
-                              opacity: connectingPlatform === 'facebook' ? 0.6 : 1,
-                            }}
-                          >
-                            {connectingPlatform === 'facebook' ? 'Opening...' : 'Connect via Facebook'}
-                          </CustomButton>
                         ) : (
                           <CustomButton
                             mode="secondary"
