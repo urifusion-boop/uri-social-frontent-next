@@ -1133,15 +1133,11 @@ function BrandSetupPageContent() {
                     }}
                   >
                     <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#92400E', mb: 0.5 }}>
-                      Instagram not detected for: {pagesWithoutIg.map((p) => p.name).join(', ')}
+                      Instagram not auto-detected for: {pagesWithoutIg.map((p) => p.name).join(', ')}
                     </Typography>
                     <Typography sx={{ fontSize: 11, color: '#78350F', lineHeight: 1.6 }}>
-                      This usually means the linked Instagram account is a <strong>Personal account</strong>. Only
-                      Professional accounts (Business or Creator) are supported.
-                      <br />
-                      Fix: Open Instagram →{' '}
-                      <strong>Settings → Account type and tools → Switch to Professional Account</strong>, then
-                      reconnect here.
+                      Connect Instagram separately — go back and select <strong>Instagram</strong> as its own platform.
+                      This gives Instagram its own direct connection with full publishing access.
                     </Typography>
                   </Box>
                 );
