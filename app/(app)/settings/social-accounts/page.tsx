@@ -5,10 +5,11 @@ import { SocialMediaAgentService, SocialConnection } from '@/src/api/SocialMedia
 import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
-import { Box, CircularProgress, Typography } from '@mui/material';
-import { ArrowBack } from '@mui/icons-material';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import { ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 const PLATFORMS = [
   { id: 'facebook', label: 'Facebook', emoji: '📘', color: '#1877F2', bg: '#E7F0FD' },
@@ -93,7 +94,6 @@ function SocialAccountsContent() {
       if (res.status && res.responseData?.auth_urls) {
         const url = res.responseData.auth_urls[platformId];
         if (url) {
-          // Store intent so brand-setup can redirect back here if Outstand strips ?source= from callback
           localStorage.setItem('outstand_connect_source', 'settings');
           window.location.href = url;
           return;
@@ -120,7 +120,6 @@ function SocialAccountsContent() {
         setAvailablePages([]);
         setSelectedPageIds([]);
         fetchConnections();
-        router.push('/workspace');
       } else {
         ToastService.showToast('Finalization failed. Please try again.', ToastTypeEnum.Error);
         setPhase('pending');
@@ -149,450 +148,253 @@ function SocialAccountsContent() {
 
   return (
     <DashboardLayout>
-      <Box sx={{ backgroundColor: '#FAFAFA', minHeight: '100vh', pt: '64px' }}>
-        {/* Header */}
-        <Box sx={{ background: '#fff', px: 3, py: 3, borderBottom: '1px solid #E5E7EB' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
-            <Typography sx={{ fontSize: 22, fontWeight: 800, color: '#111' }}>Social Accounts</Typography>
-            <button
-              onClick={() => router.push('/settings')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                background: 'none',
-                border: '1.5px solid #e5e3df',
-                borderRadius: 8,
-                padding: '6px 12px',
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#555',
-                cursor: 'pointer',
-              }}
-            >
-              <ArrowBack sx={{ fontSize: 16 }} /> Settings
-            </button>
-          </Box>
-          <Typography sx={{ fontSize: 13, color: '#6B7280', mt: 0.25 }}>
-            Connect your social media accounts to publish and schedule posts
-          </Typography>
-        </Box>
+      <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Social Accounts</h1>
+              <p className="text-gray-600">Connect your social media accounts to publish and schedule posts</p>
+            </div>
+            <Button variant="outline" onClick={() => router.push('/settings')} className="gap-2">
+              <ArrowLeft className="w-4 h-4" />
+              Settings
+            </Button>
+          </div>
 
-        <Box sx={{ px: 3, py: 3, maxWidth: 680 }}>
           {/* Page selection overlay */}
           {phase !== 'idle' && (
-            <Box sx={{ background: '#fff', borderRadius: 2, border: '1px solid #e5e3df', p: 3, mb: 3 }}>
-              {phase === 'finalizing' ? (
-                <Box textAlign="center" py={2}>
-                  <CircularProgress size={32} sx={{ color: '#C2185B' }} />
-                  <Typography sx={{ fontSize: 13, color: '#555', mt: 1.5 }}>Connecting accounts…</Typography>
-                </Box>
-              ) : (
-                <>
-                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#111', mb: 0.5 }}>
-                    Select {networkName} accounts to connect
-                  </Typography>
-                  <Typography sx={{ fontSize: 13, color: '#6B7280', mb: 2 }}>
-                    Choose which pages or accounts you want URI to manage.
-                  </Typography>
-                  {availablePages.length === 0 ? (
-                    <Typography sx={{ fontSize: 13, color: '#999', textAlign: 'center', py: 2 }}>
-                      No accounts found. Make sure you have admin access to at least one page.
-                    </Typography>
-                  ) : (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
-                      {availablePages.map((page) => {
-                        const isInstagram = page.type === 'instagram_business_account' || page.network === 'instagram';
-                        const isAutoConnect = !!page.auto_connect;
-                        const typeLabel = isInstagram
-                          ? { emoji: '📸', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC' }
-                          : { emoji: '📘', label: 'Facebook Page', color: '#1877F2', bg: '#E7F0FD' };
-                        const isSelected = selectedPageIds.includes(page.id);
-                        return (
-                          <Box
-                            key={page.id}
-                            onClick={() =>
-                              !isAutoConnect &&
-                              setSelectedPageIds((prev) =>
-                                prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
-                              )
-                            }
-                            sx={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 1.5,
-                              p: 1.5,
-                              borderRadius: 1.5,
-                              cursor: isAutoConnect ? 'default' : 'pointer',
-                              border: `2px solid ${isAutoConnect ? '#e5e3df' : isSelected ? '#C2185B' : '#e5e3df'}`,
-                              background: isAutoConnect ? '#fafaf8' : isSelected ? '#fdf0f6' : '#fff',
-                              opacity: isAutoConnect ? 0.85 : 1,
-                              transition: 'all 0.15s',
-                            }}
-                          >
-                            <Box sx={{ position: 'relative', flexShrink: 0 }}>
-                              {page.profilePictureUrl ? (
-                                <img
-                                  src={page.profilePictureUrl}
-                                  alt=""
-                                  style={{ width: 36, height: 36, borderRadius: '50%', display: 'block' }}
-                                />
-                              ) : (
-                                <Box
-                                  sx={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: '50%',
-                                    background: typeLabel.bg,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontSize: 18,
-                                  }}
-                                >
-                                  {typeLabel.emoji}
-                                </Box>
-                              )}
-                              <Box
-                                sx={{
-                                  position: 'absolute',
-                                  bottom: -2,
-                                  right: -2,
-                                  width: 16,
-                                  height: 16,
-                                  borderRadius: '50%',
-                                  background: typeLabel.bg,
-                                  border: '1.5px solid #fff',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: 9,
-                                }}
-                              >
-                                {typeLabel.emoji}
-                              </Box>
-                            </Box>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#111' }}>
-                                  {page.name}
-                                </Typography>
-                                <span
-                                  style={{
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    color: typeLabel.color,
-                                    background: typeLabel.bg,
-                                    padding: '1px 7px',
-                                    borderRadius: 20,
-                                  }}
-                                >
-                                  {typeLabel.label}
-                                </span>
-                                {isAutoConnect && (
-                                  <span
-                                    style={{
-                                      fontSize: 10,
-                                      fontWeight: 700,
-                                      color: '#16a34a',
-                                      background: '#dcfce7',
-                                      padding: '1px 7px',
-                                      borderRadius: 20,
-                                    }}
-                                  >
-                                    Auto
-                                  </span>
+            <Card className="mb-6">
+              <CardContent className="p-6">
+                {phase === 'finalizing' ? (
+                  <div className="text-center py-4">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#CD1B78] mx-auto mb-3" />
+                    <p className="text-sm text-gray-600">Connecting accounts…</p>
+                  </div>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Select {networkName} accounts to connect
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-4">Choose which pages or accounts you want URI to manage.</p>
+                    {availablePages.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-4">
+                        No accounts found. Make sure you have admin access to at least one page.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 mb-4">
+                        {availablePages.map((page) => {
+                          const isInstagram =
+                            page.type === 'instagram_business_account' || page.network === 'instagram';
+                          const isAutoConnect = !!page.auto_connect;
+                          const isSelected = selectedPageIds.includes(page.id);
+                          return (
+                            <div
+                              key={page.id}
+                              onClick={() =>
+                                !isAutoConnect &&
+                                setSelectedPageIds((prev) =>
+                                  prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
+                                )
+                              }
+                              className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                                isAutoConnect
+                                  ? 'border-gray-200 bg-gray-50 opacity-75 cursor-default'
+                                  : isSelected
+                                    ? 'border-[#CD1B78] bg-pink-50'
+                                    : 'border-gray-200 bg-white hover:border-[#CD1B78]'
+                              }`}
+                            >
+                              <div className="relative">
+                                {page.profilePictureUrl ? (
+                                  <img src={page.profilePictureUrl} alt="" className="w-10 h-10 rounded-full" />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-lg">
+                                    {isInstagram ? '📸' : '📘'}
+                                  </div>
                                 )}
-                              </Box>
-                              {page.username && (
-                                <Typography sx={{ fontSize: 11, color: '#999' }}>@{page.username}</Typography>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-semibold text-gray-900">{page.name}</span>
+                                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                    {isInstagram ? 'Instagram' : 'Facebook'}
+                                  </span>
+                                  {isAutoConnect && (
+                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                      Auto
+                                    </span>
+                                  )}
+                                </div>
+                                {page.username && <p className="text-xs text-gray-500">@{page.username}</p>}
+                                {isAutoConnect && (
+                                  <p className="text-xs text-gray-500">Connected automatically via Facebook</p>
+                                )}
+                              </div>
+                              {!isAutoConnect && (
+                                <div
+                                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                    isSelected ? 'border-[#CD1B78] bg-[#CD1B78]' : 'border-gray-300'
+                                  }`}
+                                >
+                                  {isSelected && <Check className="w-3 h-3 text-white" />}
+                                </div>
                               )}
-                              {isAutoConnect && (
-                                <Typography sx={{ fontSize: 11, color: '#999' }}>
-                                  Connected automatically via Facebook
-                                </Typography>
-                              )}
-                            </Box>
-                            {!isAutoConnect && (
-                              <Box
-                                sx={{
-                                  ml: 'auto',
-                                  flexShrink: 0,
-                                  width: 18,
-                                  height: 18,
-                                  borderRadius: '50%',
-                                  border: '2px solid',
-                                  borderColor: isSelected ? '#C2185B' : '#ccc',
-                                  background: isSelected ? '#C2185B' : 'transparent',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                }}
-                              >
-                                {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
-                              </Box>
-                            )}
-                          </Box>
-                        );
-                      })}
-                    </Box>
-                  )}
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <button
-                      onClick={() => {
-                        setPhase('idle');
-                        setSessionToken(null);
-                        setAvailablePages([]);
-                        setSelectedPageIds([]);
-                      }}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: 8,
-                        border: '1.5px solid #e5e3df',
-                        background: '#fff',
-                        color: '#666',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleFinalize}
-                      disabled={selectedPageIds.length === 0}
-                      style={{
-                        padding: '8px 18px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: selectedPageIds.length > 0 ? '#C2185B' : '#e5e3df',
-                        color: '#fff',
-                        fontSize: 13,
-                        fontWeight: 700,
-                        cursor: selectedPageIds.length > 0 ? 'pointer' : 'not-allowed',
-                      }}
-                    >
-                      Connect {selectedPageIds.length > 0 ? `(${selectedPageIds.length})` : ''}
-                    </button>
-                  </Box>
-                </>
-              )}
-            </Box>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setPhase('idle');
+                          setSessionToken(null);
+                          setAvailablePages([]);
+                          setSelectedPageIds([]);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleFinalize}
+                        disabled={selectedPageIds.length === 0}
+                        className="bg-[#CD1B78] hover:bg-[#A01560] text-white"
+                      >
+                        Connect {selectedPageIds.length > 0 ? `(${selectedPageIds.length})` : ''}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {/* Connected accounts */}
           {loading ? (
-            <Box display="flex" justifyContent="center" py={4}>
-              <CircularProgress sx={{ color: '#C2185B' }} />
-            </Box>
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-[#CD1B78]" />
+            </div>
           ) : (
-            connections.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography
-                  sx={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: '#999',
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.6,
-                    mb: 1.5,
-                  }}
-                >
-                  Connected
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {connections.map((conn, i) => {
-                    const pl = PLATFORMS.find((p) => p.id === conn.platform?.toLowerCase());
+            <>
+              {connections.length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Connected</h2>
+                  <div className="space-y-2">
+                    {connections.map((conn, i) => {
+                      const pl = PLATFORMS.find((p) => p.id === conn.platform?.toLowerCase());
+                      return (
+                        <Card key={i}>
+                          <CardContent className="flex items-center gap-4 p-4">
+                            <div
+                              className="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
+                              style={{ backgroundColor: pl?.bg ?? '#f0f0f0' }}
+                            >
+                              {pl?.emoji ?? '🌐'}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-gray-900 capitalize">{conn.platform}</p>
+                              <p className="text-xs text-gray-600">{conn.page_name ?? 'Connected'}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700">
+                                Active
+                              </span>
+                              <button
+                                onClick={() => handleDisconnect(conn.outstand_account_id ?? '')}
+                                className="text-gray-400 hover:text-red-600 text-xl leading-none px-2"
+                                title="Disconnect"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Available platforms */}
+              <div>
+                <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                  {connections.length > 0 ? 'Add More Accounts' : 'Connect an Account'}
+                </h2>
+                <div className="space-y-2">
+                  {PLATFORMS.map((pl) => {
+                    const isConnected = connectedPlatformIds.has(pl.id);
+                    const isConnecting = connectingPlatform === pl.id;
+                    const isInstagram = pl.id === 'instagram';
                     return (
-                      <Box
-                        key={i}
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 2,
-                          p: 1.5,
-                          background: '#fff',
-                          borderRadius: 2,
-                          border: '1px solid #e5e3df',
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 10,
-                            background: pl?.bg ?? '#f0f0f0',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 18,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {pl?.emoji ?? '🌐'}
-                        </Box>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography
-                            sx={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}
+                      <Card key={pl.id}>
+                        <CardContent className="flex items-center gap-4 p-4">
+                          <div
+                            className="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
+                            style={{ backgroundColor: pl.bg }}
                           >
-                            {conn.platform}
-                          </Typography>
-                          <Typography sx={{ fontSize: 12, color: '#6B7280' }}>
-                            {conn.page_name ?? 'Connected'}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              color: '#16a34a',
-                              background: '#dcfce7',
-                              padding: '2px 8px',
-                              borderRadius: 20,
-                            }}
-                          >
-                            Active
-                          </span>
-                          <button
-                            onClick={() => handleDisconnect(conn.outstand_account_id ?? '')}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#bbb',
-                              fontSize: 18,
-                              cursor: 'pointer',
-                              lineHeight: 1,
-                              padding: '2px 4px',
-                            }}
-                            title="Disconnect"
-                          >
-                            ×
-                          </button>
-                        </Box>
-                      </Box>
+                            {pl.emoji}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900">{pl.label}</p>
+                            {isInstagram && !isConnected && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {connectedPlatformIds.has('facebook')
+                                  ? 'Connected automatically when you connect Facebook'
+                                  : 'Connect Facebook first — Instagram is detected automatically'}
+                              </p>
+                            )}
+                          </div>
+                          {isConnected ? (
+                            <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-green-100 text-green-700">
+                              Connected
+                            </span>
+                          ) : isInstagram && !connectedPlatformIds.has('facebook') ? (
+                            <Button
+                              onClick={() => handleConnect('facebook')}
+                              disabled={connectingPlatform === 'facebook'}
+                              variant="outline"
+                              size="sm"
+                              style={{ borderColor: '#1877F2', color: '#1877F2' }}
+                            >
+                              {connectingPlatform === 'facebook' ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                  Opening…
+                                </>
+                              ) : (
+                                'Connect via Facebook'
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={() => handleConnect(pl.id)}
+                              disabled={isConnecting}
+                              variant="outline"
+                              size="sm"
+                              style={{ borderColor: pl.color, color: pl.color }}
+                            >
+                              {isConnecting ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                  Opening…
+                                </>
+                              ) : (
+                                'Connect'
+                              )}
+                            </Button>
+                          )}
+                        </CardContent>
+                      </Card>
                     );
                   })}
-                </Box>
-              </Box>
-            )
+                </div>
+              </div>
+            </>
           )}
-
-          {/* Available platforms */}
-          <Typography
-            sx={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.6,
-              mb: 1.5,
-            }}
-          >
-            {connections.length > 0 ? 'Add More Accounts' : 'Connect an Account'}
-          </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {PLATFORMS.map((pl) => {
-              const isConnected = connectedPlatformIds.has(pl.id);
-              const isConnecting = connectingPlatform === pl.id;
-              const isInstagram = pl.id === 'instagram';
-              return (
-                <Box
-                  key={pl.id}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    p: 1.5,
-                    background: '#fff',
-                    borderRadius: 2,
-                    border: '1px solid #e5e3df',
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
-                      background: pl.bg,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 18,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {pl.emoji}
-                  </Box>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{pl.label}</Typography>
-                    {isInstagram && !isConnected && (
-                      <Typography sx={{ fontSize: 11, color: '#999', mt: 0.25 }}>
-                        {connectedPlatformIds.has('facebook')
-                          ? 'Connect Facebook first — Instagram is detected automatically'
-                          : 'Connected automatically when you connect your Facebook Page'}
-                      </Typography>
-                    )}
-                  </Box>
-                  {isConnected ? (
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: '#16a34a',
-                        background: '#dcfce7',
-                        padding: '2px 10px',
-                        borderRadius: 20,
-                      }}
-                    >
-                      Connected
-                    </span>
-                  ) : isInstagram && !connectedPlatformIds.has('facebook') ? (
-                    <button
-                      onClick={() => handleConnect('facebook')}
-                      disabled={connectingPlatform === 'facebook'}
-                      title="Instagram Business accounts are connected via Facebook"
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: 8,
-                        border: '1.5px solid #1877F2',
-                        background: '#fff',
-                        color: '#1877F2',
-                        fontSize: 12.5,
-                        fontWeight: 700,
-                        cursor: connectingPlatform === 'facebook' ? 'not-allowed' : 'pointer',
-                        opacity: connectingPlatform === 'facebook' ? 0.6 : 1,
-                        fontFamily: 'var(--wf)',
-                      }}
-                    >
-                      {connectingPlatform === 'facebook' ? 'Opening…' : 'Connect via Facebook'}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleConnect(pl.id)}
-                      disabled={isConnecting}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: 8,
-                        border: `1.5px solid ${pl.color}`,
-                        background: '#fff',
-                        color: pl.color,
-                        fontSize: 12.5,
-                        fontWeight: 700,
-                        cursor: isConnecting ? 'not-allowed' : 'pointer',
-                        opacity: isConnecting ? 0.6 : 1,
-                        fontFamily: 'var(--wf)',
-                      }}
-                    >
-                      {isConnecting ? 'Opening…' : 'Connect'}
-                    </button>
-                  )}
-                </Box>
-              );
-            })}
-          </Box>
-        </Box>
-      </Box>
+        </div>
+      </div>
     </DashboardLayout>
   );
 }
@@ -601,9 +403,9 @@ export default function SocialAccountsPage() {
   return (
     <Suspense
       fallback={
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-          <CircularProgress sx={{ color: '#CD1B78' }} />
-        </Box>
+        <div className="flex justify-center items-center min-h-screen">
+          <Loader2 className="w-8 h-8 animate-spin text-[#CD1B78]" />
+        </div>
       }
     >
       <SocialAccountsContent />
