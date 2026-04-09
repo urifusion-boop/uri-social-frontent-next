@@ -3273,8 +3273,10 @@ const SettingsPage = ({ onJane, brandName }: { onJane: () => void; brandName: st
         </div>
         <Bd>Current</Bd>
       </div>
-      <button
+      <a
+        href="/pricing"
         style={{
+          display: 'block',
           width: '100%',
           padding: 11,
           borderRadius: 9,
@@ -3285,10 +3287,13 @@ const SettingsPage = ({ onJane, brandName }: { onJane: () => void; brandName: st
           fontSize: 13,
           cursor: 'pointer',
           fontFamily: 'var(--wf)',
+          textAlign: 'center',
+          textDecoration: 'none',
+          boxSizing: 'border-box',
         }}
       >
         Upgrade to Pro
-      </button>
+      </a>
     </div>
     <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}>
       <h3 style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>Brand</h3>
