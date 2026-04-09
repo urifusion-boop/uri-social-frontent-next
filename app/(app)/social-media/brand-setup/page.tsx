@@ -24,6 +24,7 @@ import {
 import { FaXTwitter } from 'react-icons/fa6';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { MdOutlineCampaign } from 'react-icons/md';
+import Navbar from '@/components/Navbar';
 
 // ─── Step order ──────────────────────────────────────────────────────────────
 const STEPS = [
@@ -2846,72 +2847,31 @@ function BrandSetupPageContent() {
 
   return (
     <>
-      <Box sx={{ background: themeColors.background, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        {/* ── Sticky header ────────────────────────────────────── */}
-        <Box
-          sx={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 10,
-            background: '#fff',
-            borderBottom: '1px solid #F3F4F6',
-            px: { xs: 2, md: 3 },
-            py: 1.25,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          {/* Logo */}
-          <Box display="flex" alignItems="center" gap={1}>
-            <Image src="/images/uri-logo.png" alt="URI Social" width={32} height={32} className="h-8 w-auto" />
-            <Box display="flex" flexDirection="column">
-              <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#000', letterSpacing: -0.3, lineHeight: 1.2 }}>
-                URI
-              </Typography>
-              <Typography
-                sx={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: 'rgba(0,0,0,0.5)',
-                  textTransform: 'uppercase',
-                  letterSpacing: 1,
-                }}
-              >
-                Social
-              </Typography>
-            </Box>
-          </Box>
-
-          {/* Progress bar (hidden on welcome only) */}
-          {step > 0 && (
-            <Box sx={{ flex: 1, maxWidth: 240, mx: 3 }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                <Typography sx={{ fontSize: 11, fontWeight: 600, color: primary }}>
-                  {Math.round(progressPct)}% complete
-                </Typography>
-                <Typography sx={{ fontSize: 11, color: '#9CA3AF' }}>
-                  {progressStep}/{progressibleSteps}
-                </Typography>
-              </Box>
-              <LinearProgress
-                variant="determinate"
-                value={progressPct}
-                sx={{
-                  height: 5,
-                  borderRadius: 3,
-                  background: '#F3F4F6',
-                  '& .MuiLinearProgress-bar': {
-                    background: `linear-gradient(90deg, ${primary}, ${primary}cc)`,
-                    borderRadius: 3,
-                  },
-                }}
-              />
-            </Box>
-          )}
-
-          {/* Back button */}
-          {step > 0 ? (
+      <Navbar />
+      <Box
+        sx={{
+          background: themeColors.background,
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          pt: '64px',
+        }}
+      >
+        {/* Progress bar and back button */}
+        {step > 0 && (
+          <Box
+            sx={{
+              background: '#fff',
+              borderBottom: '1px solid #F3F4F6',
+              px: { xs: 2, md: 3 },
+              py: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 2,
+            }}
+          >
+            {/* Back button */}
             <Box
               component="button"
               onClick={prev}
@@ -2934,10 +2894,35 @@ function BrandSetupPageContent() {
               <FaArrowLeft size={12} />
               Back
             </Box>
-          ) : (
+
+            {/* Progress bar */}
+            <Box sx={{ flex: 1, maxWidth: 360 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                <Typography sx={{ fontSize: 11, fontWeight: 600, color: primary }}>
+                  {Math.round(progressPct)}% complete
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: '#9CA3AF' }}>
+                  {progressStep}/{progressibleSteps}
+                </Typography>
+              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={progressPct}
+                sx={{
+                  height: 5,
+                  borderRadius: 3,
+                  background: '#F3F4F6',
+                  '& .MuiLinearProgress-bar': {
+                    background: `linear-gradient(90deg, ${primary}, ${primary}cc)`,
+                    borderRadius: 3,
+                  },
+                }}
+              />
+            </Box>
+
             <Box sx={{ width: 72 }} />
-          )}
-        </Box>
+          </Box>
+        )}
 
         {/* ── Card body ────────────────────────────────────────── */}
         <Box
