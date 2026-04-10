@@ -104,14 +104,41 @@ function SocialAccountsContent() {
         });
     }
 
+    // Instagram direct OAuth callback
+    if (connected === 'instagram_direct') {
+      const igUserId = searchParams.get('ig_user_id');
+      const username = searchParams.get('username');
+      router.replace('/settings/social-accounts');
+      if (igUserId) {
+        SocialAccountService.finalizeInstagramDirect(igUserId)
+          .then(() => {
+            ToastService.showToast(`Instagram @${username} connected!`, ToastTypeEnum.Success);
+            fetchConnections();
+          })
+          .catch(() => {
+            ToastService.showToast('Instagram connected but could not save. Please try again.', ToastTypeEnum.Error);
+          });
+      }
+    }
+
     if (connected === 'false') {
       const err = searchParams.get('error');
       ToastService.showToast(err ?? 'Connection failed. Please try again.', ToastTypeEnum.Error);
       router.replace('/settings/social-accounts');
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, fetchConnections]);
 
   const handleConnect = async (platformId: string) => {
+    // Instagram: use direct OAuth flow (bypasses Outstand)
+    if (platformId === 'instagram') {
+      const apiBase =
+        process.env.NODE_ENV !== 'production'
+          ? process.env.NEXT_PUBLIC_URI_API_BASE_URL_DEV
+          : process.env.NEXT_PUBLIC_URI_API_BASE_URL;
+      window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      return;
+    }
+
     setConnectingPlatform(platformId);
     try {
       const res = await SocialAccountService.initiateConnection([platformId], 'settings');
