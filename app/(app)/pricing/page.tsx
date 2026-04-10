@@ -125,9 +125,7 @@ export default function PricingPage() {
 
                   <CardHeader className="pb-4 min-h-[80px] flex flex-col justify-start">
                     <CardTitle className="text-xl font-bold text-gray-900">{tier.name}</CardTitle>
-                    <CardDescription className="text-sm text-gray-500 mt-1">
-                      {tier.credits} campaigns • ₦{pricePerCredit}/campaign
-                    </CardDescription>
+                    <CardDescription className="text-sm text-gray-500 mt-1">{tier.credits} campaigns</CardDescription>
                   </CardHeader>
 
                   <CardContent className="flex-1 pb-6 flex flex-col">
@@ -180,13 +178,13 @@ export default function PricingPage() {
         </div>
 
         {/* How It Works Section */}
-        <div className="max-w-4xl mx-auto">
+        {/* <div className="max-w-4xl mx-auto">
           <Card className="border-2 border-gray-200 bg-white">
             <CardHeader>
               <CardTitle className="text-2xl font-bold text-gray-900">How Credits Work</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Credit Usage */}
+            
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span className="text-2xl">💳</span>
@@ -210,7 +208,7 @@ export default function PricingPage() {
                 </ul>
               </div>
 
-              {/* Text & Image Rules */}
+             
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span className="text-2xl">✏️</span>
@@ -235,7 +233,7 @@ export default function PricingPage() {
                 </ul>
               </div>
 
-              {/* Monthly Billing */}
+             
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <span className="text-2xl">🔄</span>
@@ -257,7 +255,7 @@ export default function PricingPage() {
                 </ul>
               </div>
 
-              {/* Payment Info */}
+           
               <div className="pt-4 border-t border-gray-200">
                 <p className="text-sm text-gray-600 text-center">
                   Payments processed securely via <strong className="text-gray-900">SQUAD</strong>. Nigerian business
@@ -266,7 +264,7 @@ export default function PricingPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </div> */}
 
         {/* Back to Dashboard */}
         {isAuthenticated && (
