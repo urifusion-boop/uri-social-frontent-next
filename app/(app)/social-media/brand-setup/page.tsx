@@ -652,6 +652,25 @@ function BrandSetupPageContent() {
     const platform = searchParams.get('platform');
     const username = searchParams.get('username');
 
+    // Instagram direct OAuth callback
+    if (connected === 'instagram_direct') {
+      const igUserId = searchParams.get('ig_user_id');
+      const igUsername = searchParams.get('username') ?? 'Instagram';
+      router.replace('/social-media/brand-setup');
+      if (igUserId) {
+        SocialAccountService.finalizeInstagramDirect(igUserId)
+          .then(() => {
+            setConnectedAccountNames((prev) => [...prev, `@${igUsername}`]);
+            setStep(STEPS.indexOf('connectAccounts'));
+            setConnectPhase('success');
+          })
+          .catch(() => {
+            setConnectPhase('selecting');
+          });
+      }
+      return;
+    }
+
     if (connected === 'true' && platform) {
       // New LinkedIn / X OAuth callback
       const displayName = username ? decodeURIComponent(username) : platform;
@@ -948,7 +967,17 @@ function BrandSetupPageContent() {
             return;
           }
 
-          // Outstand flow (Facebook / Instagram)
+          // Instagram: direct OAuth flow (bypasses Outstand)
+          if (selectedConnectPlatform === 'instagram') {
+            const apiBase =
+              process.env.NODE_ENV !== 'production'
+                ? process.env.NEXT_PUBLIC_URI_API_BASE_URL_DEV
+                : process.env.NEXT_PUBLIC_URI_API_BASE_URL;
+            window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=onboarding`;
+            return;
+          }
+
+          // Outstand flow (Facebook / other platforms)
           setConnectPhase('connecting');
           try {
             const res = await SocialAccountService.initiateConnection([selectedConnectPlatform]);
