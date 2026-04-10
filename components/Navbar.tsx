@@ -232,129 +232,131 @@ export default function Navbar() {
         </div>
 
         {/* Mobile Menu */}
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="md:hidden py-4 space-y-3"
-            style={{ borderTop: '3px solid black', backgroundColor: 'rgba(252, 243, 239, 1)' }}
-          >
-            <Link
-              href="/how-she-works"
-              className="block w-full text-left text-sm font-bold py-2 px-4 uppercase"
-              style={{ color: 'rgba(0, 0, 0, 0.7)' }}
-              onClick={() => setOpen(false)}
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="md:hidden overflow-hidden"
             >
-              How It Works
-            </Link>
-            <Link
-              href="/pricing"
-              className="block w-full text-left text-sm font-bold py-2 px-4 uppercase"
-              style={{ color: 'rgba(0, 0, 0, 0.7)' }}
-              onClick={() => setOpen(false)}
-            >
-              Pricing
-            </Link>
-            <Link
-              href="/about"
-              className="block w-full text-left text-sm font-bold py-2 px-4 uppercase"
-              style={{ color: 'rgba(0, 0, 0, 0.7)' }}
-              onClick={() => setOpen(false)}
-            >
-              About
-            </Link>
-            <Link
-              href="/contact"
-              className="block w-full text-left text-sm font-bold py-2 px-4 uppercase"
-              style={{ color: 'rgba(0, 0, 0, 0.7)' }}
-              onClick={() => setOpen(false)}
-            >
-              Contact
-            </Link>
+              <div className="py-4 space-y-1 border-t border-gray-200 bg-white">
+                {/* Navigation Links */}
+                <Link
+                  href="/how-she-works"
+                  className="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:text-[#CD1B78] transition-colors rounded-lg mx-2"
+                  onClick={() => setOpen(false)}
+                >
+                  How It Works
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:text-[#CD1B78] transition-colors rounded-lg mx-2"
+                  onClick={() => setOpen(false)}
+                >
+                  Pricing
+                </Link>
+                <Link
+                  href="/about"
+                  className="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:text-[#CD1B78] transition-colors rounded-lg mx-2"
+                  onClick={() => setOpen(false)}
+                >
+                  About
+                </Link>
+                <Link
+                  href="/contact"
+                  className="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:text-[#CD1B78] transition-colors rounded-lg mx-2"
+                  onClick={() => setOpen(false)}
+                >
+                  Contact
+                </Link>
 
-            {isAuthenticated ? (
-              <>
-                <div className="px-4 py-3" style={{ borderTop: '2px solid black', borderBottom: '2px solid black' }}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm"
-                      style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}
+                {isAuthenticated ? (
+                  <>
+                    {/* User Profile Section */}
+                    <div className="mt-3 pt-3 border-t border-gray-100 mx-2">
+                      <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl mb-2">
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm"
+                          style={{ backgroundColor: '#CD1B78', color: 'white' }}
+                        >
+                          {getInitials()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-gray-900 truncate">{getDisplayName()}</p>
+                          <p className="text-xs text-gray-500 truncate">{userDetails?.email}</p>
+                        </div>
+                      </div>
+
+                      {/* Credit Balance in Mobile */}
+                      <div className="px-4 py-2 mb-2">
+                        <CreditBalance />
+                      </div>
+                    </div>
+
+                    {/* Account Actions */}
+                    <button
+                      onClick={() => {
+                        setOpen(false);
+                        router.push('/workspace');
+                      }}
+                      className="w-full flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50 transition-colors text-left rounded-lg mx-2"
                     >
-                      {getInitials()}
+                      <LayoutDashboard size={18} className="text-gray-600" />
+                      <span className="text-sm font-medium text-gray-700">Dashboard</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setOpen(false);
+                        router.push('/workspace?tab=settings');
+                      }}
+                      className="w-full flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50 transition-colors text-left rounded-lg mx-2"
+                    >
+                      <Settings size={18} className="text-gray-600" />
+                      <span className="text-sm font-medium text-gray-700">Settings</span>
+                    </button>
+
+                    <div className="pt-2 mt-2 border-t border-gray-100 mx-2">
+                      <button
+                        onClick={() => {
+                          setOpen(false);
+                          handleLogout();
+                        }}
+                        className="w-full flex items-center gap-3 px-6 py-2.5 hover:bg-red-50 transition-colors text-left rounded-lg"
+                      >
+                        <LogOut size={18} className="text-red-600" />
+                        <span className="text-sm font-medium text-red-600">Logout</span>
+                      </button>
                     </div>
-                    <div>
-                      <p className="font-bold text-sm" style={{ color: 'black' }}>
-                        {getDisplayName()}
-                      </p>
-                      <p className="text-xs" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                        {userDetails?.email}
-                      </p>
+                  </>
+                ) : (
+                  <>
+                    {/* Auth Buttons for Non-authenticated Users */}
+                    <div className="pt-3 mt-3 border-t border-gray-100 space-y-2 px-2">
+                      <Link
+                        href="/login"
+                        className="block w-full text-center px-4 py-2.5 text-sm font-semibold text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        onClick={() => setOpen(false)}
+                      >
+                        Sign In
+                      </Link>
+                      <Link
+                        href="/login?tab=signup"
+                        className="block w-full text-center px-4 py-2.5 text-sm font-semibold text-white rounded-lg hover:opacity-90 transition-opacity shadow-sm"
+                        style={{ backgroundColor: '#CD1B78' }}
+                        onClick={() => setOpen(false)}
+                      >
+                        Get Started Free
+                      </Link>
                     </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    router.push('/workspace');
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
-                >
-                  <LayoutDashboard size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                  <span className="text-sm font-bold uppercase" style={{ color: 'rgba(0, 0, 0, 0.7)' }}>
-                    Dashboard
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    router.push('/workspace?tab=settings');
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
-                >
-                  <Settings size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                  <span className="text-sm font-bold uppercase" style={{ color: 'rgba(0, 0, 0, 0.7)' }}>
-                    Settings
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    handleLogout();
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors text-left"
-                >
-                  <LogOut size={18} style={{ color: 'hsl(340, 74%, 42%)' }} />
-                  <span className="text-sm font-bold uppercase" style={{ color: 'rgba(0, 0, 0, 0.7)' }}>
-                    Logout
-                  </span>
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="block w-full text-left text-sm font-bold py-2 px-4 uppercase"
-                  style={{ color: 'rgba(0, 0, 0, 0.7)' }}
-                  onClick={() => setOpen(false)}
-                >
-                  Sign In
-                </Link>
-                <Link
-                  href="/login?tab=signup"
-                  className="block w-full comic-btn px-5 py-2.5 rounded-lg text-sm text-center"
-                  style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}
-                  onClick={() => setOpen(false)}
-                >
-                  Get Started Free
-                </Link>
-              </>
-            )}
-          </motion.div>
-        )}
+                  </>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.nav>
   );
