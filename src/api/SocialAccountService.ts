@@ -29,21 +29,40 @@ export interface ConnectedAccount {
 }
 
 export class SocialAccountService {
-  static async initiateConnection(platforms: string[], source: 'onboarding' | 'settings' = 'onboarding'): Promise<UriResponse<{ auth_urls: Record<string, string> }>> {
-    const response: AxiosResponse<UriResponse<{ auth_urls: Record<string, string> }>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.initiateConnection, { platforms, source });
+  static async initiateConnection(
+    platforms: string[],
+    source: 'onboarding' | 'settings' = 'onboarding'
+  ): Promise<UriResponse<{ auth_urls: Record<string, string> }>> {
+    const response: AxiosResponse<UriResponse<{ auth_urls: Record<string, string> }>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.initiateConnection, { platforms, source });
     return response.data;
   }
 
   static async getPendingConnection(sessionToken: string): Promise<UriResponse<PendingConnection>> {
-    const response: AxiosResponse<UriResponse<PendingConnection>> = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.pendingConnection}/${sessionToken}`);
+    const response: AxiosResponse<UriResponse<PendingConnection>> = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.pendingConnection}/${sessionToken}`
+    );
     return response.data;
   }
 
-  static async finalizeConnection(sessionToken: string, selectedPageIds: string[]): Promise<UriResponse<{ accounts_connected: ConnectedAccount[] }>> {
-    const response: AxiosResponse<UriResponse<{ accounts_connected: ConnectedAccount[] }>> = await UriHttpClient.getClient().post(socialMediaAgentRoutes.finalizeConnection, {
-      session_token: sessionToken,
-      selected_page_ids: selectedPageIds,
-    });
+  static async finalizeConnection(
+    sessionToken: string,
+    selectedPageIds: string[]
+  ): Promise<UriResponse<{ accounts_connected: ConnectedAccount[] }>> {
+    const response: AxiosResponse<UriResponse<{ accounts_connected: ConnectedAccount[] }>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.finalizeConnection, {
+        session_token: sessionToken,
+        selected_page_ids: selectedPageIds,
+      });
+    return response.data;
+  }
+
+  static async finalizeInstagramDirect(igUserId: string): Promise<UriResponse<{ ig_user_id: string }>> {
+    const response: AxiosResponse<UriResponse<{ ig_user_id: string }>> = await UriHttpClient.getClient().post(
+      '/social-media/connect/instagram-direct/finalize',
+      null,
+      { params: { ig_user_id: igUserId } }
+    );
     return response.data;
   }
 }
