@@ -18,7 +18,7 @@
     }
   },
   "globalHeaders": {
-    "content-security-policy": "default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data:; connect-src 'self' https://api.urisocial.com https://api-staging.urisocial.com"
+    "content-security-policy": "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data: blob:; connect-src 'self' https://api.urisocial.com https://api-staging.urisocial.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; script-src-elem 'self' 'unsafe-inline' blob:"
   },
   "mimeTypes": {
     ".json": "application/json"
