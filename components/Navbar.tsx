@@ -7,7 +7,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, Settings, LogOut, LayoutDashboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/src/providers/AuthProvider';
-import CreditBalance from './CreditBalance';
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
@@ -109,9 +108,6 @@ export default function Navbar() {
 
             {isAuthenticated ? (
               <>
-                {/* Credit Balance - PRD 7.1 */}
-                <CreditBalance />
-
                 <div className="relative">
                   <button
                     onClick={() => setProfileMenuOpen(!profileMenuOpen)}
@@ -287,11 +283,6 @@ export default function Navbar() {
                           <p className="font-semibold text-sm text-gray-900 truncate">{getDisplayName()}</p>
                           <p className="text-xs text-gray-500 truncate">{userDetails?.email}</p>
                         </div>
-                      </div>
-
-                      {/* Credit Balance in Mobile */}
-                      <div className="px-4 py-2 mb-2">
-                        <CreditBalance />
                       </div>
                     </div>
 
