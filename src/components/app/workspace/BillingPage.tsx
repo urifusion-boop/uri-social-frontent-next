@@ -102,7 +102,7 @@ export default function BillingPage({ onBack }: BillingPageProps) {
   const [creditTransactions, setCreditTransactions] = useState<CreditTransaction[]>([]);
   const [paymentHistory, setPaymentHistory] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>('overview');
 
   useEffect(() => {
     fetchBillingData();
@@ -332,7 +332,7 @@ export default function BillingPage({ onBack }: BillingPageProps) {
               )}
             </div>
             <button
-              onClick={() => router.push('/pricing')}
+              onClick={() => setActiveTab('plans')}
               style={{
                 padding: '10px 18px',
                 borderRadius: 8,
@@ -344,7 +344,7 @@ export default function BillingPage({ onBack }: BillingPageProps) {
                 cursor: 'pointer',
               }}
             >
-              Change Plan
+              View Plans
             </button>
           </div>
         </div>
@@ -363,7 +363,7 @@ export default function BillingPage({ onBack }: BillingPageProps) {
         >
           <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>You don't have an active subscription</p>
           <button
-            onClick={() => router.push('/pricing')}
+            onClick={() => setActiveTab('plans')}
             style={{
               padding: '12px 24px',
               borderRadius: 8,
@@ -375,14 +375,14 @@ export default function BillingPage({ onBack }: BillingPageProps) {
               cursor: 'pointer',
             }}
           >
-            Subscribe Now
+            View Subscription Plans
           </button>
         </div>
       )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #edecea' }}>
-        {['overview', 'credits', 'payments'].map((tab) => (
+        {['overview', 'plans', 'credits', 'payments'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as typeof activeTab)}
@@ -398,12 +398,390 @@ export default function BillingPage({ onBack }: BillingPageProps) {
               textTransform: 'capitalize',
             }}
           >
-            {tab === 'credits' ? 'Credit History' : tab}
+            {tab === 'credits' ? 'Credit History' : tab === 'plans' ? 'Subscription Plans' : tab}
           </button>
         ))}
       </div>
 
       {/* Tab Content */}
+      {activeTab === 'plans' && (
+        <div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: 16,
+              marginBottom: 16,
+            }}
+          >
+            {/* Intern Plan */}
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 12,
+                border: '2px solid #000',
+                padding: '20px 18px 18px',
+                position: 'relative',
+              }}
+            >
+              <div style={{ marginBottom: 14 }}>
+                <h3
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 900,
+                    textTransform: 'uppercase',
+                    margin: '0 0 4px',
+                    color: '#000',
+                  }}
+                >
+                  Intern
+                </h3>
+                <p
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    color: 'rgba(0,0,0,0.5)',
+                    margin: 0,
+                  }}
+                >
+                  Just getting started
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <span style={{ fontSize: 32, fontWeight: 900, color: '#000' }}>Free</span>
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '2px solid #000', margin: '14px 0' }} />
+
+              <ul
+                style={{
+                  listStyle: 'none',
+                  padding: 0,
+                  margin: '0 0 18px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}
+              >
+                {['3 social accounts', '30 AI posts/month', 'Dashboard approval only', 'Basic analytics'].map((f) => (
+                  <li
+                    key={f}
+                    style={{
+                      fontSize: 12,
+                      color: '#000',
+                      display: 'flex',
+                      alignItems: 'start',
+                      gap: 6,
+                      fontWeight: 500,
+                    }}
+                  >
+                    <span style={{ fontWeight: 900, color: '#4caf50', fontSize: 14 }}>✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                style={{
+                  width: '100%',
+                  padding: '11px 0',
+                  borderRadius: 8,
+                  border: '2px solid #000',
+                  background: '#fff',
+                  color: '#000',
+                  fontWeight: 900,
+                  fontSize: 12,
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Start Free
+              </button>
+            </div>
+
+            {/* Full-Time Plan */}
+            <div
+              style={{
+                background: 'rgba(203, 42, 124, 0.05)',
+                borderRadius: 12,
+                border: '2px solid #C2185B',
+                padding: '20px 18px 18px',
+                position: 'relative',
+                transform: 'scale(1.02)',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -12,
+                  left: '50%',
+                  transform: 'translateX(-50%) rotate(-2deg)',
+                  background: '#C2185B',
+                  color: '#fff',
+                  padding: '4px 12px',
+                  borderRadius: 6,
+                  fontSize: 10,
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Most Popular
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <h3
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 900,
+                    textTransform: 'uppercase',
+                    margin: '0 0 4px',
+                    color: '#000',
+                  }}
+                >
+                  Full-Time
+                </h3>
+                <p
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    color: 'rgba(0,0,0,0.5)',
+                    margin: 0,
+                  }}
+                >
+                  The real deal
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <span style={{ fontSize: 32, fontWeight: 900, color: '#000' }}>₦15,000</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(0,0,0,0.5)' }}>/mo</span>
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '2px solid #C2185B', margin: '14px 0' }} />
+
+              <ul
+                style={{
+                  listStyle: 'none',
+                  padding: 0,
+                  margin: '0 0 18px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}
+              >
+                {[
+                  'Unlimited accounts',
+                  'Unlimited AI posts',
+                  'WhatsApp + Email + Dashboard approval',
+                  'Social inbox & customer messages',
+                  'Trend monitoring & competitor watching',
+                  'Weekly performance memos',
+                  'Team access (up to 5 members)',
+                ].map((f) => (
+                  <li
+                    key={f}
+                    style={{
+                      fontSize: 12,
+                      color: '#000',
+                      display: 'flex',
+                      alignItems: 'start',
+                      gap: 6,
+                      fontWeight: 500,
+                    }}
+                  >
+                    <span style={{ fontWeight: 900, color: '#4caf50', fontSize: 14 }}>✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                style={{
+                  width: '100%',
+                  padding: '11px 0',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#C2185B',
+                  color: '#fff',
+                  fontWeight: 900,
+                  fontSize: 12,
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Hire Jane →
+              </button>
+            </div>
+
+            {/* Executive Plan */}
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 12,
+                border: '2px solid #000',
+                padding: '20px 18px 18px',
+                position: 'relative',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -12,
+                  left: '50%',
+                  transform: 'translateX(-50%) rotate(2deg)',
+                  background: '#000',
+                  color: '#fff',
+                  padding: '4px 12px',
+                  borderRadius: 6,
+                  fontSize: 10,
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                For Teams
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <h3
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 900,
+                    textTransform: 'uppercase',
+                    margin: '0 0 4px',
+                    color: '#000',
+                  }}
+                >
+                  Executive
+                </h3>
+                <p
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    color: 'rgba(0,0,0,0.5)',
+                    margin: 0,
+                  }}
+                >
+                  Enterprise energy
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <span style={{ fontSize: 32, fontWeight: 900, color: '#000' }}>₦50,000</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(0,0,0,0.5)' }}>/mo</span>
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '2px solid #000', margin: '14px 0' }} />
+
+              <ul
+                style={{
+                  listStyle: 'none',
+                  padding: 0,
+                  margin: '0 0 18px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}
+              >
+                {[
+                  'Everything in Full-Time',
+                  'Multi-brand management',
+                  'API access & custom integrations',
+                  'Priority support',
+                  'Dedicated onboarding session',
+                  'Advanced analytics & exports',
+                ].map((f) => (
+                  <li
+                    key={f}
+                    style={{
+                      fontSize: 12,
+                      color: '#000',
+                      display: 'flex',
+                      alignItems: 'start',
+                      gap: 6,
+                      fontWeight: 500,
+                    }}
+                  >
+                    <span style={{ fontWeight: 900, color: '#4caf50', fontSize: 14 }}>✓</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                style={{
+                  width: '100%',
+                  padding: '11px 0',
+                  borderRadius: 8,
+                  border: '2px solid #000',
+                  background: '#fff',
+                  color: '#000',
+                  fontWeight: 900,
+                  fontSize: 12,
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Contact Sales
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: '#fff',
+              border: '2px solid #000',
+              borderRadius: 10,
+              padding: '14px 18px',
+              fontSize: 12,
+              color: '#000',
+              fontWeight: 500,
+              maxWidth: 700,
+              margin: '0 auto',
+              position: 'relative',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: -8,
+                left: 20,
+                width: 0,
+                height: 0,
+                borderLeft: '8px solid transparent',
+                borderRight: '8px solid transparent',
+                borderBottom: '8px solid #000',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: -6,
+                left: 20,
+                width: 0,
+                height: 0,
+                borderLeft: '8px solid transparent',
+                borderRight: '8px solid transparent',
+                borderBottom: '8px solid #fff',
+              }}
+            />
+            For context: a social media agency charges ₦150,000-₦500,000/month. A freelancer costs ₦80,000+. Jane starts
+            at free. <strong>Free free.</strong> Not &quot;free trial&quot; free. Actually free.
+          </div>
+        </div>
+      )}
+
       {activeTab === 'overview' && (
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Recent Activity</h3>
