@@ -17,6 +17,7 @@ import ContentCalendarTab from '@/src/components/app/social-media/ContentCalenda
 import { PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { ReactNode } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaWhatsapp } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
@@ -3610,24 +3611,39 @@ export default function WorkspaceDashboard() {
               flexShrink: 0,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '0 18px', marginBottom: 26 }}>
-              <div
+            <Link
+              href="/"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                padding: '0 18px',
+                marginBottom: 26,
+                textDecoration: 'none',
+                cursor: 'pointer',
+                transition: 'opacity 0.2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+            >
+              <img
+                src="/images/urilogo-nobg.png"
+                alt="URI Social"
+                style={{ width: 32, height: 32, objectFit: 'contain' }}
+              />
+              <span
                 style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 7,
-                  background: 'linear-gradient(135deg,#C2185B,#E91E63)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  color: '#fff',
+                  fontWeight: 300,
+                  fontSize: 15,
+                  fontFamily: 'Georgia, "Times New Roman", serif',
+                  fontStyle: 'italic',
+                  letterSpacing: '0.5px',
                 }}
               >
-                <span style={{ color: '#fff', fontWeight: 900, fontSize: 13 }}>U</span>
-              </div>
-              <span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>
-                URI <span style={{ fontWeight: 400, color: 'rgba(255,255,255,.4)' }}>Social</span>
+                social
               </span>
-            </div>
+            </Link>
             <div
               style={{
                 margin: '0 12px 18px',
