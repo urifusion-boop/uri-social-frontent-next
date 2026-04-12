@@ -3331,6 +3331,20 @@ const SettingsPage = ({
         </div>
       </div>
 
+      {/* Subscription Info */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <I n="trending" s={16} c="#C2185B" />
+          Subscription
+        </h3>
+        <div>
+          <div style={{ fontSize: 11, color: '#999', marginBottom: 4, fontWeight: 600 }}>CURRENT PLAN</div>
+          <div style={{ fontSize: 13.5, color: '#333', fontWeight: 600, textTransform: 'capitalize' }}>
+            {userDetails?.subscriptionTier || 'Free'}
+          </div>
+        </div>
+      </div>
+
       {/* Quick Actions */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3363,7 +3377,7 @@ const SettingsPage = ({
             </svg>
           </button>
           <button
-            onClick={() => router.push('/pricing')}
+            onClick={() => onNavChange('billing')}
             style={{
               width: '100%',
               padding: '12px 14px',
