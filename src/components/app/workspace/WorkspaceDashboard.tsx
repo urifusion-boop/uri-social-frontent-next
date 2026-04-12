@@ -3910,6 +3910,46 @@ export default function WorkspaceDashboard() {
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              {/* Settings Icon - Social Accounts */}
+              {!isMobile && (
+                <button
+                  onClick={() => setNav('social-accounts')}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 7,
+                    border: '1px solid #e5e3df',
+                    background: '#fff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  title="Social Accounts Settings"
+                >
+                  <I n="settings" s={14} c="#666" />
+                </button>
+              )}
+
+              {/* Edit Icon - Brand Setup */}
+              <button
+                onClick={() => setNav('brand-setup')}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 7,
+                  border: '1px solid #e5e3df',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title="Edit Brand Setup"
+              >
+                <I n="edit" s={14} c="#666" />
+              </button>
+
               {/* Credit Balance Badge */}
               {!isMobile && <WorkspaceCreditBadge onClick={() => setNav('billing')} />}
 
