@@ -44,10 +44,10 @@ export default function BillingPage() {
       setLoading(true);
 
       const [balanceData, subData, creditTxns, payments] = await Promise.all([
-        BillingService.getCreditBalance(),
+        BillingService.getCreditBalance().catch(() => null),
         BillingService.getCurrentSubscription().catch(() => null),
-        BillingService.getTransactionHistory(50),
-        BillingService.getPaymentHistory(20),
+        BillingService.getTransactionHistory(50).catch(() => []),
+        BillingService.getPaymentHistory(20).catch(() => []),
       ]);
 
       setBalance(balanceData);
@@ -56,6 +56,7 @@ export default function BillingPage() {
       setPaymentHistory(payments);
     } catch (error) {
       console.error('Failed to fetch billing data:', error);
+      // Don't redirect on error, just show empty state
     } finally {
       setLoading(false);
     }
