@@ -119,6 +119,7 @@ export default function BillingPage({ onBack }: BillingPageProps) {
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>('overview');
+  const [confirmTier, setConfirmTier] = useState<SubscriptionTier | null>(null);
 
   useEffect(() => {
     fetchBillingData();
@@ -148,16 +149,23 @@ export default function BillingPage({ onBack }: BillingPageProps) {
     }
   };
 
-  const handleSelectPlan = async (tierId: string) => {
-    setSubscribing(tierId);
+  const handleSelectPlan = async (tier: SubscriptionTier) => {
+    setConfirmTier(tier);
+  };
+
+  const confirmSubscription = async () => {
+    if (!confirmTier) return;
+
+    setSubscribing(confirmTier.tier_id);
 
     try {
-      const paymentData = await BillingService.initializePayment(tierId);
+      const paymentData = await BillingService.initializePayment(confirmTier.tier_id);
       window.location.href = paymentData.payment_url;
     } catch (error: unknown) {
       console.error('Payment initialization failed:', error);
       alert(error instanceof Error ? error.message : 'Failed to initialize payment. Please try again.');
       setSubscribing(null);
+      setConfirmTier(null);
     }
   };
 
@@ -384,7 +392,7 @@ export default function BillingPage({ onBack }: BillingPageProps) {
                   </ul>
 
                   <button
-                    onClick={() => !current && tier.is_active && handleSelectPlan(tier.tier_id)}
+                    onClick={() => !current && tier.is_active && handleSelectPlan(tier)}
                     disabled={!tier.is_active || subscribing === tier.tier_id || current}
                     style={{
                       width: '100%',
@@ -718,6 +726,119 @@ export default function BillingPage({ onBack }: BillingPageProps) {
             {paymentHistory.length === 0 && (
               <p style={{ textAlign: 'center', color: '#999', padding: 32 }}>No payment history yet</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmTier && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={() => !subscribing && setConfirmTier(null)}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              padding: 32,
+              maxWidth: 480,
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: 24, fontWeight: 900, marginBottom: 12, color: '#111' }}>Confirm Subscription</h2>
+            <p style={{ fontSize: 14, color: '#666', marginBottom: 24 }}>
+              You are about to subscribe to the <strong>{confirmTier.name}</strong> plan
+            </p>
+
+            <div
+              style={{
+                background: '#f9f9f9',
+                borderRadius: 12,
+                padding: 20,
+                marginBottom: 24,
+                border: '1px solid #e5e3df',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 14, color: '#666' }}>Plan</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{confirmTier.name}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 14, color: '#666' }}>Credits</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{confirmTier.credits} campaigns</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 14, color: '#666' }}>Amount</span>
+                <span style={{ fontSize: 18, fontWeight: 900, color: '#CD1B78' }}>
+                  {BillingService.formatNGN(confirmTier.price_ngn)}
+                </span>
+              </div>
+              <div style={{ borderTop: '1px solid #e5e3df', paddingTop: 12, marginTop: 12 }}>
+                <span style={{ fontSize: 12, color: '#999' }}>Recurring monthly • Cancel anytime</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={() => setConfirmTier(null)}
+                disabled={subscribing !== null}
+                style={{
+                  flex: 1,
+                  padding: '12px 0',
+                  borderRadius: 10,
+                  border: '2px solid #e5e3df',
+                  background: '#fff',
+                  color: '#666',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: subscribing ? 'not-allowed' : 'pointer',
+                  opacity: subscribing ? 0.5 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSubscription}
+                disabled={subscribing !== null}
+                style={{
+                  flex: 1,
+                  padding: '12px 0',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: subscribing ? '#999' : '#CD1B78',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: subscribing ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+              >
+                {subscribing ? (
+                  <>
+                    <I n="loader" s={16} c="#fff" />
+                    Processing...
+                  </>
+                ) : (
+                  'Proceed to Payment'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
