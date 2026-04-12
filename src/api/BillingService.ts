@@ -67,6 +67,9 @@ export interface InitializePaymentResponse {
   payment_url: string;
   transaction_ref: string;
   amount: number;
+  email: string;
+  currency: string;
+  public_key: string;
 }
 
 export interface VerifyPaymentRequest {
