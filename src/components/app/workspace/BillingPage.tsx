@@ -302,84 +302,6 @@ export default function BillingPage({ onBack }: BillingPageProps) {
         </div>
       </div>
 
-      {/* Subscription Info */}
-      {subscription && (
-        <div
-          style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 24 }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h2 style={{ fontSize: 18, fontWeight: 900, margin: '0 0 4px', textTransform: 'capitalize' }}>
-                {subscription.name}
-              </h2>
-              <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-                ₦{subscription.price_ngn.toLocaleString()}/month • {subscription.credits} credits
-              </p>
-              {subscription.next_renewal && (
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: '#999',
-                    margin: '8px 0 0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <I n="calendar" s={14} c="#999" />
-                  Renews on {new Date(subscription.next_renewal).toLocaleDateString()}
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => setActiveTab('plans')}
-              style={{
-                padding: '10px 18px',
-                borderRadius: 8,
-                border: 'none',
-                background: 'linear-gradient(135deg, #C2185B, #E91E63)',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              View Plans
-            </button>
-          </div>
-        </div>
-      )}
-
-      {!subscription && (
-        <div
-          style={{
-            background: '#fff',
-            borderRadius: 12,
-            border: '1px solid #edecea',
-            padding: 32,
-            marginBottom: 24,
-            textAlign: 'center',
-          }}
-        >
-          <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>You don't have an active subscription</p>
-          <button
-            onClick={() => setActiveTab('plans')}
-            style={{
-              padding: '12px 24px',
-              borderRadius: 8,
-              border: 'none',
-              background: 'linear-gradient(135deg, #C2185B, #E91E63)',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: 'pointer',
-            }}
-          >
-            View Subscription Plans
-          </button>
-        </div>
-      )}
-
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #edecea' }}>
         {['overview', 'plans', 'credits', 'payments'].map((tab) => (
@@ -783,40 +705,127 @@ export default function BillingPage({ onBack }: BillingPageProps) {
       )}
 
       {activeTab === 'overview' && (
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Recent Activity</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {creditTransactions.slice(0, 5).map((txn) => (
-              <div
-                key={txn._id}
+        <div>
+          {/* Subscription Info */}
+          {subscription && (
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 12,
+                border: '1px solid #edecea',
+                padding: 18,
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <h2 style={{ fontSize: 18, fontWeight: 900, margin: '0 0 4px', textTransform: 'capitalize' }}>
+                    {subscription.name} Plan
+                  </h2>
+                  <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+                    ₦{subscription.price_ngn.toLocaleString()}/month • {subscription.credits} credits
+                  </p>
+                  {subscription.next_renewal && (
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: '#999',
+                        margin: '8px 0 0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <I n="calendar" s={14} c="#999" />
+                      Renews on {new Date(subscription.next_renewal).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setActiveTab('plans')}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #C2185B, #E91E63)',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                  }}
+                >
+                  View Plans
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!subscription && (
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 12,
+                border: '1px solid #edecea',
+                padding: 32,
+                marginBottom: 16,
+                textAlign: 'center',
+              }}
+            >
+              <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>You don't have an active subscription</p>
+              <button
+                onClick={() => setActiveTab('plans')}
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  padding: 12,
-                  background: '#fafafa',
+                  padding: '12px 24px',
                   borderRadius: 8,
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #C2185B, #E91E63)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: 'pointer',
                 }}
               >
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, textTransform: 'capitalize' }}>
-                    {txn.reason.replace('_', ' ')}
+                View Subscription Plans
+              </button>
+            </div>
+          )}
+
+          {/* Recent Activity */}
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Recent Activity</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {creditTransactions.slice(0, 5).map((txn) => (
+                <div
+                  key={txn._id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: 12,
+                    background: '#fafafa',
+                    borderRadius: 8,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, textTransform: 'capitalize' }}>
+                      {txn.reason.replace('_', ' ')}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                      {new Date(txn.created_at).toLocaleString()}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                    {new Date(txn.created_at).toLocaleString()}
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: txn.amount > 0 ? '#10b981' : '#ef4444' }}>
+                      {txn.amount > 0 ? '+' : ''}
+                      {txn.amount}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#999' }}>Balance: {txn.balance_after}</div>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: txn.amount > 0 ? '#10b981' : '#ef4444' }}>
-                    {txn.amount > 0 ? '+' : ''}
-                    {txn.amount}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#999' }}>Balance: {txn.balance_after}</div>
-                </div>
-              </div>
-            ))}
-            {creditTransactions.length === 0 && (
-              <p style={{ textAlign: 'center', color: '#999', padding: 32 }}>No transactions yet</p>
-            )}
+              ))}
+              {creditTransactions.length === 0 && (
+                <p style={{ textAlign: 'center', color: '#999', padding: 32 }}>No transactions yet</p>
+              )}
+            </div>
           </div>
         </div>
       )}
