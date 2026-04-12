@@ -3264,44 +3264,122 @@ const PlaybookPage = ({
   );
 };
 
-const SettingsPage = ({ onJane, brandName }: { onJane: () => void; brandName: string }) => (
-  <SubPage title="Settings & Plan" icon="settings" desc="Manage your account, billing, and team" onJane={onJane}>
-    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>Free Plan</div>
-          <div style={{ fontSize: 12, color: '#999' }}>3 accounts · 30 posts/month</div>
+const SettingsPage = ({ onJane, brandName }: { onJane: () => void; brandName: string }) => {
+  const { userDetails } = useAuth();
+  const router = useRouter();
+
+  return (
+    <SubPage title="Settings" icon="settings" desc="Manage your account and brand preferences" onJane={onJane}>
+      {/* Account Section */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <I n="settings" s={16} c="#C2185B" />
+          Account Settings
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, color: '#999', marginBottom: 4, fontWeight: 600 }}>NAME</div>
+            <div style={{ fontSize: 13.5, color: '#333', fontWeight: 500 }}>
+              {userDetails?.firstName || ''} {userDetails?.lastName || ''}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: '#999', marginBottom: 4, fontWeight: 600 }}>EMAIL</div>
+            <div style={{ fontSize: 13.5, color: '#333', fontWeight: 500 }}>{userDetails?.email || ''}</div>
+          </div>
         </div>
-        <Bd>Current</Bd>
       </div>
-      <a
-        href="/pricing"
-        style={{
-          display: 'block',
-          width: '100%',
-          padding: 11,
-          borderRadius: 9,
-          border: 'none',
-          background: '#C2185B',
-          color: '#fff',
-          fontWeight: 700,
-          fontSize: 13,
-          cursor: 'pointer',
-          fontFamily: 'var(--wf)',
-          textAlign: 'center',
-          textDecoration: 'none',
-          boxSizing: 'border-box',
-        }}
-      >
-        Upgrade to Pro
-      </a>
-    </div>
-    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}>
-      <h3 style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>Brand</h3>
-      <div style={{ fontSize: 12.5, color: '#555', padding: '7px 0' }}>{brandName || 'No brand name set'}</div>
-    </div>
-  </SubPage>
-);
+
+      {/* Brand Settings */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <I n="book" s={16} c="#C2185B" />
+            Brand Profile
+          </h3>
+          <button
+            onClick={() => router.push('/social-media/brand-setup')}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 7,
+              border: '1px solid #e5e3df',
+              background: '#fff',
+              cursor: 'pointer',
+              fontFamily: 'var(--wf)',
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#C2185B',
+            }}
+          >
+            Edit Profile
+          </button>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: '#999', marginBottom: 4, fontWeight: 600 }}>BRAND NAME</div>
+          <div style={{ fontSize: 13.5, color: '#333', fontWeight: 500 }}>{brandName || 'Not set'}</div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <I n="trending" s={16} c="#C2185B" />
+          Quick Actions
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button
+            onClick={() => router.push('/billing')}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: 9,
+              border: '1px solid #e5e3df',
+              background: '#fff',
+              cursor: 'pointer',
+              fontFamily: 'var(--wf)',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#333',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <span>View Billing & Credits</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 12L10 8L6 4" stroke="#999" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
+            onClick={() => router.push('/pricing')}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: 9,
+              border: 'none',
+              background: 'linear-gradient(135deg, #C2185B, #E91E63)',
+              color: '#fff',
+              cursor: 'pointer',
+              fontFamily: 'var(--wf)',
+              fontSize: 13,
+              fontWeight: 700,
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <span>Upgrade Plan</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 12L10 8L6 4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </SubPage>
+  );
+};
 
 /* ── Feed types ─────────────────────────────────────────────────────────── */
 interface FeedMsg {
@@ -3327,7 +3405,8 @@ const NAV = [
   { id: 'performance', icon: 'chart', label: 'Performance' },
   { id: 'intel', icon: 'globe', label: 'Market Intel' },
   { id: 'playbook', icon: 'book', label: 'Brand Playbook' },
-  { id: 'settings', icon: 'settings', label: 'Settings & Plan' },
+  { id: 'settings', icon: 'settings', label: 'Settings' },
+  { id: 'billing', icon: 'trending', label: 'Billing' },
 ];
 
 const MOBILE_TABS = [
@@ -3340,14 +3419,15 @@ const MOBILE_TABS = [
 
 const MORE_NAV = [
   { id: 'intel', icon: 'globe', label: 'Market Intel' },
-  { id: 'settings', icon: 'settings', label: 'Settings & Plan' },
+  { id: 'settings', icon: 'settings', label: 'Settings' },
+  { id: 'billing', icon: 'trending', label: 'Billing' },
 ];
 
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function WorkspaceDashboard() {
-  const { logoutUser } = useAuth();
+  const { logoutUser, userDetails } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -3360,6 +3440,7 @@ export default function WorkspaceDashboard() {
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const feedEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -3666,7 +3747,13 @@ export default function WorkspaceDashboard() {
               {NAV.map((n) => (
                 <button
                   key={n.id}
-                  onClick={() => setNav(n.id)}
+                  onClick={() => {
+                    if (n.id === 'billing') {
+                      router.push('/billing');
+                    } else {
+                      setNav(n.id);
+                    }
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -3817,42 +3904,278 @@ export default function WorkspaceDashboard() {
                 </span>
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              {!isMobile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* Credit Balance Badge */}
+              {!isMobile && userDetails && (
                 <button
-                  onClick={() => router.push('/settings/social-accounts')}
+                  onClick={() => router.push('/billing')}
                   style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 7,
-                    border: '1px solid #e5e3df',
-                    background: '#fff',
-                    cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
+                    gap: 7,
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    border: `2px solid ${
+                      (userDetails.creditsRemaining ?? 0) === 0
+                        ? '#FCA5A5'
+                        : (userDetails.lowCreditWarning ?? false)
+                          ? '#FCD34D'
+                          : '#4caf50'
+                    }`,
+                    background:
+                      (userDetails.creditsRemaining ?? 0) === 0
+                        ? '#FEF2F2'
+                        : (userDetails.lowCreditWarning ?? false)
+                          ? '#FFFBEB'
+                          : '#f0fdf4',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--wf)',
+                    transition: 'all 0.2s',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                  title="Click to view billing details"
                 >
-                  <I n="settings" s={14} c="#666" />
+                  <I
+                    n="trending"
+                    s={16}
+                    c={
+                      (userDetails.creditsRemaining ?? 0) === 0
+                        ? '#DC2626'
+                        : (userDetails.lowCreditWarning ?? false)
+                          ? '#F59E0B'
+                          : '#16a34a'
+                    }
+                  />
+                  <span
+                    style={{
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      color:
+                        (userDetails.creditsRemaining ?? 0) === 0
+                          ? '#DC2626'
+                          : (userDetails.lowCreditWarning ?? false)
+                            ? '#D97706'
+                            : '#166534',
+                    }}
+                  >
+                    {userDetails.creditsRemaining ?? 0}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color:
+                        (userDetails.creditsRemaining ?? 0) === 0
+                          ? '#DC2626'
+                          : (userDetails.lowCreditWarning ?? false)
+                            ? '#D97706'
+                            : '#166534',
+                    }}
+                  >
+                    {(userDetails.creditsRemaining ?? 0) === 1 ? 'credit' : 'credits'}
+                  </span>
                 </button>
               )}
-              <button
-                onClick={() => router.push('/social-media/brand-setup')}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 7,
-                  border: '1px solid #e5e3df',
-                  background: '#fff',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title="Edit Brand Setup"
-              >
-                <I n="edit" s={14} c="#666" />
-              </button>
+
+              {/* Profile Dropdown */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '5px 10px 5px 5px',
+                    borderRadius: 9,
+                    border: '1px solid #e5e3df',
+                    background: profileMenuOpen ? '#f9f9f9' : '#fff',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--wf)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg,#880E4F,#C2185B)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>
+                      {userDetails?.firstName?.[0]?.toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                  {!isMobile && (
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>
+                      {userDetails?.firstName || 'User'}
+                    </span>
+                  )}
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    style={{
+                      transition: 'transform 0.2s',
+                      transform: profileMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    }}
+                  >
+                    <path d="M3 4.5L6 7.5L9 4.5" stroke="#999" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+
+                {/* Dropdown Menu */}
+                {profileMenuOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      width: 260,
+                      background: '#fff',
+                      border: '1px solid #e5e3df',
+                      borderRadius: 11,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                      zIndex: 1000,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {/* User Info Section */}
+                    <div style={{ padding: '14px 16px', borderBottom: '1px solid #f0f0f0' }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', marginBottom: 3 }}>
+                        {userDetails?.firstName || ''} {userDetails?.lastName || ''}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: '#888' }}>{userDetails?.email || ''}</div>
+                    </div>
+
+                    {/* Credit Summary */}
+                    {userDetails && (
+                      <div
+                        style={{
+                          padding: '12px 16px',
+                          borderBottom: '1px solid #f0f0f0',
+                          background: '#fafafa',
+                        }}
+                      >
+                        <div style={{ fontSize: 11, color: '#888', marginBottom: 5, fontWeight: 600 }}>CREDITS</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 20, fontWeight: 900, color: '#C2185B' }}>
+                            {userDetails.creditsRemaining ?? 0}
+                          </span>
+                          <span style={{ fontSize: 11.5, color: '#666' }}>remaining</span>
+                        </div>
+                        {userDetails.subscriptionTier && (
+                          <div
+                            style={{
+                              fontSize: 10.5,
+                              color: '#999',
+                              marginTop: 4,
+                              textTransform: 'capitalize',
+                            }}
+                          >
+                            {userDetails.subscriptionTier} Plan
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Menu Items */}
+                    <div style={{ padding: '6px 0' }}>
+                      <button
+                        onClick={() => {
+                          setProfileMenuOpen(false);
+                          router.push('/billing');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontFamily: 'var(--wf)',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: '#333',
+                          textAlign: 'left',
+                          transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#f9f9f9')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                      >
+                        <I n="trending" s={16} c="#666" />
+                        View Billing
+                      </button>
+                      <button
+                        onClick={() => {
+                          setProfileMenuOpen(false);
+                          setNav('settings');
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontFamily: 'var(--wf)',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: '#333',
+                          textAlign: 'left',
+                          transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#f9f9f9')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                      >
+                        <I n="settings" s={16} c="#666" />
+                        Settings
+                      </button>
+                    </div>
+
+                    {/* Logout Section */}
+                    <div style={{ borderTop: '1px solid #f0f0f0', padding: '6px 0' }}>
+                      <button
+                        onClick={() => {
+                          setProfileMenuOpen(false);
+                          logoutUser();
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontFamily: 'var(--wf)',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: '#dc2626',
+                          textAlign: 'left',
+                          transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#fef2f2')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                      >
+                        <I n="logout" s={16} c="#dc2626" />
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -4170,7 +4493,11 @@ export default function WorkspaceDashboard() {
                 <button
                   key={n.id}
                   onClick={() => {
-                    setNav(n.id);
+                    if (n.id === 'billing') {
+                      router.push('/billing');
+                    } else {
+                      setNav(n.id);
+                    }
                     setMoreOpen(false);
                   }}
                   style={{
