@@ -3271,10 +3271,12 @@ const SettingsPage = ({
   onJane,
   brandName,
   onNavChange,
+  onBillingTabChange,
 }: {
   onJane: () => void;
   brandName: string;
   onNavChange: (nav: string) => void;
+  onBillingTabChange: (tab: 'overview' | 'credits' | 'payments' | 'plans') => void;
 }) => {
   const { userDetails } = useAuth();
   const router = useRouter();
@@ -3377,7 +3379,10 @@ const SettingsPage = ({
             </svg>
           </button>
           <button
-            onClick={() => onNavChange('billing')}
+            onClick={() => {
+              onBillingTabChange('plans');
+              onNavChange('billing');
+            }}
             style={{
               width: '100%',
               padding: '12px 14px',
@@ -3458,6 +3463,7 @@ export default function WorkspaceDashboard() {
 
   const [ready, setReady] = useState(false);
   const [nav, setNav] = useState(() => searchParams?.get('tab') || 'workspace');
+  const [billingTab, setBillingTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>('overview');
   const [sIdx, setSIdx] = useState(0);
   const [feed, setFeed] = useState<FeedMsg[]>([]);
   const [input, setInput] = useState('');
@@ -3671,8 +3677,15 @@ export default function WorkspaceDashboard() {
     performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
-    settings: <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={setNav} />,
-    billing: <BillingPage onBack={goWorkspace} />,
+    settings: (
+      <SettingsPage
+        onJane={goWorkspace}
+        brandName={brandName}
+        onNavChange={setNav}
+        onBillingTabChange={setBillingTab}
+      />
+    ),
+    billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
   };
 
   return (

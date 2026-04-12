@@ -129,9 +129,10 @@ const Bd = ({
 
 interface BillingPageProps {
   onBack: () => void;
+  initialTab?: 'overview' | 'credits' | 'payments' | 'plans';
 }
 
-export default function BillingPage({ onBack }: BillingPageProps) {
+export default function BillingPage({ onBack, initialTab = 'overview' }: BillingPageProps) {
   const { refreshCreditBalance, userDetails } = useAuth();
 
   const [balance, setBalance] = useState<CreditBalanceResponse | null>(null);
@@ -141,7 +142,7 @@ export default function BillingPage({ onBack }: BillingPageProps) {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>(initialTab);
   const [confirmTier, setConfirmTier] = useState<SubscriptionTier | null>(null);
 
   useEffect(() => {
