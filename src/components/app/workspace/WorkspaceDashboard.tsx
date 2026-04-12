@@ -3913,7 +3913,7 @@ export default function WorkspaceDashboard() {
               {/* Settings Icon - Social Accounts */}
               {!isMobile && (
                 <button
-                  onClick={() => setNav('social-accounts')}
+                  onClick={() => router.push('/settings/social-accounts')}
                   style={{
                     width: 32,
                     height: 32,
@@ -3933,7 +3933,7 @@ export default function WorkspaceDashboard() {
 
               {/* Edit Icon - Brand Setup */}
               <button
-                onClick={() => setNav('brand-setup')}
+                onClick={() => router.push('/social-media/brand-setup')}
                 style={{
                   width: 32,
                   height: 32,
