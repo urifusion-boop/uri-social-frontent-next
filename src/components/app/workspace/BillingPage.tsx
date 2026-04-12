@@ -207,101 +207,6 @@ export default function BillingPage({ onBack }: BillingPageProps) {
         </button>
       </div>
 
-      {/* Credit Balance Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        {/* Total Credits */}
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <I n="trending" s={20} c="#fff" />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#999', fontWeight: 600 }}>TOTAL CREDITS</div>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>{balance?.total_credits || 0}</div>
-            </div>
-          </div>
-          <div style={{ fontSize: 11, color: '#666' }}>Monthly allowance</div>
-        </div>
-
-        {/* Credits Used */}
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg, #ef4444, #f97316)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <I n="arrowDown" s={20} c="#fff" />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#999', fontWeight: 600 }}>CREDITS USED</div>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>{balance?.credits_used || 0}</div>
-            </div>
-          </div>
-          <div style={{ fontSize: 11, color: '#666' }}>Consumed this cycle</div>
-        </div>
-
-        {/* Credits Remaining */}
-        <div
-          style={{
-            background: '#fff',
-            borderRadius: 12,
-            border: `1px solid ${balance?.low_credit_warning ? '#fbbf24' : '#edecea'}`,
-            padding: 18,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: balance?.low_credit_warning
-                  ? 'linear-gradient(135deg, #fbbf24, #f59e0b)'
-                  : 'linear-gradient(135deg, #10b981, #059669)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <I n="arrowUp" s={20} c="#fff" />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#999', fontWeight: 600 }}>REMAINING</div>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>{balance?.credits_remaining || 0}</div>
-            </div>
-          </div>
-          {balance?.low_credit_warning ? (
-            <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>⚠️ Running low on credits</div>
-          ) : (
-            <div style={{ fontSize: 11, color: '#666' }}>Available for use</div>
-          )}
-        </div>
-      </div>
-
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #edecea' }}>
         {['overview', 'plans', 'credits', 'payments'].map((tab) => (
@@ -706,6 +611,101 @@ export default function BillingPage({ onBack }: BillingPageProps) {
 
       {activeTab === 'overview' && (
         <div>
+          {/* Credit Balance Cards */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: 16,
+              marginBottom: 16,
+            }}
+          >
+            {/* Total Credits */}
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <I n="trending" s={20} c="#fff" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#999', fontWeight: 600 }}>TOTAL CREDITS</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>{balance?.total_credits || 0}</div>
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: '#666' }}>Monthly allowance</div>
+            </div>
+
+            {/* Credits Used */}
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <I n="arrowDown" s={20} c="#fff" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#999', fontWeight: 600 }}>CREDITS USED</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>{balance?.credits_used || 0}</div>
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: '#666' }}>Consumed this cycle</div>
+            </div>
+
+            {/* Credits Remaining */}
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 12,
+                border: `1px solid ${balance?.low_credit_warning ? '#fbbf24' : '#edecea'}`,
+                padding: 18,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    background: balance?.low_credit_warning
+                      ? 'linear-gradient(135deg, #fbbf24, #f59e0b)'
+                      : 'linear-gradient(135deg, #10b981, #059669)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <I n="arrowUp" s={20} c="#fff" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#999', fontWeight: 600 }}>REMAINING</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>{balance?.credits_remaining || 0}</div>
+                </div>
+              </div>
+              {balance?.low_credit_warning ? (
+                <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>⚠️ Running low on credits</div>
+              ) : (
+                <div style={{ fontSize: 11, color: '#666' }}>Available for use</div>
+              )}
+            </div>
+          </div>
+
           {/* Subscription Info */}
           {subscription && (
             <div
