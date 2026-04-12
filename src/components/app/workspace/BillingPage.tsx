@@ -13,6 +13,7 @@ import {
   CreditTransaction,
   PaymentTransaction,
   SubscriptionResponse,
+  SubscriptionTier,
 } from '@/src/api/BillingService';
 import { useRouter } from 'next/navigation';
 
@@ -47,6 +48,19 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       <>
         <rect x="3" y="4" width="18" height="17" rx="2" />
         <path d="M16 2v4M8 2v4M3 10h18" />
+      </>
+    ),
+    check: <polyline points="20 6 9 17 4 12" />,
+    loader: (
+      <>
+        <line x1="12" y1="2" x2="12" y2="6" />
+        <line x1="12" y1="18" x2="12" y2="22" />
+        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
+        <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
+        <line x1="2" y1="12" x2="6" y2="12" />
+        <line x1="18" y1="12" x2="22" y2="12" />
+        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
+        <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
       </>
     ),
   };
@@ -94,14 +108,16 @@ interface BillingPageProps {
 }
 
 export default function BillingPage({ onBack }: BillingPageProps) {
-  const { refreshCreditBalance } = useAuth();
+  const { refreshCreditBalance, userDetails } = useAuth();
   const router = useRouter();
 
   const [balance, setBalance] = useState<CreditBalanceResponse | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionResponse | null>(null);
   const [creditTransactions, setCreditTransactions] = useState<CreditTransaction[]>([]);
   const [paymentHistory, setPaymentHistory] = useState<PaymentTransaction[]>([]);
+  const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [subscribing, setSubscribing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>('overview');
 
   useEffect(() => {
@@ -112,22 +128,45 @@ export default function BillingPage({ onBack }: BillingPageProps) {
     try {
       setLoading(true);
 
-      const [balanceData, subData, creditTxns, payments] = await Promise.all([
+      const [balanceData, subData, creditTxns, payments, tiersData] = await Promise.all([
         BillingService.getCreditBalance().catch(() => null),
         BillingService.getCurrentSubscription().catch(() => null),
         BillingService.getTransactionHistory(50).catch(() => []),
         BillingService.getPaymentHistory(20).catch(() => []),
+        BillingService.getSubscriptionTiers().catch(() => []),
       ]);
 
       setBalance(balanceData);
       setSubscription(subData);
       setCreditTransactions(creditTxns);
       setPaymentHistory(payments);
+      setTiers(tiersData);
     } catch (error) {
       console.error('Failed to fetch billing data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectPlan = async (tierId: string) => {
+    setSubscribing(tierId);
+
+    try {
+      const paymentData = await BillingService.initializePayment(tierId);
+      window.location.href = paymentData.payment_url;
+    } catch (error: unknown) {
+      console.error('Payment initialization failed:', error);
+      alert(error instanceof Error ? error.message : 'Failed to initialize payment. Please try again.');
+      setSubscribing(null);
+    }
+  };
+
+  const isCurrentPlan = (tierId: string) => {
+    return userDetails?.subscriptionTier === tierId;
+  };
+
+  const isPopular = (tierId: string) => {
+    return tierId === 'growth';
   };
 
   const handleRefresh = async () => {
@@ -157,7 +196,15 @@ export default function BillingPage({ onBack }: BillingPageProps) {
   }
 
   return (
-    <div style={{ padding: '18px 24px', maxWidth: 1200, margin: '0 auto' }}>
+    <div
+      style={{
+        padding: '18px 24px',
+        maxWidth: 1200,
+        margin: '0 auto',
+        overflow: 'auto',
+        maxHeight: 'calc(100vh - 100px)',
+      }}
+    >
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
@@ -232,380 +279,140 @@ export default function BillingPage({ onBack }: BillingPageProps) {
 
       {/* Tab Content */}
       {activeTab === 'plans' && (
-        <div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: 16,
-              marginBottom: 16,
-            }}
-          >
-            {/* Intern Plan */}
-            <div
-              style={{
-                background: '#fff',
-                borderRadius: 12,
-                border: '2px solid #000',
-                padding: '20px 18px 18px',
-                position: 'relative',
-              }}
-            >
-              <div style={{ marginBottom: 14 }}>
-                <h3
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+          {tiers
+            .filter((tier) => tier.tier_id !== 'custom')
+            .map((tier) => {
+              const current = isCurrentPlan(tier.tier_id);
+              const popular = isPopular(tier.tier_id);
+
+              return (
+                <div
+                  key={tier.tier_id}
                   style={{
-                    fontSize: 20,
-                    fontWeight: 900,
-                    textTransform: 'uppercase',
-                    margin: '0 0 4px',
-                    color: '#000',
+                    background: popular ? 'rgba(205, 27, 120, 0.05)' : '#fff',
+                    borderRadius: 12,
+                    border: popular ? '2px solid #CD1B78' : '1px solid #e5e3df',
+                    padding: '20px 18px 18px',
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
                   }}
                 >
-                  Intern
-                </h3>
-                <p
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    color: 'rgba(0,0,0,0.5)',
-                    margin: 0,
-                  }}
-                >
-                  Just getting started
-                </p>
-              </div>
+                  {/* Popular Badge */}
+                  {popular && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: -12,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: '#CD1B78',
+                        color: '#fff',
+                        padding: '4px 12px',
+                        borderRadius: 6,
+                        fontSize: 10,
+                        fontWeight: 900,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      Most Popular
+                    </div>
+                  )}
 
-              <div style={{ marginBottom: 14 }}>
-                <span style={{ fontSize: 32, fontWeight: 900, color: '#000' }}>Free</span>
-              </div>
+                  {/* Current Badge */}
+                  {current && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 12,
+                        right: 12,
+                        background: '#10b981',
+                        color: '#fff',
+                        padding: '3px 10px',
+                        borderRadius: 6,
+                        fontSize: 10,
+                        fontWeight: 700,
+                      }}
+                    >
+                      Current
+                    </div>
+                  )}
 
-              <hr style={{ border: 'none', borderTop: '2px solid #000', margin: '14px 0' }} />
+                  <div style={{ marginBottom: 12 }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, margin: '0 0 4px', color: '#111' }}>{tier.name}</h3>
+                    <p style={{ fontSize: 11, color: '#666', margin: 0 }}>{tier.credits} campaigns</p>
+                  </div>
 
-              <ul
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: '0 0 18px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                }}
-              >
-                {['3 social accounts', '30 AI posts/month', 'Dashboard approval only', 'Basic analytics'].map((f) => (
-                  <li
-                    key={f}
+                  <div style={{ marginBottom: 14 }}>
+                    <span style={{ fontSize: 32, fontWeight: 900, color: '#CD1B78' }}>
+                      {BillingService.formatNGN(tier.price_ngn)}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#666' }}>/month</span>
+                  </div>
+
+                  <hr style={{ border: 'none', borderTop: '1px solid #e5e3df', margin: '14px 0' }} />
+
+                  <ul
                     style={{
-                      fontSize: 12,
-                      color: '#000',
+                      listStyle: 'none',
+                      padding: 0,
+                      margin: '0 0 18px',
                       display: 'flex',
-                      alignItems: 'start',
-                      gap: 6,
-                      fontWeight: 500,
+                      flexDirection: 'column',
+                      gap: 8,
+                      flex: 1,
                     }}
                   >
-                    <span style={{ fontWeight: 900, color: '#4caf50', fontSize: 14 }}>✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
+                    {tier.features.map((feature, idx) => (
+                      <li
+                        key={idx}
+                        style={{
+                          fontSize: 12,
+                          color: '#111',
+                          display: 'flex',
+                          alignItems: 'start',
+                          gap: 6,
+                          fontWeight: 500,
+                        }}
+                      >
+                        <I n="check" s={16} c="#CD1B78" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
 
-              <button
-                style={{
-                  width: '100%',
-                  padding: '11px 0',
-                  borderRadius: 8,
-                  border: '2px solid #000',
-                  background: '#fff',
-                  color: '#000',
-                  fontWeight: 900,
-                  fontSize: 12,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  letterSpacing: '0.5px',
-                }}
-              >
-                Start Free
-              </button>
-            </div>
-
-            {/* Full-Time Plan */}
-            <div
-              style={{
-                background: 'rgba(203, 42, 124, 0.05)',
-                borderRadius: 12,
-                border: '2px solid #C2185B',
-                padding: '20px 18px 18px',
-                position: 'relative',
-                transform: 'scale(1.02)',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: -12,
-                  left: '50%',
-                  transform: 'translateX(-50%) rotate(-2deg)',
-                  background: '#C2185B',
-                  color: '#fff',
-                  padding: '4px 12px',
-                  borderRadius: 6,
-                  fontSize: 10,
-                  fontWeight: 900,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                }}
-              >
-                Most Popular
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <h3
-                  style={{
-                    fontSize: 20,
-                    fontWeight: 900,
-                    textTransform: 'uppercase',
-                    margin: '0 0 4px',
-                    color: '#000',
-                  }}
-                >
-                  Full-Time
-                </h3>
-                <p
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    color: 'rgba(0,0,0,0.5)',
-                    margin: 0,
-                  }}
-                >
-                  The real deal
-                </p>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <span style={{ fontSize: 32, fontWeight: 900, color: '#000' }}>₦15,000</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(0,0,0,0.5)' }}>/mo</span>
-              </div>
-
-              <hr style={{ border: 'none', borderTop: '2px solid #C2185B', margin: '14px 0' }} />
-
-              <ul
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: '0 0 18px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                }}
-              >
-                {[
-                  'Unlimited accounts',
-                  'Unlimited AI posts',
-                  'WhatsApp + Email + Dashboard approval',
-                  'Social inbox & customer messages',
-                  'Trend monitoring & competitor watching',
-                  'Weekly performance memos',
-                  'Team access (up to 5 members)',
-                ].map((f) => (
-                  <li
-                    key={f}
+                  <button
+                    onClick={() => !current && tier.is_active && handleSelectPlan(tier.tier_id)}
+                    disabled={!tier.is_active || subscribing === tier.tier_id || current}
                     style={{
-                      fontSize: 12,
-                      color: '#000',
-                      display: 'flex',
-                      alignItems: 'start',
-                      gap: 6,
-                      fontWeight: 500,
+                      width: '100%',
+                      padding: '11px 0',
+                      borderRadius: 8,
+                      border: current ? '1px solid #e5e3df' : 'none',
+                      background: current ? '#f5f5f5' : '#CD1B78',
+                      color: current ? '#999' : '#fff',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: current || !tier.is_active ? 'not-allowed' : 'pointer',
+                      opacity: subscribing === tier.tier_id ? 0.7 : 1,
                     }}
                   >
-                    <span style={{ fontWeight: 900, color: '#4caf50', fontSize: 14 }}>✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                style={{
-                  width: '100%',
-                  padding: '11px 0',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: '#C2185B',
-                  color: '#fff',
-                  fontWeight: 900,
-                  fontSize: 12,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  letterSpacing: '0.5px',
-                }}
-              >
-                Hire Jane →
-              </button>
-            </div>
-
-            {/* Executive Plan */}
-            <div
-              style={{
-                background: '#fff',
-                borderRadius: 12,
-                border: '2px solid #000',
-                padding: '20px 18px 18px',
-                position: 'relative',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: -12,
-                  left: '50%',
-                  transform: 'translateX(-50%) rotate(2deg)',
-                  background: '#000',
-                  color: '#fff',
-                  padding: '4px 12px',
-                  borderRadius: 6,
-                  fontSize: 10,
-                  fontWeight: 900,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                }}
-              >
-                For Teams
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <h3
-                  style={{
-                    fontSize: 20,
-                    fontWeight: 900,
-                    textTransform: 'uppercase',
-                    margin: '0 0 4px',
-                    color: '#000',
-                  }}
-                >
-                  Executive
-                </h3>
-                <p
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    color: 'rgba(0,0,0,0.5)',
-                    margin: 0,
-                  }}
-                >
-                  Enterprise energy
-                </p>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <span style={{ fontSize: 32, fontWeight: 900, color: '#000' }}>₦50,000</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(0,0,0,0.5)' }}>/mo</span>
-              </div>
-
-              <hr style={{ border: 'none', borderTop: '2px solid #000', margin: '14px 0' }} />
-
-              <ul
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: '0 0 18px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                }}
-              >
-                {[
-                  'Everything in Full-Time',
-                  'Multi-brand management',
-                  'API access & custom integrations',
-                  'Priority support',
-                  'Dedicated onboarding session',
-                  'Advanced analytics & exports',
-                ].map((f) => (
-                  <li
-                    key={f}
-                    style={{
-                      fontSize: 12,
-                      color: '#000',
-                      display: 'flex',
-                      alignItems: 'start',
-                      gap: 6,
-                      fontWeight: 500,
-                    }}
-                  >
-                    <span style={{ fontWeight: 900, color: '#4caf50', fontSize: 14 }}>✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                style={{
-                  width: '100%',
-                  padding: '11px 0',
-                  borderRadius: 8,
-                  border: '2px solid #000',
-                  background: '#fff',
-                  color: '#000',
-                  fontWeight: 900,
-                  fontSize: 12,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  letterSpacing: '0.5px',
-                }}
-              >
-                Contact Sales
-              </button>
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: '#fff',
-              border: '2px solid #000',
-              borderRadius: 10,
-              padding: '14px 18px',
-              fontSize: 12,
-              color: '#000',
-              fontWeight: 500,
-              maxWidth: 700,
-              margin: '0 auto',
-              position: 'relative',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                top: -8,
-                left: 20,
-                width: 0,
-                height: 0,
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderBottom: '8px solid #000',
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                top: -6,
-                left: 20,
-                width: 0,
-                height: 0,
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderBottom: '8px solid #fff',
-              }}
-            />
-            For context: a social media agency charges ₦150,000-₦500,000/month. A freelancer costs ₦80,000+. Jane starts
-            at free. <strong>Free free.</strong> Not &quot;free trial&quot; free. Actually free.
-          </div>
+                    {subscribing === tier.tier_id ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <I n="loader" s={14} c="#fff" />
+                        Processing...
+                      </div>
+                    ) : current ? (
+                      'Current Plan'
+                    ) : (
+                      'Subscribe Now'
+                    )}
+                  </button>
+                </div>
+              );
+            })}
         </div>
       )}
 
