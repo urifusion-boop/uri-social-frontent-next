@@ -104,15 +104,11 @@ export class BillingService {
    * PRD 7.3: Low Credit Warning when credits ≤ 3
    */
   static async getCreditBalance(): Promise<CreditBalanceResponse> {
-    const response: AxiosResponse<UriResponse<CreditBalanceResponse>> = await UriHttpClient.getClient().get(
+    const response: AxiosResponse<CreditBalanceResponse> = await UriHttpClient.getClient().get(
       '/social-media/billing/credits/balance'
     );
 
-    if (!response.data.status) {
-      throw new Error(response.data.responseMessage || 'Failed to fetch credit balance');
-    }
-
-    return response.data.responseData!;
+    return response.data;
   }
 
   /**
