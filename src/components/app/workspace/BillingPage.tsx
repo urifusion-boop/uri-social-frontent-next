@@ -144,6 +144,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>(initialTab);
   const [confirmTier, setConfirmTier] = useState<SubscriptionTier | null>(null);
+  const [squadMode, setSquadMode] = useState<'sandbox' | 'live'>('sandbox');
+  const [loadingMode, setLoadingMode] = useState(false);
 
   useEffect(() => {
     fetchBillingData();
@@ -153,12 +155,16 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
     try {
       setLoading(true);
 
-      const [balanceData, subData, creditTxns, payments, tiersData] = await Promise.all([
+      const [balanceData, subData, creditTxns, payments, tiersData, modeData] = await Promise.all([
         BillingService.getCreditBalance().catch(() => null),
         BillingService.getCurrentSubscription().catch(() => null),
         BillingService.getTransactionHistory(50).catch(() => []),
         BillingService.getPaymentHistory(20).catch(() => []),
         BillingService.getSubscriptionTiers().catch(() => []),
+        BillingService.getSquadMode().catch(() => ({
+          current_mode: 'sandbox',
+          available_modes: { sandbox: true, live: false },
+        })),
       ]);
 
       setBalance(balanceData);
@@ -166,10 +172,35 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
       setCreditTransactions(creditTxns);
       setPaymentHistory(payments);
       setTiers(tiersData);
+      setSquadMode(modeData.current_mode as 'sandbox' | 'live');
     } catch (error) {
       console.error('Failed to fetch billing data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleMode = async () => {
+    const newMode = squadMode === 'sandbox' ? 'live' : 'sandbox';
+    const confirmMessage = `Switch to ${newMode.toUpperCase()} mode?\n\n${
+      newMode === 'live'
+        ? '⚠️ LIVE MODE: Real payments will be processed!'
+        : '✓ SANDBOX MODE: Test payments only (no real money)'
+    }`;
+
+    if (!confirm(confirmMessage)) return;
+
+    setLoadingMode(true);
+    try {
+      const result = await BillingService.setSquadMode(newMode);
+      alert(
+        `Mode switch requested!\n\nInstructions:\n${result.instructions.join('\n')}\n\nNote: Server restart required for changes to take effect.`
+      );
+    } catch (error) {
+      console.error('Failed to switch mode:', error);
+      alert('Failed to switch mode. Please try again or contact support.');
+    } finally {
+      setLoadingMode(false);
     }
   };
 
@@ -303,24 +334,58 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
             <h1 style={{ fontSize: 26, fontWeight: 900, color: '#111', margin: 0 }}>Billing & Credits</h1>
             <p style={{ fontSize: 13, color: '#666', margin: '4px 0 0' }}>Manage your credits and subscription</p>
           </div>
-          <button
-            onClick={handleRefresh}
-            style={{
-              padding: '9px 16px',
-              borderRadius: 8,
-              border: '1px solid #e5e3df',
-              background: '#fff',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: 12.5,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <I n="refresh" s={14} c="#666" />
-            Refresh
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Squad Mode Toggle */}
+            <button
+              onClick={handleToggleMode}
+              disabled={loadingMode}
+              style={{
+                padding: '9px 16px',
+                borderRadius: 8,
+                border: `2px solid ${squadMode === 'live' ? '#16a34a' : '#f59e0b'}`,
+                background: squadMode === 'live' ? '#dcfce7' : '#fef3c7',
+                cursor: loadingMode ? 'not-allowed' : 'pointer',
+                fontWeight: 700,
+                fontSize: 11,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                opacity: loadingMode ? 0.6 : 1,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}
+              title="Click to switch payment mode"
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: squadMode === 'live' ? '#16a34a' : '#f59e0b',
+                }}
+              />
+              {loadingMode ? 'Switching...' : squadMode === 'live' ? '🔴 LIVE MODE' : '🧪 TEST MODE'}
+            </button>
+
+            <button
+              onClick={handleRefresh}
+              style={{
+                padding: '9px 16px',
+                borderRadius: 8,
+                border: '1px solid #e5e3df',
+                background: '#fff',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: 12.5,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <I n="refresh" s={14} c="#666" />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
