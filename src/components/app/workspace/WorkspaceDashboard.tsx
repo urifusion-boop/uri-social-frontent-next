@@ -1634,7 +1634,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
         <>
           {loading && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
                 {[0, 1, 2, 3].map((i) => (
                   <div
                     key={i}
@@ -1692,7 +1692,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
           {!loading && !error && data?.has_data && (
             <>
               {/* Summary stats */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 }}>
                 {statCard('Impressions', fmt(data.summary.total_impressions), `${data.summary.total_posts} posts`)}
                 {statCard('Reach', fmt(data.summary.total_reach))}
                 {statCard(
@@ -3938,29 +3938,24 @@ export default function WorkspaceDashboard() {
                 </span>
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              {/* Settings Icon - Social Accounts */}
-              {!isMobile && (
-                <button
-                  onClick={() => router.push('/settings/social-accounts')}
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 7,
-                    border: '1px solid #e5e3df',
-                    background: '#fff',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  title="Social Accounts Settings"
-                >
-                  <I n="settings" s={14} c="#666" />
-                </button>
-              )}
-
-              {/* Edit Icon - Brand Setup */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <button
+                onClick={() => router.push('/settings/social-accounts')}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 7,
+                  border: '1px solid #e5e3df',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title="Social Accounts"
+              >
+                <I n="settings" s={14} c="#666" />
+              </button>
               <button
                 onClick={() => router.push('/social-media/brand-setup')}
                 style={{
