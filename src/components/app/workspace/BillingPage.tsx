@@ -339,22 +339,22 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
+                gap: 8,
                 background: '#fff',
-                padding: '8px 14px',
-                borderRadius: 8,
+                padding: '6px 12px',
+                borderRadius: 7,
                 border: '1px solid #e5e3df',
               }}
             >
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Payment Mode:</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#999' }}>Mode:</span>
               <button
                 onClick={handleToggleMode}
                 disabled={loadingMode}
                 style={{
                   position: 'relative',
-                  width: 54,
-                  height: 28,
-                  borderRadius: 14,
+                  width: 42,
+                  height: 22,
+                  borderRadius: 11,
                   border: 'none',
                   background: squadMode === 'live' ? '#10b981' : '#f59e0b',
                   cursor: loadingMode ? 'not-allowed' : 'pointer',
@@ -366,27 +366,27 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                 <div
                   style={{
                     position: 'absolute',
-                    top: 3,
-                    left: squadMode === 'live' ? 29 : 3,
-                    width: 22,
-                    height: 22,
+                    top: 2,
+                    left: squadMode === 'live' ? 22 : 2,
+                    width: 18,
+                    height: 18,
                     borderRadius: '50%',
                     background: '#fff',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
                     transition: 'left 0.3s ease',
                   }}
                 />
               </button>
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: 700,
                   color: squadMode === 'live' ? '#10b981' : '#f59e0b',
                   textTransform: 'uppercase',
-                  minWidth: 60,
+                  minWidth: 48,
                 }}
               >
-                {loadingMode ? 'Switching...' : squadMode === 'live' ? 'Live' : 'Test'}
+                {loadingMode ? 'Wait...' : squadMode === 'live' ? 'Live' : 'Test'}
               </span>
             </div>
 
@@ -1015,61 +1015,61 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
             <div
               style={{
                 background: '#fff',
-                borderRadius: 16,
-                padding: 32,
-                maxWidth: 460,
+                borderRadius: 14,
+                padding: 24,
+                maxWidth: 400,
                 width: '90%',
                 boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ textAlign: 'center', marginBottom: 18 }}>
                 <div
                   style={{
-                    width: 64,
-                    height: 64,
+                    width: 52,
+                    height: 52,
                     borderRadius: '50%',
                     background:
                       squadMode === 'sandbox'
                         ? 'linear-gradient(135deg, #10b981, #059669)'
                         : 'linear-gradient(135deg, #f59e0b, #d97706)',
-                    margin: '0 auto 16px',
+                    margin: '0 auto 12px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 28,
+                    fontSize: 24,
                   }}
                 >
                   {squadMode === 'sandbox' ? '🔴' : '🧪'}
                 </div>
-                <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 8, color: '#111' }}>
+                <h2 style={{ fontSize: 19, fontWeight: 900, marginBottom: 6, color: '#111' }}>
                   Switch to {squadMode === 'sandbox' ? 'Live' : 'Test'} Mode?
                 </h2>
-                <p style={{ fontSize: 14, color: '#666', margin: 0 }}>
-                  {squadMode === 'sandbox'
-                    ? 'You are about to enable live payment processing'
-                    : 'You are about to switch to test mode'}
+                <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+                  {squadMode === 'sandbox' ? 'Enable live payment processing' : 'Switch to test mode'}
                 </p>
               </div>
 
               <div
                 style={{
                   background: squadMode === 'sandbox' ? '#fef2f2' : '#fef3c7',
-                  borderRadius: 12,
-                  padding: 18,
-                  marginBottom: 24,
+                  borderRadius: 10,
+                  padding: 14,
+                  marginBottom: 18,
                   border: `1px solid ${squadMode === 'sandbox' ? '#fecaca' : '#fde68a'}`,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'start', gap: 12 }}>
-                  <span style={{ fontSize: 20, flexShrink: 0 }}>{squadMode === 'sandbox' ? '⚠️' : 'ℹ️'}</span>
+                <div style={{ display: 'flex', alignItems: 'start', gap: 10 }}>
+                  <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>
+                    {squadMode === 'sandbox' ? '⚠️' : 'ℹ️'}
+                  </span>
                   <div>
                     <div
                       style={{
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: 700,
                         color: squadMode === 'sandbox' ? '#dc2626' : '#d97706',
-                        marginBottom: 6,
+                        marginBottom: 5,
                       }}
                     >
                       {squadMode === 'sandbox' ? 'Warning: Real Payments' : 'Test Mode Information'}
@@ -1077,12 +1077,12 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                     <ul
                       style={{
                         margin: 0,
-                        paddingLeft: 20,
-                        fontSize: 12.5,
+                        paddingLeft: 18,
+                        fontSize: 11.5,
                         color: '#666',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 6,
+                        gap: 4,
                       }}
                     >
                       {squadMode === 'sandbox' ? (
@@ -1103,19 +1103,19 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   onClick={() => setShowModeModal(false)}
                   disabled={loadingMode}
                   style={{
                     flex: 1,
-                    padding: '12px 0',
-                    borderRadius: 10,
+                    padding: '10px 0',
+                    borderRadius: 8,
                     border: '2px solid #e5e3df',
                     background: '#fff',
                     color: '#666',
                     fontWeight: 700,
-                    fontSize: 14,
+                    fontSize: 13,
                     cursor: loadingMode ? 'not-allowed' : 'pointer',
                     opacity: loadingMode ? 0.5 : 1,
                   }}
@@ -1127,8 +1127,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   disabled={loadingMode}
                   style={{
                     flex: 1,
-                    padding: '12px 0',
-                    borderRadius: 10,
+                    padding: '10px 0',
+                    borderRadius: 8,
                     border: 'none',
                     background: loadingMode
                       ? '#999'
@@ -1137,17 +1137,17 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                         : 'linear-gradient(135deg, #f59e0b, #d97706)',
                     color: '#fff',
                     fontWeight: 700,
-                    fontSize: 14,
+                    fontSize: 13,
                     cursor: loadingMode ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 8,
+                    gap: 6,
                   }}
                 >
                   {loadingMode ? (
                     <>
-                      <I n="loader" s={16} c="#fff" />
+                      <I n="loader" s={14} c="#fff" />
                       Switching...
                     </>
                   ) : (
