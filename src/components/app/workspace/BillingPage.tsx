@@ -686,7 +686,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <h2 style={{ fontSize: 18, fontWeight: 900, margin: '0 0 4px', textTransform: 'capitalize' }}>
-                      {subscription.name} Plan
+                      {subscription.name}
                     </h2>
                     <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
                       ₦{subscription.price_ngn.toLocaleString()}/month • {subscription.credits} credits
