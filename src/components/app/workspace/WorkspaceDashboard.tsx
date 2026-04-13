@@ -3856,7 +3856,9 @@ export default function WorkspaceDashboard() {
                 )}
                 <div>
                   <div style={{ fontSize: 12, color: 'rgba(255,255,255,.75)', fontWeight: 600 }}>{brandName}</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)' }}>Free Plan</div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', textTransform: 'capitalize' }}>
+                    {userDetails?.subscriptionTier || 'Free'} Plan
+                  </div>
                 </div>
               </div>
               <button
@@ -4291,7 +4293,9 @@ export default function WorkspaceDashboard() {
                 )}
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{brandName}</div>
-                  <div style={{ fontSize: 11, color: '#999' }}>Free Plan</div>
+                  <div style={{ fontSize: 11, color: '#999', textTransform: 'capitalize' }}>
+                    {userDetails?.subscriptionTier || 'Free'} Plan
+                  </div>
                 </div>
               </div>
               {/* More nav items */}
