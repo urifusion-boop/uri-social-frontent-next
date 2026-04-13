@@ -16,6 +16,9 @@ export default function WorkspaceCreditBadge({ onClick }: WorkspaceCreditBadgePr
 
   if (!userDetails) return null;
 
+  // Trial users show trial credits instead
+  if (userDetails.trialActive) return null;
+
   const creditsRemaining = userDetails.creditsRemaining ?? 0;
   const lowCreditWarning = userDetails.lowCreditWarning ?? false;
   const isExhausted = creditsRemaining === 0;

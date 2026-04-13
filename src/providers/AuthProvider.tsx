@@ -15,6 +15,7 @@ interface IAuthContext {
   saveUserTokens: (data: ITokenDetails) => void;
   logoutUser: () => void;
   refreshCreditBalance: () => Promise<void>; // PRD 7.1: Fetch latest credit balance
+  refreshTrialStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<IAuthContext>({} as IAuthContext);
@@ -59,6 +60,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isAuthenticated, tokenDetails]);
 
+  // Fetch trial status
+  const refreshTrialStatus = useCallback(async () => {
+    if (!isAuthenticated || !tokenDetails?.accessToken) return;
+
+    try {
+      const trial = await BillingService.getTrialStatus();
+      setUserDetails((prev) => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          isTrial: trial.is_trial,
+          trialActive: trial.trial_active,
+          trialCreditsRemaining: trial.credits_remaining,
+          trialDaysRemaining: trial.days_remaining,
+          trialHoursRemaining: trial.hours_remaining,
+          trialExpired: trial.trial_expired,
+          trialEndDate: trial.trial_end_date,
+        };
+        localStorage.setItem(STORE_KEYS.USER_DETAILS, JSON.stringify(updated));
+        return updated;
+      });
+    } catch (error) {
+      console.error('Failed to fetch trial status:', error);
+    }
+  }, [isAuthenticated, tokenDetails]);
+
   useEffect(() => {
     const storedUserDetails = localStorage.getItem(STORE_KEYS.USER_DETAILS);
     const storedUserTokens = localStorage.getItem(STORE_KEYS.USER_TOKENS);
@@ -79,12 +106,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsPending(false);
   }, [pathname]);
 
-  // Fetch credit balance when user becomes authenticated
+  // Fetch credit balance and trial status when user becomes authenticated
   useEffect(() => {
     if (isAuthenticated && !isPending) {
       refreshCreditBalance();
+      refreshTrialStatus();
     }
-  }, [isAuthenticated, isPending, refreshCreditBalance]);
+  }, [isAuthenticated, isPending, refreshCreditBalance, refreshTrialStatus]);
 
   const saveUserDetails = (details: UserDto) => {
     localStorage.setItem(STORE_KEYS.USER_DETAILS, JSON.stringify(details));
@@ -117,6 +145,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         saveUserTokens,
         logoutUser,
         refreshCreditBalance,
+        refreshTrialStatus,
       }}
     >
       {children}

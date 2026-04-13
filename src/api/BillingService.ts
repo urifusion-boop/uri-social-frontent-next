@@ -98,6 +98,29 @@ export interface CanGenerateResponse {
   credits_remaining?: number;
 }
 
+// ==================== Free Trial ====================
+
+export interface TrialStatusResponse {
+  is_trial: boolean;
+  trial_active: boolean;
+  trial_start_date?: string;
+  trial_end_date?: string;
+  trial_credits?: number;
+  credits_remaining?: number;
+  days_remaining?: number;
+  hours_remaining?: number;
+  trial_expired: boolean;
+  trial_already_used: boolean;
+  low_credit_warning?: boolean;
+}
+
+export interface TrialCanGenerateResponse {
+  can_generate: boolean;
+  blocked: boolean;
+  credits_remaining: number;
+  message: string;
+}
+
 // ==================== Billing Service Class ====================
 
 export class BillingService {
@@ -315,5 +338,48 @@ export class BillingService {
     }
 
     return { instructions: response.data.responseData!.instructions };
+  }
+
+  // ==================== Free Trial Methods ====================
+
+  /**
+   * Get current trial status
+   */
+  static async getTrialStatus(): Promise<TrialStatusResponse> {
+    const response: AxiosResponse<UriResponse<TrialStatusResponse>> = await UriHttpClient.getClient().get(
+      '/social-media/billing/trial/status'
+    );
+
+    if (!response.data.status) {
+      throw new Error(response.data.responseMessage || 'Failed to get trial status');
+    }
+
+    return response.data.responseData!;
+  }
+
+  /**
+   * Activate free trial for current user
+   */
+  static async activateTrial(): Promise<TrialStatusResponse> {
+    const response: AxiosResponse<UriResponse<TrialStatusResponse>> = await UriHttpClient.getClient().post(
+      '/social-media/billing/trial/activate'
+    );
+
+    if (!response.data.status) {
+      throw new Error(response.data.responseMessage || 'Failed to activate trial');
+    }
+
+    return response.data.responseData!;
+  }
+
+  /**
+   * Check if trial user can generate content
+   */
+  static async trialCanGenerate(): Promise<TrialCanGenerateResponse> {
+    const response: AxiosResponse<UriResponse<TrialCanGenerateResponse>> = await UriHttpClient.getClient().get(
+      '/social-media/billing/trial/can-generate'
+    );
+
+    return response.data.responseData!;
   }
 }

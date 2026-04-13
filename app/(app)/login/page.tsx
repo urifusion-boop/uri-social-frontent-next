@@ -118,9 +118,25 @@ function LoginContent() {
           setError(res.responseMessage || 'Google sign-in failed. Please try again.');
           return;
         }
-        const { accessToken, userId, email: userEmail, firstName: fName, lastName: lName } = res.responseData;
-        saveUserTokens({ accessToken, refreshToken: '' });
-        saveUserDetails({ userId, email: userEmail, firstName: fName, lastName: lName });
+        const {
+          accessToken,
+          userId,
+          email: userEmail,
+          firstName: fName,
+          lastName: lName,
+          trial,
+        } = res.responseData as Record<string, unknown>;
+        saveUserTokens({ accessToken: accessToken as string, refreshToken: '' });
+        const userDto: Record<string, unknown> = { userId, email: userEmail, firstName: fName, lastName: lName };
+        if (trial && typeof trial === 'object') {
+          const t = trial as Record<string, unknown>;
+          userDto.isTrial = t.is_trial;
+          userDto.trialActive = t.trial_active;
+          userDto.trialCreditsRemaining = t.credits_remaining;
+          userDto.trialDaysRemaining = t.days_remaining;
+          userDto.trialEndDate = t.trial_end_date;
+        }
+        saveUserDetails(userDto as Parameters<typeof saveUserDetails>[0]);
         setSuccess('Signed in with Google! Redirecting...');
         const onboardingDone = await BrandProfileService.isOnboardingDone();
         setTimeout(() => router.push(onboardingDone ? '/workspace' : '/social-media/brand-setup'), 1000);
@@ -194,9 +210,25 @@ function LoginContent() {
         return;
       }
 
-      const { accessToken, userId, email: userEmail, firstName: fName, lastName: lName } = res.responseData;
-      saveUserTokens({ accessToken, refreshToken: '' });
-      saveUserDetails({ userId, email: userEmail, firstName: fName, lastName: lName });
+      const {
+        accessToken,
+        userId,
+        email: userEmail,
+        firstName: fName,
+        lastName: lName,
+        trial,
+      } = res.responseData as Record<string, unknown>;
+      saveUserTokens({ accessToken: accessToken as string, refreshToken: '' });
+      const userDto: Record<string, unknown> = { userId, email: userEmail, firstName: fName, lastName: lName };
+      if (trial && typeof trial === 'object') {
+        const t = trial as Record<string, unknown>;
+        userDto.isTrial = t.is_trial;
+        userDto.trialActive = t.trial_active;
+        userDto.trialCreditsRemaining = t.credits_remaining;
+        userDto.trialDaysRemaining = t.days_remaining;
+        userDto.trialEndDate = t.trial_end_date;
+      }
+      saveUserDetails(userDto as Parameters<typeof saveUserDetails>[0]);
 
       setSuccess(tab === 'login' ? 'Login successful! Redirecting...' : 'Account created successfully! Redirecting...');
 

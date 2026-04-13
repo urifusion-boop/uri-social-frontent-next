@@ -28,6 +28,9 @@ import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
+import TrialBanner from '@/src/components/app/atoms/TrialBanner';
+import TrialEndingBanner from '@/src/components/app/atoms/TrialEndingBanner';
+import TrialExpiredModal from '@/src/components/app/atoms/TrialExpiredModal';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -3471,6 +3474,8 @@ export default function WorkspaceDashboard() {
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [trialExpiredOpen, setTrialExpiredOpen] = useState(false);
+  const [trialEndingDismissed, setTrialEndingDismissed] = useState(false);
   const feedEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -3488,6 +3493,14 @@ export default function WorkspaceDashboard() {
     window.addEventListener('resize', ck);
     return () => window.removeEventListener('resize', ck);
   }, []);
+
+  // Show trial expired modal on first visit after expiry
+  useEffect(() => {
+    if (userDetails?.trialExpired && !userDetails?.subscriptionTier) {
+      const dismissed = sessionStorage.getItem('trial_expired_dismissed');
+      if (!dismissed) setTrialExpiredOpen(true);
+    }
+  }, [userDetails?.trialExpired, userDetails?.subscriptionTier]);
 
   useEffect(() => {
     const name = profile?.brand_name ?? 'your brand';
@@ -3974,13 +3987,31 @@ export default function WorkspaceDashboard() {
                 <I n="edit" s={14} c="#666" />
               </button>
 
+              {/* Trial Badge */}
+              {!isMobile && userDetails?.trialActive && (
+                <TrialBanner
+                  daysRemaining={userDetails.trialDaysRemaining ?? 0}
+                  creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
+                  onClick={() => setNav('billing')}
+                />
+              )}
+
               {/* Credit Balance Badge */}
-              {!isMobile && <WorkspaceCreditBadge onClick={() => setNav('billing')} />}
+              {!isMobile && !userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => setNav('billing')} />}
 
               {/* Profile Dropdown */}
               <WorkspaceProfileDropdown onNavigate={setNav} onLogout={logoutUser} />
             </div>
           </div>
+
+          {/* Trial ending banner (≤24h remaining) */}
+          {userDetails?.trialActive && (userDetails.trialHoursRemaining ?? 999) <= 24 && !trialEndingDismissed && (
+            <TrialEndingBanner
+              hoursRemaining={userDetails.trialHoursRemaining ?? 0}
+              creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
+              onDismiss={() => setTrialEndingDismissed(true)}
+            />
+          )}
 
           {/* Page content */}
           <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -4352,6 +4383,15 @@ export default function WorkspaceDashboard() {
           </>
         )}
       </div>
+
+      {/* Trial Expired Modal */}
+      <TrialExpiredModal
+        open={trialExpiredOpen}
+        onClose={() => {
+          setTrialExpiredOpen(false);
+          sessionStorage.setItem('trial_expired_dismissed', '1');
+        }}
+      />
     </>
   );
 }

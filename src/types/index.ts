@@ -15,4 +15,12 @@ export interface UserDto {
   creditsRemaining?: number;
   subscriptionTier?: string | null;
   lowCreditWarning?: boolean; // PRD 7.3: True when credits ≤ 3
+  // Free Trial fields
+  isTrial?: boolean;
+  trialActive?: boolean;
+  trialCreditsRemaining?: number;
+  trialDaysRemaining?: number;
+  trialHoursRemaining?: number;
+  trialExpired?: boolean;
+  trialEndDate?: string;
 }

@@ -575,6 +575,72 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
         {activeTab === 'overview' && (
           <div>
+            {/* Trial Status Card */}
+            {userDetails?.isTrial && (
+              <div
+                style={{
+                  background: userDetails.trialActive
+                    ? 'linear-gradient(135deg, rgba(205,27,120,.04) 0%, rgba(160,21,96,.04) 100%)'
+                    : 'rgba(239,68,68,.04)',
+                  borderRadius: 12,
+                  border: `1px solid ${userDetails.trialActive ? 'rgba(205,27,120,.15)' : 'rgba(239,68,68,.15)'}`,
+                  padding: 18,
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        color: userDetails.trialActive ? '#CD1B78' : '#DC2626',
+                        letterSpacing: '0.05em',
+                      }}
+                    >
+                      {userDetails.trialActive ? '✦ Free Trial Active' : '✦ Free Trial Expired'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 14, color: '#374151', fontWeight: 500 }}>
+                    {userDetails.trialActive ? (
+                      <>
+                        <strong>{userDetails.trialDaysRemaining ?? 0}</strong> day
+                        {(userDetails.trialDaysRemaining ?? 0) !== 1 ? 's' : ''} remaining
+                        {' · '}
+                        <strong>{userDetails.trialCreditsRemaining ?? 0}</strong> credit
+                        {(userDetails.trialCreditsRemaining ?? 0) !== 1 ? 's' : ''} left
+                      </>
+                    ) : (
+                      'Upgrade to a plan to continue creating content.'
+                    )}
+                  </div>
+                </div>
+                {!userDetails.subscriptionTier && (
+                  <button
+                    onClick={() => setActiveTab('plans')}
+                    style={{
+                      background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '8px 20px',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {userDetails.trialActive ? 'View Plans' : 'Upgrade Now'}
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Credit Balance Cards */}
             <div
               style={{
