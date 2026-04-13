@@ -286,4 +286,34 @@ export class BillingService {
 
     return diffDays > 0 ? diffDays : 0;
   }
+
+  /**
+   * Get current Squad payment mode (sandbox or live)
+   */
+  static async getSquadMode(): Promise<{ current_mode: string; available_modes: { sandbox: boolean; live: boolean } }> {
+    const response: AxiosResponse<
+      UriResponse<{ current_mode: string; available_modes: { sandbox: boolean; live: boolean } }>
+    > = await UriHttpClient.getClient().get('/social-media/billing/squad/mode');
+
+    if (!response.data.status) {
+      throw new Error(response.data.responseMessage || 'Failed to get Squad mode');
+    }
+
+    return response.data.responseData!;
+  }
+
+  /**
+   * Set Squad payment mode (requires server restart)
+   */
+  static async setSquadMode(mode: 'sandbox' | 'live'): Promise<{ instructions: string[] }> {
+    const response: AxiosResponse<
+      UriResponse<{ requested_mode: string; current_mode: string; requires_restart: boolean; instructions: string[] }>
+    > = await UriHttpClient.getClient().post('/social-media/billing/squad/mode', { mode });
+
+    if (!response.data.status) {
+      throw new Error(response.data.responseMessage || 'Failed to set Squad mode');
+    }
+
+    return { instructions: response.data.responseData!.instructions };
+  }
 }
