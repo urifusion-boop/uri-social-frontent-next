@@ -222,13 +222,15 @@ function SocialAccountsContent() {
 
   return (
     <DashboardLayout>
-      <Box sx={{ background: themeColors.background, minHeight: '100vh', pt: '80px', px: 3, pb: 6 }}>
+      <Box sx={{ background: themeColors.background, minHeight: '100vh', pt: '80px', px: { xs: 2, sm: 3 }, pb: 6 }}>
         <Box sx={{ maxWidth: 680, mx: 'auto' }}>
           {/* Header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 3 }}>
             <Box>
-              <Typography sx={{ fontSize: 24, fontWeight: 800, color: '#111', mb: 0.5 }}>Social Accounts</Typography>
-              <Typography sx={{ fontSize: 13, color: '#6B7280' }}>
+              <Typography sx={{ fontSize: { xs: 20, sm: 24 }, fontWeight: 800, color: '#111', mb: 0.5 }}>
+                Social Accounts
+              </Typography>
+              <Typography sx={{ fontSize: { xs: 12, sm: 13 }, color: '#6B7280' }}>
                 Connect your social media accounts to publish and schedule posts
               </Typography>
             </Box>
@@ -241,14 +243,16 @@ function SocialAccountsContent() {
                 background: 'none',
                 border: '1.5px solid #E0DEF7',
                 borderRadius: 8,
-                padding: '6px 14px',
-                fontSize: 13,
+                padding: '6px 12px',
+                fontSize: 12,
                 fontWeight: 600,
                 color: '#555',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
             >
-              <ArrowBack sx={{ fontSize: 16 }} /> Settings
+              <ArrowBack sx={{ fontSize: 15 }} /> Settings
             </button>
           </Box>
 

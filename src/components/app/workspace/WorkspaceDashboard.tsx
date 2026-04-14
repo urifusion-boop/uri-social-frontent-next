@@ -1637,7 +1637,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
         <>
           {loading && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                 {[0, 1, 2, 3].map((i) => (
                   <div
                     key={i}
@@ -1714,10 +1714,10 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                 )}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
-                {statCard('Likes', fmt(data.summary.total_likes))}
-                {statCard('Comments', fmt(data.summary.total_comments))}
-                {statCard('Shares', fmt(data.summary.total_shares))}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 80px' }}>{statCard('Likes', fmt(data.summary.total_likes))}</div>
+                <div style={{ flex: '1 1 80px' }}>{statCard('Comments', fmt(data.summary.total_comments))}</div>
+                <div style={{ flex: '1 1 80px' }}>{statCard('Shares', fmt(data.summary.total_shares))}</div>
               </div>
 
               {/* Per-platform breakdown */}
@@ -1882,8 +1882,8 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                               borderRadius: '0 0 10px 10px',
                               border: '1px solid #f0eeec',
                               borderTop: 'none',
-                              display: 'grid',
-                              gridTemplateColumns: 'repeat(3, 1fr)',
+                              display: 'flex',
+                              flexWrap: 'wrap',
                               gap: 8,
                             }}
                           >
@@ -1892,7 +1892,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                               ['Reach', fmt(post.reach)],
                               ['Engagement Rate', `${post.engagement_rate}%`],
                             ].map(([l, v]) => (
-                              <div key={l as string}>
+                              <div key={l as string} style={{ flex: '1 1 80px' }}>
                                 <div
                                   style={{
                                     fontSize: 10.5,
@@ -1924,7 +1924,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
         <>
           {accountLoading && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}

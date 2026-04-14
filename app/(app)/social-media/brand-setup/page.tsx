@@ -78,7 +78,7 @@ const AgentBubble = ({ children, primary }: { children: React.ReactNode; primary
         borderRadius: '2px 12px 12px 12px',
         px: 2,
         py: 1.5,
-        maxWidth: 520,
+        maxWidth: { xs: '100%', sm: 520 },
         fontSize: 14,
         lineHeight: 1.6,
         color: '#374151',
