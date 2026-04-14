@@ -119,6 +119,27 @@ function SocialAccountsContent() {
     const connected = searchParams.get('connected');
     const token = searchParams.get('sessionToken');
 
+    // Instagram direct OAuth callback
+    if (connected === 'instagram_direct') {
+      const igUserId = searchParams.get('ig_user_id') ?? '';
+      const igUsername = searchParams.get('username') ?? 'Instagram';
+      router.replace('/settings/social-accounts');
+      if (igUserId) {
+        SocialAccountService.finalizeInstagramDirect(igUserId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`Instagram @${igUsername} connected!`, ToastTypeEnum.Success);
+              fetchConnections();
+            } else {
+              ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => {
+            ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
+          });
+      }
+    }
+
     if (connected === 'pending' && token) {
       setSessionToken(token);
       setPhase('pending');
@@ -144,6 +165,13 @@ function SocialAccountsContent() {
   }, [searchParams, router, fetchConnections]);
 
   const handleConnect = async (platformId: string) => {
+    // Instagram uses direct OAuth — bypass Outstand entirely
+    if (platformId === 'instagram') {
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
+      window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      return;
+    }
+
     setConnectingPlatform(platformId);
     try {
       const res = await SocialAccountService.initiateConnection([platformId], 'settings');
