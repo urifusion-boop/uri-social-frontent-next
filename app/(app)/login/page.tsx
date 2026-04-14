@@ -125,7 +125,7 @@ function LoginContent() {
           firstName: fName,
           lastName: lName,
           trial,
-        } = res.responseData as Record<string, unknown>;
+        } = res.responseData as unknown as Record<string, unknown>;
         saveUserTokens({ accessToken: accessToken as string, refreshToken: '' });
         const userDto: Record<string, unknown> = { userId, email: userEmail, firstName: fName, lastName: lName };
         if (trial && typeof trial === 'object') {
@@ -136,7 +136,7 @@ function LoginContent() {
           userDto.trialDaysRemaining = t.days_remaining;
           userDto.trialEndDate = t.trial_end_date;
         }
-        saveUserDetails(userDto as Parameters<typeof saveUserDetails>[0]);
+        saveUserDetails(userDto as unknown as Parameters<typeof saveUserDetails>[0]);
         setSuccess('Signed in with Google! Redirecting...');
         const onboardingDone = await BrandProfileService.isOnboardingDone();
         setTimeout(() => router.push(onboardingDone ? '/workspace' : '/social-media/brand-setup'), 1000);
@@ -217,7 +217,7 @@ function LoginContent() {
         firstName: fName,
         lastName: lName,
         trial,
-      } = res.responseData as Record<string, unknown>;
+      } = res.responseData as unknown as Record<string, unknown>;
       saveUserTokens({ accessToken: accessToken as string, refreshToken: '' });
       const userDto: Record<string, unknown> = { userId, email: userEmail, firstName: fName, lastName: lName };
       if (trial && typeof trial === 'object') {
@@ -228,7 +228,7 @@ function LoginContent() {
         userDto.trialDaysRemaining = t.days_remaining;
         userDto.trialEndDate = t.trial_end_date;
       }
-      saveUserDetails(userDto as Parameters<typeof saveUserDetails>[0]);
+      saveUserDetails(userDto as unknown as Parameters<typeof saveUserDetails>[0]);
 
       setSuccess(tab === 'login' ? 'Login successful! Redirecting...' : 'Account created successfully! Redirecting...');
 

@@ -78,7 +78,7 @@ const AgentBubble = ({ children, primary }: { children: React.ReactNode; primary
         borderRadius: '2px 12px 12px 12px',
         px: 2,
         py: 1.5,
-        maxWidth: 520,
+        maxWidth: { xs: '100%', sm: 520 },
         fontSize: 14,
         lineHeight: 1.6,
         color: '#374151',
@@ -886,6 +886,7 @@ function BrandSetupPageContent() {
             bg: '#F0F0F0',
             description: 'Post tweets and threads',
             flow: 'popup',
+            comingSoon: true,
           },
           {
             id: 'whatsapp',
@@ -1254,10 +1255,11 @@ function BrandSetupPageContent() {
               {LIVE_PLATFORMS.map((platform) => {
                 const IconComponent = platform.icon;
                 const isSelected = selectedConnectPlatform === platform.id;
+                const isComingSoon = (platform as { comingSoon?: boolean }).comingSoon;
                 return (
                   <Box key={platform.id}>
                     <Box
-                      onClick={() => setSelectedConnectPlatform(platform.id)}
+                      onClick={() => !isComingSoon && setSelectedConnectPlatform(platform.id)}
                       sx={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1266,10 +1268,11 @@ function BrandSetupPageContent() {
                         borderRadius: '12px',
                         border: '2px solid',
                         borderColor: isSelected ? primary : '#E0DEF7',
-                        background: isSelected ? `${primary}0D` : '#fff',
-                        cursor: 'pointer',
+                        background: isComingSoon ? '#FAFAFA' : isSelected ? `${primary}0D` : '#fff',
+                        cursor: isComingSoon ? 'default' : 'pointer',
+                        opacity: isComingSoon ? 0.65 : 1,
                         transition: 'all 0.18s',
-                        '&:hover': { borderColor: primary },
+                        '&:hover': { borderColor: isComingSoon ? '#E0DEF7' : primary },
                       }}
                     >
                       <Box
@@ -1284,15 +1287,33 @@ function BrandSetupPageContent() {
                           flexShrink: 0,
                         }}
                       >
-                        <IconComponent size={24} color={platform.color} />
+                        <IconComponent size={24} color={isComingSoon ? '#aaa' : platform.color} />
                       </Box>
                       <Box flex={1}>
-                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: isComingSoon ? '#9CA3AF' : '#374151' }}>
                           {platform.name}
                         </Typography>
                         <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>{platform.description}</Typography>
                       </Box>
-                      {isSelected && <FaCheckCircle size={18} color={primary} />}
+                      {isComingSoon ? (
+                        <Box
+                          sx={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: '#6B7280',
+                            background: '#F3F4F6',
+                            border: '1px solid #E5E7EB',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: '20px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Coming Soon
+                        </Box>
+                      ) : isSelected ? (
+                        <FaCheckCircle size={18} color={primary} />
+                      ) : null}
                     </Box>
                     {isSelected && platform.flow === 'phone' && (
                       <Box sx={{ mt: 1, px: 0.5 }}>

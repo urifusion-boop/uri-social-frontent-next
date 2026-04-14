@@ -16,13 +16,45 @@ import { FaXTwitter } from 'react-icons/fa6';
 import { BsYoutube, BsPinterest, BsTiktok } from 'react-icons/bs';
 
 const PLATFORMS = [
-  { id: 'facebook', label: 'Facebook', icon: FaFacebook, emoji: '📘', color: '#1877F2', bg: '#E7F0FD' },
-  { id: 'instagram', label: 'Instagram', icon: FaInstagram, emoji: '📸', color: '#E4405F', bg: '#FDE7EC' },
-  { id: 'linkedin', label: 'LinkedIn', icon: FaLinkedin, emoji: '💼', color: '#0A66C2', bg: '#E7F0FA' },
-  { id: 'twitter', label: 'X / Twitter', icon: FaXTwitter, emoji: '𝕏', color: '#000', bg: '#F0F0F0' },
-  { id: 'tiktok', label: 'TikTok', icon: BsTiktok, emoji: '🎵', color: '#010101', bg: '#F0F0F0' },
-  { id: 'youtube', label: 'YouTube', icon: BsYoutube, emoji: '▶️', color: '#FF0000', bg: '#FFEDED' },
-  { id: 'pinterest', label: 'Pinterest', icon: BsPinterest, emoji: '📌', color: '#E60023', bg: '#FFEAEC' },
+  {
+    id: 'facebook',
+    label: 'Facebook',
+    icon: FaFacebook,
+    emoji: '📘',
+    color: '#1877F2',
+    bg: '#E7F0FD',
+    comingSoon: false,
+  },
+  {
+    id: 'instagram',
+    label: 'Instagram',
+    icon: FaInstagram,
+    emoji: '📸',
+    color: '#E4405F',
+    bg: '#FDE7EC',
+    comingSoon: false,
+  },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    icon: FaLinkedin,
+    emoji: '💼',
+    color: '#0A66C2',
+    bg: '#E7F0FA',
+    comingSoon: false,
+  },
+  { id: 'twitter', label: 'X / Twitter', icon: FaXTwitter, emoji: '𝕏', color: '#000', bg: '#F0F0F0', comingSoon: true },
+  { id: 'tiktok', label: 'TikTok', icon: BsTiktok, emoji: '🎵', color: '#010101', bg: '#F0F0F0', comingSoon: true },
+  { id: 'youtube', label: 'YouTube', icon: BsYoutube, emoji: '▶️', color: '#FF0000', bg: '#FFEDED', comingSoon: true },
+  {
+    id: 'pinterest',
+    label: 'Pinterest',
+    icon: BsPinterest,
+    emoji: '📌',
+    color: '#E60023',
+    bg: '#FFEAEC',
+    comingSoon: true,
+  },
 ];
 
 const AgentBubble = ({ children, primary }: { children: React.ReactNode; primary: string }) => (
@@ -87,6 +119,27 @@ function SocialAccountsContent() {
     const connected = searchParams.get('connected');
     const token = searchParams.get('sessionToken');
 
+    // Instagram direct OAuth callback
+    if (connected === 'instagram_direct') {
+      const igUserId = searchParams.get('ig_user_id') ?? '';
+      const igUsername = searchParams.get('username') ?? 'Instagram';
+      router.replace('/settings/social-accounts');
+      if (igUserId) {
+        SocialAccountService.finalizeInstagramDirect(igUserId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`Instagram @${igUsername} connected!`, ToastTypeEnum.Success);
+              fetchConnections();
+            } else {
+              ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => {
+            ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
+          });
+      }
+    }
+
     if (connected === 'pending' && token) {
       setSessionToken(token);
       setPhase('pending');
@@ -112,6 +165,13 @@ function SocialAccountsContent() {
   }, [searchParams, router, fetchConnections]);
 
   const handleConnect = async (platformId: string) => {
+    // Instagram uses direct OAuth — bypass Outstand entirely
+    if (platformId === 'instagram') {
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
+      window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      return;
+    }
+
     setConnectingPlatform(platformId);
     try {
       const res = await SocialAccountService.initiateConnection([platformId], 'settings');
@@ -190,13 +250,15 @@ function SocialAccountsContent() {
 
   return (
     <DashboardLayout>
-      <Box sx={{ background: themeColors.background, minHeight: '100vh', pt: '80px', px: 3, pb: 6 }}>
+      <Box sx={{ background: themeColors.background, minHeight: '100vh', pt: '80px', px: { xs: 2, sm: 3 }, pb: 6 }}>
         <Box sx={{ maxWidth: 680, mx: 'auto' }}>
           {/* Header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 3 }}>
             <Box>
-              <Typography sx={{ fontSize: 24, fontWeight: 800, color: '#111', mb: 0.5 }}>Social Accounts</Typography>
-              <Typography sx={{ fontSize: 13, color: '#6B7280' }}>
+              <Typography sx={{ fontSize: { xs: 20, sm: 24 }, fontWeight: 800, color: '#111', mb: 0.5 }}>
+                Social Accounts
+              </Typography>
+              <Typography sx={{ fontSize: { xs: 12, sm: 13 }, color: '#6B7280' }}>
                 Connect your social media accounts to publish and schedule posts
               </Typography>
             </Box>
@@ -209,14 +271,16 @@ function SocialAccountsContent() {
                 background: 'none',
                 border: '1.5px solid #E0DEF7',
                 borderRadius: 8,
-                padding: '6px 14px',
-                fontSize: 13,
+                padding: '6px 12px',
+                fontSize: 12,
                 fontWeight: 600,
                 color: '#555',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
             >
-              <ArrowBack sx={{ fontSize: 16 }} /> Settings
+              <ArrowBack sx={{ fontSize: 15 }} /> Settings
             </button>
           </Box>
 
@@ -509,9 +573,10 @@ function SocialAccountsContent() {
                           p: 2,
                           borderRadius: '12px',
                           border: '2px solid #E0DEF7',
-                          background: '#fff',
+                          background: pl.comingSoon ? '#FAFAFA' : '#fff',
+                          opacity: pl.comingSoon ? 0.7 : 1,
                           transition: 'all 0.18s',
-                          '&:hover': { borderColor: isConnected ? '#E0DEF7' : primary },
+                          '&:hover': { borderColor: pl.comingSoon || isConnected ? '#E0DEF7' : primary },
                         }}
                       >
                         <Box
@@ -526,12 +591,32 @@ function SocialAccountsContent() {
                             flexShrink: 0,
                           }}
                         >
-                          <IconComponent size={24} color={pl.color} />
+                          <IconComponent size={24} color={pl.comingSoon ? '#aaa' : pl.color} />
                         </Box>
                         <Box flex={1}>
-                          <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>{pl.label}</Typography>
+                          <Typography
+                            sx={{ fontSize: 14, fontWeight: 700, color: pl.comingSoon ? '#9CA3AF' : '#374151' }}
+                          >
+                            {pl.label}
+                          </Typography>
                         </Box>
-                        {isConnected ? (
+                        {pl.comingSoon ? (
+                          <Box
+                            sx={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: '#6B7280',
+                              background: '#F3F4F6',
+                              border: '1px solid #E5E7EB',
+                              px: 2,
+                              py: 1,
+                              borderRadius: '20px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Coming Soon
+                          </Box>
+                        ) : isConnected ? (
                           <Box
                             sx={{
                               fontSize: 11,
