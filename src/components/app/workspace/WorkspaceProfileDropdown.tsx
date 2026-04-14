@@ -156,7 +156,7 @@ export default function WorkspaceProfileDropdown({ onNavigate, onLogout }: Works
                 }}
               >
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 5, fontWeight: 600 }}>CREDITS</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <span style={{ fontSize: 20, fontWeight: 900, color: '#C2185B' }}>
                     {userDetails.creditsRemaining ?? 0}
                   </span>
@@ -167,12 +167,32 @@ export default function WorkspaceProfileDropdown({ onNavigate, onLogout }: Works
                     style={{
                       fontSize: 10.5,
                       color: '#999',
-                      marginTop: 4,
+                      marginBottom: 8,
                       textTransform: 'capitalize',
                     }}
                   >
                     {userDetails.subscriptionTier} Plan
                   </div>
+                )}
+                {/* Upgrade button for free trial users */}
+                {(!userDetails.subscriptionTier || userDetails.subscriptionTier === 'free') && (
+                  <button
+                    onClick={() => handleNavigate('billing')}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 7,
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #C2185B, #E91E63)',
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: 11.5,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--wf)',
+                    }}
+                  >
+                    Upgrade Plan
+                  </button>
                 )}
               </div>
             )}
