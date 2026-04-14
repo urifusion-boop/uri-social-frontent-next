@@ -144,9 +144,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>(initialTab);
   const [confirmTier, setConfirmTier] = useState<SubscriptionTier | null>(null);
-  const [squadMode, setSquadMode] = useState<'sandbox' | 'live'>('sandbox');
-  const [loadingMode, setLoadingMode] = useState(false);
-  const [showModeModal, setShowModeModal] = useState(false);
+  // Production: Always use live mode
+  const squadMode = 'live' as const;
 
   useEffect(() => {
     fetchBillingData();
@@ -156,16 +155,12 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
     try {
       setLoading(true);
 
-      const [balanceData, subData, creditTxns, payments, tiersData, modeData] = await Promise.all([
+      const [balanceData, subData, creditTxns, payments, tiersData] = await Promise.all([
         BillingService.getCreditBalance().catch(() => null),
         BillingService.getCurrentSubscription().catch(() => null),
         BillingService.getTransactionHistory(50).catch(() => []),
         BillingService.getPaymentHistory(20).catch(() => []),
         BillingService.getSubscriptionTiers().catch(() => []),
-        BillingService.getSquadMode().catch(() => ({
-          current_mode: 'sandbox',
-          available_modes: { sandbox: true, live: false },
-        })),
       ]);
 
       setBalance(balanceData);
@@ -173,33 +168,10 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
       setCreditTransactions(creditTxns);
       setPaymentHistory(payments);
       setTiers(tiersData);
-      setSquadMode(modeData.current_mode as 'sandbox' | 'live');
     } catch (error) {
       console.error('Failed to fetch billing data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleToggleMode = () => {
-    setShowModeModal(true);
-  };
-
-  const confirmModeSwitch = async () => {
-    const newMode = squadMode === 'sandbox' ? 'live' : 'sandbox';
-    setLoadingMode(true);
-
-    try {
-      await BillingService.setSquadMode(newMode);
-      setSquadMode(newMode);
-      setShowModeModal(false);
-      // Refresh billing data to reflect new mode
-      fetchBillingData();
-    } catch (error) {
-      console.error('Failed to switch mode:', error);
-      alert('Failed to switch payment mode. Please try again or contact support.');
-    } finally {
-      setLoadingMode(false);
     }
   };
 
@@ -334,62 +306,6 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
             <p style={{ fontSize: 13, color: '#666', margin: '4px 0 0' }}>Manage your credits and subscription</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {/* Squad Mode Toggle */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: '#fff',
-                padding: '6px 12px',
-                borderRadius: 7,
-                border: '1px solid #e5e3df',
-              }}
-            >
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#999' }}>Mode:</span>
-              <button
-                onClick={handleToggleMode}
-                disabled={loadingMode}
-                style={{
-                  position: 'relative',
-                  width: 42,
-                  height: 22,
-                  borderRadius: 11,
-                  border: 'none',
-                  background: squadMode === 'live' ? '#10b981' : '#f59e0b',
-                  cursor: loadingMode ? 'not-allowed' : 'pointer',
-                  opacity: loadingMode ? 0.6 : 1,
-                  transition: 'background 0.3s ease',
-                }}
-                title="Click to switch payment mode"
-              >
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 2,
-                    left: squadMode === 'live' ? 22 : 2,
-                    width: 18,
-                    height: 18,
-                    borderRadius: '50%',
-                    background: '#fff',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                    transition: 'left 0.3s ease',
-                  }}
-                />
-              </button>
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  color: squadMode === 'live' ? '#10b981' : '#f59e0b',
-                  textTransform: 'uppercase',
-                  minWidth: 48,
-                }}
-              >
-                {loadingMode ? 'Wait...' : squadMode === 'live' ? 'Live' : 'Test'}
-              </span>
-            </div>
-
             <button
               onClick={handleRefresh}
               style={{
@@ -1054,170 +970,6 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                     </>
                   ) : (
                     'Proceed to Payment'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Squad Mode Switch Confirmation Modal */}
-        {showModeModal && (
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0,0,0,0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 9999,
-            }}
-            onClick={() => !loadingMode && setShowModeModal(false)}
-          >
-            <div
-              style={{
-                background: '#fff',
-                borderRadius: 14,
-                padding: 24,
-                maxWidth: 400,
-                width: '90%',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ textAlign: 'center', marginBottom: 18 }}>
-                <div
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: '50%',
-                    background:
-                      squadMode === 'sandbox'
-                        ? 'linear-gradient(135deg, #10b981, #059669)'
-                        : 'linear-gradient(135deg, #f59e0b, #d97706)',
-                    margin: '0 auto 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 24,
-                  }}
-                >
-                  {squadMode === 'sandbox' ? '🔴' : '🧪'}
-                </div>
-                <h2 style={{ fontSize: 19, fontWeight: 900, marginBottom: 6, color: '#111' }}>
-                  Switch to {squadMode === 'sandbox' ? 'Live' : 'Test'} Mode?
-                </h2>
-                <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-                  {squadMode === 'sandbox' ? 'Enable live payment processing' : 'Switch to test mode'}
-                </p>
-              </div>
-
-              <div
-                style={{
-                  background: squadMode === 'sandbox' ? '#fef2f2' : '#fef3c7',
-                  borderRadius: 10,
-                  padding: 14,
-                  marginBottom: 18,
-                  border: `1px solid ${squadMode === 'sandbox' ? '#fecaca' : '#fde68a'}`,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'start', gap: 10 }}>
-                  <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>
-                    {squadMode === 'sandbox' ? '⚠️' : 'ℹ️'}
-                  </span>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: squadMode === 'sandbox' ? '#dc2626' : '#d97706',
-                        marginBottom: 5,
-                      }}
-                    >
-                      {squadMode === 'sandbox' ? 'Warning: Real Payments' : 'Test Mode Information'}
-                    </div>
-                    <ul
-                      style={{
-                        margin: 0,
-                        paddingLeft: 18,
-                        fontSize: 11.5,
-                        color: '#666',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 4,
-                      }}
-                    >
-                      {squadMode === 'sandbox' ? (
-                        <>
-                          <li>Real money will be charged from customer accounts</li>
-                          <li>All transactions will be processed through Squad's live payment gateway</li>
-                          <li>Ensure you are ready for production use</li>
-                        </>
-                      ) : (
-                        <>
-                          <li>No real money will be charged</li>
-                          <li>Use test card details for payments</li>
-                          <li>Perfect for testing subscription flows</li>
-                        </>
-                      )}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  onClick={() => setShowModeModal(false)}
-                  disabled={loadingMode}
-                  style={{
-                    flex: 1,
-                    padding: '10px 0',
-                    borderRadius: 8,
-                    border: '2px solid #e5e3df',
-                    background: '#fff',
-                    color: '#666',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: loadingMode ? 'not-allowed' : 'pointer',
-                    opacity: loadingMode ? 0.5 : 1,
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmModeSwitch}
-                  disabled={loadingMode}
-                  style={{
-                    flex: 1,
-                    padding: '10px 0',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: loadingMode
-                      ? '#999'
-                      : squadMode === 'sandbox'
-                        ? 'linear-gradient(135deg, #10b981, #059669)'
-                        : 'linear-gradient(135deg, #f59e0b, #d97706)',
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: loadingMode ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                  }}
-                >
-                  {loadingMode ? (
-                    <>
-                      <I n="loader" s={14} c="#fff" />
-                      Switching...
-                    </>
-                  ) : (
-                    `Switch to ${squadMode === 'sandbox' ? 'Live' : 'Test'}`
                   )}
                 </button>
               </div>
