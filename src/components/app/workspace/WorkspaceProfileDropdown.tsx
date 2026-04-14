@@ -158,7 +158,9 @@ export default function WorkspaceProfileDropdown({ onNavigate, onLogout }: Works
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 5, fontWeight: 600 }}>CREDITS</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <span style={{ fontSize: 20, fontWeight: 900, color: '#C2185B' }}>
-                    {userDetails.creditsRemaining ?? 0}
+                    {userDetails.trialActive
+                      ? (userDetails.trialCreditsRemaining ?? 0)
+                      : (userDetails.creditsRemaining ?? 0)}
                   </span>
                   <span style={{ fontSize: 11.5, color: '#666' }}>remaining</span>
                 </div>
