@@ -327,7 +327,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
           <Box display="flex" gap={1} flexWrap="wrap">
             {POST_TYPES.map(({ key, label, icon, subtitle }) => {
               const active = postType === key;
-              const disabled = key === 'story';
+              const disabled = key === 'carousel' || key === 'story';
               return (
                 <Box
                   key={key}
@@ -354,7 +354,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
                     {label}
                   </Typography>
                   <Typography fontSize="11px" color="#6B7280">
-                    {key === 'story' ? 'Coming soon' : subtitle}
+                    {disabled ? 'Coming soon' : subtitle}
                   </Typography>
                 </Box>
               );
