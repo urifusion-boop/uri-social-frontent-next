@@ -149,7 +149,39 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
   useEffect(() => {
     fetchBillingData();
+
+    // Check if returning from payment callback
+    const urlParams = new URLSearchParams(window.location.search);
+    const reference = urlParams.get('reference');
+
+    if (reference) {
+      // User returned from Squad payment - verify the payment
+      console.log('Verifying payment with reference:', reference);
+      verifyPaymentCallback(reference);
+
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
+
+  const verifyPaymentCallback = async (transactionRef: string) => {
+    try {
+      console.log('🔍 Verifying payment:', transactionRef);
+      const verified = await BillingService.verifyPayment(transactionRef);
+
+      if (verified) {
+        alert('✅ Payment successful! Your credits have been added.');
+        // Refresh all data
+        await refreshCreditBalance();
+        await fetchBillingData();
+      } else {
+        alert('⚠️ Payment verification failed. Please contact support if amount was deducted.');
+      }
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      alert('❌ Failed to verify payment. Please contact support.');
+    }
+  };
 
   const fetchBillingData = async () => {
     try {
@@ -207,12 +239,12 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
             console.log('Payment modal loaded');
           },
           onSuccess: async (data: SquadPaymentData) => {
-            // Payment successful
+            // Payment successful - verify with backend
             console.log('Payment successful:', data);
-            alert('Payment successful! Your credits will be added shortly.');
             setSubscribing(null);
-            // Refresh billing data
-            fetchBillingData();
+
+            // Verify payment with backend
+            await verifyPaymentCallback(data.transaction_ref);
           },
         });
       } else {
