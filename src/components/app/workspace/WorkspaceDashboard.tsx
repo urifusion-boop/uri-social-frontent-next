@@ -32,6 +32,8 @@ import TrialBanner from '@/src/components/app/atoms/TrialBanner';
 import TrialEndingBanner from '@/src/components/app/atoms/TrialEndingBanner';
 import TrialExpiredModal from '@/src/components/app/atoms/TrialExpiredModal';
 import NotificationBell from '@/src/components/app/atoms/NotificationBell';
+import NotificationsPanel from '@/src/components/app/workspace/NotificationsPanel';
+import { useNotifications } from '@/src/providers/NotificationProvider';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -3461,6 +3463,7 @@ const NAV = [
   { id: 'performance', icon: 'chart', label: 'Performance' },
   { id: 'intel', icon: 'globe', label: 'Market Intel' },
   { id: 'playbook', icon: 'book', label: 'Brand Playbook' },
+  { id: 'notifications', icon: 'bell', label: 'Notifications' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
 ];
@@ -3475,6 +3478,7 @@ const MOBILE_TABS = [
 
 const MORE_NAV = [
   { id: 'intel', icon: 'globe', label: 'Market Intel' },
+  { id: 'notifications', icon: 'bell', label: 'Notifications' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
 ];
@@ -3484,6 +3488,7 @@ const MORE_NAV = [
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function WorkspaceDashboard() {
   const { logoutUser, userDetails } = useAuth();
+  const { unreadCount } = useNotifications();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -3722,6 +3727,7 @@ export default function WorkspaceDashboard() {
       />
     ),
     billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
+    notifications: <NotificationsPanel onJane={goWorkspace} />,
   };
 
   return (
@@ -3818,45 +3824,48 @@ export default function WorkspaceDashboard() {
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', paddingLeft: 37 }}>Active & ready</div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {NAV.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => setNav(n.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '9px 18px',
-                    background: nav === n.id ? 'rgba(194,24,91,.1)' : 'transparent',
-                    border: 'none',
-                    borderLeft: nav === n.id ? '2.5px solid #E91E63' : '2.5px solid transparent',
-                    fontFamily: 'var(--wf)',
-                    fontSize: 12.5,
-                    color: nav === n.id ? '#fce4ec' : 'rgba(255,255,255,.35)',
-                    fontWeight: nav === n.id ? 600 : 400,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all .12s',
-                  }}
-                >
-                  <I n={n.icon} s={15} c={nav === n.id ? '#E91E63' : 'rgba(255,255,255,.22)'} />
-                  <span style={{ flex: 1 }}>{n.label}</span>
-                  {(n as { count?: number }).count != null && (n as { count?: number }).count! > 0 && (
-                    <span
-                      style={{
-                        background: '#E91E63',
-                        color: '#fff',
-                        fontSize: 9.5,
-                        fontWeight: 700,
-                        padding: '1px 5px',
-                        borderRadius: 4,
-                      }}
-                    >
-                      {(n as { count?: number }).count}
-                    </span>
-                  )}
-                </button>
-              ))}
+              {NAV.map((n) => {
+                const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => setNav(n.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '9px 18px',
+                      background: nav === n.id ? 'rgba(194,24,91,.1)' : 'transparent',
+                      border: 'none',
+                      borderLeft: nav === n.id ? '2.5px solid #E91E63' : '2.5px solid transparent',
+                      fontFamily: 'var(--wf)',
+                      fontSize: 12.5,
+                      color: nav === n.id ? '#fce4ec' : 'rgba(255,255,255,.35)',
+                      fontWeight: nav === n.id ? 600 : 400,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all .12s',
+                    }}
+                  >
+                    <I n={n.icon} s={15} c={nav === n.id ? '#E91E63' : 'rgba(255,255,255,.22)'} />
+                    <span style={{ flex: 1 }}>{n.label}</span>
+                    {badge != null && badge > 0 && (
+                      <span
+                        style={{
+                          background: '#E91E63',
+                          color: '#fff',
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: 4,
+                        }}
+                      >
+                        {badge > 99 ? '99+' : badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
             <div
               style={{
@@ -4011,7 +4020,7 @@ export default function WorkspaceDashboard() {
               </button>
 
               {/* Notification Bell */}
-              <NotificationBell isMobile={isMobile} />
+              <NotificationBell isMobile={isMobile} onViewAll={() => setNav('notifications')} />
 
               {/* Trial Badge */}
               {!isMobile && userDetails?.trialActive && (
@@ -4351,34 +4360,51 @@ export default function WorkspaceDashboard() {
                 </div>
               </div>
               {/* More nav items */}
-              {MORE_NAV.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => {
-                    setNav(n.id);
-                    setMoreOpen(false);
-                  }}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '14px 18px',
-                    background: nav === n.id ? 'rgba(194,24,91,.05)' : 'none',
-                    border: 'none',
-                    borderLeft: nav === n.id ? '3px solid #E91E63' : '3px solid transparent',
-                    cursor: 'pointer',
-                    fontFamily: 'var(--wf)',
-                    fontSize: 14,
-                    fontWeight: nav === n.id ? 600 : 500,
-                    color: nav === n.id ? '#C2185B' : '#333',
-                    textAlign: 'left',
-                  }}
-                >
-                  <I n={n.icon} s={18} c={nav === n.id ? '#C2185B' : '#888'} />
-                  {n.label}
-                </button>
-              ))}
+              {MORE_NAV.map((n) => {
+                const badge = n.id === 'notifications' ? unreadCount : undefined;
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => {
+                      setNav(n.id);
+                      setMoreOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '14px 18px',
+                      background: nav === n.id ? 'rgba(194,24,91,.05)' : 'none',
+                      border: 'none',
+                      borderLeft: nav === n.id ? '3px solid #E91E63' : '3px solid transparent',
+                      cursor: 'pointer',
+                      fontFamily: 'var(--wf)',
+                      fontSize: 14,
+                      fontWeight: nav === n.id ? 600 : 500,
+                      color: nav === n.id ? '#C2185B' : '#333',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <I n={n.icon} s={18} c={nav === n.id ? '#C2185B' : '#888'} />
+                    <span style={{ flex: 1 }}>{n.label}</span>
+                    {badge != null && badge > 0 && (
+                      <span
+                        style={{
+                          background: '#E91E63',
+                          color: '#fff',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                        }}
+                      >
+                        {badge > 99 ? '99+' : badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
               <button
                 onClick={() => {
                   logoutUser();
