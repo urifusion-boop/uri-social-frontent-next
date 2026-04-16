@@ -55,7 +55,7 @@ export class NotificationService {
     if (notificationType) params.set('notification_type', notificationType);
 
     const response: AxiosResponse<ApiResponse<NotificationListResponse>> = await UriHttpClient.getClient().get(
-      `/social-media/notifications?${params.toString()}`
+      `/social-media/notifications/?${params.toString()}`
     );
 
     return response.data.responseData;

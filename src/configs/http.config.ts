@@ -80,9 +80,11 @@ class UriHttpClient {
           // Only clear tokens if it's an authentication issue, not authorization
           // Don't clear on brand-profile 403 as user might not have completed onboarding
           // Don't clear on connect endpoints as these might have other authorization issues
+          // Don't clear on notification endpoints as expired tokens are handled by polling
           const isBrandProfile = error.config?.url?.includes('/brand-profile');
           const isConnectEndpoint = error.config?.url?.includes('/connect');
-          if (!isBrandProfile && !isConnectEndpoint) {
+          const isNotificationEndpoint = error.config?.url?.includes('/notifications');
+          if (!isBrandProfile && !isConnectEndpoint && !isNotificationEndpoint) {
             this.clearUserData();
             window.dispatchEvent(new CustomEvent('unauthorized'));
           }
