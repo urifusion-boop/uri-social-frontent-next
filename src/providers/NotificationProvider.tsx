@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { NotificationService, Notification, NotificationListResponse } from '@/src/api/NotificationService';
 import { useAuth } from '@/src/providers/AuthProvider';
 
@@ -29,14 +29,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const failCountRef = useRef(0);
 
   const refreshUnreadCount = useCallback(async () => {
     if (!isAuthenticated) return;
+    // Stop polling after 3 consecutive failures (token expired / auth issue)
+    if (failCountRef.current >= 3) return;
     try {
       const count = await NotificationService.getUnreadCount();
       setUnreadCount(count);
+      failCountRef.current = 0; // reset on success
     } catch {
-      // silent — don't break UI
+      failCountRef.current += 1;
     }
   }, [isAuthenticated]);
 
@@ -81,6 +85,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // Poll unread count every 60 seconds
   useEffect(() => {
     if (!isAuthenticated) return;
+    failCountRef.current = 0; // reset on auth state change
     refreshUnreadCount();
     const interval = setInterval(refreshUnreadCount, 60000);
     return () => clearInterval(interval);
