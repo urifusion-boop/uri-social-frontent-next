@@ -32,7 +32,13 @@ function timeAgo(dateStr: string): string {
 
 /* ── Component ────────────────────────────────────────────────────── */
 
-export default function NotificationBell({ isMobile = false }: { isMobile?: boolean }) {
+export default function NotificationBell({
+  isMobile = false,
+  onViewAll,
+}: {
+  isMobile?: boolean;
+  onViewAll?: () => void;
+}) {
   const { unreadCount, notifications, total, loading, fetchNotifications, markAsRead, markAllVisible } =
     useNotifications();
   const [open, setOpen] = useState(false);
@@ -374,7 +380,11 @@ export default function NotificationBell({ isMobile = false }: { isMobile?: bool
             <button
               onClick={() => {
                 setOpen(false);
-                router.push('/notifications');
+                if (onViewAll) {
+                  onViewAll();
+                } else {
+                  router.push('/workspace?tab=notifications');
+                }
               }}
               style={{
                 fontSize: 12,
