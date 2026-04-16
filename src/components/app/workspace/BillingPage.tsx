@@ -144,6 +144,9 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>(initialTab);
   const [confirmTier, setConfirmTier] = useState<SubscriptionTier | null>(null);
+  const [showTestTier, setShowTestTier] = useState(false);
+  const [testAmount, setTestAmount] = useState<string>('100');
+  const [testCredits, setTestCredits] = useState<string>('1');
   // Production: Always use live mode
   const squadMode = 'live' as const;
 
@@ -217,7 +220,11 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
     setSubscribing(confirmTier.tier_id);
 
     try {
-      const paymentData = await BillingService.initializePayment(confirmTier.tier_id);
+      // For test tier, pass custom amounts
+      const paymentData =
+        confirmTier.tier_id === 'test'
+          ? await BillingService.initializePayment(confirmTier.tier_id, confirmTier.price_ngn, confirmTier.credits)
+          : await BillingService.initializePayment(confirmTier.tier_id);
 
       // Close confirmation modal
       setConfirmTier(null);
@@ -384,140 +391,255 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
         {/* Tab Content */}
         {activeTab === 'plans' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-            {tiers
-              .filter((tier) => tier.tier_id !== 'custom')
-              .map((tier) => {
-                const current = isCurrentPlan(tier.tier_id);
-                const popular = isPopular(tier.tier_id);
+          <div>
+            {/* Test Payment Button */}
+            <div
+              style={{
+                marginBottom: 20,
+                padding: 16,
+                background: '#FEF3C7',
+                borderRadius: 8,
+                border: '1px solid #FCD34D',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#92400E' }}>
+                  🧪 Test Payment (Temporary)
+                </h4>
+                <button
+                  onClick={() => setShowTestTier(!showTestTier)}
+                  style={{
+                    background: '#FBBF24',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#78350F',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {showTestTier ? 'Hide' : 'Show'}
+                </button>
+              </div>
 
-                return (
-                  <div
-                    key={tier.tier_id}
+              {showTestTier && (
+                <div>
+                  <p style={{ fontSize: 12, color: '#92400E', margin: '0 0 12px' }}>
+                    Test the payment flow with any amount. This will be removed in production.
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label
+                        style={{ fontSize: 11, fontWeight: 600, color: '#92400E', display: 'block', marginBottom: 4 }}
+                      >
+                        Amount (NGN)
+                      </label>
+                      <input
+                        type="number"
+                        value={testAmount}
+                        onChange={(e) => setTestAmount(e.target.value)}
+                        min="100"
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          border: '1px solid #FCD34D',
+                          fontSize: 13,
+                          fontFamily: 'var(--wf)',
+                        }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label
+                        style={{ fontSize: 11, fontWeight: 600, color: '#92400E', display: 'block', marginBottom: 4 }}
+                      >
+                        Credits to receive
+                      </label>
+                      <input
+                        type="number"
+                        value={testCredits}
+                        onChange={(e) => setTestCredits(e.target.value)}
+                        min="1"
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          border: '1px solid #FCD34D',
+                          fontSize: 13,
+                          fontFamily: 'var(--wf)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const testTier: SubscriptionTier = {
+                        tier_id: 'test',
+                        name: 'Test Plan',
+                        price_ngn: parseInt(testAmount) || 100,
+                        credits: parseInt(testCredits) || 1,
+                        price_per_credit: (parseInt(testAmount) || 100) / (parseInt(testCredits) || 1),
+                        features: ['Test payment', 'Custom amount', 'Will be removed'],
+                        is_active: true,
+                      };
+                      handleSelectPlan(testTier);
+                    }}
+                    disabled={subscribing !== null}
                     style={{
-                      background: popular ? 'rgba(205, 27, 120, 0.05)' : '#fff',
-                      borderRadius: 12,
-                      border: popular ? '2px solid #CD1B78' : '1px solid #e5e3df',
-                      padding: '20px 18px 18px',
-                      position: 'relative',
-                      display: 'flex',
-                      flexDirection: 'column',
+                      width: '100%',
+                      padding: '10px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: '#F59E0B',
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: subscribing ? 'not-allowed' : 'pointer',
+                      opacity: subscribing ? 0.5 : 1,
                     }}
                   >
-                    {/* Popular Badge */}
-                    {popular && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: -12,
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          background: '#CD1B78',
-                          color: '#fff',
-                          padding: '4px 12px',
-                          borderRadius: 6,
-                          fontSize: 10,
-                          fontWeight: 900,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                        }}
-                      >
-                        Most Popular
-                      </div>
-                    )}
+                    {subscribing === 'test' ? 'Processing...' : 'Test Payment'}
+                  </button>
+                </div>
+              )}
+            </div>
 
-                    {/* Current Badge */}
-                    {current && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: 12,
-                          right: 12,
-                          background: '#10b981',
-                          color: '#fff',
-                          padding: '3px 10px',
-                          borderRadius: 6,
-                          fontSize: 10,
-                          fontWeight: 700,
-                        }}
-                      >
-                        Current
-                      </div>
-                    )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+              {tiers
+                .filter((tier) => tier.tier_id !== 'custom')
+                .map((tier) => {
+                  const current = isCurrentPlan(tier.tier_id);
+                  const popular = isPopular(tier.tier_id);
 
-                    <div style={{ marginBottom: 12 }}>
-                      <h3 style={{ fontSize: 18, fontWeight: 900, margin: '0 0 4px', color: '#111' }}>{tier.name}</h3>
-                      <p style={{ fontSize: 11, color: '#666', margin: 0 }}>{tier.credits} campaigns</p>
-                    </div>
-
-                    <div style={{ marginBottom: 14 }}>
-                      <span style={{ fontSize: 32, fontWeight: 900, color: '#CD1B78' }}>
-                        {BillingService.formatNGN(tier.price_ngn)}
-                      </span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#666' }}>/month</span>
-                    </div>
-
-                    <hr style={{ border: 'none', borderTop: '1px solid #e5e3df', margin: '14px 0' }} />
-
-                    <ul
+                  return (
+                    <div
+                      key={tier.tier_id}
                       style={{
-                        listStyle: 'none',
-                        padding: 0,
-                        margin: '0 0 18px',
+                        background: popular ? 'rgba(205, 27, 120, 0.05)' : '#fff',
+                        borderRadius: 12,
+                        border: popular ? '2px solid #CD1B78' : '1px solid #e5e3df',
+                        padding: '20px 18px 18px',
+                        position: 'relative',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 8,
-                        flex: 1,
                       }}
                     >
-                      {tier.features.map((feature, idx) => (
-                        <li
-                          key={idx}
+                      {/* Popular Badge */}
+                      {popular && (
+                        <div
                           style={{
-                            fontSize: 12,
-                            color: '#111',
-                            display: 'flex',
-                            alignItems: 'start',
-                            gap: 6,
-                            fontWeight: 500,
+                            position: 'absolute',
+                            top: -12,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            background: '#CD1B78',
+                            color: '#fff',
+                            padding: '4px 12px',
+                            borderRadius: 6,
+                            fontSize: 10,
+                            fontWeight: 900,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
                           }}
                         >
-                          <I n="check" s={16} c="#CD1B78" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-
-                    <button
-                      onClick={() => !current && tier.is_active && handleSelectPlan(tier)}
-                      disabled={!tier.is_active || subscribing === tier.tier_id || current}
-                      style={{
-                        width: '100%',
-                        padding: '11px 0',
-                        borderRadius: 8,
-                        border: current ? '1px solid #e5e3df' : 'none',
-                        background: current ? '#f5f5f5' : '#CD1B78',
-                        color: current ? '#999' : '#fff',
-                        fontWeight: 700,
-                        fontSize: 13,
-                        cursor: current || !tier.is_active ? 'not-allowed' : 'pointer',
-                        opacity: subscribing === tier.tier_id ? 0.7 : 1,
-                      }}
-                    >
-                      {subscribing === tier.tier_id ? (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                          <I n="loader" s={14} c="#fff" />
-                          Processing...
+                          Most Popular
                         </div>
-                      ) : current ? (
-                        'Current Plan'
-                      ) : (
-                        'Subscribe Now'
                       )}
-                    </button>
-                  </div>
-                );
-              })}
+
+                      {/* Current Badge */}
+                      {current && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 12,
+                            right: 12,
+                            background: '#10b981',
+                            color: '#fff',
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                            fontSize: 10,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Current
+                        </div>
+                      )}
+
+                      <div style={{ marginBottom: 12 }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 900, margin: '0 0 4px', color: '#111' }}>{tier.name}</h3>
+                        <p style={{ fontSize: 11, color: '#666', margin: 0 }}>{tier.credits} campaigns</p>
+                      </div>
+
+                      <div style={{ marginBottom: 14 }}>
+                        <span style={{ fontSize: 32, fontWeight: 900, color: '#CD1B78' }}>
+                          {BillingService.formatNGN(tier.price_ngn)}
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#666' }}>/month</span>
+                      </div>
+
+                      <hr style={{ border: 'none', borderTop: '1px solid #e5e3df', margin: '14px 0' }} />
+
+                      <ul
+                        style={{
+                          listStyle: 'none',
+                          padding: 0,
+                          margin: '0 0 18px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8,
+                          flex: 1,
+                        }}
+                      >
+                        {tier.features.map((feature, idx) => (
+                          <li
+                            key={idx}
+                            style={{
+                              fontSize: 12,
+                              color: '#111',
+                              display: 'flex',
+                              alignItems: 'start',
+                              gap: 6,
+                              fontWeight: 500,
+                            }}
+                          >
+                            <I n="check" s={16} c="#CD1B78" />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+
+                      <button
+                        onClick={() => !current && tier.is_active && handleSelectPlan(tier)}
+                        disabled={!tier.is_active || subscribing === tier.tier_id || current}
+                        style={{
+                          width: '100%',
+                          padding: '11px 0',
+                          borderRadius: 8,
+                          border: current ? '1px solid #e5e3df' : 'none',
+                          background: current ? '#f5f5f5' : '#CD1B78',
+                          color: current ? '#999' : '#fff',
+                          fontWeight: 700,
+                          fontSize: 13,
+                          cursor: current || !tier.is_active ? 'not-allowed' : 'pointer',
+                          opacity: subscribing === tier.tier_id ? 0.7 : 1,
+                        }}
+                      >
+                        {subscribing === tier.tier_id ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                            <I n="loader" s={14} c="#fff" />
+                            Processing...
+                          </div>
+                        ) : current ? (
+                          'Current Plan'
+                        ) : (
+                          'Subscribe Now'
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         )}
 
