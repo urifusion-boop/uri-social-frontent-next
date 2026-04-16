@@ -31,6 +31,7 @@ import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspacePr
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
 import TrialEndingBanner from '@/src/components/app/atoms/TrialEndingBanner';
 import TrialExpiredModal from '@/src/components/app/atoms/TrialExpiredModal';
+import NotificationBell from '@/src/components/app/atoms/NotificationBell';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -4008,6 +4009,9 @@ export default function WorkspaceDashboard() {
               >
                 <I n="edit" s={14} c="#666" />
               </button>
+
+              {/* Notification Bell */}
+              <NotificationBell isMobile={isMobile} />
 
               {/* Trial Badge */}
               {!isMobile && userDetails?.trialActive && (
