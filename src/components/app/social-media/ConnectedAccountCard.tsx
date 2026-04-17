@@ -38,7 +38,19 @@ const ConnectedAccountCard = ({ connection, onDisconnect }: ConnectedAccountCard
 
     setLoading(true);
     try {
-      const response = await SocialMediaAgentService.disconnectPlatform(connection.platform);
+      let response;
+      if (
+        connection.platform === 'instagram' &&
+        connection.connected_via === 'instagram_direct' &&
+        connection.ig_user_id
+      ) {
+        response = await SocialMediaAgentService.disconnectInstagramDirect(connection.ig_user_id);
+      } else if (connection.outstand_account_id) {
+        response = await SocialMediaAgentService.disconnectPlatform(connection.outstand_account_id);
+      } else {
+        ToastService.showToast('Could not disconnect. Please try again.', ToastTypeEnum.Error);
+        return;
+      }
       if (response.status) {
         ToastService.showToast('Account disconnected', ToastTypeEnum.Success);
         onDisconnect();
@@ -46,7 +58,7 @@ const ConnectedAccountCard = ({ connection, onDisconnect }: ConnectedAccountCard
         ToastService.showToast(response.responseMessage || 'Disconnect failed', ToastTypeEnum.Error);
       }
     } catch {
-      ToastService.showToast('Disconnect failed', ToastTypeEnum.Error);
+      ToastService.showToast('Could not disconnect. Please try again.', ToastTypeEnum.Error);
     } finally {
       setLoading(false);
       setConfirming(false);
@@ -103,7 +115,14 @@ const ConnectedAccountCard = ({ connection, onDisconnect }: ConnectedAccountCard
         }}
       />
 
-      <Button onClick={handleDisconnect} variant="outlined" size="small" disabled={loading} color={confirming ? 'error' : 'inherit'} sx={{ textTransform: 'none', minWidth: 100, flexShrink: 0 }}>
+      <Button
+        onClick={handleDisconnect}
+        variant="outlined"
+        size="small"
+        disabled={loading}
+        color={confirming ? 'error' : 'inherit'}
+        sx={{ textTransform: 'none', minWidth: 100, flexShrink: 0 }}
+      >
         {loading ? 'Removing...' : confirming ? 'Confirm?' : 'Disconnect'}
       </Button>
     </Box>

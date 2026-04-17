@@ -10,6 +10,8 @@ export interface PlatformStatus {
   phone?: string;
   linked_at?: string;
   outstand_account_id?: string;
+  ig_user_id?: string;
+  connected_via?: string;
 }
 
 export interface PublishPayload {
