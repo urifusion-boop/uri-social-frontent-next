@@ -79,6 +79,8 @@ export interface SocialConnection {
   status: 'active' | 'expired';
   page_id?: string;
   outstand_account_id?: string;
+  ig_user_id?: string;
+  connected_via?: string;
 }
 
 export interface CarouselSlide {
@@ -175,6 +177,13 @@ export class SocialMediaAgentService {
   static async disconnectPlatform(platform: string): Promise<UriResponse<string>> {
     const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
       `${socialMediaAgentRoutes.disconnectPlatform}/${platform}`
+    );
+    return response.data;
+  }
+
+  static async disconnectInstagramDirect(igUserId: string): Promise<UriResponse<string>> {
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
+      `/social-media/connections/instagram-direct/${igUserId}`
     );
     return response.data;
   }

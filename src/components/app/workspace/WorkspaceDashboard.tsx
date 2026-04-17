@@ -1150,6 +1150,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           linked: !!conns.instagram?.length,
           account_name: conns.instagram?.[0]?.page_name,
           outstand_account_id: conns.instagram?.[0]?.outstand_account_id,
+          ig_user_id: conns.instagram?.[0]?.ig_user_id,
+          connected_via: conns.instagram?.[0]?.connected_via,
         };
       } else {
         next.facebook = { linked: false };
@@ -1243,7 +1245,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       if (id === 'linkedin') await SocialConnectionService.linkedinDisconnect();
       else if (id === 'x') await SocialConnectionService.xDisconnect();
       else if (id === 'whatsapp') await SocialConnectionService.whatsappDisconnect();
-      else if ((id === 'facebook' || id === 'instagram') && statuses[id]?.outstand_account_id) {
+      else if (id === 'instagram' && statuses[id]?.connected_via === 'instagram_direct' && statuses[id]?.ig_user_id) {
+        await SocialMediaAgentService.disconnectInstagramDirect(statuses[id].ig_user_id!);
+      } else if ((id === 'facebook' || id === 'instagram') && statuses[id]?.outstand_account_id) {
         await SocialMediaAgentService.disconnectPlatform(statuses[id].outstand_account_id!);
       }
       setStatuses((prev) => ({ ...prev, [id]: { linked: false } }));
