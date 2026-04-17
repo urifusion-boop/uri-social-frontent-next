@@ -69,6 +69,7 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [tab, setTab] = useState<'all' | 'unread'>('all');
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   const fetchPage = useCallback(async (p: number, typeFilter: string, reset: boolean = false) => {
     setLoading(true);
@@ -111,12 +112,29 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
 
   const handleClick = (n: Notification) => {
     handleMarkAsRead(n);
-    if (n.type === 'content_created' || n.type === 'daily_suggestion') {
-      onJane();
-    } else if (n.type === 'content_posted') {
-      router.push('/workspace?tab=schedule');
-    } else if (n.type === 'trial_ending' || n.type === 'trial_expired') {
-      router.push('/workspace?tab=billing');
+    setSelectedNotification(n);
+  };
+
+  const handleArchive = async (notificationId: string) => {
+    try {
+      await NotificationService.archiveNotification(notificationId);
+      setNotifications((prev) => prev.filter((n) => n.notification_id !== notificationId));
+      setTotal((prev) => prev - 1);
+      setSelectedNotification(null);
+    } catch {
+      // silent
+    }
+  };
+
+  const handleDelete = async (notificationId: string) => {
+    try {
+      await NotificationService.deleteNotification(notificationId);
+      setNotifications((prev) => prev.filter((n) => n.notification_id !== notificationId));
+      setTotal((prev) => prev - 1);
+      setSelectedNotification(null);
+      refreshUnreadCount();
+    } catch {
+      // silent
     }
   };
 
@@ -450,6 +468,193 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
           </p>
         )}
       </div>
+
+      {/* Notification Detail Modal */}
+      {selectedNotification && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: 16,
+          }}
+          onClick={() => setSelectedNotification(null)}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              maxWidth: 560,
+              width: '100%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0,0,0,.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const meta = TYPE_META[selectedNotification.type] || TYPE_META.signup;
+              return (
+                <>
+                  {/* Header */}
+                  <div
+                    style={{
+                      padding: '20px 24px',
+                      borderBottom: '1px solid #f5f4f2',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 10,
+                          background: meta.bg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 20,
+                        }}
+                      >
+                        {meta.icon}
+                      </div>
+                      <div>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: meta.color,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.3px',
+                            fontFamily: 'var(--wf)',
+                          }}
+                        >
+                          {meta.label}
+                        </span>
+                        <p style={{ fontSize: 12, color: '#9CA3AF', margin: 0, fontFamily: 'var(--wf)' }}>
+                          {formatDate(selectedNotification.sent_at || selectedNotification.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedNotification(null)}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        border: '1px solid #e5e3df',
+                        background: '#fff',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth={2}>
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div style={{ padding: '24px' }}>
+                    <h3
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 700,
+                        color: '#111',
+                        margin: '0 0 12px',
+                        fontFamily: 'var(--wf)',
+                      }}
+                    >
+                      {selectedNotification.subject}
+                    </h3>
+                    <p
+                      style={{
+                        fontSize: 14,
+                        color: '#374151',
+                        lineHeight: 1.6,
+                        margin: 0,
+                        fontFamily: 'var(--wf)',
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {(typeof selectedNotification.metadata?.message === 'string'
+                        ? selectedNotification.metadata.message
+                        : selectedNotification.subject) || selectedNotification.subject}
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div
+                    style={{
+                      padding: '16px 24px',
+                      borderTop: '1px solid #f5f4f2',
+                      display: 'flex',
+                      gap: 8,
+                      justifyContent: 'flex-end',
+                    }}
+                  >
+                    <button
+                      onClick={() => handleArchive(selectedNotification.notification_id)}
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        border: '1px solid #e5e3df',
+                        background: '#fff',
+                        color: '#374151',
+                        cursor: 'pointer',
+                        fontFamily: 'var(--wf)',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#f9fafb')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
+                    >
+                      📦 Archive
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this notification permanently?')) {
+                          handleDelete(selectedNotification.notification_id);
+                        }
+                      }}
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        border: '1px solid #fecaca',
+                        background: '#fff',
+                        color: '#DC2626',
+                        cursor: 'pointer',
+                        fontFamily: 'var(--wf)',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#fef2f2')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes notifSpin {

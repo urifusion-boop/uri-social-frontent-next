@@ -89,6 +89,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  // Track which slide URLs have already loaded so navigating back doesn't re-shimmer
+  const loadedSlideUrls = useState<Set<string>>(() => new Set())[0];
   const [imageHovered, setImageHovered] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [imageEditOpen, setImageEditOpen] = useState(false);
@@ -103,10 +105,11 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const totalSlides = slides.length;
   const currentSlide = isCarousel ? slides[slideIndex] : null;
 
-  // Reset slide index when draft changes
+  // Reset slide index and loaded cache when draft changes
   useEffect(() => {
     setSlideIndex(0);
     setImageLoaded(false);
+    loadedSlideUrls.clear();
   }, [draft.id]);
 
   const resolveUrl = (url: string) => (url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${url}` : url);
@@ -376,45 +379,53 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               </Box>
             )}
 
-            {currentSlide?.image_url && (
-              <>
-                {!imageLoaded && (
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      inset: 0,
-                      background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
-                      backgroundSize: '200% 100%',
-                      animation: 'shimmer 2s infinite',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      '@keyframes shimmer': {
-                        '0%': { backgroundPosition: '200% 0' },
-                        '100%': { backgroundPosition: '-200% 0' },
-                      },
-                    }}
-                  >
-                    <Typography fontSize="12px" color="#9CA3AF">
-                      Loading image…
-                    </Typography>
-                  </Box>
-                )}
-                <img
-                  src={resolveUrl(currentSlide.image_url)}
-                  alt={`Carousel slide ${slideIndex + 1}`}
-                  onLoad={() => setImageLoaded(true)}
-                  onClick={() => setLightboxOpen(true)}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    display: imageLoaded ? 'block' : 'none',
-                    cursor: 'pointer',
-                  }}
-                />
-              </>
-            )}
+            {currentSlide?.image_url &&
+              (() => {
+                const resolvedUrl = resolveUrl(currentSlide.image_url);
+                const alreadyLoaded = loadedSlideUrls.has(resolvedUrl);
+                return (
+                  <>
+                    {!alreadyLoaded && !imageLoaded && (
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          inset: 0,
+                          background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+                          backgroundSize: '200% 100%',
+                          animation: 'shimmer 2s infinite',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          '@keyframes shimmer': {
+                            '0%': { backgroundPosition: '200% 0' },
+                            '100%': { backgroundPosition: '-200% 0' },
+                          },
+                        }}
+                      >
+                        <Typography fontSize="12px" color="#9CA3AF">
+                          Loading image…
+                        </Typography>
+                      </Box>
+                    )}
+                    <img
+                      src={resolvedUrl}
+                      alt={`Carousel slide ${slideIndex + 1}`}
+                      onLoad={() => {
+                        loadedSlideUrls.add(resolvedUrl);
+                        setImageLoaded(true);
+                      }}
+                      onClick={() => setLightboxOpen(true)}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: alreadyLoaded || imageLoaded ? 'block' : 'none',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  </>
+                );
+              })()}
 
             {/* Prev / Next arrows */}
             {totalSlides > 1 && (
@@ -422,8 +433,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 <IconButton
                   size="small"
                   onClick={() => {
-                    setSlideIndex((i) => Math.max(0, i - 1));
-                    setImageLoaded(false);
+                    const nextIndex = Math.max(0, slideIndex - 1);
+                    const nextUrl = slides[nextIndex]?.image_url ? resolveUrl(slides[nextIndex].image_url!) : null;
+                    setSlideIndex(nextIndex);
+                    setImageLoaded(nextUrl ? loadedSlideUrls.has(nextUrl) : false);
                   }}
                   disabled={slideIndex === 0}
                   sx={{
@@ -442,8 +455,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 <IconButton
                   size="small"
                   onClick={() => {
-                    setSlideIndex((i) => Math.min(totalSlides - 1, i + 1));
-                    setImageLoaded(false);
+                    const nextIndex = Math.min(totalSlides - 1, slideIndex + 1);
+                    const nextUrl = slides[nextIndex]?.image_url ? resolveUrl(slides[nextIndex].image_url!) : null;
+                    setSlideIndex(nextIndex);
+                    setImageLoaded(nextUrl ? loadedSlideUrls.has(nextUrl) : false);
                   }}
                   disabled={slideIndex === totalSlides - 1}
                   sx={{
@@ -681,7 +696,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             </Box>
           );
         })()}
-      {!editing && !draft.image_url && (draft.has_image || draft.auto_generated) && (
+      {!editing && !isCarousel && !draft.image_url && (draft.has_image || draft.auto_generated) && (
         <Box
           mb={1.5}
           sx={{

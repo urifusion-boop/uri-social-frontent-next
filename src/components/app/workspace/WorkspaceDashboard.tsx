@@ -349,6 +349,18 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const [loadingScheduled, setLoadingScheduled] = useState(false);
   const [loadingAuto, setLoadingAuto] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollAttemptsRef = useRef<number>(0);
+  const MAX_POLL_ATTEMPTS = 12; // stop after ~2 minutes (12 × 10s)
+
+  // Returns true if a draft still has image(s) being generated
+  const hasPendingImage = (d: ContentDraft): boolean => {
+    if (!d.has_image) return false;
+    if (d.post_type === 'carousel') {
+      const slides = (d as ContentDraft & { slides?: { image_url?: string }[] }).slides ?? [];
+      return slides.some((s) => !s.image_url);
+    }
+    return !d.image_url;
+  };
 
   // Multi-select batch scheduling
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
@@ -409,9 +421,12 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
           return true;
         });
         setDrafts(filtered);
-        const stillPending = filtered.some((d: ContentDraft) => d.has_image && !d.image_url);
-        if (stillPending && activeTabRef.current === 'drafts') {
-          pollTimerRef.current = setTimeout(() => fetchDrafts(true), 4000);
+        const stillPending = filtered.some(hasPendingImage);
+        if (stillPending && activeTabRef.current === 'drafts' && pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
+          pollAttemptsRef.current += 1;
+          pollTimerRef.current = setTimeout(() => fetchDrafts(true), 10000);
+        } else {
+          pollAttemptsRef.current = 0;
         }
       } else {
         setDraftsError(true);
@@ -430,9 +445,12 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
       if (r.status && r.responseData) {
         const items: ContentDraft[] = r.responseData.scheduled_drafts ?? [];
         setScheduled(items);
-        const stillPending = items.some((d: ContentDraft) => d.has_image && !d.image_url);
-        if (stillPending && activeTabRef.current === 'scheduled') {
-          pollTimerRef.current = setTimeout(() => fetchScheduled(true), 4000);
+        const stillPending = items.some(hasPendingImage);
+        if (stillPending && activeTabRef.current === 'scheduled' && pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
+          pollAttemptsRef.current += 1;
+          pollTimerRef.current = setTimeout(() => fetchScheduled(true), 10000);
+        } else {
+          pollAttemptsRef.current = 0;
         }
       }
     } catch {
@@ -452,9 +470,12 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
             d.status === 'approved' || d.status === 'ready_to_publish' || (d.status as string) === 'publish_failed'
         );
         setSavedDrafts(saved);
-        const stillPending = saved.some((d: ContentDraft) => d.has_image && !d.image_url);
-        if (stillPending && activeTabRef.current === 'saved') {
-          pollTimerRef.current = setTimeout(() => fetchSaved(true), 4000);
+        const stillPending = saved.some(hasPendingImage);
+        if (stillPending && activeTabRef.current === 'saved' && pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
+          pollAttemptsRef.current += 1;
+          pollTimerRef.current = setTimeout(() => fetchSaved(true), 10000);
+        } else {
+          pollAttemptsRef.current = 0;
         }
       }
     } catch {
@@ -479,6 +500,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   useEffect(() => {
     activeTabRef.current = activeTab;
     if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    pollAttemptsRef.current = 0;
     setSelectedDraftIds(new Set());
     if (activeTab === 'drafts') fetchDrafts();
     if (activeTab === 'saved') fetchSaved();

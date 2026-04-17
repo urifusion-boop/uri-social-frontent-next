@@ -192,10 +192,18 @@ export class BillingService {
    * Initialize SQUAD payment checkout
    * PRD 6.3: Payment Flow - Step 2
    */
-  static async initializePayment(tierId: string): Promise<InitializePaymentResponse> {
+  static async initializePayment(
+    tierId: string,
+    testAmount?: number,
+    testCredits?: number
+  ): Promise<InitializePaymentResponse> {
     const response: AxiosResponse<InitializePaymentResponse> = await UriHttpClient.getClient().post(
       '/social-media/billing/initialize-payment',
-      { tier_id: tierId }
+      {
+        tier_id: tierId,
+        test_amount: testAmount,
+        test_credits: testCredits,
+      }
     );
 
     return response.data;
