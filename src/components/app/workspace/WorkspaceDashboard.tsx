@@ -350,7 +350,14 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const [loadingAuto, setLoadingAuto] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollAttemptsRef = useRef<number>(0);
-  const MAX_POLL_ATTEMPTS = 12; // stop after ~2 minutes (12 × 10s)
+  const MAX_POLL_ATTEMPTS = 18; // stop after ~2 minutes (3×3s + 3×5s + 12×10s)
+
+  // Fast at first (image often ready in 10-20s), then back off
+  const getPollInterval = (attempt: number): number => {
+    if (attempt < 4) return 3000; // first 4 polls every 3s
+    if (attempt < 8) return 5000; // next 4 polls every 5s
+    return 10000; // rest every 10s
+  };
 
   // Returns true if a draft still has image(s) being generated
   const hasPendingImage = (d: ContentDraft): boolean => {
@@ -423,8 +430,9 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
         setDrafts(filtered);
         const stillPending = filtered.some(hasPendingImage);
         if (stillPending && activeTabRef.current === 'drafts' && pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
+          const attempt = pollAttemptsRef.current;
           pollAttemptsRef.current += 1;
-          pollTimerRef.current = setTimeout(() => fetchDrafts(true), 10000);
+          pollTimerRef.current = setTimeout(() => fetchDrafts(true), getPollInterval(attempt));
         } else {
           pollAttemptsRef.current = 0;
         }
@@ -447,8 +455,9 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
         setScheduled(items);
         const stillPending = items.some(hasPendingImage);
         if (stillPending && activeTabRef.current === 'scheduled' && pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
+          const attempt = pollAttemptsRef.current;
           pollAttemptsRef.current += 1;
-          pollTimerRef.current = setTimeout(() => fetchScheduled(true), 10000);
+          pollTimerRef.current = setTimeout(() => fetchScheduled(true), getPollInterval(attempt));
         } else {
           pollAttemptsRef.current = 0;
         }
@@ -472,8 +481,9 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
         setSavedDrafts(saved);
         const stillPending = saved.some(hasPendingImage);
         if (stillPending && activeTabRef.current === 'saved' && pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
+          const attempt = pollAttemptsRef.current;
           pollAttemptsRef.current += 1;
-          pollTimerRef.current = setTimeout(() => fetchSaved(true), 10000);
+          pollTimerRef.current = setTimeout(() => fetchSaved(true), getPollInterval(attempt));
         } else {
           pollAttemptsRef.current = 0;
         }
