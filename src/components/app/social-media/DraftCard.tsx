@@ -89,6 +89,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
   // Track which slide URLs have already loaded so navigating back doesn't re-shimmer
   const loadedSlideUrls = useState<Set<string>>(() => new Set())[0];
   const [imageHovered, setImageHovered] = useState(false);
@@ -109,6 +110,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   useEffect(() => {
     setSlideIndex(0);
     setImageLoaded(false);
+    setImageError(false);
     loadedSlideUrls.clear();
   }, [draft.id]);
 
@@ -379,52 +381,54 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               </Box>
             )}
 
-            {currentSlide?.image_url && (() => {
-              const resolvedUrl = resolveUrl(currentSlide.image_url);
-              const alreadyLoaded = loadedSlideUrls.has(resolvedUrl);
-              return (
-                <>
-                  {!alreadyLoaded && !imageLoaded && (
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
-                        backgroundSize: '200% 100%',
-                        animation: 'shimmer 2s infinite',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        '@keyframes shimmer': {
-                          '0%': { backgroundPosition: '200% 0' },
-                          '100%': { backgroundPosition: '-200% 0' },
-                        },
+            {currentSlide?.image_url &&
+              (() => {
+                const resolvedUrl = resolveUrl(currentSlide.image_url);
+                const alreadyLoaded = loadedSlideUrls.has(resolvedUrl);
+                return (
+                  <>
+                    {!alreadyLoaded && !imageLoaded && (
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          inset: 0,
+                          background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+                          backgroundSize: '200% 100%',
+                          animation: 'shimmer 2s infinite',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          '@keyframes shimmer': {
+                            '0%': { backgroundPosition: '200% 0' },
+                            '100%': { backgroundPosition: '-200% 0' },
+                          },
+                        }}
+                      >
+                        <Typography fontSize="12px" color="#9CA3AF">
+                          Loading image…
+                        </Typography>
+                      </Box>
+                    )}
+                    <img
+                      src={resolvedUrl}
+                      alt={`Carousel slide ${slideIndex + 1}`}
+                      onLoad={() => {
+                        loadedSlideUrls.add(resolvedUrl);
+                        setImageLoaded(true);
                       }}
-                    >
-                      <Typography fontSize="12px" color="#9CA3AF">
-                        Loading image…
-                      </Typography>
-                    </Box>
-                  )}
-                  <img
-                    src={resolvedUrl}
-                    alt={`Carousel slide ${slideIndex + 1}`}
-                    onLoad={() => {
-                      loadedSlideUrls.add(resolvedUrl);
-                      setImageLoaded(true);
-                    }}
-                    onClick={() => setLightboxOpen(true)}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: alreadyLoaded || imageLoaded ? 'block' : 'none',
-                      cursor: 'pointer',
-                    }}
-                  />
-                </>
-              );
-            })()}
+                      onError={() => setImageError(true)}
+                      onClick={() => setLightboxOpen(true)}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: alreadyLoaded || imageLoaded ? 'block' : 'none',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  </>
+                );
+              })()}
 
             {/* Prev / Next arrows */}
             {totalSlides > 1 && (
@@ -527,7 +531,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               STORY
             </Typography>
           </Box>
-          {!imageLoaded && (
+          {!imageLoaded && !imageError && (
             <Box
               sx={{
                 position: 'absolute',
@@ -549,10 +553,27 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               </Typography>
             </Box>
           )}
+          {imageError && (
+            <Box
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#F9FAFB',
+              }}
+            >
+              <Typography fontSize="12px" color="#9CA3AF">
+                Image unavailable
+              </Typography>
+            </Box>
+          )}
           <img
             src={resolveUrl(draft.image_url)}
             alt="Story image"
             onLoad={() => setImageLoaded(true)}
+            onError={() => setImageError(true)}
             onClick={() => setLightboxOpen(true)}
             style={{
               width: '100%',
@@ -624,7 +645,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 position: 'relative',
               }}
             >
-              {!imageLoaded && (
+              {!imageLoaded && !imageError && (
                 <Box
                   sx={{
                     position: 'absolute',
@@ -646,10 +667,27 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                   </Typography>
                 </Box>
               )}
+              {imageError && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#F9FAFB',
+                  }}
+                >
+                  <Typography fontSize="12px" color="#9CA3AF">
+                    Image unavailable
+                  </Typography>
+                </Box>
+              )}
               <img
                 src={resolveUrl(draft.image_url)}
                 alt={`AI-generated image for ${draft.platform}`}
                 onLoad={() => setImageLoaded(true)}
+                onError={() => setImageError(true)}
                 onClick={() => setLightboxOpen(true)}
                 style={{
                   width: '100%',
