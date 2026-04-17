@@ -41,7 +41,7 @@ const ConnectedAccountCard = ({ connection, onDisconnect }: ConnectedAccountCard
       let response;
       if (
         connection.platform === 'instagram' &&
-        connection.connected_via === 'instagram_direct' &&
+        connection.connected_via?.startsWith('instagram_direct') &&
         connection.ig_user_id
       ) {
         response = await SocialMediaAgentService.disconnectInstagramDirect(connection.ig_user_id);

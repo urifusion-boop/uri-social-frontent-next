@@ -1245,7 +1245,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       if (id === 'linkedin') await SocialConnectionService.linkedinDisconnect();
       else if (id === 'x') await SocialConnectionService.xDisconnect();
       else if (id === 'whatsapp') await SocialConnectionService.whatsappDisconnect();
-      else if (id === 'instagram' && statuses[id]?.connected_via === 'instagram_direct' && statuses[id]?.ig_user_id) {
+      else if (
+        id === 'instagram' &&
+        statuses[id]?.connected_via?.startsWith('instagram_direct') &&
+        statuses[id]?.ig_user_id
+      ) {
         await SocialMediaAgentService.disconnectInstagramDirect(statuses[id].ig_user_id!);
       } else if ((id === 'facebook' || id === 'instagram') && statuses[id]?.outstand_account_id) {
         await SocialMediaAgentService.disconnectPlatform(statuses[id].outstand_account_id!);
