@@ -73,6 +73,14 @@ export class NotificationService {
     await UriHttpClient.getClient().put(`/social-media/notifications/${notificationId}/read`);
   }
 
+  static async archiveNotification(notificationId: string): Promise<void> {
+    await UriHttpClient.getClient().put(`/social-media/notifications/${notificationId}/archive`);
+  }
+
+  static async deleteNotification(notificationId: string): Promise<void> {
+    await UriHttpClient.getClient().delete(`/social-media/notifications/${notificationId}`);
+  }
+
   static async updatePreferences(preferences: { opt_out?: boolean; email_notifications?: boolean }): Promise<void> {
     await UriHttpClient.getClient().put('/social-media/notifications/preferences', preferences);
   }
