@@ -590,7 +590,9 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
                         whiteSpace: 'pre-wrap',
                       }}
                     >
-                      {selectedNotification.metadata?.message || selectedNotification.subject}
+                      {(typeof selectedNotification.metadata?.message === 'string'
+                        ? selectedNotification.metadata.message
+                        : selectedNotification.subject) || selectedNotification.subject}
                     </p>
                   </div>
 
