@@ -65,6 +65,13 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
 
   const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook');
 
+  // Reset post type to feed if selector is hidden (no Instagram/Facebook selected)
+  useEffect(() => {
+    if (!showPostTypeSelector && postType !== 'feed') {
+      setPostType('feed');
+    }
+  }, [showPostTypeSelector, postType]);
+
   const togglePlatform = (key: string) =>
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
 
@@ -327,7 +334,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
           <Box display="flex" gap={1} flexWrap="wrap">
             {POST_TYPES.map(({ key, label, icon, subtitle }) => {
               const active = postType === key;
-              const disabled = key === 'story';
+              const disabled = false;
               return (
                 <Box
                   key={key}
@@ -354,7 +361,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
                     {label}
                   </Typography>
                   <Typography fontSize="11px" color="#6B7280">
-                    {key === 'story' ? 'Coming soon' : subtitle}
+                    {subtitle}
                   </Typography>
                 </Box>
               );
