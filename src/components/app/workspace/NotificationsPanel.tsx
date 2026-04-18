@@ -142,10 +142,19 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
   const hasMore = notifications.length < total;
 
   return (
-    <div style={{ height: '100%', overflow: 'auto', background: '#f5f4f0', padding: '28px 24px' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
+    <div style={{ height: '100%', overflow: 'auto', background: '#f5f4f0' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '28px clamp(16px, 4vw, 48px)' }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 20,
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
               style={{
@@ -209,15 +218,22 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
         {/* Tabs + Filter */}
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: 12,
             marginBottom: 16,
-            flexWrap: 'wrap',
+            alignItems: 'center',
           }}
         >
-          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e3df' }}>
+          <div
+            style={{
+              display: 'flex',
+              borderRadius: 8,
+              overflow: 'hidden',
+              border: '1px solid #e5e3df',
+              width: 'fit-content',
+            }}
+          >
             {(['all', 'unread'] as const).map((t) => (
               <button
                 key={t}
@@ -232,6 +248,7 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
                   cursor: 'pointer',
                   fontFamily: 'var(--wf)',
                   transition: 'all 0.15s',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {t === 'all' ? 'All' : `Unread (${unreadCount})`}
@@ -253,6 +270,7 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
               cursor: 'pointer',
               fontFamily: 'var(--wf)',
               outline: 'none',
+              justifySelf: 'end',
             }}
           >
             {TYPE_FILTERS.map((f) => (
