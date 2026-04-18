@@ -1173,59 +1173,77 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Icon Header */}
+            {/* Icon */}
             <div
               style={{
-                padding: '32px 24px 24px',
+                padding: '40px 32px 8px',
                 textAlign: 'center',
-                background:
-                  paymentModal.type === 'success'
-                    ? 'linear-gradient(135deg, #E91E63 0%, #C2185B 100%)'
-                    : paymentModal.type === 'warning'
-                      ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
-                      : 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
               }}
             >
               <div
                 style={{
-                  width: 72,
-                  height: 72,
+                  width: 64,
+                  height: 64,
                   borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.2)',
+                  background:
+                    paymentModal.type === 'success'
+                      ? '#F0FDF4'
+                      : paymentModal.type === 'warning'
+                        ? '#FEF3C7'
+                        : '#FEE2E2',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 16px',
-                  fontSize: 36,
+                  margin: '0 auto 20px',
+                  border: `3px solid ${
+                    paymentModal.type === 'success'
+                      ? '#10B981'
+                      : paymentModal.type === 'warning'
+                        ? '#F59E0B'
+                        : '#EF4444'
+                  }`,
                 }}
               >
-                {paymentModal.type === 'success' ? '✓' : paymentModal.type === 'warning' ? '⚠' : '✕'}
+                <span
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color:
+                      paymentModal.type === 'success'
+                        ? '#10B981'
+                        : paymentModal.type === 'warning'
+                          ? '#F59E0B'
+                          : '#EF4444',
+                  }}
+                >
+                  {paymentModal.type === 'success' ? '✓' : paymentModal.type === 'warning' ? '!' : '✕'}
+                </span>
               </div>
+            </div>
+
+            {/* Message Body */}
+            <div style={{ padding: '0 32px 32px' }}>
               <h3
                 style={{
-                  fontSize: 22,
-                  fontWeight: 800,
-                  color: '#fff',
-                  margin: 0,
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: '#111827',
+                  margin: '0 0 12px',
+                  textAlign: 'center',
                   fontFamily: 'var(--wf)',
-                  letterSpacing: '-0.5px',
                 }}
               >
                 {paymentModal.type === 'success'
-                  ? 'Payment Successful!'
+                  ? 'Payment Successful'
                   : paymentModal.type === 'warning'
                     ? 'Payment Issue'
                     : 'Payment Failed'}
               </h3>
-            </div>
-
-            {/* Message Body */}
-            <div style={{ padding: '24px 32px 32px' }}>
               <p
                 style={{
-                  fontSize: 15,
+                  fontSize: 14,
                   lineHeight: 1.6,
-                  color: '#374151',
+                  color: '#6B7280',
                   margin: '0 0 24px',
                   textAlign: 'center',
                   fontFamily: 'var(--wf)',
@@ -1240,29 +1258,21 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                 style={{
                   width: '100%',
                   padding: '12px 24px',
-                  borderRadius: 10,
+                  borderRadius: 8,
                   border: 'none',
-                  background:
-                    paymentModal.type === 'success'
-                      ? 'linear-gradient(135deg, #E91E63 0%, #C2185B 100%)'
-                      : paymentModal.type === 'warning'
-                        ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
-                        : 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
+                  background: '#111827',
                   color: '#fff',
                   fontSize: 14,
-                  fontWeight: 700,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   fontFamily: 'var(--wf)',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  boxShadow: '0 4px 12px rgba(0,0,0,.15)',
+                  transition: 'background 0.2s',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,.2)';
+                  e.currentTarget.style.background = '#1F2937';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,.15)';
+                  e.currentTarget.style.background = '#111827';
                 }}
               >
                 OK
