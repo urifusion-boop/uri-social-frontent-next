@@ -1187,7 +1187,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   borderRadius: '50%',
                   background:
                     paymentModal.type === 'success'
-                      ? '#F0FDF4'
+                      ? '#FCE4EC'
                       : paymentModal.type === 'warning'
                         ? '#FEF3C7'
                         : '#FEE2E2',
@@ -1197,7 +1197,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   margin: '0 auto 20px',
                   border: `3px solid ${
                     paymentModal.type === 'success'
-                      ? '#10B981'
+                      ? '#C2185B'
                       : paymentModal.type === 'warning'
                         ? '#F59E0B'
                         : '#EF4444'
@@ -1210,7 +1210,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                     fontWeight: 700,
                     color:
                       paymentModal.type === 'success'
-                        ? '#10B981'
+                        ? '#C2185B'
                         : paymentModal.type === 'warning'
                           ? '#F59E0B'
                           : '#EF4444',
@@ -1254,13 +1254,18 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
               {/* Action Button */}
               <button
-                onClick={() => setPaymentModal({ ...paymentModal, show: false })}
+                onClick={() => {
+                  setPaymentModal({ ...paymentModal, show: false });
+                  if (paymentModal.type === 'success') {
+                    setActiveTab('payments');
+                  }
+                }}
                 style={{
                   width: '100%',
                   padding: '12px 24px',
                   borderRadius: 8,
                   border: 'none',
-                  background: '#111827',
+                  background: paymentModal.type === 'success' ? '#C2185B' : '#111827',
                   color: '#fff',
                   fontSize: 14,
                   fontWeight: 600,
@@ -1269,13 +1274,13 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   transition: 'background 0.2s',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#1F2937';
+                  e.currentTarget.style.background = paymentModal.type === 'success' ? '#AD1457' : '#1F2937';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#111827';
+                  e.currentTarget.style.background = paymentModal.type === 'success' ? '#C2185B' : '#111827';
                 }}
               >
-                OK
+                {paymentModal.type === 'success' ? 'View Payment History' : 'OK'}
               </button>
             </div>
           </div>
