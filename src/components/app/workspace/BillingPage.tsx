@@ -147,6 +147,11 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   const [showTestTier, setShowTestTier] = useState(false);
   const [testAmount, setTestAmount] = useState<string>('100');
   const [testCredits, setTestCredits] = useState<string>('1');
+  const [paymentModal, setPaymentModal] = useState<{
+    show: boolean;
+    type: 'success' | 'error' | 'warning';
+    message: string;
+  }>({ show: false, type: 'success', message: '' });
   // Production: Always use live mode
   const squadMode = 'live' as const;
 
@@ -173,16 +178,20 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
       const verified = await BillingService.verifyPayment(transactionRef);
 
       if (verified) {
-        alert('✅ Payment successful! Your credits have been added.');
+        setPaymentModal({ show: true, type: 'success', message: 'Payment successful! Your credits have been added.' });
         // Refresh all data
         await refreshCreditBalance();
         await fetchBillingData();
       } else {
-        alert('⚠️ Payment verification failed. Please contact support if amount was deducted.');
+        setPaymentModal({
+          show: true,
+          type: 'warning',
+          message: 'Payment verification failed. Please contact support if amount was deducted.',
+        });
       }
     } catch (error) {
       console.error('Payment verification error:', error);
-      alert('❌ Failed to verify payment. Please contact support.');
+      setPaymentModal({ show: true, type: 'error', message: 'Failed to verify payment. Please contact support.' });
     }
   };
 
@@ -1131,6 +1140,154 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
           </div>
         )}
       </div>
+
+      {/* Payment Status Modal */}
+      {paymentModal.show && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '20px',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          onClick={() => setPaymentModal({ ...paymentModal, show: false })}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              maxWidth: 440,
+              width: '100%',
+              boxShadow: '0 20px 60px rgba(0,0,0,.25)',
+              overflow: 'hidden',
+              animation: 'slideUp 0.3s ease-out',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Icon Header */}
+            <div
+              style={{
+                padding: '32px 24px 24px',
+                textAlign: 'center',
+                background:
+                  paymentModal.type === 'success'
+                    ? 'linear-gradient(135deg, #E91E63 0%, #C2185B 100%)'
+                    : paymentModal.type === 'warning'
+                      ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
+                      : 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
+              }}
+            >
+              <div
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px',
+                  fontSize: 36,
+                }}
+              >
+                {paymentModal.type === 'success' ? '✓' : paymentModal.type === 'warning' ? '⚠' : '✕'}
+              </div>
+              <h3
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#fff',
+                  margin: 0,
+                  fontFamily: 'var(--wf)',
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                {paymentModal.type === 'success'
+                  ? 'Payment Successful!'
+                  : paymentModal.type === 'warning'
+                    ? 'Payment Issue'
+                    : 'Payment Failed'}
+              </h3>
+            </div>
+
+            {/* Message Body */}
+            <div style={{ padding: '24px 32px 32px' }}>
+              <p
+                style={{
+                  fontSize: 15,
+                  lineHeight: 1.6,
+                  color: '#374151',
+                  margin: '0 0 24px',
+                  textAlign: 'center',
+                  fontFamily: 'var(--wf)',
+                }}
+              >
+                {paymentModal.message}
+              </p>
+
+              {/* Action Button */}
+              <button
+                onClick={() => setPaymentModal({ ...paymentModal, show: false })}
+                style={{
+                  width: '100%',
+                  padding: '12px 24px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background:
+                    paymentModal.type === 'success'
+                      ? 'linear-gradient(135deg, #E91E63 0%, #C2185B 100%)'
+                      : paymentModal.type === 'warning'
+                        ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
+                        : 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--wf)',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  boxShadow: '0 4px 12px rgba(0,0,0,.15)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,.15)';
+                }}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
     </>
   );
 }
