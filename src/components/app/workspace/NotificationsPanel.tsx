@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/src/providers/NotificationProvider';
 import { Notification, NotificationService } from '@/src/api/NotificationService';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import NotificationPreferencesModal from './NotificationPreferencesModal';
 
 /* ── Type metadata ─────────────────────────────────────────────── */
 
@@ -48,12 +51,15 @@ function timeAgo(dateStr: string): string {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
+  // Convert UTC date to local timezone
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    hour12: true,
   });
 }
 
@@ -70,6 +76,9 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
   const [filter, setFilter] = useState('');
   const [tab, setTab] = useState<'all' | 'unread'>('all');
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
 
   const fetchPage = useCallback(async (p: number, typeFilter: string, reset: boolean = false) => {
     setLoading(true);
@@ -97,17 +106,24 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
         prev.map((item) => (item.notification_id === n.notification_id ? { ...item, read: true } : item))
       );
       refreshUnreadCount();
-    } catch {
-      // silent
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+      ToastService.showToast('Failed to mark notification as read', ToastTypeEnum.Error);
     }
   };
 
   const handleMarkAllRead = async () => {
     const unread = notifications.filter((n) => !n.read);
     if (unread.length === 0) return;
-    await Promise.all(unread.map((n) => NotificationService.markAsRead(n.notification_id)));
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    refreshUnreadCount();
+    try {
+      const result = await NotificationService.markAllAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      refreshUnreadCount();
+      ToastService.showToast(`${result.count} notifications marked as read`, ToastTypeEnum.Success);
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+      ToastService.showToast('Failed to mark all as read', ToastTypeEnum.Error);
+    }
   };
 
   const handleClick = (n: Notification) => {
@@ -121,8 +137,11 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
       setNotifications((prev) => prev.filter((n) => n.notification_id !== notificationId));
       setTotal((prev) => prev - 1);
       setSelectedNotification(null);
-    } catch {
-      // silent
+      refreshUnreadCount(); // Refresh since archived notifications auto-mark as read
+      ToastService.showToast('Notification archived', ToastTypeEnum.Success);
+    } catch (error) {
+      console.error('Failed to archive notification:', error);
+      ToastService.showToast('Failed to archive notification', ToastTypeEnum.Error);
     }
   };
 
@@ -133,8 +152,68 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
       setTotal((prev) => prev - 1);
       setSelectedNotification(null);
       refreshUnreadCount();
-    } catch {
-      // silent
+      ToastService.showToast('Notification deleted', ToastTypeEnum.Success);
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      ToastService.showToast('Failed to delete notification', ToastTypeEnum.Error);
+    }
+  };
+
+  const toggleSelect = (notificationId: string) => {
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(notificationId)) {
+        newSet.delete(notificationId);
+      } else {
+        newSet.add(notificationId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === displayed.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(displayed.map((n) => n.notification_id)));
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    try {
+      const result = await NotificationService.bulkArchiveNotifications(ids);
+      setNotifications((prev) => prev.filter((n) => !selectedIds.has(n.notification_id)));
+      setTotal((prev) => prev - result.count);
+      setSelectedIds(new Set());
+      refreshUnreadCount();
+      ToastService.showToast(`${result.count} notifications archived`, ToastTypeEnum.Success);
+    } catch (error) {
+      console.error('Failed to bulk archive:', error);
+      ToastService.showToast('Failed to archive notifications', ToastTypeEnum.Error);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    if (!confirm(`Delete ${ids.length} notification${ids.length > 1 ? 's' : ''}? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const result = await NotificationService.bulkDeleteNotifications(ids);
+      setNotifications((prev) => prev.filter((n) => !selectedIds.has(n.notification_id)));
+      setTotal((prev) => prev - result.count);
+      setSelectedIds(new Set());
+      refreshUnreadCount();
+      ToastService.showToast(`${result.count} notifications deleted`, ToastTypeEnum.Success);
+    } catch (error) {
+      console.error('Failed to bulk delete:', error);
+      ToastService.showToast('Failed to delete notifications', ToastTypeEnum.Error);
     }
   };
 
@@ -192,14 +271,14 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
               </p>
             </div>
           </div>
-          {unreadCount > 0 && (
+          <div style={{ display: 'flex', gap: 8 }}>
             <button
-              onClick={handleMarkAllRead}
+              onClick={() => setPreferencesOpen(true)}
               style={{
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#C2185B',
-                background: 'rgba(194,24,91,.06)',
+                color: '#6B7280',
+                background: '#F3F4F6',
                 border: 'none',
                 padding: '7px 14px',
                 borderRadius: 8,
@@ -207,12 +286,46 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
                 transition: 'background 0.15s',
                 fontFamily: 'var(--wf)',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(194,24,91,.12)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(194,24,91,.06)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E7EB')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+              title="Notification preferences"
             >
-              Mark all as read
+              <svg
+                width={14}
+                height={14}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                style={{ display: 'inline-block', marginRight: 4, verticalAlign: 'middle' }}
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
+              </svg>
+              Settings
             </button>
-          )}
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllRead}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#C2185B',
+                  background: 'rgba(194,24,91,.06)',
+                  border: 'none',
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s',
+                  fontFamily: 'var(--wf)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(194,24,91,.12)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(194,24,91,.06)')}
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Tabs + Filter */}
@@ -281,6 +394,91 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
           </select>
         </div>
 
+        {/* Bulk Actions Bar */}
+        {displayed.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <button
+              onClick={() => {
+                setBulkMode(!bulkMode);
+                setSelectedIds(new Set());
+              }}
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: bulkMode ? '#C2185B' : '#6B7280',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'var(--wf)',
+              }}
+            >
+              {bulkMode ? '✓ Select Mode' : 'Select Multiple'}
+            </button>
+
+            {bulkMode && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {selectedIds.size > 0 && (
+                  <span style={{ fontSize: 12, color: '#6B7280', fontFamily: 'var(--wf)' }}>
+                    {selectedIds.size} selected
+                  </span>
+                )}
+                <button
+                  onClick={toggleSelectAll}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#6B7280',
+                    background: '#F3F4F6',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--wf)',
+                  }}
+                >
+                  {selectedIds.size === displayed.length ? 'Deselect All' : 'Select All'}
+                </button>
+                {selectedIds.size > 0 && (
+                  <>
+                    <button
+                      onClick={handleBulkArchive}
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: '#fff',
+                        background: '#059669',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--wf)',
+                      }}
+                    >
+                      Archive ({selectedIds.size})
+                    </button>
+                    <button
+                      onClick={handleBulkDelete}
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: '#fff',
+                        background: '#DC2626',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--wf)',
+                      }}
+                    >
+                      Delete ({selectedIds.size})
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Notification List */}
         <div
           style={{
@@ -326,7 +524,7 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
               return (
                 <button
                   key={n.notification_id}
-                  onClick={() => handleClick(n)}
+                  onClick={() => (bulkMode ? toggleSelect(n.notification_id) : handleClick(n))}
                   style={{
                     width: '100%',
                     display: 'flex',
@@ -346,6 +544,30 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#fafaf9')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = n.read ? '#fff' : 'rgba(194,24,91,.015)')}
                 >
+                  {/* Checkbox (bulk mode) */}
+                  {bulkMode && (
+                    <div
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 4,
+                        border: `2px solid ${selectedIds.has(n.notification_id) ? '#C2185B' : '#D1D5DB'}`,
+                        background: selectedIds.has(n.notification_id) ? '#C2185B' : '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        marginTop: 10,
+                      }}
+                    >
+                      {selectedIds.has(n.notification_id) && (
+                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3}>
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </div>
+                  )}
+
                   {/* Icon */}
                   <div
                     style={{
@@ -679,6 +901,9 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
           to { transform: rotate(360deg); }
         }
       `}</style>
+
+      {/* Preferences Modal */}
+      <NotificationPreferencesModal isOpen={preferencesOpen} onClose={() => setPreferencesOpen(false)} />
     </div>
   );
 }

@@ -73,12 +73,35 @@ export class NotificationService {
     await UriHttpClient.getClient().put(`/social-media/notifications/${notificationId}/read`);
   }
 
+  static async markAllAsRead(): Promise<{ count: number }> {
+    const response: AxiosResponse<ApiResponse<{ count: number }>> = await UriHttpClient.getClient().put(
+      '/social-media/notifications/mark-all-read'
+    );
+    return response.data.responseData;
+  }
+
   static async archiveNotification(notificationId: string): Promise<void> {
     await UriHttpClient.getClient().put(`/social-media/notifications/${notificationId}/archive`);
   }
 
+  static async bulkArchiveNotifications(notificationIds: string[]): Promise<{ count: number }> {
+    const response: AxiosResponse<ApiResponse<{ count: number }>> = await UriHttpClient.getClient().put(
+      '/social-media/notifications/bulk-archive',
+      notificationIds
+    );
+    return response.data.responseData;
+  }
+
   static async deleteNotification(notificationId: string): Promise<void> {
     await UriHttpClient.getClient().delete(`/social-media/notifications/${notificationId}`);
+  }
+
+  static async bulkDeleteNotifications(notificationIds: string[]): Promise<{ count: number }> {
+    const response: AxiosResponse<ApiResponse<{ count: number }>> = await UriHttpClient.getClient().delete(
+      '/social-media/notifications/bulk-delete',
+      { data: notificationIds }
+    );
+    return response.data.responseData;
   }
 
   static async updatePreferences(preferences: { opt_out?: boolean; email_notifications?: boolean }): Promise<void> {
