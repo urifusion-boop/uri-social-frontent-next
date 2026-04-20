@@ -624,7 +624,19 @@ function BrandSetupPageContent() {
     // If this is an OAuth callback return, handle it before checking onboarding
     // (otherwise completed-onboarding users get redirected to /workspace immediately)
     const connected = searchParams.get('connected');
+    const platform = searchParams.get('platform');
     const sessionToken = searchParams.get('sessionToken');
+
+    // LinkedIn / X popup-flow callback — if initiated from workspace, go back there
+    if ((connected === 'true' || connected === 'false') && platform) {
+      const oauthSource = localStorage.getItem('uri_oauth_connect_source');
+      if (oauthSource === 'workspace') {
+        localStorage.removeItem('uri_oauth_connect_source');
+        router.replace('/workspace');
+        return;
+      }
+    }
+
     if (connected === 'pending' && sessionToken) {
       const connectSource = localStorage.getItem('outstand_connect_source');
       if (connectSource === 'settings') {
