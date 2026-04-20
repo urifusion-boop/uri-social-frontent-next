@@ -12,6 +12,20 @@ export interface PlatformStatus {
   outstand_account_id?: string;
   ig_user_id?: string;
   connected_via?: string;
+  active_author_urn?: string;
+  pages?: LinkedInPage[];
+}
+
+export interface LinkedInPage {
+  id: string;
+  name: string;
+  urn: string;
+}
+
+export interface LinkedInPagesData {
+  personal_profile: { urn: string; name: string; type: string };
+  pages: LinkedInPage[];
+  active_author_urn: string;
 }
 
 export interface PublishPayload {
@@ -49,6 +63,16 @@ export class SocialConnectionService {
       '/linkedin/publish',
       payload
     );
+    return res.data;
+  }
+
+  static async linkedinPages(): Promise<UriResponse<LinkedInPagesData>> {
+    const res: AxiosResponse<UriResponse<LinkedInPagesData>> = await UriHttpClient.getClient().get('/linkedin/pages');
+    return res.data;
+  }
+
+  static async linkedinSelectPage(authorUrn: string): Promise<UriResponse<{ active_author_urn: string }>> {
+    const res: AxiosResponse<UriResponse<{ active_author_urn: string }>> = await UriHttpClient.getClient().post('/linkedin/pages/select', { author_urn: authorUrn });
     return res.data;
   }
 

@@ -401,118 +401,122 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
         {/* Tab Content */}
         {activeTab === 'plans' && (
           <div>
-            {/* Test Payment Button */}
-            <div
-              style={{
-                marginBottom: 20,
-                padding: 16,
-                background: '#FEF3C7',
-                borderRadius: 8,
-                border: '1px solid #FCD34D',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#92400E' }}>
-                  🧪 Test Payment (Temporary)
-                </h4>
-                <button
-                  onClick={() => setShowTestTier(!showTestTier)}
-                  style={{
-                    background: '#FBBF24',
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: '6px 12px',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: '#78350F',
-                    cursor: 'pointer',
-                  }}
+            {/* Test Payment Button - Hidden in production */}
+            {process.env.NEXT_PUBLIC_ENV !== 'production' && process.env.NODE_ENV !== 'production' && false && (
+              <div
+                style={{
+                  marginBottom: 20,
+                  padding: 16,
+                  background: '#FEF3C7',
+                  borderRadius: 8,
+                  border: '1px solid #FCD34D',
+                }}
+              >
+                <div
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}
                 >
-                  {showTestTier ? 'Hide' : 'Show'}
-                </button>
-              </div>
-
-              {showTestTier && (
-                <div>
-                  <p style={{ fontSize: 12, color: '#92400E', margin: '0 0 12px' }}>
-                    Test the payment flow with any amount. This will be removed in production.
-                  </p>
-                  <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <label
-                        style={{ fontSize: 11, fontWeight: 600, color: '#92400E', display: 'block', marginBottom: 4 }}
-                      >
-                        Amount (NGN)
-                      </label>
-                      <input
-                        type="number"
-                        value={testAmount}
-                        onChange={(e) => setTestAmount(e.target.value)}
-                        min="100"
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          border: '1px solid #FCD34D',
-                          fontSize: 13,
-                          fontFamily: 'var(--wf)',
-                        }}
-                      />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label
-                        style={{ fontSize: 11, fontWeight: 600, color: '#92400E', display: 'block', marginBottom: 4 }}
-                      >
-                        Credits to receive
-                      </label>
-                      <input
-                        type="number"
-                        value={testCredits}
-                        onChange={(e) => setTestCredits(e.target.value)}
-                        min="1"
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          border: '1px solid #FCD34D',
-                          fontSize: 13,
-                          fontFamily: 'var(--wf)',
-                        }}
-                      />
-                    </div>
-                  </div>
+                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#92400E' }}>
+                    🧪 Test Payment (Temporary)
+                  </h4>
                   <button
-                    onClick={() => {
-                      const testTier: SubscriptionTier = {
-                        tier_id: 'test',
-                        name: 'Test Plan',
-                        price_ngn: parseInt(testAmount) || 100,
-                        credits: parseInt(testCredits) || 1,
-                        price_per_credit: (parseInt(testAmount) || 100) / (parseInt(testCredits) || 1),
-                        features: ['Test payment', 'Custom amount', 'Will be removed'],
-                        is_active: true,
-                      };
-                      handleSelectPlan(testTier);
-                    }}
-                    disabled={subscribing !== null}
+                    onClick={() => setShowTestTier(!showTestTier)}
                     style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: 6,
+                      background: '#FBBF24',
                       border: 'none',
-                      background: '#F59E0B',
-                      color: '#fff',
+                      borderRadius: 6,
+                      padding: '6px 12px',
+                      fontSize: 12,
                       fontWeight: 700,
-                      fontSize: 13,
-                      cursor: subscribing ? 'not-allowed' : 'pointer',
-                      opacity: subscribing ? 0.5 : 1,
+                      color: '#78350F',
+                      cursor: 'pointer',
                     }}
                   >
-                    {subscribing === 'test' ? 'Processing...' : 'Test Payment'}
+                    {showTestTier ? 'Hide' : 'Show'}
                   </button>
                 </div>
-              )}
-            </div>
+
+                {showTestTier && (
+                  <div>
+                    <p style={{ fontSize: 12, color: '#92400E', margin: '0 0 12px' }}>
+                      Test the payment flow with any amount. This will be removed in production.
+                    </p>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <label
+                          style={{ fontSize: 11, fontWeight: 600, color: '#92400E', display: 'block', marginBottom: 4 }}
+                        >
+                          Amount (NGN)
+                        </label>
+                        <input
+                          type="number"
+                          value={testAmount}
+                          onChange={(e) => setTestAmount(e.target.value)}
+                          min="100"
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: 6,
+                            border: '1px solid #FCD34D',
+                            fontSize: 13,
+                            fontFamily: 'var(--wf)',
+                          }}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label
+                          style={{ fontSize: 11, fontWeight: 600, color: '#92400E', display: 'block', marginBottom: 4 }}
+                        >
+                          Credits to receive
+                        </label>
+                        <input
+                          type="number"
+                          value={testCredits}
+                          onChange={(e) => setTestCredits(e.target.value)}
+                          min="1"
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: 6,
+                            border: '1px solid #FCD34D',
+                            fontSize: 13,
+                            fontFamily: 'var(--wf)',
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const testTier: SubscriptionTier = {
+                          tier_id: 'test',
+                          name: 'Test Plan',
+                          price_ngn: parseInt(testAmount) || 100,
+                          credits: parseInt(testCredits) || 1,
+                          price_per_credit: (parseInt(testAmount) || 100) / (parseInt(testCredits) || 1),
+                          features: ['Test payment', 'Custom amount', 'Will be removed'],
+                          is_active: true,
+                        };
+                        handleSelectPlan(testTier);
+                      }}
+                      disabled={subscribing !== null}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: '#F59E0B',
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: 13,
+                        cursor: subscribing ? 'not-allowed' : 'pointer',
+                        opacity: subscribing ? 0.5 : 1,
+                      }}
+                    >
+                      {subscribing === 'test' ? 'Processing...' : 'Test Payment'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
               {tiers
@@ -1187,7 +1191,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   borderRadius: '50%',
                   background:
                     paymentModal.type === 'success'
-                      ? '#F0FDF4'
+                      ? '#FCE4EC'
                       : paymentModal.type === 'warning'
                         ? '#FEF3C7'
                         : '#FEE2E2',
@@ -1197,7 +1201,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   margin: '0 auto 20px',
                   border: `3px solid ${
                     paymentModal.type === 'success'
-                      ? '#10B981'
+                      ? '#C2185B'
                       : paymentModal.type === 'warning'
                         ? '#F59E0B'
                         : '#EF4444'
@@ -1210,7 +1214,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                     fontWeight: 700,
                     color:
                       paymentModal.type === 'success'
-                        ? '#10B981'
+                        ? '#C2185B'
                         : paymentModal.type === 'warning'
                           ? '#F59E0B'
                           : '#EF4444',
@@ -1254,13 +1258,18 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
               {/* Action Button */}
               <button
-                onClick={() => setPaymentModal({ ...paymentModal, show: false })}
+                onClick={() => {
+                  setPaymentModal({ ...paymentModal, show: false });
+                  if (paymentModal.type === 'success') {
+                    setActiveTab('payments');
+                  }
+                }}
                 style={{
                   width: '100%',
                   padding: '12px 24px',
                   borderRadius: 8,
                   border: 'none',
-                  background: '#111827',
+                  background: paymentModal.type === 'success' ? '#C2185B' : '#111827',
                   color: '#fff',
                   fontSize: 14,
                   fontWeight: 600,
@@ -1269,13 +1278,13 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   transition: 'background 0.2s',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#1F2937';
+                  e.currentTarget.style.background = paymentModal.type === 'success' ? '#AD1457' : '#1F2937';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#111827';
+                  e.currentTarget.style.background = paymentModal.type === 'success' ? '#C2185B' : '#111827';
                 }}
               >
-                OK
+                {paymentModal.type === 'success' ? 'View Payment History' : 'OK'}
               </button>
             </div>
           </div>

@@ -14,7 +14,7 @@ import {
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import ContentCalendarTab from '@/src/components/app/social-media/ContentCalendarTab';
-import { PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
+import { LinkedInPagesData, PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -1089,6 +1089,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [waPhone, setWaPhone] = useState('');
   const [waExpanded, setWaExpanded] = useState(false);
   const [waError, setWaError] = useState('');
+  const [liPages, setLiPages] = useState<LinkedInPagesData | null>(null);
+  const [liPagesLoading, setLiPagesLoading] = useState(false);
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -1119,6 +1121,18 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     return { linked: false };
   };
 
+  const loadLinkedInPages = async () => {
+    setLiPagesLoading(true);
+    try {
+      const res = await withTimeout(SocialConnectionService.linkedinPages());
+      setLiPages(res?.responseData ?? null);
+    } catch {
+      /* noop */
+    } finally {
+      setLiPagesLoading(false);
+    }
+  };
+
   const loadStatuses = async () => {
     setLoading(true);
     try {
@@ -1130,6 +1144,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       ]);
       const next: Record<string, PlatformStatus> = {};
       next.linkedin = li?.responseData ?? { linked: false };
+      if (next.linkedin.linked) loadLinkedInPages();
       next.x = x?.responseData ?? { linked: false };
       const waFromApi = wa?.responseData;
       if (waFromApi) {
@@ -1193,12 +1208,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }
     setConnecting(id);
     try {
+      localStorage.setItem('uri_oauth_connect_source', 'workspace');
       const res =
         id === 'linkedin' ? await SocialConnectionService.linkedinConnect() : await SocialConnectionService.xConnect();
       if (res.status && res.responseData?.auth_url) {
         openOAuthPopup(res.responseData.auth_url, () => {
           setConnecting(null);
-          loadStatuses(); // refresh linked status after OAuth completes
+          loadStatuses();
         });
         return; // connecting state cleared inside onClose callback
       }
@@ -1232,8 +1248,24 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       } else {
         setWaError(detail || res.responseMessage || 'Failed to connect. Please try again.');
       }
-    } catch {
-      setWaError('Something went wrong. Please try again.');
+    } catch (err) {
+      // err is the AxiosResponse when the HTTP layer rejects (4xx/5xx)
+      const errData = (err as { data?: { detail?: string; responseMessage?: string } } | null)?.data;
+      const errDetail = errData?.detail ?? errData?.responseMessage ?? '';
+      const lower = errDetail.toLowerCase();
+      if (lower.includes('already linked') || lower.includes('already connected') || lower.includes('already in use')) {
+        // Treat as a successful connection — number was already registered
+        saveWaCache(waPhone.trim());
+        setWaExpanded(false);
+        setWaPhone('');
+        setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone: waPhone.trim() } }));
+      } else if (lower.includes('invalid') || lower.includes('not a valid') || lower.includes('format')) {
+        setWaError('Invalid phone number. Use international format, e.g. +2348012345678.');
+      } else if (errDetail) {
+        setWaError(errDetail);
+      } else {
+        setWaError('Could not connect. Check the number and try again.');
+      }
     } finally {
       setConnecting(null);
     }
@@ -1242,7 +1274,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const handleDisconnect = async (id: string) => {
     setDisconnecting(id);
     try {
-      if (id === 'linkedin') await SocialConnectionService.linkedinDisconnect();
+      if (id === 'linkedin') { await SocialConnectionService.linkedinDisconnect(); setLiPages(null); }
       else if (id === 'x') await SocialConnectionService.xDisconnect();
       else if (id === 'whatsapp') await SocialConnectionService.whatsappDisconnect();
       else if (
@@ -1377,6 +1409,59 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     )}
                   </div>
                 </div>
+                {p.id === 'linkedin' && linked && liPages && liPages.pages.length > 0 && (
+                  <div
+                    style={{
+                      padding: '10px 16px',
+                      background: '#f9fbff',
+                      borderRadius: '0 0 12px 12px',
+                      border: '1.5px solid #0A66C244',
+                      borderTop: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>Posting as</span>
+                    <select
+                      title="LinkedIn posting target"
+                      value={liPages.active_author_urn}
+                      disabled={liPagesLoading}
+                      onChange={async (e) => {
+                        const urn = e.target.value;
+                        setLiPagesLoading(true);
+                        try {
+                          await SocialConnectionService.linkedinSelectPage(urn);
+                          setLiPages((prev) => prev ? { ...prev, active_author_urn: urn } : prev);
+                        } catch {
+                          /* noop */
+                        } finally {
+                          setLiPagesLoading(false);
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '5px 10px',
+                        borderRadius: 7,
+                        border: '1.5px solid #0A66C244',
+                        fontSize: 12,
+                        fontFamily: 'var(--wf)',
+                        background: '#fff',
+                        color: '#111',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        opacity: liPagesLoading ? 0.5 : 1,
+                      }}
+                    >
+                      <option value={liPages.personal_profile.urn}>
+                        {liPages.personal_profile.name} (Personal)
+                      </option>
+                      {liPages.pages.map((page) => (
+                        <option key={page.urn} value={page.urn}>{page.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {p.id === 'whatsapp' && waExpanded && !linked && (
                   <div
                     style={{

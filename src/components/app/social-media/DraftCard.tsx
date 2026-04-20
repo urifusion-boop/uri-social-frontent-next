@@ -73,9 +73,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   useEffect(() => {
     if (!editing) {
       setDraft(initialDraft);
-      // Reset imageLoaded so the img onLoad fires again for the new URL,
-      // preventing the shimmer from staying stuck after a refresh.
+      // Reset imageLoaded and imageError so the img onLoad/onError fire again
+      // for the new URL, preventing stale shimmer or 'Image unavailable' state.
       setImageLoaded(false);
+      setImageError(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
