@@ -402,7 +402,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
         {activeTab === 'plans' && (
           <div>
             {/* Test Payment Button - Hidden in production */}
-            {process.env.NODE_ENV !== 'production' && (
+            {process.env.NEXT_PUBLIC_ENV !== 'production' && process.env.NODE_ENV !== 'production' && false && (
               <div
                 style={{
                   marginBottom: 20,
