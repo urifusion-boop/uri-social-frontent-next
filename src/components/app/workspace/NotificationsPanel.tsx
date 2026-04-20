@@ -7,6 +7,7 @@ import { Notification, NotificationService } from '@/src/api/NotificationService
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import NotificationPreferencesModal from './NotificationPreferencesModal';
+import ConfirmDialog from './ConfirmDialog';
 
 /* ── Type metadata ─────────────────────────────────────────────── */
 
@@ -79,6 +80,10 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkMode, setBulkMode] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{ show: boolean; type: 'delete' | 'bulk-delete'; id?: string }>({
+    show: false,
+    type: 'delete',
+  });
 
   const fetchPage = useCallback(async (p: number, typeFilter: string, reset: boolean = false) => {
     setLoading(true);
@@ -145,20 +150,6 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
     }
   };
 
-  const handleDelete = async (notificationId: string) => {
-    try {
-      await NotificationService.deleteNotification(notificationId);
-      setNotifications((prev) => prev.filter((n) => n.notification_id !== notificationId));
-      setTotal((prev) => prev - 1);
-      setSelectedNotification(null);
-      refreshUnreadCount();
-      ToastService.showToast('Notification deleted', ToastTypeEnum.Success);
-    } catch (error) {
-      console.error('Failed to delete notification:', error);
-      ToastService.showToast('Failed to delete notification', ToastTypeEnum.Error);
-    }
-  };
-
   const toggleSelect = (notificationId: string) => {
     setSelectedIds((prev) => {
       const newSet = new Set(prev);
@@ -200,10 +191,6 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
 
-    if (!confirm(`Delete ${ids.length} notification${ids.length > 1 ? 's' : ''}? This cannot be undone.`)) {
-      return;
-    }
-
     try {
       const result = await NotificationService.bulkDeleteNotifications(ids);
       setNotifications((prev) => prev.filter((n) => !selectedIds.has(n.notification_id)));
@@ -214,6 +201,20 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
     } catch (error) {
       console.error('Failed to bulk delete:', error);
       ToastService.showToast('Failed to delete notifications', ToastTypeEnum.Error);
+    }
+  };
+
+  const handleSingleDelete = async (notificationId: string) => {
+    try {
+      await NotificationService.deleteNotification(notificationId);
+      setNotifications((prev) => prev.filter((n) => n.notification_id !== notificationId));
+      setTotal((prev) => prev - 1);
+      setSelectedNotification(null);
+      refreshUnreadCount();
+      ToastService.showToast('Notification deleted', ToastTypeEnum.Success);
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      ToastService.showToast('Failed to delete notification', ToastTypeEnum.Error);
     }
   };
 
@@ -457,7 +458,7 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
                       Archive ({selectedIds.size})
                     </button>
                     <button
-                      onClick={handleBulkDelete}
+                      onClick={() => setConfirmDialog({ show: true, type: 'bulk-delete' })}
                       style={{
                         fontSize: 12,
                         fontWeight: 600,
@@ -709,9 +710,7 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
                         title="Delete"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm('Delete this notification? This cannot be undone.')) {
-                            handleDelete(n.notification_id);
-                          }
+                          setConfirmDialog({ show: true, type: 'delete', id: n.notification_id });
                         }}
                         style={{
                           width: 32,
@@ -997,6 +996,28 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
 
       {/* Preferences Modal */}
       <NotificationPreferencesModal isOpen={preferencesOpen} onClose={() => setPreferencesOpen(false)} />
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.show}
+        title={confirmDialog.type === 'bulk-delete' ? 'Delete Notifications' : 'Delete Notification'}
+        message={
+          confirmDialog.type === 'bulk-delete'
+            ? `Are you sure you want to delete ${selectedIds.size} notification${selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.`
+            : 'Are you sure you want to delete this notification? This action cannot be undone.'
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="#EF4444"
+        onConfirm={() => {
+          if (confirmDialog.type === 'bulk-delete') {
+            handleBulkDelete();
+          } else if (confirmDialog.id) {
+            handleSingleDelete(confirmDialog.id);
+          }
+        }}
+        onCancel={() => setConfirmDialog({ show: false, type: 'delete' })}
+      />
     </div>
   );
 }
