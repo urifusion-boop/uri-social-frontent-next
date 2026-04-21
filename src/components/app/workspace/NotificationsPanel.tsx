@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/src/providers/NotificationProvider';
 import { Notification, NotificationService } from '@/src/api/NotificationService';
 import { ToastService } from '@/src/utils/toast.util';
@@ -66,8 +65,7 @@ function formatDate(dateStr: string): string {
 
 /* ── Component ─────────────────────────────────────────────────── */
 
-export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
-  const router = useRouter();
+export default function NotificationsPanel() {
   const { unreadCount, refreshUnreadCount } = useNotifications();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -147,6 +145,18 @@ export default function NotificationsPanel({ onJane }: { onJane: () => void }) {
     } catch (error) {
       console.error('Failed to archive notification:', error);
       ToastService.showToast('Failed to archive notification', ToastTypeEnum.Error);
+    }
+  };
+
+  const handleDelete = async (notificationId: string) => {
+    try {
+      await NotificationService.deleteNotification(notificationId);
+      setNotifications((prev) => prev.filter((n) => n.notification_id !== notificationId));
+      setTotal((prev) => prev - 1);
+      setSelectedNotification(null);
+      refreshUnreadCount();
+    } catch {
+      // silent
     }
   };
 

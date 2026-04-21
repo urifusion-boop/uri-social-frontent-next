@@ -1274,8 +1274,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const handleDisconnect = async (id: string) => {
     setDisconnecting(id);
     try {
-      if (id === 'linkedin') { await SocialConnectionService.linkedinDisconnect(); setLiPages(null); }
-      else if (id === 'x') await SocialConnectionService.xDisconnect();
+      if (id === 'linkedin') {
+        await SocialConnectionService.linkedinDisconnect();
+        setLiPages(null);
+      } else if (id === 'x') await SocialConnectionService.xDisconnect();
       else if (id === 'whatsapp') await SocialConnectionService.whatsappDisconnect();
       else if (
         id === 'instagram' &&
@@ -1432,7 +1434,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         setLiPagesLoading(true);
                         try {
                           await SocialConnectionService.linkedinSelectPage(urn);
-                          setLiPages((prev) => prev ? { ...prev, active_author_urn: urn } : prev);
+                          setLiPages((prev) => (prev ? { ...prev, active_author_urn: urn } : prev));
                         } catch {
                           /* noop */
                         } finally {
@@ -1453,11 +1455,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         opacity: liPagesLoading ? 0.5 : 1,
                       }}
                     >
-                      <option value={liPages.personal_profile.urn}>
-                        {liPages.personal_profile.name} (Personal)
-                      </option>
+                      <option value={liPages.personal_profile.urn}>{liPages.personal_profile.name} (Personal)</option>
                       {liPages.pages.map((page) => (
-                        <option key={page.urn} value={page.urn}>{page.name}</option>
+                        <option key={page.urn} value={page.urn}>
+                          {page.name}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -3830,7 +3832,7 @@ export default function WorkspaceDashboard() {
       />
     ),
     billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
-    notifications: <NotificationsPanel onJane={goWorkspace} />,
+    notifications: <NotificationsPanel />,
   };
 
   return (
