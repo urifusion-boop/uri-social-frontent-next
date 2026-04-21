@@ -118,7 +118,11 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     loadedSlideUrls.clear();
   }, [draft.id]);
 
-  const resolveUrl = (url: string) => (url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${url}` : url);
+  const resolveUrl = (url: string) => {
+    if (!url.startsWith('/')) return url;
+    const base = process.env.NEXT_PUBLIC_URI_API_BASE_URL || process.env.NEXT_PUBLIC_URI_API_BASE_URL_DEV || '';
+    return `${base}${url}`;
+  };
 
   // Retry loading up to 3 times with backoff before showing 'Image unavailable'.
   // Handles the race where the image file isn't yet flushed when the URL first arrives.
@@ -915,11 +919,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         >
           {draft.image_url && (
             <img
-              src={
-                draft.image_url.startsWith('/')
-                  ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}`
-                  : draft.image_url
-              }
+              src={draft.image_url.startsWith('/') ? resolveUrl(draft.image_url) : draft.image_url}
               alt={`AI-generated image for ${draft.platform}`}
               style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }}
             />
