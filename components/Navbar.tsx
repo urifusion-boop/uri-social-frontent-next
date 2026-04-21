@@ -4,13 +4,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, Settings, LogOut, LayoutDashboard } from 'lucide-react';
+import { Menu, X, Settings, LogOut, LayoutDashboard, Bug } from 'lucide-react';
+import BugReportModal from '@/src/components/app/atoms/BugReportModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/src/providers/AuthProvider';
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [bugModalOpen, setBugModalOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const isHomePage = pathname === '/';
@@ -181,6 +183,17 @@ export default function Navbar() {
                             <Settings size={18} className="text-gray-600" />
                             <span className="text-sm font-medium text-gray-700">Settings</span>
                           </button>
+
+                          <button
+                            onClick={() => {
+                              setProfileMenuOpen(false);
+                              setBugModalOpen(true);
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                          >
+                            <Bug size={18} className="text-gray-600" />
+                            <span className="text-sm font-medium text-gray-700">Report a Bug</span>
+                          </button>
                         </div>
 
                         <div className="border-t border-gray-100 py-1">
@@ -336,6 +349,17 @@ export default function Navbar() {
                       <span className="text-sm font-medium text-gray-700">Settings</span>
                     </button>
 
+                    <button
+                      onClick={() => {
+                        setOpen(false);
+                        setBugModalOpen(true);
+                      }}
+                      className="w-full flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50 transition-colors text-left rounded-lg mx-2"
+                    >
+                      <Bug size={18} className="text-gray-600" />
+                      <span className="text-sm font-medium text-gray-700">Report a Bug</span>
+                    </button>
+
                     <div className="pt-2 mt-2 border-t border-gray-100 mx-2">
                       <button
                         onClick={() => {
@@ -376,6 +400,8 @@ export default function Navbar() {
           )}
         </AnimatePresence>
       </div>
+
+      <BugReportModal isOpen={bugModalOpen} onClose={() => setBugModalOpen(false)} />
     </motion.nav>
   );
 }
