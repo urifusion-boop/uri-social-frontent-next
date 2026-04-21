@@ -27,7 +27,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
 import { MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import DraftEditor from './DraftEditor';
@@ -77,6 +77,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       // for the new URL, preventing stale shimmer or 'Image unavailable' state.
       setImageLoaded(false);
       setImageError(false);
+      imageRetryRef.current = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
@@ -91,6 +92,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [loading, setLoading] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const imageRetryRef = useRef(0);
   // Track which slide URLs have already loaded so navigating back doesn't re-shimmer
   const loadedSlideUrls = useState<Set<string>>(() => new Set())[0];
   const [imageHovered, setImageHovered] = useState(false);
@@ -112,10 +114,29 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     setSlideIndex(0);
     setImageLoaded(false);
     setImageError(false);
+    imageRetryRef.current = 0;
     loadedSlideUrls.clear();
   }, [draft.id]);
 
   const resolveUrl = (url: string) => (url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${url}` : url);
+
+  // Retry loading up to 3 times with backoff before showing 'Image unavailable'.
+  // Handles the race where the image file isn't yet flushed when the URL first arrives.
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const MAX_RETRIES = 3;
+    if (imageRetryRef.current < MAX_RETRIES) {
+      imageRetryRef.current += 1;
+      const delay = imageRetryRef.current * 1500;
+      const img = e.currentTarget;
+      const src = img.src;
+      setTimeout(() => {
+        img.src = '';
+        img.src = src;
+      }, delay);
+    } else {
+      setImageError(true);
+    }
+  };
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
   const sc = statusColors[draft.status ?? 'draft'] ?? statusColors.draft;
@@ -417,7 +438,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                         loadedSlideUrls.add(resolvedUrl);
                         setImageLoaded(true);
                       }}
-                      onError={() => setImageError(true)}
+                      onError={handleImageError}
                       onClick={() => setLightboxOpen(true)}
                       style={{
                         width: '100%',
@@ -574,7 +595,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             src={resolveUrl(draft.image_url)}
             alt="Story image"
             onLoad={() => setImageLoaded(true)}
-            onError={() => setImageError(true)}
+            onError={handleImageError}
             onClick={() => setLightboxOpen(true)}
             style={{
               width: '100%',
@@ -688,7 +709,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 src={resolveUrl(draft.image_url)}
                 alt={`AI-generated image for ${draft.platform}`}
                 onLoad={() => setImageLoaded(true)}
-                onError={() => setImageError(true)}
+                onError={handleImageError}
                 onClick={() => setLightboxOpen(true)}
                 style={{
                   width: '100%',
