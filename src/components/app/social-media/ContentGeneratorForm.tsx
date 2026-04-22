@@ -22,6 +22,7 @@ import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
 import { MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import LowCreditWarning from '../atoms/LowCreditWarning';
+import ConfirmDialog from '../workspace/ConfirmDialog';
 
 const PLATFORMS = [
   { key: 'facebook', label: 'Facebook', icon: <FaFacebook size={16} color="#1877F2" /> },
@@ -62,6 +63,9 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const [outOfCreditsOpen, setOutOfCreditsOpen] = useState(false);
   const [lowCreditWarningOpen, setLowCreditWarningOpen] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number>(0);
+
+  // No-image confirmation
+  const [noImageConfirmOpen, setNoImageConfirmOpen] = useState(false);
 
   const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook');
 
@@ -118,27 +122,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
     checkCredits();
   }, []);
 
-  const handleGenerate = async () => {
-    if (seedContent.trim().length < 10) {
-      ToastService.showToast('Seed content must be at least 10 characters', ToastTypeEnum.Error);
-      return;
-    }
-    if (selectedPlatforms.length === 0) {
-      ToastService.showToast('Select at least one platform', ToastTypeEnum.Error);
-      return;
-    }
-
-    // PRD Section 8: Check if user has credits before generating
-    try {
-      const canGenerate = await BillingService.canGenerateContent();
-      if (!canGenerate.can_generate || canGenerate.blocked) {
-        setOutOfCreditsOpen(true);
-        return;
-      }
-    } catch (error) {
-      console.error('Credit check failed:', error);
-    }
-
+  const doGenerate = async () => {
     setLoading(true);
     try {
       const payload: GenerateContentPayload = {
@@ -178,6 +162,35 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGenerate = async () => {
+    if (seedContent.trim().length < 10) {
+      ToastService.showToast('Seed content must be at least 10 characters', ToastTypeEnum.Error);
+      return;
+    }
+    if (selectedPlatforms.length === 0) {
+      ToastService.showToast('Select at least one platform', ToastTypeEnum.Error);
+      return;
+    }
+
+    // PRD Section 8: Check if user has credits before generating
+    try {
+      const canGenerate = await BillingService.canGenerateContent();
+      if (!canGenerate.can_generate || canGenerate.blocked) {
+        setOutOfCreditsOpen(true);
+        return;
+      }
+    } catch (error) {
+      console.error('Credit check failed:', error);
+    }
+
+    if (!includeImages) {
+      setNoImageConfirmOpen(true);
+      return;
+    }
+
+    await doGenerate();
   };
 
   const charCount = seedContent.length;
@@ -504,6 +517,24 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         open={lowCreditWarningOpen}
         onClose={() => setLowCreditWarningOpen(false)}
         creditsRemaining={creditsRemaining}
+      />
+
+      {/* No-image confirmation */}
+      <ConfirmDialog
+        isOpen={noImageConfirmOpen}
+        title="Generate without an image?"
+        message="You haven't enabled the image generator. Your post will be text-only. Do you want to continue, or go back and turn on the image toggle?"
+        confirmText="Yes, text only"
+        cancelText="Add an image"
+        confirmColor="#CD1B78"
+        onConfirm={() => {
+          setNoImageConfirmOpen(false);
+          doGenerate();
+        }}
+        onCancel={() => {
+          setNoImageConfirmOpen(false);
+          ToastService.showToast('Turn on the image toggle to include an AI-generated image.', ToastTypeEnum.Warning);
+        }}
       />
     </Box>
   );
