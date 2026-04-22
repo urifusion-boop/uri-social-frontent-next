@@ -24,6 +24,7 @@ export interface GenerateContentPayload {
   platforms: string[];
   seed_type?: string;
   include_images?: boolean;
+  image_model?: string;
   brand_context?: BrandContext;
   reference_image?: string;
   post_type?: 'feed' | 'carousel' | 'story';
