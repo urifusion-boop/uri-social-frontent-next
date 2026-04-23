@@ -447,7 +447,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                       style={{
                         width: '100%',
                         height: '100%',
-                        objectFit: 'cover',
+                        objectFit: 'contain',
                         display: alreadyLoaded || imageLoaded ? 'block' : 'none',
                         cursor: 'pointer',
                       }}
@@ -604,7 +604,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             style={{
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
+              objectFit: 'contain',
               display: imageLoaded ? 'block' : 'none',
               cursor: 'pointer',
             }}
@@ -718,7 +718,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover',
+                  objectFit: 'contain',
                   display: imageLoaded ? 'block' : 'none',
                   cursor: 'pointer',
                 }}
