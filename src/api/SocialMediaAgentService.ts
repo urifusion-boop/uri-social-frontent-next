@@ -236,7 +236,7 @@ export class SocialMediaAgentService {
     sourceDraftId: string,
     targetDraftIds: string[]
   ): Promise<UriResponse<{ updated_count: number; source_draft_id: string }>> {
-    const response = await UriHttpClient.getClient().patch('/social-media/drafts/sync-image', {
+    const response = await UriHttpClient.getClient().post('/social-media/drafts/sync-image', {
       source_draft_id: sourceDraftId,
       target_draft_ids: targetDraftIds,
     });
