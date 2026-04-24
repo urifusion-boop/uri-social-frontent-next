@@ -507,7 +507,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
             {[
               { value: '', label: 'Default (Imagen 4 Ultra)', sub: 'Current production model' },
               { value: 'fal-ai/ideogram/v3', label: 'Ideogram v3', sub: 'Best for text in images' },
-              { value: 'fal-ai/openai/gpt-image-2', label: 'GPT-Image-2', sub: 'OpenAI · high detail' },
+              { value: 'openai/gpt-image-2', label: 'GPT-Image-2', sub: 'OpenAI · high detail' },
             ].map((m) => (
               <Box
                 key={m.value}
