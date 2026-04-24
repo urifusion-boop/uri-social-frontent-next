@@ -24,6 +24,7 @@ import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
+import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
@@ -374,6 +375,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const [batchScheduleOpen, setBatchScheduleOpen] = useState(false);
   const [batchScheduledAt, setBatchScheduledAt] = useState('');
   const [batchScheduling, setBatchScheduling] = useState(false);
+  const [syncImageOpen, setSyncImageOpen] = useState(false);
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -688,6 +690,29 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#CD1B78', flex: 1 }}>
                       {selectedDraftIds.size} post{selectedDraftIds.size > 1 ? 's' : ''} selected
                     </span>
+                    {(() => {
+                      const selectedWithImages = drafts.filter((d) => {
+                        const id = d.draft_id ?? d.id ?? '';
+                        return selectedDraftIds.has(id) && d.image_url;
+                      });
+                      return selectedWithImages.length >= 2 ? (
+                        <button
+                          onClick={() => setSyncImageOpen(true)}
+                          style={{
+                            background: '#fff',
+                            color: '#CD1B78',
+                            border: '1.5px solid #CD1B78',
+                            borderRadius: 8,
+                            padding: '6px 14px',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🖼 Sync Image
+                        </button>
+                      ) : null;
+                    })()}
                     <button
                       onClick={() => setBatchScheduleOpen(true)}
                       style={{
@@ -824,6 +849,19 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                   </div>
                 </div>
               </div>
+            )}
+
+            {syncImageOpen && (
+              <SyncImageDialog
+                drafts={drafts}
+                selectedIds={selectedDraftIds}
+                onClose={() => setSyncImageOpen(false)}
+                onDone={() => {
+                  setSyncImageOpen(false);
+                  setSelectedDraftIds(new Set());
+                  fetchDrafts();
+                }}
+              />
             )}
           </>
         )}

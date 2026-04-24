@@ -232,6 +232,17 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async syncImageAcrossDrafts(
+    sourceDraftId: string,
+    targetDraftIds: string[]
+  ): Promise<UriResponse<{ updated_count: number; source_draft_id: string }>> {
+    const response = await UriHttpClient.getClient().patch('/social-media/drafts/sync-image', {
+      source_draft_id: sourceDraftId,
+      target_draft_ids: targetDraftIds,
+    });
+    return response.data;
+  }
+
   static async denyContent(payload: DenyPayload): Promise<UriResponse<string>> {
     const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.denyContent,
