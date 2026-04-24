@@ -506,9 +506,8 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {[
               { value: '', label: 'Default (Imagen 4 Ultra)', sub: 'Current production model' },
-              { value: 'fal-ai/flux-pro/v1.1', label: 'FLUX Pro v1.1', sub: 'Best fal.ai quality' },
-              { value: 'fal-ai/flux/dev', label: 'FLUX Dev', sub: 'Faster · lower cost' },
               { value: 'fal-ai/ideogram/v3', label: 'Ideogram v3', sub: 'Best for text in images' },
+              { value: 'fal-ai/openai/gpt-image-2', label: 'GPT-Image-2', sub: 'OpenAI · high detail' },
             ].map((m) => (
               <Box
                 key={m.value}
