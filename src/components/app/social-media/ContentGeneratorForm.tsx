@@ -48,6 +48,24 @@ interface ContentGeneratorFormProps {
   onGenerated: () => void;
 }
 
+function _friendlyGenerationError(msg?: string): string {
+  if (!msg) return 'Something went wrong. Please try again.';
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes('rate limit') ||
+    lower.includes('quota') ||
+    lower.includes('temporarily unavailable') ||
+    lower.includes('unavailable')
+  )
+    return 'Our AI service is temporarily at capacity. Please wait a moment and try again.';
+  if (lower.includes('failed for all platforms'))
+    return 'Content generation failed. Please try again — if the issue persists, contact support.';
+  if (lower.includes('timeout') || lower.includes('timed out')) return 'The request took too long. Please try again.';
+  if (lower.includes('authentication') || lower.includes('configuration error'))
+    return 'A service configuration error occurred. Please contact support.';
+  return 'Content generation failed. Please try again.';
+}
+
 const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const [seedContent, setSeedContent] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
@@ -151,7 +169,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         if (response.responseCode === 402) {
           setOutOfCreditsOpen(true);
         } else {
-          ToastService.showToast(response.responseMessage || 'Generation failed', ToastTypeEnum.Error);
+          ToastService.showToast(_friendlyGenerationError(response.responseMessage), ToastTypeEnum.Error);
         }
       }
     } catch (err: unknown) {
@@ -160,7 +178,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
       if (error?.response?.status === 402) {
         setOutOfCreditsOpen(true);
       } else {
-        ToastService.showToast(error?.response?.data?.responseMessage || 'Generation failed', ToastTypeEnum.Error);
+        ToastService.showToast(_friendlyGenerationError(error?.response?.data?.responseMessage), ToastTypeEnum.Error);
       }
     } finally {
       setLoading(false);
