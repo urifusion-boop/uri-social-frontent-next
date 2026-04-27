@@ -22,6 +22,8 @@ import { ReactNode } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaWhatsapp } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
+import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
+import { getStyle } from '@/src/data/styleLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
 import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
@@ -2444,6 +2446,7 @@ const PlaybookPage = ({
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [styleSelections, setStyleSelections] = useState<string[]>([]);
 
   const startEdit = () => {
     if (!profile) return;
@@ -2477,6 +2480,7 @@ const PlaybookPage = ({
     setTemplateUrls([...(profile.sample_template_urls ?? [])]);
     setLogoUrl(profile.logo_url ?? '');
     setLogoError('');
+    setStyleSelections([...(profile.style_selections ?? [])]);
     setEditing(true);
   };
 
@@ -2512,6 +2516,7 @@ const PlaybookPage = ({
         approval_workflow: approval,
         sample_template_urls: templateUrls,
         logo_url: logoUrl || undefined,
+        style_selections: styleSelections,
       };
       await BrandProfileService.save(updated);
       onProfileUpdate(updated);
@@ -3433,6 +3438,77 @@ const PlaybookPage = ({
             </div>
           )}
         </div>
+      </PbSection>
+
+      <PbSection title="Visual Style">
+        <div style={{ marginBottom: 8, fontSize: 12.5, color: '#888' }}>
+          Up to 3 styles — Uri rotates through them when generating images.
+        </div>
+        {!editing ? (
+          p?.style_selections && p.style_selections.length > 0 ? (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {p.style_selections.map((slug) => {
+                const s = getStyle(slug);
+                if (!s) return null;
+                const [from, to] = s.gradient;
+                return (
+                  <div
+                    key={slug}
+                    style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 140 }}
+                  >
+                    <div style={{ height: 52, background: `linear-gradient(135deg, ${from}, ${to})` }} />
+                    <div style={{ padding: '6px 8px' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{s.name}</div>
+                      <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                        {s.description}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+          )
+        ) : (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <span
+                style={{
+                  background: styleSelections.length > 0 ? '#C2185B' : '#e5e7eb',
+                  color: styleSelections.length > 0 ? '#fff' : '#6b7280',
+                  borderRadius: 99,
+                  padding: '2px 10px',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                }}
+              >
+                {styleSelections.length}/3 selected
+              </span>
+              {styleSelections.length > 0 && (
+                <button
+                  onClick={() => setStyleSelections([])}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 11.5,
+                    color: '#9ca3af',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0,
+                  }}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+            <StylePickerGallery
+              industry={industry || p?.industry || 'general_other'}
+              selected={styleSelections}
+              onChange={setStyleSelections}
+            />
+          </div>
+        )}
       </PbSection>
     </SubPage>
   );
