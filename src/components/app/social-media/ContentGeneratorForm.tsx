@@ -64,8 +64,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const [lowCreditWarningOpen, setLowCreditWarningOpen] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number>(0);
 
-  // Image model picker
-  const [imageModel, setImageModel] = useState<string>('');
+  const imageModel = 'openai/gpt-image-2';
 
   // No-image confirmation
   const [noImageConfirmOpen, setNoImageConfirmOpen] = useState(false);
@@ -132,7 +131,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         seed_content: seedContent.trim(),
         platforms: selectedPlatforms,
         include_images: includeImages,
-        ...(includeImages && imageModel ? { image_model: imageModel } : {}),
+        ...(includeImages ? { image_model: imageModel } : {}),
         post_type: postType,
         ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
       };
@@ -496,45 +495,6 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
           />
         </Box>
       </Box>
-
-      {/* Image model picker — only visible when image toggle is on */}
-      {includeImages && (
-        <Box sx={{ mt: 1.5 }}>
-          <Typography fontSize="12px" fontWeight={600} color="#374151" mb={0.75}>
-            Image model
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {[
-              { value: '', label: 'Default (Imagen 4 Ultra)', sub: 'Current production model' },
-              { value: 'fal-ai/ideogram/v3', label: 'Ideogram v3', sub: 'Best for text in images' },
-              { value: 'openai/gpt-image-2', label: 'GPT-Image-2', sub: 'OpenAI · high detail' },
-            ].map((m) => (
-              <Box
-                key={m.value}
-                onClick={() => setImageModel(m.value)}
-                sx={{
-                  px: 1.5,
-                  py: 1,
-                  borderRadius: 2,
-                  border: '1.5px solid',
-                  borderColor: imageModel === m.value ? '#CD1B78' : '#E5E7EB',
-                  background: imageModel === m.value ? '#FDF2F8' : '#fff',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  '&:hover': { borderColor: '#CD1B78' },
-                }}
-              >
-                <Typography fontSize="12px" fontWeight={600} color={imageModel === m.value ? '#CD1B78' : '#374151'}>
-                  {m.label}
-                </Typography>
-                <Typography fontSize="11px" color="#9CA3AF">
-                  {m.sub}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-        </Box>
-      )}
 
       <Button
         variant="contained"
