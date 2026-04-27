@@ -130,10 +130,14 @@ export class BillingService {
    * PRD 7.3: Low Credit Warning when credits ≤ 3
    */
   static async getCreditBalance(): Promise<CreditBalanceResponse> {
+    console.log('🔍 [BillingService] Fetching credit balance from:', '/social-media/billing/credits/balance');
+    console.log('🔍 [BillingService] API Base URL:', process.env.NEXT_PUBLIC_URI_API_BASE_URL);
+
     const response: AxiosResponse<CreditBalanceResponse> = await UriHttpClient.getClient().get(
       '/social-media/billing/credits/balance'
     );
 
+    console.log('✅ [BillingService] Credit balance received:', response.data);
     return response.data;
   }
 

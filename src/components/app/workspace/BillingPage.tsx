@@ -197,23 +197,46 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
   const fetchBillingData = async () => {
     try {
+      console.log('🚀 [BillingPage] Starting fetchBillingData...');
       setLoading(true);
 
+      console.log('🔍 [BillingPage] Making parallel API calls...');
       const [balanceData, subData, creditTxns, payments, tiersData] = await Promise.all([
-        BillingService.getCreditBalance().catch(() => null),
-        BillingService.getCurrentSubscription().catch(() => null),
-        BillingService.getTransactionHistory(50).catch(() => []),
-        BillingService.getPaymentHistory(20).catch(() => []),
-        BillingService.getSubscriptionTiers().catch(() => []),
+        BillingService.getCreditBalance().catch((err) => {
+          console.error('❌ [BillingPage] Failed to get credit balance:', err);
+          return null;
+        }),
+        BillingService.getCurrentSubscription().catch((err) => {
+          console.error('❌ [BillingPage] Failed to get subscription:', err);
+          return null;
+        }),
+        BillingService.getTransactionHistory(50).catch((err) => {
+          console.error('❌ [BillingPage] Failed to get transactions:', err);
+          return [];
+        }),
+        BillingService.getPaymentHistory(20).catch((err) => {
+          console.error('❌ [BillingPage] Failed to get payment history:', err);
+          return [];
+        }),
+        BillingService.getSubscriptionTiers().catch((err) => {
+          console.error('❌ [BillingPage] Failed to get tiers:', err);
+          return [];
+        }),
       ]);
+
+      console.log('💰 [BillingPage] Balance data received:', balanceData);
+      console.log('📊 [BillingPage] Subscription data:', subData);
+      console.log('📜 [BillingPage] Transactions count:', creditTxns.length);
 
       setBalance(balanceData);
       setSubscription(subData);
       setCreditTransactions(creditTxns);
       setPaymentHistory(payments);
       setTiers(tiersData);
+
+      console.log('✅ [BillingPage] All data fetched successfully');
     } catch (error) {
-      console.error('Failed to fetch billing data:', error);
+      console.error('❌ [BillingPage] Failed to fetch billing data:', error);
     } finally {
       setLoading(false);
     }
@@ -285,6 +308,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   };
 
   const handleRefresh = async () => {
+    console.log('🔄 [BillingPage] Manual refresh triggered');
     await refreshCreditBalance();
     await fetchBillingData();
   };
