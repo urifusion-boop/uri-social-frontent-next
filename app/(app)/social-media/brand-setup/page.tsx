@@ -23,6 +23,7 @@ import {
 } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
+import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import { MdOutlineCampaign } from 'react-icons/md';
 import Navbar from '@/components/Navbar';
 
@@ -33,6 +34,7 @@ const STEPS = [
   'basics',
   'identity',
   'personality',
+  'visualStyle',
   'platformTone',
   'voiceSample',
   'pillars',
@@ -490,6 +492,9 @@ function BrandSetupPageContent() {
 
   // ── Personality ───────────────────────────────────────────────
   const [quiz, setQuiz] = useState<Record<string, string>>({});
+
+  // ── Visual Style ──────────────────────────────────────────────
+  const [styleSelections, setStyleSelections] = useState<string[]>([]);
   const quizData = [
     {
       id: 'formality',
@@ -783,6 +788,7 @@ function BrandSetupPageContent() {
       notification_channel: notifChannel,
       languages,
       region: region.join(', '),
+      style_selections: styleSelections,
       onboarding_completed: true,
     };
     try {
@@ -1670,6 +1676,74 @@ function BrandSetupPageContent() {
                   I'll do this later
                 </Typography>
               </Box>
+            </Box>
+          </Box>
+        );
+
+      // ══ VISUAL STYLE ═════════════════════════════════════════════
+      case 'visualStyle':
+        return (
+          <Box>
+            <AgentBubble primary={primary}>
+              Pick up to 3 visual styles that feel right for your brand. I'll rotate through them when creating your
+              content — keeping your feed fresh while staying on-brand.
+            </AgentBubble>
+            <Box mt={1} mb={2}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                <Box
+                  sx={{
+                    background: styleSelections.length > 0 ? primary : '#E5E7EB',
+                    borderRadius: 99,
+                    px: 1.5,
+                    py: 0.375,
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: styleSelections.length > 0 ? '#fff' : '#6B7280',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {styleSelections.length}/3 selected
+                </Box>
+                {styleSelections.length > 0 && (
+                  <Typography
+                    component="button"
+                    onClick={() => setStyleSelections([])}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: 11.5,
+                      color: '#9CA3AF',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      p: 0,
+                    }}
+                  >
+                    Clear all
+                  </Typography>
+                )}
+              </Box>
+              <StylePickerGallery industry={industry} selected={styleSelections} onChange={setStyleSelections} />
+            </Box>
+            <Box display="flex" gap={1.5} alignItems="center">
+              <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
+                Continue →
+              </CustomButton>
+              <Typography
+                component="button"
+                onClick={next}
+                sx={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#9CA3AF',
+                  fontSize: 12.5,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 3,
+                  p: 0,
+                }}
+              >
+                I'll choose later
+              </Typography>
             </Box>
           </Box>
         );
@@ -3101,6 +3175,7 @@ function BrandSetupPageContent() {
                       basics: '🏢 Brand Basics',
                       identity: '🎨 Visual Identity',
                       personality: '🗣️ Brand Personality',
+                      visualStyle: '🎨 Visual Style',
                       platformTone: '🎭 Platform Voice',
                       voiceSample: '✍️ Voice Sample',
                       pillars: '📋 Content Pillars',

@@ -56,6 +56,8 @@ export interface BrandProfileData {
   team_members?: BrandTeamMember[];
   languages?: string[];
   region?: string | string[];
+  style_selections?: string[];
+  style_rotation_index?: number;
   onboarding_completed?: boolean;
   created_at?: string;
   updated_at?: string;

@@ -2,7 +2,7 @@
 
 import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
 import { useRouter } from 'next/navigation';
-import { Settings, Link as LinkIcon, Share2 } from 'lucide-react';
+import { Settings, Link as LinkIcon, Share2, Palette } from 'lucide-react';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -20,6 +20,13 @@ export default function SettingsPage() {
       description: 'Manage WhatsApp and other platform connections',
       icon: LinkIcon,
       href: '/settings/connections',
+      color: '#CD1B78',
+    },
+    {
+      title: 'Visual Style',
+      description: 'Choose up to 3 visual styles Uri rotates through when creating your content',
+      icon: Palette,
+      href: '/settings/visual-style',
       color: '#CD1B78',
     },
   ];
