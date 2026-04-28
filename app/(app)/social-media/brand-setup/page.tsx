@@ -24,6 +24,8 @@ import {
 import { FaXTwitter } from 'react-icons/fa6';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
+import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
+import { getFont } from '@/src/data/fontLibrary';
 import { MdOutlineCampaign } from 'react-icons/md';
 import Navbar from '@/components/Navbar';
 
@@ -35,6 +37,7 @@ const STEPS = [
   'identity',
   'personality',
   'visualStyle',
+  'fontStyle',
   'platformTone',
   'voiceSample',
   'pillars',
@@ -495,6 +498,9 @@ function BrandSetupPageContent() {
 
   // ── Visual Style ──────────────────────────────────────────────
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
+
+  // ── Font Style ────────────────────────────────────────────────
+  const [fontStyle, setFontStyle] = useState<string>('');
   const quizData = [
     {
       id: 'formality',
@@ -789,6 +795,8 @@ function BrandSetupPageContent() {
       languages,
       region: region.join(', '),
       style_selections: styleSelections,
+      font_style: fontStyle,
+      font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
       onboarding_completed: true,
     };
     try {
@@ -1723,6 +1731,73 @@ function BrandSetupPageContent() {
                 )}
               </Box>
               <StylePickerGallery industry={industry} selected={styleSelections} onChange={setStyleSelections} />
+            </Box>
+            <Box display="flex" gap={1.5} alignItems="center">
+              <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
+                Continue →
+              </CustomButton>
+              <Typography
+                component="button"
+                onClick={next}
+                sx={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#9CA3AF',
+                  fontSize: 12.5,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 3,
+                  p: 0,
+                }}
+              >
+                I'll choose later
+              </Typography>
+            </Box>
+          </Box>
+        );
+
+      // ══ FONT STYLE ═══════════════════════════════════════════════
+      case 'fontStyle':
+        return (
+          <Box>
+            <AgentBubble primary={primary}>
+              Pick a typography direction for your brand. I'll use this when placing text on your images — keeping your
+              visual identity consistent across every post.
+            </AgentBubble>
+            <Box mt={1} mb={2}>
+              {fontStyle && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <Box
+                    sx={{
+                      background: primary,
+                      borderRadius: 99,
+                      px: 1.5,
+                      py: 0.375,
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: '#fff',
+                    }}
+                  >
+                    {getFont(fontStyle)?.name} selected
+                  </Box>
+                  <Typography
+                    component="button"
+                    onClick={() => setFontStyle('')}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: 11.5,
+                      color: '#9CA3AF',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      p: 0,
+                    }}
+                  >
+                    Clear
+                  </Typography>
+                </Box>
+              )}
+              <FontPickerGallery selected={fontStyle} onChange={setFontStyle} />
             </Box>
             <Box display="flex" gap={1.5} alignItems="center">
               <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
@@ -3176,6 +3251,7 @@ function BrandSetupPageContent() {
                       identity: '🎨 Visual Identity',
                       personality: '🗣️ Brand Personality',
                       visualStyle: '🎨 Visual Style',
+                      fontStyle: '✏️ Typography',
                       platformTone: '🎭 Platform Voice',
                       voiceSample: '✍️ Voice Sample',
                       pillars: '📋 Content Pillars',

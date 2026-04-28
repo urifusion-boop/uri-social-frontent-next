@@ -23,7 +23,9 @@ import { FaFacebook, FaInstagram, FaLinkedin, FaWhatsapp } from 'react-icons/fa'
 import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
+import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
 import { getStyle } from '@/src/data/styleLibrary';
+import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
 import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
@@ -2479,6 +2481,7 @@ const PlaybookPage = ({
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
+  const [fontStyle, setFontStyle] = useState<string>('');
 
   const startEdit = () => {
     if (!profile) return;
@@ -2513,6 +2516,7 @@ const PlaybookPage = ({
     setLogoUrl(profile.logo_url ?? '');
     setLogoError('');
     setStyleSelections([...(profile.style_selections ?? [])]);
+    setFontStyle(profile.font_style ?? '');
     setEditing(true);
   };
 
@@ -2549,6 +2553,8 @@ const PlaybookPage = ({
         sample_template_urls: templateUrls,
         logo_url: logoUrl || undefined,
         style_selections: styleSelections,
+        font_style: fontStyle,
+        font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
       };
       await BrandProfileService.save(updated);
       onProfileUpdate(updated);
@@ -3526,6 +3532,80 @@ const PlaybookPage = ({
               selected={styleSelections}
               onChange={setStyleSelections}
             />
+          </div>
+        )}
+      </PbSection>
+
+      <PbSection title="Typography">
+        <style>{`@import url('${GOOGLE_FONTS_URL}');`}</style>
+        <div style={{ marginBottom: 8, fontSize: 12.5, color: '#888' }}>
+          The typeface direction Uri uses when placing text on your images.
+        </div>
+        {!editing ? (
+          p?.font_style && getFont(p.font_style) ? (
+            (() => {
+              const f = getFont(p.font_style)!;
+              return (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
+                    <div
+                      style={{
+                        height: 64,
+                        background: '#f9f9fb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderBottom: '1px solid #f0eef8',
+                      }}
+                    >
+                      <span style={{ fontFamily: f.fontFamily, fontSize: 20, color: '#0d0e0f' }}>{f.previewText}</span>
+                    </div>
+                    <div style={{ padding: '6px 10px' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{f.name}</div>
+                      <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                        {f.description}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+          )
+        ) : (
+          <div>
+            {fontStyle && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span
+                  style={{
+                    background: '#C2185B',
+                    color: '#fff',
+                    borderRadius: 99,
+                    padding: '2px 10px',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                  }}
+                >
+                  {getFont(fontStyle)?.name} selected
+                </span>
+                <button
+                  onClick={() => setFontStyle('')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 11.5,
+                    color: '#9ca3af',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0,
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+            <FontPickerGallery selected={fontStyle} onChange={setFontStyle} />
           </div>
         )}
       </PbSection>

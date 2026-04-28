@@ -58,6 +58,8 @@ export interface BrandProfileData {
   region?: string | string[];
   style_selections?: string[];
   style_rotation_index?: number;
+  font_style?: string;
+  font_style_prompt?: string;
   onboarding_completed?: boolean;
   created_at?: string;
   updated_at?: string;
