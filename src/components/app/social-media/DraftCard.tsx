@@ -383,26 +383,29 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               </Typography>
             </Box>
 
-            {/* Shimmer when no slide image yet */}
+            {/* Shimmer / failed state when no slide image yet */}
             {!currentSlide?.image_url && (draft.has_image || draft.auto_generated) && (
               <Box
                 sx={{
                   position: 'absolute',
                   inset: 0,
-                  background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+                  background: draft.image_failed
+                    ? '#FFF7F7'
+                    : 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
                   backgroundSize: '200% 100%',
-                  animation: 'shimmer 2s infinite',
+                  animation: draft.image_failed ? 'none' : 'shimmer 2s infinite',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  border: draft.image_failed ? '1px dashed #FFCDD2' : 'none',
                   '@keyframes shimmer': {
                     '0%': { backgroundPosition: '200% 0' },
                     '100%': { backgroundPosition: '-200% 0' },
                   },
                 }}
               >
-                <Typography fontSize="12px" color="#9CA3AF">
-                  Generating slide image…
+                <Typography fontSize="12px" color={draft.image_failed ? '#EF5350' : '#9CA3AF'}>
+                  {draft.image_failed ? '⚠️ Image generation timed out' : 'Generating slide image…'}
                 </Typography>
               </Box>
             )}
@@ -765,10 +768,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           sx={{
             height: 80,
             borderRadius: '8px',
-            border: '1px dashed #E0DEF7',
-            background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+            border: draft.image_failed ? '1px dashed #FFCDD2' : '1px dashed #E0DEF7',
+            background: draft.image_failed
+              ? '#FFF7F7'
+              : 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
             backgroundSize: '200% 100%',
-            animation: 'shimmer 2s infinite',
+            animation: draft.image_failed ? 'none' : 'shimmer 2s infinite',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -779,8 +784,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             },
           }}
         >
-          <Typography fontSize="12px" color="#9CA3AF">
-            🎨 Generating image…
+          <Typography fontSize="12px" color={draft.image_failed ? '#EF5350' : '#9CA3AF'}>
+            {draft.image_failed ? '⚠️ Image generation timed out' : '🎨 Generating image…'}
           </Typography>
         </Box>
       )}

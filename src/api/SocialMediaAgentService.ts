@@ -111,6 +111,7 @@ export interface ContentDraft {
   approval_status?: 'pending' | 'approved' | 'denied';
   image_url?: string;
   has_image?: boolean;
+  image_failed?: boolean;
   image_retry_count?: number; // PRD 4.2: Track image retry count for credit deduction
   created_at?: string;
   scheduled_datetime?: string;
