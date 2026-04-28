@@ -57,7 +57,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Maximum energy. Big text. In your face. For brands that shout.',
     industryTags: ['fashion_ecommerce', 'food_beverage', 'fitness_gym', 'events_entertainment', 'general_other'],
     gradient: ['#ff2d00', '#ff8c00'],
-    image: U('1561736778-5ee4cc44fc2a'),
+    image: U('1504674900247-0877df9cc836'),
   },
   {
     slug: 'vintage_film',
