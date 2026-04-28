@@ -157,23 +157,6 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   // Production: Always use live mode
   const squadMode = 'live' as const;
 
-  useEffect(() => {
-    fetchBillingData();
-
-    // Check if returning from payment callback
-    const urlParams = new URLSearchParams(window.location.search);
-    const reference = urlParams.get('reference');
-
-    if (reference) {
-      // User returned from Squad payment - verify the payment
-      console.log('Verifying payment with reference:', reference);
-      verifyPaymentCallback(reference);
-
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, [verifyPaymentCallback]);
-
   const verifyPaymentCallback = useCallback(
     async (transactionRef: string) => {
       try {
@@ -203,6 +186,23 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
     },
     [refreshCreditBalance]
   );
+
+  useEffect(() => {
+    fetchBillingData();
+
+    // Check if returning from payment callback
+    const urlParams = new URLSearchParams(window.location.search);
+    const reference = urlParams.get('reference');
+
+    if (reference) {
+      // User returned from Squad payment - verify the payment
+      console.log('Verifying payment with reference:', reference);
+      verifyPaymentCallback(reference);
+
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [verifyPaymentCallback]);
 
   const fetchBillingData = async () => {
     try {
