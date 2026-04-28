@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/src/providers/AuthProvider';
 import {
   BillingService,
+  BillingCycle,
   CreditBalanceResponse,
   CreditTransaction,
   PaymentTransaction,
@@ -144,6 +145,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>(initialTab);
   const [confirmTier, setConfirmTier] = useState<SubscriptionTier | null>(null);
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('monthly'); // PRD 8.1: Billing cycle selection
   const [showTestTier, setShowTestTier] = useState(false);
   const [testAmount, setTestAmount] = useState<string>('100');
   const [testCredits, setTestCredits] = useState<string>('1');
@@ -255,8 +257,13 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
       // For test tier, pass custom amounts
       const paymentData =
         confirmTier.tier_id === 'test'
-          ? await BillingService.initializePayment(confirmTier.tier_id, confirmTier.price_ngn, confirmTier.credits)
-          : await BillingService.initializePayment(confirmTier.tier_id);
+          ? await BillingService.initializePayment(
+              confirmTier.tier_id,
+              'monthly',
+              confirmTier.price_ngn,
+              confirmTier.credits
+            )
+          : await BillingService.initializePayment(confirmTier.tier_id, selectedBillingCycle); // PRD 8.1: Pass selected billing cycle
 
       // Close confirmation modal
       setConfirmTier(null);
@@ -425,6 +432,56 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
         {/* Tab Content */}
         {activeTab === 'plans' && (
           <div>
+            {/* Billing Cycle Selector - PRD 8.1 */}
+            <div style={{ marginBottom: 24 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: '#111' }}>Select Billing Cycle</h3>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {(['monthly', '3_months', '6_months', '12_months'] as BillingCycle[]).map((cycle) => {
+                  const isSelected = selectedBillingCycle === cycle;
+                  const discount = BillingService.getDiscountPercentage(cycle);
+
+                  return (
+                    <button
+                      key={cycle}
+                      onClick={() => setSelectedBillingCycle(cycle)}
+                      style={{
+                        flex: '1 1 140px',
+                        padding: '14px 18px',
+                        borderRadius: 10,
+                        border: isSelected ? '2px solid #CD1B78' : '2px solid #e5e3df',
+                        background: isSelected ? 'rgba(205,27,120,0.05)' : '#fff',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {discount > 0 && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: -8,
+                            right: 8,
+                            background: '#10b981',
+                            color: '#fff',
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            fontSize: 10,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Save {discount}%
+                        </div>
+                      )}
+                      <div style={{ fontSize: 14, fontWeight: 700, color: isSelected ? '#CD1B78' : '#111' }}>
+                        {BillingService.getBillingCycleLabel(cycle)}
+                      </div>
+                      {discount > 0 && <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>5% discount</div>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Test Payment Button - Hidden in production */}
             {process.env.NEXT_PUBLIC_ENV !== 'production' && process.env.NODE_ENV !== 'production' && false && (
               <div
@@ -510,12 +567,19 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                     </div>
                     <button
                       onClick={() => {
+                        const amount = parseInt(testAmount) || 100;
+                        const credits = parseInt(testCredits) || 1;
                         const testTier: SubscriptionTier = {
                           tier_id: 'test',
                           name: 'Test Plan',
-                          price_ngn: parseInt(testAmount) || 100,
-                          credits: parseInt(testCredits) || 1,
-                          price_per_credit: (parseInt(testAmount) || 100) / (parseInt(testCredits) || 1),
+                          price_ngn_monthly: amount,
+                          price_ngn_3months: amount * 3,
+                          price_ngn_6months: amount * 6,
+                          price_ngn_12months: amount * 12,
+                          credits_monthly: credits,
+                          price_ngn: amount,
+                          credits: credits,
+                          price_per_credit: amount / credits,
                           features: ['Test payment', 'Custom amount', 'Will be removed'],
                           is_active: true,
                         };
@@ -548,6 +612,11 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                 .map((tier) => {
                   const current = isCurrentPlan(tier.tier_id);
                   const popular = isPopular(tier.tier_id);
+
+                  // PRD Section 6 & 7: Calculate price and credits for selected billing cycle
+                  const price = BillingService.getPriceForCycle(tier, selectedBillingCycle);
+                  const credits = BillingService.getCreditsForCycle(tier, selectedBillingCycle);
+                  const discount = BillingService.getDiscountPercentage(selectedBillingCycle);
 
                   return (
                     <div
@@ -605,14 +674,40 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
                       <div style={{ marginBottom: 12 }}>
                         <h3 style={{ fontSize: 18, fontWeight: 900, margin: '0 0 4px', color: '#111' }}>{tier.name}</h3>
-                        <p style={{ fontSize: 11, color: '#666', margin: 0 }}>{tier.credits} campaigns</p>
+                        <p style={{ fontSize: 11, color: '#666', margin: 0 }}>
+                          {credits} campaigns{selectedBillingCycle !== 'monthly' && ` (${tier.credits_monthly}/mo)`}
+                        </p>
                       </div>
 
                       <div style={{ marginBottom: 14 }}>
-                        <span style={{ fontSize: 32, fontWeight: 900, color: '#CD1B78' }}>
-                          {BillingService.formatNGN(tier.price_ngn)}
-                        </span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#666' }}>/month</span>
+                        <div>
+                          <span style={{ fontSize: 32, fontWeight: 900, color: '#CD1B78' }}>
+                            {BillingService.formatNGN(price)}
+                          </span>
+                          {selectedBillingCycle === 'monthly' && (
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#666' }}>/month</span>
+                          )}
+                        </div>
+                        {selectedBillingCycle !== 'monthly' && (
+                          <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
+                            {BillingService.formatNGN(
+                              Math.round(
+                                price /
+                                  (selectedBillingCycle === '3_months'
+                                    ? 3
+                                    : selectedBillingCycle === '6_months'
+                                      ? 6
+                                      : 12)
+                              )
+                            )}
+                            /month
+                          </div>
+                        )}
+                        {discount > 0 && (
+                          <div style={{ fontSize: 11, color: '#10b981', fontWeight: 600, marginTop: 4 }}>
+                            💰 Save {discount}% • {BillingService.getBillingCycleLabel(selectedBillingCycle)}
+                          </div>
+                        )}
                       </div>
 
                       <hr style={{ border: 'none', borderTop: '1px solid #e5e3df', margin: '14px 0' }} />
@@ -1102,17 +1197,53 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{confirmTier.name}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <span style={{ fontSize: 14, color: '#666' }}>Billing Cycle</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>
+                    {BillingService.getBillingCycleLabel(selectedBillingCycle)}
+                    {BillingService.getDiscountPercentage(selectedBillingCycle) > 0 && (
+                      <span style={{ color: '#10b981', marginLeft: 6 }}>
+                        (Save {BillingService.getDiscountPercentage(selectedBillingCycle)}%)
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                   <span style={{ fontSize: 14, color: '#666' }}>Credits</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{confirmTier.credits} campaigns</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>
+                    {BillingService.getCreditsForCycle(confirmTier, selectedBillingCycle)} campaigns
+                    {selectedBillingCycle !== 'monthly' && (
+                      <span style={{ color: '#666', fontWeight: 400, marginLeft: 6 }}>
+                        ({confirmTier.credits_monthly}/mo)
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                   <span style={{ fontSize: 14, color: '#666' }}>Amount</span>
                   <span style={{ fontSize: 18, fontWeight: 900, color: '#CD1B78' }}>
-                    {BillingService.formatNGN(confirmTier.price_ngn)}
+                    {BillingService.formatNGN(BillingService.getPriceForCycle(confirmTier, selectedBillingCycle))}
                   </span>
                 </div>
+                {selectedBillingCycle !== 'monthly' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <span style={{ fontSize: 13, color: '#666' }}>Per month</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#666' }}>
+                      {BillingService.formatNGN(
+                        Math.round(
+                          BillingService.getPriceForCycle(confirmTier, selectedBillingCycle) /
+                            (selectedBillingCycle === '3_months' ? 3 : selectedBillingCycle === '6_months' ? 6 : 12)
+                        )
+                      )}
+                    </span>
+                  </div>
+                )}
                 <div style={{ borderTop: '1px solid #e5e3df', paddingTop: 12, marginTop: 12 }}>
-                  <span style={{ fontSize: 12, color: '#999' }}>Recurring monthly • Cancel anytime</span>
+                  <span style={{ fontSize: 12, color: '#999' }}>
+                    {selectedBillingCycle === 'monthly'
+                      ? 'Recurring monthly'
+                      : `Billed every ${BillingService.getBillingCycleLabel(selectedBillingCycle).toLowerCase()}`}{' '}
+                    • Cancel anytime
+                  </span>
                 </div>
               </div>
 

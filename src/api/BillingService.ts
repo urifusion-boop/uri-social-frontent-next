@@ -14,11 +14,16 @@ import { AxiosResponse } from 'axios';
 
 // ==================== PRD 7.1: Credit Balance ====================
 
+export type BillingCycle = 'monthly' | '3_months' | '6_months' | '12_months';
+
 export interface CreditBalanceResponse {
   total_credits: number;
   credits_used: number;
   credits_remaining: number;
   subscription_tier: string | null;
+  billing_cycle?: BillingCycle; // PRD 8.1: Billing cycle selection
+  start_date?: string | null; // PRD 8.3: Subscription lifecycle
+  end_date?: string | null; // PRD 8.3: Auto-expire after end_date
   next_renewal: string | null;
   low_credit_warning: boolean; // PRD 7.3: True when credits ≤ 3
 }
@@ -41,8 +46,18 @@ export interface CreditTransaction {
 export interface SubscriptionTier {
   tier_id: string;
   name: string;
+
+  // Multi-duration pricing (PRD Section 6 & 7: Multi-Duration with 5% Bulk Discount)
+  price_ngn_monthly: number;
+  price_ngn_3months: number;
+  price_ngn_6months: number;
+  price_ngn_12months: number;
+  credits_monthly: number;
+
+  // Legacy fields for backward compatibility
   price_ngn: number;
   credits: number;
+
   price_per_credit: number;
   features: string[];
   is_active: boolean;
@@ -61,6 +76,7 @@ export interface SubscriptionResponse {
 
 export interface InitializePaymentRequest {
   tier_id: string;
+  billing_cycle?: BillingCycle; // PRD 8.1: Billing cycle selection (defaults to 'monthly')
 }
 
 export interface InitializePaymentResponse {
@@ -86,6 +102,8 @@ export interface PaymentTransaction {
   payment_method: string | null;
   gateway: string;
   subscription_tier: string;
+  billing_cycle?: BillingCycle; // PRD 8.1: Billing cycle
+  credits_allocated?: number; // PRD 8.2: Total credits allocated
   created_at: string;
   completed_at: string | null;
 }
@@ -193,11 +211,13 @@ export class BillingService {
   }
 
   /**
-   * Initialize SQUAD payment checkout
-   * PRD 6.3: Payment Flow - Step 2
+   * Initialize SQUAD payment checkout with billing cycle support
+   * PRD: Subscription Plan Upgrade (Multi-Duration with 5% Bulk Discount)
+   * Sections 6.3 & 8.1: Payment Flow + Billing Cycle Selection
    */
   static async initializePayment(
     tierId: string,
+    billingCycle: BillingCycle = 'monthly',
     testAmount?: number,
     testCredits?: number
   ): Promise<InitializePaymentResponse> {
@@ -205,6 +225,7 @@ export class BillingService {
       '/social-media/billing/initialize-payment',
       {
         tier_id: tierId,
+        billing_cycle: billingCycle, // PRD 8.1: Pass billing cycle to backend
         test_amount: testAmount,
         test_credits: testCredits,
       }
@@ -280,6 +301,64 @@ export class BillingService {
       }
       throw error;
     }
+  }
+
+  // ==================== PRD: Multi-Duration Pricing Helpers ====================
+
+  /**
+   * Get price for a specific billing cycle
+   * PRD Section 6 & 7: Multi-Duration with 5% Bulk Discount
+   */
+  static getPriceForCycle(tier: SubscriptionTier, billingCycle: BillingCycle): number {
+    switch (billingCycle) {
+      case 'monthly':
+        return tier.price_ngn_monthly;
+      case '3_months':
+        return tier.price_ngn_3months;
+      case '6_months':
+        return tier.price_ngn_6months;
+      case '12_months':
+        return tier.price_ngn_12months;
+      default:
+        return tier.price_ngn_monthly;
+    }
+  }
+
+  /**
+   * Get total credits for a specific billing cycle
+   * PRD Section 6: Credits are NOT discounted - user gets full credits for all months
+   */
+  static getCreditsForCycle(tier: SubscriptionTier, billingCycle: BillingCycle): number {
+    const multipliers: Record<BillingCycle, number> = {
+      monthly: 1,
+      '3_months': 3,
+      '6_months': 6,
+      '12_months': 12,
+    };
+
+    return tier.credits_monthly * multipliers[billingCycle];
+  }
+
+  /**
+   * Calculate discount percentage for billing cycle
+   * PRD Section 6: 5% discount on all non-monthly plans
+   */
+  static getDiscountPercentage(billingCycle: BillingCycle): number {
+    return billingCycle === 'monthly' ? 0 : 5;
+  }
+
+  /**
+   * Get billing cycle display name
+   */
+  static getBillingCycleLabel(billingCycle: BillingCycle): string {
+    const labels: Record<BillingCycle, string> = {
+      monthly: 'Monthly',
+      '3_months': '3 Months',
+      '6_months': '6 Months',
+      '12_months': '12 Months',
+    };
+
+    return labels[billingCycle];
   }
 
   /**
