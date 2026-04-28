@@ -48,11 +48,11 @@ export interface SubscriptionTier {
   name: string;
 
   // Multi-duration pricing (PRD Section 6 & 7: Multi-Duration with 5% Bulk Discount)
-  price_ngn_monthly: number;
-  price_ngn_3months: number;
-  price_ngn_6months: number;
-  price_ngn_12months: number;
-  credits_monthly: number;
+  price_ngn_monthly?: number;
+  price_ngn_3months?: number;
+  price_ngn_6months?: number;
+  price_ngn_12months?: number;
+  credits_monthly?: number;
 
   // Legacy fields for backward compatibility
   price_ngn: number;
@@ -310,18 +310,35 @@ export class BillingService {
    * PRD Section 6 & 7: Multi-Duration with 5% Bulk Discount
    */
   static getPriceForCycle(tier: SubscriptionTier, billingCycle: BillingCycle): number {
+    // Fallback to old structure if new fields don't exist
+    const monthlyPrice = tier.price_ngn_monthly || tier.price_ngn;
+    const discountRate = 0.95;
+
+    console.log(`🔍 [getPriceForCycle] tier=${tier.tier_id}, cycle=${billingCycle}`);
+    console.log(
+      `🔍 [getPriceForCycle] price_ngn_monthly=${tier.price_ngn_monthly}, price_ngn=${tier.price_ngn}, monthlyPrice=${monthlyPrice}`
+    );
+
+    let price: number;
     switch (billingCycle) {
       case 'monthly':
-        return tier.price_ngn_monthly;
+        price = tier.price_ngn_monthly || tier.price_ngn;
+        break;
       case '3_months':
-        return tier.price_ngn_3months;
+        price = tier.price_ngn_3months || Math.floor(monthlyPrice * 3 * discountRate);
+        break;
       case '6_months':
-        return tier.price_ngn_6months;
+        price = tier.price_ngn_6months || Math.floor(monthlyPrice * 6 * discountRate);
+        break;
       case '12_months':
-        return tier.price_ngn_12months;
+        price = tier.price_ngn_12months || Math.floor(monthlyPrice * 12 * discountRate);
+        break;
       default:
-        return tier.price_ngn_monthly;
+        price = monthlyPrice;
     }
+
+    console.log(`💰 [getPriceForCycle] Calculated price: ${price}`);
+    return price;
   }
 
   /**
@@ -336,7 +353,9 @@ export class BillingService {
       '12_months': 12,
     };
 
-    return tier.credits_monthly * multipliers[billingCycle];
+    // Fallback to old structure if new field doesn't exist
+    const monthlyCredits = tier.credits_monthly || tier.credits;
+    return monthlyCredits * multipliers[billingCycle];
   }
 
   /**

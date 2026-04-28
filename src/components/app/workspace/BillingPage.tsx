@@ -5,7 +5,7 @@
  * Displays credit balance, subscription, transaction history within workspace
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/src/providers/AuthProvider';
 import {
   BillingService,
@@ -172,30 +172,37 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, []);
+  }, [verifyPaymentCallback]);
 
-  const verifyPaymentCallback = async (transactionRef: string) => {
-    try {
-      console.log('🔍 Verifying payment:', transactionRef);
-      const verified = await BillingService.verifyPayment(transactionRef);
+  const verifyPaymentCallback = useCallback(
+    async (transactionRef: string) => {
+      try {
+        console.log('🔍 Verifying payment:', transactionRef);
+        const verified = await BillingService.verifyPayment(transactionRef);
 
-      if (verified) {
-        setPaymentModal({ show: true, type: 'success', message: 'Payment successful! Your credits have been added.' });
-        // Refresh all data
-        await refreshCreditBalance();
-        await fetchBillingData();
-      } else {
-        setPaymentModal({
-          show: true,
-          type: 'warning',
-          message: 'Payment verification failed. Please contact support if amount was deducted.',
-        });
+        if (verified) {
+          setPaymentModal({
+            show: true,
+            type: 'success',
+            message: 'Payment successful! Your credits have been added.',
+          });
+          // Refresh all data
+          await refreshCreditBalance();
+          await fetchBillingData();
+        } else {
+          setPaymentModal({
+            show: true,
+            type: 'warning',
+            message: 'Payment verification failed. Please contact support if amount was deducted.',
+          });
+        }
+      } catch (error) {
+        console.error('Payment verification error:', error);
+        setPaymentModal({ show: true, type: 'error', message: 'Failed to verify payment. Please contact support.' });
       }
-    } catch (error) {
-      console.error('Payment verification error:', error);
-      setPaymentModal({ show: true, type: 'error', message: 'Failed to verify payment. Please contact support.' });
-    }
-  };
+    },
+    [refreshCreditBalance]
+  );
 
   const fetchBillingData = async () => {
     try {
@@ -235,6 +242,18 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
       setCreditTransactions(creditTxns);
       setPaymentHistory(payments);
       setTiers(tiersData);
+
+      // DEBUG: Log tier data structure
+      console.log('🎯 [BillingPage] Tiers count:', tiersData.length);
+      if (tiersData.length > 0) {
+        console.log('🎯 [BillingPage] First tier structure:', JSON.stringify(tiersData[0], null, 2));
+        console.log('🎯 [BillingPage] Checking tier fields:');
+        tiersData.forEach((tier: SubscriptionTier) => {
+          console.log(
+            `  - ${tier.tier_id}: price_ngn=${tier.price_ngn}, price_ngn_monthly=${tier.price_ngn_monthly}, credits=${tier.credits}, credits_monthly=${tier.credits_monthly}`
+          );
+        });
+      }
 
       console.log('✅ [BillingPage] All data fetched successfully');
     } catch (error) {
