@@ -693,9 +693,9 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
                       <div style={{ marginBottom: 12 }}>
                         <h3 style={{ fontSize: 18, fontWeight: 900, margin: '0 0 4px', color: '#111' }}>{tier.name}</h3>
-                        <p style={{ fontSize: 11, color: '#666', margin: 0 }}>
+                        {/* <p style={{ fontSize: 11, color: '#666', margin: 0 }}>
                           {credits} campaigns{selectedBillingCycle !== 'monthly' && ` (${tier.credits_monthly}/mo)`}
-                        </p>
+                        </p> */}
                       </div>
 
                       <div style={{ marginBottom: 14 }}>
