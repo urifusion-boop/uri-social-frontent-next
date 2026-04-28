@@ -612,9 +612,21 @@ const INDUSTRY_ALIASES: Record<string, string> = {
   event: 'events_entertainment',
 };
 
-export function getStylesForIndustry(industry: string): StyleTemplate[] {
+function _canonicalIndustry(industry: string): string {
   const key = industry.toLowerCase().trim();
-  const canonical = INDUSTRY_STYLE_MAP[key] ? key : (INDUSTRY_ALIASES[key] ?? 'general_other');
+  // Exact match against canonical keys
+  if (INDUSTRY_STYLE_MAP[key]) return key;
+  // Exact match against aliases
+  if (INDUSTRY_ALIASES[key]) return INDUSTRY_ALIASES[key];
+  // Partial keyword match — handles compound values like "Tech & SaaS", "Food & Beverage"
+  for (const [alias, canonical] of Object.entries(INDUSTRY_ALIASES)) {
+    if (key.includes(alias)) return canonical;
+  }
+  return 'general_other';
+}
+
+export function getStylesForIndustry(industry: string): StyleTemplate[] {
+  const canonical = _canonicalIndustry(industry);
   const slugs = INDUSTRY_STYLE_MAP[canonical] ?? INDUSTRY_STYLE_MAP['general_other'];
   const bySlug = Object.fromEntries(STYLES.map((s) => [s.slug, s]));
   return slugs.map((s) => bySlug[s]).filter(Boolean);
