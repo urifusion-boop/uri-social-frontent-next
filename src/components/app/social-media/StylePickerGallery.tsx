@@ -2,6 +2,7 @@
 
 import { getStylesForIndustry, StyleTemplate } from '@/src/data/styleLibrary';
 import { Box, Typography } from '@mui/material';
+import { useState } from 'react';
 import { FaCheckCircle } from 'react-icons/fa';
 
 const MAX_SELECTIONS = 3;
@@ -24,6 +25,8 @@ function StyleCard({
   primary: string;
 }) {
   const [from, to] = style.gradient;
+  const [imgFailed, setImgFailed] = useState(false);
+
   return (
     <Box
       component="button"
@@ -46,17 +49,32 @@ function StyleCard({
         width: '100%',
       }}
     >
-      {/* Gradient swatch */}
-      <Box
-        sx={{
-          height: 80,
-          background: `linear-gradient(135deg, ${from}, ${to})`,
-          position: 'relative',
-        }}
-      >
+      {/* Image / gradient swatch */}
+      <Box sx={{ height: 100, position: 'relative', overflow: 'hidden' }}>
+        {!imgFailed ? (
+          <Box
+            component="img"
+            src={style.image}
+            alt={style.name}
+            onError={() => setImgFailed(true)}
+            sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          <Box sx={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${from}, ${to})` }} />
+        )}
         {isSelected && (
-          <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
-            <FaCheckCircle size={20} color={primary} style={{ filter: 'drop-shadow(0 0 3px rgba(255,255,255,0.8))' }} />
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              background: `${primary}22`,
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'flex-end',
+              p: 1,
+            }}
+          >
+            <FaCheckCircle size={20} color={primary} style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.9))' }} />
           </Box>
         )}
       </Box>

@@ -3,8 +3,11 @@ export interface StyleTemplate {
   name: string;
   description: string;
   industryTags: string[];
-  gradient: [string, string]; // placeholder colours until real example images are ready
+  gradient: [string, string];
+  image: string; // representative Unsplash photo URL
 }
+
+const U = (id: string) => `https://images.unsplash.com/photo-${id}?w=600&h=300&fit=crop&auto=format&q=80`;
 
 export const STYLES: StyleTemplate[] = [
   // ── Fashion & E-commerce ──────────────────────────────────────────────────
@@ -14,6 +17,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Urban, edgy, magazine-quality. For brands with attitude.',
     industryTags: ['fashion_ecommerce', 'events_entertainment', 'general_other'],
     gradient: ['#1a1a1a', '#555555'],
+    image: U('1469334031218-e382a71b716b'),
   },
   {
     slug: 'clean_luxe',
@@ -21,6 +25,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Minimalist, premium, lots of breathing room. For high-end brands.',
     industryTags: ['fashion_ecommerce', 'beauty_wellness', 'real_estate', 'general_other'],
     gradient: ['#f5f0eb', '#c8b89a'],
+    image: U('1490481651871-ab68de25d43d'),
   },
   {
     slug: 'neon_pop',
@@ -28,6 +33,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Electric, vibrant, nightlife energy. For bold brands.',
     industryTags: ['fashion_ecommerce', 'beauty_wellness', 'fitness_gym', 'events_entertainment', 'general_other'],
     gradient: ['#0d0d0d', '#ff1cf7'],
+    image: U('1516450360452-9312f5e86fc7'),
   },
   {
     slug: 'afro_glam',
@@ -35,6 +41,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Celebration of African culture. Rich textures, warm tones, gold accents.',
     industryTags: ['fashion_ecommerce', 'beauty_wellness', 'events_entertainment', 'general_other'],
     gradient: ['#7b2d00', '#d4a017'],
+    image: U('1531746020798-e6953c6e8e04'),
   },
   {
     slug: 'minimal_studio',
@@ -42,6 +49,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Product-first. Solid backgrounds. No distractions.',
     industryTags: ['fashion_ecommerce', 'beauty_wellness', 'food_beverage', 'general_other'],
     gradient: ['#e8e4df', '#a8998a'],
+    image: U('1523275335684-37898b6baf30'),
   },
   {
     slug: 'bold_loud',
@@ -49,6 +57,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Maximum energy. Big text. In your face. For brands that shout.',
     industryTags: ['fashion_ecommerce', 'food_beverage', 'fitness_gym', 'events_entertainment', 'general_other'],
     gradient: ['#ff2d00', '#ff8c00'],
+    image: U('1561736778-5ee4cc44fc2a'),
   },
   {
     slug: 'vintage_film',
@@ -56,6 +65,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Nostalgic, warm, analogue. For brands with a story.',
     industryTags: ['fashion_ecommerce', 'food_beverage', 'general_other'],
     gradient: ['#8b6914', '#d4a96a'],
+    image: U('1516201580490-5d8fa4d03af8'),
   },
   {
     slug: 'catalogue_clean',
@@ -63,6 +73,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Structured, grid-ready, professional. For brands with multiple products.',
     industryTags: ['fashion_ecommerce', 'food_beverage', 'general_other'],
     gradient: ['#ffffff', '#cccccc'],
+    image: U('1441984904996-e0b6ba687e04'),
   },
   {
     slug: 'lifestyle_natural',
@@ -70,6 +81,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Candid, authentic, in-context. Products in real life.',
     industryTags: ['fashion_ecommerce', 'food_beverage', 'beauty_wellness', 'fitness_gym', 'general_other'],
     gradient: ['#3d6b4f', '#a8c5a0'],
+    image: U('1506794778202-cad84cf45f1d'),
   },
   {
     slug: 'high_contrast_drama',
@@ -77,6 +89,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Dark backgrounds, dramatic lighting, theatre-level intensity.',
     industryTags: ['fashion_ecommerce', 'events_entertainment', 'fitness_gym'],
     gradient: ['#000000', '#ffffff'],
+    image: U('1509822929063-6b6cfc9b42f2'),
   },
 
   // ── Food & Beverage ───────────────────────────────────────────────────────
@@ -86,6 +99,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Top-down spread. Rustic surface. Abundance.',
     industryTags: ['food_beverage'],
     gradient: ['#8b4513', '#daa520'],
+    image: U('1547592180-85f173990554'),
   },
   {
     slug: 'dark_moody_food',
@@ -93,6 +107,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Dramatic. Premium. Chef-quality presentation.',
     industryTags: ['food_beverage'],
     gradient: ['#1c1c1c', '#8b0000'],
+    image: U('1414235077428-338989a2e8c0'),
   },
   {
     slug: 'bright_fresh',
@@ -100,6 +115,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'High-key, clean, healthy vibes. Lots of white.',
     industryTags: ['food_beverage', 'beauty_wellness', 'general_other'],
     gradient: ['#ffffff', '#90ee90'],
+    image: U('1490645935967-10de6ba17061'),
   },
   {
     slug: 'street_food_energy',
@@ -107,6 +123,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Handheld, outdoor, messy, real. Authentic energy.',
     industryTags: ['food_beverage', 'events_entertainment'],
     gradient: ['#cc4400', '#ff8c00'],
+    image: U('1565299624946-b28f40a0ae38'),
   },
   {
     slug: 'menu_board',
@@ -114,6 +131,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Practical. Prices visible. Clear layout for ordering.',
     industryTags: ['food_beverage'],
     gradient: ['#1a0a00', '#5c3317'],
+    image: U('1528605248644-14dd04022da1'),
   },
   {
     slug: 'rustic_warmth',
@@ -121,6 +139,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Wooden textures, earthy tones, handcraft feel.',
     industryTags: ['food_beverage', 'general_other'],
     gradient: ['#5c3317', '#c8a06e'],
+    image: U('1506368249639-73a05d6f6488'),
   },
   {
     slug: 'vibrant_tropical',
@@ -128,6 +147,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Bold colours, tropical ingredients, celebration energy.',
     industryTags: ['food_beverage', 'events_entertainment', 'general_other'],
     gradient: ['#ff6b00', '#00b894'],
+    image: U('1555939594-58d7cb561ad1'),
   },
   {
     slug: 'minimalist_plating',
@@ -135,6 +155,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Fine dining. Single plate. Lots of negative space.',
     industryTags: ['food_beverage'],
     gradient: ['#e0dbd5', '#8c8070'],
+    image: U('1484723091739-30a097e8f929'),
   },
 
   // ── Fintech / SaaS / Tech ─────────────────────────────────────────────────
@@ -144,6 +165,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Smooth gradients, professional, trust. The LinkedIn standard.',
     industryTags: ['fintech_saas_tech', 'education_consulting', 'general_other'],
     gradient: ['#0d3b8c', '#6a0dad'],
+    image: U('1497366216548-37526070297c'),
   },
   {
     slug: 'data_visual',
@@ -151,6 +173,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Charts and numbers as design. For data-driven brands.',
     industryTags: ['fintech_saas_tech', 'education_consulting'],
     gradient: ['#0a2540', '#00d4ff'],
+    image: U('1551288049-bebda4e38f71'),
   },
   {
     slug: 'trust_builder',
@@ -158,6 +181,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Real people, real photography. For brands that need credibility.',
     industryTags: ['fintech_saas_tech', 'real_estate', 'education_consulting', 'general_other'],
     gradient: ['#1a4a6b', '#4a9ebe'],
+    image: U('1521737604893-d14cc237f11d'),
   },
   {
     slug: 'minimal_tech',
@@ -165,6 +189,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Apple-inspired. Whitespace. Precision.',
     industryTags: ['fintech_saas_tech', 'education_consulting'],
     gradient: ['#f5f5f7', '#86868b'],
+    image: U('1517336714731-489689fd1ca8'),
   },
   {
     slug: 'bold_statement',
@@ -172,6 +197,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Text-forward. One big idea. Maximum impact.',
     industryTags: ['fintech_saas_tech', 'education_consulting', 'fitness_gym', 'general_other'],
     gradient: ['#1a1a1a', '#cd1b78'],
+    image: U('1542281286-9e0a16bb7366'),
   },
   {
     slug: 'dark_mode_pro',
@@ -179,6 +205,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Dark backgrounds, glowing accents. For developer-adjacent brands.',
     industryTags: ['fintech_saas_tech'],
     gradient: ['#0d1117', '#00ff88'],
+    image: U('1555066931-4365d14bab8c'),
   },
   {
     slug: 'isometric_3d',
@@ -186,6 +213,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Stylised 3D illustrations. For abstract concepts.',
     industryTags: ['fintech_saas_tech', 'education_consulting'],
     gradient: ['#c8d8f0', '#7eb8ff'],
+    image: U('1618005182384-a83a8bd57fbe'),
   },
   {
     slug: 'clean_startup',
@@ -193,6 +221,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Approachable, modern, fresh. For early-stage brands.',
     industryTags: ['fintech_saas_tech', 'education_consulting', 'general_other'],
     gradient: ['#f0f4ff', '#6c8ef5'],
+    image: U('1497366754035-f200968a6e72'),
   },
 
   // ── Beauty & Wellness ─────────────────────────────────────────────────────
@@ -202,6 +231,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Warm golden lighting, dewy skin, aspirational beauty close-ups.',
     industryTags: ['beauty_wellness'],
     gradient: ['#f5c98a', '#e8854b'],
+    image: U('1526045612212-70caf35c14df'),
   },
   {
     slug: 'soft_pastel',
@@ -209,6 +239,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Delicate pastels, airy gradients, gentle feminine energy.',
     industryTags: ['beauty_wellness', 'general_other'],
     gradient: ['#f8d7e8', '#d4a0c0'],
+    image: U('1556228852-6d35a585d566'),
   },
   {
     slug: 'bold_glam',
@@ -216,6 +247,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'High-glamour beauty, full makeup, confident and striking.',
     industryTags: ['beauty_wellness', 'fashion_ecommerce'],
     gradient: ['#3d0014', '#cc0044'],
+    image: U('1503951914875-452162b0f3f1'),
   },
   {
     slug: 'clean_clinical',
@@ -223,6 +255,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Medical-aesthetic trust. Ingredient-forward, science-backed.',
     industryTags: ['beauty_wellness'],
     gradient: ['#f8fafc', '#b0c4de'],
+    image: U('1620916297397-a4a5402a3c6c'),
   },
   {
     slug: 'natural_organic',
@@ -230,6 +263,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Earth tones, raw ingredients, botanical handcraft feel.',
     industryTags: ['beauty_wellness', 'food_beverage'],
     gradient: ['#8b6914', '#4a7c59'],
+    image: U('1498557850523-fd3d118b962e'),
   },
   {
     slug: 'editorial_beauty',
@@ -237,6 +271,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Avant-garde beauty. Fashion-magazine artistic direction.',
     industryTags: ['beauty_wellness', 'fashion_ecommerce'],
     gradient: ['#2d0042', '#ff6bce'],
+    image: U('1502823403499-6ccfcf4fb453'),
   },
   {
     slug: 'before_after',
@@ -244,6 +279,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Split-screen transformation. Proof-focused and results-driven.',
     industryTags: ['beauty_wellness', 'fitness_gym'],
     gradient: ['#e0e0e0', '#333333'],
+    image: U('1571019613454-1cb2f99b2d8b'),
   },
 
   // ── Fitness & Gym ─────────────────────────────────────────────────────────
@@ -253,6 +289,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Dynamic action shots, motion blur, sweat and intensity.',
     industryTags: ['fitness_gym'],
     gradient: ['#cc4400', '#ffcc00'],
+    image: U('1517963879433-6ad2b056d712'),
   },
   {
     slug: 'dark_grit',
@@ -260,6 +297,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Moody gym photography. Hardcore. No-frills. Raw.',
     industryTags: ['fitness_gym'],
     gradient: ['#111111', '#444444'],
+    image: U('1534438327276-14e5300c3a48'),
   },
   {
     slug: 'transformation',
@@ -267,6 +305,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Before/after results. Stats-driven. Proof over aesthetics.',
     industryTags: ['fitness_gym', 'beauty_wellness'],
     gradient: ['#e0e0e0', '#2d2d2d'],
+    image: U('1571019614242-c5c5dee9f50b'),
   },
   {
     slug: 'motivational_type',
@@ -274,6 +313,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'One powerful phrase. Dark background. Athletic silhouette.',
     industryTags: ['fitness_gym', 'education_consulting', 'general_other'],
     gradient: ['#1a1a1a', '#cd1b78'],
+    image: U('1526506118085-60ce8714f8c5'),
   },
   {
     slug: 'clean_athletic',
@@ -281,6 +321,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Nike/Adidas-inspired. Premium sportswear feel. Minimal.',
     industryTags: ['fitness_gym', 'fashion_ecommerce'],
     gradient: ['#f8f8f8', '#222222'],
+    image: U('1542291026-7eec264c27ff'),
   },
 
   // ── Real Estate ───────────────────────────────────────────────────────────
@@ -290,6 +331,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Wide-angle bright interiors. Blue sky, green lawn. HDR clarity.',
     industryTags: ['real_estate'],
     gradient: ['#1a6fa8', '#90c8f0'],
+    image: U('1564013799919-ab600027ffc6'),
   },
   {
     slug: 'luxury_listing',
@@ -297,6 +339,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Twilight exteriors. Gold serif type. Exclusivity.',
     industryTags: ['real_estate'],
     gradient: ['#1a1000', '#c8960c'],
+    image: U('1512917774080-9991f1c4c750'),
   },
   {
     slug: 'neighbourhood_life',
@@ -304,6 +347,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Community and lifestyle. Sell the area, not just the property.',
     industryTags: ['real_estate'],
     gradient: ['#3d6b4f', '#90c8a0'],
+    image: U('1598928506311-c55ded91a20c'),
   },
   {
     slug: 'blueprint_modern',
@@ -311,6 +355,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Architectural line drawings. Technical precision. Modern.',
     industryTags: ['real_estate'],
     gradient: ['#0d2040', '#1a4080'],
+    image: U('1503387762-592deb58ef4e'),
   },
   {
     slug: 'aerial_clean',
@@ -318,6 +363,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Drone-style overhead photography. Wide context. Clean info overlay.',
     industryTags: ['real_estate'],
     gradient: ['#1a6fa8', '#4ab8e0'],
+    image: U('1477959858617-67f85cf4f1df'),
   },
 
   // ── Education & Consulting ────────────────────────────────────────────────
@@ -327,6 +373,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Approachable expertise. Warm tones, real people, credibility.',
     industryTags: ['education_consulting', 'general_other'],
     gradient: ['#8b4a00', '#e8a855'],
+    image: U('1517048676732-d65bc937f952'),
   },
   {
     slug: 'authority_editorial',
@@ -334,6 +381,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Magazine-style expert portrait. Gravitas and credibility.',
     industryTags: ['education_consulting'],
     gradient: ['#1a1a2e', '#4a4a8a'],
+    image: U('1560250097-0b93528c311a'),
   },
 
   // ── Events & Entertainment ────────────────────────────────────────────────
@@ -343,6 +391,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Concert poster aesthetic. Explosive. Layered. Loud.',
     industryTags: ['events_entertainment'],
     gradient: ['#4a0080', '#ff6b00'],
+    image: U('1470229722913-7c0e2dbbafd3'),
   },
 ];
 

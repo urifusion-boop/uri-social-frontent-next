@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandProfileData, BrandProfileService } from '@/src/api/BrandProfileService';
 import {
   AccountMetricItem,
@@ -2333,6 +2333,38 @@ const PbChip = ({ label, active, onClick }: { label: string; active: boolean; on
   </button>
 );
 
+const PlaybookStyleCard = ({
+  s,
+  from,
+  to,
+}: {
+  s: { name: string; description: string; image: string; gradient: [string, string] };
+  from: string;
+  to: string;
+}) => {
+  const [imgFailed, setImgFailed] = useState(false);
+  return (
+    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 140 }}>
+      <div style={{ height: 80, position: 'relative', overflow: 'hidden' }}>
+        {!imgFailed ? (
+          <img
+            src={s.image}
+            alt={s.name}
+            onError={() => setImgFailed(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${from}, ${to})` }} />
+        )}
+      </div>
+      <div style={{ padding: '6px 8px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{s.name}</div>
+        <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>{s.description}</div>
+      </div>
+    </div>
+  );
+};
+
 const PbSection = ({ title, children }: { title: string; children: ReactNode }) => (
   <div
     style={{
@@ -3451,20 +3483,7 @@ const PlaybookPage = ({
                 const s = getStyle(slug);
                 if (!s) return null;
                 const [from, to] = s.gradient;
-                return (
-                  <div
-                    key={slug}
-                    style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 140 }}
-                  >
-                    <div style={{ height: 52, background: `linear-gradient(135deg, ${from}, ${to})` }} />
-                    <div style={{ padding: '6px 8px' }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{s.name}</div>
-                      <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
-                        {s.description}
-                      </div>
-                    </div>
-                  </div>
-                );
+                return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
               })}
             </div>
           ) : (
