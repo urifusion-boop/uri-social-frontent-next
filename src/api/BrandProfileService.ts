@@ -57,6 +57,7 @@ export interface BrandProfileData {
   languages?: string[];
   region?: string | string[];
   style_selections?: string[];
+  style_prompt_fragments?: string[];
   style_rotation_index?: number;
   font_style?: string;
   font_style_prompt?: string;

@@ -2553,6 +2553,7 @@ const PlaybookPage = ({
         sample_template_urls: templateUrls,
         logo_url: logoUrl || undefined,
         style_selections: styleSelections,
+        style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
       };

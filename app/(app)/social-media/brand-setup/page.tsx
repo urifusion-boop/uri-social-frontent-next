@@ -26,6 +26,7 @@ import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
 import { getFont } from '@/src/data/fontLibrary';
+import { getStyle } from '@/src/data/styleLibrary';
 import { MdOutlineCampaign } from 'react-icons/md';
 import Navbar from '@/components/Navbar';
 
@@ -795,6 +796,7 @@ function BrandSetupPageContent() {
       languages,
       region: region.join(', '),
       style_selections: styleSelections,
+      style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
       font_style: fontStyle,
       font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
       onboarding_completed: true,
