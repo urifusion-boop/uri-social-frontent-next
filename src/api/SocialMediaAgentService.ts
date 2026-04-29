@@ -24,6 +24,7 @@ export interface GenerateContentPayload {
   platforms: string[];
   seed_type?: string;
   include_images?: boolean;
+  image_model?: string;
   brand_context?: BrandContext;
   reference_image?: string;
   post_type?: 'feed' | 'carousel' | 'story';
@@ -110,6 +111,7 @@ export interface ContentDraft {
   approval_status?: 'pending' | 'approved' | 'denied';
   image_url?: string;
   has_image?: boolean;
+  image_failed?: boolean;
   image_retry_count?: number; // PRD 4.2: Track image retry count for credit deduction
   created_at?: string;
   scheduled_datetime?: string;
@@ -228,6 +230,17 @@ export class SocialMediaAgentService {
 
   static async deleteDraft(draftId: string): Promise<UriResponse<string>> {
     const response = await UriHttpClient.getClient().delete(`${socialMediaAgentRoutes.deleteDraft}/${draftId}`);
+    return response.data;
+  }
+
+  static async syncImageAcrossDrafts(
+    sourceDraftId: string,
+    targetDraftIds: string[]
+  ): Promise<UriResponse<{ updated_count: number; source_draft_id: string }>> {
+    const response = await UriHttpClient.getClient().post('/social-media/image-sync', {
+      source_draft_id: sourceDraftId,
+      target_draft_ids: targetDraftIds,
+    });
     return response.data;
   }
 

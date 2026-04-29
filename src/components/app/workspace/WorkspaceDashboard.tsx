@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandProfileData, BrandProfileService } from '@/src/api/BrandProfileService';
 import {
   AccountMetricItem,
@@ -22,8 +22,13 @@ import { ReactNode } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaWhatsapp } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
+import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
+import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
+import { getStyle } from '@/src/data/styleLibrary';
+import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
+import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
@@ -374,6 +379,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const [batchScheduleOpen, setBatchScheduleOpen] = useState(false);
   const [batchScheduledAt, setBatchScheduledAt] = useState('');
   const [batchScheduling, setBatchScheduling] = useState(false);
+  const [syncImageOpen, setSyncImageOpen] = useState(false);
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -688,6 +694,29 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#CD1B78', flex: 1 }}>
                       {selectedDraftIds.size} post{selectedDraftIds.size > 1 ? 's' : ''} selected
                     </span>
+                    {(() => {
+                      const selectedWithImages = drafts.filter((d) => {
+                        const id = d.draft_id ?? d.id ?? '';
+                        return selectedDraftIds.has(id) && d.image_url;
+                      });
+                      return selectedWithImages.length >= 2 ? (
+                        <button
+                          onClick={() => setSyncImageOpen(true)}
+                          style={{
+                            background: '#fff',
+                            color: '#CD1B78',
+                            border: '1.5px solid #CD1B78',
+                            borderRadius: 8,
+                            padding: '6px 14px',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🖼 Sync Image
+                        </button>
+                      ) : null;
+                    })()}
                     <button
                       onClick={() => setBatchScheduleOpen(true)}
                       style={{
@@ -824,6 +853,19 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                   </div>
                 </div>
               </div>
+            )}
+
+            {syncImageOpen && (
+              <SyncImageDialog
+                drafts={drafts}
+                selectedIds={selectedDraftIds}
+                onClose={() => setSyncImageOpen(false)}
+                onDone={() => {
+                  setSyncImageOpen(false);
+                  setSelectedDraftIds(new Set());
+                  fetchDrafts();
+                }}
+              />
             )}
           </>
         )}
@@ -2293,6 +2335,38 @@ const PbChip = ({ label, active, onClick }: { label: string; active: boolean; on
   </button>
 );
 
+const PlaybookStyleCard = ({
+  s,
+  from,
+  to,
+}: {
+  s: { name: string; description: string; image: string; gradient: [string, string] };
+  from: string;
+  to: string;
+}) => {
+  const [imgFailed, setImgFailed] = useState(false);
+  return (
+    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 140 }}>
+      <div style={{ height: 80, position: 'relative', overflow: 'hidden' }}>
+        {!imgFailed ? (
+          <img
+            src={s.image}
+            alt={s.name}
+            onError={() => setImgFailed(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${from}, ${to})` }} />
+        )}
+      </div>
+      <div style={{ padding: '6px 8px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{s.name}</div>
+        <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>{s.description}</div>
+      </div>
+    </div>
+  );
+};
+
 const PbSection = ({ title, children }: { title: string; children: ReactNode }) => (
   <div
     style={{
@@ -2406,6 +2480,8 @@ const PlaybookPage = ({
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [styleSelections, setStyleSelections] = useState<string[]>([]);
+  const [fontStyle, setFontStyle] = useState<string>('');
 
   const startEdit = () => {
     if (!profile) return;
@@ -2439,6 +2515,8 @@ const PlaybookPage = ({
     setTemplateUrls([...(profile.sample_template_urls ?? [])]);
     setLogoUrl(profile.logo_url ?? '');
     setLogoError('');
+    setStyleSelections([...(profile.style_selections ?? [])]);
+    setFontStyle(profile.font_style ?? '');
     setEditing(true);
   };
 
@@ -2474,6 +2552,10 @@ const PlaybookPage = ({
         approval_workflow: approval,
         sample_template_urls: templateUrls,
         logo_url: logoUrl || undefined,
+        style_selections: styleSelections,
+        style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+        font_style: fontStyle,
+        font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
       };
       await BrandProfileService.save(updated);
       onProfileUpdate(updated);
@@ -3396,6 +3478,138 @@ const PlaybookPage = ({
           )}
         </div>
       </PbSection>
+
+      <PbSection title="Visual Style">
+        <div style={{ marginBottom: 8, fontSize: 12.5, color: '#888' }}>
+          Up to 3 styles — Uri rotates through them when generating images.
+        </div>
+        {!editing ? (
+          p?.style_selections && p.style_selections.length > 0 ? (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {p.style_selections.map((slug) => {
+                const s = getStyle(slug);
+                if (!s) return null;
+                const [from, to] = s.gradient;
+                return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+          )
+        ) : (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <span
+                style={{
+                  background: styleSelections.length > 0 ? '#C2185B' : '#e5e7eb',
+                  color: styleSelections.length > 0 ? '#fff' : '#6b7280',
+                  borderRadius: 99,
+                  padding: '2px 10px',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                }}
+              >
+                {styleSelections.length}/3 selected
+              </span>
+              {styleSelections.length > 0 && (
+                <button
+                  onClick={() => setStyleSelections([])}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 11.5,
+                    color: '#9ca3af',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0,
+                  }}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+            <StylePickerGallery
+              industry={industry || p?.industry || 'general_other'}
+              selected={styleSelections}
+              onChange={setStyleSelections}
+            />
+          </div>
+        )}
+      </PbSection>
+
+      <PbSection title="Typography">
+        <style>{`@import url('${GOOGLE_FONTS_URL}');`}</style>
+        <div style={{ marginBottom: 8, fontSize: 12.5, color: '#888' }}>
+          The typeface direction Uri uses when placing text on your images.
+        </div>
+        {!editing ? (
+          p?.font_style && getFont(p.font_style) ? (
+            (() => {
+              const f = getFont(p.font_style)!;
+              return (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
+                    <div
+                      style={{
+                        height: 64,
+                        background: '#f9f9fb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderBottom: '1px solid #f0eef8',
+                      }}
+                    >
+                      <span style={{ fontFamily: f.fontFamily, fontSize: 20, color: '#0d0e0f' }}>{f.previewText}</span>
+                    </div>
+                    <div style={{ padding: '6px 10px' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{f.name}</div>
+                      <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                        {f.description}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+          )
+        ) : (
+          <div>
+            {fontStyle && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span
+                  style={{
+                    background: '#C2185B',
+                    color: '#fff',
+                    borderRadius: 99,
+                    padding: '2px 10px',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                  }}
+                >
+                  {getFont(fontStyle)?.name} selected
+                </span>
+                <button
+                  onClick={() => setFontStyle('')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 11.5,
+                    color: '#9ca3af',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0,
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+            <FontPickerGallery selected={fontStyle} onChange={setFontStyle} />
+          </div>
+        )}
+      </PbSection>
     </SubPage>
   );
 };
@@ -3832,7 +4046,7 @@ export default function WorkspaceDashboard() {
       />
     ),
     billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
-    notifications: <NotificationsPanel onJane={goWorkspace} />,
+    notifications: <NotificationsPanel />,
   };
 
   return (

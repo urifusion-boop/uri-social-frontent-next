@@ -27,7 +27,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
 import { MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import DraftEditor from './DraftEditor';
@@ -77,6 +77,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       // for the new URL, preventing stale shimmer or 'Image unavailable' state.
       setImageLoaded(false);
       setImageError(false);
+      imageRetryRef.current = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
@@ -91,6 +92,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [loading, setLoading] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const imageRetryRef = useRef(0);
   // Track which slide URLs have already loaded so navigating back doesn't re-shimmer
   const loadedSlideUrls = useState<Set<string>>(() => new Set())[0];
   const [imageHovered, setImageHovered] = useState(false);
@@ -112,10 +114,33 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     setSlideIndex(0);
     setImageLoaded(false);
     setImageError(false);
+    imageRetryRef.current = 0;
     loadedSlideUrls.clear();
   }, [draft.id]);
 
-  const resolveUrl = (url: string) => (url.startsWith('/') ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${url}` : url);
+  const resolveUrl = (url: string) => {
+    if (!url.startsWith('/')) return url;
+    const base = process.env.NEXT_PUBLIC_URI_API_BASE_URL || process.env.NEXT_PUBLIC_URI_API_BASE_URL_DEV || '';
+    return `${base}${url}`;
+  };
+
+  // Retry loading up to 3 times with backoff before showing 'Image unavailable'.
+  // Handles the race where the image file isn't yet flushed when the URL first arrives.
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const MAX_RETRIES = 3;
+    if (imageRetryRef.current < MAX_RETRIES) {
+      imageRetryRef.current += 1;
+      const delay = imageRetryRef.current * 1500;
+      const img = e.currentTarget;
+      const src = img.src;
+      setTimeout(() => {
+        img.src = '';
+        img.src = src;
+      }, delay);
+    } else {
+      setImageError(true);
+    }
+  };
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
   const sc = statusColors[draft.status ?? 'draft'] ?? statusColors.draft;
@@ -358,26 +383,29 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               </Typography>
             </Box>
 
-            {/* Shimmer when no slide image yet */}
+            {/* Shimmer / failed state when no slide image yet */}
             {!currentSlide?.image_url && (draft.has_image || draft.auto_generated) && (
               <Box
                 sx={{
                   position: 'absolute',
                   inset: 0,
-                  background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+                  background: draft.image_failed
+                    ? '#FFF7F7'
+                    : 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
                   backgroundSize: '200% 100%',
-                  animation: 'shimmer 2s infinite',
+                  animation: draft.image_failed ? 'none' : 'shimmer 2s infinite',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  border: draft.image_failed ? '1px dashed #FFCDD2' : 'none',
                   '@keyframes shimmer': {
                     '0%': { backgroundPosition: '200% 0' },
                     '100%': { backgroundPosition: '-200% 0' },
                   },
                 }}
               >
-                <Typography fontSize="12px" color="#9CA3AF">
-                  Generating slide image…
+                <Typography fontSize="12px" color={draft.image_failed ? '#EF5350' : '#9CA3AF'}>
+                  {draft.image_failed ? '⚠️ Image generation timed out' : 'Generating slide image…'}
                 </Typography>
               </Box>
             )}
@@ -417,12 +445,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                         loadedSlideUrls.add(resolvedUrl);
                         setImageLoaded(true);
                       }}
-                      onError={() => setImageError(true)}
+                      onError={handleImageError}
                       onClick={() => setLightboxOpen(true)}
                       style={{
                         width: '100%',
                         height: '100%',
-                        objectFit: 'cover',
+                        objectFit: 'contain',
                         display: alreadyLoaded || imageLoaded ? 'block' : 'none',
                         cursor: 'pointer',
                       }}
@@ -574,12 +602,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             src={resolveUrl(draft.image_url)}
             alt="Story image"
             onLoad={() => setImageLoaded(true)}
-            onError={() => setImageError(true)}
+            onError={handleImageError}
             onClick={() => setLightboxOpen(true)}
             style={{
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
+              objectFit: 'contain',
               display: imageLoaded ? 'block' : 'none',
               cursor: 'pointer',
             }}
@@ -688,12 +716,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 src={resolveUrl(draft.image_url)}
                 alt={`AI-generated image for ${draft.platform}`}
                 onLoad={() => setImageLoaded(true)}
-                onError={() => setImageError(true)}
+                onError={handleImageError}
                 onClick={() => setLightboxOpen(true)}
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover',
+                  objectFit: 'contain',
                   display: imageLoaded ? 'block' : 'none',
                   cursor: 'pointer',
                 }}
@@ -740,10 +768,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           sx={{
             height: 80,
             borderRadius: '8px',
-            border: '1px dashed #E0DEF7',
-            background: 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
+            border: draft.image_failed ? '1px dashed #FFCDD2' : '1px dashed #E0DEF7',
+            background: draft.image_failed
+              ? '#FFF7F7'
+              : 'linear-gradient(90deg, #F7F7FD 25%, #EEECFB 50%, #F7F7FD 75%)',
             backgroundSize: '200% 100%',
-            animation: 'shimmer 2s infinite',
+            animation: draft.image_failed ? 'none' : 'shimmer 2s infinite',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -754,8 +784,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             },
           }}
         >
-          <Typography fontSize="12px" color="#9CA3AF">
-            🎨 Generating image…
+          <Typography fontSize="12px" color={draft.image_failed ? '#EF5350' : '#9CA3AF'}>
+            {draft.image_failed ? '⚠️ Image generation timed out' : '🎨 Generating image…'}
           </Typography>
         </Box>
       )}
@@ -894,11 +924,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         >
           {draft.image_url && (
             <img
-              src={
-                draft.image_url.startsWith('/')
-                  ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}`
-                  : draft.image_url
-              }
+              src={draft.image_url.startsWith('/') ? resolveUrl(draft.image_url) : draft.image_url}
               alt={`AI-generated image for ${draft.platform}`}
               style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }}
             />

@@ -28,6 +28,8 @@ export default function SocialMediaPage() {
   const [draftsError, setDraftsError] = useState(false);
   const [loadingScheduled, setLoadingScheduled] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollCountRef = useRef(0);
+  const MAX_POLLS = 15; // 15 × 4s = 60s max wait
   const [loadingAutoSettings, setLoadingAutoSettings] = useState(false);
 
   useEffect(() => {
@@ -41,13 +43,23 @@ export default function SocialMediaPage() {
   }, [router]);
 
   const fetchDrafts = useCallback(async (silent = false) => {
-    if (!silent) setLoadingDrafts(true);
+    if (!silent) {
+      setLoadingDrafts(true);
+      pollCountRef.current = 0;
+    }
     setDraftsError(false);
     try {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
         const allDrafts = response.responseData.drafts ?? [];
-        const EXCLUDE_FROM_DRAFTS = new Set(['published', 'scheduled', 'approved', 'ready_to_publish', 'denied', 'replaced']);
+        const EXCLUDE_FROM_DRAFTS = new Set([
+          'published',
+          'scheduled',
+          'approved',
+          'ready_to_publish',
+          'denied',
+          'replaced',
+        ]);
         const filtered = allDrafts.filter((d) => {
           const s = d.status;
           const a = d.approval_status;
@@ -55,11 +67,21 @@ export default function SocialMediaPage() {
           if (a) return a === 'pending';
           return true;
         });
-        setDrafts(filtered);
+        const stillPending = filtered.some((d) => d.has_image && !d.image_url && !d.image_failed);
 
-        const stillPending = filtered.some((d) => d.has_image && !d.image_url);
         if (stillPending && activeTabRef.current === 'drafts') {
-          pollTimerRef.current = setTimeout(() => fetchDrafts(true), 4000);
+          if (pollCountRef.current < MAX_POLLS) {
+            pollCountRef.current += 1;
+            pollTimerRef.current = setTimeout(() => fetchDrafts(true), 4000);
+            setDrafts(filtered);
+          } else {
+            // Timed out — mark still-pending drafts as failed so shimmer stops
+            pollCountRef.current = 0;
+            setDrafts(filtered.map((d) => (d.has_image && !d.image_url ? { ...d, image_failed: true } : d)));
+          }
+        } else {
+          pollCountRef.current = 0;
+          setDrafts(filtered);
         }
       } else {
         setDraftsError(true);
@@ -123,7 +145,12 @@ export default function SocialMediaPage() {
     if (activeTab === 'auto') fetchAutoSettings();
   }, [activeTab, fetchDrafts, fetchSaved, fetchScheduled, fetchAutoSettings]);
 
-  useEffect(() => () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    },
+    []
+  );
 
   const handleGenerated = () => {
     setActiveTab('drafts');
@@ -136,7 +163,15 @@ export default function SocialMediaPage() {
 
   if (!brandCheckDone) {
     return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FAFAFA' }}>
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#FAFAFA',
+        }}
+      >
         <CircularProgress sx={{ color: '#1a1a2e' }} />
       </Box>
     );
@@ -160,7 +195,11 @@ export default function SocialMediaPage() {
               <MdOutlineCampaign size={24} color="#fff" />
             </Box>
             <Box>
-              <Typography sx={{ fontSize: 'clamp(20px, 1.5vw + 10px, 28px)', color: '#212529', fontWeight: 800, lineHeight: 1 }}>Content Manager</Typography>
+              <Typography
+                sx={{ fontSize: 'clamp(20px, 1.5vw + 10px, 28px)', color: '#212529', fontWeight: 800, lineHeight: 1 }}
+              >
+                Content Manager
+              </Typography>
               <Typography fontSize="13px" color="#6B7280" mt={0.25}>
                 AI-powered social media content creation
               </Typography>
@@ -250,7 +289,12 @@ export default function SocialMediaPage() {
                   <CircularProgress sx={{ color: '#CD1B78' }} />
                 </Box>
               ) : (
-                <AutoGenerateTab settings={autoSettings} onGenerated={handleGenerated} onSettingsChange={fetchAutoSettings} onRefreshDrafts={handleRefreshDrafts} />
+                <AutoGenerateTab
+                  settings={autoSettings}
+                  onGenerated={handleGenerated}
+                  onSettingsChange={fetchAutoSettings}
+                  onRefreshDrafts={handleRefreshDrafts}
+                />
               )}
             </>
           )}
@@ -276,7 +320,13 @@ const EmptyState = ({ message, retry }: { message: string; retry?: () => void })
       {message}
     </Typography>
     {retry && (
-      <Typography fontSize="13px" color="#CD1B78" mt={1.5} sx={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={retry}>
+      <Typography
+        fontSize="13px"
+        color="#CD1B78"
+        mt={1.5}
+        sx={{ cursor: 'pointer', textDecoration: 'underline' }}
+        onClick={retry}
+      >
         Retry
       </Typography>
     )}

@@ -33,21 +33,32 @@ class UriHttpClient {
 
     this.client.interceptors.request.use(
       (config) => {
+        console.log(`🌐 [HTTP Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
         const tokens = this.getStoredTokens();
         if (tokens?.accessToken) {
           config.headers.Authorization = `Bearer ${tokens.accessToken}`;
-          console.log(`[HTTP] Adding auth header for ${config.url}`);
+          console.log(`🔑 [HTTP] Auth token added for ${config.url}`);
         } else {
-          console.warn(`[HTTP] No access token found for ${config.url}`);
+          console.warn(`⚠️ [HTTP] No access token found for ${config.url}`);
         }
         return config;
       },
-      (error) => Promise.reject(error)
+      (error) => {
+        console.error('❌ [HTTP Request Error]', error);
+        return Promise.reject(error);
+      }
     );
 
     this.client.interceptors.response.use(
-      (response: AxiosResponse) => response,
-      (error: AxiosError) => this.handleErrorResponse(error)
+      (response: AxiosResponse) => {
+        console.log(`✅ [HTTP Response] ${response.config.method?.toUpperCase()} ${response.config.url} - Status: ${response.status}`);
+        console.log(`📦 [HTTP Response Data]`, response.data);
+        return response;
+      },
+      (error: AxiosError) => {
+        console.error(`❌ [HTTP Response Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}`, error.response?.status, error.response?.data);
+        return this.handleErrorResponse(error);
+      }
     );
   }
 

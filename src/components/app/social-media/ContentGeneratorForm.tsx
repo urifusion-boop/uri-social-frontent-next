@@ -22,6 +22,7 @@ import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
 import { MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import LowCreditWarning from '../atoms/LowCreditWarning';
+import ConfirmDialog from '../workspace/ConfirmDialog';
 
 const PLATFORMS = [
   { key: 'facebook', label: 'Facebook', icon: <FaFacebook size={16} color="#1877F2" /> },
@@ -47,6 +48,24 @@ interface ContentGeneratorFormProps {
   onGenerated: () => void;
 }
 
+function _friendlyGenerationError(msg?: string): string {
+  if (!msg) return 'Something went wrong. Please try again.';
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes('rate limit') ||
+    lower.includes('quota') ||
+    lower.includes('temporarily unavailable') ||
+    lower.includes('unavailable')
+  )
+    return 'Our AI service is temporarily at capacity. Please wait a moment and try again.';
+  if (lower.includes('failed for all platforms'))
+    return 'Content generation failed. Please try again — if the issue persists, contact support.';
+  if (lower.includes('timeout') || lower.includes('timed out')) return 'The request took too long. Please try again.';
+  if (lower.includes('authentication') || lower.includes('configuration error'))
+    return 'A service configuration error occurred. Please contact support.';
+  return 'Content generation failed. Please try again.';
+}
+
 const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const [seedContent, setSeedContent] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
@@ -62,6 +81,11 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const [outOfCreditsOpen, setOutOfCreditsOpen] = useState(false);
   const [lowCreditWarningOpen, setLowCreditWarningOpen] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number>(0);
+
+  const imageModel = 'openai/gpt-image-2';
+
+  // No-image confirmation
+  const [noImageConfirmOpen, setNoImageConfirmOpen] = useState(false);
 
   const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook');
 
@@ -118,6 +142,49 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
     checkCredits();
   }, []);
 
+  const doGenerate = async () => {
+    setLoading(true);
+    try {
+      const payload: GenerateContentPayload = {
+        seed_content: seedContent.trim(),
+        platforms: selectedPlatforms,
+        include_images: includeImages,
+        ...(includeImages ? { image_model: imageModel } : {}),
+        post_type: postType,
+        ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
+      };
+      if (referenceImage) {
+        payload.reference_image = referenceImage;
+      }
+      const response = await SocialMediaAgentService.generateContent(payload);
+
+      if (response.status) {
+        ToastService.showToast('Content generated! Check your Drafts tab.', ToastTypeEnum.Success);
+        onGenerated();
+        // Refresh credit count
+        const balance = await BillingService.getCreditBalance();
+        setCreditsRemaining(balance.credits_remaining);
+      } else {
+        // PRD Section 8: Handle 402 Payment Required
+        if (response.responseCode === 402) {
+          setOutOfCreditsOpen(true);
+        } else {
+          ToastService.showToast(_friendlyGenerationError(response.responseMessage), ToastTypeEnum.Error);
+        }
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { status?: number; data?: { responseMessage?: string } } };
+      // PRD Section 8: Handle 402 Payment Required from API
+      if (error?.response?.status === 402) {
+        setOutOfCreditsOpen(true);
+      } else {
+        ToastService.showToast(_friendlyGenerationError(error?.response?.data?.responseMessage), ToastTypeEnum.Error);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (seedContent.trim().length < 10) {
       ToastService.showToast('Seed content must be at least 10 characters', ToastTypeEnum.Error);
@@ -139,45 +206,12 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
       console.error('Credit check failed:', error);
     }
 
-    setLoading(true);
-    try {
-      const payload: GenerateContentPayload = {
-        seed_content: seedContent.trim(),
-        platforms: selectedPlatforms,
-        include_images: includeImages,
-        post_type: postType,
-        ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
-      };
-      if (referenceImage) {
-        payload.reference_image = referenceImage;
-      }
-      const response = await SocialMediaAgentService.generateContent(payload);
-
-      if (response.status) {
-        ToastService.showToast('Content generated! Check your Drafts tab.', ToastTypeEnum.Success);
-        onGenerated();
-        // Refresh credit count
-        const balance = await BillingService.getCreditBalance();
-        setCreditsRemaining(balance.credits_remaining);
-      } else {
-        // PRD Section 8: Handle 402 Payment Required
-        if (response.responseCode === 402) {
-          setOutOfCreditsOpen(true);
-        } else {
-          ToastService.showToast(response.responseMessage || 'Generation failed', ToastTypeEnum.Error);
-        }
-      }
-    } catch (err: unknown) {
-      const error = err as { response?: { status?: number; data?: { responseMessage?: string } } };
-      // PRD Section 8: Handle 402 Payment Required from API
-      if (error?.response?.status === 402) {
-        setOutOfCreditsOpen(true);
-      } else {
-        ToastService.showToast(error?.response?.data?.responseMessage || 'Generation failed', ToastTypeEnum.Error);
-      }
-    } finally {
-      setLoading(false);
+    if (!includeImages) {
+      setNoImageConfirmOpen(true);
+      return;
     }
+
+    await doGenerate();
   };
 
   const charCount = seedContent.length;
@@ -504,6 +538,24 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         open={lowCreditWarningOpen}
         onClose={() => setLowCreditWarningOpen(false)}
         creditsRemaining={creditsRemaining}
+      />
+
+      {/* No-image confirmation */}
+      <ConfirmDialog
+        isOpen={noImageConfirmOpen}
+        title="Generate without an image?"
+        message="You haven't enabled the image generator. Your post will be text-only. Do you want to continue, or go back and turn on the image toggle?"
+        confirmText="Yes, text only"
+        cancelText="Add an image"
+        confirmColor="#CD1B78"
+        onConfirm={() => {
+          setNoImageConfirmOpen(false);
+          doGenerate();
+        }}
+        onCancel={() => {
+          setNoImageConfirmOpen(false);
+          ToastService.showToast('Turn on the image toggle to include an AI-generated image.', ToastTypeEnum.Warning);
+        }}
       />
     </Box>
   );
