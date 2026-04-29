@@ -38,6 +38,7 @@ jobs:
         env:
           NEXT_PUBLIC_URI_API_BASE_URL: https://api-staging.urisocial.com
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: 140097238010-omk3gq8576iejip8dsbeqvhdsptodgc9.apps.googleusercontent.com
+          NODE_ENV: production
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_WITTY_BUSH_00DA69D1E }}
           action: 'upload'

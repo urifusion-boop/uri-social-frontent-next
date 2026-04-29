@@ -5,18 +5,13 @@ class UriHttpClient {
   private static client: AxiosInstance;
 
   private static getApiBaseUrl(): string {
-    // Check if we're in production or development/staging
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-
-    // Use DEV variable for development/staging, regular variable for production
-    const baseUrl = isDevelopment
-      ? process.env.NEXT_PUBLIC_URI_API_BASE_URL_DEV
-      : process.env.NEXT_PUBLIC_URI_API_BASE_URL;
+    // Use NEXT_PUBLIC_URI_API_BASE_URL set by Azure workflow (different per environment)
+    const baseUrl = process.env.NEXT_PUBLIC_URI_API_BASE_URL;
 
     // Fallback to localhost for local development
     const apiUrl = baseUrl || 'http://localhost:9003';
 
-    console.log(`[HTTP] Initializing with API base URL: ${apiUrl} (Environment: ${process.env.NODE_ENV})`);
+    console.log(`[HTTP] Initializing with API base URL: ${apiUrl}`);
     return apiUrl;
   }
 
