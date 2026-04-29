@@ -326,7 +326,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   };
 
   const isCurrentPlan = (tierId: string) => {
-    return userDetails?.subscriptionTier === tierId;
+    // Show "Current Plan" badge only if BOTH tier AND billing cycle match
+    return subscription?.tier_id === tierId && subscription?.billing_cycle === selectedBillingCycle;
   };
 
   const isPopular = (tierId: string) => {

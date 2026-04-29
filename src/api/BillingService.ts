@@ -70,6 +70,7 @@ export interface SubscriptionResponse {
   credits: number;
   credits_remaining: number;
   next_renewal: string | null;
+  billing_cycle?: BillingCycle; // PRD 8.1: Current billing cycle
 }
 
 // ==================== PRD 6.3: Payment Flow ====================
