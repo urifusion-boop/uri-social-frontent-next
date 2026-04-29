@@ -860,10 +860,21 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                 drafts={drafts}
                 selectedIds={selectedDraftIds}
                 onClose={() => setSyncImageOpen(false)}
-                onDone={() => {
+                onDone={(sourceId, targetIds) => {
+                  // Optimistically copy the source image_url to target drafts in local state
+                  // so cards update instantly from browser cache without waiting for fetchDrafts().
+                  const sourceDraft = drafts.find((d) => (d.draft_id ?? d.id) === sourceId);
+                  if (sourceDraft?.image_url) {
+                    const url = sourceDraft.image_url;
+                    setDrafts((prev) =>
+                      prev.map((d) =>
+                        targetIds.includes(d.draft_id ?? d.id ?? '') ? { ...d, image_url: url, has_image: true } : d
+                      )
+                    );
+                  }
                   setSyncImageOpen(false);
                   setSelectedDraftIds(new Set());
-                  fetchDrafts();
+                  fetchDrafts(true);
                 }}
               />
             )}
