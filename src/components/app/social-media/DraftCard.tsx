@@ -67,20 +67,6 @@ const PLATFORM_ASPECT: Record<string, string> = {
 
 const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSelectToggle }: DraftCardProps) => {
   const [draft, setDraft] = useState<ContentDraft>(initialDraft);
-
-  // Sync from parent when the parent refreshes (e.g. image_url arrives after background generation).
-  // Only update while not editing so we don't discard the user's in-progress changes.
-  useEffect(() => {
-    if (!editing) {
-      setDraft(initialDraft);
-      // Reset imageLoaded and imageError so the img onLoad/onError fire again
-      // for the new URL, preventing stale shimmer or 'Image unavailable' state.
-      setImageLoaded(false);
-      setImageError(false);
-      imageRetryRef.current = 0;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
   const [editing, setEditing] = useState(false);
   const [denyOpen, setDenyOpen] = useState(false);
   const [denyReason, setDenyReason] = useState('');
@@ -93,6 +79,24 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const imageRetryRef = useRef(0);
+  // Track the last image URL we reset state for — avoids re-shimmer on unrelated re-renders
+  const trackedImageUrlRef = useRef<string | undefined>(initialDraft.image_url);
+
+  // Sync draft data from parent on any relevant field change.
+  // Only reset image load state when image_url actually changes to a new value —
+  // not on every fetchDrafts() call (slides/status refs change on every fetch).
+  useEffect(() => {
+    if (!editing) {
+      setDraft(initialDraft);
+      if (initialDraft.image_url !== trackedImageUrlRef.current) {
+        setImageLoaded(false);
+        setImageError(false);
+        imageRetryRef.current = 0;
+        trackedImageUrlRef.current = initialDraft.image_url;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
   // Track which slide URLs have already loaded so navigating back doesn't re-shimmer
   const loadedSlideUrls = useState<Set<string>>(() => new Set())[0];
   const [imageHovered, setImageHovered] = useState(false);

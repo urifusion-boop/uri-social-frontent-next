@@ -17,7 +17,7 @@ interface SyncImageDialogProps {
   drafts: ContentDraft[];
   selectedIds: Set<string>;
   onClose: () => void;
-  onDone: () => void;
+  onDone: (sourceId: string, targetIds: string[]) => void;
 }
 
 function resolveUrl(url: string) {
@@ -53,7 +53,7 @@ export default function SyncImageDialog({ drafts, selectedIds, onClose, onDone }
           `Image applied to ${res.responseData?.updated_count ?? targetIds.length} platform${targetIds.length !== 1 ? 's' : ''}`,
           ToastTypeEnum.Success
         );
-        onDone();
+        onDone(sourceDraftId, targetIds);
       } else {
         ToastService.showToast(res.responseMessage || 'Failed to sync image', ToastTypeEnum.Error);
       }
