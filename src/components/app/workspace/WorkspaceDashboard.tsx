@@ -15,6 +15,7 @@ import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import ContentCalendarTab from '@/src/components/app/social-media/ContentCalendarTab';
 import { LinkedInPagesData, PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
+import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -1129,12 +1130,13 @@ const PLATFORMS = [
   { id: 'linkedin', label: 'LinkedIn', color: '#0A66C2', bg: '#E8F1FB', flow: 'oauth' },
   { id: 'x', label: 'X (Twitter)', color: '#000', bg: '#F0F0F0', flow: 'oauth' },
   { id: 'whatsapp', label: 'WhatsApp', color: '#25D366', bg: '#E8F9EF', flow: 'phone' },
-  { id: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#E7F0FD', flow: 'outstand' },
-  { id: 'instagram', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC', flow: 'outstand' },
+  { id: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#E7F0FD', flow: 'facebook_oauth' },
+  { id: 'instagram', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC', flow: 'instagram_direct' },
 ];
 
 const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [statuses, setStatuses] = useState<Record<string, PlatformStatus>>({});
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
@@ -1144,6 +1146,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [waError, setWaError] = useState('');
   const [liPages, setLiPages] = useState<LinkedInPagesData | null>(null);
   const [liPagesLoading, setLiPagesLoading] = useState(false);
+
+  // Facebook/Instagram OAuth callback state
+  const [phase, setPhase] = useState<'idle' | 'pending' | 'finalizing'>('idle');
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [availablePages, setAvailablePages] = useState<AvailablePage[]>([]);
+  const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
+  const [networkName, setNetworkName] = useState('');
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -1235,6 +1244,71 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     loadStatuses();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Handle OAuth callback params (after Facebook/Instagram OAuth redirect back here)
+  useEffect(() => {
+    const connected = searchParams.get('connected');
+    const token = searchParams.get('sessionToken');
+    if (connected === 'instagram_direct') {
+      const igUserId = searchParams.get('ig_user_id') ?? '';
+      const igUsername = searchParams.get('username') ?? 'Instagram';
+      router.replace('/workspace?tab=connections');
+      if (igUserId) {
+        SocialAccountService.finalizeInstagramDirect(igUserId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`Instagram @${igUsername} connected!`, ToastTypeEnum.Success);
+              loadStatuses();
+            } else {
+              ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error));
+      }
+    } else if (connected === 'pending' && token) {
+      setSessionToken(token);
+      setPhase('pending');
+      router.replace('/workspace?tab=connections');
+      SocialAccountService.getPendingConnection(token)
+        .then((res) => {
+          if (res.status && res.responseData) {
+            setAvailablePages(res.responseData.available_pages ?? []);
+            setNetworkName(res.responseData.network ?? '');
+          }
+        })
+        .catch(() => {
+          ToastService.showToast('Could not load accounts. Please try again.', ToastTypeEnum.Error);
+          setPhase('idle');
+        });
+    } else if (connected === 'false') {
+      const err = searchParams.get('error');
+      ToastService.showToast(err ?? 'Connection failed. Please try again.', ToastTypeEnum.Error);
+      router.replace('/workspace?tab=connections');
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFinalize = async () => {
+    if (!sessionToken || selectedPageIds.length === 0) return;
+    setPhase('finalizing');
+    try {
+      const res = await SocialAccountService.finalizeConnection(sessionToken, selectedPageIds);
+      if (res.status) {
+        const names = (res.responseData?.accounts_connected ?? []).map((a) => a.account_name || a.username).join(', ');
+        ToastService.showToast(`Connected: ${names}`, ToastTypeEnum.Success);
+        setPhase('idle');
+        setSessionToken(null);
+        setAvailablePages([]);
+        setSelectedPageIds([]);
+        loadStatuses();
+      } else {
+        ToastService.showToast('Finalization failed. Please try again.', ToastTypeEnum.Error);
+        setPhase('pending');
+      }
+    } catch {
+      ToastService.showToast('Finalization failed. Please try again.', ToastTypeEnum.Error);
+      setPhase('pending');
+    }
+  };
+
   const openOAuthPopup = (authUrl: string, onClose: () => void) => {
     const popup = window.open(authUrl, 'uri-oauth', 'width=620,height=700,left=200,top=80');
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
@@ -1251,8 +1325,26 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const handleConnect = async (id: string, flow: string) => {
-    if (flow === 'outstand') {
-      router.push('/social-media/brand-setup');
+    if (flow === 'instagram_direct') {
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
+      window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      return;
+    }
+    if (flow === 'facebook_oauth') {
+      setConnecting(id);
+      try {
+        const res = await SocialAccountService.initiateConnection(['facebook'], 'settings');
+        if (res.status && res.responseData?.auth_urls?.facebook) {
+          localStorage.setItem('outstand_connect_source', 'settings');
+          window.location.href = res.responseData.auth_urls.facebook;
+          return;
+        }
+        ToastService.showToast('Could not start connection. Please try again.', ToastTypeEnum.Error);
+      } catch {
+        ToastService.showToast('Connection failed. Please try again.', ToastTypeEnum.Error);
+      } finally {
+        setConnecting(null);
+      }
       return;
     }
     if (flow === 'phone') {
@@ -1347,6 +1439,31 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }
   };
 
+  if (phase === 'finalizing') {
+    return (
+      <SubPage
+        title="Connected Accounts"
+        icon="share"
+        desc="Manage your social media platform connections"
+        onJane={onJane}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 14 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              border: '3px solid #edecea',
+              borderTopColor: '#C2185B',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+            }}
+          />
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#374151' }}>Connecting your accounts...</div>
+        </div>
+      </SubPage>
+    );
+  }
+
   return (
     <SubPage
       title="Connected Accounts"
@@ -1354,6 +1471,142 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       desc="Manage your social media platform connections"
       onJane={onJane}
     >
+      {/* Facebook page selection after OAuth callback */}
+      {phase === 'pending' && (
+        <div
+          style={{
+            background: '#F9FAFB',
+            border: '1.5px solid #E0DEF7',
+            borderRadius: 14,
+            padding: '20px 18px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', marginBottom: 6 }}>
+            Choose {networkName || 'accounts'} to connect
+          </div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
+            Select which accounts you want to manage through URI Social.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            {availablePages.length === 0 ? (
+              <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>
+                No accounts found. Make sure you have admin access to at least one page.
+              </div>
+            ) : (
+              availablePages.map((page) => {
+                const isSelected = selectedPageIds.includes(page.id);
+                const isIg = page.type === 'instagram_business_account' || page.network === 'instagram';
+                return (
+                  <div
+                    key={page.id}
+                    onClick={() =>
+                      setSelectedPageIds((prev) =>
+                        prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
+                      )
+                    }
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '11px 14px',
+                      borderRadius: 10,
+                      border: `2px solid ${isSelected ? '#C2185B' : '#edecea'}`,
+                      background: isSelected ? '#FDF2F8' : '#fff',
+                      cursor: 'pointer',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    {page.profilePictureUrl ? (
+                      <img
+                        src={page.profilePictureUrl}
+                        alt={page.name}
+                        style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: '50%',
+                          background: isIg ? '#FDE7EC' : '#E7F0FD',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 16,
+                        }}
+                      >
+                        {isIg ? '📸' : '📘'}
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{page.name}</div>
+                      {page.username && <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>@{page.username}</div>}
+                    </div>
+                    <div
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        border: `2px solid ${isSelected ? '#C2185B' : '#ddd'}`,
+                        background: isSelected ? '#C2185B' : '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {isSelected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={handleFinalize}
+              disabled={selectedPageIds.length === 0}
+              style={{
+                padding: '8px 20px',
+                borderRadius: 8,
+                border: 'none',
+                background: selectedPageIds.length > 0 ? '#C2185B' : '#edecea',
+                color: selectedPageIds.length > 0 ? '#fff' : '#aaa',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: selectedPageIds.length > 0 ? 'pointer' : 'not-allowed',
+                fontFamily: 'var(--wf)',
+              }}
+            >
+              Connect{' '}
+              {selectedPageIds.length > 0
+                ? `${selectedPageIds.length} account${selectedPageIds.length !== 1 ? 's' : ''}`
+                : 'accounts'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPhase('idle');
+                setSessionToken(null);
+                setAvailablePages([]);
+                setSelectedPageIds([]);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#9CA3AF',
+                fontSize: 12.5,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontFamily: 'var(--wf)',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 40 }}>
           <div
