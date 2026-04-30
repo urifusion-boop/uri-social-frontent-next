@@ -1422,18 +1422,36 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       if (id === 'linkedin') {
         await SocialConnectionService.linkedinDisconnect();
         setLiPages(null);
-      } else if (id === 'x') await SocialConnectionService.xDisconnect();
-      else if (id === 'whatsapp') await SocialConnectionService.whatsappDisconnect();
-      else if (
-        id === 'instagram' &&
-        statuses[id]?.connected_via?.startsWith('instagram_direct') &&
-        statuses[id]?.ig_user_id
-      ) {
-        await SocialMediaAgentService.disconnectInstagramDirect(statuses[id].ig_user_id!);
-      } else if ((id === 'facebook' || id === 'instagram') && statuses[id]?.outstand_account_id) {
-        await SocialMediaAgentService.disconnectPlatform(statuses[id].outstand_account_id!);
+      } else if (id === 'x') {
+        await SocialConnectionService.xDisconnect();
+      } else if (id === 'whatsapp') {
+        await SocialConnectionService.whatsappDisconnect();
+      } else if (id === 'instagram') {
+        const s = statuses[id];
+        // Try direct disconnect first (direct OAuth connection)
+        if (s?.ig_user_id) {
+          await SocialMediaAgentService.disconnectInstagramDirect(s.ig_user_id);
+        } else if (s?.outstand_account_id) {
+          await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
+        } else {
+          ToastService.showToast('Could not disconnect Instagram. Please try again.', ToastTypeEnum.Error);
+          return;
+        }
+      } else if (id === 'facebook') {
+        const s = statuses[id];
+        if (s?.outstand_account_id) {
+          await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
+        } else {
+          ToastService.showToast('Could not disconnect Facebook. Please try again.', ToastTypeEnum.Error);
+          return;
+        }
       }
-      setStatuses((prev) => ({ ...prev, [id]: { linked: false } }));
+      // Reload from server to confirm disconnect — do not optimistically set linked: false
+      await loadStatuses();
+      ToastService.showToast('Account disconnected.', ToastTypeEnum.Success);
+    } catch {
+      ToastService.showToast('Could not disconnect. Please try again.', ToastTypeEnum.Error);
+      await loadStatuses();
     } finally {
       setDisconnecting(null);
     }
@@ -1692,7 +1710,24 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                           opacity: isBusy ? 0.5 : 1,
                         }}
                       >
-                        {disconnecting === p.id ? '...' : 'Disconnect'}
+                        {disconnecting === p.id ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span
+                              style={{
+                                width: 10,
+                                height: 10,
+                                border: '2px solid #ccc',
+                                borderTopColor: '#888',
+                                borderRadius: '50%',
+                                display: 'inline-block',
+                                animation: 'spin 0.7s linear infinite',
+                              }}
+                            />
+                            Disconnecting...
+                          </span>
+                        ) : (
+                          'Disconnect'
+                        )}
                       </button>
                     ) : (
                       <button
@@ -1712,7 +1747,24 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                           opacity: isBusy ? 0.5 : 1,
                         }}
                       >
-                        {connecting === p.id ? '...' : 'Connect'}
+                        {connecting === p.id ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span
+                              style={{
+                                width: 10,
+                                height: 10,
+                                border: '2px solid rgba(255,255,255,0.4)',
+                                borderTopColor: '#fff',
+                                borderRadius: '50%',
+                                display: 'inline-block',
+                                animation: 'spin 0.7s linear infinite',
+                              }}
+                            />
+                            Connecting...
+                          </span>
+                        ) : (
+                          'Connect'
+                        )}
                       </button>
                     )}
                   </div>
