@@ -100,7 +100,26 @@ export default function VisualStylePage() {
                       const [from, to] = style.gradient;
                       return (
                         <div key={slug} className="rounded-xl overflow-hidden border border-gray-200">
-                          <div className="h-20" style={{ background: `linear-gradient(135deg, ${from}, ${to})` }} />
+                          <div className="h-20 relative overflow-hidden">
+                            <img
+                              src={style.image}
+                              alt={style.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                              onError={(e) => {
+                                const el = e.currentTarget;
+                                el.style.display = 'none';
+                                (el.nextElementSibling as HTMLElement | null)?.style.setProperty('display', 'block');
+                              }}
+                            />
+                            <div
+                              style={{
+                                display: 'none',
+                                position: 'absolute',
+                                inset: 0,
+                                background: `linear-gradient(135deg, ${from}, ${to})`,
+                              }}
+                            />
+                          </div>
                           <div className="p-3">
                             <p className="text-sm font-semibold text-gray-900">{style.name}</p>
                             <p className="text-xs text-gray-500 mt-0.5 leading-snug">{style.description}</p>

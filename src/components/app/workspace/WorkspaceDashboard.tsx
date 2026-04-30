@@ -1128,7 +1128,7 @@ const PLATFORM_ICON: Record<string, ReactNode> = {
 
 const PLATFORMS = [
   { id: 'linkedin', label: 'LinkedIn', color: '#0A66C2', bg: '#E8F1FB', flow: 'oauth' },
-  { id: 'x', label: 'X (Twitter)', color: '#000', bg: '#F0F0F0', flow: 'oauth' },
+  { id: 'x', label: 'X (Twitter)', color: '#000', bg: '#F0F0F0', flow: 'oauth', comingSoon: true },
   { id: 'whatsapp', label: 'WhatsApp', color: '#25D366', bg: '#E8F9EF', flow: 'phone' },
   { id: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#E7F0FD', flow: 'facebook_oauth' },
   { id: 'instagram', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC', flow: 'instagram_direct' },
@@ -1693,7 +1693,23 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         boxShadow: linked ? '0 0 6px rgba(76,175,80,.5)' : 'none',
                       }}
                     />
-                    {linked ? (
+                    {p.comingSoon ? (
+                      <span
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: 7,
+                          border: '1px solid #E5E7EB',
+                          background: '#F9FAFB',
+                          fontSize: 11.5,
+                          color: '#9CA3AF',
+                          fontWeight: 600,
+                          fontFamily: 'var(--wf)',
+                          letterSpacing: 0.2,
+                        }}
+                      >
+                        Coming Soon
+                      </span>
+                    ) : linked ? (
                       <button
                         type="button"
                         onClick={() => handleDisconnect(p.id)}
