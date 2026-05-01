@@ -87,6 +87,14 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   // No-image confirmation
   const [noImageConfirmOpen, setNoImageConfirmOpen] = useState(false);
 
+  // OPTION 1: Incomplete brand profile modal
+  const [incompleteProfileOpen, setIncompleteProfileOpen] = useState(false);
+  const [incompleteProfileData, setIncompleteProfileData] = useState<{
+    missing_fields?: string[];
+    implications?: Record<string, string>;
+    can_proceed?: boolean;
+  } | null>(null);
+
   const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook');
 
   // Reset post type to feed if selector is hidden (no Instagram/Facebook selected)
@@ -142,7 +150,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
     checkCredits();
   }, []);
 
-  const doGenerate = async () => {
+  const doGenerate = async (acknowledgedIncomplete = false) => {
     setLoading(true);
     try {
       const payload: GenerateContentPayload = {
@@ -152,6 +160,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         ...(includeImages ? { image_model: imageModel } : {}),
         post_type: postType,
         ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
+        acknowledged_incomplete_profile: acknowledgedIncomplete,
       };
       if (referenceImage) {
         payload.reference_image = referenceImage;
@@ -165,8 +174,13 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         const balance = await BillingService.getCreditBalance();
         setCreditsRemaining(balance.credits_remaining);
       } else {
+        // Handle incomplete brand profile (Option 1: Progressive Enforcement)
+        if (response.responseCode === 'INCOMPLETE_PROFILE') {
+          setIncompleteProfileData(response.responseData);
+          setIncompleteProfileOpen(true);
+        }
         // PRD Section 8: Handle 402 Payment Required
-        if (response.responseCode === 402) {
+        else if (response.responseCode === 402) {
           setOutOfCreditsOpen(true);
         } else {
           ToastService.showToast(_friendlyGenerationError(response.responseMessage), ToastTypeEnum.Error);
@@ -555,6 +569,49 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         onCancel={() => {
           setNoImageConfirmOpen(false);
           ToastService.showToast('Turn on the image toggle to include an AI-generated image.', ToastTypeEnum.Warning);
+        }}
+      />
+
+      {/* OPTION 1: Incomplete brand profile warning */}
+      <ConfirmDialog
+        isOpen={incompleteProfileOpen}
+        title="⚠️ Improve Your Brand Consistency"
+        message={
+          incompleteProfileData ? (
+            <Box>
+              <Typography variant="body1" gutterBottom>
+                Your brand profile is incomplete. Missing:{' '}
+                <strong>{incompleteProfileData.missing_fields?.join(', ')}</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2, mb: 2 }}>
+                <strong>What this means:</strong>
+              </Typography>
+              {incompleteProfileData.implications &&
+                Object.entries(incompleteProfileData.implications).map(([field, implication]) => (
+                  <Typography key={field} variant="body2" color="text.secondary" sx={{ ml: 2, mb: 1 }}>
+                    • {implication}
+                  </Typography>
+                ))}
+              <Typography variant="body2" sx={{ mt: 2, fontWeight: 500 }}>
+                Complete your brand profile for best results, or continue with safe defaults.
+              </Typography>
+            </Box>
+          ) : (
+            'Your brand profile is incomplete. Complete it for better brand consistency.'
+          )
+        }
+        confirmText="Complete Profile"
+        cancelText="Generate Anyway"
+        confirmColor="#CD1B78"
+        onConfirm={() => {
+          setIncompleteProfileOpen(false);
+          // Navigate to brand settings/onboarding
+          window.location.href = '/app/brand-settings';
+        }}
+        onCancel={() => {
+          setIncompleteProfileOpen(false);
+          // User acknowledged - generate with fallbacks
+          doGenerate(true);
         }}
       />
     </Box>

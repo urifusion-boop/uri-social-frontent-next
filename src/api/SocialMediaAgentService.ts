@@ -29,6 +29,7 @@ export interface GenerateContentPayload {
   reference_image?: string;
   post_type?: 'feed' | 'carousel' | 'story';
   num_slides?: number;
+  acknowledged_incomplete_profile?: boolean; // OPTION 1: User acknowledged incomplete profile warning
 }
 
 export interface RefinePayload {
