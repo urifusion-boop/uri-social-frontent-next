@@ -176,7 +176,13 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
       } else {
         // Handle incomplete brand profile (Option 1: Progressive Enforcement)
         if (response.responseCode === 'INCOMPLETE_PROFILE') {
-          setIncompleteProfileData(response.responseData);
+          setIncompleteProfileData(
+            response.responseData as {
+              missing_fields?: string[];
+              implications?: Record<string, string>;
+              can_proceed?: boolean;
+            } | null
+          );
           setIncompleteProfileOpen(true);
         }
         // PRD Section 8: Handle 402 Payment Required
