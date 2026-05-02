@@ -3181,6 +3181,9 @@ const PlaybookPage = ({
             </div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start', position: 'relative' }}>
               <div style={{ flex: 1, position: 'relative' }}>
+                <label style={{ fontSize: 12, color: '#666', marginBottom: 4, display: 'block', fontWeight: 500 }}>
+                  Click to pick a color
+                </label>
                 <div
                   onClick={() => setShowColorPicker(!showColorPicker)}
                   style={{
@@ -3193,13 +3196,30 @@ const PlaybookPage = ({
                     background: '#fff',
                     cursor: 'pointer',
                     fontFamily: 'var(--wf)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#C2185B';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(194, 24, 91, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#e5e3df';
+                    e.currentTarget.style.boxShadow = 'none';
                   }}
                 >
                   <div
-                    style={{ width: 24, height: 24, borderRadius: 6, background: newColor, border: '1px solid #ddd' }}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: 6,
+                      background: newColor,
+                      border: '1px solid #ddd',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    }}
                   />
-                  <span style={{ fontSize: 13, flex: 1 }}>{hexToColorName(newColor)}</span>
-                  <span style={{ fontSize: 12, color: '#999' }}>{newColor}</span>
+                  <span style={{ fontSize: 13, flex: 1, fontWeight: 500 }}>{hexToColorName(newColor)}</span>
+                  <span style={{ fontSize: 11, color: '#999' }}>{newColor}</span>
+                  <span style={{ fontSize: 10, color: '#999', marginLeft: 4 }}>▼</span>
                 </div>
                 {showColorPicker && (
                   <div
