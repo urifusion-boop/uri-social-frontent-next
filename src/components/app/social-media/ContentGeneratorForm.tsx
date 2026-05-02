@@ -611,8 +611,8 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         confirmColor="#CD1B78"
         onConfirm={() => {
           setIncompleteProfileOpen(false);
-          // Navigate to brand settings/onboarding
-          window.location.href = '/app/brand-settings';
+          // Navigate to Brand Playbook tab
+          window.location.href = '/app?tab=playbook';
         }}
         onCancel={() => {
           setIncompleteProfileOpen(false);
