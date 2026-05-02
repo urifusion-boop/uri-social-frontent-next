@@ -28,6 +28,8 @@ import FontPickerGallery from '@/src/components/app/social-media/FontPickerGalle
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
+import { HexColorPicker } from 'react-colorful';
+import { hexToColorName } from '@/src/utils/colorNamer';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
 import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
@@ -2786,7 +2788,8 @@ const PlaybookPage = ({
   const [, setTagline] = useState('');
   const [voiceSample, setVoiceSample] = useState('');
   const [colors, setColors] = useState<string[]>([]);
-  const [newColor, setNewColor] = useState('');
+  const [newColor, setNewColor] = useState('#CD1B78');
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [pillars, setPillars] = useState<string[]>([]);
   const [newPillar, setNewPillar] = useState('');
   const [formats, setFormats] = useState<string[]>([]);
@@ -3156,7 +3159,8 @@ const PlaybookPage = ({
                   }}
                 >
                   <div style={{ width: 16, height: 16, borderRadius: 4, background: c }} />
-                  <span style={{ fontSize: 12.5 }}>{c}</span>
+                  <span style={{ fontSize: 12.5 }}>{hexToColorName(c)}</span>
+                  <span style={{ fontSize: 11, color: '#999', marginLeft: 2 }}>({c})</span>
                   <button
                     onClick={() => setColors(colors.filter((_, j) => j !== i))}
                     style={{
@@ -3175,13 +3179,68 @@ const PlaybookPage = ({
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <PbInput value={newColor} onChange={setNewColor} placeholder="#CD1B78" />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start', position: 'relative' }}>
+              <div style={{ flex: 1, position: 'relative' }}>
+                <div
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1.5px solid #e5e3df',
+                    background: '#fff',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--wf)',
+                  }}
+                >
+                  <div
+                    style={{ width: 24, height: 24, borderRadius: 6, background: newColor, border: '1px solid #ddd' }}
+                  />
+                  <span style={{ fontSize: 13, flex: 1 }}>{hexToColorName(newColor)}</span>
+                  <span style={{ fontSize: 12, color: '#999' }}>{newColor}</span>
+                </div>
+                {showColorPicker && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      marginTop: 8,
+                      padding: 12,
+                      borderRadius: 12,
+                      background: '#fff',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                      zIndex: 1000,
+                    }}
+                  >
+                    <HexColorPicker color={newColor} onChange={setNewColor} />
+                    <button
+                      onClick={() => setShowColorPicker(false)}
+                      style={{
+                        marginTop: 12,
+                        width: '100%',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #ddd',
+                        background: '#f5f5f5',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--wf)',
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => {
                   if (newColor.trim()) {
                     setColors([...colors, newColor.trim()]);
-                    setNewColor('');
+                    setShowColorPicker(false);
                   }
                 }}
                 style={{

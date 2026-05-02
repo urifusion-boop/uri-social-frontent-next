@@ -23,6 +23,7 @@ import { MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import LowCreditWarning from '../atoms/LowCreditWarning';
 import ConfirmDialog from '../workspace/ConfirmDialog';
+import { getColorDescription } from '@/src/utils/colorNamer';
 
 const PLATFORMS = [
   { key: 'facebook', label: 'Facebook', icon: <FaFacebook size={16} color="#1877F2" /> },
