@@ -1,6 +1,6 @@
 'use client';
 
-import { getStylesForIndustry, StyleTemplate } from '@/src/data/styleLibrary';
+import { getStylesForIndustry, StyleTemplate, STYLES } from '@/src/data/styleLibrary';
 import { Box, Typography } from '@mui/material';
 import { useState } from 'react';
 import { FaCheckCircle } from 'react-icons/fa';
@@ -92,7 +92,11 @@ function StyleCard({
 
 export default function StylePickerGallery({ industry, selected, onChange }: StylePickerGalleryProps) {
   const primary = '#CD1B78';
-  const styles = getStylesForIndustry(industry || 'general_other');
+  const [viewAll, setViewAll] = useState(false);
+
+  const industryStyles = getStylesForIndustry(industry || 'general_other');
+  const allStyles = STYLES;
+  const styles = viewAll ? allStyles : industryStyles;
 
   const toggle = (slug: string) => {
     if (selected.includes(slug)) {
@@ -107,6 +111,37 @@ export default function StylePickerGallery({ industry, selected, onChange }: Sty
 
   return (
     <Box>
+      {/* View All Toggle */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+        <Box
+          component="button"
+          onClick={() => setViewAll(!viewAll)}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5,
+            padding: '6px 12px',
+            borderRadius: '8px',
+            border: `1px solid ${viewAll ? primary : '#E5E7EB'}`,
+            background: viewAll ? `${primary}11` : '#fff',
+            color: viewAll ? primary : '#6B7280',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            '&:hover': {
+              background: viewAll ? `${primary}22` : '#F9FAFB',
+              borderColor: primary,
+            },
+          }}
+        >
+          <span>
+            {viewAll ? `Showing all ${allStyles.length} styles` : `Showing ${industryStyles.length} for your industry`}
+          </span>
+          <span sx={{ fontSize: 10 }}>{viewAll ? '✓' : '◦'}</span>
+        </Box>
+      </Box>
+
       <Box
         sx={{
           display: 'grid',
