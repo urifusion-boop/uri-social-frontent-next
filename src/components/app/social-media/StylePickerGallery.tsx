@@ -5,7 +5,7 @@ import { Box, Typography } from '@mui/material';
 import { useState } from 'react';
 import { FaCheckCircle } from 'react-icons/fa';
 
-const MAX_SELECTIONS = 3;
+const MAX_SELECTIONS = 7;
 
 interface StylePickerGalleryProps {
   industry: string;
@@ -162,7 +162,7 @@ export default function StylePickerGallery({ industry, selected, onChange }: Sty
 
       {selected.length >= MAX_SELECTIONS && (
         <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mt: 1.5, textAlign: 'center' }}>
-          3 of 3 styles selected — deselect one to swap
+          {MAX_SELECTIONS} of {MAX_SELECTIONS} styles selected — deselect one to swap
         </Typography>
       )}
     </Box>
