@@ -138,7 +138,7 @@ export default function StylePickerGallery({ industry, selected, onChange }: Sty
           <span>
             {viewAll ? `Showing all ${allStyles.length} styles` : `Showing ${industryStyles.length} for your industry`}
           </span>
-          <span sx={{ fontSize: 10 }}>{viewAll ? '✓' : '◦'}</span>
+          <span style={{ fontSize: 10 }}>{viewAll ? '✓' : '◦'}</span>
         </Box>
       </Box>
 
