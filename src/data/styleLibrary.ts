@@ -486,6 +486,407 @@ export const STYLES: StyleTemplate[] = [
     promptFragment:
       'Concert and festival poster aesthetic. Multiple layered elements: artist photo cutouts, abstract geometric shapes, texture overlays. Explosive typographic hierarchy with headline act massive, supporting acts smaller. Date, venue, and ticket info prominently placed. Neon, metallic, or gradient colour palette. High energy. Reminiscent of Coachella, Afropunk, or Felabration poster design.',
   },
+
+  // ── SaaS / Tech / Fintech (Expanded 2026) ────────────────────────────────
+  {
+    slug: 'saas_dashboard_hero',
+    name: 'Dashboard Hero',
+    description: 'Your product IS the visual. Clean UI screenshots as the centrepiece.',
+    industryTags: ['fintech_saas_tech', 'general_other'],
+    gradient: ['#0d3b8c', '#6a0dad'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/dashboard-hero.jpg',
+    promptFragment:
+      "Professional product screenshot showcase on a clean gradient background. The hero element is a device mockup (laptop, phone, or tablet) displaying the product's actual UI or a stylised representation of it. Subtle shadow beneath the device for depth. Clean sans-serif typography above or below the device in white or dark text. Background gradient uses brand primary and secondary colours blending smoothly. No decorative clutter. The product screenshot is the entire visual story. Apple-keynote-presentation quality.",
+  },
+  {
+    slug: 'saas_metric_spotlight',
+    name: 'Metric Spotlight',
+    description: 'One big number tells the whole story. Data as design.',
+    industryTags: ['fintech_saas_tech', 'education_consulting', 'general_other'],
+    gradient: ['#0a2540', '#00d4ff'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/metric-spotlight.jpg',
+    promptFragment:
+      'Data-forward graphic with a single large metric as the hero element: big bold number (72pt+) in brand accent colour, centered vertically. Unit or label directly below in smaller text. Supporting context in 1–2 lines of small text at the bottom. Background: solid dark colour or very subtle gradient. No imagery — the number IS the image. Inspired by investor pitch decks and annual report covers. The typography should be monospaced or geometric sans-serif for the number, clean sans-serif for labels.',
+  },
+  {
+    slug: 'saas_comparison_grid',
+    name: 'Comparison Grid',
+    description: 'Side-by-side visual proof. Before/after, us vs. them.',
+    industryTags: ['fintech_saas_tech', 'general_other'],
+    gradient: ['#1a4a6b', '#4a9ebe'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/comparison-grid.jpg',
+    promptFragment:
+      "Clean two-column or split-screen comparison layout. Left side labelled 'Before' or 'Other tools' with muted/desaturated colours and a subtle red or grey tint. Right side labelled 'After' or 'With [Brand]' with vibrant, saturated brand colours and a green checkmark or glow. Clear divider line (solid or dashed) separating the halves. Clean sans-serif labels. Each side shows either a UI screenshot, a metric, or an icon-based feature list. The visual bias should obviously favour the right side.",
+  },
+  {
+    slug: 'saas_blog_header',
+    name: 'Blog Header',
+    description: 'Clean editorial imagery for thought leadership content.',
+    industryTags: ['fintech_saas_tech', 'education_consulting', 'general_other'],
+    gradient: ['#f5f5f7', '#86868b'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/blog-header.jpg',
+    promptFragment:
+      'Wide-format editorial blog header image. Left-aligned bold headline text (2–4 words max) with a complementary abstract illustration or subtle photography on the right. Brand primary colour as an accent bar or background block on one side. Clean whitespace separating text from imagery. Typography: bold geometric sans-serif for the headline, thin sans-serif for any subtitle. Feels like a premium tech publication cover: The Verge, TechCrunch, or Wired. No stock photography — abstract shapes, gradients, or stylised icons preferred.',
+  },
+  {
+    slug: 'saas_feature_card',
+    name: 'Feature Card',
+    description: 'One feature, one icon, one message. Modular and clean.',
+    industryTags: ['fintech_saas_tech', 'general_other'],
+    gradient: ['#c8d8f0', '#7eb8ff'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/feature-card.jpg',
+    promptFragment:
+      'Single-feature spotlight card on a clean background. Large custom icon or illustration (line-art style, 2px stroke, brand accent colour) centered or left-aligned. Feature name in bold sans-serif below the icon. One-line description in lighter weight text beneath. Background: soft gradient, solid light colour, or white with a subtle brand-coloured border. Rounded corners (16px) on the overall card shape. Designed to work as a standalone post or as one slide in a carousel where each slide highlights a different feature.',
+  },
+  {
+    slug: 'saas_abstract_gradient',
+    name: 'Abstract Gradient',
+    description: "Ambient, atmospheric, modern. When you don't need a screenshot.",
+    industryTags: ['fintech_saas_tech', 'beauty_wellness', 'general_other'],
+    gradient: ['#667eea', '#764ba2'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/abstract-gradient.jpg',
+    promptFragment:
+      "Full-bleed abstract gradient background with smooth colour transitions using brand palette colours. Organic flowing shapes: blurred orbs, mesh gradients, or aurora-like colour waves. Typography floats on the gradient: large bold statement text in white or very light colour with subtle text shadow for legibility. No imagery, no icons, no screenshots. The mood is ambient, premium, and contemplative. Inspired by Stripe's and Linear's marketing visuals. The gradient itself IS the design.",
+  },
+  {
+    slug: 'saas_code_snippet',
+    name: 'Code Snippet',
+    description: 'Developer-facing. Dark mode. Technical credibility.',
+    industryTags: ['fintech_saas_tech'],
+    gradient: ['#0d1117', '#00ff88'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/code-snippet.jpg',
+    promptFragment:
+      'Dark code editor aesthetic (#0D1117 or #1E1E1E background). Featured code snippet rendered in monospace font (Fira Code or JetBrains Mono style) with syntax highlighting: strings in green, keywords in purple/blue, comments in grey. Line numbers visible on the left margin. Terminal-style header bar with coloured dots (red/yellow/green) at the top. Brand logo or product name in small text at the bottom. Below or beside the code: a one-line plain-language explanation in clean sans-serif. Appeals to developers and technical audiences.',
+  },
+  {
+    slug: 'saas_testimonial_card',
+    name: 'Testimonial Card',
+    description: 'Social proof that looks designed, not screenshotted.',
+    industryTags: ['fintech_saas_tech', 'education_consulting', 'general_other'],
+    gradient: ['#f5f0eb', '#c8b89a'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/testimonial-card.jpg',
+    promptFragment:
+      'Professional testimonial card with large quotation marks ("") as decorative elements in brand accent colour at 15% opacity behind the text. Customer quote in medium-weight serif or sans-serif, centered. Customer name and title below the quote in bold, with company logo (small, greyscale) beneath. Background: soft brand colour tint or clean white with a subtle coloured border. Optional: small 5-star rating above the quote. Avatar circle photo of the customer in top-centre or left-aligned. Premium, not templated.',
+  },
+  {
+    slug: 'saas_changelog_card',
+    name: 'Changelog Card',
+    description: 'Ship fast, show fast. Clean update announcements.',
+    industryTags: ['fintech_saas_tech'],
+    gradient: ['#f0f4ff', '#6c8ef5'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/changelog-card.jpg',
+    promptFragment:
+      "Clean update announcement card with a coloured category badge at the top: 'NEW' in green, 'IMPROVED' in blue, 'FIXED' in yellow. Feature name as bold headline below the badge. One-line description. Optional: small product UI screenshot showing the change, displayed in a subtle device frame or browser window. Background: white or very light grey with a thin brand-coloured top border. Version number or date in small grey text at the bottom. Developer changelog aesthetic.",
+  },
+  {
+    slug: 'saas_infographic_flow',
+    name: 'Infographic Flow',
+    description: 'Process visualisation. Steps and flows made visual.',
+    industryTags: ['fintech_saas_tech', 'education_consulting', 'general_other'],
+    gradient: ['#c8d8f0', '#7eb8ff'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/infographic-flow.jpg',
+    promptFragment:
+      'Clean infographic-style process diagram. 3–5 numbered steps arranged vertically or horizontally, connected by arrows or dotted lines. Each step has a circular icon (line-art, brand accent colour) and a short label (2–4 words). The flow direction is clear and visual. Background: white or very light brand tint. Typography: clean geometric sans-serif. Colours: primary brand colour for the step numbers/icons, grey for the connecting lines, dark text for labels. Educational and structural. Think process.st or Notion-style diagrams.',
+  },
+  {
+    slug: 'saas_dark_announcement',
+    name: 'Dark Mode Announcement',
+    description: 'Premium dark background. For important news that demands attention.',
+    industryTags: ['fintech_saas_tech', 'events_entertainment', 'general_other'],
+    gradient: ['#0a0a0a', '#1a1a2e'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/dark-announcement.jpg',
+    promptFragment:
+      "Full dark background (#0A0A0A or #111827) with a single dramatic element: either a glowing product icon, a large embossed number, or a bold text statement. Subtle animated-looking light effects: a soft glow, lens flare, or spotlight illuminating the text from behind. Typography: large, bold, white or light brand colour. Minimal supporting text. No images or screenshots. The darkness creates weight and importance. Inspired by Apple event invitations and Linear's launch pages. Reserve for major announcements.",
+  },
+  {
+    slug: 'saas_social_proof_wall',
+    name: 'Social Proof Wall',
+    description: 'Logo grids and numbers. Trust at scale.',
+    industryTags: ['fintech_saas_tech', 'education_consulting', 'general_other'],
+    gradient: ['#ffffff', '#f0f4ff'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/social-proof-wall.jpg',
+    promptFragment:
+      "Clean grid of customer logos arranged in a 3×4 or 4×3 matrix on a white or very light background. All logos rendered in greyscale for visual consistency. Above the grid: a bold headline like 'Trusted by 500+ companies' in dark text. Below the grid: a key metric or social proof number (e.g., '$2.4B processed'). The logos should feel deliberately curated, not crammed. Generous spacing between logos. Optional: a subtle brand-coloured underline beneath the headline.",
+  },
+
+  // ── Product-Based Business (Expanded 2026) ───────────────────────────────
+  {
+    slug: 'prod_hero_pedestal',
+    name: 'Hero Pedestal',
+    description: 'Product on a stage. Elevated. Premium. The Apple approach.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#f5f0eb', '#c8b89a'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/hero-pedestal.jpg',
+    promptFragment:
+      'Single product centered on a clean surface or floating against a solid-colour background. Dramatic studio lighting from above-left creating a defined shadow beneath. The product occupies 40–60% of the frame with generous negative space. No text unless explicitly needed — the product IS the message. Background colour pulled from brand palette (muted version). Subtle gradient on the surface beneath the product suggesting a platform or pedestal. Shot at slight low angle for a heroic perspective. Luxury product photography quality.',
+  },
+  {
+    slug: 'prod_flat_lay_curated',
+    name: 'Curated Flat-Lay',
+    description: 'Top-down arrangement. Intentional, styled, Instagram-perfect.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'food_beverage', 'general_other'],
+    gradient: ['#e8e4df', '#a8998a'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/flat-lay.jpg',
+    promptFragment:
+      "Overhead flat-lay photography of product arranged with complementary lifestyle props on a textured surface (marble, linen, wood, or concrete). The product is the dominant element, surrounded by 3–5 smaller styling props that create context: coffee cup, plant sprig, fabric swatch, tool, or ingredient. Everything arranged with geometric precision and intentional negative space. Soft even lighting with minimal shadows. Warm natural colour grading. The arrangement tells a story about the product's lifestyle context without words.",
+  },
+  {
+    slug: 'prod_unboxing_reveal',
+    name: 'Unboxing Reveal',
+    description: 'The packaging IS the experience. Premium unboxing energy.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#8b6914', '#d4a96a'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/unboxing.jpg',
+    promptFragment:
+      "Unboxing-style product photography showing the product emerging from or arranged with its packaging. Box slightly open with tissue paper or branded wrapping visible. The product partially revealed, creating anticipation. Dramatic lighting highlighting the packaging materials and brand details. Dark or brand-coloured background for contrast. Optional: hands pulling the product from the box for human context. The feeling should be 'this is a gift worth opening.' Focus on packaging quality, materials, and the tactile experience.",
+  },
+  {
+    slug: 'prod_ingredient_exploded',
+    name: 'Ingredient Exploded',
+    description: "Show what it's made of. Transparency builds trust.",
+    industryTags: ['beauty_wellness', 'food_beverage', 'general_other'],
+    gradient: ['#ffffff', '#90ee90'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/ingredient-exploded.jpg',
+    promptFragment:
+      "Exploded/deconstructed view showing the product's key ingredients or components arranged around it. Product centered, with raw materials, ingredients, or parts floating or arranged in a circle/arc around it. Clean background (white or light). Each ingredient may have a small label or line pointing to it. Bright, clinical lighting that makes every element look fresh and identifiable. Inspired by cosmetics and food brands that show 'what's inside.' Scientific yet approachable. Transparency and quality as the message.",
+  },
+  {
+    slug: 'prod_lifestyle_in_use',
+    name: 'Lifestyle In-Use',
+    description: 'Product in its natural habitat. Real context, real life.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'fitness_gym', 'general_other'],
+    gradient: ['#3d6b4f', '#a8c5a0'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/lifestyle-in-use.jpg',
+    promptFragment:
+      "Environmental product photography showing the product being used or displayed in a real-life context. A skincare bottle on a bathroom counter, a tool in a workshop, food on a dining table, electronics on a desk. Natural daylight or warm interior lighting. Shallow depth of field with the product in sharp focus and background softly blurred. Warm, inviting colour grading. No text overlay. Candid and aspirational simultaneously. The viewer should think 'I want my life to look like this' with the product naturally part of that scene.",
+  },
+  {
+    slug: 'prod_colour_swatch',
+    name: 'Colour Swatch',
+    description: 'Show the range. Multiple variants, one clean layout.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#ffffff', '#cccccc'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/colour-swatch.jpg',
+    promptFragment:
+      'Clean product variant display showing multiple colourways, sizes, or flavours of the same product arranged in a satisfying grid, row, or gradient sequence. Each variant gets equal visual weight. Background: pure white or light grey for maximum colour accuracy. Even studio lighting with no colour cast. Small clean labels beneath each variant (colour name, flavour, size). The visual rhythm of the arrangement should be satisfying and orderly. Inspired by Pantone swatches and paint chip displays. Perfect for product lines with variety.',
+  },
+  {
+    slug: 'prod_scale_context',
+    name: 'Scale Context',
+    description: 'How big is it actually? Show it next to something familiar.',
+    industryTags: ['fashion_ecommerce', 'general_other'],
+    gradient: ['#e8e4df', '#a8998a'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/scale-context.jpg',
+    promptFragment:
+      "Product photographed next to a common object for scale reference: a hand, a coin, a phone, a ruler, a cup. Clean background, even lighting. The scale relationship should be immediately obvious. Clean informational typography showing dimensions if relevant. Not artistic — practical and informative. The viewer's primary question ('how big is this?') is answered instantly. Useful for online sellers where size is a common purchase barrier. E-commerce practical, not editorial.",
+  },
+  {
+    slug: 'prod_process_bts',
+    name: 'Process / Behind the Scenes',
+    description: "How it's made. Craft and care visible.",
+    industryTags: ['fashion_ecommerce', 'food_beverage', 'beauty_wellness', 'general_other'],
+    gradient: ['#5c3317', '#c8a06e'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/process-bts.jpg',
+    promptFragment:
+      "Behind-the-scenes manufacturing or crafting photography. Raw materials being transformed into finished product. Workshop, kitchen, factory, or studio environment. Warm directional lighting. Visible hands at work. Slightly gritty, authentic feel — not over-polished. Subtle film grain at low opacity for an artisanal feel. Text overlay (if any) uses hand-lettered or typewriter-style font. The story is 'real people make this with care.' Builds trust through transparency and craftsmanship. Documentary style.",
+  },
+  {
+    slug: 'prod_seasonal_collection',
+    name: 'Seasonal Collection Grid',
+    description: 'Multiple products in a thematic arrangement. Holiday or season-specific.',
+    industryTags: ['fashion_ecommerce', 'food_beverage', 'beauty_wellness', 'general_other'],
+    gradient: ['#8b4513', '#d2691e'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/seasonal-collection.jpg',
+    promptFragment:
+      "Multiple products arranged in a seasonal or thematic grid. 3–6 items evenly spaced. Seasonal props (e.g., autumn leaves, snow, beach sand, flowers) scattered around. Warm or cool color grading depending on season. Soft natural light. Typography uses seasonal script or serif font. The visual says 'new drop' or 'limited time.' Common for holiday campaigns, product launches, or capsule collections. Celebratory and abundant feel.",
+  },
+  {
+    slug: 'prod_comparison_duo',
+    name: 'Comparison Duo (Before/After)',
+    description: 'Two products or states side-by-side. Clear contrast.',
+    industryTags: ['beauty_wellness', 'fashion_ecommerce', 'general_other'],
+    gradient: ['#4a5568', '#cbd5e0'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/comparison-duo.jpg',
+    promptFragment:
+      "Two products side-by-side in a split composition. Left vs. right. Same lighting, same angle, identical framing for fairness. A thin vertical divider line (optional). Text labels: 'Before/After', 'Option A / Option B', 'Old / New', or similar. Clean sans-serif labels. Neutral background (white, grey, or soft gradient). The point: objective comparison. Used for skincare results, product upgrades, or A/B showcases. Minimal distractions — the difference is the hero.",
+  },
+  {
+    slug: 'prod_360_angles',
+    name: 'Multi-Angle / 360° Grid',
+    description: 'Same product from every angle. Comprehensive view.',
+    industryTags: ['fashion_ecommerce', 'general_other'],
+    gradient: ['#2d3748', '#718096'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/360-angles.jpg',
+    promptFragment:
+      "4–6 images of the same product arranged in a clean grid. Each image shows a different angle: front, back, side, top, bottom, detail close-up. Consistent lighting and background across all frames. White or light grey studio backdrop. Small text labels ('Front', 'Back', 'Detail') if helpful. The message: 'we have nothing to hide — see it all.' E-commerce trust-builder. Clean, informational, catalogue-style professionalism.",
+  },
+  {
+    slug: 'prod_bundle_stack',
+    name: 'Bundle / Kit Stack',
+    description: 'Multiple products grouped as a set. Value and completeness.',
+    industryTags: ['beauty_wellness', 'food_beverage', 'general_other'],
+    gradient: ['#744210', '#c97d3a'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/bundle-stack.jpg',
+    promptFragment:
+      "Multiple products arranged together as a kit or bundle. Organized in a visually pleasing stack, fan, or cluster. Clean studio background or rustic surface (wood, marble). Each product clearly visible. Soft directional light with gentle shadows. Typography: 'Complete Set', 'Starter Kit', 'Bundle & Save', etc. The visual suggests value, convenience, and thoughtful curation. Used for gift sets, skincare routines, meal kits, or subscription boxes. Abundant without being cluttered.",
+  },
+  {
+    slug: 'prod_customer_photo_frame',
+    name: 'Customer Photo Feature',
+    description: 'Real customer images framed and showcased. Social proof.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#4c1d95', '#7c3aed'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/customer-photo-frame.jpg',
+    promptFragment:
+      "User-generated content (UGC) style: real customer photos displayed in polaroid-style frames, phone mockups, or pinboard layout. 2–4 images arranged casually. Each frame slightly rotated for authenticity. Subtle shadows for depth. Text overlay: 'Our customers', 'Real results', '@username'. Background: neutral or branded gradient. The goal: trust and relatability. People trust other people more than brands. Works for fashion, beauty, fitness, food — anything visual and social. Casual, authentic, community-driven.",
+  },
+  {
+    slug: 'prod_price_tag',
+    name: 'Price / Promo Tag Pop',
+    description: 'Bold price or offer highlighted. Urgency and clarity.',
+    industryTags: ['fashion_ecommerce', 'food_beverage', 'beauty_wellness', 'general_other'],
+    gradient: ['#dc2626', '#fca5a5'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/price-tag.jpg',
+    promptFragment:
+      "Product image with a bold, eye-catching price or discount tag overlay. Large sans-serif or stencil font. Bright accent color (red, yellow, green). Tag styled as: sticker, badge, ribbon, or stamped label. The product is secondary — the offer is the hero. Text examples: '50% OFF', '₦5,000', 'Flash Sale', 'Limited Time'. High contrast for immediate readability. Background slightly blurred or desaturated to make the tag pop. Pure conversion focus — urgency and value at a glance. Retail advertising DNA.",
+  },
+
+  // ==========================================
+  // SERVICE-BASED BUSINESS STYLES (14)
+  // ==========================================
+
+  {
+    slug: 'svc_authority_quote',
+    name: 'Authority Quote Card',
+    description: 'Your words. Bold typography. Thought leadership.',
+    industryTags: ['education_consulting', 'general_other'],
+    gradient: ['#1e3a8a', '#3b82f6'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/authority-quote.jpg',
+    promptFragment:
+      'Text-dominant design with a bold, thought-provoking quote centered on a solid or gradient background. Large serif or bold sans-serif font. Minimal design — no distracting imagery. Optional: small headshot or logo in the corner. Color scheme: dark background with white/gold text, or light background with dark text. Quotation marks stylized as design elements. Footer: your name and title in smaller text. The aesthetic: TED Talk slide, LinkedIn carousel authority, keynote speaker energy. Positioning you as the expert.',
+  },
+  {
+    slug: 'svc_tip_carousel',
+    name: 'Tip Carousel Slide',
+    description: 'Swipeable educational content. Value-first marketing.',
+    industryTags: ['education_consulting', 'fitness_gym', 'beauty_wellness', 'general_other'],
+    gradient: ['#0f766e', '#14b8a6'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/tip-carousel.jpg',
+    promptFragment:
+      "Clean, minimalist slide designed for multi-image carousel posts. One tip per slide. Bold headline at top (e.g., 'Tip #3: Use power words'). 2–3 lines of body text. Lots of white space for readability. Branded accent color (border, header bar, or icon). Optional: small icon or illustration. Footer: consistent branding (logo, page number like '3/7'). The format: educational, scroll-stopping, highly shareable. Common for coaches, consultants, and educators. Instagram carousel gold.",
+  },
+  {
+    slug: 'svc_case_study_result',
+    name: 'Case Study / Result Card',
+    description: 'Client success story. Numbers and outcomes highlighted.',
+    industryTags: ['education_consulting', 'fitness_gym', 'real_estate', 'general_other'],
+    gradient: ['#713f12', '#d97706'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/case-study-result.jpg',
+    promptFragment:
+      "Before/after metrics or client transformation story. Bold, oversized numbers (e.g., '+300%', '₦12M revenue', '6 weeks'). Clean layout with clear hierarchy. Client name or industry (anonymized if needed). Small testimonial quote. Icon or illustration representing the outcome (graph arrow, trophy, checkmark). Background: gradient or photo with overlay. The goal: proof of results. Used by agencies, consultants, coaches, trainers. Data-driven storytelling. Trust-building through evidence.",
+  },
+  {
+    slug: 'svc_framework_diagram',
+    name: 'Framework / Process Diagram',
+    description: 'Your methodology visualized. Steps, pillars, or systems.',
+    industryTags: ['education_consulting', 'general_other'],
+    gradient: ['#4c1d95', '#a78bfa'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/framework-diagram.jpg',
+    promptFragment:
+      "Visual diagram or flowchart showing your signature process, framework, or system. 3–5 steps/pillars arranged in a path, cycle, pyramid, or column layout. Each step labeled with an icon and short text. Arrows or connecting lines between steps. Branded color scheme. Clean, professional, slightly corporate. The message: 'I have a proven system.' Used by consultants, coaches, course creators to show their unique methodology. Infographic-style clarity. Establishes intellectual property and structure.",
+  },
+  {
+    slug: 'svc_headshot_branded',
+    name: 'Branded Headshot / Personal Brand',
+    description: 'You are the brand. Professional portrait with identity elements.',
+    industryTags: ['education_consulting', 'real_estate', 'events_entertainment', 'general_other'],
+    gradient: ['#1f2937', '#6b7280'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/headshot-branded.jpg',
+    promptFragment:
+      'High-quality professional headshot on a branded background (solid color, gradient, or subtle pattern). You looking confident, approachable, and polished. Clean studio lighting. Optional text overlay: your name, title, tagline, or value proposition. Logo placement subtle but present. The portrait should feel premium — not a selfie. Wardrobe: aligned with your industry (suit for corporate, casual for creative). For personal brands, consultants, coaches, speakers, realtors. First-impression content.',
+  },
+  {
+    slug: 'svc_stat_grid',
+    name: 'Stat / Metric Grid',
+    description: 'Multiple data points in a clean layout. Authority through numbers.',
+    industryTags: ['education_consulting', 'fitness_gym', 'real_estate', 'general_other'],
+    gradient: ['#065f46', '#10b981'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/stat-grid.jpg',
+    promptFragment:
+      "2x2 or 3x3 grid showing key business metrics or achievements. Each cell contains: a large number, a label, and optionally an icon. Examples: '500+ Clients', '15 Years', '98% Success Rate', '₦50M+ Revenue'. Consistent typography and spacing. Background: solid color or soft gradient. The aesthetic: minimal, data-forward, credible. Used in year-in-review posts, About pages, pitch decks. Builds authority and trust through quantifiable proof.",
+  },
+  {
+    slug: 'svc_event_speaker',
+    name: 'Event / Speaking Engagement',
+    description: 'You on stage or at an event. Credibility and visibility.',
+    industryTags: ['education_consulting', 'events_entertainment', 'general_other'],
+    gradient: ['#7c2d12', '#ea580c'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/event-speaker.jpg',
+    promptFragment:
+      "Photo of you speaking at an event, on stage, or leading a workshop. Audience visible in foreground (blurred). Professional event lighting. You mid-gesture or mid-speech — active and engaged. Text overlay: event name, topic, or date. Slight vignette or color grading for cinematic feel. The message: 'I'm in demand. I'm a thought leader.' Used by consultants, coaches, trainers to showcase credibility. Social proof through public presence.",
+  },
+  {
+    slug: 'svc_newsletter_teaser',
+    name: 'Newsletter / Content Teaser',
+    description: 'Drive traffic to your newsletter, blog, or long-form content.',
+    industryTags: ['education_consulting', 'general_other'],
+    gradient: ['#1e1b4b', '#4f46e5'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/newsletter-teaser.jpg',
+    promptFragment:
+      "Graphic promoting your newsletter, article, or downloadable resource. Bold headline (the hook). 1–2 lines of subtext. Clear CTA: 'Read now', 'Subscribe', 'Download free guide'. Mockup of a document, email inbox, or browser window (optional). Branded colors. Clean, editorial layout. The goal: clickthrough. Builds your email list or drives blog traffic. Used by writers, consultants, educators, content creators. Lead generation focus.",
+  },
+  {
+    slug: 'svc_checklist_graphic',
+    name: 'Checklist / How-To Graphic',
+    description: 'Actionable steps in a scannable format. Practical value.',
+    industryTags: ['education_consulting', 'fitness_gym', 'beauty_wellness', 'general_other'],
+    gradient: ['#166534', '#22c55e'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/checklist-graphic.jpg',
+    promptFragment:
+      "Numbered or bulleted checklist on a clean background. 3–7 items. Each item with a checkmark or icon. Clear, bold typography. Title at top (e.g., '5 Steps to Better Sleep'). Footer: your branding. Color scheme: professional and friendly. The format is instantly recognizable and shareable. High engagement. Used by coaches, trainers, consultants, educators. Delivers immediate, practical value. Positions you as helpful and generous with expertise.",
+  },
+  {
+    slug: 'svc_before_after_text',
+    name: 'Before/After Text Contrast',
+    description: 'Transformation shown in words. Emotional contrast.',
+    industryTags: ['education_consulting', 'fitness_gym', 'beauty_wellness', 'general_other'],
+    gradient: ['#7f1d1d', '#ef4444'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/before-after-text.jpg',
+    promptFragment:
+      "Split design: left side labeled 'Before', right side labeled 'After'. Each side contains a short list of pain points (before) vs. outcomes (after). Example: 'Before: confused, broke, overwhelmed' → 'After: clear, profitable, confident'. Text-only or with subtle background gradient. Arrow or divider between the two sides. The aesthetic: direct, relatable, transformation-focused. Common in coaching, consulting, course sales. Taps into desire and aspiration.",
+  },
+  {
+    slug: 'svc_question_hook',
+    name: 'Question Hook Card',
+    description: 'Provocative question to stop the scroll. Engagement bait.',
+    industryTags: ['education_consulting', 'fitness_gym', 'general_other'],
+    gradient: ['#831843', '#db2777'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/question-hook.jpg',
+    promptFragment:
+      "Bold, oversized question text centered on a solid or gradient background. Example: 'Are you leaving money on the table?', 'What if you could 10x your leads?'. Large serif or bold sans-serif font. No imagery — just text. Optional: small subtext or CTA at bottom. High contrast for readability. The goal: stop the scroll, provoke curiosity, drive engagement (comments, clicks). Classic social media hook strategy. Used across all service industries.",
+  },
+  {
+    slug: 'svc_client_logo_showcase',
+    name: 'Client Logo Showcase',
+    description: "Brands you've worked with. Trust by association.",
+    industryTags: ['education_consulting', 'events_entertainment', 'general_other'],
+    gradient: ['#1e293b', '#475569'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/client-logo-showcase.jpg',
+    promptFragment:
+      "Grid or scattered arrangement of client logos (greyscale or monochrome for consistency). 6–12 logos. Title text: 'Trusted by', 'Our clients', 'We've worked with'. Clean, corporate aesthetic. Minimal background (white, grey, or subtle gradient). The message: credibility through association. Used by agencies, consultants, freelancers. Social proof at scale. If you've worked with recognizable brands, flaunt it. B2B trust-builder.",
+  },
+  {
+    slug: 'svc_hiring_card',
+    name: "We're Hiring / Team Card",
+    description: 'Recruitment or team culture showcase.',
+    industryTags: ['education_consulting', 'events_entertainment', 'general_other'],
+    gradient: ['#0c4a6e', '#0284c7'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/hiring-card.jpg',
+    promptFragment:
+      "Bold text: 'We're Hiring!' or 'Join Our Team' on a branded background. Optional: team photo (diverse, happy, collaborative vibe). Clean typography. Small bullet points: perks, roles, or values. CTA: 'Apply now', 'Link in bio'. The aesthetic: welcoming, professional, growth-focused. Used for recruitment marketing, employer branding, culture showcases. Attracts talent and signals that your business is thriving. Modern, people-first design.",
+  },
 ];
 
 export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
@@ -500,6 +901,16 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'catalogue_clean',
     'lifestyle_natural',
     'high_contrast_drama',
+    'prod_hero_pedestal',
+    'prod_curated_flatlay',
+    'prod_unboxing_reveal',
+    'prod_lifestyle_inuse',
+    'prod_colour_swatch',
+    'prod_360_angles',
+    'prod_seasonal_collection',
+    'prod_comparison_duo',
+    'prod_customer_photo_frame',
+    'prod_price_tag',
   ],
   food_beverage: [
     'overhead_feast',
@@ -511,6 +922,14 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'bold_loud',
     'vibrant_tropical',
     'minimalist_plating',
+    'prod_curated_flatlay',
+    'prod_ingredient_exploded',
+    'prod_lifestyle_inuse',
+    'prod_scale_context',
+    'prod_process_bts',
+    'prod_seasonal_collection',
+    'prod_bundle_stack',
+    'prod_price_tag',
   ],
   fintech_saas_tech: [
     'corporate_gradient',
@@ -521,6 +940,18 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'dark_mode_pro',
     'isometric_3d',
     'clean_startup',
+    'saas_dashboard_hero',
+    'saas_metric_spotlight',
+    'saas_comparison_grid',
+    'saas_blog_header',
+    'saas_feature_card',
+    'saas_abstract_gradient',
+    'saas_code_snippet',
+    'saas_testimonial_card',
+    'saas_changelog_card',
+    'saas_infographic_flow',
+    'saas_dark_announcement',
+    'saas_social_proof_wall',
   ],
   beauty_wellness: [
     'glow_up',
@@ -532,6 +963,17 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'neon_pop',
     'lifestyle_natural',
     'before_after',
+    'prod_hero_pedestal',
+    'prod_curated_flatlay',
+    'prod_ingredient_exploded',
+    'prod_lifestyle_inuse',
+    'prod_process_bts',
+    'prod_comparison_duo',
+    'prod_bundle_stack',
+    'prod_customer_photo_frame',
+    'svc_tip_carousel',
+    'svc_before_after_text',
+    'svc_checklist_graphic',
   ],
   real_estate: [
     'property_showcase',
@@ -541,6 +983,9 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'aerial_clean',
     'trust_builder',
     'bold_statement',
+    'svc_headshot_branded',
+    'svc_case_study_result',
+    'svc_stat_grid',
   ],
   fitness_gym: [
     'energy_motion',
@@ -551,6 +996,12 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'neon_pop',
     'motivational_type',
     'lifestyle_natural',
+    'svc_tip_carousel',
+    'svc_case_study_result',
+    'svc_stat_grid',
+    'svc_before_after_text',
+    'svc_checklist_graphic',
+    'svc_question_hook',
   ],
   education_consulting: [
     'trust_builder',
@@ -560,6 +1011,19 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'warm_professional',
     'minimal_tech',
     'authority_editorial',
+    'svc_authority_quote',
+    'svc_tip_carousel',
+    'svc_case_study_result',
+    'svc_framework_diagram',
+    'svc_headshot_branded',
+    'svc_stat_grid',
+    'svc_event_speaker',
+    'svc_newsletter_teaser',
+    'svc_checklist_graphic',
+    'svc_before_after_text',
+    'svc_question_hook',
+    'svc_client_logo_showcase',
+    'svc_hiring_card',
   ],
   events_entertainment: [
     'neon_pop',
@@ -569,6 +1033,10 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'vibrant_tropical',
     'street_food_energy',
     'festival_energy',
+    'svc_event_speaker',
+    'svc_headshot_branded',
+    'svc_client_logo_showcase',
+    'svc_hiring_card',
   ],
   general_other: [
     'bold_loud',
@@ -581,6 +1049,16 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'afro_glam',
     'bright_fresh',
     'corporate_gradient',
+    'saas_dashboard_hero',
+    'saas_feature_card',
+    'prod_hero_pedestal',
+    'prod_curated_flatlay',
+    'prod_lifestyle_inuse',
+    'prod_price_tag',
+    'svc_authority_quote',
+    'svc_tip_carousel',
+    'svc_case_study_result',
+    'svc_checklist_graphic',
   ],
 };
 
