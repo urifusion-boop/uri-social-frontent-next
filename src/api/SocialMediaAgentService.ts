@@ -32,6 +32,30 @@ export interface GenerateContentPayload {
   acknowledged_incomplete_profile?: boolean; // OPTION 1: User acknowledged incomplete profile warning
 }
 
+export interface StoryboardScene {
+  scene_number: number;
+  duration_seconds: number;
+  shot_type: string;
+  motion: string;
+  video_prompt: string;
+  reference_image_index: number;
+  text_overlay: string | null;
+}
+
+export interface Storyboard {
+  total_duration_seconds: number;
+  target_platform: string;
+  aspect_ratio: string;
+  scenes: StoryboardScene[];
+}
+
+export interface StoryboardPayload {
+  brand_images: string[];
+  optional_text?: string;
+  target_platform: string;
+  target_duration_seconds: number;
+}
+
 export interface RefinePayload {
   draft_id: string;
   refinements: {
@@ -400,6 +424,15 @@ export class SocialMediaAgentService {
   static async getTodaySuggestion(): Promise<UriResponse<TodaySuggestion>> {
     const response: Awaited<AxiosResponse<UriResponse<TodaySuggestion>>> = await UriHttpClient.getClient().get(
       socialMediaAgentRoutes.calendarToday
+    );
+    return response.data;
+  }
+
+  static async generateStoryboard(payload: StoryboardPayload): Promise<UriResponse<Storyboard>> {
+    const response: Awaited<AxiosResponse<UriResponse<Storyboard>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateStoryboard,
+      payload,
+      { timeout: 60000 }
     );
     return response.data;
   }
