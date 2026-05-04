@@ -82,6 +82,15 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   // Track the last image URL we reset state for — avoids re-shimmer on unrelated re-renders
   const trackedImageUrlRef = useRef<string | undefined>(initialDraft.image_url);
 
+  // Image editing state
+  const [editImageOpen, setEditImageOpen] = useState(false);
+  const [editFeedback, setEditFeedback] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [creditWarningOpen, setCreditWarningOpen] = useState(false);
+  const [creditWarningData, setCreditWarningData] = useState<{ message?: string; credits_required?: number } | null>(
+    null
+  );
+
   // Sync draft data from parent on any relevant field change.
   // Only reset image load state when image_url actually changes to a new value —
   // not on every fetchDrafts() call (slides/status refs change on every fetch).
@@ -277,6 +286,73 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       setConfirmDelete(false);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEditImage = async (feedback: string) => {
+    setEditLoading(true);
+    setEditImageOpen(false);
+    try {
+      const draftId = draft.draft_id ?? draft.id ?? '';
+      const response = await SocialMediaAgentService.editDraftImage(draftId, feedback);
+
+      if (response.status) {
+        const data = response.responseData;
+
+        // Check if this is a credit warning/confirmation
+        if (
+          response.responseCode === 'credit_warning' ||
+          response.responseCode === 'confirm_redesign' ||
+          response.responseCode === 'content_edit_warning'
+        ) {
+          setCreditWarningData(data);
+          setCreditWarningOpen(true);
+          return;
+        }
+
+        // Success! Update the draft with new image
+        setDraft({
+          ...draft,
+          image_url: data.image_url,
+          image_version: data.version,
+        });
+        setImageLoaded(false); // Trigger reload
+        setEditFeedback('');
+        ToastService.showToast(data.message || 'Image edited successfully!', ToastTypeEnum.Success);
+        onRefresh();
+      } else {
+        ToastService.showToast(response.responseMessage || 'Edit failed', ToastTypeEnum.Error);
+      }
+    } catch (error: unknown) {
+      ToastService.showToast(error instanceof Error ? error.message : 'Edit failed', ToastTypeEnum.Error);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleUndoImage = async () => {
+    setEditLoading(true);
+    try {
+      const draftId = draft.draft_id ?? draft.id ?? '';
+      const response = await SocialMediaAgentService.undoDraftImage(draftId);
+
+      if (response.status) {
+        const data = response.responseData;
+        setDraft({
+          ...draft,
+          image_url: data.image_url,
+          image_version: data.version,
+        });
+        setImageLoaded(false);
+        ToastService.showToast(data.message || 'Reverted to previous version', ToastTypeEnum.Success);
+        onRefresh();
+      } else {
+        ToastService.showToast(response.responseMessage || 'Undo failed', ToastTypeEnum.Error);
+      }
+    } catch (error: unknown) {
+      ToastService.showToast(error instanceof Error ? error.message : 'Undo failed', ToastTypeEnum.Error);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -806,6 +882,116 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         />
       )}
 
+      {/* Image Edit Panel */}
+      {!editing && draft.image_url && (
+        <Box sx={{ mt: 1.5, p: 1.5, background: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>
+              Edit Image {draft.image_version && draft.image_version > 1 ? `(v${draft.image_version})` : ''}
+            </Typography>
+            {draft.image_version && draft.image_version > 1 && (
+              <Button
+                size="small"
+                variant="text"
+                disabled={editLoading}
+                onClick={handleUndoImage}
+                sx={{ textTransform: 'none', fontSize: 10, minWidth: 'auto', p: '2px 8px' }}
+              >
+                ↩ Undo
+              </Button>
+            )}
+          </Box>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0.75 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={editLoading}
+              onClick={() => {
+                setEditFeedback('Change text');
+                setEditImageOpen(true);
+              }}
+              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+            >
+              📝 Text
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={editLoading}
+              onClick={() => {
+                setEditFeedback('Change colours');
+                setEditImageOpen(true);
+              }}
+              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+            >
+              🎨 Colours
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={editLoading}
+              onClick={() => {
+                setEditFeedback('Change background');
+                setEditImageOpen(true);
+              }}
+              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+            >
+              🖼 Background
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={editLoading}
+              onClick={() => {
+                setEditFeedback('Add element');
+                setEditImageOpen(true);
+              }}
+              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+            >
+              ➕ Add
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={editLoading}
+              onClick={() => {
+                setEditFeedback('Remove element');
+                setEditImageOpen(true);
+              }}
+              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+            >
+              ➖ Remove
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={editLoading}
+              onClick={() => {
+                setEditFeedback('');
+                setEditImageOpen(true);
+              }}
+              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+            >
+              ⌨ Other
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              disabled={editLoading}
+              onClick={() => {
+                setEditFeedback('Start over completely');
+                setEditImageOpen(true);
+              }}
+              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+            >
+              🔄 Redesign
+            </Button>
+          </Box>
+        </Box>
+      )}
+
       {/* Action row */}
       {!editing && (
         <Box display="flex" gap={1} flexWrap="wrap" mt={1}>
@@ -1073,6 +1259,77 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             }}
           >
             {imageRegenerating ? 'Starting…' : 'Regenerate'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Image Dialog */}
+      <Dialog open={editImageOpen} onClose={() => !editLoading && setEditImageOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Image</DialogTitle>
+        <DialogContent>
+          <Typography fontSize="12px" color="#6B7280" mb={2}>
+            Describe what you want to change. For example: "Change price to ₦5,000", "Make background darker", "Add our
+            phone number"
+          </Typography>
+          <TextField
+            placeholder="What would you like to change?"
+            fullWidth
+            multiline
+            rows={3}
+            value={editFeedback}
+            onChange={(e) => setEditFeedback(e.target.value)}
+            autoFocus
+            disabled={editLoading}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditImageOpen(false)} disabled={editLoading} sx={{ textTransform: 'none' }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!editFeedback.trim() || editLoading}
+            onClick={() => handleEditImage(editFeedback)}
+            sx={{
+              textTransform: 'none',
+              background: '#CD1B78',
+              '&:hover': { background: '#A01560' },
+            }}
+          >
+            {editLoading ? 'Editing...' : 'Edit Image'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Credit Warning Dialog */}
+      <Dialog open={creditWarningOpen} onClose={() => setCreditWarningOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Credit Required</DialogTitle>
+        <DialogContent>
+          <Typography fontSize="13px" mb={2}>
+            {creditWarningData?.message}
+          </Typography>
+          <Typography fontSize="12px" color="#6B7280">
+            Credits Required: {creditWarningData?.credits_required || 1}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreditWarningOpen(false)} sx={{ textTransform: 'none' }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setCreditWarningOpen(false);
+              // User confirmed, proceed with edit (re-send request)
+              handleEditImage(editFeedback);
+            }}
+            sx={{
+              textTransform: 'none',
+              background: '#CD1B78',
+              '&:hover': { background: '#A01560' },
+            }}
+          >
+            Proceed
           </Button>
         </DialogActions>
       </Dialog>

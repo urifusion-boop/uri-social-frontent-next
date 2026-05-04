@@ -234,6 +234,30 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async editDraftImage(
+    draftId: string,
+    feedback: string
+  ): Promise<
+    UriResponse<{ image_url: string; version: number; edit_category: string; message: string; credit_charged: boolean }>
+  > {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/edit-image`,
+      {
+        feedback,
+      }
+    );
+    return response.data;
+  }
+
+  static async undoDraftImage(
+    draftId: string
+  ): Promise<UriResponse<{ image_url: string; version: number; message: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/undo-image`
+    );
+    return response.data;
+  }
+
   static async syncImageAcrossDrafts(
     sourceDraftId: string,
     targetDraftIds: string[]
