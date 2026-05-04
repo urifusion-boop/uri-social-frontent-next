@@ -305,7 +305,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           response.responseCode === 'confirm_redesign' ||
           response.responseCode === 'content_edit_warning'
         ) {
-          setCreditWarningData(data);
+          setCreditWarningData(data ?? null);
           setCreditWarningOpen(true);
           return;
         }
