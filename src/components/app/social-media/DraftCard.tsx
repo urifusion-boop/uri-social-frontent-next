@@ -311,14 +311,16 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         }
 
         // Success! Update the draft with new image
-        setDraft({
-          ...draft,
-          image_url: data.image_url,
-          image_version: data.version,
-        });
-        setImageLoaded(false); // Trigger reload
-        setEditFeedback('');
-        ToastService.showToast(data.message || 'Image edited successfully!', ToastTypeEnum.Success);
+        if (data) {
+          setDraft({
+            ...draft,
+            image_url: data.image_url,
+            image_version: data.version,
+          });
+          setImageLoaded(false); // Trigger reload
+          setEditFeedback('');
+          ToastService.showToast(data.message || 'Image edited successfully!', ToastTypeEnum.Success);
+        }
         onRefresh();
       } else {
         ToastService.showToast(response.responseMessage || 'Edit failed', ToastTypeEnum.Error);
