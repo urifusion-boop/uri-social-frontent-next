@@ -6,10 +6,13 @@ import {
   AccountMetricItem,
   AccountMetricsData,
   AutoGenerateSettings,
+  CalendarPerformanceData,
   ContentDraft,
   PerformanceData,
   PerformancePost,
   SocialMediaAgentService,
+  TrendKeyword,
+  TrendsData,
 } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -2015,6 +2018,69 @@ const PLATFORM_ENGAGEMENT_NOTE: Record<string, string> = {
   bluesky: 'BlueSky has limited metric support.',
 };
 
+const fmt12h = (h: number) => `${h % 12 || 12}${h >= 12 ? 'PM' : 'AM'}`;
+
+const CalPerfSection = ({ data }: { data: CalendarPerformanceData }) => {
+  const formatEntries = Object.entries(data.avg_engagement_by_format).sort((a, b) => b[1] - a[1]);
+  const topicEntries = Object.entries(data.avg_engagement_by_topic).sort((a, b) => b[1] - a[1]);
+  const maxFmt = formatEntries[0]?.[1] ?? 1;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Stats row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        {[
+          { label: 'Posts Published', value: data.post_count },
+          { label: 'With Analytics', value: data.analytics_count },
+          { label: 'Best Time', value: fmt12h(data.best_posting_hour) },
+        ].map(({ label, value }) => (
+          <div key={label} style={{ padding: '14px 16px', background: '#fff', borderRadius: 12, border: '1px solid #edecea' }}>
+            <div style={{ fontSize: 11, color: '#999', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 }}>{label}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#111', lineHeight: 1 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Top formats */}
+      {formatEntries.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 12, textTransform: 'uppercase' as const, letterSpacing: 0.4 }}>Top Formats</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {formatEntries.map(([fmt, rate], i) => (
+              <div key={fmt}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: i === 0 ? 700 : 500, color: i === 0 ? '#C2185B' : '#333', textTransform: 'capitalize' as const }}>
+                    {fmt.replace(/_/g, ' ')}{i === 0 && ' ★'}
+                  </span>
+                  <span style={{ fontSize: 12, color: '#666' }}>{rate.toFixed(1)}%</span>
+                </div>
+                <div style={{ height: 6, borderRadius: 4, background: '#f0eeeb' }}>
+                  <div style={{ height: '100%', borderRadius: 4, width: `${(rate / maxFmt) * 100}%`, background: i === 0 ? '#C2185B' : '#ddd' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Top topics */}
+      {topicEntries.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 12, textTransform: 'uppercase' as const, letterSpacing: 0.4 }}>Top Topics</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {topicEntries.map(([topic, rate], i) => (
+              <div key={topic} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: i === 0 ? 'rgba(194,24,91,.04)' : '#fafafa', border: `1px solid ${i === 0 ? 'rgba(194,24,91,.15)' : '#f0eeeb'}` }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: '#333', textTransform: 'capitalize' as const }}>{i === 0 && '🏆 '}{topic}</span>
+                <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{rate.toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const PerformancePage = ({ onJane }: { onJane: () => void }) => {
   const [view, setView] = useState<'posts' | 'accounts'>('posts');
   const [data, setData] = useState<PerformanceData | null>(null);
@@ -2025,6 +2091,13 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
   const [accountData, setAccountData] = useState<AccountMetricsData | null>(null);
   const [accountLoading, setAccountLoading] = useState(false);
   const [accountError, setAccountError] = useState(false);
+  const [calPerf, setCalPerf] = useState<CalendarPerformanceData | null>(null);
+
+  useEffect(() => {
+    SocialMediaAgentService.getCalendarPerformance()
+      .then((res) => { if (res.status && res.responseData) setCalPerf(res.responseData); })
+      .catch(() => { /* non-critical */ });
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -2178,24 +2251,30 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
           )}
 
           {!loading && !error && data && !data.has_data && (
-            <div
-              style={{
-                background: '#fff',
-                borderRadius: 12,
-                border: '1px solid #edecea',
-                padding: 28,
-                textAlign: 'center',
-              }}
-            >
-              <I n="chart" s={36} c="rgba(194,24,91,.25)" />
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#111', marginTop: 12, marginBottom: 6 }}>
-                No published posts yet
-              </div>
-              <div style={{ fontSize: 13, color: '#999', lineHeight: 1.6 }}>
-                Generate and publish content from the <strong>Workspace</strong> tab. Analytics will appear here once
-                posts are live.
-              </div>
-            </div>
+            <>
+              {calPerf?.has_data ? (
+                <CalPerfSection data={calPerf} />
+              ) : (
+                <div
+                  style={{
+                    background: '#fff',
+                    borderRadius: 12,
+                    border: '1px solid #edecea',
+                    padding: 28,
+                    textAlign: 'center',
+                  }}
+                >
+                  <I n="chart" s={36} c="rgba(194,24,91,.25)" />
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111', marginTop: 12, marginBottom: 6 }}>
+                    No published posts yet
+                  </div>
+                  <div style={{ fontSize: 13, color: '#999', lineHeight: 1.6 }}>
+                    Publish your first post from the <strong>Workspace</strong> tab. Your performance insights will
+                    appear here once posts go live.
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {!loading && !error && data?.has_data && (
@@ -2301,6 +2380,9 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                   </div>
                 </div>
               )}
+
+              {/* Calendar engagement intelligence */}
+              {calPerf?.has_data && <CalPerfSection data={calPerf} />}
 
               {/* Top posts */}
               {data.top_posts.length > 0 && (
@@ -2591,24 +2673,91 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
   );
 };
 
-const IntelPage = ({ onJane }: { onJane: () => void }) => (
-  <SubPage title="Market Intel" icon="globe" desc="What people say about your brand across the web" onJane={onJane}>
-    <div
-      style={{
-        background: 'rgba(194,24,91,.03)',
-        borderRadius: 12,
-        border: '1px dashed rgba(194,24,91,.2)',
-        padding: '32px 24px',
-        textAlign: 'center',
-      }}
+const IntelPage = ({ onJane }: { onJane: () => void }) => {
+  const [trends, setTrends] = useState<TrendsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    SocialMediaAgentService.getCalendarTrends()
+      .then((res) => {
+        if (res.status && res.responseData) {
+          // Strip fallback/seed keywords — only show real Google Trends data
+          const realKeywords = res.responseData.keywords.filter((kw) => kw.source === 'google_trends');
+          setTrends({ ...res.responseData, keywords: realKeywords });
+        } else setError(true);
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const typeBadge = (type: TrendKeyword['type']) => {
+    if (type === 'rising') return <span style={{ fontSize: 10.5, fontWeight: 700, background: 'rgba(234,88,12,.1)', color: '#c2410c', borderRadius: 20, padding: '2px 8px' }}>🔥 Rising</span>;
+    if (type === 'top') return <span style={{ fontSize: 10.5, fontWeight: 700, background: 'rgba(22,163,74,.1)', color: '#15803d', borderRadius: 20, padding: '2px 8px' }}>📈 Trending</span>;
+    return null;
+  };
+
+  return (
+    <SubPage
+      title="Market Intel"
+      icon="globe"
+      desc={trends ? `Trending in ${trends.industry.charAt(0).toUpperCase() + trends.industry.slice(1)}` : 'Industry keyword trends powered by Google'}
+      onJane={onJane}
     >
-      <I n="globe" s={32} c="rgba(194,24,91,.3)" />
-      <p style={{ fontSize: 13, color: '#888', marginTop: 12, lineHeight: 1.6 }}>
-        Market intelligence will appear here once your brand profile is fully set up and social accounts are connected.
-      </p>
-    </div>
-  </SubPage>
-);
+      {loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 40 }}>
+          <div style={{ width: 28, height: 28, border: '3px solid #edecea', borderTopColor: '#C2185B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        </div>
+      )}
+
+      {!loading && error && (
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 28, textAlign: 'center' }}>
+          <I n="globe" s={32} c="#e5e3df" />
+          <div style={{ fontSize: 13, color: '#999', marginTop: 10 }}>Could not load trends. Please try again.</div>
+        </div>
+      )}
+
+      {!loading && !error && trends && trends.keywords.length === 0 && (
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 28, textAlign: 'center' }}>
+          <I n="globe" s={32} c="rgba(194,24,91,.25)" />
+          <div style={{ fontSize: 13, color: '#999', marginTop: 10, lineHeight: 1.6 }}>No trend data available yet for your industry.</div>
+        </div>
+      )}
+
+      {!loading && !error && trends && trends.keywords.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {trends.keywords.map((kw) => (
+            <div key={kw.keyword} style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>{kw.keyword}</div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {typeBadge(kw.type)}
+                  {kw.source === 'google_trends'
+                    ? <span style={{ fontSize: 10.5, color: '#999', background: '#f5f4f0', borderRadius: 20, padding: '2px 8px' }}>via Google Trends</span>
+                    : <span style={{ fontSize: 10.5, color: '#bbb', background: '#f5f4f0', borderRadius: 20, padding: '2px 8px' }}>Industry keyword</span>
+                  }
+                </div>
+              </div>
+              {/* Score bar */}
+              <div style={{ marginBottom: kw.type === 'rising' ? 6 : 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, color: '#999' }}>Trend score</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#333' }}>{kw.trend_score.toFixed(0)}</span>
+                </div>
+                <div style={{ height: 5, borderRadius: 4, background: '#f0eeeb' }}>
+                  <div style={{ height: '100%', borderRadius: 4, width: `${kw.trend_score}%`, background: kw.type === 'rising' ? '#C2185B' : '#aaa' }} />
+                </div>
+              </div>
+              {kw.type === 'rising' && (
+                <div style={{ fontSize: 12, color: '#c2410c', fontWeight: 600 }}>+{kw.growth_rate.toFixed(0)}% on Google</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </SubPage>
+  );
+};
 
 /* ── Playbook helpers ────────────────────────────────────────────────────── */
 const pbTgl = <T,>(arr: T[], set: (v: T[]) => void, val: T) =>
