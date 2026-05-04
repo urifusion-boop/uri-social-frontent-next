@@ -3139,6 +3139,13 @@ const PlaybookPage = ({
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
   const [fontStyle, setFontStyle] = useState<string>('');
 
+  // Sync logo position when profile changes (e.g., after save/refresh)
+  useEffect(() => {
+    if (profile?.logo_position) {
+      setLogoPosition(profile.logo_position);
+    }
+  }, [profile?.logo_position]);
+
   const startEdit = () => {
     if (!profile) return;
     setBrandName(profile.brand_name ?? '');
