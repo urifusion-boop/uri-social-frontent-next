@@ -3132,6 +3132,7 @@ const PlaybookPage = ({
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
   const templateInputRef = useRef<HTMLInputElement>(null);
   const [logoUrl, setLogoUrl] = useState('');
+  const [logoPosition, setLogoPosition] = useState('bottom_right');
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -3169,6 +3170,7 @@ const PlaybookPage = ({
     setApproval(profile.approval_workflow ?? '');
     setTemplateUrls([...(profile.sample_template_urls ?? [])]);
     setLogoUrl(profile.logo_url ?? '');
+    setLogoPosition(profile.logo_position ?? 'bottom_right');
     setLogoError('');
     setStyleSelections([...(profile.style_selections ?? [])]);
     setFontStyle(profile.font_style ?? '');
@@ -3207,6 +3209,7 @@ const PlaybookPage = ({
         approval_workflow: approval,
         sample_template_urls: templateUrls,
         logo_url: logoUrl || undefined,
+        logo_position: logoPosition,
         style_selections: styleSelections,
         style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
         font_style: fontStyle,
@@ -3416,6 +3419,69 @@ const PlaybookPage = ({
                 </button>
               </div>
               {logoError && <span style={{ fontSize: 11.5, color: '#EF4444' }}>{logoError}</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Logo Position */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            padding: '10px 0',
+            borderBottom: '1px solid #f3f1ee',
+          }}
+        >
+          <span style={{ fontSize: 12.5, color: '#888', fontWeight: 600, minWidth: 120, paddingTop: 4 }}>
+            Logo Position
+          </span>
+          {!editing ? (
+            <span style={{ fontSize: 13, color: '#555', textTransform: 'capitalize' }}>
+              {(p?.logo_position ?? 'bottom_right').replace(/_/g, ' ')}
+            </span>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+              {(() => {
+                const positions = [
+                  { value: 'top_left', label: '↖', title: 'Top Left' },
+                  { value: 'top_center', label: '↑', title: 'Top Center' },
+                  { value: 'top_right', label: '↗', title: 'Top Right' },
+                  { value: 'center', label: '✛', title: 'Center' },
+                  { value: 'bottom_left', label: '↙', title: 'Bottom Left' },
+                  { value: 'bottom_center', label: '↓', title: 'Bottom Center' },
+                  { value: 'bottom_right', label: '↘', title: 'Bottom Right' },
+                ];
+                return (
+                  <div style={{ display: 'inline-grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
+                    {positions.map((pos) => (
+                      <button
+                        key={pos.value}
+                        title={pos.title}
+                        onClick={() => setLogoPosition(pos.value)}
+                        style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 8,
+                          border: `2px solid ${logoPosition === pos.value ? '#C2185B' : '#e5e3df'}`,
+                          background: logoPosition === pos.value ? '#fce4ec' : '#fff',
+                          color: logoPosition === pos.value ? '#C2185B' : '#9CA3AF',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontFamily: 'var(--wf)',
+                        }}
+                      >
+                        {pos.label}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+              <span style={{ fontSize: 11, color: '#C2185B', fontWeight: 600 }}>{logoPosition.replace(/_/g, ' ')}</span>
             </div>
           )}
         </div>

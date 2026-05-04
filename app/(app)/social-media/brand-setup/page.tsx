@@ -490,6 +490,7 @@ function BrandSetupPageContent() {
 
   // ── Identity ──────────────────────────────────────────────────
   const [logoUrl, setLogoUrl] = useState('');
+  const [logoPosition, setLogoPosition] = useState('bottom_right');
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const [colors, setColors] = useState<string[]>([]);
@@ -763,6 +764,7 @@ function BrandSetupPageContent() {
       website,
       product_description: productDesc,
       logo_url: logoUrl || undefined,
+      logo_position: logoPosition,
       brand_colors: colors,
       personality_quiz: quiz,
       derived_voice: deriveVoice(),
@@ -1579,6 +1581,65 @@ function BrandSetupPageContent() {
                     }}
                     placeholder="https://yourbrand.com/logo.png"
                   />
+                </Box>
+
+                {/* Logo position picker */}
+                <Box mt={2}>
+                  <FieldLabel sub="(where should your logo appear on generated images?)">Logo Position</FieldLabel>
+                  {(() => {
+                    const positions = [
+                      { value: 'top_left', label: '↖', title: 'Top Left' },
+                      { value: 'top_center', label: '↑', title: 'Top Center' },
+                      { value: 'top_right', label: '↗', title: 'Top Right' },
+                      { value: 'center', label: '✛', title: 'Center' },
+                      { value: 'bottom_left', label: '↙', title: 'Bottom Left' },
+                      { value: 'bottom_center', label: '↓', title: 'Bottom Center' },
+                      { value: 'bottom_right', label: '↘', title: 'Bottom Right (default)' },
+                    ];
+                    return (
+                      <Box
+                        sx={{
+                          display: 'inline-grid',
+                          gridTemplateColumns: 'repeat(3, 1fr)',
+                          gap: 0.75,
+                          p: 1.5,
+                          borderRadius: '12px',
+                          border: '1px solid #E0DEF7',
+                          background: '#F7F7FD',
+                        }}
+                      >
+                        {positions.map((pos) => (
+                          <Box
+                            key={pos.value}
+                            component="button"
+                            title={pos.title}
+                            onClick={() => setLogoPosition(pos.value)}
+                            sx={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: '8px',
+                              border: `2px solid ${logoPosition === pos.value ? primary : '#E0DEF7'}`,
+                              background: logoPosition === pos.value ? `${primary}15` : '#fff',
+                              color: logoPosition === pos.value ? primary : '#9CA3AF',
+                              fontSize: 16,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.15s',
+                              '&:hover': { borderColor: primary },
+                            }}
+                          >
+                            {pos.label}
+                          </Box>
+                        ))}
+                      </Box>
+                    );
+                  })()}
+                  <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mt: 0.75 }}>
+                    Selected: <strong style={{ color: primary }}>{logoPosition.replace(/_/g, ' ')}</strong>
+                  </Typography>
                 </Box>
               </Grid>
               <Grid item xs={12}>
