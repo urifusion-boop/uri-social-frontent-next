@@ -31,6 +31,7 @@ import FontPickerGallery from '@/src/components/app/social-media/FontPickerGalle
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
+import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
 import { HexColorPicker } from 'react-colorful';
 import { hexToColorName } from '@/src/utils/colorNamer';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
@@ -205,6 +206,12 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
     ),
     filter: <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />,
     bookmark: <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />,
+    video: (
+      <>
+        <polygon points="23 7 16 12 23 17 23 7" />
+        <rect x="1" y="5" width="15" height="14" rx="2" />
+      </>
+    ),
   };
   return (
     <svg
@@ -345,7 +352,7 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
 
 const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
@@ -552,6 +559,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     { key: 'scheduled', label: 'Scheduled', count: scheduled.length },
     { key: 'calendar', label: 'Calendar' },
     { key: 'auto', label: 'Auto' },
+    { key: 'video', label: 'Video' },
   ];
 
   return (
@@ -621,6 +629,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
               scheduled: 'clock',
               calendar: 'calendar',
               auto: 'sparkle',
+              video: 'video',
             };
             return (
               <button
@@ -672,6 +681,8 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
         {activeTab === 'create' && <ContentGeneratorForm onGenerated={handleGenerated} />}
+
+        {activeTab === 'video' && <VideoStoryboardGenerator />}
 
         {activeTab === 'drafts' && (
           <>
