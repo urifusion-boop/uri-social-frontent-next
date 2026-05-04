@@ -340,13 +340,15 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
       if (response.status) {
         const data = response.responseData;
-        setDraft({
-          ...draft,
-          image_url: data.image_url,
-          image_version: data.version,
-        });
-        setImageLoaded(false);
-        ToastService.showToast(data.message || 'Reverted to previous version', ToastTypeEnum.Success);
+        if (data) {
+          setDraft({
+            ...draft,
+            image_url: data.image_url,
+            image_version: data.version,
+          });
+          setImageLoaded(false);
+          ToastService.showToast(data.message || 'Reverted to previous version', ToastTypeEnum.Success);
+        }
         onRefresh();
       } else {
         ToastService.showToast(response.responseMessage || 'Undo failed', ToastTypeEnum.Error);

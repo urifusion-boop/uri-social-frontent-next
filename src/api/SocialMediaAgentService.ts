@@ -111,6 +111,7 @@ export interface ContentDraft {
     | 'refined';
   approval_status?: 'pending' | 'approved' | 'denied';
   image_url?: string;
+  image_version?: number;
   has_image?: boolean;
   image_failed?: boolean;
   image_retry_count?: number; // PRD 4.2: Track image retry count for credit deduction
@@ -383,14 +384,16 @@ export class SocialMediaAgentService {
   }
 
   static async getCalendarPerformance(): Promise<UriResponse<CalendarPerformanceData>> {
-    const response: Awaited<AxiosResponse<UriResponse<CalendarPerformanceData>>> =
-      await UriHttpClient.getClient().get('/social-media/content-calendar/performance');
+    const response: Awaited<AxiosResponse<UriResponse<CalendarPerformanceData>>> = await UriHttpClient.getClient().get(
+      '/social-media/content-calendar/performance'
+    );
     return response.data;
   }
 
   static async getCalendarTrends(): Promise<UriResponse<TrendsData>> {
-    const response: Awaited<AxiosResponse<UriResponse<TrendsData>>> =
-      await UriHttpClient.getClient().get('/social-media/content-calendar/trends');
+    const response: Awaited<AxiosResponse<UriResponse<TrendsData>>> = await UriHttpClient.getClient().get(
+      '/social-media/content-calendar/trends'
+    );
     return response.data;
   }
 
