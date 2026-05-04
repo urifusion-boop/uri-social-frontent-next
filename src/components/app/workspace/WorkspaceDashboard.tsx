@@ -3215,11 +3215,17 @@ const PlaybookPage = ({
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
       };
-      await BrandProfileService.save(updated);
-      onProfileUpdate(updated);
+      const saveRes = await BrandProfileService.save(updated);
+      if (!saveRes.status) {
+        throw new Error(saveRes.responseMessage || 'Save failed');
+      }
+      onProfileUpdate(saveRes.responseData ?? updated);
       setEditing(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save profile. Please try again.';
+      alert(msg);
     } finally {
       setSaving(false);
     }
