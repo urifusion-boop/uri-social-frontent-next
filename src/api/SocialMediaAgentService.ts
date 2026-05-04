@@ -358,6 +358,18 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async getCalendarPerformance(): Promise<UriResponse<CalendarPerformanceData>> {
+    const response: Awaited<AxiosResponse<UriResponse<CalendarPerformanceData>>> =
+      await UriHttpClient.getClient().get('/social-media/content-calendar/performance');
+    return response.data;
+  }
+
+  static async getCalendarTrends(): Promise<UriResponse<TrendsData>> {
+    const response: Awaited<AxiosResponse<UriResponse<TrendsData>>> =
+      await UriHttpClient.getClient().get('/social-media/content-calendar/trends');
+    return response.data;
+  }
+
   static async getTodaySuggestion(): Promise<UriResponse<TodaySuggestion>> {
     const response: Awaited<AxiosResponse<UriResponse<TodaySuggestion>>> = await UriHttpClient.getClient().get(
       socialMediaAgentRoutes.calendarToday
@@ -421,6 +433,13 @@ export interface CalendarDayItem {
   acted_on_draft_ids: string[];
   regenerated_count: number;
   last_regenerated_at: string | null;
+  keyword?: string;
+  format?: string;
+  trend_score?: number;
+  performance_score?: number;
+  format_score?: number;
+  final_score?: number;
+  reason?: string;
 }
 
 export interface ContentCalendarPlan {
@@ -436,6 +455,37 @@ export interface ContentCalendarPlan {
     brand_voice?: string;
     target_audience?: string;
   };
+  generation_method?: 'data_driven' | 'trend_driven' | 'ai';
+  data_signals?: {
+    post_count: number;
+    top_topics: string[];
+    top_formats: string[];
+  };
+}
+
+export interface CalendarPerformanceData {
+  avg_engagement_by_format: Record<string, number>;
+  avg_engagement_by_topic: Record<string, number>;
+  best_posting_hour: number;
+  top_formats: string[];
+  top_topics: string[];
+  post_count: number;
+  analytics_count: number;
+  has_data: boolean;
+}
+
+export interface TrendKeyword {
+  keyword: string;
+  trend_score: number;
+  growth_rate: number;
+  source: 'google_trends' | 'fallback';
+  type: 'rising' | 'top' | 'seed';
+}
+
+export interface TrendsData {
+  industry: string;
+  keywords: TrendKeyword[];
+  count: number;
 }
 
 export interface TodaySuggestion {

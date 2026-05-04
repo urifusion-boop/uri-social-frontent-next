@@ -2034,8 +2034,22 @@ const CalPerfSection = ({ data }: { data: CalendarPerformanceData }) => {
           { label: 'With Analytics', value: data.analytics_count },
           { label: 'Best Time', value: fmt12h(data.best_posting_hour) },
         ].map(({ label, value }) => (
-          <div key={label} style={{ padding: '14px 16px', background: '#fff', borderRadius: 12, border: '1px solid #edecea' }}>
-            <div style={{ fontSize: 11, color: '#999', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 }}>{label}</div>
+          <div
+            key={label}
+            style={{ padding: '14px 16px', background: '#fff', borderRadius: 12, border: '1px solid #edecea' }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color: '#999',
+                fontWeight: 600,
+                textTransform: 'uppercase' as const,
+                letterSpacing: 0.5,
+                marginBottom: 6,
+              }}
+            >
+              {label}
+            </div>
             <div style={{ fontSize: 22, fontWeight: 800, color: '#111', lineHeight: 1 }}>{value}</div>
           </div>
         ))}
@@ -2044,18 +2058,44 @@ const CalPerfSection = ({ data }: { data: CalendarPerformanceData }) => {
       {/* Top formats */}
       {formatEntries.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 12, textTransform: 'uppercase' as const, letterSpacing: 0.4 }}>Top Formats</div>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#555',
+              marginBottom: 12,
+              textTransform: 'uppercase' as const,
+              letterSpacing: 0.4,
+            }}
+          >
+            Top Formats
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {formatEntries.map(([fmt, rate], i) => (
               <div key={fmt}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 12.5, fontWeight: i === 0 ? 700 : 500, color: i === 0 ? '#C2185B' : '#333', textTransform: 'capitalize' as const }}>
-                    {fmt.replace(/_/g, ' ')}{i === 0 && ' ★'}
+                  <span
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: i === 0 ? 700 : 500,
+                      color: i === 0 ? '#C2185B' : '#333',
+                      textTransform: 'capitalize' as const,
+                    }}
+                  >
+                    {fmt.replace(/_/g, ' ')}
+                    {i === 0 && ' ★'}
                   </span>
                   <span style={{ fontSize: 12, color: '#666' }}>{rate.toFixed(1)}%</span>
                 </div>
                 <div style={{ height: 6, borderRadius: 4, background: '#f0eeeb' }}>
-                  <div style={{ height: '100%', borderRadius: 4, width: `${(rate / maxFmt) * 100}%`, background: i === 0 ? '#C2185B' : '#ddd' }} />
+                  <div
+                    style={{
+                      height: '100%',
+                      borderRadius: 4,
+                      width: `${(rate / maxFmt) * 100}%`,
+                      background: i === 0 ? '#C2185B' : '#ddd',
+                    }}
+                  />
                 </div>
               </div>
             ))}
@@ -2066,11 +2106,36 @@ const CalPerfSection = ({ data }: { data: CalendarPerformanceData }) => {
       {/* Top topics */}
       {topicEntries.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 12, textTransform: 'uppercase' as const, letterSpacing: 0.4 }}>Top Topics</div>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#555',
+              marginBottom: 12,
+              textTransform: 'uppercase' as const,
+              letterSpacing: 0.4,
+            }}
+          >
+            Top Topics
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {topicEntries.map(([topic, rate], i) => (
-              <div key={topic} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: i === 0 ? 'rgba(194,24,91,.04)' : '#fafafa', border: `1px solid ${i === 0 ? 'rgba(194,24,91,.15)' : '#f0eeeb'}` }}>
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: '#333', textTransform: 'capitalize' as const }}>{i === 0 && '🏆 '}{topic}</span>
+              <div
+                key={topic}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  background: i === 0 ? 'rgba(194,24,91,.04)' : '#fafafa',
+                  border: `1px solid ${i === 0 ? 'rgba(194,24,91,.15)' : '#f0eeeb'}`,
+                }}
+              >
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: '#333', textTransform: 'capitalize' as const }}>
+                  {i === 0 && '🏆 '}
+                  {topic}
+                </span>
                 <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{rate.toFixed(1)}%</span>
               </div>
             ))}
@@ -2095,8 +2160,12 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
 
   useEffect(() => {
     SocialMediaAgentService.getCalendarPerformance()
-      .then((res) => { if (res.status && res.responseData) setCalPerf(res.responseData); })
-      .catch(() => { /* non-critical */ });
+      .then((res) => {
+        if (res.status && res.responseData) setCalPerf(res.responseData);
+      })
+      .catch(() => {
+        /* non-critical */
+      });
   }, []);
 
   useEffect(() => {
@@ -2692,8 +2761,36 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
   }, []);
 
   const typeBadge = (type: TrendKeyword['type']) => {
-    if (type === 'rising') return <span style={{ fontSize: 10.5, fontWeight: 700, background: 'rgba(234,88,12,.1)', color: '#c2410c', borderRadius: 20, padding: '2px 8px' }}>🔥 Rising</span>;
-    if (type === 'top') return <span style={{ fontSize: 10.5, fontWeight: 700, background: 'rgba(22,163,74,.1)', color: '#15803d', borderRadius: 20, padding: '2px 8px' }}>📈 Trending</span>;
+    if (type === 'rising')
+      return (
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 700,
+            background: 'rgba(234,88,12,.1)',
+            color: '#c2410c',
+            borderRadius: 20,
+            padding: '2px 8px',
+          }}
+        >
+          🔥 Rising
+        </span>
+      );
+    if (type === 'top')
+      return (
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 700,
+            background: 'rgba(22,163,74,.1)',
+            color: '#15803d',
+            borderRadius: 20,
+            padding: '2px 8px',
+          }}
+        >
+          📈 Trending
+        </span>
+      );
     return null;
   };
 
@@ -2701,41 +2798,106 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
     <SubPage
       title="Market Intel"
       icon="globe"
-      desc={trends ? `Trending in ${trends.industry.charAt(0).toUpperCase() + trends.industry.slice(1)}` : 'Industry keyword trends powered by Google'}
+      desc={
+        trends
+          ? `Trending in ${trends.industry.charAt(0).toUpperCase() + trends.industry.slice(1)}`
+          : 'Industry keyword trends powered by Google'
+      }
       onJane={onJane}
     >
       {loading && (
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 40 }}>
-          <div style={{ width: 28, height: 28, border: '3px solid #edecea', borderTopColor: '#C2185B', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              border: '3px solid #edecea',
+              borderTopColor: '#C2185B',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+            }}
+          />
         </div>
       )}
 
       {!loading && error && (
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 28, textAlign: 'center' }}>
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 12,
+            border: '1px solid #edecea',
+            padding: 28,
+            textAlign: 'center',
+          }}
+        >
           <I n="globe" s={32} c="#e5e3df" />
           <div style={{ fontSize: 13, color: '#999', marginTop: 10 }}>Could not load trends. Please try again.</div>
         </div>
       )}
 
       {!loading && !error && trends && trends.keywords.length === 0 && (
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 28, textAlign: 'center' }}>
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 12,
+            border: '1px solid #edecea',
+            padding: 28,
+            textAlign: 'center',
+          }}
+        >
           <I n="globe" s={32} c="rgba(194,24,91,.25)" />
-          <div style={{ fontSize: 13, color: '#999', marginTop: 10, lineHeight: 1.6 }}>No trend data available yet for your industry.</div>
+          <div style={{ fontSize: 13, color: '#999', marginTop: 10, lineHeight: 1.6 }}>
+            No trend data available yet for your industry.
+          </div>
         </div>
       )}
 
       {!loading && !error && trends && trends.keywords.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {trends.keywords.map((kw) => (
-            <div key={kw.keyword} style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '14px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>{kw.keyword}</div>
+            <div
+              key={kw.keyword}
+              style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '14px 16px' }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  marginBottom: 10,
+                }}
+              >
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>
+                  {kw.keyword}
+                </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                   {typeBadge(kw.type)}
-                  {kw.source === 'google_trends'
-                    ? <span style={{ fontSize: 10.5, color: '#999', background: '#f5f4f0', borderRadius: 20, padding: '2px 8px' }}>via Google Trends</span>
-                    : <span style={{ fontSize: 10.5, color: '#bbb', background: '#f5f4f0', borderRadius: 20, padding: '2px 8px' }}>Industry keyword</span>
-                  }
+                  {kw.source === 'google_trends' ? (
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        color: '#999',
+                        background: '#f5f4f0',
+                        borderRadius: 20,
+                        padding: '2px 8px',
+                      }}
+                    >
+                      via Google Trends
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        color: '#bbb',
+                        background: '#f5f4f0',
+                        borderRadius: 20,
+                        padding: '2px 8px',
+                      }}
+                    >
+                      Industry keyword
+                    </span>
+                  )}
                 </div>
               </div>
               {/* Score bar */}
@@ -2745,11 +2907,20 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#333' }}>{kw.trend_score.toFixed(0)}</span>
                 </div>
                 <div style={{ height: 5, borderRadius: 4, background: '#f0eeeb' }}>
-                  <div style={{ height: '100%', borderRadius: 4, width: `${kw.trend_score}%`, background: kw.type === 'rising' ? '#C2185B' : '#aaa' }} />
+                  <div
+                    style={{
+                      height: '100%',
+                      borderRadius: 4,
+                      width: `${kw.trend_score}%`,
+                      background: kw.type === 'rising' ? '#C2185B' : '#aaa',
+                    }}
+                  />
                 </div>
               </div>
               {kw.type === 'rising' && (
-                <div style={{ fontSize: 12, color: '#c2410c', fontWeight: 600 }}>+{kw.growth_rate.toFixed(0)}% on Google</div>
+                <div style={{ fontSize: 12, color: '#c2410c', fontWeight: 600 }}>
+                  +{kw.growth_rate.toFixed(0)}% on Google
+                </div>
               )}
             </div>
           ))}
