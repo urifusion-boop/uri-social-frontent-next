@@ -161,7 +161,7 @@ export default function VideoStoryboardGenerator() {
   };
 
   const clipMap: Record<number, VideoClip> = {};
-  videoJob?.clips.forEach((c) => {
+  (videoJob?.clips ?? []).forEach((c) => {
     clipMap[c.scene_number] = c;
   });
 
@@ -476,7 +476,7 @@ export default function VideoStoryboardGenerator() {
                       height: '100%',
                       background: PRIMARY,
                       borderRadius: 99,
-                      width: `${Math.round((videoJob.clips.length / videoJob.total_scenes) * 100)}%`,
+                      width: `${Math.round(((videoJob.clips?.length ?? 0) / videoJob.total_scenes) * 100)}%`,
                       transition: 'width .4s ease',
                     }}
                   />
