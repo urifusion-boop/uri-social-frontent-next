@@ -85,6 +85,9 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   // Image editing state
   const [editImageOpen, setEditImageOpen] = useState(false);
   const [editFeedback, setEditFeedback] = useState('');
+  const [editForceCategory, setEditForceCategory] = useState<
+    'text_edit' | 'style_edit' | 'content_edit' | 'full_redesign' | undefined
+  >(undefined);
   const [editLoading, setEditLoading] = useState(false);
   const [creditWarningOpen, setCreditWarningOpen] = useState(false);
   const [creditWarningData, setCreditWarningData] = useState<{ message?: string; credits_required?: number } | null>(
@@ -289,21 +292,25 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     }
   };
 
-  const handleEditImage = async (feedback: string) => {
+  const handleEditImage = async (
+    feedback: string,
+    forceCategory?: 'text_edit' | 'style_edit' | 'content_edit' | 'full_redesign'
+  ) => {
     setEditLoading(true);
     setEditImageOpen(false);
     try {
       const draftId = draft.draft_id ?? draft.id ?? '';
-      const response = await SocialMediaAgentService.editDraftImage(draftId, feedback);
+      const response = await SocialMediaAgentService.editDraftImage(draftId, feedback, forceCategory);
 
       if (response.status) {
         const data = response.responseData;
 
-        // Check if this is a credit warning/confirmation
+        // Check if this is a credit warning/confirmation or suggestion
         if (
           response.responseCode === 'credit_warning' ||
           response.responseCode === 'confirm_redesign' ||
-          response.responseCode === 'content_edit_warning'
+          response.responseCode === 'content_edit_warning' ||
+          response.responseCode === 'suggest_edit_first'
         ) {
           setCreditWarningData(data ?? null);
           setCreditWarningOpen(true);
@@ -913,6 +920,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               disabled={editLoading}
               onClick={() => {
                 setEditFeedback('Change text');
+                setEditForceCategory('text_edit');
                 setEditImageOpen(true);
               }}
               sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
@@ -925,6 +933,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               disabled={editLoading}
               onClick={() => {
                 setEditFeedback('Change colours');
+                setEditForceCategory('style_edit');
                 setEditImageOpen(true);
               }}
               sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
@@ -937,6 +946,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               disabled={editLoading}
               onClick={() => {
                 setEditFeedback('Change background');
+                setEditForceCategory('style_edit');
                 setEditImageOpen(true);
               }}
               sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
@@ -949,6 +959,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               disabled={editLoading}
               onClick={() => {
                 setEditFeedback('Add element');
+                setEditForceCategory('content_edit');
                 setEditImageOpen(true);
               }}
               sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
@@ -961,6 +972,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               disabled={editLoading}
               onClick={() => {
                 setEditFeedback('Remove element');
+                setEditForceCategory('content_edit');
                 setEditImageOpen(true);
               }}
               sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
@@ -973,6 +985,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               disabled={editLoading}
               onClick={() => {
                 setEditFeedback('');
+                setEditForceCategory(undefined);
                 setEditImageOpen(true);
               }}
               sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
@@ -986,6 +999,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               disabled={editLoading}
               onClick={() => {
                 setEditFeedback('Start over completely');
+                setEditForceCategory('full_redesign');
                 setEditImageOpen(true);
               }}
               sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
@@ -1293,7 +1307,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           <Button
             variant="contained"
             disabled={!editFeedback.trim() || editLoading}
-            onClick={() => handleEditImage(editFeedback)}
+            onClick={() => handleEditImage(editFeedback, editForceCategory)}
             sx={{
               textTransform: 'none',
               background: '#CD1B78',

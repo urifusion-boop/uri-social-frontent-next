@@ -261,7 +261,8 @@ export class SocialMediaAgentService {
 
   static async editDraftImage(
     draftId: string,
-    feedback: string
+    feedback: string,
+    forceCategory?: 'text_edit' | 'style_edit' | 'content_edit' | 'full_redesign'
   ): Promise<
     UriResponse<{ image_url: string; version: number; edit_category: string; message: string; credit_charged: boolean }>
   > {
@@ -269,6 +270,7 @@ export class SocialMediaAgentService {
       `${socialMediaAgentRoutes.deleteDraft}/${draftId}/edit-image`,
       {
         feedback,
+        force_category: forceCategory,
       }
     );
     return response.data;
