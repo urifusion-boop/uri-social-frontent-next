@@ -83,6 +83,17 @@ export interface VideoFromStoryboardPayload {
   model?: string;
 }
 
+export interface VideoDraft {
+  id: string;
+  user_id: string;
+  media_type: 'video';
+  video_url: string;
+  content: string;
+  platforms: string[];
+  status: string;
+  created_at: string;
+}
+
 export interface RefinePayload {
   draft_id: string;
   refinements: {
@@ -478,6 +489,31 @@ export class SocialMediaAgentService {
   static async getVideoJob(jobId: string): Promise<UriResponse<VideoJob>> {
     const response: Awaited<AxiosResponse<UriResponse<VideoJob>>> = await UriHttpClient.getClient().get(
       `${socialMediaAgentRoutes.videoJob}/${jobId}`
+    );
+    return response.data;
+  }
+
+  static async mergeVideoJob(jobId: string): Promise<UriResponse<{ merged_video_url: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ merged_video_url: string }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.mergeVideoJob}/${jobId}`, {}, { timeout: 180000 });
+    return response.data;
+  }
+
+  static async saveVideoDraft(payload: {
+    merged_video_url: string;
+    caption: string;
+    platforms: string[];
+  }): Promise<UriResponse<VideoDraft>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoDraft>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.videoDrafts,
+      payload
+    );
+    return response.data;
+  }
+
+  static async listVideoDrafts(): Promise<UriResponse<VideoDraft[]>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoDraft[]>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.videoDrafts
     );
     return response.data;
   }

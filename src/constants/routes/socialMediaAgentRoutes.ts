@@ -26,7 +26,9 @@ type ISocialMediaAgentApi =
   | 'calendarPlan'
   | 'calendarPlanGenerate'
   | 'calendarDayBase'
-  | 'calendarToday';
+  | 'calendarToday'
+  | 'mergeVideoJob'
+  | 'videoDrafts';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -52,6 +54,8 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   calendarPlanGenerate: '/content-calendar/plan/generate',
   calendarDayBase: '/content-calendar/plan',
   calendarToday: '/content-calendar/today',
+  mergeVideoJob: '/merge-video-job',
+  videoDrafts: '/video-drafts',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

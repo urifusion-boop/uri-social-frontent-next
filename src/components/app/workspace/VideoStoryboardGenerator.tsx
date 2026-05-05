@@ -4,6 +4,7 @@ import {
   SocialMediaAgentService,
   Storyboard,
   StoryboardScene,
+  VideoDraft,
   VideoClip,
   VideoJob,
 } from '@/src/api/SocialMediaAgentService';
@@ -65,6 +66,17 @@ export default function VideoStoryboardGenerator() {
   const [videoError, setVideoError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Merge + draft state
+  const [merging, setMerging] = useState(false);
+  const [mergedUrl, setMergedUrl] = useState('');
+  const [mergeError, setMergeError] = useState('');
+  const [draftCaption, setDraftCaption] = useState('');
+  const [draftPlatforms, setDraftPlatforms] = useState<string[]>(['instagram_reels']);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [savedDraft, setSavedDraft] = useState<VideoDraft | null>(null);
+  const [drafts, setDrafts] = useState<VideoDraft[]>([]);
+  const [loadingDrafts, setLoadingDrafts] = useState(false);
+
   // Poll for job status while generating
   useEffect(() => {
     if (!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') {
@@ -88,6 +100,60 @@ export default function VideoStoryboardGenerator() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [videoJob?.job_id, videoJob?.status]);
+
+  // Load video drafts on mount
+  useEffect(() => {
+    setLoadingDrafts(true);
+    SocialMediaAgentService.listVideoDrafts()
+      .then((res) => {
+        if (res.status && res.responseData) setDrafts(res.responseData);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingDrafts(false));
+  }, []);
+
+  const handleMerge = async () => {
+    if (!videoJob) return;
+    setMerging(true);
+    setMergeError('');
+    setMergedUrl('');
+    setSavedDraft(null);
+    try {
+      const res = await SocialMediaAgentService.mergeVideoJob(videoJob.job_id);
+      if (res.status && res.responseData) {
+        setMergedUrl(res.responseData.merged_video_url);
+      } else {
+        setMergeError(res.responseMessage || 'Merge failed. Please try again.');
+      }
+    } catch {
+      setMergeError('Something went wrong during merge.');
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!mergedUrl) return;
+    setSavingDraft(true);
+    try {
+      const res = await SocialMediaAgentService.saveVideoDraft({
+        merged_video_url: mergedUrl,
+        caption: draftCaption,
+        platforms: draftPlatforms,
+      });
+      if (res.status && res.responseData) {
+        setSavedDraft(res.responseData);
+        setDrafts((prev) => [res.responseData!, ...prev]);
+      }
+    } catch {
+      setMergeError('Failed to save draft.');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const togglePlatform = (p: string) =>
+    setDraftPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
 
   const addFiles = (files: FileList | null) => {
     if (!files) return;
@@ -522,9 +588,226 @@ export default function VideoStoryboardGenerator() {
                 {videoJob?.status === 'complete' ? 'Regenerate Videos' : 'Generate Videos with Veo 3.1'}
               </button>
             )}
+
+            {/* Merge + Save Draft — shown after job is complete */}
+            {videoJob?.status === 'complete' && (
+              <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${BORDER}` }}>
+                {mergeError && (
+                  <div
+                    style={{
+                      background: '#FEF2F2',
+                      border: '1px solid #FECACA',
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      marginBottom: 14,
+                    }}
+                  >
+                    <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{mergeError}</p>
+                  </div>
+                )}
+
+                {!mergedUrl && (
+                  <button
+                    onClick={handleMerge}
+                    disabled={merging}
+                    style={{
+                      width: '100%',
+                      padding: '13px 0',
+                      borderRadius: 10,
+                      background: merging ? '#E5E7EB' : '#0d0e0f',
+                      color: merging ? '#9CA3AF' : '#fff',
+                      border: 'none',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: merging ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {merging ? 'Merging clips…' : 'Merge Clips into Single Video'}
+                  </button>
+                )}
+
+                {mergedUrl && (
+                  <div style={{ marginTop: 4 }}>
+                    <p style={{ fontSize: 13.5, fontWeight: 700, color: DARK, margin: '0 0 10px' }}>Merged Video</p>
+                    <video
+                      src={mergedUrl}
+                      controls
+                      playsInline
+                      style={{
+                        width: '100%',
+                        borderRadius: 10,
+                        maxHeight: 480,
+                        display: 'block',
+                        background: '#000',
+                        marginBottom: 16,
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+                      <a
+                        href={mergedUrl}
+                        download="merged-video.mp4"
+                        style={{ fontSize: 12, color: GREY, fontWeight: 600, textDecoration: 'none' }}
+                      >
+                        Download
+                      </a>
+                    </div>
+
+                    {savedDraft ? (
+                      <div
+                        style={{
+                          background: '#F0FDF4',
+                          border: '1px solid #86EFAC',
+                          borderRadius: 10,
+                          padding: '12px 14px',
+                        }}
+                      >
+                        <p style={{ fontSize: 13, fontWeight: 700, color: '#16a34a', margin: 0 }}>
+                          Draft saved successfully
+                        </p>
+                        <p style={{ fontSize: 12, color: GREY, margin: '4px 0 0' }}>
+                          Find it in your saved video drafts below.
+                        </p>
+                      </div>
+                    ) : (
+                      <div style={{ border: `1.5px solid ${BORDER}`, borderRadius: 12, padding: '16px' }}>
+                        <p style={{ fontSize: 13.5, fontWeight: 700, color: DARK, margin: '0 0 12px' }}>
+                          Save as Draft
+                        </p>
+
+                        <label
+                          style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 6 }}
+                        >
+                          Caption
+                        </label>
+                        <textarea
+                          value={draftCaption}
+                          onChange={(e) => setDraftCaption(e.target.value)}
+                          placeholder="Write a caption for this video…"
+                          rows={3}
+                          maxLength={2200}
+                          style={{
+                            width: '100%',
+                            border: `1.5px solid ${BORDER}`,
+                            borderRadius: 8,
+                            padding: '10px 12px',
+                            fontSize: 13.5,
+                            color: DARK,
+                            resize: 'vertical',
+                            fontFamily: 'inherit',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                            marginBottom: 14,
+                          }}
+                        />
+
+                        <label
+                          style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 8 }}
+                        >
+                          Platforms
+                        </label>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                          {PLATFORMS.map((p) => {
+                            const active = draftPlatforms.includes(p.value);
+                            return (
+                              <button
+                                key={p.value}
+                                onClick={() => togglePlatform(p.value)}
+                                style={{
+                                  padding: '6px 14px',
+                                  borderRadius: 8,
+                                  border: `1.5px solid ${active ? PRIMARY : BORDER}`,
+                                  background: active ? '#FFF0F8' : '#fff',
+                                  color: active ? PRIMARY : GREY,
+                                  fontWeight: active ? 700 : 500,
+                                  fontSize: 12.5,
+                                  cursor: 'pointer',
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                {p.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          onClick={handleSaveDraft}
+                          disabled={savingDraft || draftPlatforms.length === 0}
+                          style={{
+                            width: '100%',
+                            padding: '11px 0',
+                            borderRadius: 10,
+                            background: savingDraft || draftPlatforms.length === 0 ? '#E5E7EB' : PRIMARY,
+                            color: savingDraft || draftPlatforms.length === 0 ? '#9CA3AF' : '#fff',
+                            border: 'none',
+                            fontSize: 13.5,
+                            fontWeight: 700,
+                            cursor: savingDraft || draftPlatforms.length === 0 ? 'not-allowed' : 'pointer',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          {savingDraft ? 'Saving…' : 'Save Draft'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
+
+      {/* Saved Video Drafts */}
+      <div style={{ marginTop: 40, paddingTop: 28, borderTop: `1px solid ${BORDER}` }}>
+        <p style={{ fontSize: 13.5, fontWeight: 700, color: DARK, margin: '0 0 4px' }}>Saved Video Drafts</p>
+        <p style={{ fontSize: 12, color: GREY, margin: '0 0 16px' }}>Videos saved for future posting</p>
+        {loadingDrafts ? (
+          <p style={{ fontSize: 13, color: GREY }}>Loading…</p>
+        ) : drafts.length === 0 ? (
+          <p style={{ fontSize: 13, color: '#9CA3AF' }}>No video drafts saved yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {drafts.map((d) => (
+              <div key={d.id} style={{ border: `1.5px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden' }}>
+                <video
+                  src={d.video_url}
+                  controls
+                  playsInline
+                  style={{ width: '100%', maxHeight: 320, display: 'block', background: '#000' }}
+                />
+                <div style={{ padding: '12px 14px' }}>
+                  {d.content && (
+                    <p style={{ fontSize: 13, color: DARK, margin: '0 0 8px', lineHeight: 1.5 }}>{d.content}</p>
+                  )}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                    {d.platforms.map((p) => (
+                      <span
+                        key={p}
+                        style={{
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          color: PRIMARY,
+                          background: '#FFF0F8',
+                          borderRadius: 4,
+                          padding: '2px 7px',
+                          border: `1px solid #FBCFE8`,
+                        }}
+                      >
+                        {p.replace(/_/g, ' ')}
+                      </span>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 11, color: '#9CA3AF', margin: 0 }}>
+                    {new Date(d.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
