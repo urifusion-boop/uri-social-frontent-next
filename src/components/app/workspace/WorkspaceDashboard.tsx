@@ -2762,9 +2762,7 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
     SocialMediaAgentService.getCalendarTrends()
       .then((res) => {
         if (res.status && res.responseData) {
-          // Strip fallback/seed keywords — only show real Google Trends data
-          const realKeywords = res.responseData.keywords.filter((kw) => kw.source === 'google_trends');
-          setTrends({ ...res.responseData, keywords: realKeywords });
+          setTrends(res.responseData);
         } else setError(true);
       })
       .catch(() => setError(true))
