@@ -1,7 +1,13 @@
 'use client';
 
-import { SocialMediaAgentService, Storyboard, StoryboardScene } from '@/src/api/SocialMediaAgentService';
-import { useRef, useState } from 'react';
+import {
+  SocialMediaAgentService,
+  Storyboard,
+  StoryboardScene,
+  VideoClip,
+  VideoJob,
+} from '@/src/api/SocialMediaAgentService';
+import { useEffect, useRef, useState } from 'react';
 
 const PRIMARY = '#CD1B78';
 const DARK = '#0d0e0f';
@@ -54,6 +60,35 @@ export default function VideoStoryboardGenerator() {
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Video generation state
+  const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
+  const [videoError, setVideoError] = useState('');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll for job status while generating
+  useEffect(() => {
+    if (!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') {
+      if (pollRef.current) clearInterval(pollRef.current);
+      return;
+    }
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await SocialMediaAgentService.getVideoJob(videoJob.job_id);
+        if (res.status && res.responseData) {
+          setVideoJob(res.responseData);
+          if (res.responseData.status === 'complete' || res.responseData.status === 'failed') {
+            if (pollRef.current) clearInterval(pollRef.current);
+          }
+        }
+      } catch {
+        /* keep polling */
+      }
+    }, 10000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [videoJob?.job_id, videoJob?.status]);
+
   const addFiles = (files: FileList | null) => {
     if (!files) return;
     const remaining = 5 - images.length;
@@ -72,9 +107,7 @@ export default function VideoStoryboardGenerator() {
     });
   };
 
-  const removeImage = (idx: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== idx));
-  };
+  const removeImage = (idx: number) => setImages((prev) => prev.filter((_, i) => i !== idx));
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -82,11 +115,13 @@ export default function VideoStoryboardGenerator() {
     addFiles(e.dataTransfer.files);
   };
 
-  const handleGenerate = async () => {
+  const handleGenerateStoryboard = async () => {
     if (images.length === 0) return;
     setLoading(true);
     setError('');
     setStoryboard(null);
+    setVideoJob(null);
+    setVideoError('');
     try {
       const res = await SocialMediaAgentService.generateStoryboard({
         brand_images: images.map((img) => img.dataUrl),
@@ -105,6 +140,30 @@ export default function VideoStoryboardGenerator() {
       setLoading(false);
     }
   };
+
+  const handleGenerateVideos = async () => {
+    if (!storyboard) return;
+    setVideoError('');
+    setVideoJob(null);
+    try {
+      const res = await SocialMediaAgentService.generateVideoFromStoryboard({
+        storyboard,
+        brand_images: images.map((img) => img.dataUrl),
+      });
+      if (res.status && res.responseData) {
+        setVideoJob(res.responseData);
+      } else {
+        setVideoError(res.responseMessage || 'Could not start video generation.');
+      }
+    } catch {
+      setVideoError('Something went wrong starting video generation.');
+    }
+  };
+
+  const clipMap: Record<number, VideoClip> = {};
+  videoJob?.clips.forEach((c) => {
+    clipMap[c.scene_number] = c;
+  });
 
   return (
     <div style={{ padding: '20px 0', maxWidth: 720, margin: '0 auto' }}>
@@ -241,10 +300,7 @@ export default function VideoStoryboardGenerator() {
       </Section>
 
       {/* Creative direction */}
-      <Section
-        title="Creative Direction"
-        subtitle="Optional — describe the story or mood you want (e.g. 'focus on the unboxing experience')"
-      >
+      <Section title="Creative Direction" subtitle="Optional — describe the story or mood you want">
         <textarea
           value={optionalText}
           onChange={(e) => setOptionalText(e.target.value)}
@@ -330,7 +386,6 @@ export default function VideoStoryboardGenerator() {
         </div>
       </Section>
 
-      {/* Generate button */}
       {error && (
         <div
           style={{
@@ -346,7 +401,7 @@ export default function VideoStoryboardGenerator() {
       )}
 
       <button
-        onClick={handleGenerate}
+        onClick={handleGenerateStoryboard}
         disabled={images.length === 0 || loading}
         style={{
           width: '100%',
@@ -366,26 +421,110 @@ export default function VideoStoryboardGenerator() {
         {loading ? 'Generating storyboard…' : 'Generate Storyboard'}
       </button>
 
-      {/* Storyboard result */}
-      {loading && (
-        <div style={{ textAlign: 'center', padding: '32px 0', color: GREY }}>
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              border: `3px solid ${BORDER}`,
-              borderTopColor: PRIMARY,
-              borderRadius: 99,
-              margin: '0 auto 12px',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <p style={{ fontSize: 13, margin: 0 }}>Analysing brand images and crafting scenes…</p>
-          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        </div>
-      )}
+      {loading && <Spinner label="Analysing brand images and crafting scenes…" />}
 
-      {storyboard && !loading && <StoryboardResult storyboard={storyboard} uploadedImages={images} />}
+      {storyboard && !loading && (
+        <>
+          <StoryboardResult storyboard={storyboard} uploadedImages={images} clipMap={clipMap} />
+
+          {/* Video generation section */}
+          <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${BORDER}` }}>
+            {videoError && (
+              <div
+                style={{
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 14,
+                }}
+              >
+                <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{videoError}</p>
+              </div>
+            )}
+
+            {/* Job progress */}
+            {videoJob && videoJob.status !== 'complete' && videoJob.status !== 'failed' && (
+              <div
+                style={{
+                  background: '#FFF0F8',
+                  border: `1px solid ${BORDER}`,
+                  borderRadius: 12,
+                  padding: '14px 16px',
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div
+                    style={{
+                      width: 18,
+                      height: 18,
+                      border: `2.5px solid ${BORDER}`,
+                      borderTopColor: PRIMARY,
+                      borderRadius: 99,
+                      animation: 'spin 0.8s linear infinite',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <p style={{ fontSize: 13, fontWeight: 600, color: DARK, margin: 0 }}>
+                    Generating Scene {videoJob.current_scene} of {videoJob.total_scenes}…
+                  </p>
+                </div>
+                <div style={{ height: 6, background: BORDER, borderRadius: 99, overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '100%',
+                      background: PRIMARY,
+                      borderRadius: 99,
+                      width: `${Math.round((videoJob.clips.length / videoJob.total_scenes) * 100)}%`,
+                      transition: 'width .4s ease',
+                    }}
+                  />
+                </div>
+                <p style={{ fontSize: 11, color: GREY, margin: '6px 0 0' }}>
+                  Each scene takes ~30–90 seconds. This page will update automatically.
+                </p>
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+              </div>
+            )}
+
+            {videoJob?.status === 'failed' && (
+              <div
+                style={{
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 14,
+                }}
+              >
+                <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>Video generation failed: {videoJob.error}</p>
+              </div>
+            )}
+
+            {(!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') && (
+              <button
+                onClick={handleGenerateVideos}
+                disabled={!!videoJob && videoJob.status === 'generating'}
+                style={{
+                  width: '100%',
+                  padding: '13px 0',
+                  borderRadius: 10,
+                  background: PRIMARY,
+                  color: '#fff',
+                  border: 'none',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {videoJob?.status === 'complete' ? 'Regenerate Videos' : 'Generate Videos with Veo 3.1'}
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -402,10 +541,37 @@ function Section({ title, subtitle, children }: { title: string; subtitle: strin
   );
 }
 
-function StoryboardResult({ storyboard, uploadedImages }: { storyboard: Storyboard; uploadedImages: UploadedImage[] }) {
+function Spinner({ label }: { label: string }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '32px 0', color: GREY }}>
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          border: `3px solid ${BORDER}`,
+          borderTopColor: PRIMARY,
+          borderRadius: 99,
+          margin: '0 auto 12px',
+          animation: 'spin 0.8s linear infinite',
+        }}
+      />
+      <p style={{ fontSize: 13, margin: 0 }}>{label}</p>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+function StoryboardResult({
+  storyboard,
+  uploadedImages,
+  clipMap,
+}: {
+  storyboard: Storyboard;
+  uploadedImages: UploadedImage[];
+  clipMap: Record<number, VideoClip>;
+}) {
   return (
     <div>
-      {/* Summary bar */}
       <div
         style={{
           display: 'flex',
@@ -422,11 +588,14 @@ function StoryboardResult({ storyboard, uploadedImages }: { storyboard: Storyboa
         <Chip label="Scenes" value={String(storyboard.scenes.length)} />
         <Chip label="Aspect" value={storyboard.aspect_ratio} />
       </div>
-
-      {/* Scene cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {storyboard.scenes.map((scene) => (
-          <SceneCard key={scene.scene_number} scene={scene} refImage={uploadedImages[scene.reference_image_index]} />
+          <SceneCard
+            key={scene.scene_number}
+            scene={scene}
+            refImage={uploadedImages[scene.reference_image_index]}
+            clip={clipMap[scene.scene_number] ?? null}
+          />
         ))}
       </div>
     </div>
@@ -453,21 +622,22 @@ function Chip({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SceneCard({ scene, refImage }: { scene: StoryboardScene; refImage?: UploadedImage }) {
+function SceneCard({
+  scene,
+  refImage,
+  clip,
+}: {
+  scene: StoryboardScene;
+  refImage?: UploadedImage;
+  clip: VideoClip | null;
+}) {
   const bg = SHOT_COLORS[scene.shot_type] ?? '#F8FAFC';
   const border = SHOT_BORDER[scene.shot_type] ?? '#CBD5E1';
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div
-      style={{
-        border: `1.5px solid ${border}`,
-        borderRadius: 12,
-        overflow: 'hidden',
-        background: '#fff',
-      }}
-    >
-      {/* Header row */}
+    <div style={{ border: `1.5px solid ${border}`, borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+      {/* Header */}
       <div
         style={{
           display: 'flex',
@@ -479,7 +649,6 @@ function SceneCard({ scene, refImage }: { scene: StoryboardScene; refImage?: Upl
         }}
         onClick={() => setExpanded((v) => !v)}
       >
-        {/* Scene number badge */}
         <div
           style={{
             width: 32,
@@ -497,8 +666,6 @@ function SceneCard({ scene, refImage }: { scene: StoryboardScene; refImage?: Upl
         >
           {scene.scene_number}
         </div>
-
-        {/* Ref image thumbnail */}
         {refImage && (
           <img
             src={refImage.dataUrl}
@@ -513,7 +680,6 @@ function SceneCard({ scene, refImage }: { scene: StoryboardScene; refImage?: Upl
             }}
           />
         )}
-
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span
@@ -532,6 +698,9 @@ function SceneCard({ scene, refImage }: { scene: StoryboardScene; refImage?: Upl
               {scene.shot_type.replace(/_/g, ' ')}
             </span>
             <span style={{ fontSize: 11.5, color: GREY, fontWeight: 600 }}>{scene.duration_seconds}s</span>
+            {clip && !clip.video_url && !clip.error && <span style={{ fontSize: 11, color: GREY }}>Generating…</span>}
+            {clip?.video_url && <span style={{ fontSize: 11, fontWeight: 700, color: '#16a34a' }}>Done</span>}
+            {clip?.error && <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626' }}>Failed</span>}
           </div>
           <p
             style={{
@@ -546,7 +715,6 @@ function SceneCard({ scene, refImage }: { scene: StoryboardScene; refImage?: Upl
             {scene.motion}
           </p>
         </div>
-
         {scene.text_overlay && (
           <div
             style={{
@@ -565,11 +733,31 @@ function SceneCard({ scene, refImage }: { scene: StoryboardScene; refImage?: Upl
             "{scene.text_overlay}"
           </div>
         )}
-
         <span style={{ fontSize: 14, color: GREY, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
       </div>
 
-      {/* Expanded video prompt */}
+      {/* Video player — shown as soon as the clip URL is available */}
+      {clip?.video_url && (
+        <div style={{ padding: '12px 16px', borderTop: `1px solid ${border}`, background: '#0d0e0f' }}>
+          <video
+            src={clip.video_url}
+            controls
+            playsInline
+            style={{ width: '100%', borderRadius: 8, maxHeight: 480, display: 'block' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+            <a
+              href={clip.video_url}
+              download={`scene-${clip.scene_number}.mp4`}
+              style={{ fontSize: 12, color: GREY, textDecoration: 'none', fontWeight: 600 }}
+            >
+              Download
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Expanded prompt */}
       {expanded && (
         <div style={{ padding: '12px 16px 16px', borderTop: `1px solid ${border}` }}>
           <p
@@ -601,6 +789,20 @@ function SceneCard({ scene, refImage }: { scene: StoryboardScene; refImage?: Upl
             <Detail label="Reference image" value={`Image ${scene.reference_image_index}`} />
             {scene.text_overlay && <Detail label="Text overlay" value={`"${scene.text_overlay}"`} />}
           </div>
+          {clip?.error && (
+            <p
+              style={{
+                fontSize: 12,
+                color: '#DC2626',
+                marginTop: 10,
+                padding: '8px 10px',
+                background: '#FEF2F2',
+                borderRadius: 6,
+              }}
+            >
+              Error: {clip.error}
+            </p>
+          )}
         </div>
       )}
     </div>

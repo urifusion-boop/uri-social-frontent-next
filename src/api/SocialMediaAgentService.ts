@@ -56,6 +56,33 @@ export interface StoryboardPayload {
   target_duration_seconds: number;
 }
 
+export interface VideoClip {
+  scene_number: number;
+  shot_type: string;
+  duration_seconds: number;
+  motion: string;
+  text_overlay: string | null;
+  video_prompt: string;
+  video_url: string | null;
+  error?: string;
+}
+
+export interface VideoJob {
+  job_id: string;
+  status: 'queued' | 'generating' | 'complete' | 'failed';
+  model: string;
+  total_scenes: number;
+  current_scene: number;
+  clips: VideoClip[];
+  error: string | null;
+}
+
+export interface VideoFromStoryboardPayload {
+  storyboard: Storyboard;
+  brand_images: string[];
+  model?: string;
+}
+
 export interface RefinePayload {
   draft_id: string;
   refinements: {
@@ -435,6 +462,22 @@ export class SocialMediaAgentService {
       socialMediaAgentRoutes.generateStoryboard,
       payload,
       { timeout: 60000 }
+    );
+    return response.data;
+  }
+
+  static async generateVideoFromStoryboard(payload: VideoFromStoryboardPayload): Promise<UriResponse<VideoJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoJob>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateVideoFromStoryboard,
+      payload,
+      { timeout: 30000 }
+    );
+    return response.data;
+  }
+
+  static async getVideoJob(jobId: string): Promise<UriResponse<VideoJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoJob>>> = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.videoJob}/${jobId}`
     );
     return response.data;
   }

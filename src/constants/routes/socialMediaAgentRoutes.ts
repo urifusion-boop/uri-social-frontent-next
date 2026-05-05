@@ -12,6 +12,8 @@ type ISocialMediaAgentApi =
   | 'disconnectPlatform'
   | 'generateContent'
   | 'generateStoryboard'
+  | 'generateVideoFromStoryboard'
+  | 'videoJob'
   | 'refineContent'
   | 'approveContent'
   | 'denyContent'
@@ -35,6 +37,8 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   disconnectPlatform: '/connections/account',
   generateContent: '/generate-content',
   generateStoryboard: '/generate-storyboard',
+  generateVideoFromStoryboard: '/generate-video-from-storyboard',
+  videoJob: '/video-job',
   refineContent: '/refine',
   approveContent: '/approve',
   denyContent: '/deny',
