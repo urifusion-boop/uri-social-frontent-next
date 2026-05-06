@@ -518,6 +518,22 @@ export class SocialMediaAgentService {
     );
     return response.data;
   }
+
+  static async generateStoryboardFrames(
+    scenes: StoryboardScene[]
+  ): Promise<UriResponse<{ job_id: string; status: string; total_scenes: number }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateStoryboardFrames, { scenes });
+    return response.data;
+  }
+
+  static async getStoryboardFrameJob(
+    jobId: string
+  ): Promise<
+    UriResponse<{ job_id: string; status: string; frames: { scene_number: number; frame_image_url: string }[] }>
+  > {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.storyboardFrameJob}/${jobId}`);
+    return response.data;
+  }
 }
 
 export interface PerformancePost {

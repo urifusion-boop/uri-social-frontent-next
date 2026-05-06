@@ -51,6 +51,11 @@ export default function VideoStoryboardGenerator() {
   const [videoError, setVideoError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Storyboard frame image generation state
+  const [frameMap, setFrameMap] = useState<Record<number, string>>({});
+  const frameJobIdRef = useRef<string | null>(null);
+  const framePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Merge + draft state
   const [merging, setMerging] = useState(false);
   const [mergedUrl, setMergedUrl] = useState('');
@@ -166,6 +171,28 @@ export default function VideoStoryboardGenerator() {
     addFiles(e.dataTransfer.files);
   };
 
+  const startFramePolling = (jobId: string) => {
+    frameJobIdRef.current = jobId;
+    if (framePollRef.current) clearInterval(framePollRef.current);
+    framePollRef.current = setInterval(async () => {
+      try {
+        const res = await SocialMediaAgentService.getStoryboardFrameJob(jobId);
+        if (res.status && res.responseData) {
+          const map: Record<number, string> = {};
+          for (const f of res.responseData.frames) {
+            map[f.scene_number] = f.frame_image_url;
+          }
+          setFrameMap(map);
+          if (res.responseData.status === 'complete') {
+            clearInterval(framePollRef.current!);
+          }
+        }
+      } catch {
+        /* keep polling */
+      }
+    }, 5000);
+  };
+
   const handleGenerateStoryboard = async () => {
     if (images.length === 0) return;
     setLoading(true);
@@ -173,6 +200,8 @@ export default function VideoStoryboardGenerator() {
     setStoryboard(null);
     setVideoJob(null);
     setVideoError('');
+    setFrameMap({});
+    if (framePollRef.current) clearInterval(framePollRef.current);
     try {
       const res = await SocialMediaAgentService.generateStoryboard({
         brand_images: images.map((img) => img.dataUrl),
@@ -182,6 +211,14 @@ export default function VideoStoryboardGenerator() {
       });
       if (res.status && res.responseData) {
         setStoryboard(res.responseData);
+        // Fire frame image generation in the background
+        SocialMediaAgentService.generateStoryboardFrames(res.responseData.scenes)
+          .then((frameRes) => {
+            if (frameRes.status && frameRes.responseData) {
+              startFramePolling(frameRes.responseData.job_id);
+            }
+          })
+          .catch(() => {});
       } else {
         setError(res.responseMessage || 'Storyboard generation failed. Please try again.');
       }
@@ -476,7 +513,7 @@ export default function VideoStoryboardGenerator() {
 
       {storyboard && !loading && (
         <>
-          <StoryboardResult storyboard={storyboard} uploadedImages={images} clipMap={clipMap} />
+          <StoryboardResult storyboard={storyboard} uploadedImages={images} clipMap={clipMap} frameMap={frameMap} />
 
           {/* Video generation section */}
           <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${BORDER}` }}>
@@ -833,10 +870,12 @@ function StoryboardResult({
   storyboard,
   uploadedImages,
   clipMap,
+  frameMap,
 }: {
   storyboard: Storyboard;
   uploadedImages: UploadedImage[];
   clipMap: Record<number, VideoClip>;
+  frameMap: Record<number, string>;
 }) {
   // Calculate cumulative start time per scene
   const scenesWithTime = storyboard.scenes.reduce<{ scene: StoryboardScene; start: number }[]>((acc, scene) => {
@@ -870,6 +909,7 @@ function StoryboardResult({
             startTime={start}
             refImage={uploadedImages[scene.reference_image_index]}
             clip={clipMap[scene.scene_number] ?? null}
+            frameUrl={frameMap[scene.scene_number]}
           />
         ))}
       </div>
@@ -902,16 +942,18 @@ function SceneCard({
   startTime,
   refImage,
   clip,
+  frameUrl,
 }: {
   scene: StoryboardScene;
   startTime: number;
   refImage?: UploadedImage;
   clip: VideoClip | null;
+  frameUrl?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const endTime = startTime + scene.duration_seconds;
 
-  const bgSrc = scene.frame_image_url ?? refImage?.dataUrl;
+  const bgSrc = frameUrl ?? refImage?.dataUrl;
 
   return (
     <div style={{ borderRadius: 10, overflow: 'hidden', background: '#111', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>

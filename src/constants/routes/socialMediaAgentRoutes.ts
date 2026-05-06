@@ -28,7 +28,9 @@ type ISocialMediaAgentApi =
   | 'calendarDayBase'
   | 'calendarToday'
   | 'mergeVideoJob'
-  | 'videoDrafts';
+  | 'videoDrafts'
+  | 'generateStoryboardFrames'
+  | 'storyboardFrameJob';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -56,6 +58,8 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   calendarToday: '/content-calendar/today',
   mergeVideoJob: '/merge-video-job',
   videoDrafts: '/video-drafts',
+  generateStoryboardFrames: '/generate-storyboard-frames',
+  storyboardFrameJob: '/storyboard-frame-job',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(
