@@ -956,10 +956,9 @@ function SceneCard({
   const [expanded, setExpanded] = useState(false);
   const endTime = startTime + scene.duration_seconds;
 
-  // Once a clip is generated use its Cloudinary thumbnail — always matches the video.
-  // Fall back to the async-generated frame image while the video hasn't been generated yet.
-  const clipThumbnail = clip?.video_url ? clip.video_url.replace(/\.mp4(\?.*)?$/, '.jpg') : null;
-  const bgSrc = clipThumbnail ?? frameUrl ?? null;
+  // Show the storyboard frame image as the permanent card background.
+  // The frame IS the first frame of the generated video (Veo animates from it).
+  const bgSrc = frameUrl ?? null;
   const loadingFrame = !bgSrc;
 
   return (
