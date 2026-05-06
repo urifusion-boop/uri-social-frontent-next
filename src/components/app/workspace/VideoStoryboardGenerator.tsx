@@ -30,21 +30,6 @@ const DURATIONS = [
   { value: 30, label: '30s' },
 ];
 
-const SHOT_COLORS: Record<string, string> = {
-  product_hero: '#F0FDF4',
-  lifestyle: '#EFF6FF',
-  brand_close_up: '#FFF7ED',
-  text_card: '#FDF4FF',
-  transition: '#F8FAFC',
-};
-const SHOT_BORDER: Record<string, string> = {
-  product_hero: '#86EFAC',
-  lifestyle: '#93C5FD',
-  brand_close_up: '#FCD34D',
-  text_card: '#D8B4FE',
-  transition: '#CBD5E1',
-};
-
 interface UploadedImage {
   dataUrl: string;
   name: string;
@@ -853,6 +838,12 @@ function StoryboardResult({
   uploadedImages: UploadedImage[];
   clipMap: Record<number, VideoClip>;
 }) {
+  // Calculate cumulative start time per scene
+  const scenesWithTime = storyboard.scenes.reduce<{ scene: StoryboardScene; start: number }[]>((acc, scene) => {
+    const start = acc.length > 0 ? acc[acc.length - 1].start + acc[acc.length - 1].scene.duration_seconds : 0;
+    return [...acc, { scene, start }];
+  }, []);
+
   return (
     <div>
       <div
@@ -871,11 +862,12 @@ function StoryboardResult({
         <Chip label="Scenes" value={String(storyboard.scenes.length)} />
         <Chip label="Aspect" value={storyboard.aspect_ratio} />
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {storyboard.scenes.map((scene) => (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {scenesWithTime.map(({ scene, start }) => (
           <SceneCard
             key={scene.scene_number}
             scene={scene}
+            startTime={start}
             refImage={uploadedImages[scene.reference_image_index]}
             clip={clipMap[scene.scene_number] ?? null}
           />
@@ -907,132 +899,168 @@ function Chip({ label, value }: { label: string; value: string }) {
 
 function SceneCard({
   scene,
+  startTime,
   refImage,
   clip,
 }: {
   scene: StoryboardScene;
+  startTime: number;
   refImage?: UploadedImage;
   clip: VideoClip | null;
 }) {
-  const bg = SHOT_COLORS[scene.shot_type] ?? '#F8FAFC';
-  const border = SHOT_BORDER[scene.shot_type] ?? '#CBD5E1';
   const [expanded, setExpanded] = useState(false);
+  const endTime = startTime + scene.duration_seconds;
 
   return (
-    <div style={{ border: `1.5px solid ${border}`, borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-      {/* Header */}
+    <div style={{ borderRadius: 10, overflow: 'hidden', background: '#111', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>
+      {/* Storyboard frame */}
       <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 16px',
-          background: bg,
-          cursor: 'pointer',
-        }}
+        style={{ position: 'relative', aspectRatio: '4/3', cursor: 'pointer', userSelect: 'none' }}
         onClick={() => setExpanded((v) => !v)}
       >
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 99,
-            background: PRIMARY,
-            color: '#fff',
-            fontSize: 13,
-            fontWeight: 800,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          {scene.scene_number}
-        </div>
-        {refImage && (
+        {/* Background image */}
+        {refImage ? (
           <img
             src={refImage.dataUrl}
-            alt={`ref ${scene.reference_image_index}`}
+            alt=""
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 6,
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
               objectFit: 'cover',
-              border: `1.5px solid ${BORDER}`,
-              flexShrink: 0,
+              display: 'block',
             }}
           />
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, background: '#1a1a2e' }} />
         )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span
-              style={{
-                fontSize: 10.5,
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-                color: PRIMARY,
-                background: '#FFF0F8',
-                borderRadius: 4,
-                padding: '2px 6px',
-                border: `1px solid ${border}`,
-              }}
-            >
-              {scene.shot_type.replace(/_/g, ' ')}
-            </span>
-            <span style={{ fontSize: 11.5, color: GREY, fontWeight: 600 }}>{scene.duration_seconds}s</span>
-            {clip && !clip.video_url && !clip.error && <span style={{ fontSize: 11, color: GREY }}>Generating…</span>}
-            {clip?.video_url && <span style={{ fontSize: 11, fontWeight: 700, color: '#16a34a' }}>Done</span>}
-            {clip?.error && <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626' }}>Failed</span>}
-          </div>
+
+        {/* Gradient overlays — top and bottom */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.72) 100%)',
+          }}
+        />
+
+        {/* Top-left: scene number + shot type + time */}
+        <div style={{ position: 'absolute', top: 10, left: 12 }}>
           <p
             style={{
-              fontSize: 12.5,
-              color: GREY,
-              margin: '3px 0 0',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#fff',
+              margin: 0,
+              textTransform: 'uppercase',
+              letterSpacing: 1,
             }}
           >
-            {scene.motion}
+            {scene.scene_number}. {scene.shot_type.replace(/_/g, ' ')}
+          </p>
+          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', margin: '2px 0 0', letterSpacing: 0.5 }}>
+            {startTime} – {endTime}s
           </p>
         </div>
-        {scene.text_overlay && (
-          <div
-            style={{
-              padding: '3px 8px',
-              borderRadius: 6,
-              background: '#1a1a1a',
-              color: '#fff',
-              fontSize: 11,
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              maxWidth: 120,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            "{scene.text_overlay}"
+
+        {/* Top-right: clip status */}
+        {clip && (
+          <div style={{ position: 'absolute', top: 10, right: 10 }}>
+            {clip.video_url && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#fff',
+                  background: '#16a34a',
+                  borderRadius: 4,
+                  padding: '2px 7px',
+                }}
+              >
+                Done
+              </span>
+            )}
+            {clip.error && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#fff',
+                  background: '#DC2626',
+                  borderRadius: 4,
+                  padding: '2px 7px',
+                }}
+              >
+                Failed
+              </span>
+            )}
+            {!clip.video_url && !clip.error && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#fff',
+                  background: 'rgba(0,0,0,0.5)',
+                  borderRadius: 4,
+                  padding: '2px 7px',
+                }}
+              >
+                Generating…
+              </span>
+            )}
           </div>
         )}
-        <span style={{ fontSize: 14, color: GREY, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
+
+        {/* Bottom-left: text overlay */}
+        {scene.text_overlay && (
+          <div style={{ position: 'absolute', bottom: 10, left: 12, right: 40 }}>
+            <p
+              style={{
+                fontSize: 13,
+                fontWeight: 800,
+                color: '#FFD700',
+                margin: 0,
+                textTransform: 'uppercase',
+                letterSpacing: 1,
+                lineHeight: 1.25,
+                textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+              }}
+            >
+              {scene.text_overlay}
+            </p>
+          </div>
+        )}
+
+        {/* Bottom-right: expand toggle */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 8,
+            right: 10,
+            color: 'rgba(255,255,255,0.7)',
+            fontSize: 13,
+          }}
+        >
+          {expanded ? '▲' : '▼'}
+        </div>
       </div>
 
-      {/* Video player — shown as soon as the clip URL is available */}
+      {/* Video player — shown when clip is ready */}
       {clip?.video_url && (
-        <div style={{ padding: '12px 16px', borderTop: `1px solid ${border}`, background: '#0d0e0f' }}>
+        <div style={{ background: '#000', padding: '0 0 4px' }}>
           <video
             src={clip.video_url}
             controls
             playsInline
-            style={{ width: '100%', borderRadius: 8, maxHeight: 480, display: 'block' }}
+            style={{ width: '100%', display: 'block', maxHeight: 260 }}
           />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 10px' }}>
             <a
               href={clip.video_url}
               download={`scene-${clip.scene_number}.mp4`}
-              style={{ fontSize: 12, color: GREY, textDecoration: 'none', fontWeight: 600 }}
+              style={{ fontSize: 11, color: '#9CA3AF', textDecoration: 'none', fontWeight: 600 }}
             >
               Download
             </a>
@@ -1040,14 +1068,27 @@ function SceneCard({
         </div>
       )}
 
-      {/* Expanded prompt */}
+      {/* Expanded: prompt + error */}
       {expanded && (
-        <div style={{ padding: '12px 16px 16px', borderTop: `1px solid ${border}` }}>
+        <div style={{ padding: '12px 14px', background: '#18181b', borderTop: '1px solid #27272a' }}>
           <p
             style={{
-              fontSize: 11,
+              fontSize: 10.5,
               fontWeight: 700,
-              color: GREY,
+              color: '#71717a',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              margin: '0 0 6px',
+            }}
+          >
+            Motion
+          </p>
+          <p style={{ fontSize: 12.5, color: '#d4d4d8', margin: '0 0 10px', lineHeight: 1.5 }}>{scene.motion}</p>
+          <p
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: '#71717a',
               textTransform: 'uppercase',
               letterSpacing: 0.5,
               margin: '0 0 6px',
@@ -1055,59 +1096,23 @@ function SceneCard({
           >
             Video Prompt
           </p>
-          <p
-            style={{
-              fontSize: 13,
-              color: DARK,
-              margin: 0,
-              lineHeight: 1.6,
-              background: '#F9FAFB',
-              borderRadius: 8,
-              padding: '10px 12px',
-            }}
-          >
-            {scene.video_prompt}
-          </p>
-          <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
-            <Detail label="Reference image" value={`Image ${scene.reference_image_index}`} />
-            {scene.text_overlay && <Detail label="Text overlay" value={`"${scene.text_overlay}"`} />}
-          </div>
+          <p style={{ fontSize: 12, color: '#a1a1aa', margin: 0, lineHeight: 1.5 }}>{scene.video_prompt}</p>
           {clip?.error && (
             <p
               style={{
-                fontSize: 12,
-                color: '#DC2626',
+                fontSize: 11.5,
+                color: '#f87171',
                 marginTop: 10,
-                padding: '8px 10px',
-                background: '#FEF2F2',
+                padding: '7px 10px',
+                background: 'rgba(220,38,38,0.12)',
                 borderRadius: 6,
               }}
             >
-              Error: {clip.error}
+              {clip.error}
             </p>
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p
-        style={{
-          fontSize: 10.5,
-          fontWeight: 600,
-          color: GREY,
-          margin: 0,
-          textTransform: 'uppercase',
-          letterSpacing: 0.4,
-        }}
-      >
-        {label}
-      </p>
-      <p style={{ fontSize: 12.5, color: DARK, margin: '2px 0 0', fontWeight: 600 }}>{value}</p>
     </div>
   );
 }
