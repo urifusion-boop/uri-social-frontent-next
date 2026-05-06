@@ -180,7 +180,7 @@ export default function VideoStoryboardGenerator() {
         if (res.status && res.responseData) {
           const map: Record<number, string> = {};
           for (const f of res.responseData.frames) {
-            map[f.scene_number] = f.frame_image_url;
+            if (f.frame_image_url) map[f.scene_number] = f.frame_image_url;
           }
           setFrameMap(map);
           if (res.responseData.status === 'complete') {
@@ -234,8 +234,16 @@ export default function VideoStoryboardGenerator() {
     setVideoError('');
     setVideoJob(null);
     try {
+      // Inject each scene's storyboard frame URL so Veo uses it as a reference image
+      const enrichedStoryboard = {
+        ...storyboard,
+        scenes: storyboard.scenes.map((s) => ({
+          ...s,
+          ...(frameMap[s.scene_number] ? { frame_image_url: frameMap[s.scene_number] } : {}),
+        })),
+      };
       const res = await SocialMediaAgentService.generateVideoFromStoryboard({
-        storyboard,
+        storyboard: enrichedStoryboard,
         brand_images: images.map((img) => img.dataUrl),
       });
       if (res.status && res.responseData) {
