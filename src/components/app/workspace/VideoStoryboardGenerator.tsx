@@ -911,6 +911,8 @@ function SceneCard({
   const [expanded, setExpanded] = useState(false);
   const endTime = startTime + scene.duration_seconds;
 
+  const bgSrc = scene.frame_image_url ?? refImage?.dataUrl;
+
   return (
     <div style={{ borderRadius: 10, overflow: 'hidden', background: '#111', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>
       {/* Storyboard frame */}
@@ -919,9 +921,9 @@ function SceneCard({
         onClick={() => setExpanded((v) => !v)}
       >
         {/* Background image */}
-        {refImage ? (
+        {bgSrc ? (
           <img
-            src={refImage.dataUrl}
+            src={bgSrc}
             alt=""
             style={{
               position: 'absolute',

@@ -40,6 +40,7 @@ export interface StoryboardScene {
   video_prompt: string;
   reference_image_index: number;
   text_overlay: string | null;
+  frame_image_url?: string;
 }
 
 export interface Storyboard {
