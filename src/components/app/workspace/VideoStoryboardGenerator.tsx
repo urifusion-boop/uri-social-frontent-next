@@ -585,7 +585,7 @@ export default function VideoStoryboardGenerator() {
                   fontFamily: 'inherit',
                 }}
               >
-                {videoJob?.status === 'complete' ? 'Regenerate Videos' : 'Generate Videos with Veo 3.1'}
+                {videoJob?.status === 'complete' ? 'Regenerate Videos' : 'Generate Videos'}
               </button>
             )}
 
