@@ -513,7 +513,7 @@ export default function VideoStoryboardGenerator() {
 
       {storyboard && !loading && (
         <>
-          <StoryboardResult storyboard={storyboard} uploadedImages={images} clipMap={clipMap} frameMap={frameMap} />
+          <StoryboardResult storyboard={storyboard} clipMap={clipMap} frameMap={frameMap} />
 
           {/* Video generation section */}
           <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${BORDER}` }}>
@@ -868,12 +868,10 @@ function Spinner({ label }: { label: string }) {
 
 function StoryboardResult({
   storyboard,
-  uploadedImages,
   clipMap,
   frameMap,
 }: {
   storyboard: Storyboard;
-  uploadedImages: UploadedImage[];
   clipMap: Record<number, VideoClip>;
   frameMap: Record<number, string>;
 }) {
@@ -907,7 +905,6 @@ function StoryboardResult({
             key={scene.scene_number}
             scene={scene}
             startTime={start}
-            refImage={uploadedImages[scene.reference_image_index]}
             clip={clipMap[scene.scene_number] ?? null}
             frameUrl={frameMap[scene.scene_number]}
           />
@@ -940,20 +937,22 @@ function Chip({ label, value }: { label: string; value: string }) {
 function SceneCard({
   scene,
   startTime,
-  refImage,
   clip,
   frameUrl,
 }: {
   scene: StoryboardScene;
   startTime: number;
-  refImage?: UploadedImage;
   clip: VideoClip | null;
   frameUrl?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const endTime = startTime + scene.duration_seconds;
 
-  const bgSrc = frameUrl ?? refImage?.dataUrl;
+  // Once a clip is generated use its Cloudinary thumbnail — always matches the video.
+  // Fall back to the async-generated frame image while the video hasn't been generated yet.
+  const clipThumbnail = clip?.video_url ? clip.video_url.replace(/\.mp4(\?.*)?$/, '.jpg') : null;
+  const bgSrc = clipThumbnail ?? frameUrl ?? null;
+  const loadingFrame = !bgSrc;
 
   return (
     <div style={{ borderRadius: 10, overflow: 'hidden', background: '#111', boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>
@@ -962,10 +961,50 @@ function SceneCard({
         style={{ position: 'relative', aspectRatio: '4/3', cursor: 'pointer', userSelect: 'none' }}
         onClick={() => setExpanded((v) => !v)}
       >
-        {/* Background image */}
-        {bgSrc ? (
+        {/* Background */}
+        {loadingFrame ? (
+          <>
+            <div style={{ position: 'absolute', inset: 0, background: '#12121a' }} />
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.04) 50%, transparent 75%)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 1.8s ease-in-out infinite',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <div
+                style={{
+                  width: 22,
+                  height: 22,
+                  border: '2.5px solid rgba(255,255,255,0.15)',
+                  borderTopColor: 'rgba(255,255,255,0.6)',
+                  borderRadius: 99,
+                  animation: 'spin 0.9s linear infinite',
+                }}
+              />
+              <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', margin: 0, letterSpacing: 0.5 }}>
+                Generating frame…
+              </p>
+            </div>
+            <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          </>
+        ) : (
           <img
-            src={bgSrc}
+            src={bgSrc!}
             alt=""
             style={{
               position: 'absolute',
@@ -976,8 +1015,6 @@ function SceneCard({
               display: 'block',
             }}
           />
-        ) : (
-          <div style={{ position: 'absolute', inset: 0, background: '#1a1a2e' }} />
         )}
 
         {/* Gradient overlays — top and bottom */}
