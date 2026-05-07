@@ -2856,6 +2856,16 @@ const PlaybookPage = ({
   };
 
   const handleSave = async () => {
+    // Validate required fields
+    if (!brandName.trim()) {
+      alert('Please enter your brand name before saving.');
+      return;
+    }
+    if (!industry.trim()) {
+      alert('Please select your industry before saving.');
+      return;
+    }
+
     setSaving(true);
     try {
       const updated: BrandProfileData = {
