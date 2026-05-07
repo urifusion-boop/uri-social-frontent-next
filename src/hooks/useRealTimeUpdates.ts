@@ -15,7 +15,7 @@ export function useCreditUpdates() {
 
   useEffect(() => {
     const unsubscribe = EventBus.on(EVENTS.CREDIT_UPDATED, (data) => {
-      setCreditData(data);
+      setCreditData(data as EventData[typeof EVENTS.CREDIT_UPDATED] | null);
     });
 
     return () => unsubscribe();
@@ -37,20 +37,23 @@ export function useImageEditUpdates(draftId?: string) {
 
   useEffect(() => {
     const unsubscribeStarted = EventBus.on(EVENTS.IMAGE_EDIT_STARTED, (data) => {
-      if (!draftId || data?.draftId === draftId) {
+      const eventData = data as { draftId: string } | undefined;
+      if (!draftId || eventData?.draftId === draftId) {
         setEditStatus({ status: 'editing' });
       }
     });
 
     const unsubscribeCompleted = EventBus.on(EVENTS.IMAGE_EDIT_COMPLETED, (data) => {
-      if (!draftId || data?.draftId === draftId) {
-        setEditStatus({ status: 'completed', data });
+      const eventData = data as EventData[typeof EVENTS.IMAGE_EDIT_COMPLETED] | undefined;
+      if (!draftId || eventData?.draftId === draftId) {
+        setEditStatus({ status: 'completed', data: eventData });
       }
     });
 
     const unsubscribeFailed = EventBus.on(EVENTS.IMAGE_EDIT_FAILED, (data) => {
-      if (!draftId || data?.draftId === draftId) {
-        setEditStatus({ status: 'failed', error: data?.error });
+      const eventData = data as { draftId: string; error: string } | undefined;
+      if (!draftId || eventData?.draftId === draftId) {
+        setEditStatus({ status: 'failed', error: eventData?.error });
       }
     });
 
@@ -77,8 +80,9 @@ export function useDraftUpdates(draftId?: string) {
 
   useEffect(() => {
     const unsubscribe = EventBus.on(EVENTS.DRAFT_UPDATED, (data) => {
-      if (!draftId || data?.draftId === draftId) {
-        setUpdates(data);
+      const eventData = data as EventData[typeof EVENTS.DRAFT_UPDATED] | undefined;
+      if (!draftId || eventData?.draftId === draftId) {
+        setUpdates(eventData || null);
       }
     });
 
