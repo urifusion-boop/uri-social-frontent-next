@@ -303,7 +303,14 @@ export class SocialMediaAgentService {
     feedback: string,
     forceCategory?: 'text_edit' | 'style_edit' | 'content_edit' | 'full_redesign'
   ): Promise<
-    UriResponse<{ image_url: string; version: number; edit_category: string; message: string; credit_charged: boolean }>
+    UriResponse<{
+      image_url: string;
+      version: number;
+      edit_category: string;
+      message: string;
+      credit_charged: boolean;
+      credits_consumed?: number;
+    }>
   > {
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.deleteDraft}/${draftId}/edit-image`,
