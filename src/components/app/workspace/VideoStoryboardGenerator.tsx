@@ -221,7 +221,10 @@ export default function VideoStoryboardGenerator() {
       if (res.status && res.responseData) {
         setStoryboard(res.responseData);
         // Fire frame image generation in the background
-        SocialMediaAgentService.generateStoryboardFrames(res.responseData.scenes)
+        SocialMediaAgentService.generateStoryboardFrames(
+          res.responseData.scenes,
+          images.map((img) => img.dataUrl)
+        )
           .then((frameRes) => {
             if (frameRes.status && frameRes.responseData) {
               startFramePolling(frameRes.responseData.job_id);

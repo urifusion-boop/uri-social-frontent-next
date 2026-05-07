@@ -527,9 +527,13 @@ export class SocialMediaAgentService {
   }
 
   static async generateStoryboardFrames(
-    scenes: StoryboardScene[]
+    scenes: StoryboardScene[],
+    brandImages: string[] = []
   ): Promise<UriResponse<{ job_id: string; status: string; total_scenes: number }>> {
-    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateStoryboardFrames, { scenes });
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateStoryboardFrames, {
+      scenes,
+      brand_images: brandImages,
+    });
     return response.data;
   }
 
