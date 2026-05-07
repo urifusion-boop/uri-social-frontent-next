@@ -23,6 +23,14 @@ const PLATFORMS = [
   { value: 'linkedin', label: 'LinkedIn' },
 ];
 
+const VIDEO_MODELS = [
+  { value: 'veo-3.1-generate-preview', label: 'Veo 3.1' },
+  { value: 'fal-ai/kling-video/v3/pro/image-to-video', label: 'Kling 3.0 Pro' },
+  { value: 'bytedance/seedance-2.0/image-to-video', label: 'Seedance 2.0' },
+];
+
+const FAL_MODELS = ['fal-ai/kling-video/v3/pro/image-to-video', 'bytedance/seedance-2.0/image-to-video'];
+
 const DURATIONS = [
   { value: 10, label: '10s' },
   { value: 15, label: '15s' },
@@ -47,6 +55,7 @@ export default function VideoStoryboardGenerator() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video generation state
+  const [selectedModel, setSelectedModel] = useState('veo-3.1-generate-preview');
   const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
   const [videoError, setVideoError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -245,6 +254,7 @@ export default function VideoStoryboardGenerator() {
       const res = await SocialMediaAgentService.generateVideoFromStoryboard({
         storyboard: enrichedStoryboard,
         brand_images: images.map((img) => img.dataUrl),
+        model: selectedModel,
       });
       if (res.status && res.responseData) {
         setVideoJob(res.responseData);
@@ -596,6 +606,70 @@ export default function VideoStoryboardGenerator() {
               >
                 <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>Video generation failed: {videoJob.error}</p>
               </div>
+            )}
+
+            {(!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') && (
+              <>
+                {/* Model picker */}
+                <div style={{ marginBottom: 16 }}>
+                  <p
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: GREY,
+                      margin: '0 0 8px',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    Video Model
+                  </p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {VIDEO_MODELS.map((m) => {
+                      const active = selectedModel === m.value;
+                      const needsFrame = FAL_MODELS.includes(m.value);
+                      const framesReady = storyboard ? storyboard.scenes.every((s) => frameMap[s.scene_number]) : false;
+                      const blocked = needsFrame && !framesReady;
+                      return (
+                        <button
+                          key={m.value}
+                          onClick={() => !blocked && setSelectedModel(m.value)}
+                          title={blocked ? 'Waiting for storyboard frames to finish generating…' : ''}
+                          style={{
+                            flex: 1,
+                            padding: '10px 6px',
+                            borderRadius: 10,
+                            border: `2px solid ${active ? PRIMARY : blocked ? '#E5E7EB' : BORDER}`,
+                            background: active ? '#FFF0F8' : blocked ? '#F9FAFB' : '#fff',
+                            color: active ? PRIMARY : blocked ? '#9CA3AF' : DARK,
+                            fontWeight: active ? 700 : 500,
+                            fontSize: 12.5,
+                            cursor: blocked ? 'not-allowed' : 'pointer',
+                            fontFamily: 'inherit',
+                            transition: 'all .15s',
+                            opacity: blocked ? 0.6 : 1,
+                          }}
+                        >
+                          {m.label}
+                          {blocked && (
+                            <span
+                              style={{
+                                display: 'block',
+                                fontSize: 9.5,
+                                color: '#9CA3AF',
+                                marginTop: 2,
+                                fontWeight: 400,
+                              }}
+                            >
+                              frames generating…
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             )}
 
             {(!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') && (
