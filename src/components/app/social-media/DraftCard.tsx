@@ -11,6 +11,7 @@ import {
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
 import {
   Box,
   Button,
@@ -132,7 +133,28 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     setImageError(false);
     imageRetryRef.current = 0;
     loadedSlideUrls.clear();
-  }, [draft.id]);
+  }, [draft.id, loadedSlideUrls]);
+
+  // Listen for image edit events from other sources (e.g., background processing)
+  useEffect(() => {
+    const draftId = draft.draft_id ?? draft.id ?? '';
+
+    const unsubscribeCompleted = EventBus.on(EVENTS.IMAGE_EDIT_COMPLETED, (data) => {
+      if (data?.draftId === draftId) {
+        // Update image URL immediately without waiting for refresh
+        setDraft((prev) => ({
+          ...prev,
+          image_url: data.imageUrl,
+          image_version: data.version,
+        }));
+        setImageLoaded(false);
+      }
+    });
+
+    return () => {
+      unsubscribeCompleted();
+    };
+  }, [draft.draft_id, draft.id]);
 
   const resolveUrl = (url: string) => {
     if (!url.startsWith('/')) return url;
@@ -298,8 +320,13 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   ) => {
     setEditLoading(true);
     setEditImageOpen(false);
+
+    const draftId = draft.draft_id ?? draft.id ?? '';
+
+    // Emit event that edit started
+    EventBus.emit(EVENTS.IMAGE_EDIT_STARTED, { draftId });
+
     try {
-      const draftId = draft.draft_id ?? draft.id ?? '';
       const response = await SocialMediaAgentService.editDraftImage(draftId, feedback, forceCategory);
 
       if (response.status) {
@@ -314,26 +341,51 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         ) {
           setCreditWarningData(data ?? null);
           setCreditWarningOpen(true);
+          setEditLoading(false);
           return;
         }
 
         // Success! Update the draft with new image
         if (data) {
-          setDraft({
+          const updatedDraft = {
             ...draft,
             image_url: data.image_url,
             image_version: data.version,
-          });
+          };
+          setDraft(updatedDraft);
           setImageLoaded(false); // Trigger reload
           setEditFeedback('');
+
+          // Emit success event with new image data
+          EventBus.emit(EVENTS.IMAGE_EDIT_COMPLETED, {
+            draftId,
+            imageUrl: data.image_url,
+            version: data.version,
+          });
+
+          // Emit credit consumed event to update balance everywhere
+          EventBus.emit(EVENTS.CREDIT_CONSUMED, {
+            amount: data.credits_consumed || 1,
+            operation: 'image_edit',
+          });
+
           ToastService.showToast(data.message || 'Image edited successfully!', ToastTypeEnum.Success);
         }
         onRefresh();
       } else {
+        EventBus.emit(EVENTS.IMAGE_EDIT_FAILED, {
+          draftId,
+          error: response.responseMessage || 'Edit failed',
+        });
         ToastService.showToast(response.responseMessage || 'Edit failed', ToastTypeEnum.Error);
       }
     } catch (error: unknown) {
-      ToastService.showToast(error instanceof Error ? error.message : 'Edit failed', ToastTypeEnum.Error);
+      const errorMessage = error instanceof Error ? error.message : 'Edit failed';
+      EventBus.emit(EVENTS.IMAGE_EDIT_FAILED, {
+        draftId,
+        error: errorMessage,
+      });
+      ToastService.showToast(errorMessage, ToastTypeEnum.Error);
     } finally {
       setEditLoading(false);
     }

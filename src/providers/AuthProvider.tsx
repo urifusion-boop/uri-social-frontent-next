@@ -5,6 +5,7 @@ import { ITokenDetails, UserDto } from '@/src/types';
 import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { BillingService } from '@/src/api/BillingService';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
 
 interface IAuthContext {
   userDetails: UserDto | null;
@@ -42,18 +43,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       const balance = await BillingService.getCreditBalance();
+      const creditData = {
+        creditsRemaining: balance.credits_remaining,
+        creditBalance: balance.total_credits,
+        subscriptionTier: balance.subscription_tier,
+        lowCreditWarning: balance.low_credit_warning,
+      };
+
       setUserDetails((prev) => {
         if (!prev) return prev;
         const updated = {
           ...prev,
-          creditsRemaining: balance.credits_remaining,
-          creditBalance: balance.total_credits,
-          subscriptionTier: balance.subscription_tier,
-          lowCreditWarning: balance.low_credit_warning,
+          ...creditData,
         };
         localStorage.setItem(STORE_KEYS.USER_DETAILS, JSON.stringify(updated));
         return updated;
       });
+
+      // Emit event for other components to react
+      EventBus.emit(EVENTS.CREDIT_UPDATED, creditData);
     } catch (error) {
       console.error('Failed to fetch credit balance:', error);
       // Don't fail auth if credit fetch fails
@@ -113,6 +121,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       refreshTrialStatus();
     }
   }, [isAuthenticated, isPending, refreshCreditBalance, refreshTrialStatus]);
+
+  // Listen for credit consumption events from other components
+  useEffect(() => {
+    const unsubscribe = EventBus.on(EVENTS.CREDIT_CONSUMED, () => {
+      // Refresh credit balance whenever credits are consumed
+      refreshCreditBalance();
+    });
+
+    return () => unsubscribe();
+  }, [refreshCreditBalance]);
 
   const saveUserDetails = (details: UserDto) => {
     localStorage.setItem(STORE_KEYS.USER_DETAILS, JSON.stringify(details));
