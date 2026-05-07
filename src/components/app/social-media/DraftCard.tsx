@@ -140,12 +140,13 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     const draftId = draft.draft_id ?? draft.id ?? '';
 
     const unsubscribeCompleted = EventBus.on(EVENTS.IMAGE_EDIT_COMPLETED, (data) => {
-      if (data?.draftId === draftId) {
+      const eventData = data as { draftId: string; imageUrl: string; version: number } | undefined;
+      if (eventData?.draftId === draftId) {
         // Update image URL immediately without waiting for refresh
         setDraft((prev) => ({
           ...prev,
-          image_url: data.imageUrl,
-          image_version: data.version,
+          image_url: eventData.imageUrl,
+          image_version: eventData.version,
         }));
         setImageLoaded(false);
       }
