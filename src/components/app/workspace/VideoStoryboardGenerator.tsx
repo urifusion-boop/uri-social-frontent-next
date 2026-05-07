@@ -245,6 +245,10 @@ export default function VideoStoryboardGenerator() {
     if (!storyboard) return;
     setVideoError('');
     setVideoJob(null);
+    setMergedUrl('');
+    setMergeError('');
+    setSavedDraft(null);
+    if (pollRef.current) clearInterval(pollRef.current);
     try {
       // Inject each scene's storyboard frame URL so Veo uses it as a reference image
       const enrichedStoryboard = {
