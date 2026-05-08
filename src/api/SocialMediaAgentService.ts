@@ -32,6 +32,69 @@ export interface GenerateContentPayload {
   acknowledged_incomplete_profile?: boolean; // OPTION 1: User acknowledged incomplete profile warning
 }
 
+export interface StoryboardScene {
+  scene_number: number;
+  duration_seconds: number;
+  shot_type: string;
+  motion: string;
+  video_prompt: string;
+  reference_image_index: number;
+  text_overlay: string | null;
+  frame_image_url?: string;
+}
+
+export interface Storyboard {
+  total_duration_seconds: number;
+  target_platform: string;
+  aspect_ratio: string;
+  scenes: StoryboardScene[];
+}
+
+export interface StoryboardPayload {
+  brand_images: string[];
+  optional_text?: string;
+  target_platform: string;
+  target_duration_seconds: number;
+}
+
+export interface VideoClip {
+  scene_number: number;
+  shot_type: string;
+  duration_seconds: number;
+  motion: string;
+  text_overlay: string | null;
+  video_prompt: string;
+  video_url: string | null;
+  error?: string;
+}
+
+export interface VideoJob {
+  job_id: string;
+  status: 'queued' | 'generating' | 'complete' | 'failed';
+  model: string;
+  total_scenes: number;
+  current_scene: number;
+  clips: VideoClip[];
+  error: string | null;
+}
+
+export interface VideoFromStoryboardPayload {
+  storyboard: Storyboard;
+  brand_images: string[];
+  model?: string;
+}
+
+export interface VideoDraft {
+  id: string;
+  user_id: string;
+  media_type: 'video';
+  video_url: string;
+  content: string;
+  platforms: string[];
+  status: string;
+  created_at: string;
+}
+
 export interface RefinePayload {
   draft_id: string;
   refinements: {
@@ -111,6 +174,7 @@ export interface ContentDraft {
     | 'refined';
   approval_status?: 'pending' | 'approved' | 'denied';
   image_url?: string;
+  image_version?: number;
   has_image?: boolean;
   image_failed?: boolean;
   image_retry_count?: number; // PRD 4.2: Track image retry count for credit deduction
@@ -231,6 +295,39 @@ export class SocialMediaAgentService {
 
   static async deleteDraft(draftId: string): Promise<UriResponse<string>> {
     const response = await UriHttpClient.getClient().delete(`${socialMediaAgentRoutes.deleteDraft}/${draftId}`);
+    return response.data;
+  }
+
+  static async editDraftImage(
+    draftId: string,
+    feedback: string,
+    forceCategory?: 'text_edit' | 'style_edit' | 'content_edit' | 'full_redesign'
+  ): Promise<
+    UriResponse<{
+      image_url: string;
+      version: number;
+      edit_category: string;
+      message: string;
+      credit_charged: boolean;
+      credits_consumed?: number;
+    }>
+  > {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/edit-image`,
+      {
+        feedback,
+        force_category: forceCategory,
+      }
+    );
+    return response.data;
+  }
+
+  static async undoDraftImage(
+    draftId: string
+  ): Promise<UriResponse<{ image_url: string; version: number; message: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/undo-image`
+    );
     return response.data;
   }
 
@@ -358,10 +455,94 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async getCalendarPerformance(): Promise<UriResponse<CalendarPerformanceData>> {
+    const response: Awaited<AxiosResponse<UriResponse<CalendarPerformanceData>>> = await UriHttpClient.getClient().get(
+      '/social-media/content-calendar/performance'
+    );
+    return response.data;
+  }
+
+  static async getCalendarTrends(): Promise<UriResponse<TrendsData>> {
+    const response: Awaited<AxiosResponse<UriResponse<TrendsData>>> = await UriHttpClient.getClient().get(
+      '/social-media/content-calendar/trends'
+    );
+    return response.data;
+  }
+
   static async getTodaySuggestion(): Promise<UriResponse<TodaySuggestion>> {
     const response: Awaited<AxiosResponse<UriResponse<TodaySuggestion>>> = await UriHttpClient.getClient().get(
       socialMediaAgentRoutes.calendarToday
     );
+    return response.data;
+  }
+
+  static async generateStoryboard(payload: StoryboardPayload): Promise<UriResponse<Storyboard>> {
+    const response: Awaited<AxiosResponse<UriResponse<Storyboard>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateStoryboard,
+      payload,
+      { timeout: 60000 }
+    );
+    return response.data;
+  }
+
+  static async generateVideoFromStoryboard(payload: VideoFromStoryboardPayload): Promise<UriResponse<VideoJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoJob>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateVideoFromStoryboard,
+      payload,
+      { timeout: 30000 }
+    );
+    return response.data;
+  }
+
+  static async getVideoJob(jobId: string): Promise<UriResponse<VideoJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoJob>>> = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.videoJob}/${jobId}`
+    );
+    return response.data;
+  }
+
+  static async mergeVideoJob(jobId: string): Promise<UriResponse<{ merged_video_url: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ merged_video_url: string }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.mergeVideoJob}/${jobId}`, {}, { timeout: 180000 });
+    return response.data;
+  }
+
+  static async saveVideoDraft(payload: {
+    merged_video_url: string;
+    caption: string;
+    platforms: string[];
+  }): Promise<UriResponse<VideoDraft>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoDraft>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.videoDrafts,
+      payload
+    );
+    return response.data;
+  }
+
+  static async listVideoDrafts(): Promise<UriResponse<VideoDraft[]>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoDraft[]>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.videoDrafts
+    );
+    return response.data;
+  }
+
+  static async generateStoryboardFrames(
+    scenes: StoryboardScene[],
+    brandImages: string[] = []
+  ): Promise<UriResponse<{ job_id: string; status: string; total_scenes: number }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateStoryboardFrames, {
+      scenes,
+      brand_images: brandImages,
+    });
+    return response.data;
+  }
+
+  static async getStoryboardFrameJob(
+    jobId: string
+  ): Promise<
+    UriResponse<{ job_id: string; status: string; frames: { scene_number: number; frame_image_url: string }[] }>
+  > {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.storyboardFrameJob}/${jobId}`);
     return response.data;
   }
 }
@@ -421,6 +602,13 @@ export interface CalendarDayItem {
   acted_on_draft_ids: string[];
   regenerated_count: number;
   last_regenerated_at: string | null;
+  keyword?: string;
+  format?: string;
+  trend_score?: number;
+  performance_score?: number;
+  format_score?: number;
+  final_score?: number;
+  reason?: string;
 }
 
 export interface ContentCalendarPlan {
@@ -436,6 +624,37 @@ export interface ContentCalendarPlan {
     brand_voice?: string;
     target_audience?: string;
   };
+  generation_method?: 'data_driven' | 'trend_driven' | 'ai';
+  data_signals?: {
+    post_count: number;
+    top_topics: string[];
+    top_formats: string[];
+  };
+}
+
+export interface CalendarPerformanceData {
+  avg_engagement_by_format: Record<string, number>;
+  avg_engagement_by_topic: Record<string, number>;
+  best_posting_hour: number;
+  top_formats: string[];
+  top_topics: string[];
+  post_count: number;
+  analytics_count: number;
+  has_data: boolean;
+}
+
+export interface TrendKeyword {
+  keyword: string;
+  trend_score: number;
+  growth_rate: number;
+  source: 'google_trends' | 'fallback';
+  type: 'rising' | 'top' | 'seed';
+}
+
+export interface TrendsData {
+  industry: string;
+  keywords: TrendKeyword[];
+  count: number;
 }
 
 export interface TodaySuggestion {

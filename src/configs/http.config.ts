@@ -23,7 +23,7 @@ class UriHttpClient {
         'Content-Type': 'application/json',
       },
       validateStatus: (status) => status >= 200 && status < 300,
-      timeout: 30000,
+      timeout: 120000, // 2 minutes - increased for image generation/editing operations
     });
 
     this.client.interceptors.request.use(

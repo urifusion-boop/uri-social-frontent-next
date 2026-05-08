@@ -4,6 +4,7 @@ import { GenerateContentPayload, SocialMediaAgentService } from '@/src/api/Socia
 import { BillingService } from '@/src/api/BillingService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
 import {
   Box,
   Button,
@@ -23,7 +24,6 @@ import { MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import LowCreditWarning from '../atoms/LowCreditWarning';
 import ConfirmDialog from '../workspace/ConfirmDialog';
-import { getColorDescription } from '@/src/utils/colorNamer';
 
 const PLATFORMS = [
   { key: 'facebook', label: 'Facebook', icon: <FaFacebook size={16} color="#1877F2" /> },
@@ -171,7 +171,14 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
       if (response.status) {
         ToastService.showToast('Content generated! Check your Drafts tab.', ToastTypeEnum.Success);
         onGenerated();
-        // Refresh credit count
+
+        // Emit credit consumed event - AuthProvider will auto-refresh balance
+        EventBus.emit(EVENTS.CREDIT_CONSUMED, {
+          amount: 1,
+          operation: 'content_generation',
+        });
+
+        // Also update local state
         const balance = await BillingService.getCreditBalance();
         setCreditsRemaining(balance.credits_remaining);
       } else {

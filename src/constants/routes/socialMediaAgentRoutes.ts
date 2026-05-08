@@ -11,6 +11,9 @@ type ISocialMediaAgentApi =
   | 'getConnections'
   | 'disconnectPlatform'
   | 'generateContent'
+  | 'generateStoryboard'
+  | 'generateVideoFromStoryboard'
+  | 'videoJob'
   | 'refineContent'
   | 'approveContent'
   | 'denyContent'
@@ -23,7 +26,11 @@ type ISocialMediaAgentApi =
   | 'calendarPlan'
   | 'calendarPlanGenerate'
   | 'calendarDayBase'
-  | 'calendarToday';
+  | 'calendarToday'
+  | 'mergeVideoJob'
+  | 'videoDrafts'
+  | 'generateStoryboardFrames'
+  | 'storyboardFrameJob';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -33,6 +40,9 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   getConnections: '/connections',
   disconnectPlatform: '/connections/account',
   generateContent: '/generate-content',
+  generateStoryboard: '/generate-storyboard',
+  generateVideoFromStoryboard: '/generate-video-from-storyboard',
+  videoJob: '/video-job',
   refineContent: '/refine',
   approveContent: '/approve',
   denyContent: '/deny',
@@ -46,6 +56,10 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   calendarPlanGenerate: '/content-calendar/plan/generate',
   calendarDayBase: '/content-calendar/plan',
   calendarToday: '/content-calendar/today',
+  mergeVideoJob: '/merge-video-job',
+  videoDrafts: '/video-drafts',
+  generateStoryboardFrames: '/generate-storyboard-frames',
+  storyboardFrameJob: '/storyboard-frame-job',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

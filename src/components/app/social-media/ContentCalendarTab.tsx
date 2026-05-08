@@ -116,6 +116,7 @@ const DayCard = ({
   return (
     <div
       onClick={onClick}
+      title={day.reason ?? undefined}
       style={{
         position: 'relative',
         background: '#fff',
@@ -187,11 +188,17 @@ const DayCard = ({
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <PlatformDots platforms={day.platforms} />
-        {day.acted_on && (
-          <span style={{ fontSize: 14 }} title="Draft created">
-            ✅
-          </span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          {day.acted_on && (
+            <span style={{ fontSize: 14 }} title="Draft created">✅</span>
+          )}
+          {day.final_score !== undefined && day.final_score >= 80 && (
+            <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(22,163,74,.12)', color: '#15803d', borderRadius: 20, padding: '1px 6px' }}>🟢 Strong</span>
+          )}
+          {day.final_score !== undefined && day.final_score >= 60 && day.final_score < 80 && (
+            <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(234,179,8,.12)', color: '#a16207', borderRadius: 20, padding: '1px 6px' }}>🟡 Good</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -633,10 +640,21 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
         }}
       >
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#111' }}>
-            Week of {formatWeekLabel(plan.week_start)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#111' }}>
+              Week of {formatWeekLabel(plan.week_start)}
+            </div>
+            {plan.generation_method === 'data_driven' && (
+              <span style={{ fontSize: 10.5, fontWeight: 700, background: 'rgba(22,163,74,.12)', color: '#15803d', borderRadius: 20, padding: '2px 8px' }}>📊 Data-driven</span>
+            )}
+            {plan.generation_method === 'trend_driven' && (
+              <span style={{ fontSize: 10.5, fontWeight: 700, background: 'rgba(234,88,12,.1)', color: '#c2410c', borderRadius: 20, padding: '2px 8px' }}>🔥 Trend-driven</span>
+            )}
+            {plan.generation_method === 'ai' && (
+              <span style={{ fontSize: 10.5, fontWeight: 700, background: '#f5f4f0', color: '#888', borderRadius: 20, padding: '2px 8px' }}>✨ AI-generated</span>
+            )}
           </div>
-          <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 2 }}>
+          <div style={{ fontSize: 11.5, color: '#bbb' }}>
             {plan.brand_snapshot?.brand_name ?? 'Your brand'} · {plan.platforms.join(', ')}
           </div>
         </div>
