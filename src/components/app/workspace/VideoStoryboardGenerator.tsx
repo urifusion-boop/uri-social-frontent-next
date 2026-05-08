@@ -24,9 +24,9 @@ const PLATFORMS = [
 ];
 
 const VIDEO_MODELS = [
-  { value: 'veo-3.1-generate-preview', label: 'Veo 3.1' },
-  { value: 'fal-ai/kling-video/v3/pro/image-to-video', label: 'Kling 3.0 Pro' },
-  { value: 'bytedance/seedance-2.0/image-to-video', label: 'Seedance 2.0' },
+  { value: 'veo-3.1-generate-preview', label: 'Version 1' },
+  { value: 'fal-ai/kling-video/v3/pro/image-to-video', label: 'Version 2' },
+  { value: 'bytedance/seedance-2.0/image-to-video', label: 'Version 3' },
 ];
 
 const FAL_MODELS = ['fal-ai/kling-video/v3/pro/image-to-video', 'bytedance/seedance-2.0/image-to-video'];
