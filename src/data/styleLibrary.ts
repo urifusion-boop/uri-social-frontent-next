@@ -224,7 +224,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#1a4a6b', '#4a9ebe'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/tech/trust-builder.jpg',
     promptFragment:
-      'Professional corporate photography. Real people in business settings: meetings, handshakes, collaborative work, presentations. Diverse representation. Warm but professional lighting. Slightly warm colour grading. Clean sans-serif typography overlaid with semi-transparent dark bar for readability. Trust, competence, human connection. Not stock-photo generic — authentic and specific.',
+      'Professional corporate photography. Real people in business settings: meetings, handshakes, collaborative work, presentations. Diverse representation. Warm but professional lighting. Slightly warm colour grading. Clean sans-serif typography overlaid with semi-transparent dark bar for readability. Trust, competence, human connection. Not stock-photo generic - authentic and specific.',
   },
   {
     slug: 'minimal_tech',
@@ -336,7 +336,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#2d0042', '#ff6bce'],
     image: U('1502823403499-6ccfcf4fb453'),
     promptFragment:
-      'High-fashion editorial beauty photography. Artistic, conceptual composition that prioritises visual impact over product clarity. Unexpected colour combinations and dramatic lighting contrasts. Model as art subject, not just product vehicle. Typography minimal or absent — the image carries the story alone. Vogue or i-D magazine aesthetic. Bold, experimental, designed to stop the scroll.',
+      'High-fashion editorial beauty photography. Artistic, conceptual composition that prioritises visual impact over product clarity. Unexpected colour combinations and dramatic lighting contrasts. Model as art subject, not just product vehicle. Typography minimal or absent - the image carries the story alone. Vogue or i-D magazine aesthetic. Bold, experimental, designed to stop the scroll.',
   },
   {
     slug: 'before_after',
@@ -506,7 +506,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#0a2540', '#00d4ff'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/metric-spotlight.jpg',
     promptFragment:
-      'Data-forward graphic with a single large metric as the hero element: big bold number (72pt+) in brand accent colour, centered vertically. Unit or label directly below in smaller text. Supporting context in 1–2 lines of small text at the bottom. Background: solid dark colour or very subtle gradient. No imagery — the number IS the image. Inspired by investor pitch decks and annual report covers. The typography should be monospaced or geometric sans-serif for the number, clean sans-serif for labels.',
+      'Data-forward graphic with a single large metric as the hero element: big bold number (72pt+) in brand accent colour, centered vertically. Unit or label directly below in smaller text. Supporting context in 1–2 lines of small text at the bottom. Background: solid dark colour or very subtle gradient. No imagery - the number IS the image. Inspired by investor pitch decks and annual report covers. The typography should be monospaced or geometric sans-serif for the number, clean sans-serif for labels.',
   },
   {
     slug: 'saas_comparison_grid',
@@ -526,7 +526,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#f5f5f7', '#86868b'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/saas/blog-header.jpg',
     promptFragment:
-      'Wide-format editorial blog header image. Left-aligned bold headline text (2–4 words max) with a complementary abstract illustration or subtle photography on the right. Brand primary colour as an accent bar or background block on one side. Clean whitespace separating text from imagery. Typography: bold geometric sans-serif for the headline, thin sans-serif for any subtitle. Feels like a premium tech publication cover: The Verge, TechCrunch, or Wired. No stock photography — abstract shapes, gradients, or stylised icons preferred.',
+      'Wide-format editorial blog header image. Left-aligned bold headline text (2–4 words max) with a complementary abstract illustration or subtle photography on the right. Brand primary colour as an accent bar or background block on one side. Clean whitespace separating text from imagery. Typography: bold geometric sans-serif for the headline, thin sans-serif for any subtitle. Feels like a premium tech publication cover: The Verge, TechCrunch, or Wired. No stock photography - abstract shapes, gradients, or stylised icons preferred.',
   },
   {
     slug: 'saas_feature_card',
@@ -618,7 +618,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#f5f0eb', '#c8b89a'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/hero-pedestal.jpg',
     promptFragment:
-      'Single product centered on a clean surface or floating against a solid-colour background. Dramatic studio lighting from above-left creating a defined shadow beneath. The product occupies 40–60% of the frame with generous negative space. No text unless explicitly needed — the product IS the message. Background colour pulled from brand palette (muted version). Subtle gradient on the surface beneath the product suggesting a platform or pedestal. Shot at slight low angle for a heroic perspective. Luxury product photography quality.',
+      'Single product centered on a clean surface or floating against a solid-colour background. Dramatic studio lighting from above-left creating a defined shadow beneath. The product occupies 40–60% of the frame with generous negative space. No text unless explicitly needed - the product IS the message. Background colour pulled from brand palette (muted version). Subtle gradient on the surface beneath the product suggesting a platform or pedestal. Shot at slight low angle for a heroic perspective. Luxury product photography quality.',
   },
   {
     slug: 'prod_flat_lay_curated',
@@ -678,7 +678,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#e8e4df', '#a8998a'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/scale-context.jpg',
     promptFragment:
-      "Product photographed next to a common object for scale reference: a hand, a coin, a phone, a ruler, a cup. Clean background, even lighting. The scale relationship should be immediately obvious. Clean informational typography showing dimensions if relevant. Not artistic — practical and informative. The viewer's primary question ('how big is this?') is answered instantly. Useful for online sellers where size is a common purchase barrier. E-commerce practical, not editorial.",
+      "Product photographed next to a common object for scale reference: a hand, a coin, a phone, a ruler, a cup. Clean background, even lighting. The scale relationship should be immediately obvious. Clean informational typography showing dimensions if relevant. Not artistic - practical and informative. The viewer's primary question ('how big is this?') is answered instantly. Useful for online sellers where size is a common purchase barrier. E-commerce practical, not editorial.",
   },
   {
     slug: 'prod_process_bts',
@@ -688,7 +688,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#5c3317', '#c8a06e'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/process-bts.jpg',
     promptFragment:
-      "Behind-the-scenes manufacturing or crafting photography. Raw materials being transformed into finished product. Workshop, kitchen, factory, or studio environment. Warm directional lighting. Visible hands at work. Slightly gritty, authentic feel — not over-polished. Subtle film grain at low opacity for an artisanal feel. Text overlay (if any) uses hand-lettered or typewriter-style font. The story is 'real people make this with care.' Builds trust through transparency and craftsmanship. Documentary style.",
+      "Behind-the-scenes manufacturing or crafting photography. Raw materials being transformed into finished product. Workshop, kitchen, factory, or studio environment. Warm directional lighting. Visible hands at work. Slightly gritty, authentic feel - not over-polished. Subtle film grain at low opacity for an artisanal feel. Text overlay (if any) uses hand-lettered or typewriter-style font. The story is 'real people make this with care.' Builds trust through transparency and craftsmanship. Documentary style.",
   },
   {
     slug: 'prod_seasonal_collection',
@@ -708,7 +708,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#4a5568', '#cbd5e0'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/comparison-duo.jpg',
     promptFragment:
-      "Two products side-by-side in a split composition. Left vs. right. Same lighting, same angle, identical framing for fairness. A thin vertical divider line (optional). Text labels: 'Before/After', 'Option A / Option B', 'Old / New', or similar. Clean sans-serif labels. Neutral background (white, grey, or soft gradient). The point: objective comparison. Used for skincare results, product upgrades, or A/B showcases. Minimal distractions — the difference is the hero.",
+      "Two products side-by-side in a split composition. Left vs. right. Same lighting, same angle, identical framing for fairness. A thin vertical divider line (optional). Text labels: 'Before/After', 'Option A / Option B', 'Old / New', or similar. Clean sans-serif labels. Neutral background (white, grey, or soft gradient). The point: objective comparison. Used for skincare results, product upgrades, or A/B showcases. Minimal distractions - the difference is the hero.",
   },
   {
     slug: 'prod_360_angles',
@@ -718,7 +718,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#2d3748', '#718096'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/360-angles.jpg',
     promptFragment:
-      "4–6 images of the same product arranged in a clean grid. Each image shows a different angle: front, back, side, top, bottom, detail close-up. Consistent lighting and background across all frames. White or light grey studio backdrop. Small text labels ('Front', 'Back', 'Detail') if helpful. The message: 'we have nothing to hide — see it all.' E-commerce trust-builder. Clean, informational, catalogue-style professionalism.",
+      "4–6 images of the same product arranged in a clean grid. Each image shows a different angle: front, back, side, top, bottom, detail close-up. Consistent lighting and background across all frames. White or light grey studio backdrop. Small text labels ('Front', 'Back', 'Detail') if helpful. The message: 'we have nothing to hide - see it all.' E-commerce trust-builder. Clean, informational, catalogue-style professionalism.",
   },
   {
     slug: 'prod_bundle_stack',
@@ -739,7 +739,7 @@ export const STYLES: StyleTemplate[] = [
     image:
       'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/customer-photo-frame.jpg',
     promptFragment:
-      "User-generated content (UGC) style: real customer photos displayed in polaroid-style frames, phone mockups, or pinboard layout. 2–4 images arranged casually. Each frame slightly rotated for authenticity. Subtle shadows for depth. Text overlay: 'Our customers', 'Real results', '@username'. Background: neutral or branded gradient. The goal: trust and relatability. People trust other people more than brands. Works for fashion, beauty, fitness, food — anything visual and social. Casual, authentic, community-driven.",
+      "User-generated content (UGC) style: real customer photos displayed in polaroid-style frames, phone mockups, or pinboard layout. 2–4 images arranged casually. Each frame slightly rotated for authenticity. Subtle shadows for depth. Text overlay: 'Our customers', 'Real results', '@username'. Background: neutral or branded gradient. The goal: trust and relatability. People trust other people more than brands. Works for fashion, beauty, fitness, food - anything visual and social. Casual, authentic, community-driven.",
   },
   {
     slug: 'prod_price_tag',
@@ -749,7 +749,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#dc2626', '#fca5a5'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/product/price-tag.jpg',
     promptFragment:
-      "Product image with a bold, eye-catching price or discount tag overlay. Large sans-serif or stencil font. Bright accent color (red, yellow, green). Tag styled as: sticker, badge, ribbon, or stamped label. The product is secondary — the offer is the hero. Text examples: '50% OFF', '₦5,000', 'Flash Sale', 'Limited Time'. High contrast for immediate readability. Background slightly blurred or desaturated to make the tag pop. Pure conversion focus — urgency and value at a glance. Retail advertising DNA.",
+      "Product image with a bold, eye-catching price or discount tag overlay. Large sans-serif or stencil font. Bright accent color (red, yellow, green). Tag styled as: sticker, badge, ribbon, or stamped label. The product is secondary - the offer is the hero. Text examples: '50% OFF', '₦5,000', 'Flash Sale', 'Limited Time'. High contrast for immediate readability. Background slightly blurred or desaturated to make the tag pop. Pure conversion focus - urgency and value at a glance. Retail advertising DNA.",
   },
 
   // ==========================================
@@ -764,7 +764,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#1e3a8a', '#3b82f6'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/authority-quote.jpg',
     promptFragment:
-      'Text-dominant design with a bold, thought-provoking quote centered on a solid or gradient background. Large serif or bold sans-serif font. Minimal design — no distracting imagery. Optional: small headshot or logo in the corner. Color scheme: dark background with white/gold text, or light background with dark text. Quotation marks stylized as design elements. Footer: your name and title in smaller text. The aesthetic: TED Talk slide, LinkedIn carousel authority, keynote speaker energy. Positioning you as the expert.',
+      'Text-dominant design with a bold, thought-provoking quote centered on a solid or gradient background. Large serif or bold sans-serif font. Minimal design - no distracting imagery. Optional: small headshot or logo in the corner. Color scheme: dark background with white/gold text, or light background with dark text. Quotation marks stylized as design elements. Footer: your name and title in smaller text. The aesthetic: TED Talk slide, LinkedIn carousel authority, keynote speaker energy. Positioning you as the expert.',
   },
   {
     slug: 'svc_tip_carousel',
@@ -804,7 +804,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#1f2937', '#6b7280'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/headshot-branded.jpg',
     promptFragment:
-      'High-quality professional headshot on a branded background (solid color, gradient, or subtle pattern). You looking confident, approachable, and polished. Clean studio lighting. Optional text overlay: your name, title, tagline, or value proposition. Logo placement subtle but present. The portrait should feel premium — not a selfie. Wardrobe: aligned with your industry (suit for corporate, casual for creative). For personal brands, consultants, coaches, speakers, realtors. First-impression content.',
+      'High-quality professional headshot on a branded background (solid color, gradient, or subtle pattern). You looking confident, approachable, and polished. Clean studio lighting. Optional text overlay: your name, title, tagline, or value proposition. Logo placement subtle but present. The portrait should feel premium - not a selfie. Wardrobe: aligned with your industry (suit for corporate, casual for creative). For personal brands, consultants, coaches, speakers, realtors. First-impression content.',
   },
   {
     slug: 'svc_stat_grid',
@@ -824,7 +824,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#7c2d12', '#ea580c'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/event-speaker.jpg',
     promptFragment:
-      "Photo of you speaking at an event, on stage, or leading a workshop. Audience visible in foreground (blurred). Professional event lighting. You mid-gesture or mid-speech — active and engaged. Text overlay: event name, topic, or date. Slight vignette or color grading for cinematic feel. The message: 'I'm in demand. I'm a thought leader.' Used by consultants, coaches, trainers to showcase credibility. Social proof through public presence.",
+      "Photo of you speaking at an event, on stage, or leading a workshop. Audience visible in foreground (blurred). Professional event lighting. You mid-gesture or mid-speech - active and engaged. Text overlay: event name, topic, or date. Slight vignette or color grading for cinematic feel. The message: 'I'm in demand. I'm a thought leader.' Used by consultants, coaches, trainers to showcase credibility. Social proof through public presence.",
   },
   {
     slug: 'svc_newsletter_teaser',
@@ -864,7 +864,7 @@ export const STYLES: StyleTemplate[] = [
     gradient: ['#831843', '#db2777'],
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/question-hook.jpg',
     promptFragment:
-      "Bold, oversized question text centered on a solid or gradient background. Example: 'Are you leaving money on the table?', 'What if you could 10x your leads?'. Large serif or bold sans-serif font. No imagery — just text. Optional: small subtext or CTA at bottom. High contrast for readability. The goal: stop the scroll, provoke curiosity, drive engagement (comments, clicks). Classic social media hook strategy. Used across all service industries.",
+      "Bold, oversized question text centered on a solid or gradient background. Example: 'Are you leaving money on the table?', 'What if you could 10x your leads?'. Large serif or bold sans-serif font. No imagery - just text. Optional: small subtext or CTA at bottom. High contrast for readability. The goal: stop the scroll, provoke curiosity, drive engagement (comments, clicks). Classic social media hook strategy. Used across all service industries.",
   },
   {
     slug: 'svc_client_logo_showcase',
@@ -886,6 +886,118 @@ export const STYLES: StyleTemplate[] = [
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/service/hiring-card.jpg',
     promptFragment:
       "Bold text: 'We're Hiring!' or 'Join Our Team' on a branded background. Optional: team photo (diverse, happy, collaborative vibe). Clean typography. Small bullet points: perks, roles, or values. CTA: 'Apply now', 'Link in bio'. The aesthetic: welcoming, professional, growth-focused. Used for recruitment marketing, employer branding, culture showcases. Attracts talent and signals that your business is thriving. Modern, people-first design.",
+  },
+
+  // ── Perfume & Fragrance (2026 Visual Style Guide) ──────────────────────────
+
+  {
+    slug: 'perf_editorial_ingredient',
+    name: 'Editorial Ingredient',
+    description: 'Clean, premium, ingredient-forward. For hero shots and launches.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#f5f0eb', '#c8b89a'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/editorial-ingredient.jpg',
+    promptFragment: `Create a premium minimalist product poster. Vertical 4:5 format, ultra-realistic product photography. Main composition: the perfume bottle is placed slightly off-center (left or right), standing upright on the surface. The product label and brand name on the bottle must be clearly visible and readable. The bottle is the hero element occupying 40-50% of the frame. Foreground styling: surround the bottle with raw fragrance ingredients that reflect its scent notes. Arrange them in a clean, intentional, editorial style - not cluttered. Examples: rose petals scattered, vanilla pods, citrus slices, coffee beans, sandalwood pieces, oud chips, lavender sprigs. Each ingredient should be identifiable and beautifully lit. Surface: natural premium surface - marble slab, raw stone, light wood tray, or linen cloth. The surface grounds the product and adds tactile texture. Background: clean minimal background with generous negative space on one side for text placement. Neutral tone: warm cream, soft grey, or brand-complementary colour. No distracting patterns. Lighting: soft diffused studio lighting. Natural highlights on the glass bottle showing transparency and liquid colour. Gentle shadows beneath the bottle and ingredients. Clean commercial fragrance aesthetic. Typography layout (placed in the negative space, not over the product): large headline text in elegant serif or thin sans-serif font, smaller subtext below, CTA line at the bottom with arrow. Colour palette: neutral base (cream/grey/stone) with accent colours drawn from the ingredients and the liquid colour inside the bottle. Mood: fresh, premium, editorial, clean, brand-focused. Quality: 4K, ultra-detailed, sharp focus on product, soft background, commercial-ready.`,
+  },
+  {
+    slug: 'perf_noir_luxe',
+    name: 'Noir Luxe',
+    description: 'Dark, seductive, mysterious. For evening fragrances.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#0A0A0A', '#d4a017'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/noir-luxe.jpg',
+    promptFragment: `Ultra-luxurious dark fragrance photography. Near-black background (#0A0A0A) with dramatic chiaroscuro lighting. Single strong directional light source from the upper left, creating deep shadows and brilliant highlights on the glass bottle surface. The perfume bottle is centered or slightly left, standing on a reflective black surface that creates a mirror reflection beneath it. The glass catches light like jewellery - sharp reflections, visible liquid inside with a warm amber or deep ruby tone. Brand name on the bottle is illuminated by the directional light and clearly legible. Atmosphere: wisps of dark smoke or mist curling behind and around the bottle at low opacity. The smoke adds mystery without obscuring the product. Optional: a few dark rose petals, black orchid, or gold leaf flakes scattered on the reflective surface. No bright colours. The entire palette is: black, deep gold, warm amber, and one accent from the fragrance notes (burgundy for oud, deep purple for iris, warm bronze for vanilla). The bottle is the only illuminated element - everything else falls into shadow. Typography: thin elegant serif font in gold or warm white. Positioned in the dark negative space. Minimal text - the fragrance name and one evocative word or phrase. No busy layouts. Mood: seductive, mysterious, nocturnal, exclusive, high-end. The viewer should feel like they're looking at a fragrance that costs more than they think. Quality: 4K, cinematic lighting, editorial perfumery photography, luxury magazine advertisement quality.`,
+  },
+  {
+    slug: 'perf_golden_hour_romance',
+    name: 'Golden Hour Romance',
+    description: 'Warm, romantic, dreamy. Golden light and soft petals.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#d4a96a', '#f0c674'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/golden-hour-romance.jpg',
+    promptFragment: `Romantic fragrance photography bathed in golden hour sunlight. Warm amber and honey-toned colour grading throughout the entire image. The light comes from behind and to the side of the bottle, creating a warm backlit glow through the glass and illuminating the liquid inside. The perfume bottle sits on a soft surface - rumpled silk fabric in blush pink, champagne gold, or ivory. Scattered around the bottle: fresh flower petals (rose, peony, or jasmine) in soft focus, some catching the golden light. A few petals appear to be floating or just fallen. Background: soft, warm, out-of-focus bokeh in golden tones. Could suggest a sunset garden, a bedroom window at golden hour, or a sunlit vanity. The background is never sharp - always dreamy and blurred. The bottle is the only element in sharp focus. The bottle's glass catches and refracts the warm light, creating small rainbow prisms on the silk surface. The liquid inside glows amber or rose-gold. Typography: elegant script or thin serif font in warm white or soft gold. Positioned in the upper portion of the image or to the side. Romantic, not corporate. No cool tones. No blue. No harsh lighting. Everything is warm, soft, and glowing. Mood: romantic, intimate, feminine, golden, dreamy. The viewer should feel warmth and desire. Quality: 4K, shallow depth of field, cinematic golden hour lighting, luxury perfume editorial.`,
+  },
+  {
+    slug: 'perf_wet_glass_drama',
+    name: 'Wet Glass Drama',
+    description: 'Fresh, clean, water-inspired. Droplets and cool tones.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#4dd0e1', '#ffffff'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/wet-glass-drama.jpg',
+    promptFragment: `Fresh aquatic fragrance photography. The perfume bottle is covered in realistic water droplets - beaded condensation on the glass surface as if it was just pulled from cold water. Each droplet catches light individually, creating micro-reflections. The bottle stands on a wet surface - either a shallow pool of water (1-2mm deep) creating perfect reflections, or a wet stone/marble slab with visible water sheen. Small water splashes frozen in mid-air around the base of the bottle add dynamic energy. Background: gradient from cool aqua blue at the top to near-white at the bottom. Clean, fresh, minimal. Optional: a single green leaf or citrus slice partially submerged in the water at the base, suggesting freshness. Lighting: bright, clean, high-key with a slight cool tone. Strong specular highlights on the water droplets and the wet glass surface. The bottle is brilliantly lit - the liquid inside is visible and appears fresh, possibly light blue, green, or crystal clear. Colour palette: cool blues, aqua, silver, white, crystal clear. One warm accent only if the fragrance has a warm note (bergamot gold, grapefruit pink). Typography: clean modern sans-serif in white or silver. Crisp, precise, minimal. Positioned in the clean upper portion of the image. Mood: fresh, clean, invigorating, aquatic, crisp, modern. Like the first breath of cold air. Quality: 4K, ultra-sharp focus on water droplets, macro-photography detail on the glass surface.`,
+  },
+  {
+    slug: 'perf_smoke_amber',
+    name: 'Smoke & Amber',
+    description: 'Smoky, warm, oriental. Incense and richness.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#5d4037', '#d4a017'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/smoke-amber.jpg',
+    promptFragment: `Warm smoky fragrance photography inspired by Arabian perfumery and oriental scent traditions. The perfume bottle is placed on a dark wooden surface or ornate metal tray with Middle Eastern-inspired geometric patterns. Visible incense smoke rising behind and around the bottle - thick enough to create atmosphere but not obscure the product. The smoke catches warm side-lighting, creating golden-amber streaks through the air. The smoke is the key atmospheric element. Surrounding the bottle: raw amber resin chunks, cinnamon sticks, star anise, dried dark roses, oud wood chips, and/or saffron threads. Arranged intentionally, not scattered randomly. Each ingredient is a deliberate styling choice that tells the scent story. Lighting: warm amber/golden directional light from one side. The opposite side falls into rich shadow. The glass bottle catches warm reflections. The liquid inside appears deep amber, dark gold, or rich mahogany. Background: deep charcoal or dark burgundy with subtle texture (could suggest dark fabric, aged leather, or ornate wall). Not pure black - there should be warmth even in the shadows. Typography: gold serif or Arabic-inspired display font. Positioned in the darker areas. Minimal text. The atmosphere does the selling. Colour palette: deep amber, warm gold, dark burgundy, charcoal, cinnamon brown. No cool tones. Mood: warm, exotic, rich, ceremonial, ancient luxury. The viewer should almost smell the incense. Quality: 4K, atmospheric lighting, visible smoke particles, luxury oriental perfumery aesthetic.`,
+  },
+  {
+    slug: 'perf_botanical_garden',
+    name: 'Botanical Garden',
+    description: 'Natural, green, organic. Garden-fresh and alive.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#558b2f', '#a8c5a0'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/botanical-garden.jpg',
+    promptFragment: `Natural botanical fragrance photography. The perfume bottle is placed among fresh, living greenery - as if discovered in a garden. Surrounding elements: fresh leaves (monstera, fern fronds, eucalyptus), small wildflowers, herb sprigs (rosemary, mint, thyme), moss, and small stones. The arrangement feels organic and slightly wild - not a sterile studio flat-lay but a curated-natural composition. Some leaves overlap the base of the bottle naturally. A sprig of herb might lean against the glass. Surface: natural earth-toned surface - raw terracotta, weathered wood, natural stone, or actual garden soil with moss. Textured and organic. Lighting: dappled natural sunlight, as if filtering through tree canopy. Warm but not hot - fresh morning light quality. Soft leaf shadows falling across the surface and the bottle. The glass bottle catches green reflections from surrounding foliage. Background: soft out-of-focus greenery (bokeh) suggesting a garden environment. Greens range from deep forest to bright lime, with occasional flower colour accents (white, pale purple, soft yellow). Typography: clean sans-serif or gentle serif in dark green or earthy brown. Positioned in a naturally clear area of the composition. Organic feel. Colour palette: greens (multiple shades), earth browns, cream, white flower accents. Natural and unprocessed. Mood: fresh, natural, alive, botanical, organic, garden-morning. The viewer should feel outdoors. Quality: 4K, natural daylight photography, sharp focus on bottle with soft bokeh background, editorial nature photography aesthetic.`,
+  },
+  {
+    slug: 'perf_street_luxe',
+    name: 'Street Luxe',
+    description: 'Urban, bold, youthful. Concrete and confidence.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#424242', '#00e5ff'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/street-luxe.jpg',
+    promptFragment: `Urban street-style fragrance photography. The perfume bottle sits on raw concrete, asphalt, or a graffiti-tagged surface. The environment is urban: think rooftop, parking garage, wet city street at night, or a brutalist concrete wall as background. The bottle is shot at a low angle (looking slightly upward) giving it a heroic, dominant presence. It owns the space. The brand label faces the camera directly and is fully legible. Atmosphere: urban night or blue-hour lighting. Neon colour accents reflecting off the concrete and the glass bottle - electric blue, hot pink, or acid green from nearby signage (implied, not directly visible). Rain-wet surfaces reflecting the neon glow. No flowers. No silk. No softness. Props (if any) are urban: a chrome chain, a matte black lighter, a pair of dark sunglasses, or nothing at all - just the bottle against the city. Typography: bold condensed sans-serif or block capitals. White or neon accent colour. Positioned with intentional grit - slight rotation, tight kerning, urban poster energy. Not centred and polite - slightly aggressive and confident. Colour palette: concrete grey, wet black, neon accent (one colour only), chrome/silver from the bottle cap. Mood: confident, urban, young, unisex, nightlife, streetwear. The viewer should feel the city and the attitude. Quality: 4K, cinematic urban photography, shallow depth of field, neon reflections on wet surfaces.`,
+  },
+  {
+    slug: 'perf_crystal_minimal',
+    name: 'Crystal Minimal',
+    description: 'Ultra-clean, transparent, modern. Nothing unnecessary.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#ffffff', '#e0e0e0'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/crystal-minimal.jpg',
+    promptFragment: `Ultra-minimalist fragrance photography on a pure white or very light grey background. The perfume bottle is perfectly centred with extreme negative space on all sides - at least 40% of the image is empty space. The bottle is the only element in the frame. No props. No ingredients. No styling. Just the bottle, the light, and the space. The liquid inside the bottle is visible and its colour is the only colour accent in the entire image. Lighting: perfectly even, soft, shadowless illumination. The bottle appears to float - either on an invisible white surface with no visible shadow, or with only the faintest shadow directly beneath it. Studio infinity cove lighting quality. Every detail of the bottle design is visible: the cap texture, the label typography, the glass thickness, the liquid level. The bottle's transparency is the visual story. Light passes through the glass and liquid, creating subtle colour refractions on the white surface. If the liquid is amber, there's a faint amber glow beneath. If it's clear, the refraction is prismatic. Typography: extremely thin, light-weight sans-serif. Small. Precise. Positioned with mathematical precision in the negative space. The text whispers - it doesn't shout. Maximum 10 words total. Colour palette: white, off-white, and the single colour of the liquid inside the bottle. That's it. Mood: clean, modern, precise, transparent, honest, Scandinavian-minimalist. The viewer should feel clarity and intention. Quality: 4K, studio product photography, absolutely sharp focus, zero distraction, Glossier/Aesop/Byredo energy.`,
+  },
+  {
+    slug: 'perf_velvet_night',
+    name: 'Velvet Night',
+    description: 'Rich, textured, intimate. Fabric and depth.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#4a148c', '#d4a017'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/velvet-night.jpg',
+    promptFragment: `Intimate textured fragrance photography. The perfume bottle rests on crushed velvet fabric - deep burgundy, midnight blue, or forest green. The velvet's texture is visible and tactile, with folds and light catching the nap of the fabric. The bottle sits in a slight depression in the velvet, as if just placed there. Soft warm side-lighting creates rich shadows in the fabric folds and warm highlights on the glass. The liquid inside the bottle glows with warm ambient light. Surrounding elements (minimal): a single dark jewel-toned flower (dark red rose, deep purple iris, or black dahlia), a small piece of raw amber or a vanilla pod. Maximum 2 props. The velvet and the bottle do most of the work. Background: soft gradient from the velvet colour into deeper darkness. Intimate, close, like a private vanity or jewellery box. Lighting: warm, intimate, slightly low-key. One soft light source from the side. The glass bottle's edges catch rim light, defining its silhouette against the dark background. The velvet absorbs light beautifully, creating rich depth. Typography: elegant serif with slight warmth. Gold, cream, or the accent colour of the velvet. Small, refined, positioned in the darker upper portion. Colour palette: deep jewel tones (burgundy, navy, emerald), warm gold highlights, cream for text. Rich and saturated. Mood: intimate, luxurious, tactile, close, evening, indulgent. The viewer should want to touch the velvet and the bottle. Quality: 4K, close-up textured photography, visible fabric grain, warm intimate lighting, luxury editorial.`,
+  },
+  {
+    slug: 'perf_citrus_burst',
+    name: 'Citrus Burst',
+    description: 'Bright, energetic, explosive. Summer in a bottle.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#fdd835', '#ff6f00'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/citrus-burst.jpg',
+    promptFragment: `High-energy citrus fragrance photography. Bright, saturated, dynamic. The perfume bottle is surrounded by an explosion of fresh citrus: lemon slices, orange wedges, lime halves, grapefruit segments, bergamot - arranged in a dynamic arc or scattered with intentional energy, as if just sliced and tossed. Juice droplets and citrus spray visible in the air around the bottle, frozen mid-splash. Small water droplets on the citrus surfaces and the glass bottle. The liquid inside the bottle is visible - bright yellow, golden, or pale green. Surface: wet white marble or glossy white surface with citrus juice pooling slightly. Clean and bright. Lighting: bright, high-key, slightly warm. Strong highlights on the wet surfaces and the citrus flesh. The colours are saturated and punchy - vivid yellows, bright oranges, electric greens. The bottle gleams. Background: clean gradient from bright white to very pale citrus tone (lemon yellow or lime green at 5% opacity). Bright and airy. No darkness anywhere. Typography: bold modern sans-serif in white, bright yellow, or vivid orange. Energetic positioning - can be slightly angled for dynamism. Fun but not childish. Colour palette: vivid citrus colours (yellow, orange, lime green, grapefruit pink), bright white, glass transparency. Mood: fresh, energetic, joyful, summer, daytime, alive. The viewer should feel refreshed and awake. Quality: 4K, high-speed photography feel (frozen droplets), ultra-saturated colour, commercial beverage/fragrance hybrid energy.`,
+  },
+  {
+    slug: 'perf_heritage_editorial',
+    name: 'Heritage Editorial',
+    description: 'Classic, timeless, sophisticated. Old-world luxury.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#8b6914', '#d4a96a'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/heritage-editorial.jpg',
+    promptFragment: `Classic editorial fragrance photography inspired by vintage luxury advertising. The perfume bottle sits on an antique surface: aged mahogany desk, vintage leather-bound book, ornate silver tray, or an old marble mantelpiece. The composition references old-world luxury: a vintage mirror reflecting the bottle, an antique clock or compass nearby, aged parchment paper, a silk pocket square, or a single long-stemmed flower in a small crystal vase. Every prop feels like it belongs in a 1940s Parisian apartment. Lighting: warm, painterly, Rembrandt-inspired. Dominant warm light from one side with the other falling into rich shadow. The lighting feels old-world - like candlelight or soft lamp light, not modern studio. The glass bottle glows warmly. Colour grading: warm sepia undertone across the entire image. Slightly desaturated but rich. Aged, golden, warm. The image could almost be a painting. Typography: classic serif with small caps and generous letter-spacing. Gold, cream, or deep burgundy. Positioned with classical balance - centred or symmetrical. Timeless, not trendy. Colour palette: aged gold, warm mahogany, cream, burgundy, antique silver. Warm and rich throughout. No cool or modern tones. Mood: timeless, sophisticated, established, heritage, old-money luxury. The viewer should feel that this fragrance has existed for generations, even if it launched yesterday. Quality: 4K, painterly lighting, art-directed still-life photography, Vogue editorial from the golden era.`,
+  },
+  {
+    slug: 'perf_floating_surreal',
+    name: 'Floating Surreal',
+    description: 'Artistic, dreamlike, gravity-defying. The scent visualised.',
+    industryTags: ['perfume_fragrance'],
+    gradient: ['#4a148c', '#00bcd4'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/perfume/floating-surreal.jpg',
+    promptFragment: `Surrealist art-directed fragrance photography. The perfume bottle floats in mid-air - no visible surface, no support. It hovers in a dreamlike environment where the fragrance notes are visualised as floating elements around it. Surrounding the floating bottle: the scent notes materialised as physical objects suspended in zero gravity. Rose petals drifting upward. Vanilla pods tumbling slowly. Wisps of golden smoke curling in impossible directions. Water droplets frozen mid-air. Spice particles catching light. Each element represents a fragrance note. Background: soft gradient or atmospheric colour that represents the fragrance's mood. Warm amber gradient for oriental scents. Cool blue mist for fresh scents. Deep purple nebula for evening scents. The background is the scent's emotional colour made visible. Lighting: dramatic and directional. The bottle is the brightest element - lit as if from within or with a strong spotlight. Floating ingredients are lit to varying degrees, some catching bright light, others in softer illumination. Light rays or god-rays optional for added drama. The composition breaks physical rules intentionally. Nothing touches the ground. Shadows fall upward or in unexpected directions. The image feels like a dream or a moment frozen in time. Typography: modern display font with character. Can be bold or delicate depending on the fragrance. Positioned floating within the composition, not anchored to top or bottom. The text is part of the surreal scene. Colour palette: determined by the fragrance's emotional colour. Monochromatic with one or two accent colours from the floating ingredients. Mood: dreamlike, artistic, surreal, otherworldly, conceptual. The viewer should feel transported. This is perfume as art, not commerce. Quality: 4K, CGI-quality photography, gravity-defying composition, high-fashion editorial, avant-garde commercial.`,
   },
 ];
 
@@ -1060,6 +1172,20 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'svc_case_study_result',
     'svc_checklist_graphic',
   ],
+  perfume_fragrance: [
+    'perf_editorial_ingredient',
+    'perf_noir_luxe',
+    'perf_golden_hour_romance',
+    'perf_wet_glass_drama',
+    'perf_smoke_amber',
+    'perf_botanical_garden',
+    'perf_street_luxe',
+    'perf_crystal_minimal',
+    'perf_velvet_night',
+    'perf_citrus_burst',
+    'perf_heritage_editorial',
+    'perf_floating_surreal',
+  ],
 };
 
 const INDUSTRY_ALIASES: Record<string, string> = {
@@ -1088,6 +1214,11 @@ const INDUSTRY_ALIASES: Record<string, string> = {
   events: 'events_entertainment',
   entertainment: 'events_entertainment',
   event: 'events_entertainment',
+  perfume: 'perfume_fragrance',
+  fragrance: 'perfume_fragrance',
+  cologne: 'perfume_fragrance',
+  scent: 'perfume_fragrance',
+  perfumery: 'perfume_fragrance',
 };
 
 function _canonicalIndustry(industry: string): string {
@@ -1096,7 +1227,7 @@ function _canonicalIndustry(industry: string): string {
   if (INDUSTRY_STYLE_MAP[key]) return key;
   // Exact match against aliases
   if (INDUSTRY_ALIASES[key]) return INDUSTRY_ALIASES[key];
-  // Partial keyword match — handles compound values like "Tech & SaaS", "Food & Beverage"
+  // Partial keyword match - handles compound values like "Tech & SaaS", "Food & Beverage"
   for (const [alias, canonical] of Object.entries(INDUSTRY_ALIASES)) {
     if (key.includes(alias)) return canonical;
   }
