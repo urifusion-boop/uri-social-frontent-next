@@ -96,17 +96,17 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   );
 
   // Sync draft data from parent on any relevant field change.
-  // Only reset image load state when image_url actually changes to a new value —
-  // not on every fetchDrafts() call (slides/status refs change on every fetch).
+  // Always reset image load state to ensure images reload properly when navigating between tabs.
+  // This fixes the issue where images show "Loading..." forever after switching tabs.
   useEffect(() => {
     if (!editing) {
       setDraft(initialDraft);
-      if (initialDraft.image_url !== trackedImageUrlRef.current) {
-        setImageLoaded(false);
-        setImageError(false);
-        imageRetryRef.current = 0;
-        trackedImageUrlRef.current = initialDraft.image_url;
-      }
+      // Always reset image loading state when draft updates (e.g., tab navigation)
+      // This ensures browser re-evaluates image load status instead of relying on stale state
+      setImageLoaded(false);
+      setImageError(false);
+      imageRetryRef.current = 0;
+      trackedImageUrlRef.current = initialDraft.image_url;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
