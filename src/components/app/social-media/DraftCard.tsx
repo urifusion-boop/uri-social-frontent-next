@@ -107,6 +107,17 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       setImageError(false);
       imageRetryRef.current = 0;
       trackedImageUrlRef.current = initialDraft.image_url;
+
+      // Check if image is already loaded in browser cache
+      // onLoad event won't fire for cached images, so we need to check manually
+      if (initialDraft.image_url) {
+        const img = new Image();
+        img.src = resolveUrl(initialDraft.image_url);
+        if (img.complete) {
+          // Image already in cache, set loaded immediately
+          setImageLoaded(true);
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
