@@ -208,11 +208,33 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   }, [draft.id, loadedSlideUrls]);
 
   // Fetch connected platforms once on mount to gate the publish action
+  // Use a simple cache to prevent request spam when multiple cards mount
   useEffect(() => {
+    const CACHE_KEY = 'social_connections_cache';
+    const CACHE_DURATION = 30000; // 30 seconds
+
+    // Check cache first
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (cached) {
+      try {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          setConnectedPlatforms(data);
+          return;
+        }
+      } catch (e) {
+        // Invalid cache, continue to fetch
+      }
+    }
+
+    // Fetch fresh data
     SocialMediaAgentService.getConnections()
       .then((res) => {
         if (res.status && res.responseData) {
-          setConnectedPlatforms(res.responseData.connected_platforms ?? []);
+          const platforms = res.responseData.connected_platforms ?? [];
+          setConnectedPlatforms(platforms);
+          // Cache the result
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: platforms, timestamp: Date.now() }));
         }
       })
       .catch(() => setConnectedPlatforms([]));
