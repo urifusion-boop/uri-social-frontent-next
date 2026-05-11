@@ -152,6 +152,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     router.push('/login');
   }, [router]);
 
+  // Listen for unauthorized events from HTTP interceptor (401/403 errors)
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      console.warn('[Auth] Unauthorized event detected - logging out user');
+      logoutUser();
+    };
+
+    window.addEventListener('unauthorized', handleUnauthorized);
+
+    return () => {
+      window.removeEventListener('unauthorized', handleUnauthorized);
+    };
+  }, [logoutUser]);
+
   return (
     <AuthContext.Provider
       value={{
