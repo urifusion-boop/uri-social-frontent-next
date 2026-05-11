@@ -7,6 +7,7 @@ import {
   VideoDraft,
   VideoClip,
   VideoJob,
+  VideoPublishJob,
 } from '@/src/api/SocialMediaAgentService';
 import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
 import { useEffect, useRef, useState } from 'react';
@@ -78,6 +79,14 @@ export default function VideoStoryboardGenerator() {
   const [drafts, setDrafts] = useState<VideoDraft[]>([]);
   const [loadingDrafts, setLoadingDrafts] = useState(false);
 
+  // Publish state
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null);
+  // selectedPublishPlatform: { [draftId]: platform }
+  const [selectedPublishPlatform, setSelectedPublishPlatform] = useState<Record<string, string>>({});
+  // publishJobs: { [draftId:platform]: VideoPublishJob }
+  const [publishJobs, setPublishJobs] = useState<Record<string, VideoPublishJob>>({});
+  const publishPollRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+
   // Poll for job status while generating
   useEffect(() => {
     if (!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') {
@@ -102,7 +111,7 @@ export default function VideoStoryboardGenerator() {
     };
   }, [videoJob?.job_id, videoJob?.status]);
 
-  // Load video drafts on mount
+  // Load video drafts and connected platforms on mount
   useEffect(() => {
     setLoadingDrafts(true);
     SocialMediaAgentService.listVideoDrafts()
@@ -111,6 +120,14 @@ export default function VideoStoryboardGenerator() {
       })
       .catch(() => {})
       .finally(() => setLoadingDrafts(false));
+
+    SocialMediaAgentService.getConnections()
+      .then((res) => {
+        if (res.status && res.responseData) {
+          setConnectedPlatforms(res.responseData.connected_platforms ?? []);
+        }
+      })
+      .catch(() => setConnectedPlatforms([]));
   }, []);
 
   const handleMerge = async () => {
@@ -155,6 +172,50 @@ export default function VideoStoryboardGenerator() {
 
   const togglePlatform = (p: string) =>
     setDraftPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
+
+  const handlePublish = async (draft: VideoDraft) => {
+    const platform = selectedPublishPlatform[draft.id];
+    if (!platform) return;
+    const key = `${draft.id}:${platform}`;
+    try {
+      const res = await SocialMediaAgentService.publishVideoDraft({ draft_id: draft.id, platform });
+      if (!res.status || !res.responseData) return;
+      const { job_id } = res.responseData;
+      setPublishJobs((prev) => ({
+        ...prev,
+        [key]: {
+          job_id,
+          draft_id: draft.id,
+          platform,
+          status: 'queued',
+          platform_post_id: null,
+          post_url: null,
+          error: null,
+        },
+      }));
+      // Poll for status
+      publishPollRefs.current[job_id] = setInterval(async () => {
+        try {
+          const poll = await SocialMediaAgentService.getVideoPublishJob(job_id);
+          if (poll.status && poll.responseData) {
+            setPublishJobs((prev) => ({ ...prev, [key]: poll.responseData! }));
+            const s = poll.responseData.status;
+            if (s === 'published' || s === 'failed') {
+              clearInterval(publishPollRefs.current[job_id]);
+              delete publishPollRefs.current[job_id];
+              if (s === 'published') {
+                setDrafts((prev) => prev.map((d) => (d.id === draft.id ? { ...d, status: 'published' } : d)));
+              }
+            }
+          }
+        } catch {
+          /* keep polling */
+        }
+      }, 8000);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const addFiles = (files: FileList | null) => {
     if (!files) return;
@@ -939,49 +1000,230 @@ export default function VideoStoryboardGenerator() {
       {/* Saved Video Drafts */}
       <div style={{ marginTop: 40, paddingTop: 28, borderTop: `1px solid ${BORDER}` }}>
         <p style={{ fontSize: 13.5, fontWeight: 700, color: DARK, margin: '0 0 4px' }}>Saved Video Drafts</p>
-        <p style={{ fontSize: 12, color: GREY, margin: '0 0 16px' }}>Videos saved for future posting</p>
+        <p style={{ fontSize: 12, color: GREY, margin: '0 0 16px' }}>Videos saved for posting</p>
         {loadingDrafts ? (
           <p style={{ fontSize: 13, color: GREY }}>Loading…</p>
         ) : drafts.length === 0 ? (
           <p style={{ fontSize: 13, color: '#9CA3AF' }}>No video drafts saved yet.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {drafts.map((d) => (
-              <div key={d.id} style={{ border: `1.5px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden' }}>
-                <video
-                  src={d.video_url}
-                  controls
-                  playsInline
-                  style={{ width: '100%', maxHeight: 320, display: 'block', background: '#000' }}
-                />
-                <div style={{ padding: '12px 14px' }}>
-                  {d.content && (
-                    <p style={{ fontSize: 13, color: DARK, margin: '0 0 8px', lineHeight: 1.5 }}>{d.content}</p>
-                  )}
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-                    {d.platforms.map((p) => (
-                      <span
-                        key={p}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {drafts.map((d) => {
+              const PUBLISH_PLATFORMS = [
+                { value: 'instagram_reels', label: 'Instagram Reels', connectionKey: 'instagram', enabled: true },
+                { value: 'facebook_reels', label: 'Facebook', connectionKey: 'facebook', enabled: true },
+                { value: 'tiktok', label: 'TikTok', connectionKey: 'tiktok', enabled: false },
+                { value: 'linkedin', label: 'LinkedIn', connectionKey: 'linkedin', enabled: false },
+              ];
+
+              const selPlatform = selectedPublishPlatform[d.id] ?? '';
+
+              return (
+                <div key={d.id} style={{ border: `1.5px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden' }}>
+                  <video
+                    src={d.video_url}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    style={{ width: '100%', maxHeight: 320, display: 'block', background: '#000' }}
+                  />
+                  <div style={{ padding: '14px 16px' }}>
+                    {d.content && (
+                      <p style={{ fontSize: 13, color: DARK, margin: '0 0 10px', lineHeight: 1.5 }}>{d.content}</p>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: GREY }}>Saved for:</span>
+                      {d.platforms.map((p) => (
+                        <span
+                          key={p}
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            color: PRIMARY,
+                            background: '#FFF0F8',
+                            borderRadius: 4,
+                            padding: '2px 7px',
+                            border: `1px solid #FBCFE8`,
+                          }}
+                        >
+                          {p.replace(/_/g, ' ')}
+                        </span>
+                      ))}
+                      <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 'auto' }}>
+                        {new Date(d.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    {/* Publish section */}
+                    {d.status === 'published' ? (
+                      <div
                         style={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          color: PRIMARY,
-                          background: '#FFF0F8',
-                          borderRadius: 4,
-                          padding: '2px 7px',
-                          border: `1px solid #FBCFE8`,
+                          background: '#F0FDF4',
+                          border: '1px solid #86EFAC',
+                          borderRadius: 8,
+                          padding: '10px 12px',
                         }}
                       >
-                        {p.replace(/_/g, ' ')}
-                      </span>
-                    ))}
+                        <p style={{ fontSize: 12.5, fontWeight: 700, color: '#16a34a', margin: 0 }}>Published</p>
+                      </div>
+                    ) : (
+                      <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 12 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: GREY, margin: '0 0 8px' }}>Publish to</p>
+                        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
+                          {PUBLISH_PLATFORMS.filter((pp) => d.platforms.includes(pp.value) || !pp.enabled).map((pp) => {
+                            const isConnected =
+                              connectedPlatforms?.map((c) => c.toLowerCase()).includes(pp.connectionKey) ?? false;
+                            const isSelected = selPlatform === pp.value;
+                            const canSelect = pp.enabled && isConnected;
+                            const jobKey = `${d.id}:${pp.value}`;
+                            const job = publishJobs[jobKey];
+                            const isPublishing = job && job.status !== 'published' && job.status !== 'failed';
+
+                            return (
+                              <button
+                                key={pp.value}
+                                onClick={() => {
+                                  if (!canSelect) return;
+                                  setSelectedPublishPlatform((prev) => ({ ...prev, [d.id]: pp.value }));
+                                }}
+                                title={
+                                  !pp.enabled
+                                    ? 'Coming soon'
+                                    : !isConnected
+                                      ? `Connect your ${pp.label} account first`
+                                      : ''
+                                }
+                                style={{
+                                  padding: '6px 13px',
+                                  borderRadius: 8,
+                                  border: `1.5px solid ${isSelected ? PRIMARY : BORDER}`,
+                                  background: isSelected ? '#FFF0F8' : '#fff',
+                                  color: !pp.enabled || !isConnected ? '#9CA3AF' : isSelected ? PRIMARY : DARK,
+                                  fontWeight: isSelected ? 700 : 500,
+                                  fontSize: 12,
+                                  cursor: canSelect ? 'pointer' : 'not-allowed',
+                                  fontFamily: 'inherit',
+                                  opacity: !pp.enabled ? 0.5 : 1,
+                                  position: 'relative',
+                                }}
+                              >
+                                {pp.label}
+                                {!pp.enabled && (
+                                  <span style={{ display: 'block', fontSize: 9, color: '#9CA3AF', fontWeight: 400 }}>
+                                    Coming soon
+                                  </span>
+                                )}
+                                {pp.enabled && !isConnected && (
+                                  <span style={{ display: 'block', fontSize: 9, color: '#9CA3AF', fontWeight: 400 }}>
+                                    Not connected
+                                  </span>
+                                )}
+                                {isPublishing && (
+                                  <span style={{ display: 'block', fontSize: 9, color: PRIMARY, fontWeight: 600 }}>
+                                    {job.status}…
+                                  </span>
+                                )}
+                                {job?.status === 'published' && (
+                                  <span style={{ display: 'block', fontSize: 9, color: '#16a34a', fontWeight: 600 }}>
+                                    Published
+                                  </span>
+                                )}
+                                {job?.status === 'failed' && (
+                                  <span style={{ display: 'block', fontSize: 9, color: '#DC2626', fontWeight: 600 }}>
+                                    Failed
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Publish job error */}
+                        {selPlatform && publishJobs[`${d.id}:${selPlatform}`]?.status === 'failed' && (
+                          <div
+                            style={{
+                              background: '#FEF2F2',
+                              border: '1px solid #FECACA',
+                              borderRadius: 8,
+                              padding: '8px 10px',
+                              marginBottom: 10,
+                            }}
+                          >
+                            <p style={{ fontSize: 12, color: '#DC2626', margin: 0 }}>
+                              {publishJobs[`${d.id}:${selPlatform}`].error ?? 'Publish failed. Please try again.'}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Post URL on success */}
+                        {selPlatform &&
+                          publishJobs[`${d.id}:${selPlatform}`]?.status === 'published' &&
+                          publishJobs[`${d.id}:${selPlatform}`].post_url && (
+                            <a
+                              href={publishJobs[`${d.id}:${selPlatform}`].post_url!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                fontSize: 12.5,
+                                color: PRIMARY,
+                                fontWeight: 600,
+                                textDecoration: 'none',
+                                display: 'block',
+                                marginBottom: 10,
+                              }}
+                            >
+                              View post →
+                            </a>
+                          )}
+
+                        <button
+                          onClick={() => handlePublish(d)}
+                          disabled={
+                            !selPlatform ||
+                            (!!publishJobs[`${d.id}:${selPlatform}`]?.status &&
+                              publishJobs[`${d.id}:${selPlatform}`].status !== 'failed')
+                          }
+                          style={{
+                            width: '100%',
+                            padding: '10px 0',
+                            borderRadius: 8,
+                            background:
+                              !selPlatform ||
+                              (!!publishJobs[`${d.id}:${selPlatform}`]?.status &&
+                                publishJobs[`${d.id}:${selPlatform}`].status !== 'failed')
+                                ? '#E5E7EB'
+                                : PRIMARY,
+                            color:
+                              !selPlatform ||
+                              (!!publishJobs[`${d.id}:${selPlatform}`]?.status &&
+                                publishJobs[`${d.id}:${selPlatform}`].status !== 'failed')
+                                ? '#9CA3AF'
+                                : '#fff',
+                            border: 'none',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor:
+                              !selPlatform ||
+                              (!!publishJobs[`${d.id}:${selPlatform}`]?.status &&
+                                publishJobs[`${d.id}:${selPlatform}`].status !== 'failed')
+                                ? 'not-allowed'
+                                : 'pointer',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          {publishJobs[`${d.id}:${selPlatform}`]?.status === 'queued' ||
+                          publishJobs[`${d.id}:${selPlatform}`]?.status === 'uploading' ||
+                          publishJobs[`${d.id}:${selPlatform}`]?.status === 'processing'
+                            ? `${publishJobs[`${d.id}:${selPlatform}`].status}…`
+                            : selPlatform
+                              ? `Publish to ${PUBLISH_PLATFORMS.find((p) => p.value === selPlatform)?.label ?? selPlatform}`
+                              : 'Select a platform above'}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <p style={{ fontSize: 11, color: '#9CA3AF', margin: 0 }}>
-                    {new Date(d.created_at).toLocaleDateString()}
-                  </p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

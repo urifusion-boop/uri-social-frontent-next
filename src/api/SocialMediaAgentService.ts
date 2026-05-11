@@ -96,6 +96,16 @@ export interface VideoDraft {
   created_at: string;
 }
 
+export interface VideoPublishJob {
+  job_id: string;
+  draft_id: string;
+  platform: string;
+  status: 'queued' | 'uploading' | 'processing' | 'published' | 'failed';
+  platform_post_id: string | null;
+  post_url: string | null;
+  error: string | null;
+}
+
 export interface RefinePayload {
   draft_id: string;
   refinements: {
@@ -544,6 +554,25 @@ export class SocialMediaAgentService {
     UriResponse<{ job_id: string; status: string; frames: { scene_number: number; frame_image_url: string }[] }>
   > {
     const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.storyboardFrameJob}/${jobId}`);
+    return response.data;
+  }
+
+  static async publishVideoDraft(payload: {
+    draft_id: string;
+    platform: string;
+    caption?: string;
+  }): Promise<UriResponse<{ job_id: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string }>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.publishVideoDraft,
+      payload
+    );
+    return response.data;
+  }
+
+  static async getVideoPublishJob(jobId: string): Promise<UriResponse<VideoPublishJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoPublishJob>>> = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.videoPublishJob}/${jobId}`
+    );
     return response.data;
   }
 }
