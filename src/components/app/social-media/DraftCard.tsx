@@ -83,6 +83,11 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   // Track the last image URL we reset state for — avoids re-shimmer on unrelated re-renders
   const trackedImageUrlRef = useRef<string | undefined>(initialDraft.image_url);
 
+  // Debug: Log whenever imageLoaded state changes
+  useEffect(() => {
+    console.log(`[DraftCard ${draft.id}] 📊 imageLoaded state changed to: ${imageLoaded}`);
+  }, [imageLoaded, draft.id]);
+
   // Image editing state
   const [editImageOpen, setEditImageOpen] = useState(false);
   const [editFeedback, setEditFeedback] = useState('');
