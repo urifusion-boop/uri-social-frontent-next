@@ -46,6 +46,7 @@ import TrialExpiredModal from '@/src/components/app/atoms/TrialExpiredModal';
 import NotificationBell from '@/src/components/app/atoms/NotificationBell';
 import NotificationsPanel from '@/src/components/app/workspace/NotificationsPanel';
 import { useNotifications } from '@/src/providers/NotificationProvider';
+import { Tooltip } from '@mui/material';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -552,14 +553,14 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     if (activeTabRef.current === 'drafts') fetchDrafts();
   }, [fetchDrafts]);
 
-  const tabs: { key: ContentTab; label: string; count?: number }[] = [
-    { key: 'create', label: 'Create' },
-    { key: 'drafts', label: 'Drafts', count: drafts.length },
-    { key: 'saved', label: 'Saved', count: savedDrafts.length },
-    { key: 'scheduled', label: 'Scheduled', count: scheduled.length },
-    { key: 'calendar', label: 'Calendar' },
-    { key: 'auto', label: 'Auto' },
-    { key: 'video', label: 'Video' },
+  const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
+    { key: 'create', label: 'Create', tooltip: 'Generate new AI-powered posts for your social platforms' },
+    { key: 'drafts', label: 'Drafts', count: drafts.length, tooltip: 'Review and edit AI-generated posts awaiting your approval' },
+    { key: 'saved', label: 'Saved', count: savedDrafts.length, tooltip: 'Posts you\'ve saved for later — ready to publish when you are' },
+    { key: 'scheduled', label: 'Scheduled', count: scheduled.length, tooltip: 'Posts approved and queued to go live at a specific time' },
+    { key: 'calendar', label: 'Calendar', tooltip: 'Visualise your content schedule in a monthly calendar view' },
+    { key: 'auto', label: 'Auto', tooltip: 'Configure automatic daily or weekly post generation using your brand profile' },
+    { key: 'video', label: 'Video', tooltip: 'Create AI-generated video storyboards for your brand' },
   ];
 
   return (
@@ -632,8 +633,8 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
               video: 'video',
             };
             return (
+              <Tooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
               <button
-                key={t.key}
                 onClick={() => setActiveTab(t.key)}
                 style={{
                   padding: '9px 14px 10px',
@@ -673,6 +674,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                   </span>
                 )}
               </button>
+              </Tooltip>
             );
           })}
         </div>
@@ -1143,11 +1145,11 @@ const PLATFORM_ICON: Record<string, ReactNode> = {
 };
 
 const PLATFORMS = [
-  { id: 'linkedin', label: 'LinkedIn', color: '#0A66C2', bg: '#E8F1FB', flow: 'oauth' },
-  { id: 'x', label: 'X (Twitter)', color: '#000', bg: '#F0F0F0', flow: 'oauth', comingSoon: true },
-  { id: 'whatsapp', label: 'WhatsApp', color: '#25D366', bg: '#E8F9EF', flow: 'phone' },
-  { id: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#E7F0FD', flow: 'facebook_oauth' },
-  { id: 'instagram', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC', flow: 'instagram_direct' },
+  { id: 'linkedin', label: 'LinkedIn', color: '#0A66C2', bg: '#E8F1FB', flow: 'oauth', tooltip: 'Publish directly to your LinkedIn business page and track post performance from within URI Social' },
+  { id: 'x', label: 'X (Twitter)', color: '#000', bg: '#F0F0F0', flow: 'oauth', comingSoon: true, tooltip: 'Coming soon — X integration is in progress' },
+  { id: 'whatsapp', label: 'WhatsApp', color: '#25D366', bg: '#E8F9EF', flow: 'phone', tooltip: 'Send content to your WhatsApp Business number so you can broadcast posts directly to your contacts and groups' },
+  { id: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#E7F0FD', flow: 'facebook_oauth', tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social' },
+  { id: 'instagram', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC', flow: 'instagram_direct', tooltip: 'Connect your Instagram Business account to publish feed posts, carousels, and stories directly from URI Social' },
 ];
 
 const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
@@ -1690,7 +1692,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     {PLATFORM_ICON[p.id]}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111' }}>{p.label}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 700, color: '#111' }}>{p.label}</span>
+                      <Tooltip title={p.tooltip} arrow placement="right">
+                        <span style={{ display: 'inline-flex', cursor: 'help' }}>
+                          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                        </span>
+                      </Tooltip>
+                    </div>
                     {linked ? (
                       <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>
                         {s?.account_name || s?.username || s?.phone || 'Connected'}
@@ -2203,10 +2212,13 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
       .finally(() => setAccountLoading(false));
   }, [days]);
 
-  const statCard = (label: string, value: string | number, sub?: string, color = '#111') => (
+  const statCard = (label: string, value: string | number, sub?: string, color = '#111', tip?: string) => (
     <div style={{ padding: '14px 16px', background: '#fff', borderRadius: 12, border: '1px solid #edecea' }}>
       <div
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
           fontSize: 11,
           color: '#999',
           fontWeight: 600,
@@ -2216,6 +2228,13 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
         }}
       >
         {label}
+        {tip && (
+          <Tooltip title={tip} arrow placement="top">
+            <span style={{ display: 'inline-flex', cursor: 'help', textTransform: 'none' }}>
+              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            </span>
+          </Tooltip>
+        )}
       </div>
       <div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: '#bbb', marginTop: 4 }}>{sub}</div>}
@@ -2361,11 +2380,13 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
             <>
               {/* Summary stats */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 }}>
-                {statCard('Impressions', fmt(data.summary.total_impressions), `${data.summary.total_posts} posts`)}
-                {statCard('Reach', fmt(data.summary.total_reach))}
+                {statCard('Impressions', fmt(data.summary.total_impressions), `${data.summary.total_posts} posts`, '#111', 'Total number of times your posts were displayed in someone\'s feed — including repeat views by the same person')}
+                {statCard('Reach', fmt(data.summary.total_reach), undefined, '#111', 'Number of unique people who saw at least one of your posts — unlike Impressions, each person is counted only once')}
                 {statCard(
                   'Engagement',
-                  fmt(data.summary.total_likes + data.summary.total_comments + data.summary.total_shares)
+                  fmt(data.summary.total_likes + data.summary.total_comments + data.summary.total_shares),
+                  undefined, '#111',
+                  'Total interactions on your posts — likes, comments, and shares combined'
                 )}
                 {statCard(
                   'Avg. Eng. Rate',
@@ -2375,14 +2396,15 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                     ? '#16a34a'
                     : data.summary.avg_engagement_rate >= 1
                       ? '#d97706'
-                      : '#C2185B'
+                      : '#C2185B',
+                  'Engagements ÷ Impressions, expressed as a percentage. Above 3% is strong; 1–3% is average; below 1% suggests the content isn\'t resonating.'
                 )}
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 80px' }}>{statCard('Likes', fmt(data.summary.total_likes))}</div>
-                <div style={{ flex: '1 1 80px' }}>{statCard('Comments', fmt(data.summary.total_comments))}</div>
-                <div style={{ flex: '1 1 80px' }}>{statCard('Shares', fmt(data.summary.total_shares))}</div>
+                <div style={{ flex: '1 1 80px' }}>{statCard('Likes', fmt(data.summary.total_likes), undefined, '#111', 'Total likes across all published posts in the selected time range')}</div>
+                <div style={{ flex: '1 1 80px' }}>{statCard('Comments', fmt(data.summary.total_comments), undefined, '#111', 'Total comments received — a strong signal of audience interest and conversation')}</div>
+                <div style={{ flex: '1 1 80px' }}>{statCard('Shares', fmt(data.summary.total_shares), undefined, '#111', 'Total shares — the highest-value action, as it extends your reach to new audiences organically')}</div>
               </div>
 
               {/* Per-platform breakdown */}
@@ -2912,7 +2934,14 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
               {/* Score bar */}
               <div style={{ marginBottom: kw.type === 'rising' ? 6 : 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, color: '#999' }}>Trend score</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#999' }}>
+                    Trend score
+                    <Tooltip title="A 0–100 score reflecting how much search interest this keyword is getting right now relative to its peak. 100 = peak popularity. Sourced from Google Trends." arrow placement="right">
+                      <span style={{ display: 'inline-flex', cursor: 'help' }}>
+                        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                      </span>
+                    </Tooltip>
+                  </span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#333' }}>{kw.trend_score.toFixed(0)}</span>
                 </div>
                 <div style={{ height: 5, borderRadius: 4, background: '#f0eeeb' }}>
@@ -3061,15 +3090,20 @@ const PbRow = ({
   value,
   editing,
   input,
+  tooltip,
 }: {
   label: string;
   value?: string | string[];
   editing: boolean;
   input: ReactNode;
+  tooltip?: string;
 }) => (
   <div style={{ marginBottom: 12 }}>
     <div
       style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
         fontSize: 11,
         fontWeight: 600,
         color: '#999',
@@ -3079,6 +3113,15 @@ const PbRow = ({
       }}
     >
       {label}
+      {tooltip && (
+        <Tooltip title={tooltip} arrow placement="right">
+          <span style={{ display: 'inline-flex', cursor: 'help', textTransform: 'none' }}>
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+            </svg>
+          </span>
+        </Tooltip>
+      )}
     </div>
     {editing ? (
       input
@@ -3522,18 +3565,21 @@ const PlaybookPage = ({
           value={p?.brand_name}
           editing={editing}
           input={<PbInput value={brandName} onChange={setBrandName} placeholder="e.g. Paystack" />}
+          tooltip="The name the AI will use to refer to your brand in every generated post"
         />
         <PbRow
           label="Industry"
           value={p?.industry}
           editing={editing}
           input={<PbInput value={industry} onChange={setIndustry} placeholder="e.g. Fintech" />}
+          tooltip="Used to find relevant trending topics in Market Intel and tune content tone to your sector"
         />
         <PbRow
           label="Website"
           value={p?.website}
           editing={editing}
           input={<PbInput value={website} onChange={setWebsite} placeholder="https://..." />}
+          tooltip="Included when the AI adds a link to your posts or CTAs"
         />
         <PbRow
           label="Description"
@@ -3542,6 +3588,7 @@ const PlaybookPage = ({
           input={
             <PbInput value={description} onChange={setDescription} placeholder="What does your business do?" textarea />
           }
+          tooltip="A short summary of what your business does — the AI reads this to keep every post on-brand and accurate"
         />
       </PbSection>
 
@@ -3843,6 +3890,7 @@ const PlaybookPage = ({
                 textarea
               />
             }
+            tooltip="Paste an example of your brand writing — a past caption, email, or ad copy. The AI mimics this style in every post it generates."
           />
         </div>
       </PbSection>
@@ -3861,6 +3909,11 @@ const PlaybookPage = ({
             }}
           >
             Content pillars
+            <Tooltip title="The core themes your brand posts about — e.g. 'Product Tips', 'Customer Stories', 'Industry News'. The AI rotates through these to keep your feed varied." arrow placement="right">
+              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              </span>
+            </Tooltip>
           </div>
           {!editing ? (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -4177,24 +4230,28 @@ const PlaybookPage = ({
           value={p?.guardrails?.avoid_topics}
           editing={editing}
           input={<PbInput value={avoidTopics} onChange={setAvoidTopics} placeholder="e.g. Politics, religion..." />}
+          tooltip="Subjects the AI will never bring up or reference — e.g. competitor names, sensitive social issues, or off-brand themes"
         />
         <PbRow
           label="Banned words / phrases"
           value={p?.guardrails?.banned_words}
           editing={editing}
           input={<PbInput value={bannedWords} onChange={setBannedWords} placeholder="Comma separated" />}
+          tooltip="Specific words or phrases that must never appear in generated content — e.g. informal slang, competitor brand names, or legally restricted terms"
         />
         <PbRow
           label="Emoji usage"
           value={p?.guardrails?.emoji_usage}
           editing={editing}
           input={<PbInput value={emojiUsage} onChange={setEmojiUsage} placeholder="e.g. Minimal, 1–2 per post" />}
+          tooltip="Tell the AI how liberally to use emojis — e.g. 'None', 'Minimal (1–2)', 'Moderate', or 'Heavy'"
         />
         <PbRow
           label="Max hashtags"
           value={p?.guardrails?.max_hashtags}
           editing={editing}
           input={<PbInput value={maxHash} onChange={setMaxHash} placeholder="e.g. 5" />}
+          tooltip="The maximum number of hashtags the AI should add per post — helps avoid spam-like posts on platforms like LinkedIn"
         />
         <PbRow
           label="Compliance notes"
@@ -4208,6 +4265,7 @@ const PlaybookPage = ({
               textarea
             />
           }
+          tooltip="Any legal, regulatory, or industry-specific rules the AI must follow — e.g. 'Always include pricing disclaimers' or 'Do not make medical claims'"
         />
       </PbSection>
 
@@ -4225,6 +4283,11 @@ const PlaybookPage = ({
             }}
           >
             CTA styles
+            <Tooltip title="The types of calls-to-action the AI should use — e.g. 'Shop Now', 'Learn More', 'Book a Call'. Keeps your posts action-oriented and consistent." arrow placement="right">
+              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              </span>
+            </Tooltip>
           </div>
           {!editing ? (
             <div style={{ fontSize: 13, color: (p?.cta_styles ?? []).length > 0 ? '#111' : '#bbb' }}>
@@ -4248,6 +4311,7 @@ const PlaybookPage = ({
           value={p?.default_link}
           editing={editing}
           input={<PbInput value={defaultLink} onChange={setDefaultLink} placeholder="https://..." />}
+          tooltip="The URL appended to posts when no specific link is provided — e.g. your homepage or a campaign landing page"
         />
       </PbSection>
 
@@ -4265,6 +4329,11 @@ const PlaybookPage = ({
             }}
           >
             Posting cadence
+            <Tooltip title="How often you want to post — the AI uses this to pace auto-generated drafts and suggest a realistic schedule" arrow placement="right">
+              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              </span>
+            </Tooltip>
           </div>
           {!editing ? (
             <div style={{ fontSize: 13, color: p?.posting_cadence ? '#111' : '#bbb' }}>{p?.posting_cadence || '—'}</div>
@@ -4288,6 +4357,11 @@ const PlaybookPage = ({
             }}
           >
             Approval workflow
+            <Tooltip title="Controls who reviews drafts before they publish — 'Auto-approve' publishes immediately, 'Manual review' sends drafts to your Drafts tab first" arrow placement="right">
+              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              </span>
+            </Tooltip>
           </div>
           {!editing ? (
             <div style={{ fontSize: 13, color: p?.approval_workflow ? '#111' : '#bbb' }}>
@@ -4604,16 +4678,16 @@ const STATUS_MSGS = [
 ];
 
 const NAV = [
-  { id: 'workspace', icon: 'home', label: 'Workspace' },
+  { id: 'workspace', icon: 'home', label: 'Workspace', tooltip: 'Your AI command centre — chat with URI Agent and see today\'s briefing' },
   // { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
-  { id: 'schedule', icon: 'calendar', label: 'Create Content' },
-  { id: 'connections', icon: 'share', label: 'Connected Accounts' },
-  { id: 'performance', icon: 'chart', label: 'Performance' },
-  { id: 'intel', icon: 'globe', label: 'Market Intel' },
-  { id: 'playbook', icon: 'book', label: 'Brand Playbook' },
-  { id: 'notifications', icon: 'bell', label: 'Notifications' },
-  { id: 'settings', icon: 'settings', label: 'Settings' },
-  { id: 'billing', icon: 'trending', label: 'Billing' },
+  { id: 'schedule', icon: 'calendar', label: 'Create Content', tooltip: 'Generate, review, and schedule social media posts across all your platforms' },
+  { id: 'connections', icon: 'share', label: 'Connected Accounts', tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly' },
+  { id: 'performance', icon: 'chart', label: 'Performance', tooltip: 'Track engagement, reach, and post performance across all connected platforms' },
+  { id: 'intel', icon: 'globe', label: 'Market Intel', tooltip: 'Discover trending topics and keywords relevant to your industry' },
+  { id: 'playbook', icon: 'book', label: 'Brand Playbook', tooltip: 'Set your brand voice, visual style, and content guidelines for the AI' },
+  { id: 'notifications', icon: 'bell', label: 'Notifications', tooltip: 'View recent activity, scheduled post updates, and system alerts' },
+  { id: 'settings', icon: 'settings', label: 'Settings', tooltip: 'Manage your profile, preferences, and account integrations' },
+  { id: 'billing', icon: 'trending', label: 'Billing', tooltip: 'View your plan, content credits, and billing history' },
 ];
 
 const MOBILE_TABS = [
@@ -4975,8 +5049,8 @@ export default function WorkspaceDashboard() {
               {NAV.map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
                 return (
+                  <Tooltip key={n.id} title={n.tooltip} placement="right" arrow>
                   <button
-                    key={n.id}
                     onClick={() => setNav(n.id)}
                     style={{
                       display: 'flex',
@@ -5012,6 +5086,7 @@ export default function WorkspaceDashboard() {
                       </span>
                     )}
                   </button>
+                  </Tooltip>
                 );
               })}
             </div>

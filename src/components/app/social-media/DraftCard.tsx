@@ -27,6 +27,7 @@ import {
   Menu,
   MenuItem,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { useEffect, useRef, useState } from 'react';
@@ -1185,49 +1186,65 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       {/* Action row */}
       {!editing && (
         <Box display="flex" gap={1} flexWrap="wrap" mt={1}>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={() => setEditing(true)}
-            sx={{ textTransform: 'none', fontSize: '12px' }}
-          >
-            Edit
-          </Button>
-          <Button
-            size="small"
-            variant="contained"
-            disabled={loading}
-            onClick={(e) => setApproveAnchor(e.currentTarget)}
-            sx={{
-              textTransform: 'none',
-              fontSize: '12px',
-              background: '#CD1B78',
-              '&:hover': { background: '#A01560' },
-            }}
-          >
-            Approve
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            color="error"
-            disabled={loading}
-            onClick={() => setDenyOpen(true)}
-            sx={{ textTransform: 'none', fontSize: '12px' }}
-          >
-            Deny
-          </Button>
-          <Button
-            size="small"
-            variant={confirmDelete ? 'contained' : 'outlined'}
-            color="error"
-            disabled={loading}
-            onClick={handleDelete}
-            onBlur={() => setConfirmDelete(false)}
-            sx={{ textTransform: 'none', fontSize: '12px', ml: 'auto' }}
-          >
-            {loading && confirmDelete ? 'Deleting...' : confirmDelete ? 'Confirm delete?' : 'Delete'}
-          </Button>
+          <Tooltip title="Edit the caption and hashtags before publishing" arrow>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => setEditing(true)}
+              sx={{ textTransform: 'none', fontSize: '12px' }}
+            >
+              Edit
+            </Button>
+          </Tooltip>
+          <Tooltip title="Approve this post — publish immediately, schedule for later, or save as draft" arrow>
+            <span>
+              <Button
+                size="small"
+                variant="contained"
+                disabled={loading}
+                onClick={(e) => setApproveAnchor(e.currentTarget)}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: '12px',
+                  background: '#CD1B78',
+                  '&:hover': { background: '#A01560' },
+                }}
+              >
+                Approve
+              </Button>
+            </span>
+          </Tooltip>
+          <Tooltip title="Reject this draft — optionally request a regeneration with feedback" arrow>
+            <span>
+              <Button
+                size="small"
+                variant="outlined"
+                color="error"
+                disabled={loading}
+                onClick={() => setDenyOpen(true)}
+                sx={{ textTransform: 'none', fontSize: '12px' }}
+              >
+                Deny
+              </Button>
+            </span>
+          </Tooltip>
+          <Box sx={{ ml: 'auto' }}>
+            <Tooltip title="Permanently delete this draft" arrow>
+              <span>
+                <Button
+                  size="small"
+                  variant={confirmDelete ? 'contained' : 'outlined'}
+                  color="error"
+                  disabled={loading}
+                  onClick={handleDelete}
+                  onBlur={() => setConfirmDelete(false)}
+                  sx={{ textTransform: 'none', fontSize: '12px' }}
+                >
+                  {loading && confirmDelete ? 'Deleting...' : confirmDelete ? 'Confirm delete?' : 'Delete'}
+                </Button>
+              </span>
+            </Tooltip>
+          </Box>
         </Box>
       )}
 

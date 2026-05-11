@@ -116,15 +116,17 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
             <Typography fontSize="13px" color={enabled ? '#059669' : '#6B7280'} fontWeight={600}>
               {enabled ? 'On' : 'Off'}
             </Typography>
-            <Switch
-              checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
-              size="small"
-              sx={{
-                '& .MuiSwitch-switchBase.Mui-checked': { color: '#CD1B78' },
-                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#CD1B78' },
-              }}
-            />
+            <Tooltip title="When on, URI Agent will automatically generate draft posts on your chosen schedule — no manual prompting needed" arrow placement="left">
+              <Switch
+                checked={enabled}
+                onChange={(e) => setEnabled(e.target.checked)}
+                size="small"
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#CD1B78' },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#CD1B78' },
+                }}
+              />
+            </Tooltip>
           </Box>
         </Box>
         <Typography fontSize="13px" color="#6B7280" mb={2.5}>
@@ -155,9 +157,16 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
         </FormGroup>
 
         {/* Frequency */}
-        <Typography fontSize="13px" fontWeight={600} color="#374151" mb={0.5}>
-          Frequency
-        </Typography>
+        <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+          <Typography fontSize="13px" fontWeight={600} color="#374151">
+            Frequency
+          </Typography>
+          <Tooltip title="Daily: new drafts every morning. Weekly: a batch of drafts once per week" arrow>
+            <Box sx={{ display: 'flex', cursor: 'help' }}>
+              <MdInfoOutline size={15} color="#9CA3AF" />
+            </Box>
+          </Tooltip>
+        </Box>
         <RadioGroup row value={frequency} onChange={(e) => setFrequency(e.target.value as 'daily' | 'weekly')} sx={{ mb: 2.5 }}>
           {(['daily', 'weekly'] as const).map((f) => (
             <FormControlLabel
@@ -171,22 +180,24 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
         </RadioGroup>
 
         {/* Include images */}
-        <FormControlLabel
-          disabled={!enabled}
-          control={
-            <Switch
-              checked={includeImages}
-              onChange={(e) => setIncludeImages(e.target.checked)}
-              size="small"
-              sx={{
-                '& .MuiSwitch-switchBase.Mui-checked': { color: '#CD1B78' },
-                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#CD1B78' },
-              }}
-            />
-          }
-          label={<Typography fontSize="13px">Include AI-generated images</Typography>}
-          sx={{ mb: 2.5 }}
-        />
+        <Tooltip title="Each auto-generated draft will include an AI-created image. Uses one extra credit per post." arrow placement="right">
+          <FormControlLabel
+            disabled={!enabled}
+            control={
+              <Switch
+                checked={includeImages}
+                onChange={(e) => setIncludeImages(e.target.checked)}
+                size="small"
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#CD1B78' },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#CD1B78' },
+                }}
+              />
+            }
+            label={<Typography fontSize="13px">Include AI-generated images</Typography>}
+            sx={{ mb: 2.5 }}
+          />
+        </Tooltip>
 
         <Divider sx={{ mb: 2.5 }} />
 
@@ -227,24 +238,28 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
             </Typography>
           </Box>
 
-          <Button
-            variant="contained"
-            onClick={handleTrigger}
-            disabled={triggering}
-            startIcon={triggering ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : <MdAutoAwesome size={16} />}
-            sx={{
-              textTransform: 'none',
-              fontWeight: 600,
-              fontSize: '13px',
-              background: '#111827',
-              '&:hover': { background: '#374151' },
-              borderRadius: '8px',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            {triggering ? 'Generating…' : 'Generate Now'}
-          </Button>
+          <Tooltip title="Run auto-generation immediately — URI Agent will create a fresh set of drafts right now, without waiting for the next scheduled run" arrow placement="left">
+            <span>
+              <Button
+                variant="contained"
+                onClick={handleTrigger}
+                disabled={triggering}
+                startIcon={triggering ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : <MdAutoAwesome size={16} />}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  background: '#111827',
+                  '&:hover': { background: '#374151' },
+                  borderRadius: '8px',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+              >
+                {triggering ? 'Generating…' : 'Generate Now'}
+              </Button>
+            </span>
+          </Tooltip>
         </Box>
       </Box>
     </Box>

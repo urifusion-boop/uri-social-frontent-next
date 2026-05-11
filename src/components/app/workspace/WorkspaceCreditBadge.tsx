@@ -6,6 +6,7 @@
  */
 
 import { useAuth } from '@/src/providers/AuthProvider';
+import { Tooltip } from '@mui/material';
 
 interface WorkspaceCreditBadgeProps {
   onClick: () => void;
@@ -23,9 +24,17 @@ export default function WorkspaceCreditBadge({ onClick }: WorkspaceCreditBadgePr
   const lowCreditWarning = userDetails.lowCreditWarning ?? false;
   const isExhausted = creditsRemaining === 0;
 
+  const tooltipText = isExhausted
+    ? 'You\'ve used all your credits. Click to upgrade and keep generating content.'
+    : lowCreditWarning
+      ? `Only ${creditsRemaining} credit${creditsRemaining === 1 ? '' : 's'} left — each credit generates one full campaign. Click to top up.`
+      : `${creditsRemaining} credit${creditsRemaining === 1 ? '' : 's'} remaining — each credit generates one full set of platform posts. Click to manage billing.`;
+
   return (
+    <Tooltip title={tooltipText} arrow placement="bottom">
     <button
       onClick={onClick}
+      type="button"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -58,7 +67,6 @@ export default function WorkspaceCreditBadge({ onClick }: WorkspaceCreditBadgePr
             ? 'rgba(245,158,11,.05)'
             : 'rgba(194,24,91,.04)')
       }
-      title="View billing details"
     >
       <span
         style={{
@@ -79,5 +87,6 @@ export default function WorkspaceCreditBadge({ onClick }: WorkspaceCreditBadgePr
         {creditsRemaining === 1 ? 'credit' : 'credits'}
       </span>
     </button>
+    </Tooltip>
   );
 }

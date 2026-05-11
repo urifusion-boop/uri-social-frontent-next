@@ -332,9 +332,16 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
 
   return (
     <Box sx={{ maxWidth: 700 }}>
-      <Typography fontSize="14px" color="#374151" mb={1} fontWeight={500}>
-        What do you want to post about?
-      </Typography>
+      <Box display="flex" alignItems="center" gap={0.75} mb={1}>
+        <Typography fontSize="14px" color="#374151" fontWeight={500}>
+          What do you want to post about?
+        </Typography>
+        <Tooltip title="Give the AI a topic, idea, URL, or existing text to work from. The more context you provide, the more on-brand and specific the output will be." arrow>
+          <Box component="span" sx={{ display: 'inline-flex', cursor: 'help' }} aria-label="Seed content help">
+            <MdInfoOutline size={15} color="#9CA3AF" />
+          </Box>
+        </Tooltip>
+      </Box>
       <TextField
         placeholder="Describe the topic, share a link, or paste existing content to repurpose..."
         fullWidth
@@ -441,9 +448,16 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
 
       <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
 
-      <Typography fontSize="14px" color="#374151" mb={1} fontWeight={500}>
-        Target Platforms
-      </Typography>
+      <Box display="flex" alignItems="center" gap={0.75} mb={1}>
+        <Typography fontSize="14px" color="#374151" fontWeight={500}>
+          Target Platforms
+        </Typography>
+        <Tooltip title="Select which platforms to generate posts for. Each platform gets its own optimised caption, hashtags, and formatting." arrow>
+          <Box component="span" sx={{ display: 'inline-flex', cursor: 'help' }} aria-label="Target platforms help">
+            <MdInfoOutline size={15} color="#9CA3AF" />
+          </Box>
+        </Tooltip>
+      </Box>
       <FormGroup row sx={{ mb: 3, gap: 1 }}>
         {PLATFORMS.map(({ key, label, icon }) => (
           <FormControlLabel
@@ -632,23 +646,34 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         </Box>
       </Box>
 
-      <Button
-        variant="contained"
-        onClick={handleGenerate}
-        disabled={loading || !isValid}
-        startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
-        sx={{
-          background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
-          textTransform: 'none',
-          fontWeight: 600,
-          px: 4,
-          py: 1.25,
-          boxShadow: '0 4px 12px rgba(205, 27, 120, 0.3)',
-          '&:hover': { background: 'linear-gradient(135deg, #A01560 0%, #CD1B78 100%)' },
-        }}
+      <Tooltip
+        title={
+          !isValid
+            ? 'Add at least 10 characters and select at least one platform to generate'
+            : 'URI Agent will create platform-optimised posts based on your seed content and brand profile. Drafts appear in the Drafts tab for your review.'
+        }
+        arrow
       >
-        {loading ? 'Generating...' : 'Generate Content'}
-      </Button>
+        <span>
+          <Button
+            variant="contained"
+            onClick={handleGenerate}
+            disabled={loading || !isValid}
+            startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
+            sx={{
+              background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
+              textTransform: 'none',
+              fontWeight: 600,
+              px: 4,
+              py: 1.25,
+              boxShadow: '0 4px 12px rgba(205, 27, 120, 0.3)',
+              '&:hover': { background: 'linear-gradient(135deg, #A01560 0%, #CD1B78 100%)' },
+            }}
+          >
+            {loading ? 'Generating...' : 'Generate Content'}
+          </Button>
+        </span>
+      </Tooltip>
 
       {/* Billing Modals */}
       <OutOfCreditsModal open={outOfCreditsOpen} onClose={() => setOutOfCreditsOpen(false)} />
