@@ -55,6 +55,7 @@ export interface StoryboardPayload {
   optional_text?: string;
   target_platform: string;
   target_duration_seconds: number;
+  video_style?: string;
 }
 
 export interface VideoClip {

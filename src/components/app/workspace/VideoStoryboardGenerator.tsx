@@ -8,6 +8,7 @@ import {
   VideoClip,
   VideoJob,
 } from '@/src/api/SocialMediaAgentService';
+import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
 import { useEffect, useRef, useState } from 'react';
 
 const PRIMARY = '#CD1B78';
@@ -48,6 +49,7 @@ export default function VideoStoryboardGenerator() {
   const [optionalText, setOptionalText] = useState('');
   const [platform, setPlatform] = useState('instagram_reels');
   const [duration, setDuration] = useState(15);
+  const [selectedStyle, setSelectedStyle] = useState(DEFAULT_STYLE_SLUG);
   const [loading, setLoading] = useState(false);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [error, setError] = useState('');
@@ -217,6 +219,7 @@ export default function VideoStoryboardGenerator() {
         optional_text: optionalText.trim() || undefined,
         target_platform: platform,
         target_duration_seconds: duration,
+        video_style: selectedStyle,
       });
       if (res.status && res.responseData) {
         setStoryboard(res.responseData);
@@ -410,6 +413,69 @@ export default function VideoStoryboardGenerator() {
             )}
           </div>
         )}
+      </Section>
+
+      {/* Video Style Picker */}
+      <Section
+        title="Video Style"
+        subtitle="Choose a visual style — it shapes camera movement, pacing, color grading, and energy"
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+          {VIDEO_STYLES.map((style) => {
+            const isSelected = selectedStyle === style.slug;
+            return (
+              <button
+                key={style.slug}
+                onClick={() => setSelectedStyle(style.slug)}
+                style={{
+                  border: `2px solid ${isSelected ? PRIMARY : BORDER}`,
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  background: isSelected ? '#FFF0F8' : '#fff',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  transition: 'all .15s',
+                  position: 'relative',
+                }}
+              >
+                {isSelected && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 10,
+                      width: 16,
+                      height: 16,
+                      borderRadius: 99,
+                      background: PRIMARY,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 9,
+                      color: '#fff',
+                      fontWeight: 700,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ✓
+                  </span>
+                )}
+                <p style={{ fontSize: 13, fontWeight: 700, color: isSelected ? PRIMARY : DARK, margin: '0 0 4px' }}>
+                  {style.name}
+                </p>
+                <p style={{ fontSize: 11, color: GREY, margin: '0 0 6px', fontStyle: 'italic' }}>{style.vibe}</p>
+                <p style={{ fontSize: 10.5, color: GREY, margin: '0 0 2px' }}>
+                  <span style={{ fontWeight: 600 }}>Pacing:</span> {style.pacing}
+                </p>
+                <p style={{ fontSize: 10.5, color: GREY, margin: '0 0 2px' }}>
+                  <span style={{ fontWeight: 600 }}>Camera:</span> {style.camera}
+                </p>
+                <p style={{ fontSize: 10.5, color: '#9CA3AF', margin: '4px 0 0' }}>Best for: {style.best_for}</p>
+              </button>
+            );
+          })}
+        </div>
       </Section>
 
       {/* Creative direction */}
