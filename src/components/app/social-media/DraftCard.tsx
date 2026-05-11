@@ -100,9 +100,15 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   // This fixes the issue where images show "Loading..." forever after switching tabs.
   useEffect(() => {
     if (!editing) {
+      console.log(`[DraftCard ${initialDraft.id}] useEffect triggered`, {
+        image_url: initialDraft.image_url?.substring(0, 80),
+        has_image: initialDraft.has_image,
+      });
+
       setDraft(initialDraft);
       // Always reset image loading state when draft updates (e.g., tab navigation)
       // This ensures browser re-evaluates image load status instead of relying on stale state
+      console.log(`[DraftCard ${initialDraft.id}] Resetting imageLoaded to false`);
       setImageLoaded(false);
       setImageError(false);
       imageRetryRef.current = 0;
@@ -113,19 +119,34 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       if (initialDraft.image_url) {
         const img = new Image();
         const resolvedUrl = resolveUrl(initialDraft.image_url);
+        console.log(`[DraftCard ${initialDraft.id}] Creating new Image(), resolved URL:`, resolvedUrl.substring(0, 80));
         img.src = resolvedUrl;
 
         // Check if already complete (synchronously cached)
+        console.log(
+          `[DraftCard ${initialDraft.id}] img.complete=${img.complete}, img.naturalWidth=${img.naturalWidth}`
+        );
         if (img.complete && img.naturalWidth > 0) {
+          console.log(`[DraftCard ${initialDraft.id}] ✅ Image already cached, setting imageLoaded=true immediately`);
           setImageLoaded(true);
         } else {
+          console.log(`[DraftCard ${initialDraft.id}] ⏳ Image not cached, waiting for onload event`);
           // Listen for load event (asynchronously cached or needs loading)
           img.onload = () => {
+            console.log(`[DraftCard ${initialDraft.id}] 🎉 img.onload fired!`);
             if (trackedImageUrlRef.current === initialDraft.image_url) {
+              console.log(`[DraftCard ${initialDraft.id}] ✅ URL matches, setting imageLoaded=true`);
               setImageLoaded(true);
+            } else {
+              console.log(`[DraftCard ${initialDraft.id}] ⚠️ URL mismatch, ignoring onload`);
             }
           };
+          img.onerror = () => {
+            console.error(`[DraftCard ${initialDraft.id}] ❌ img.onerror fired!`);
+          };
         }
+      } else {
+        console.log(`[DraftCard ${initialDraft.id}] No image_url present`);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -765,7 +786,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           <img
             src={resolveUrl(draft.image_url)}
             alt="Story image"
-            onLoad={() => setImageLoaded(true)}
+            onLoad={() => {
+              console.log(`[DraftCard ${draft.id}] 🖼️ IMG TAG onLoad fired (main image)`);
+              setImageLoaded(true);
+            }}
             onError={handleImageError}
             onClick={() => setLightboxOpen(true)}
             style={{
