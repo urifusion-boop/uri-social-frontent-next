@@ -115,50 +115,65 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
       // Only reset image state if the URL actually changed
       if (initialDraft.image_url !== trackedImageUrlRef.current) {
-        console.log(`[DraftCard ${initialDraft.id}] Image URL changed, resetting imageLoaded to false`);
-        setImageLoaded(false);
-        setImageError(false);
-        imageRetryRef.current = 0;
-        trackedImageUrlRef.current = initialDraft.image_url;
-      } else {
-        console.log(`[DraftCard ${initialDraft.id}] Image URL unchanged, keeping current imageLoaded state`);
-        // Don't reset - image is already loaded or loading
-        return;
-      }
-
-      // Check if image is already loaded in browser cache
-      // onLoad event won't fire for cached images, so we need to check manually
-      if (initialDraft.image_url) {
-        const img = new Image();
-        const resolvedUrl = resolveUrl(initialDraft.image_url);
-        console.log(`[DraftCard ${initialDraft.id}] Creating new Image(), resolved URL:`, resolvedUrl.substring(0, 80));
-        img.src = resolvedUrl;
-
-        // Check if already complete (synchronously cached)
         console.log(
-          `[DraftCard ${initialDraft.id}] img.complete=${img.complete}, img.naturalWidth=${img.naturalWidth}`
+          `[DraftCard ${initialDraft.id}] Image URL changed from ${trackedImageUrlRef.current?.substring(0, 60)} to ${initialDraft.image_url?.substring(0, 60)}`
         );
-        if (img.complete && img.naturalWidth > 0) {
-          console.log(`[DraftCard ${initialDraft.id}] ✅ Image already cached, setting imageLoaded=true immediately`);
-          setImageLoaded(true);
+
+        // Check browser cache BEFORE resetting imageLoaded to avoid flickering
+        if (initialDraft.image_url) {
+          const img = new Image();
+          const resolvedUrl = resolveUrl(initialDraft.image_url);
+          console.log(`[DraftCard ${initialDraft.id}] Checking cache for new URL:`, resolvedUrl.substring(0, 80));
+          img.src = resolvedUrl;
+
+          // Check if already complete (synchronously cached)
+          console.log(
+            `[DraftCard ${initialDraft.id}] img.complete=${img.complete}, img.naturalWidth=${img.naturalWidth}`
+          );
+
+          if (img.complete && img.naturalWidth > 0) {
+            // Image is cached - don't reset to false, keep it loaded
+            console.log(
+              `[DraftCard ${initialDraft.id}] ✅ New image already cached, keeping imageLoaded=true (no flicker)`
+            );
+            trackedImageUrlRef.current = initialDraft.image_url;
+            setImageLoaded(true); // Ensure it's true
+            // Don't reset imageError or retry count since image is working
+          } else {
+            // Image not cached - reset and wait for load
+            console.log(`[DraftCard ${initialDraft.id}] ⏳ New image not cached, resetting imageLoaded=false`);
+            setImageLoaded(false);
+            setImageError(false);
+            imageRetryRef.current = 0;
+            trackedImageUrlRef.current = initialDraft.image_url;
+
+            // Listen for load event
+            img.onload = () => {
+              console.log(`[DraftCard ${initialDraft.id}] 🎉 img.onload fired for new URL!`);
+              if (trackedImageUrlRef.current === initialDraft.image_url) {
+                console.log(`[DraftCard ${initialDraft.id}] ✅ URL matches, setting imageLoaded=true`);
+                setImageLoaded(true);
+              } else {
+                console.log(`[DraftCard ${initialDraft.id}] ⚠️ URL mismatch, ignoring onload`);
+              }
+            };
+            img.onerror = () => {
+              console.error(`[DraftCard ${initialDraft.id}] ❌ img.onerror fired for new URL!`);
+            };
+          }
         } else {
-          console.log(`[DraftCard ${initialDraft.id}] ⏳ Image not cached, waiting for onload event`);
-          // Listen for load event (asynchronously cached or needs loading)
-          img.onload = () => {
-            console.log(`[DraftCard ${initialDraft.id}] 🎉 img.onload fired!`);
-            if (trackedImageUrlRef.current === initialDraft.image_url) {
-              console.log(`[DraftCard ${initialDraft.id}] ✅ URL matches, setting imageLoaded=true`);
-              setImageLoaded(true);
-            } else {
-              console.log(`[DraftCard ${initialDraft.id}] ⚠️ URL mismatch, ignoring onload`);
-            }
-          };
-          img.onerror = () => {
-            console.error(`[DraftCard ${initialDraft.id}] ❌ img.onerror fired!`);
-          };
+          console.log(`[DraftCard ${initialDraft.id}] No image_url present`);
+          setImageLoaded(false);
+          setImageError(false);
+          imageRetryRef.current = 0;
+          trackedImageUrlRef.current = initialDraft.image_url;
         }
       } else {
-        console.log(`[DraftCard ${initialDraft.id}] No image_url present`);
+        console.log(
+          `[DraftCard ${initialDraft.id}] Image URL unchanged, keeping current imageLoaded state (imageLoaded=${imageLoaded})`
+        );
+        // Don't reset - image is already loaded or loading
+        return;
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
