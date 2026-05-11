@@ -85,7 +85,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [imageError, setImageError] = useState(false);
   const imageRetryRef = useRef(0);
   // Track the last image URL we reset state for — avoids re-shimmer on unrelated re-renders
-  const trackedImageUrlRef = useRef<string | undefined>(initialDraft.image_url);
+  const trackedImageUrlRef = useRef<string | undefined>(undefined); // Start as undefined to trigger cache check on mount
 
   // Debug: Log whenever imageLoaded state changes
   useEffect(() => {
