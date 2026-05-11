@@ -9,6 +9,7 @@ import {
   SocialMediaAgentService,
 } from '@/src/api/SocialMediaAgentService';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
+import { useRouter } from 'next/navigation';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
@@ -67,6 +68,7 @@ const PLATFORM_ASPECT: Record<string, string> = {
 };
 
 const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSelectToggle }: DraftCardProps) => {
+  const router = useRouter();
   const [draft, setDraft] = useState<ContentDraft>(initialDraft);
   const [editing, setEditing] = useState(false);
   const [denyOpen, setDenyOpen] = useState(false);
@@ -77,6 +79,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null); // null = not yet loaded
+  const [connectPromptOpen, setConnectPromptOpen] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const imageRetryRef = useRef(0);
@@ -203,6 +207,17 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     loadedSlideUrls.clear();
   }, [draft.id, loadedSlideUrls]);
 
+  // Fetch connected platforms once on mount to gate the publish action
+  useEffect(() => {
+    SocialMediaAgentService.getConnections()
+      .then((res) => {
+        if (res.status && res.responseData) {
+          setConnectedPlatforms(res.responseData.connected_platforms ?? []);
+        }
+      })
+      .catch(() => setConnectedPlatforms([]));
+  }, []);
+
   // Listen for image edit events from other sources (e.g., background processing)
   useEffect(() => {
     const draftId = draft.draft_id ?? draft.id ?? '';
@@ -254,6 +269,17 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
   const handleApprove = async (option: ApprovePayload['schedule_option'], datetime?: string) => {
     setApproveAnchor(null);
+
+    // Gate publish/schedule on account connection. Skip check if connections haven't loaded yet.
+    if (option !== 'save_draft' && connectedPlatforms !== null) {
+      const platform = draft.platform?.toLowerCase() ?? '';
+      const isConnected = connectedPlatforms.map((p) => p.toLowerCase()).includes(platform);
+      if (!isConnected) {
+        setConnectPromptOpen(true);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const draftId = draft.draft_id ?? draft.id ?? '';
@@ -1472,6 +1498,33 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             }}
           >
             Proceed
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Connect account prompt */}
+      <Dialog open={connectPromptOpen} onClose={() => setConnectPromptOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: '15px', fontWeight: 600 }}>Connect your account</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: '14px', color: '#374151' }}>
+            Your <strong style={{ textTransform: 'capitalize' }}>{draft.platform}</strong> account is not connected.
+            Connect it to publish or schedule posts.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          <Button size="small" onClick={() => setConnectPromptOpen(false)} sx={{ color: '#6B7280' }}>
+            Cancel
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            onClick={() => {
+              setConnectPromptOpen(false);
+              router.push('/workspace?tab=connections');
+            }}
+            sx={{ background: '#CD1B78', '&:hover': { background: '#a8155f' }, textTransform: 'none' }}
+          >
+            Connect Account
           </Button>
         </DialogActions>
       </Dialog>
