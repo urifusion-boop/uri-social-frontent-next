@@ -112,10 +112,19 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       // onLoad event won't fire for cached images, so we need to check manually
       if (initialDraft.image_url) {
         const img = new Image();
-        img.src = resolveUrl(initialDraft.image_url);
-        if (img.complete) {
-          // Image already in cache, set loaded immediately
+        const resolvedUrl = resolveUrl(initialDraft.image_url);
+        img.src = resolvedUrl;
+
+        // Check if already complete (synchronously cached)
+        if (img.complete && img.naturalWidth > 0) {
           setImageLoaded(true);
+        } else {
+          // Listen for load event (asynchronously cached or needs loading)
+          img.onload = () => {
+            if (trackedImageUrlRef.current === initialDraft.image_url) {
+              setImageLoaded(true);
+            }
+          };
         }
       }
     }
