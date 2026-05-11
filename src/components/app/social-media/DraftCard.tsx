@@ -108,16 +108,23 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       console.log(`[DraftCard ${initialDraft.id}] useEffect triggered`, {
         image_url: initialDraft.image_url?.substring(0, 80),
         has_image: initialDraft.has_image,
+        tracked_url: trackedImageUrlRef.current?.substring(0, 80),
       });
 
       setDraft(initialDraft);
-      // Always reset image loading state when draft updates (e.g., tab navigation)
-      // This ensures browser re-evaluates image load status instead of relying on stale state
-      console.log(`[DraftCard ${initialDraft.id}] Resetting imageLoaded to false`);
-      setImageLoaded(false);
-      setImageError(false);
-      imageRetryRef.current = 0;
-      trackedImageUrlRef.current = initialDraft.image_url;
+
+      // Only reset image state if the URL actually changed
+      if (initialDraft.image_url !== trackedImageUrlRef.current) {
+        console.log(`[DraftCard ${initialDraft.id}] Image URL changed, resetting imageLoaded to false`);
+        setImageLoaded(false);
+        setImageError(false);
+        imageRetryRef.current = 0;
+        trackedImageUrlRef.current = initialDraft.image_url;
+      } else {
+        console.log(`[DraftCard ${initialDraft.id}] Image URL unchanged, keeping current imageLoaded state`);
+        // Don't reset - image is already loaded or loading
+        return;
+      }
 
       // Check if image is already loaded in browser cache
       // onLoad event won't fire for cached images, so we need to check manually
