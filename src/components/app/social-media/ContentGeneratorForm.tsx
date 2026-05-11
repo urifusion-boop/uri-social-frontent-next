@@ -77,6 +77,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [postType, setPostType] = useState<'feed' | 'carousel' | 'story'>('feed');
   const [numSlides, setNumSlides] = useState(3);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Billing modals
   const [outOfCreditsOpen, setOutOfCreditsOpen] = useState(false);
@@ -108,9 +109,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const togglePlatform = (key: string) =>
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processImageFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
       ToastService.showToast('Please upload an image file', ToastTypeEnum.Error);
       return;
@@ -125,14 +124,88 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
       setReferenceImageName(file.name);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImageFile(file);
     // Reset so same file can be re-uploaded
     e.target.value = '';
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      processImageFile(files[0]);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItem = items.find((item) => item.type.startsWith('image/'));
+
+    if (imageItem) {
+      const file = imageItem.getAsFile();
+      if (file) {
+        processImageFile(file);
+        ToastService.showToast('Image pasted successfully', ToastTypeEnum.Success);
+      }
+    }
   };
 
   const removeReferenceImage = () => {
     setReferenceImage(null);
     setReferenceImageName('');
   };
+
+  // Add paste event listener
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      // Only handle paste if the reference image upload area is visible and no image is selected
+      if (
+        !referenceImage &&
+        document.activeElement?.tagName !== 'TEXTAREA' &&
+        document.activeElement?.tagName !== 'INPUT'
+      ) {
+        const items = Array.from(e.clipboardData?.items || []);
+        const imageItem = items.find((item) => item.type.startsWith('image/'));
+
+        if (imageItem) {
+          e.preventDefault();
+          const file = imageItem.getAsFile();
+          if (file) {
+            processImageFile(file);
+            ToastService.showToast('Image pasted successfully', ToastTypeEnum.Success);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, [referenceImage]);
 
   // Check credits before generation
   useEffect(() => {
@@ -270,8 +343,8 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         </Typography>
       </Typography>
       <Typography fontSize="12px" color="#6B7280" mb={1.5}>
-        Upload a photo to give the AI visual context — e.g. a birthday photo, product shot, or event image. The AI will
-        analyse it and write more specific, niche content.
+        Upload, drag & drop, or paste (Ctrl+V) a photo to give the AI visual context — e.g. a product shot, event image,
+        or reference photo.
       </Typography>
 
       {referenceImage ? (
@@ -309,17 +382,21 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
       ) : (
         <Box
           onClick={() => fileInputRef.current?.click()}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
           sx={{
             display: 'flex',
             alignItems: 'center',
             gap: 1.5,
-            border: '1.5px dashed #E5E7EB',
+            border: isDragging ? '1.5px solid #CD1B78' : '1.5px dashed #E5E7EB',
             borderRadius: '10px',
             px: 2,
             py: 1.75,
             mb: 3,
             cursor: 'pointer',
-            background: '#FAFAFA',
+            background: isDragging ? '#FDF2F8' : '#FAFAFA',
             transition: 'all 0.15s',
             '&:hover': { borderColor: '#CD1B78', background: '#FDF2F8' },
           }}
@@ -329,18 +406,19 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
               width: 36,
               height: 36,
               borderRadius: '8px',
-              background: '#F3F4F6',
+              background: isDragging ? '#FBE0F0' : '#F3F4F6',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              transition: 'all 0.15s',
             }}
           >
-            <MdUpload size={20} color="#9CA3AF" />
+            <MdUpload size={20} color={isDragging ? '#CD1B78' : '#9CA3AF'} />
           </Box>
           <Box>
             <Typography fontSize="13px" fontWeight={600} color="#374151">
-              Upload reference image
+              {isDragging ? 'Drop image here' : 'Click, drag, or paste image'}
             </Typography>
             <Typography fontSize="12px" color="#9CA3AF">
               JPG, PNG, WEBP up to 10MB
