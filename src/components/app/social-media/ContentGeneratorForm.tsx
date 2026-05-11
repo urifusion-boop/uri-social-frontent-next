@@ -109,21 +109,25 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const togglePlatform = (key: string) =>
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
 
-  const processImageFile = (file: File) => {
+  const processImageFile = (file: File, showSuccessToast: boolean = false) => {
     if (!file.type.startsWith('image/')) {
       ToastService.showToast('Please upload an image file', ToastTypeEnum.Error);
-      return;
+      return false;
     }
     if (file.size > 10 * 1024 * 1024) {
       ToastService.showToast('Image must be under 10MB', ToastTypeEnum.Error);
-      return;
+      return false;
     }
     const reader = new FileReader();
     reader.onload = () => {
       setReferenceImage(reader.result as string);
       setReferenceImageName(file.name);
+      if (showSuccessToast) {
+        ToastService.showToast('Image uploaded successfully', ToastTypeEnum.Success);
+      }
     };
     reader.readAsDataURL(file);
+    return true;
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,8 +173,12 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
     if (imageItem) {
       const file = imageItem.getAsFile();
       if (file) {
-        processImageFile(file);
-        ToastService.showToast('Image pasted successfully', ToastTypeEnum.Success);
+        // Create a proper filename for pasted images
+        const timestamp = new Date().getTime();
+        const extension = file.type.split('/')[1] || 'png';
+        const renamedFile = new File([file], `pasted-image-${timestamp}.${extension}`, { type: file.type });
+
+        processImageFile(renamedFile, true);
       }
     }
   };
@@ -196,8 +204,12 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
           e.preventDefault();
           const file = imageItem.getAsFile();
           if (file) {
-            processImageFile(file);
-            ToastService.showToast('Image pasted successfully', ToastTypeEnum.Success);
+            // Create a proper filename for pasted images
+            const timestamp = new Date().getTime();
+            const extension = file.type.split('/')[1] || 'png';
+            const renamedFile = new File([file], `pasted-image-${timestamp}.${extension}`, { type: file.type });
+
+            processImageFile(renamedFile, true);
           }
         }
       }
