@@ -1800,11 +1800,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
 
   const handleConnect = async (id: string, flow: string) => {
     if (flow === 'instagram_direct') {
+      setConnecting(id);
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
       window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
       return;
     }
     if (flow === 'facebook_direct') {
+      setConnecting(id);
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
       window.location.href = `${apiBase}/social-media/connect/facebook-direct/initiate?source=settings`;
       return;
