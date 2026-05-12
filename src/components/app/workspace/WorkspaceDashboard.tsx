@@ -229,6 +229,311 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
   );
 };
 
+/* ── Brand Tooltip ──────────────────────────────────────────────────────── */
+const BrandTooltip = (props: React.ComponentProps<typeof Tooltip>) => (
+  <Tooltip
+    {...props}
+    componentsProps={{
+      ...props.componentsProps,
+      tooltip: {
+        sx: {
+          background: 'linear-gradient(135deg,#1a0a12 0%,#2d0d1e 100%)',
+          color: '#fff',
+          fontSize: 12,
+          fontWeight: 500,
+          lineHeight: 1.45,
+          padding: '8px 12px',
+          borderRadius: '8px',
+          maxWidth: 220,
+          boxShadow: '0 8px 28px rgba(194,24,91,.30),0 2px 8px rgba(0,0,0,.25)',
+          border: '1px solid rgba(194,24,91,.28)',
+          fontFamily: 'var(--wf,sans-serif)',
+        },
+        ...((props.componentsProps?.tooltip as object) ?? {}),
+      },
+      arrow: {
+        sx: {
+          color: '#1a0a12',
+          '&::before': { border: '1px solid rgba(194,24,91,.28)' },
+        },
+        ...((props.componentsProps?.arrow as object) ?? {}),
+      },
+    }}
+  />
+);
+
+/* ── Guided Tour ─────────────────────────────────────────────────────────── */
+type TourStepDef = { target: string; title: string; body: string; radius?: number };
+
+const TOUR_STEPS: TourStepDef[] = [
+  {
+    target: 'tour-jane-agent',
+    title: 'Meet URI Agent',
+    body: 'Your AI social manager lives here — always active, briefing you and ready to create content on demand.',
+    radius: 11,
+  },
+  {
+    target: 'tnav-schedule',
+    title: 'Create & Schedule Content',
+    body: 'Generate AI posts for all platforms, review drafts, and schedule everything from one tab.',
+  },
+  {
+    target: 'tnav-connections',
+    title: 'Connect Social Accounts',
+    body: 'Link Instagram, Facebook, LinkedIn, and WhatsApp to publish and track from inside URI.',
+  },
+  {
+    target: 'tnav-performance',
+    title: 'Track Your Performance',
+    body: 'Monitor reach, engagement, and growth across every connected platform at a glance.',
+  },
+  {
+    target: 'tnav-playbook',
+    title: 'Build Your Brand Playbook',
+    body: 'Define your brand voice, content pillars, and guardrails — every AI post will sound exactly like you.',
+  },
+  {
+    target: 'tnav-intel',
+    title: 'Market Intelligence',
+    body: "See what's trending in your industry and tap into keywords your audience is already searching for.",
+  },
+  {
+    target: 'tour-notification-area',
+    title: 'Stay Updated',
+    body: 'Notifications, credit balance, and your profile menu are always a click away from here.',
+    radius: 8,
+  },
+  {
+    target: 'tour-chat-input',
+    title: "You're All Set — Start Here",
+    body: "Type a topic, campaign idea, or product name. URI Agent will draft content for all your platforms instantly.",
+    radius: 13,
+  },
+];
+
+const TOUR_ICONS: Record<string, ReactNode> = {
+  'tour-jane-agent': (
+    <svg viewBox="0 0 52 52" width={44} height={44} fill="none">
+      <rect width="52" height="52" rx="14" fill="rgba(255,255,255,.12)" />
+      <circle cx="26" cy="22" r="7" stroke="#fff" strokeWidth="2" />
+      <path d="M14 38c0-6.627 5.373-12 12-12s12 5.373 12 12" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="26" cy="22" r="2.5" fill="#fff" />
+    </svg>
+  ),
+  'tnav-schedule': (
+    <svg viewBox="0 0 52 52" width={44} height={44} fill="none">
+      <rect width="52" height="52" rx="14" fill="rgba(255,255,255,.12)" />
+      <rect x="14" y="18" width="24" height="18" rx="3" stroke="#fff" strokeWidth="2" />
+      <path d="M20 14v6M32 14v6M14 26h24" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <path d="M21 32h4M27 32h4" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  'tnav-connections': (
+    <svg viewBox="0 0 52 52" width={44} height={44} fill="none">
+      <rect width="52" height="52" rx="14" fill="rgba(255,255,255,.12)" />
+      <circle cx="18" cy="26" r="5" stroke="#fff" strokeWidth="2" />
+      <circle cx="36" cy="17" r="4" stroke="#fff" strokeWidth="2" />
+      <circle cx="36" cy="35" r="4" stroke="#fff" strokeWidth="2" />
+      <path d="M23 24l9-6M23 28l9 6" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  'tnav-performance': (
+    <svg viewBox="0 0 52 52" width={44} height={44} fill="none">
+      <rect width="52" height="52" rx="14" fill="rgba(255,255,255,.12)" />
+      <path d="M13 36l8-11 7 6 8-13 5 4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  'tnav-playbook': (
+    <svg viewBox="0 0 52 52" width={44} height={44} fill="none">
+      <rect width="52" height="52" rx="14" fill="rgba(255,255,255,.12)" />
+      <path d="M18 38V16a2 2 0 012-2h14a2 2 0 012 2v22" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <path d="M14 38h24" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <path d="M23 22h6M23 27h6" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  'tnav-intel': (
+    <svg viewBox="0 0 52 52" width={44} height={44} fill="none">
+      <rect width="52" height="52" rx="14" fill="rgba(255,255,255,.12)" />
+      <circle cx="26" cy="26" r="10" stroke="#fff" strokeWidth="2" />
+      <line x1="26" y1="16" x2="26" y2="36" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <path d="M16 26c0-3 4.5-8 10-8s10 5 10 8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  'tour-notification-area': (
+    <svg viewBox="0 0 52 52" width={44} height={44} fill="none">
+      <rect width="52" height="52" rx="14" fill="rgba(255,255,255,.12)" />
+      <path d="M26 14c-5.523 0-10 4.477-10 10v6l-2 3h24l-2-3v-6c0-5.523-4.477-10-10-10z" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <path d="M23 35a3 3 0 006 0" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  'tour-chat-input': (
+    <svg viewBox="0 0 52 52" width={44} height={44} fill="none">
+      <rect width="52" height="52" rx="14" fill="rgba(255,255,255,.12)" />
+      <rect x="12" y="17" width="28" height="18" rx="5" stroke="#fff" strokeWidth="2" />
+      <path d="M19 35l-3 5 5-3" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19 25h14M19 29h8" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+};
+
+type ArrowDir = 'left' | 'right' | 'top' | 'bottom';
+
+function getCardLayout(
+  rect: DOMRect,
+  cardW: number,
+  cardH: number
+): { top: number; left: number; arrowDir: ArrowDir; arrowOffset: string } {
+  const pad = 16;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const clampTop = (t: number) => Math.min(Math.max(t, pad), vh - cardH - pad);
+  const clampLeft = (l: number) => Math.min(Math.max(l, pad), vw - cardW - pad);
+
+  if (rect.right + cardW + pad + 12 < vw) {
+    const top = clampTop(rect.top + rect.height / 2 - cardH / 2);
+    const arrowPct = Math.round(((rect.top + rect.height / 2 - top) / cardH) * 100);
+    return { top, left: rect.right + pad, arrowDir: 'left', arrowOffset: `${Math.min(Math.max(arrowPct, 15), 85)}%` };
+  }
+  if (rect.left - cardW - pad - 12 > 0) {
+    const top = clampTop(rect.top + rect.height / 2 - cardH / 2);
+    const arrowPct = Math.round(((rect.top + rect.height / 2 - top) / cardH) * 100);
+    return { top, left: rect.left - cardW - pad, arrowDir: 'right', arrowOffset: `${Math.min(Math.max(arrowPct, 15), 85)}%` };
+  }
+  if (rect.bottom + cardH + pad + 12 < vh) {
+    const left = clampLeft(rect.left + rect.width / 2 - cardW / 2);
+    const arrowPct = Math.round(((rect.left + rect.width / 2 - left) / cardW) * 100);
+    return { top: rect.bottom + pad, left, arrowDir: 'top', arrowOffset: `${Math.min(Math.max(arrowPct, 15), 85)}%` };
+  }
+  const left = clampLeft(rect.left + rect.width / 2 - cardW / 2);
+  const arrowPct = Math.round(((rect.left + rect.width / 2 - left) / cardW) * 100);
+  return { top: rect.top - cardH - pad, left, arrowDir: 'bottom', arrowOffset: `${Math.min(Math.max(arrowPct, 15), 85)}%` };
+}
+
+function TourArrow({ dir, offset }: { dir: ArrowDir; offset: string }) {
+  const base: React.CSSProperties = { position: 'absolute', width: 0, height: 0 };
+  const styles: Record<ArrowDir, React.CSSProperties> = {
+    left:   { ...base, left: -9, top: offset, transform: 'translateY(-50%)', borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderRight: '9px solid #C2185B' },
+    right:  { ...base, right: -9, top: offset, transform: 'translateY(-50%)', borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: '9px solid #C2185B' },
+    top:    { ...base, top: -9, left: offset, transform: 'translateX(-50%)', borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderBottom: '9px solid #C2185B' },
+    bottom: { ...base, bottom: -9, left: offset, transform: 'translateX(-50%)', borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: '9px solid #C2185B' },
+  };
+  return <div style={styles[dir]} />;
+}
+
+function GuidedTour({ onDone }: { onDone: () => void }) {
+  const [step, setStep] = useState(0);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const [visible, setVisible] = useState(false);
+  const total = TOUR_STEPS.length;
+  const current = TOUR_STEPS[step];
+  const CARD_W = 276;
+  const CARD_H = 280;
+
+  useEffect(() => {
+    let cancelled = false;
+    const update = () => {
+      const el = document.getElementById(current.target);
+      if (!el || cancelled) return;
+      setRect(el.getBoundingClientRect());
+      setVisible(false);
+      setTimeout(() => { if (!cancelled) setVisible(true); }, 50);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => { cancelled = true; window.removeEventListener('resize', update); };
+  }, [step, current.target]);
+
+  const advance = () => { if (step < total - 1) setStep((s) => s + 1); else onDone(); };
+
+  if (!rect) return null;
+
+  const pad = 6;
+  const { top: cardTop, left: cardLeft, arrowDir, arrowOffset } = getCardLayout(rect, CARD_W, CARD_H);
+  const spotR = current.radius ?? 8;
+
+  return (
+    <>
+      {/* Spotlight: box-shadow creates the dim surround, no separate backdrop */}
+      <div
+        style={{
+          position: 'fixed',
+          top: rect.top - pad,
+          left: rect.left - pad,
+          width: rect.width + pad * 2,
+          height: rect.height + pad * 2,
+          borderRadius: spotR + pad,
+          zIndex: 9997,
+          pointerEvents: 'none',
+          boxShadow: '0 0 0 9999px rgba(10,3,8,0.42), 0 0 0 3px #C2185B, 0 0 22px rgba(194,24,91,.55)',
+          animation: 'tourRingPulse 1.8s ease-in-out infinite',
+          transition: 'top .38s cubic-bezier(.34,1.56,.64,1), left .38s cubic-bezier(.34,1.56,.64,1), width .38s cubic-bezier(.34,1.56,.64,1), height .38s cubic-bezier(.34,1.56,.64,1)',
+        }}
+      />
+      {/* Clickable backdrop (behind spotlight) to allow skip on outside click */}
+      <div
+        onClick={onDone}
+        style={{ position: 'fixed', inset: 0, zIndex: 9996, cursor: 'default' }}
+      />
+      {/* Card */}
+      <div
+        style={{
+          position: 'fixed',
+          top: cardTop,
+          left: cardLeft,
+          width: CARD_W,
+          zIndex: 9999,
+          background: 'linear-gradient(145deg, #C2185B 0%, #7b0d3d 100%)',
+          borderRadius: 18,
+          padding: '20px 20px 18px',
+          color: '#fff',
+          boxShadow: '0 28px 72px rgba(136,14,79,.5), 0 4px 20px rgba(0,0,0,.35)',
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'scale(1)' : 'scale(0.94)',
+          transition: 'opacity .22s ease, transform .3s cubic-bezier(.34,1.56,.64,1), top .38s cubic-bezier(.34,1.56,.64,1), left .38s cubic-bezier(.34,1.56,.64,1)',
+          fontFamily: 'var(--wf,sans-serif)',
+        }}
+      >
+        <TourArrow dir={arrowDir} offset={arrowOffset} />
+        <div style={{ marginBottom: 14 }}>{TOUR_ICONS[current.target]}</div>
+        <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6, lineHeight: 1.25 }}>{current.title}</div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.6, opacity: 0.88, marginBottom: 18 }}>{current.body}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 16 }}>
+          {TOUR_STEPS.map((_, i) => (
+            <div
+              key={i}
+              style={{
+                height: 6,
+                width: i === step ? 20 : 6,
+                borderRadius: 3,
+                background: i === step ? '#fff' : 'rgba(255,255,255,.35)',
+                transition: 'all .3s cubic-bezier(.34,1.56,.64,1)',
+              }}
+            />
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button
+            type="button"
+            onClick={onDone}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.65)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '6px 2px' }}
+          >
+            Skip
+          </button>
+          <button
+            type="button"
+            onClick={advance}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.04)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            style={{ background: '#fff', color: '#7b0d3d', border: 'none', padding: '9px 22px', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,0,0,.18)', transition: 'transform .15s ease' }}
+          >
+            {step === total - 1 ? 'Done ✓' : 'Next →'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ── Shared UI ──────────────────────────────────────────────────────────── */
 const JaneAvatar = ({ size = 32, pulse = false }: { size?: number; pulse?: boolean }) => (
   <div
@@ -633,7 +938,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
               video: 'video',
             };
             return (
-              <Tooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
+              <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
               <button
                 onClick={() => setActiveTab(t.key)}
                 style={{
@@ -674,7 +979,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                   </span>
                 )}
               </button>
-              </Tooltip>
+              </BrandTooltip>
             );
           })}
         </div>
@@ -1694,11 +1999,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 700, color: '#111' }}>{p.label}</span>
-                      <Tooltip title={p.tooltip} arrow placement="right">
+                      <BrandTooltip title={p.tooltip} arrow placement="right">
                         <span style={{ display: 'inline-flex', cursor: 'help' }}>
                           <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
                         </span>
-                      </Tooltip>
+                      </BrandTooltip>
                     </div>
                     {linked ? (
                       <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>
@@ -2229,11 +2534,11 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
       >
         {label}
         {tip && (
-          <Tooltip title={tip} arrow placement="top">
+          <BrandTooltip title={tip} arrow placement="top">
             <span style={{ display: 'inline-flex', cursor: 'help', textTransform: 'none' }}>
               <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
             </span>
-          </Tooltip>
+          </BrandTooltip>
         )}
       </div>
       <div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
@@ -2936,11 +3241,11 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#999' }}>
                     Trend score
-                    <Tooltip title="A 0–100 score reflecting how much search interest this keyword is getting right now relative to its peak. 100 = peak popularity. Sourced from Google Trends." arrow placement="right">
+                    <BrandTooltip title="A 0–100 score reflecting how much search interest this keyword is getting right now relative to its peak. 100 = peak popularity. Sourced from Google Trends." arrow placement="right">
                       <span style={{ display: 'inline-flex', cursor: 'help' }}>
                         <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
                       </span>
-                    </Tooltip>
+                    </BrandTooltip>
                   </span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#333' }}>{kw.trend_score.toFixed(0)}</span>
                 </div>
@@ -3114,13 +3419,13 @@ const PbRow = ({
     >
       {label}
       {tooltip && (
-        <Tooltip title={tooltip} arrow placement="right">
+        <BrandTooltip title={tooltip} arrow placement="right">
           <span style={{ display: 'inline-flex', cursor: 'help', textTransform: 'none' }}>
             <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
               <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
             </svg>
           </span>
-        </Tooltip>
+        </BrandTooltip>
       )}
     </div>
     {editing ? (
@@ -3909,11 +4214,11 @@ const PlaybookPage = ({
             }}
           >
             Content pillars
-            <Tooltip title="The core themes your brand posts about — e.g. 'Product Tips', 'Customer Stories', 'Industry News'. The AI rotates through these to keep your feed varied." arrow placement="right">
+            <BrandTooltip title="The core themes your brand posts about — e.g. 'Product Tips', 'Customer Stories', 'Industry News'. The AI rotates through these to keep your feed varied." arrow placement="right">
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
                 <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
               </span>
-            </Tooltip>
+            </BrandTooltip>
           </div>
           {!editing ? (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -4283,11 +4588,11 @@ const PlaybookPage = ({
             }}
           >
             CTA styles
-            <Tooltip title="The types of calls-to-action the AI should use — e.g. 'Shop Now', 'Learn More', 'Book a Call'. Keeps your posts action-oriented and consistent." arrow placement="right">
+            <BrandTooltip title="The types of calls-to-action the AI should use — e.g. 'Shop Now', 'Learn More', 'Book a Call'. Keeps your posts action-oriented and consistent." arrow placement="right">
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
                 <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
               </span>
-            </Tooltip>
+            </BrandTooltip>
           </div>
           {!editing ? (
             <div style={{ fontSize: 13, color: (p?.cta_styles ?? []).length > 0 ? '#111' : '#bbb' }}>
@@ -4329,11 +4634,11 @@ const PlaybookPage = ({
             }}
           >
             Posting cadence
-            <Tooltip title="How often you want to post — the AI uses this to pace auto-generated drafts and suggest a realistic schedule" arrow placement="right">
+            <BrandTooltip title="How often you want to post — the AI uses this to pace auto-generated drafts and suggest a realistic schedule" arrow placement="right">
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
                 <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
               </span>
-            </Tooltip>
+            </BrandTooltip>
           </div>
           {!editing ? (
             <div style={{ fontSize: 13, color: p?.posting_cadence ? '#111' : '#bbb' }}>{p?.posting_cadence || '—'}</div>
@@ -4357,11 +4662,11 @@ const PlaybookPage = ({
             }}
           >
             Approval workflow
-            <Tooltip title="Controls who reviews drafts before they publish — 'Auto-approve' publishes immediately, 'Manual review' sends drafts to your Drafts tab first" arrow placement="right">
+            <BrandTooltip title="Controls who reviews drafts before they publish — 'Auto-approve' publishes immediately, 'Manual review' sends drafts to your Drafts tab first" arrow placement="right">
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
                 <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
               </span>
-            </Tooltip>
+            </BrandTooltip>
           </div>
           {!editing ? (
             <div style={{ fontSize: 13, color: p?.approval_workflow ? '#111' : '#bbb' }}>
@@ -4715,6 +5020,7 @@ export default function WorkspaceDashboard() {
   const searchParams = useSearchParams();
 
   const [ready, setReady] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const [nav, setNav] = useState(() => searchParams?.get('tab') || 'workspace');
   const [billingTab, setBillingTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>('overview');
   const [sIdx, setSIdx] = useState(0);
@@ -4742,6 +5048,18 @@ export default function WorkspaceDashboard() {
     ck();
     window.addEventListener('resize', ck);
     return () => window.removeEventListener('resize', ck);
+  }, []);
+
+  useEffect(() => {
+    if (!localStorage.getItem('uri_tour_v1')) {
+      const t = setTimeout(() => setTourOpen(true), 900);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  const closeTour = useCallback(() => {
+    setTourOpen(false);
+    localStorage.setItem('uri_tour_v1', '1');
   }, []);
 
   // Show trial expired modal on first visit after expiry
@@ -4968,6 +5286,8 @@ export default function WorkspaceDashboard() {
         .workspace-root input:focus,.workspace-root textarea:focus,.workspace-root select:focus{outline:none}
         @keyframes wTypeBounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
         @keyframes wStatusFade{0%{opacity:0;transform:translateY(3px)}12%{opacity:1;transform:translateY(0)}88%{opacity:1}100%{opacity:0;transform:translateY(-3px)}}
+        @keyframes tourFadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes tourRingPulse{0%,100%{box-shadow:0 0 0 3px #C2185B,0 0 0 7px rgba(194,24,91,.2),0 0 28px rgba(194,24,91,.45)}50%{box-shadow:0 0 0 3px #C2185B,0 0 0 12px rgba(194,24,91,.1),0 0 40px rgba(194,24,91,.25)}}
       `}</style>
 
       <div
@@ -5028,6 +5348,7 @@ export default function WorkspaceDashboard() {
               </span>
             </Link>
             <div
+              id="tour-jane-agent"
               style={{
                 margin: '0 12px 18px',
                 padding: '12px 14px',
@@ -5049,8 +5370,9 @@ export default function WorkspaceDashboard() {
               {NAV.map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
                 return (
-                  <Tooltip key={n.id} title={n.tooltip} placement="right" arrow>
+                  <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
                   <button
+                    id={`tnav-${n.id}`}
                     onClick={() => setNav(n.id)}
                     style={{
                       display: 'flex',
@@ -5086,7 +5408,7 @@ export default function WorkspaceDashboard() {
                       </span>
                     )}
                   </button>
-                  </Tooltip>
+                  </BrandTooltip>
                 );
               })}
             </div>
@@ -5206,7 +5528,7 @@ export default function WorkspaceDashboard() {
                 </span>
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div id="tour-notification-area" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <button
                 onClick={() => router.push('/settings/social-accounts')}
                 style={{
@@ -5406,6 +5728,7 @@ export default function WorkspaceDashboard() {
                   }}
                 >
                   <div
+                    id="tour-chat-input"
                     style={{
                       display: 'flex',
                       gap: 7,
@@ -5658,6 +5981,9 @@ export default function WorkspaceDashboard() {
           </>
         )}
       </div>
+
+      {/* Guided Tour */}
+      {tourOpen && !isMobile && <GuidedTour onDone={closeTour} />}
 
       {/* Trial Expired Modal */}
       <TrialExpiredModal
