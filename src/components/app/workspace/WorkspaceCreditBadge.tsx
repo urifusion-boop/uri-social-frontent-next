@@ -31,7 +31,7 @@ export default function WorkspaceCreditBadge({ onClick }: WorkspaceCreditBadgePr
       : `${creditsRemaining} credit${creditsRemaining === 1 ? '' : 's'} remaining — each credit generates one full set of platform posts. Click to manage billing.`;
 
   return (
-    <Tooltip title={tooltipText} arrow placement="bottom">
+    <Tooltip title={tooltipText} arrow placement="bottom" enterTouchDelay={0} leaveTouchDelay={3000}>
     <button
       onClick={onClick}
       type="button"

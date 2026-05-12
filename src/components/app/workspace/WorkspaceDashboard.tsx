@@ -232,6 +232,8 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
 /* ── Brand Tooltip ──────────────────────────────────────────────────────── */
 const BrandTooltip = (props: React.ComponentProps<typeof Tooltip>) => (
   <Tooltip
+    enterTouchDelay={0}
+    leaveTouchDelay={3000}
     {...props}
     componentsProps={{
       ...props.componentsProps,

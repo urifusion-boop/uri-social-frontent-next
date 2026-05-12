@@ -116,7 +116,7 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
             <Typography fontSize="13px" color={enabled ? '#059669' : '#6B7280'} fontWeight={600}>
               {enabled ? 'On' : 'Off'}
             </Typography>
-            <Tooltip title="When on, URI Agent will automatically generate draft posts on your chosen schedule — no manual prompting needed" arrow placement="left">
+            <Tooltip title="When on, URI Agent will automatically generate draft posts on your chosen schedule — no manual prompting needed" arrow placement="left" enterTouchDelay={0} leaveTouchDelay={3000}>
               <Switch
                 checked={enabled}
                 onChange={(e) => setEnabled(e.target.checked)}
@@ -161,7 +161,7 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
           <Typography fontSize="13px" fontWeight={600} color="#374151">
             Frequency
           </Typography>
-          <Tooltip title="Daily: new drafts every morning. Weekly: a batch of drafts once per week" arrow>
+          <Tooltip title="Daily: new drafts every morning. Weekly: a batch of drafts once per week" arrow enterTouchDelay={0} leaveTouchDelay={3000}>
             <Box sx={{ display: 'flex', cursor: 'help' }}>
               <MdInfoOutline size={15} color="#9CA3AF" />
             </Box>
@@ -180,7 +180,7 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
         </RadioGroup>
 
         {/* Include images */}
-        <Tooltip title="Each auto-generated draft will include an AI-created image. Uses one extra credit per post." arrow placement="right">
+        <Tooltip title="Each auto-generated draft will include an AI-created image. Uses one extra credit per post." arrow placement="right" enterTouchDelay={0} leaveTouchDelay={3000}>
           <FormControlLabel
             disabled={!enabled}
             control={
@@ -238,7 +238,7 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
             </Typography>
           </Box>
 
-          <Tooltip title="Run auto-generation immediately — URI Agent will create a fresh set of drafts right now, without waiting for the next scheduled run" arrow placement="left">
+          <Tooltip title="Run auto-generation immediately — URI Agent will create a fresh set of drafts right now, without waiting for the next scheduled run" arrow placement="left" enterTouchDelay={0} leaveTouchDelay={3000}>
             <span>
               <Button
                 variant="contained"
@@ -301,6 +301,8 @@ const AnalyticsContextCard = ({ ctx }: AnalyticsContextCardProps) => {
                 : 'Open Account Tracking → click Analyse on any account. The AI media report will automatically sync here and enrich your generated posts.'
             }
             arrow
+            enterTouchDelay={0}
+            leaveTouchDelay={3000}
           >
             <span style={{ display: 'flex', alignItems: 'center', cursor: 'help' }}>
               <MdInfoOutline size={14} color="#9CA3AF" />

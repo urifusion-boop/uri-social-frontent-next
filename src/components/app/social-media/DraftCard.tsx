@@ -1186,7 +1186,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       {/* Action row */}
       {!editing && (
         <Box display="flex" gap={1} flexWrap="wrap" mt={1}>
-          <Tooltip title="Edit the caption and hashtags before publishing" arrow>
+          <Tooltip title="Edit the caption and hashtags before publishing" arrow enterTouchDelay={0} leaveTouchDelay={3000}>
             <Button
               size="small"
               variant="outlined"
@@ -1196,7 +1196,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               Edit
             </Button>
           </Tooltip>
-          <Tooltip title="Approve this post — publish immediately, schedule for later, or save as draft" arrow>
+          <Tooltip title="Approve this post — publish immediately, schedule for later, or save as draft" arrow enterTouchDelay={0} leaveTouchDelay={3000}>
             <span>
               <Button
                 size="small"
@@ -1214,7 +1214,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               </Button>
             </span>
           </Tooltip>
-          <Tooltip title="Reject this draft — optionally request a regeneration with feedback" arrow>
+          <Tooltip title="Reject this draft — optionally request a regeneration with feedback" arrow enterTouchDelay={0} leaveTouchDelay={3000}>
             <span>
               <Button
                 size="small"
@@ -1229,7 +1229,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             </span>
           </Tooltip>
           <Box sx={{ ml: 'auto' }}>
-            <Tooltip title="Permanently delete this draft" arrow>
+            <Tooltip title="Permanently delete this draft" arrow enterTouchDelay={0} leaveTouchDelay={3000}>
               <span>
                 <Button
                   size="small"

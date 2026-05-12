@@ -336,7 +336,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         <Typography fontSize="14px" color="#374151" fontWeight={500}>
           What do you want to post about?
         </Typography>
-        <Tooltip title="Give the AI a topic, idea, URL, or existing text to work from. The more context you provide, the more on-brand and specific the output will be." arrow>
+        <Tooltip title="Give the AI a topic, idea, URL, or existing text to work from. The more context you provide, the more on-brand and specific the output will be." arrow enterTouchDelay={0} leaveTouchDelay={3000}>
           <Box component="span" sx={{ display: 'inline-flex', cursor: 'help' }} aria-label="Seed content help">
             <MdInfoOutline size={15} color="#9CA3AF" />
           </Box>
@@ -452,7 +452,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         <Typography fontSize="14px" color="#374151" fontWeight={500}>
           Target Platforms
         </Typography>
-        <Tooltip title="Select which platforms to generate posts for. Each platform gets its own optimised caption, hashtags, and formatting." arrow>
+        <Tooltip title="Select which platforms to generate posts for. Each platform gets its own optimised caption, hashtags, and formatting." arrow enterTouchDelay={0} leaveTouchDelay={3000}>
           <Box component="span" sx={{ display: 'inline-flex', cursor: 'help' }} aria-label="Target platforms help">
             <MdInfoOutline size={15} color="#9CA3AF" />
           </Box>
@@ -627,7 +627,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
           </Box>
         </Box>
         <Box display="flex" alignItems="center" gap={1}>
-          <Tooltip title="Uses an image generation model. Adds a few extra seconds to generation time." arrow>
+          <Tooltip title="Uses an image generation model. Adds a few extra seconds to generation time." arrow enterTouchDelay={0} leaveTouchDelay={3000}>
             <Box sx={{ display: 'flex', cursor: 'help' }}>
               <MdInfoOutline size={16} color="#9CA3AF" />
             </Box>
@@ -653,6 +653,8 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
             : 'URI Agent will create platform-optimised posts based on your seed content and brand profile. Drafts appear in the Drafts tab for your review.'
         }
         arrow
+        enterTouchDelay={0}
+        leaveTouchDelay={3000}
       >
         <span>
           <Button
