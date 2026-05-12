@@ -308,7 +308,7 @@ const TOUR_STEPS: TourStepDef[] = [
   {
     target: 'tour-chat-input',
     title: "You're All Set — Start Here",
-    body: "Type a topic, campaign idea, or product name. URI Agent will draft content for all your platforms instantly.",
+    body: 'Type a topic, campaign idea, or product name. URI Agent will draft content for all your platforms instantly.',
     radius: 13,
   },
 ];
@@ -364,7 +364,12 @@ const TOUR_ICONS: Record<string, ReactNode> = {
   'tour-notification-area': (
     <svg viewBox="0 0 52 52" width={44} height={44} fill="none">
       <rect width="52" height="52" rx="14" fill="rgba(255,255,255,.12)" />
-      <path d="M26 14c-5.523 0-10 4.477-10 10v6l-2 3h24l-2-3v-6c0-5.523-4.477-10-10-10z" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d="M26 14c-5.523 0-10 4.477-10 10v6l-2 3h24l-2-3v-6c0-5.523-4.477-10-10-10z"
+        stroke="#fff"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
       <path d="M23 35a3 3 0 006 0" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
     </svg>
   ),
@@ -399,7 +404,12 @@ function getCardLayout(
   if (rect.left - cardW - pad - 12 > 0) {
     const top = clampTop(rect.top + rect.height / 2 - cardH / 2);
     const arrowPct = Math.round(((rect.top + rect.height / 2 - top) / cardH) * 100);
-    return { top, left: rect.left - cardW - pad, arrowDir: 'right', arrowOffset: `${Math.min(Math.max(arrowPct, 15), 85)}%` };
+    return {
+      top,
+      left: rect.left - cardW - pad,
+      arrowDir: 'right',
+      arrowOffset: `${Math.min(Math.max(arrowPct, 15), 85)}%`,
+    };
   }
   if (rect.bottom + cardH + pad + 12 < vh) {
     const left = clampLeft(rect.left + rect.width / 2 - cardW / 2);
@@ -408,16 +418,53 @@ function getCardLayout(
   }
   const left = clampLeft(rect.left + rect.width / 2 - cardW / 2);
   const arrowPct = Math.round(((rect.left + rect.width / 2 - left) / cardW) * 100);
-  return { top: rect.top - cardH - pad, left, arrowDir: 'bottom', arrowOffset: `${Math.min(Math.max(arrowPct, 15), 85)}%` };
+  return {
+    top: rect.top - cardH - pad,
+    left,
+    arrowDir: 'bottom',
+    arrowOffset: `${Math.min(Math.max(arrowPct, 15), 85)}%`,
+  };
 }
 
 function TourArrow({ dir, offset }: { dir: ArrowDir; offset: string }) {
   const base: React.CSSProperties = { position: 'absolute', width: 0, height: 0 };
   const styles: Record<ArrowDir, React.CSSProperties> = {
-    left:   { ...base, left: -9, top: offset, transform: 'translateY(-50%)', borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderRight: '9px solid #C2185B' },
-    right:  { ...base, right: -9, top: offset, transform: 'translateY(-50%)', borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: '9px solid #C2185B' },
-    top:    { ...base, top: -9, left: offset, transform: 'translateX(-50%)', borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderBottom: '9px solid #C2185B' },
-    bottom: { ...base, bottom: -9, left: offset, transform: 'translateX(-50%)', borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: '9px solid #C2185B' },
+    left: {
+      ...base,
+      left: -9,
+      top: offset,
+      transform: 'translateY(-50%)',
+      borderTop: '9px solid transparent',
+      borderBottom: '9px solid transparent',
+      borderRight: '9px solid #C2185B',
+    },
+    right: {
+      ...base,
+      right: -9,
+      top: offset,
+      transform: 'translateY(-50%)',
+      borderTop: '9px solid transparent',
+      borderBottom: '9px solid transparent',
+      borderLeft: '9px solid #C2185B',
+    },
+    top: {
+      ...base,
+      top: -9,
+      left: offset,
+      transform: 'translateX(-50%)',
+      borderLeft: '9px solid transparent',
+      borderRight: '9px solid transparent',
+      borderBottom: '9px solid #C2185B',
+    },
+    bottom: {
+      ...base,
+      bottom: -9,
+      left: offset,
+      transform: 'translateX(-50%)',
+      borderLeft: '9px solid transparent',
+      borderRight: '9px solid transparent',
+      borderTop: '9px solid #C2185B',
+    },
   };
   return <div style={styles[dir]} />;
 }
@@ -438,14 +485,22 @@ function GuidedTour({ onDone }: { onDone: () => void }) {
       if (!el || cancelled) return;
       setRect(el.getBoundingClientRect());
       setVisible(false);
-      setTimeout(() => { if (!cancelled) setVisible(true); }, 50);
+      setTimeout(() => {
+        if (!cancelled) setVisible(true);
+      }, 50);
     };
     update();
     window.addEventListener('resize', update);
-    return () => { cancelled = true; window.removeEventListener('resize', update); };
+    return () => {
+      cancelled = true;
+      window.removeEventListener('resize', update);
+    };
   }, [step, current.target]);
 
-  const advance = () => { if (step < total - 1) setStep((s) => s + 1); else onDone(); };
+  const advance = () => {
+    if (step < total - 1) setStep((s) => s + 1);
+    else onDone();
+  };
 
   if (!rect) return null;
 
@@ -468,14 +523,12 @@ function GuidedTour({ onDone }: { onDone: () => void }) {
           pointerEvents: 'none',
           boxShadow: '0 0 0 9999px rgba(10,3,8,0.42), 0 0 0 3px #C2185B, 0 0 22px rgba(194,24,91,.55)',
           animation: 'tourRingPulse 1.8s ease-in-out infinite',
-          transition: 'top .38s cubic-bezier(.34,1.56,.64,1), left .38s cubic-bezier(.34,1.56,.64,1), width .38s cubic-bezier(.34,1.56,.64,1), height .38s cubic-bezier(.34,1.56,.64,1)',
+          transition:
+            'top .38s cubic-bezier(.34,1.56,.64,1), left .38s cubic-bezier(.34,1.56,.64,1), width .38s cubic-bezier(.34,1.56,.64,1), height .38s cubic-bezier(.34,1.56,.64,1)',
         }}
       />
       {/* Clickable backdrop (behind spotlight) to allow skip on outside click */}
-      <div
-        onClick={onDone}
-        style={{ position: 'fixed', inset: 0, zIndex: 9996, cursor: 'default' }}
-      />
+      <div onClick={onDone} style={{ position: 'fixed', inset: 0, zIndex: 9996, cursor: 'default' }} />
       {/* Card */}
       <div
         style={{
@@ -491,7 +544,8 @@ function GuidedTour({ onDone }: { onDone: () => void }) {
           boxShadow: '0 28px 72px rgba(136,14,79,.5), 0 4px 20px rgba(0,0,0,.35)',
           opacity: visible ? 1 : 0,
           transform: visible ? 'scale(1)' : 'scale(0.94)',
-          transition: 'opacity .22s ease, transform .3s cubic-bezier(.34,1.56,.64,1), top .38s cubic-bezier(.34,1.56,.64,1), left .38s cubic-bezier(.34,1.56,.64,1)',
+          transition:
+            'opacity .22s ease, transform .3s cubic-bezier(.34,1.56,.64,1), top .38s cubic-bezier(.34,1.56,.64,1), left .38s cubic-bezier(.34,1.56,.64,1)',
           fontFamily: 'var(--wf,sans-serif)',
         }}
       >
@@ -517,7 +571,16 @@ function GuidedTour({ onDone }: { onDone: () => void }) {
           <button
             type="button"
             onClick={onDone}
-            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.65)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '6px 2px' }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255,255,255,.65)',
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              padding: '6px 2px',
+            }}
           >
             Skip
           </button>
@@ -526,7 +589,19 @@ function GuidedTour({ onDone }: { onDone: () => void }) {
             onClick={advance}
             onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.04)')}
             onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-            style={{ background: '#fff', color: '#7b0d3d', border: 'none', padding: '9px 22px', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,0,0,.18)', transition: 'transform .15s ease' }}
+            style={{
+              background: '#fff',
+              color: '#7b0d3d',
+              border: 'none',
+              padding: '9px 22px',
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              boxShadow: '0 2px 10px rgba(0,0,0,.18)',
+              transition: 'transform .15s ease',
+            }}
           >
             {step === total - 1 ? 'Done ✓' : 'Next →'}
           </button>
@@ -960,46 +1035,46 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
             };
             return (
               <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
-              <button
-                onClick={() => setActiveTab(t.key)}
-                style={{
-                  padding: '9px 14px 10px',
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: active ? 700 : 500,
-                  fontFamily: 'var(--wf)',
-                  color: active ? '#C2185B' : '#777',
-                  borderBottom: active ? '2.5px solid #C2185B' : '2.5px solid transparent',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  whiteSpace: 'nowrap',
-                  transition: 'color .15s',
-                  outline: 'none',
-                }}
-              >
-                <I n={icons[t.key]} s={13} c={active ? '#C2185B' : '#aaa'} />
-                {t.label}
-                {t.count != null && t.count > 0 && (
-                  <span
-                    style={{
-                      background: active ? '#C2185B' : '#ede9e8',
-                      color: active ? '#fff' : '#777',
-                      borderRadius: 20,
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: '1px 7px',
-                      lineHeight: '16px',
-                      minWidth: 18,
-                      textAlign: 'center',
-                    }}
-                  >
-                    {t.count}
-                  </span>
-                )}
-              </button>
+                <button
+                  onClick={() => setActiveTab(t.key)}
+                  style={{
+                    padding: '9px 14px 10px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: active ? 700 : 500,
+                    fontFamily: 'var(--wf)',
+                    color: active ? '#C2185B' : '#777',
+                    borderBottom: active ? '2.5px solid #C2185B' : '2.5px solid transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap',
+                    transition: 'color .15s',
+                    outline: 'none',
+                  }}
+                >
+                  <I n={icons[t.key]} s={13} c={active ? '#C2185B' : '#aaa'} />
+                  {t.label}
+                  {t.count != null && t.count > 0 && (
+                    <span
+                      style={{
+                        background: active ? '#C2185B' : '#ede9e8',
+                        color: active ? '#fff' : '#777',
+                        borderRadius: 20,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '1px 7px',
+                        lineHeight: '16px',
+                        minWidth: 18,
+                        textAlign: 'center',
+                      }}
+                    >
+                      {t.count}
+                    </span>
+                  )}
+                </button>
               </BrandTooltip>
             );
           })}
@@ -1604,6 +1679,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           linked: !!conns.facebook?.length,
           account_name: conns.facebook?.[0]?.page_name,
           outstand_account_id: conns.facebook?.[0]?.outstand_account_id,
+          connected_via: conns.facebook?.[0]?.connected_via,
         };
         next.instagram = {
           linked: !!conns.instagram?.length,
@@ -1842,7 +1918,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         }
       } else if (id === 'facebook') {
         const s = statuses[id];
-        if (s?.outstand_account_id) {
+        if (s?.connected_via?.startsWith('facebook_direct')) {
+          await SocialMediaAgentService.disconnectFacebookDirect();
+        } else if (s?.outstand_account_id) {
           await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
         } else {
           ToastService.showToast('Could not disconnect Facebook. Please try again.', ToastTypeEnum.Error);
@@ -3364,7 +3442,11 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#999' }}>
                     Trend score
-                    <BrandTooltip title="A 0–100 score reflecting how much search interest this keyword is getting right now relative to its peak. 100 = peak popularity. Sourced from Google Trends." arrow placement="right">
+                    <BrandTooltip
+                      title="A 0–100 score reflecting how much search interest this keyword is getting right now relative to its peak. 100 = peak popularity. Sourced from Google Trends."
+                      arrow
+                      placement="right"
+                    >
                       <span style={{ display: 'inline-flex', cursor: 'help' }}>
                         <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
                           <circle cx="12" cy="12" r="10" />
@@ -4341,7 +4423,11 @@ const PlaybookPage = ({
             }}
           >
             Content pillars
-            <BrandTooltip title="The core themes your brand posts about — e.g. 'Product Tips', 'Customer Stories', 'Industry News'. The AI rotates through these to keep your feed varied." arrow placement="right">
+            <BrandTooltip
+              title="The core themes your brand posts about — e.g. 'Product Tips', 'Customer Stories', 'Industry News'. The AI rotates through these to keep your feed varied."
+              arrow
+              placement="right"
+            >
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
                 <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />
@@ -4718,7 +4804,11 @@ const PlaybookPage = ({
             }}
           >
             CTA styles
-            <BrandTooltip title="The types of calls-to-action the AI should use — e.g. 'Shop Now', 'Learn More', 'Book a Call'. Keeps your posts action-oriented and consistent." arrow placement="right">
+            <BrandTooltip
+              title="The types of calls-to-action the AI should use — e.g. 'Shop Now', 'Learn More', 'Book a Call'. Keeps your posts action-oriented and consistent."
+              arrow
+              placement="right"
+            >
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
                 <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />
@@ -4767,7 +4857,11 @@ const PlaybookPage = ({
             }}
           >
             Posting cadence
-            <BrandTooltip title="How often you want to post — the AI uses this to pace auto-generated drafts and suggest a realistic schedule" arrow placement="right">
+            <BrandTooltip
+              title="How often you want to post — the AI uses this to pace auto-generated drafts and suggest a realistic schedule"
+              arrow
+              placement="right"
+            >
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
                 <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />
@@ -4798,7 +4892,11 @@ const PlaybookPage = ({
             }}
           >
             Approval workflow
-            <BrandTooltip title="Controls who reviews drafts before they publish — 'Auto-approve' publishes immediately, 'Manual review' sends drafts to your Drafts tab first" arrow placement="right">
+            <BrandTooltip
+              title="Controls who reviews drafts before they publish — 'Auto-approve' publishes immediately, 'Manual review' sends drafts to your Drafts tab first"
+              arrow
+              placement="right"
+            >
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
                 <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />
@@ -5555,43 +5653,43 @@ export default function WorkspaceDashboard() {
                 const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
                 return (
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
-                  <button
-                    id={`tnav-${n.id}`}
-                    onClick={() => setNav(n.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '9px 18px',
-                      background: nav === n.id ? 'rgba(194,24,91,.1)' : 'transparent',
-                      border: 'none',
-                      borderLeft: nav === n.id ? '2.5px solid #E91E63' : '2.5px solid transparent',
-                      fontFamily: 'var(--wf)',
-                      fontSize: 12.5,
-                      color: nav === n.id ? '#fce4ec' : 'rgba(255,255,255,.35)',
-                      fontWeight: nav === n.id ? 600 : 400,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all .12s',
-                    }}
-                  >
-                    <I n={n.icon} s={15} c={nav === n.id ? '#E91E63' : 'rgba(255,255,255,.22)'} />
-                    <span style={{ flex: 1 }}>{n.label}</span>
-                    {badge != null && badge > 0 && (
-                      <span
-                        style={{
-                          background: '#E91E63',
-                          color: '#fff',
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          padding: '1px 5px',
-                          borderRadius: 4,
-                        }}
-                      >
-                        {badge > 99 ? '99+' : badge}
-                      </span>
-                    )}
-                  </button>
+                    <button
+                      id={`tnav-${n.id}`}
+                      onClick={() => setNav(n.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '9px 18px',
+                        background: nav === n.id ? 'rgba(194,24,91,.1)' : 'transparent',
+                        border: 'none',
+                        borderLeft: nav === n.id ? '2.5px solid #E91E63' : '2.5px solid transparent',
+                        fontFamily: 'var(--wf)',
+                        fontSize: 12.5,
+                        color: nav === n.id ? '#fce4ec' : 'rgba(255,255,255,.35)',
+                        fontWeight: nav === n.id ? 600 : 400,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all .12s',
+                      }}
+                    >
+                      <I n={n.icon} s={15} c={nav === n.id ? '#E91E63' : 'rgba(255,255,255,.22)'} />
+                      <span style={{ flex: 1 }}>{n.label}</span>
+                      {badge != null && badge > 0 && (
+                        <span
+                          style={{
+                            background: '#E91E63',
+                            color: '#fff',
+                            fontSize: 9.5,
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                          }}
+                        >
+                          {badge > 99 ? '99+' : badge}
+                        </span>
+                      )}
+                    </button>
                   </BrandTooltip>
                 );
               })}

@@ -266,6 +266,13 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async disconnectFacebookDirect(): Promise<UriResponse<string>> {
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
+      `/social-media/connections/facebook-direct`
+    );
+    return response.data;
+  }
+
   static async generateContent(payload: GenerateContentPayload): Promise<UriResponse<ContentDraft[]>> {
     const response: Awaited<AxiosResponse<UriResponse<ContentDraft[]>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.generateContent,
