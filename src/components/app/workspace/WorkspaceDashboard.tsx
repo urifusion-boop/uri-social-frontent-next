@@ -862,11 +862,30 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
 
   const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
     { key: 'create', label: 'Create', tooltip: 'Generate new AI-powered posts for your social platforms' },
-    { key: 'drafts', label: 'Drafts', count: drafts.length, tooltip: 'Review and edit AI-generated posts awaiting your approval' },
-    { key: 'saved', label: 'Saved', count: savedDrafts.length, tooltip: 'Posts you\'ve saved for later — ready to publish when you are' },
-    { key: 'scheduled', label: 'Scheduled', count: scheduled.length, tooltip: 'Posts approved and queued to go live at a specific time' },
+    {
+      key: 'drafts',
+      label: 'Drafts',
+      count: drafts.length,
+      tooltip: 'Review and edit AI-generated posts awaiting your approval',
+    },
+    {
+      key: 'saved',
+      label: 'Saved',
+      count: savedDrafts.length,
+      tooltip: "Posts you've saved for later — ready to publish when you are",
+    },
+    {
+      key: 'scheduled',
+      label: 'Scheduled',
+      count: scheduled.length,
+      tooltip: 'Posts approved and queued to go live at a specific time',
+    },
     { key: 'calendar', label: 'Calendar', tooltip: 'Visualise your content schedule in a monthly calendar view' },
-    { key: 'auto', label: 'Auto', tooltip: 'Configure automatic daily or weekly post generation using your brand profile' },
+    {
+      key: 'auto',
+      label: 'Auto',
+      tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
+    },
     { key: 'video', label: 'Video', tooltip: 'Create AI-generated video storyboards for your brand' },
   ];
 
@@ -1452,11 +1471,49 @@ const PLATFORM_ICON: Record<string, ReactNode> = {
 };
 
 const PLATFORMS = [
-  { id: 'linkedin', label: 'LinkedIn', color: '#0A66C2', bg: '#E8F1FB', flow: 'oauth', tooltip: 'Publish directly to your LinkedIn business page and track post performance from within URI Social' },
-  { id: 'x', label: 'X (Twitter)', color: '#000', bg: '#F0F0F0', flow: 'oauth', comingSoon: true, tooltip: 'Coming soon — X integration is in progress' },
-  { id: 'whatsapp', label: 'WhatsApp', color: '#25D366', bg: '#E8F9EF', flow: 'phone', tooltip: 'Send content to your WhatsApp Business number so you can broadcast posts directly to your contacts and groups' },
-  { id: 'facebook', label: 'Facebook', color: '#1877F2', bg: '#E7F0FD', flow: 'facebook_oauth', tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social' },
-  { id: 'instagram', label: 'Instagram', color: '#E4405F', bg: '#FDE7EC', flow: 'instagram_direct', tooltip: 'Connect your Instagram Business account to publish feed posts, carousels, and stories directly from URI Social' },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    color: '#0A66C2',
+    bg: '#E8F1FB',
+    flow: 'oauth',
+    tooltip: 'Publish directly to your LinkedIn business page and track post performance from within URI Social',
+  },
+  {
+    id: 'x',
+    label: 'X (Twitter)',
+    color: '#000',
+    bg: '#F0F0F0',
+    flow: 'oauth',
+    comingSoon: true,
+    tooltip: 'Coming soon — X integration is in progress',
+  },
+  {
+    id: 'whatsapp',
+    label: 'WhatsApp',
+    color: '#25D366',
+    bg: '#E8F9EF',
+    flow: 'phone',
+    tooltip:
+      'Send content to your WhatsApp Business number so you can broadcast posts directly to your contacts and groups',
+  },
+  {
+    id: 'facebook',
+    label: 'Facebook',
+    color: '#1877F2',
+    bg: '#E7F0FD',
+    flow: 'facebook_direct',
+    tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social',
+  },
+  {
+    id: 'instagram',
+    label: 'Instagram',
+    color: '#E4405F',
+    bg: '#FDE7EC',
+    flow: 'instagram_direct',
+    tooltip:
+      'Connect your Instagram Business account to publish feed posts, carousels, and stories directly from URI Social',
+  },
 ];
 
 const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
@@ -1589,6 +1646,22 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           })
           .catch(() => ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error));
       }
+    } else if (connected === 'facebook_direct') {
+      const fbPageId = searchParams.get('fb_page_id') ?? '';
+      const pageName = searchParams.get('page_name') ?? 'Facebook Page';
+      router.replace('/workspace?tab=connections');
+      if (fbPageId) {
+        SocialAccountService.finalizeFacebookDirect(fbPageId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`${pageName} connected!`, ToastTypeEnum.Success);
+              loadStatuses();
+            } else {
+              ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error));
+      }
     } else if (connected === 'pending' && token) {
       setSessionToken(token);
       setPhase('pending');
@@ -1653,6 +1726,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     if (flow === 'instagram_direct') {
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
       window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      return;
+    }
+    if (flow === 'facebook_direct') {
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
+      window.location.href = `${apiBase}/social-media/connect/facebook-direct/initiate?source=settings`;
       return;
     }
     if (flow === 'facebook_oauth') {
@@ -2003,7 +2081,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       <span style={{ fontSize: 13.5, fontWeight: 700, color: '#111' }}>{p.label}</span>
                       <BrandTooltip title={p.tooltip} arrow placement="right">
                         <span style={{ display: 'inline-flex', cursor: 'help' }}>
-                          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 16v-4M12 8h.01" />
+                          </svg>
                         </span>
                       </BrandTooltip>
                     </div>
@@ -2538,7 +2619,10 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
         {tip && (
           <BrandTooltip title={tip} arrow placement="top">
             <span style={{ display: 'inline-flex', cursor: 'help', textTransform: 'none' }}>
-              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
             </span>
           </BrandTooltip>
         )}
@@ -2687,12 +2771,25 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
             <>
               {/* Summary stats */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 }}>
-                {statCard('Impressions', fmt(data.summary.total_impressions), `${data.summary.total_posts} posts`, '#111', 'Total number of times your posts were displayed in someone\'s feed — including repeat views by the same person')}
-                {statCard('Reach', fmt(data.summary.total_reach), undefined, '#111', 'Number of unique people who saw at least one of your posts — unlike Impressions, each person is counted only once')}
+                {statCard(
+                  'Impressions',
+                  fmt(data.summary.total_impressions),
+                  `${data.summary.total_posts} posts`,
+                  '#111',
+                  "Total number of times your posts were displayed in someone's feed — including repeat views by the same person"
+                )}
+                {statCard(
+                  'Reach',
+                  fmt(data.summary.total_reach),
+                  undefined,
+                  '#111',
+                  'Number of unique people who saw at least one of your posts — unlike Impressions, each person is counted only once'
+                )}
                 {statCard(
                   'Engagement',
                   fmt(data.summary.total_likes + data.summary.total_comments + data.summary.total_shares),
-                  undefined, '#111',
+                  undefined,
+                  '#111',
                   'Total interactions on your posts — likes, comments, and shares combined'
                 )}
                 {statCard(
@@ -2704,14 +2801,38 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                     : data.summary.avg_engagement_rate >= 1
                       ? '#d97706'
                       : '#C2185B',
-                  'Engagements ÷ Impressions, expressed as a percentage. Above 3% is strong; 1–3% is average; below 1% suggests the content isn\'t resonating.'
+                  "Engagements ÷ Impressions, expressed as a percentage. Above 3% is strong; 1–3% is average; below 1% suggests the content isn't resonating."
                 )}
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 80px' }}>{statCard('Likes', fmt(data.summary.total_likes), undefined, '#111', 'Total likes across all published posts in the selected time range')}</div>
-                <div style={{ flex: '1 1 80px' }}>{statCard('Comments', fmt(data.summary.total_comments), undefined, '#111', 'Total comments received — a strong signal of audience interest and conversation')}</div>
-                <div style={{ flex: '1 1 80px' }}>{statCard('Shares', fmt(data.summary.total_shares), undefined, '#111', 'Total shares — the highest-value action, as it extends your reach to new audiences organically')}</div>
+                <div style={{ flex: '1 1 80px' }}>
+                  {statCard(
+                    'Likes',
+                    fmt(data.summary.total_likes),
+                    undefined,
+                    '#111',
+                    'Total likes across all published posts in the selected time range'
+                  )}
+                </div>
+                <div style={{ flex: '1 1 80px' }}>
+                  {statCard(
+                    'Comments',
+                    fmt(data.summary.total_comments),
+                    undefined,
+                    '#111',
+                    'Total comments received — a strong signal of audience interest and conversation'
+                  )}
+                </div>
+                <div style={{ flex: '1 1 80px' }}>
+                  {statCard(
+                    'Shares',
+                    fmt(data.summary.total_shares),
+                    undefined,
+                    '#111',
+                    'Total shares — the highest-value action, as it extends your reach to new audiences organically'
+                  )}
+                </div>
               </div>
 
               {/* Per-platform breakdown */}
@@ -3245,7 +3366,10 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
                     Trend score
                     <BrandTooltip title="A 0–100 score reflecting how much search interest this keyword is getting right now relative to its peak. 100 = peak popularity. Sourced from Google Trends." arrow placement="right">
                       <span style={{ display: 'inline-flex', cursor: 'help' }}>
-                        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 16v-4M12 8h.01" />
+                        </svg>
                       </span>
                     </BrandTooltip>
                   </span>
@@ -3424,7 +3548,8 @@ const PbRow = ({
         <BrandTooltip title={tooltip} arrow placement="right">
           <span style={{ display: 'inline-flex', cursor: 'help', textTransform: 'none' }}>
             <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4M12 8h.01" />
             </svg>
           </span>
         </BrandTooltip>
@@ -4218,7 +4343,10 @@ const PlaybookPage = ({
             Content pillars
             <BrandTooltip title="The core themes your brand posts about — e.g. 'Product Tips', 'Customer Stories', 'Industry News'. The AI rotates through these to keep your feed varied." arrow placement="right">
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
               </span>
             </BrandTooltip>
           </div>
@@ -4592,7 +4720,10 @@ const PlaybookPage = ({
             CTA styles
             <BrandTooltip title="The types of calls-to-action the AI should use — e.g. 'Shop Now', 'Learn More', 'Book a Call'. Keeps your posts action-oriented and consistent." arrow placement="right">
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
               </span>
             </BrandTooltip>
           </div>
@@ -4638,7 +4769,10 @@ const PlaybookPage = ({
             Posting cadence
             <BrandTooltip title="How often you want to post — the AI uses this to pace auto-generated drafts and suggest a realistic schedule" arrow placement="right">
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
               </span>
             </BrandTooltip>
           </div>
@@ -4666,7 +4800,10 @@ const PlaybookPage = ({
             Approval workflow
             <BrandTooltip title="Controls who reviews drafts before they publish — 'Auto-approve' publishes immediately, 'Manual review' sends drafts to your Drafts tab first" arrow placement="right">
               <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
               </span>
             </BrandTooltip>
           </div>
@@ -4985,16 +5122,61 @@ const STATUS_MSGS = [
 ];
 
 const NAV = [
-  { id: 'workspace', icon: 'home', label: 'Workspace', tooltip: 'Your AI command centre — chat with URI Agent and see today\'s briefing' },
+  {
+    id: 'workspace',
+    icon: 'home',
+    label: 'Workspace',
+    tooltip: "Your AI command centre — chat with URI Agent and see today's briefing",
+  },
   // { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
-  { id: 'schedule', icon: 'calendar', label: 'Create Content', tooltip: 'Generate, review, and schedule social media posts across all your platforms' },
-  { id: 'connections', icon: 'share', label: 'Connected Accounts', tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly' },
-  { id: 'performance', icon: 'chart', label: 'Performance', tooltip: 'Track engagement, reach, and post performance across all connected platforms' },
-  { id: 'intel', icon: 'globe', label: 'Market Intel', tooltip: 'Discover trending topics and keywords relevant to your industry' },
-  { id: 'playbook', icon: 'book', label: 'Brand Playbook', tooltip: 'Set your brand voice, visual style, and content guidelines for the AI' },
-  { id: 'notifications', icon: 'bell', label: 'Notifications', tooltip: 'View recent activity, scheduled post updates, and system alerts' },
-  { id: 'settings', icon: 'settings', label: 'Settings', tooltip: 'Manage your profile, preferences, and account integrations' },
-  { id: 'billing', icon: 'trending', label: 'Billing', tooltip: 'View your plan, content credits, and billing history' },
+  {
+    id: 'schedule',
+    icon: 'calendar',
+    label: 'Create Content',
+    tooltip: 'Generate, review, and schedule social media posts across all your platforms',
+  },
+  {
+    id: 'connections',
+    icon: 'share',
+    label: 'Connected Accounts',
+    tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly',
+  },
+  {
+    id: 'performance',
+    icon: 'chart',
+    label: 'Performance',
+    tooltip: 'Track engagement, reach, and post performance across all connected platforms',
+  },
+  {
+    id: 'intel',
+    icon: 'globe',
+    label: 'Market Intel',
+    tooltip: 'Discover trending topics and keywords relevant to your industry',
+  },
+  {
+    id: 'playbook',
+    icon: 'book',
+    label: 'Brand Playbook',
+    tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
+  },
+  {
+    id: 'notifications',
+    icon: 'bell',
+    label: 'Notifications',
+    tooltip: 'View recent activity, scheduled post updates, and system alerts',
+  },
+  {
+    id: 'settings',
+    icon: 'settings',
+    label: 'Settings',
+    tooltip: 'Manage your profile, preferences, and account integrations',
+  },
+  {
+    id: 'billing',
+    icon: 'trending',
+    label: 'Billing',
+    tooltip: 'View your plan, content credits, and billing history',
+  },
 ];
 
 const MOBILE_TABS = [
