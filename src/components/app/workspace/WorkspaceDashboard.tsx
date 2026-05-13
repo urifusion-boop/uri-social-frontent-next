@@ -559,7 +559,6 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     { key: 'scheduled', label: 'Scheduled', count: scheduled.length },
     { key: 'calendar', label: 'Calendar' },
     { key: 'auto', label: 'Auto' },
-    { key: 'video', label: 'Video' },
   ];
 
   return (
