@@ -32,7 +32,17 @@ import {
 } from '@mui/material';
 import { useEffect, useRef, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
-import { MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import {
+  MdChevronLeft,
+  MdChevronRight,
+  MdEdit,
+  MdPalette,
+  MdImage,
+  MdAdd,
+  MdRemove,
+  MdMoreHoriz,
+  MdAutorenew,
+} from 'react-icons/md';
 import DraftEditor from './DraftEditor';
 
 interface DraftCardProps {
@@ -1071,15 +1081,16 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         <Box
           sx={{
             mt: 1.5,
-            p: 2,
-            background: 'linear-gradient(135deg, #FDF2F8 0%, #FAF5FF 100%)',
-            borderRadius: '12px',
+            p: 2.5,
+            background: 'linear-gradient(135deg, #FFFFFF 0%, #FEFCFF 100%)',
+            borderRadius: '16px',
             border: '1px solid #F3E8FF',
+            boxShadow: '0 1px 3px rgba(124, 58, 237, 0.05)',
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#7C3AED', letterSpacing: '0.5px' }}>
-              ✨ Edit Image {draft.image_version && draft.image_version > 1 ? `(v${draft.image_version})` : ''}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#7C3AED', letterSpacing: '0.3px' }}>
+              Edit Image {draft.image_version && draft.image_version > 1 ? `(v${draft.image_version})` : ''}
             </Typography>
             {draft.image_version && draft.image_version > 1 && (
               <Button
@@ -1102,11 +1113,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             )}
           </Box>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1.5 }}>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdEdit size={16} />}
               onClick={() => {
                 // Extract first sentence or key phrases from caption to help user
                 const caption = draft.content || '';
@@ -1120,34 +1132,36 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '8px',
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
-                background: '#FFFFFF',
-                transition: 'all 0.2s ease',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
-                  borderColor: '#CD1B78',
-                  background: '#FDF2F8',
-                  color: '#CD1B78',
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
                 },
                 '&:disabled': {
-                  borderColor: '#E5E7EB',
-                  color: '#9CA3AF',
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
                 },
               }}
             >
-              📝 Text
+              Text
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdPalette size={16} />}
               onClick={() => {
                 setEditFeedback('Change colours');
                 setEditForceCategory('style_edit');
@@ -1155,34 +1169,36 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '8px',
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
-                background: '#FFFFFF',
-                transition: 'all 0.2s ease',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
-                  borderColor: '#CD1B78',
-                  background: '#FDF2F8',
-                  color: '#CD1B78',
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
                 },
                 '&:disabled': {
-                  borderColor: '#E5E7EB',
-                  color: '#9CA3AF',
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
                 },
               }}
             >
-              🎨 Colours
+              Colours
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdImage size={16} />}
               onClick={() => {
                 setEditFeedback('Change background');
                 setEditForceCategory('style_edit');
@@ -1190,34 +1206,36 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '8px',
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
-                background: '#FFFFFF',
-                transition: 'all 0.2s ease',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
-                  borderColor: '#CD1B78',
-                  background: '#FDF2F8',
-                  color: '#CD1B78',
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
                 },
                 '&:disabled': {
-                  borderColor: '#E5E7EB',
-                  color: '#9CA3AF',
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
                 },
               }}
             >
-              🖼 Background
+              Background
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdAdd size={16} />}
               onClick={() => {
                 setEditFeedback('Add element');
                 setEditForceCategory('content_edit');
@@ -1225,34 +1243,36 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '8px',
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
-                background: '#FFFFFF',
-                transition: 'all 0.2s ease',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
-                  borderColor: '#CD1B78',
-                  background: '#FDF2F8',
-                  color: '#CD1B78',
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
                 },
                 '&:disabled': {
-                  borderColor: '#E5E7EB',
-                  color: '#9CA3AF',
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
                 },
               }}
             >
-              ➕ Add
+              Add
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdRemove size={16} />}
               onClick={() => {
                 setEditFeedback('Remove element');
                 setEditForceCategory('content_edit');
@@ -1260,34 +1280,36 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '8px',
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
-                background: '#FFFFFF',
-                transition: 'all 0.2s ease',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
-                  borderColor: '#CD1B78',
-                  background: '#FDF2F8',
-                  color: '#CD1B78',
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
                 },
                 '&:disabled': {
-                  borderColor: '#E5E7EB',
-                  color: '#9CA3AF',
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
                 },
               }}
             >
-              ➖ Remove
+              Remove
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdMoreHoriz size={16} />}
               onClick={() => {
                 setEditFeedback('');
                 setEditForceCategory(undefined);
@@ -1295,34 +1317,36 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '8px',
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
-                background: '#FFFFFF',
-                transition: 'all 0.2s ease',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
-                  borderColor: '#CD1B78',
-                  background: '#FDF2F8',
-                  color: '#CD1B78',
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
                 },
                 '&:disabled': {
-                  borderColor: '#E5E7EB',
-                  color: '#9CA3AF',
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
                 },
               }}
             >
-              ⌨ Other
+              Other
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdAutorenew size={16} />}
               onClick={() => {
                 setEditFeedback('Start over completely');
                 setEditForceCategory('full_redesign');
@@ -1330,29 +1354,30 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '8px',
-                borderColor: '#FECACA',
-                color: '#EF4444',
-                background: '#FFFFFF',
-                transition: 'all 0.2s ease',
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
+                borderColor: '#FCE7F3',
+                color: '#CD1B78',
+                background: '#FEF7FB',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
-                  borderColor: '#EF4444',
-                  background: '#FEF2F2',
-                  color: '#DC2626',
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 2px 8px rgba(239, 68, 68, 0.15)',
+                  borderColor: '#EC4899',
+                  background: 'linear-gradient(135deg, #FDF2F8 0%, #FEF7FB 100%)',
+                  color: '#BE185D',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(205, 27, 120, 0.20)',
                 },
                 '&:disabled': {
-                  borderColor: '#E5E7EB',
-                  color: '#9CA3AF',
+                  borderColor: '#FCE7F3',
+                  color: '#F9A8D4',
+                  background: '#FEF7FB',
                 },
               }}
             >
-              🔄 Redesign
+              Redesign
             </Button>
           </Box>
         </Box>
