@@ -1068,10 +1068,18 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
       {/* Image Edit Panel */}
       {!editing && draft.image_url && (
-        <Box sx={{ mt: 1.5, p: 1.5, background: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>
-              Edit Image {draft.image_version && draft.image_version > 1 ? `(v${draft.image_version})` : ''}
+        <Box
+          sx={{
+            mt: 1.5,
+            p: 2,
+            background: 'linear-gradient(135deg, #FDF2F8 0%, #FAF5FF 100%)',
+            borderRadius: '12px',
+            border: '1px solid #F3E8FF',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#7C3AED', letterSpacing: '0.5px' }}>
+              ✨ Edit Image {draft.image_version && draft.image_version > 1 ? `(v${draft.image_version})` : ''}
             </Typography>
             {draft.image_version && draft.image_version > 1 && (
               <Button
@@ -1079,14 +1087,22 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 variant="text"
                 disabled={editLoading}
                 onClick={handleUndoImage}
-                sx={{ textTransform: 'none', fontSize: 10, minWidth: 'auto', p: '2px 8px' }}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  minWidth: 'auto',
+                  p: '4px 12px',
+                  color: '#CD1B78',
+                  '&:hover': { background: '#FDF2F8' },
+                }}
               >
                 ↩ Undo
               </Button>
             )}
           </Box>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0.75 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
             <Button
               size="small"
               variant="outlined"
@@ -1102,7 +1118,29 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 setEditForceCategory('text_edit');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 11,
+                fontWeight: 600,
+                py: 1,
+                px: 1.5,
+                borderRadius: '8px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FFFFFF',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  borderColor: '#CD1B78',
+                  background: '#FDF2F8',
+                  color: '#CD1B78',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#E5E7EB',
+                  color: '#9CA3AF',
+                },
+              }}
             >
               📝 Text
             </Button>
@@ -1115,7 +1153,29 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 setEditForceCategory('style_edit');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 11,
+                fontWeight: 600,
+                py: 1,
+                px: 1.5,
+                borderRadius: '8px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FFFFFF',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  borderColor: '#CD1B78',
+                  background: '#FDF2F8',
+                  color: '#CD1B78',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#E5E7EB',
+                  color: '#9CA3AF',
+                },
+              }}
             >
               🎨 Colours
             </Button>
@@ -1128,7 +1188,29 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 setEditForceCategory('style_edit');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 11,
+                fontWeight: 600,
+                py: 1,
+                px: 1.5,
+                borderRadius: '8px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FFFFFF',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  borderColor: '#CD1B78',
+                  background: '#FDF2F8',
+                  color: '#CD1B78',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#E5E7EB',
+                  color: '#9CA3AF',
+                },
+              }}
             >
               🖼 Background
             </Button>
@@ -1141,7 +1223,29 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 setEditForceCategory('content_edit');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 11,
+                fontWeight: 600,
+                py: 1,
+                px: 1.5,
+                borderRadius: '8px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FFFFFF',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  borderColor: '#CD1B78',
+                  background: '#FDF2F8',
+                  color: '#CD1B78',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#E5E7EB',
+                  color: '#9CA3AF',
+                },
+              }}
             >
               ➕ Add
             </Button>
@@ -1154,7 +1258,29 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 setEditForceCategory('content_edit');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 11,
+                fontWeight: 600,
+                py: 1,
+                px: 1.5,
+                borderRadius: '8px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FFFFFF',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  borderColor: '#CD1B78',
+                  background: '#FDF2F8',
+                  color: '#CD1B78',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#E5E7EB',
+                  color: '#9CA3AF',
+                },
+              }}
             >
               ➖ Remove
             </Button>
@@ -1167,21 +1293,64 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 setEditForceCategory(undefined);
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 11,
+                fontWeight: 600,
+                py: 1,
+                px: 1.5,
+                borderRadius: '8px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FFFFFF',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  borderColor: '#CD1B78',
+                  background: '#FDF2F8',
+                  color: '#CD1B78',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 2px 8px rgba(205, 27, 120, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#E5E7EB',
+                  color: '#9CA3AF',
+                },
+              }}
             >
               ⌨ Other
             </Button>
             <Button
               size="small"
               variant="outlined"
-              color="error"
               disabled={editLoading}
               onClick={() => {
                 setEditFeedback('Start over completely');
                 setEditForceCategory('full_redesign');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 11,
+                fontWeight: 600,
+                py: 1,
+                px: 1.5,
+                borderRadius: '8px',
+                borderColor: '#FECACA',
+                color: '#EF4444',
+                background: '#FFFFFF',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  borderColor: '#EF4444',
+                  background: '#FEF2F2',
+                  color: '#DC2626',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 2px 8px rgba(239, 68, 68, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#E5E7EB',
+                  color: '#9CA3AF',
+                },
+              }}
             >
               🔄 Redesign
             </Button>
@@ -1192,7 +1361,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       {/* Action row */}
       {!editing && (
         <Box display="flex" gap={1} flexWrap="wrap" mt={1}>
-          <Tooltip title="Edit the caption and hashtags before publishing" arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+          <Tooltip
+            title="Edit the caption and hashtags before publishing"
+            arrow
+            enterTouchDelay={0}
+            leaveTouchDelay={3000}
+          >
             <Button
               size="small"
               variant="outlined"
@@ -1202,7 +1376,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               Edit
             </Button>
           </Tooltip>
-          <Tooltip title="Approve this post — publish immediately, schedule for later, or save as draft" arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+          <Tooltip
+            title="Approve this post — publish immediately, schedule for later, or save as draft"
+            arrow
+            enterTouchDelay={0}
+            leaveTouchDelay={3000}
+          >
             <span>
               <Button
                 size="small"
@@ -1220,7 +1399,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               </Button>
             </span>
           </Tooltip>
-          <Tooltip title="Reject this draft — optionally request a regeneration with feedback" arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+          <Tooltip
+            title="Reject this draft — optionally request a regeneration with feedback"
+            arrow
+            enterTouchDelay={0}
+            leaveTouchDelay={3000}
+          >
             <span>
               <Button
                 size="small"
