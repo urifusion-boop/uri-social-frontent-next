@@ -1129,19 +1129,17 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                     if (response.status && response.responseData?.text) {
                       const extractedText = response.responseData.text;
                       if (extractedText !== 'No text found') {
-                        setEditFeedback(
-                          `Current text on image:\n"${extractedText}"\n\nWhat would you like to change it to?`
-                        );
+                        setEditFeedback(extractedText);
                       } else {
-                        setEditFeedback('No text found on the image. What text would you like to add?');
+                        setEditFeedback('');
                       }
                     } else {
-                      setEditFeedback('What text would you like to change? (e.g., "Change the price to ₦5,000")');
+                      setEditFeedback('');
                     }
                   }
                 } catch (error) {
                   console.error('Failed to extract image text:', error);
-                  setEditFeedback('What text would you like to change? (e.g., "Change the price to ₦5,000")');
+                  setEditFeedback('');
                 } finally {
                   setEditLoading(false);
                 }
