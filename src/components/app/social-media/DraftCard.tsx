@@ -1092,7 +1092,13 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               variant="outlined"
               disabled={editLoading}
               onClick={() => {
-                setEditFeedback('Change text');
+                // Extract first sentence or key phrases from caption to help user
+                const caption = draft.content || '';
+                const firstSentence = caption.split(/[.!?]/)[0].trim();
+                const helpText = firstSentence
+                  ? `The image shows: "${firstSentence.substring(0, 80)}${firstSentence.length > 80 ? '...' : ''}"\n\nWhat text would you like to change?`
+                  : 'What text would you like to change? (e.g., "Change the price to ₦5,000" or "Fix the typo in the headline")';
+                setEditFeedback(helpText);
                 setEditForceCategory('text_edit');
                 setEditImageOpen(true);
               }}
