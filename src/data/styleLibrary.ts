@@ -376,7 +376,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Before/after results. Stats-driven. Proof over aesthetics.',
     industryTags: ['fitness_gym', 'beauty_wellness'],
     gradient: ['#e0e0e0', '#2d2d2d'],
-    image: U('1571019614242-c5c5dee9f50b'),
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fitness/transformation.jpg',
     promptFragment:
       "Results-focused fitness transformation layout. Split panel showing clear physical change. Same pose, same angle, different body composition. Stats prominently displayed: weight lost, weeks taken, percentage improvement. Clean divider line with 'Week 1' / 'Week 12' labels. Neutral background keeping focus on the subject. Credibility and proof are the design goal.",
   },
@@ -386,7 +386,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'One powerful phrase. Dark background. Athletic silhouette.',
     industryTags: ['fitness_gym', 'education_consulting', 'general_other'],
     gradient: ['#1a1a1a', '#cd1b78'],
-    image: U('1526506118085-60ce8714f8c5'),
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fitness/motivational_type.png',
     promptFragment:
       'Large motivational quote or phrase as the visual centrepiece. Dark gradient or textured background (concrete, smoke, dark gradient). Single powerful phrase in massive bold uppercase condensed sans-serif typography. Athletic silhouette or action shot used as very low opacity background texture. Minimal colour: monochrome with one strong accent. TED-talk-slide meets gym locker-room poster.',
   },
@@ -396,7 +396,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Nike/Adidas-inspired. Premium sportswear feel. Minimal.',
     industryTags: ['fitness_gym', 'fashion_ecommerce'],
     gradient: ['#f8f8f8', '#222222'],
-    image: U('1542291026-7eec264c27ff'),
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fitness/clean_athletic.jpg',
     promptFragment:
       'Premium sportswear aesthetic inspired by Nike and Adidas campaigns. Clean white or light grey background with athlete or product as the sole focus. Perfect studio lighting revealing fabric texture and product quality. Minimal typography: one word or tagline in bold sans-serif. No decorative elements. The product and athlete speak for themselves. Aspirational and premium.',
   },
@@ -408,7 +408,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Wide-angle bright interiors. Blue sky, green lawn. HDR clarity.',
     industryTags: ['real_estate'],
     gradient: ['#1a6fa8', '#90c8f0'],
-    image: U('1564013799919-ab600027ffc6'),
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/real-estate/property_showcase.jpg',
     promptFragment:
       'Professional real estate photography. Wide-angle interior or exterior shot with HDR-style clarity and brightness. Deep blue sky, well-manicured lawn, clean architectural lines. Interior shots show warm inviting lighting with natural light flooding through windows. Clean info bar at the bottom: bedroom count, bathrooms, price, and neighbourhood. Sans-serif typography in dark overlay bar. The property looks its absolute best.',
   },
@@ -418,7 +419,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Twilight exteriors. Gold serif type. Exclusivity.',
     industryTags: ['real_estate'],
     gradient: ['#1a1000', '#c8960c'],
-    image: U('1512917774080-9991f1c4c750'),
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/real-estate/luxury_listing.jpg',
     promptFragment:
       "Luxury property listing aesthetic. Twilight exterior photography: warm interior lights glowing against deep blue dusk sky. Gold or champagne serif typography for property name and key details. Dark overlay at bottom for text readability. Premium finishes highlighted in close-up detail shots. Exclusivity, aspiration, and discretion in every element. Sotheby's-level presentation.",
   },
@@ -428,7 +429,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Community and lifestyle. Sell the area, not just the property.',
     industryTags: ['real_estate'],
     gradient: ['#3d6b4f', '#90c8a0'],
-    image: U('1598928506311-c55ded91a20c'),
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/real-estate/neighbourhood_life.jpg',
     promptFragment:
       'Community lifestyle photography emphasising neighbourhood quality of life. Families walking, children playing, cafés and parks, tree-lined streets. Warm natural golden-hour lighting. Candid, authentic, unposed moments. Sans-serif caption text in clean overlay. The message is: this is where you want to live. Human connection and community belonging as the primary visual story.',
   },
@@ -438,7 +440,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Architectural line drawings. Technical precision. Modern.',
     industryTags: ['real_estate'],
     gradient: ['#0d2040', '#1a4080'],
-    image: U('1503387762-592deb58ef4e'),
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/real-estate/blueprint_modern.jpg',
     promptFragment:
       'Architectural blueprint aesthetic. Deep navy or dark slate background with white technical line drawings. Floor plan outlines, elevation sketches, and site layouts as decorative graphic elements. Clean technical sans-serif typography with precise grid-based layout. Property dimensions or room labels incorporated as design elements. Modern, precise, and developer-grade professional presentation.',
   },
@@ -448,7 +451,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Drone-style overhead photography. Wide context. Clean info overlay.',
     industryTags: ['real_estate'],
     gradient: ['#1a6fa8', '#4ab8e0'],
-    image: U('1477959858617-67f85cf4f1df'),
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/real-estate/aerial_clean.jpg',
     promptFragment:
       'Drone-style aerial or high-angle photography of property and surroundings. Wide contextual view showing the property within its neighbourhood, proximity to landmarks, roads, and green spaces. Clear blue sky, sharp shadow detail from above. Clean white semi-transparent overlay at bottom with property details in dark sans-serif. Conveys location value and neighbourhood context clearly.',
   },
