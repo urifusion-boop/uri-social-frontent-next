@@ -582,6 +582,13 @@ export class SocialMediaAgentService {
     );
     return response.data;
   }
+
+  static async extractImageText(imageUrl: string): Promise<UriResponse<ImageTextResponse>> {
+    const response: Awaited<AxiosResponse<UriResponse<ImageTextResponse>>> = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.extractImageText}?image_url=${encodeURIComponent(imageUrl)}`
+    );
+    return response.data;
+  }
 }
 
 export interface PerformancePost {
@@ -728,4 +735,9 @@ export interface AccountMetricItem {
 export interface AccountMetricsData {
   has_data: boolean;
   accounts: AccountMetricItem[];
+}
+
+export interface ImageTextResponse {
+  text: string;
+  image_url: string;
 }

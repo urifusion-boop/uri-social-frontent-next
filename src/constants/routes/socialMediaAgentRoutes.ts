@@ -32,7 +32,8 @@ type ISocialMediaAgentApi =
   | 'generateStoryboardFrames'
   | 'storyboardFrameJob'
   | 'publishVideoDraft'
-  | 'videoPublishJob';
+  | 'videoPublishJob'
+  | 'extractImageText';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -64,6 +65,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   storyboardFrameJob: '/storyboard-frame-job',
   publishVideoDraft: '/publish-video-draft',
   videoPublishJob: '/video-publish-job',
+  extractImageText: '/extract-image-text',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

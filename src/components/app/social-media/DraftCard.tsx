@@ -1119,14 +1119,32 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               variant="outlined"
               disabled={editLoading}
               startIcon={<MdEdit size={16} />}
-              onClick={() => {
-                // Extract first sentence or key phrases from caption to help user
-                const caption = draft.content || '';
-                const firstSentence = caption.split(/[.!?]/)[0].trim();
-                const helpText = firstSentence
-                  ? `The image shows: "${firstSentence.substring(0, 80)}${firstSentence.length > 80 ? '...' : ''}"\n\nWhat text would you like to change?`
-                  : 'What text would you like to change? (e.g., "Change the price to ₦5,000" or "Fix the typo in the headline")';
-                setEditFeedback(helpText);
+              onClick={async () => {
+                // Extract actual text from the image using Vision API
+                setEditLoading(true);
+                try {
+                  const imageUrl = draft.image_url;
+                  if (imageUrl) {
+                    const response = await SocialMediaAgentService.extractImageText(imageUrl);
+                    if (response.status && response.responseData?.text) {
+                      const extractedText = response.responseData.text;
+                      if (extractedText !== 'No text found') {
+                        setEditFeedback(
+                          `Current text on image:\n"${extractedText}"\n\nWhat would you like to change it to?`
+                        );
+                      } else {
+                        setEditFeedback('No text found on the image. What text would you like to add?');
+                      }
+                    } else {
+                      setEditFeedback('What text would you like to change? (e.g., "Change the price to ₦5,000")');
+                    }
+                  }
+                } catch (error) {
+                  console.error('Failed to extract image text:', error);
+                  setEditFeedback('What text would you like to change? (e.g., "Change the price to ₦5,000")');
+                } finally {
+                  setEditLoading(false);
+                }
                 setEditForceCategory('text_edit');
                 setEditImageOpen(true);
               }}
