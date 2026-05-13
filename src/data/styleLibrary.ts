@@ -284,7 +284,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Warm golden lighting, dewy skin, aspirational beauty close-ups.',
     industryTags: ['beauty_wellness'],
     gradient: ['#f5c98a', '#e8854b'],
-    image: U('1526045612212-70caf35c14df'),
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/beauty/glow_up.jpg',
     promptFragment:
       'Soft glowing beauty photography. Close-up portrait with warm golden-hour backlighting creating a luminous halo effect. Skin appears naturally dewy and radiant with smooth, even texture. Soft bokeh background in warm amber or blush tones. Thin serif or script typography in gold or champagne. Aspirational but achievable beauty ideal. Beauty editorial quality without heavy retouching.',
   },
@@ -294,7 +294,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Delicate pastels, airy gradients, gentle feminine energy.',
     industryTags: ['beauty_wellness', 'general_other'],
     gradient: ['#f8d7e8', '#d4a0c0'],
-    image: U('1556228852-6d35a585d566'),
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/beauty/soft_pastel.jpg',
     promptFragment:
       'Soft pastel colour palette: blush pink, lavender, mint, baby blue, and ivory. Gentle gradient backgrounds blending two pastel tones. Airy, light-filled composition with minimal shadows. Delicate serif or thin script typography. Floral or botanical accent elements at low opacity. Beauty brand lookbook quality. Feminine, soft, and approachable without being saccharine.',
   },
@@ -304,7 +304,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'High-glamour beauty, full makeup, confident and striking.',
     industryTags: ['beauty_wellness', 'fashion_ecommerce'],
     gradient: ['#3d0014', '#cc0044'],
-    image: U('1503951914875-452162b0f3f1'),
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/beauty/bold_glam.jpg',
     promptFragment:
       'High-glamour beauty photography. Bold full-coverage makeup with saturated lip colours and dramatic eye looks. Dramatic studio lighting with strong catchlights. Rich jewel-tone or deep neutral backgrounds. Confident, direct gaze at camera. Magazine cover quality. Typography in thick serif or metallic sans-serif. Striking, powerful, unapologetically glamorous.',
   },
@@ -314,7 +314,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Medical-aesthetic trust. Ingredient-forward, science-backed.',
     industryTags: ['beauty_wellness'],
     gradient: ['#f8fafc', '#b0c4de'],
-    image: U('1620916297397-a4a5402a3c6c'),
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/beauty/clean_clinical.jpg',
     promptFragment:
       'Medical-aesthetic clinic style. Pure white and light grey colour palette with one soft accent colour. Clean laboratory-quality lighting with no harsh shadows. Product displayed with clinical precision alongside key ingredient visuals (molecular diagrams, botanical extracts, droplets). Thin clean sans-serif typography. Trust, expertise, and ingredient transparency are the message.',
   },
