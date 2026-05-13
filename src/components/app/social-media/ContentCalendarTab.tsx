@@ -523,17 +523,14 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
   };
 
   const handleGenerate = async (force = false) => {
-    // When force-regenerating, always use the current plan's platforms so we
-    // don't accidentally regenerate for the wrong set of platforms.
-    const activePlatforms = force && plan?.platforms?.length ? plan.platforms : platforms;
-    if (activePlatforms.length === 0) {
+    if (platforms.length === 0) {
       ToastService.showToast('Select at least one platform', ToastTypeEnum.Error);
       return;
     }
     setGenerating(true);
     setSelectedDay(null); // clear any open modal so it re-renders with fresh data
     try {
-      const res = await SocialMediaAgentService.generateCalendarPlan(activePlatforms, force);
+      const res = await SocialMediaAgentService.generateCalendarPlan(platforms, force);
       if (res.status && res.responseData) {
         setPlan(res.responseData);
         ToastService.showToast("This week's plan is ready", ToastTypeEnum.Success);
@@ -716,8 +713,38 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
               </span>
             )}
           </div>
-          <div style={{ fontSize: 11.5, color: '#bbb' }}>
-            {plan.brand_snapshot?.brand_name ?? 'Your brand'} · {plan.platforms.join(', ')}
+          <div style={{ fontSize: 11.5, color: '#bbb', marginBottom: 6 }}>
+            {plan.brand_snapshot?.brand_name ?? 'Your brand'}
+          </div>
+          {/* Inline platform selector — changes take effect on next regenerate */}
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {CONNECTED_PLATFORMS.map((p) => {
+              const active = platforms.includes(p);
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => togglePlatform(p)}
+                  style={{
+                    padding: '2px 9px',
+                    borderRadius: 20,
+                    border: `1.5px solid ${active ? (PLATFORM_COLORS[p] ?? '#C2185B') : '#e5e3df'}`,
+                    background: active ? (PLATFORM_COLORS[p] ?? '#C2185B') + '18' : 'transparent',
+                    color: active ? (PLATFORM_COLORS[p] ?? '#C2185B') : '#bbb',
+                    fontSize: 10.5,
+                    fontWeight: active ? 700 : 500,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--wf)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    transition: 'all .15s',
+                  }}
+                >
+                  {PLATFORM_ICONS[p] ?? '🌐'} {p.charAt(0).toUpperCase() + p.slice(1)}
+                </button>
+              );
+            })}
           </div>
         </div>
         <button
