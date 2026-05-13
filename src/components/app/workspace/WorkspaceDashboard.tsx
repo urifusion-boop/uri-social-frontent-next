@@ -306,10 +306,9 @@ const TOUR_STEPS: TourStepDef[] = [
     radius: 8,
   },
   {
-    target: 'tour-chat-input',
-    title: "You're All Set — Start Here",
-    body: 'Type a topic, campaign idea, or product name. URI Agent will draft content for all your platforms instantly.',
-    radius: 13,
+    target: 'tnav-schedule',
+    title: "Let's Create Your First Post",
+    body: "Head to Create Content to generate AI-drafted posts for all your platforms in seconds.",
   },
 ];
 
@@ -469,7 +468,7 @@ function TourArrow({ dir, offset }: { dir: ArrowDir; offset: string }) {
   return <div style={styles[dir]} />;
 }
 
-function GuidedTour({ onDone }: { onDone: () => void }) {
+function GuidedTour({ onDone }: { onDone: (navigate?: boolean) => void }) {
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [visible, setVisible] = useState(false);
@@ -497,10 +496,7 @@ function GuidedTour({ onDone }: { onDone: () => void }) {
     };
   }, [step, current.target]);
 
-  const advance = () => {
-    if (step < total - 1) setStep((s) => s + 1);
-    else onDone();
-  };
+  const advance = () => { if (step < total - 1) setStep((s) => s + 1); else onDone(true); };
 
   if (!rect) return null;
 
@@ -528,7 +524,10 @@ function GuidedTour({ onDone }: { onDone: () => void }) {
         }}
       />
       {/* Clickable backdrop (behind spotlight) to allow skip on outside click */}
-      <div onClick={onDone} style={{ position: 'fixed', inset: 0, zIndex: 9996, cursor: 'default' }} />
+      <div
+        onClick={() => onDone()}
+        style={{ position: 'fixed', inset: 0, zIndex: 9996, cursor: 'default' }}
+      />
       {/* Card */}
       <div
         style={{
@@ -570,17 +569,8 @@ function GuidedTour({ onDone }: { onDone: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button
             type="button"
-            onClick={onDone}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'rgba(255,255,255,.65)',
-              fontSize: 12.5,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              padding: '6px 2px',
-            }}
+            onClick={() => onDone()}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.65)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '6px 2px' }}
           >
             Skip
           </button>
@@ -5341,9 +5331,10 @@ export default function WorkspaceDashboard() {
     }
   }, []);
 
-  const closeTour = useCallback(() => {
+  const closeTour = useCallback((navigate = false) => {
     setTourOpen(false);
     localStorage.setItem('uri_tour_v1', '1');
+    if (navigate) setNav('schedule');
   }, []);
 
   // Show trial expired modal on first visit after expiry
