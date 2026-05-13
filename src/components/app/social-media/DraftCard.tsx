@@ -1087,8 +1087,29 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             borderRadius: '16px',
             border: '1px solid #F3E8FF',
             boxShadow: '0 1px 3px rgba(124, 58, 237, 0.05)',
+            position: 'relative',
+            opacity: editLoading ? 0.6 : 1,
+            pointerEvents: editLoading ? 'none' : 'auto',
           }}
         >
+          {editLoading && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 1,
+                zIndex: 10,
+              }}
+            >
+              <CircularProgress size={32} sx={{ color: '#7C3AED' }} />
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#7C3AED' }}>Editing image...</Typography>
+            </Box>
+          )}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
             <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#7C3AED', letterSpacing: '0.3px' }}>
               Edit Image {draft.image_version && draft.image_version > 1 ? `(v${draft.image_version})` : ''}
