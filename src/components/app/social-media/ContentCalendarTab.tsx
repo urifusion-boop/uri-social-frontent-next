@@ -40,7 +40,7 @@ const TYPE_STYLE: Record<string, { bg: string; color: string; label: string }> =
 };
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const CONNECTED_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'x', 'twitter', 'tiktok', 'threads'];
+const CONNECTED_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'x', 'twitter'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
