@@ -18,6 +18,7 @@ import {
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -1120,8 +1121,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               disabled={editLoading}
               startIcon={<MdEdit size={16} />}
               onClick={async () => {
-                // Extract actual text from the image using Vision API
-                setEditLoading(true);
+                // Open dialog immediately with loading placeholder
+                setEditFeedback('Extracting text from image...');
+                setEditForceCategory('text_edit');
+                setEditImageOpen(true);
+
+                // Extract actual text from the image using Vision API in background
                 try {
                   const imageUrl = draft.image_url;
                   if (imageUrl) {
@@ -1140,11 +1145,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 } catch (error) {
                   console.error('Failed to extract image text:', error);
                   setEditFeedback('');
-                } finally {
-                  setEditLoading(false);
                 }
-                setEditForceCategory('text_edit');
-                setEditImageOpen(true);
               }}
               sx={{
                 textTransform: 'none',
@@ -1718,6 +1719,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             onChange={(e) => setEditFeedback(e.target.value)}
             autoFocus
             disabled={editLoading}
+            InputProps={{
+              startAdornment:
+                editFeedback === 'Extracting text from image...' ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null,
+            }}
           />
         </DialogContent>
         <DialogActions>
@@ -1726,13 +1731,14 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           </Button>
           <Button
             variant="contained"
-            disabled={!editFeedback.trim() || editLoading}
+            disabled={!editFeedback.trim() || editLoading || editFeedback === 'Extracting text from image...'}
             onClick={() => handleEditImage(editFeedback, editForceCategory)}
             sx={{
               textTransform: 'none',
               background: '#CD1B78',
               '&:hover': { background: '#A01560' },
             }}
+            startIcon={editLoading ? <CircularProgress size={16} color="inherit" /> : null}
           >
             {editLoading ? 'Editing...' : 'Edit Image'}
           </Button>
