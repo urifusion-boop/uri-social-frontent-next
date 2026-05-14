@@ -4,7 +4,7 @@ import { Box, Button, CircularProgress, Typography } from '@mui/material';
 import { useState, useRef } from 'react';
 import { FaUpload, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import { MdCloudUpload } from 'react-icons/md';
-import SocialMediaAgentService from '@/src/api/SocialMediaAgentService';
+import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 
 interface CustomFontAnalysis {
   font_category: string;
