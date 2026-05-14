@@ -604,6 +604,30 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         )}
       </Box>
 
+      {/* Publish failure banner */}
+      {draft.status === 'publish_failed' && (
+        <Box
+          sx={{
+            mx: 0,
+            mt: 1,
+            px: 2,
+            py: 1,
+            background: '#FEF2F2',
+            borderLeft: '3px solid #EF4444',
+            borderRadius: '0 6px 6px 0',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 1,
+          }}
+        >
+          <span style={{ fontSize: 14 }}>⚠️</span>
+          <span style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.4 }}>
+            <strong>Failed to publish.</strong>{' '}
+            {draft.error_message || 'An error occurred. Try approving and re-scheduling.'}
+          </span>
+        </Box>
+      )}
+
       {/* Content */}
       {!editing && (
         <Typography fontSize="14px" color="#374151" sx={{ whiteSpace: 'pre-wrap', mb: 1.5, lineHeight: 1.6 }}>

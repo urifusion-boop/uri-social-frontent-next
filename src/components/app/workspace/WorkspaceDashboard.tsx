@@ -820,7 +820,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
         const allDrafts = response.responseData.drafts ?? [];
-        const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'denied', 'replaced', 'publish_failed']);
+        const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'denied', 'replaced']);
         const filtered = allDrafts.filter((d: ContentDraft) => {
           const s = d.status;
           const a = d.approval_status;

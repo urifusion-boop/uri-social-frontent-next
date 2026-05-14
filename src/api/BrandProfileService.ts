@@ -62,6 +62,10 @@ export interface BrandProfileData {
   style_rotation_index?: number;
   font_style?: string;
   font_style_prompt?: string;
+  custom_font_enabled?: boolean;
+  custom_font_files?: { url: string; filename: string }[];
+  custom_font_analysis?: Record<string, unknown>;
+  custom_font_directive?: string;
   onboarding_completed?: boolean;
   created_at?: string;
   updated_at?: string;

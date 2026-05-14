@@ -195,6 +195,7 @@ export interface ContentDraft {
   post_type?: 'feed' | 'carousel' | 'story';
   slides?: CarouselSlide[];
   image_specs?: { width: number; height: number };
+  error_message?: string;
 }
 
 export interface ContentCalendarResponse {
