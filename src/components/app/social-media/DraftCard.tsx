@@ -302,6 +302,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const sc = statusColors[draft.status ?? 'draft'] ?? statusColors.draft;
 
   const handleApprove = async (option: ApprovePayload['schedule_option'], datetime?: string) => {
+    if (loading) return;
     setApproveAnchor(null);
 
     // Gate publish/schedule on account connection. Skip check if connections haven't loaded yet.
