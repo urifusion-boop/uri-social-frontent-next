@@ -769,47 +769,47 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     return !d.image_url;
   };
 
-  // Multi-select batch scheduling
-  const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
-  const [batchScheduleOpen, setBatchScheduleOpen] = useState(false);
-  const [batchScheduledAt, setBatchScheduledAt] = useState('');
-  const [batchScheduling, setBatchScheduling] = useState(false);
+  // Schedule All
+  const [scheduleAllOpen, setScheduleAllOpen] = useState(false);
+  const [scheduleAllAt, setScheduleAllAt] = useState('');
+  const [scheduleAllLoading, setScheduleAllLoading] = useState(false);
   const [syncImageOpen, setSyncImageOpen] = useState(false);
 
-  const toggleDraftSelection = (id: string) => {
-    setSelectedDraftIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const handleBatchSchedule = async () => {
-    if (!batchScheduledAt) return;
-    setBatchScheduling(true);
+  const handleScheduleAll = async () => {
+    if (!scheduleAllAt || scheduleAllLoading) return;
+    const allIds = drafts.map((d) => d.draft_id ?? d.id ?? '').filter(Boolean);
+    if (!allIds.length) return;
+    setScheduleAllLoading(true);
     try {
       const response = await SocialMediaAgentService.approveContent({
-        draft_ids: Array.from(selectedDraftIds),
+        draft_ids: allIds,
         schedule_option: 'schedule',
-        scheduled_datetime: new Date(batchScheduledAt).toISOString(),
+        scheduled_datetime: new Date(scheduleAllAt).toISOString(),
       });
       if (response.status) {
-        ToastService.showToast(
-          `${selectedDraftIds.size} post${selectedDraftIds.size > 1 ? 's' : ''} scheduled`,
-          ToastTypeEnum.Success
-        );
-        setSelectedDraftIds(new Set());
-        setBatchScheduleOpen(false);
-        setBatchScheduledAt('');
-        fetchDrafts();
+        const approved = response.responseData?.approved_drafts ?? [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const errors: Array<{ draft_id?: string; error?: string }> = (response.responseData?.errors ?? []) as any;
+        if (errors.length > 0 && approved.length === 0) {
+          ToastService.showToast(errors[0]?.error || 'Scheduling failed', ToastTypeEnum.Error);
+        } else {
+          const platformSet = new Set(drafts.map((d) => d.platform).filter(Boolean));
+          ToastService.showToast(
+            `Scheduled across ${platformSet.size} platform${platformSet.size !== 1 ? 's' : ''}`,
+            ToastTypeEnum.Success
+          );
+          setScheduleAllOpen(false);
+          setScheduleAllAt('');
+          fetchDrafts();
+          fetchScheduled();
+        }
       } else {
         ToastService.showToast(response.responseMessage || 'Scheduling failed', ToastTypeEnum.Error);
       }
     } catch {
       ToastService.showToast('Scheduling failed', ToastTypeEnum.Error);
     } finally {
-      setBatchScheduling(false);
+      setScheduleAllLoading(false);
     }
   };
 
@@ -912,7 +912,6 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     activeTabRef.current = activeTab;
     if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     pollAttemptsRef.current = 0;
-    setSelectedDraftIds(new Set());
     if (activeTab === 'drafts') fetchDrafts();
     if (activeTab === 'saved') fetchSaved();
     if (activeTab === 'scheduled') fetchScheduled();
@@ -1096,132 +1095,136 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
               <CMEmptyState message="No drafts yet. Generate content from the Create tab." />
             ) : (
               <>
-                {/* Batch action bar */}
-                {selectedDraftIds.size > 0 && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      background: '#fff',
-                      border: '1.5px solid #CD1B78',
-                      borderRadius: 10,
-                      padding: '10px 16px',
-                      marginBottom: 12,
-                    }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#CD1B78', flex: 1 }}>
-                      {selectedDraftIds.size} post{selectedDraftIds.size > 1 ? 's' : ''} selected
-                    </span>
-                    {(() => {
-                      const selectedWithImages = drafts.filter((d) => {
-                        const id = d.draft_id ?? d.id ?? '';
-                        return selectedDraftIds.has(id) && d.image_url;
-                      });
-                      return selectedWithImages.length >= 2 ? (
-                        <button
-                          onClick={() => setSyncImageOpen(true)}
-                          style={{
-                            background: '#fff',
-                            color: '#CD1B78',
-                            border: '1.5px solid #CD1B78',
-                            borderRadius: 8,
-                            padding: '6px 14px',
-                            fontSize: 13,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          🖼 Sync Image
-                        </button>
-                      ) : null;
-                    })()}
+                {/* Action bar — always visible when drafts exist */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 16,
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: '#6B7280', flex: 1 }}>
+                    {drafts.length} draft{drafts.length !== 1 ? 's' : ''}
+                  </span>
+                  {drafts.filter((d) => d.image_url).length >= 2 && (
                     <button
-                      onClick={() => setBatchScheduleOpen(true)}
+                      onClick={() => setSyncImageOpen(true)}
                       style={{
-                        background: '#CD1B78',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 8,
-                        padding: '6px 16px',
-                        fontSize: 13,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Schedule All
-                    </button>
-                    <button
-                      onClick={() => setSelectedDraftIds(new Set())}
-                      style={{
-                        background: 'none',
+                        background: '#fff',
+                        color: '#374151',
                         border: '1px solid #E5E7EB',
                         borderRadius: 8,
-                        padding: '6px 12px',
+                        padding: '7px 14px',
                         fontSize: 13,
                         fontWeight: 600,
-                        color: '#6B7280',
                         cursor: 'pointer',
                       }}
                     >
-                      Clear
+                      Sync Image
                     </button>
-                  </div>
-                )}
+                  )}
+                  <button
+                    onClick={() => setScheduleAllOpen(true)}
+                    style={{
+                      background: '#CD1B78',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '7px 16px',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Schedule All
+                  </button>
+                </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {drafts.map((draft) => {
-                    const draftId = draft.draft_id ?? draft.id ?? '';
-                    return (
-                      <DraftCard
-                        key={draftId}
-                        draft={draft}
-                        onRefresh={fetchDrafts}
-                        selectable
-                        selected={selectedDraftIds.has(draftId)}
-                        onSelectToggle={toggleDraftSelection}
-                      />
-                    );
-                  })}
+                  {drafts.map((draft) => (
+                    <DraftCard key={draft.draft_id ?? draft.id} draft={draft} onRefresh={fetchDrafts} />
+                  ))}
                 </div>
               </>
             )}
 
-            {/* Batch schedule dialog */}
-            {batchScheduleOpen && (
+            {/* Schedule All dialog */}
+            {scheduleAllOpen && (
               <div
                 style={{
                   position: 'fixed',
                   inset: 0,
-                  background: 'rgba(0,0,0,0.4)',
+                  background: 'rgba(0,0,0,0.45)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   zIndex: 1300,
                 }}
-                onClick={() => setBatchScheduleOpen(false)}
+                onClick={() => {
+                  if (!scheduleAllLoading) setScheduleAllOpen(false);
+                }}
               >
                 <div
                   style={{
                     background: '#fff',
                     borderRadius: 16,
                     padding: 28,
-                    width: 360,
-                    maxWidth: '90vw',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+                    width: 400,
+                    maxWidth: '92vw',
+                    boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <p style={{ fontSize: 17, fontWeight: 700, color: '#111', margin: '0 0 4px' }}>
-                    Schedule {selectedDraftIds.size} post{selectedDraftIds.size > 1 ? 's' : ''}
+                  <p style={{ fontSize: 18, fontWeight: 700, color: '#111', margin: '0 0 6px' }}>Schedule All Posts</p>
+                  <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 18px' }}>
+                    Choose a time — one post per platform will be queued. Older drafts for the same platform are
+                    automatically replaced.
                   </p>
-                  <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 20px' }}>
-                    All selected posts will be scheduled for the same time.
-                  </p>
+
+                  {/* Platform breakdown */}
+                  {(() => {
+                    const byPlatform: Record<string, number> = {};
+                    drafts.forEach((d) => {
+                      const p = d.platform ?? 'unknown';
+                      byPlatform[p] = (byPlatform[p] ?? 0) + 1;
+                    });
+                    const platformColors: Record<string, string> = {
+                      instagram: '#E1306C',
+                      facebook: '#1877F2',
+                      twitter: '#1DA1F2',
+                      linkedin: '#0A66C2',
+                    };
+                    return (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                        {Object.entries(byPlatform).map(([platform, count]) => (
+                          <span
+                            key={platform}
+                            style={{
+                              background: '#F9FAFB',
+                              border: '1px solid #E5E7EB',
+                              borderRadius: 20,
+                              padding: '4px 12px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: platformColors[platform] ?? '#374151',
+                            }}
+                          >
+                            {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                            {count > 1 ? ` · ${count} drafts` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+                    Publish at
+                  </label>
                   <input
                     type="datetime-local"
-                    value={batchScheduledAt}
-                    onChange={(e) => setBatchScheduledAt(e.target.value)}
+                    value={scheduleAllAt}
+                    onChange={(e) => setScheduleAllAt(e.target.value)}
                     min={(() => {
                       const d = new Date(Date.now() + 5 * 60 * 1000);
                       const pad = (n: number) => String(n).padStart(2, '0');
@@ -1233,41 +1236,43 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                       borderRadius: 8,
                       border: '1.5px solid #E5E7EB',
                       fontSize: 14,
-                      marginBottom: 20,
+                      marginBottom: 22,
                       boxSizing: 'border-box',
                     }}
                   />
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                     <button
-                      onClick={() => setBatchScheduleOpen(false)}
+                      onClick={() => setScheduleAllOpen(false)}
+                      disabled={scheduleAllLoading}
                       style={{
-                        padding: '8px 18px',
+                        padding: '9px 20px',
                         borderRadius: 8,
                         border: '1.5px solid #E5E7EB',
                         background: '#fff',
                         fontSize: 13,
                         fontWeight: 600,
                         color: '#374151',
-                        cursor: 'pointer',
+                        cursor: scheduleAllLoading ? 'not-allowed' : 'pointer',
+                        opacity: scheduleAllLoading ? 0.5 : 1,
                       }}
                     >
                       Cancel
                     </button>
                     <button
-                      onClick={handleBatchSchedule}
-                      disabled={!batchScheduledAt || batchScheduling}
+                      onClick={handleScheduleAll}
+                      disabled={!scheduleAllAt || scheduleAllLoading}
                       style={{
-                        padding: '8px 18px',
+                        padding: '9px 20px',
                         borderRadius: 8,
                         border: 'none',
-                        background: !batchScheduledAt || batchScheduling ? '#E5E7EB' : '#CD1B78',
-                        color: !batchScheduledAt || batchScheduling ? '#9CA3AF' : '#fff',
+                        background: !scheduleAllAt || scheduleAllLoading ? '#E5E7EB' : '#CD1B78',
+                        color: !scheduleAllAt || scheduleAllLoading ? '#9CA3AF' : '#fff',
                         fontSize: 13,
                         fontWeight: 700,
-                        cursor: !batchScheduledAt || batchScheduling ? 'not-allowed' : 'pointer',
+                        cursor: !scheduleAllAt || scheduleAllLoading ? 'not-allowed' : 'pointer',
                       }}
                     >
-                      {batchScheduling ? 'Scheduling...' : 'Confirm Schedule'}
+                      {scheduleAllLoading ? 'Scheduling…' : 'Confirm Schedule'}
                     </button>
                   </div>
                 </div>
@@ -1277,11 +1282,9 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
             {syncImageOpen && (
               <SyncImageDialog
                 drafts={drafts}
-                selectedIds={selectedDraftIds}
+                selectedIds={new Set(drafts.filter((d) => d.image_url).map((d) => d.draft_id ?? d.id ?? ''))}
                 onClose={() => setSyncImageOpen(false)}
                 onDone={(sourceId, targetIds) => {
-                  // Optimistically copy the source image_url to target drafts in local state
-                  // so cards update instantly from browser cache without waiting for fetchDrafts().
                   const sourceDraft = drafts.find((d) => (d.draft_id ?? d.id) === sourceId);
                   if (sourceDraft?.image_url) {
                     const url = sourceDraft.image_url;
@@ -1292,7 +1295,6 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                     );
                   }
                   setSyncImageOpen(false);
-                  setSelectedDraftIds(new Set());
                   fetchDrafts(true);
                 }}
               />
