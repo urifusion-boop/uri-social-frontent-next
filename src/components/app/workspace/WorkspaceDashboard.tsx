@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { BrandProfileData, BrandProfileService } from '@/src/api/BrandProfileService';
+import { BrandProfileData, BrandProfileService, CustomFontAnalysis } from '@/src/api/BrandProfileService';
 import {
   AccountMetricItem,
   AccountMetricsData,
@@ -3707,7 +3707,7 @@ const PlaybookPage = ({
   const [fontStyle, setFontStyle] = useState<string>('');
   const [customFontEnabled, setCustomFontEnabled] = useState(false);
   const [customFontFiles, setCustomFontFiles] = useState<{ url: string; filename: string }[]>([]);
-  const [customFontAnalysis, setCustomFontAnalysis] = useState<Record<string, unknown> | null>(null);
+  const [customFontAnalysis, setCustomFontAnalysis] = useState<CustomFontAnalysis | undefined>(undefined);
   const [customFontDirective, setCustomFontDirective] = useState('');
 
   // Sync logo position when profile changes (e.g., after save/refresh)
@@ -3754,7 +3754,7 @@ const PlaybookPage = ({
     setFontStyle(profile.font_style ?? '');
     setCustomFontEnabled(profile.custom_font_enabled ?? false);
     setCustomFontFiles(profile.custom_font_files ?? []);
-    setCustomFontAnalysis(profile.custom_font_analysis ?? null);
+    setCustomFontAnalysis(profile.custom_font_analysis as CustomFontAnalysis | undefined);
     setCustomFontDirective(profile.custom_font_directive ?? '');
     setEditing(true);
   };
@@ -3808,7 +3808,7 @@ const PlaybookPage = ({
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
         custom_font_enabled: customFontEnabled,
         custom_font_files: customFontFiles,
-        custom_font_analysis: customFontAnalysis ?? undefined,
+        custom_font_analysis: customFontAnalysis,
         custom_font_directive: customFontDirective,
       };
       const saveRes = await BrandProfileService.save(updated);

@@ -23,6 +23,18 @@ export interface BrandTeamMember {
   role: string;
 }
 
+export interface CustomFontAnalysis {
+  font_category: string;
+  stroke_weight: string;
+  stroke_contrast: string;
+  letter_shape: string;
+  terminals: string;
+  x_height: string;
+  letter_spacing: string;
+  special_features: string[];
+  overall_feel: string;
+}
+
 export interface BrandProfileData {
   brand_name?: string;
   industry?: string;
@@ -64,7 +76,7 @@ export interface BrandProfileData {
   font_style_prompt?: string;
   custom_font_enabled?: boolean;
   custom_font_files?: { url: string; filename: string }[];
-  custom_font_analysis?: Record<string, unknown>;
+  custom_font_analysis?: CustomFontAnalysis;
   custom_font_directive?: string;
   onboarding_completed?: boolean;
   created_at?: string;
