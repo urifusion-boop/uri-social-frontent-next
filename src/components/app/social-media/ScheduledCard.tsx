@@ -29,10 +29,12 @@ const platformChip: Record<string, { icon: ReactElement; color: string; bg: stri
   linkedin: { icon: <FaLinkedin size={13} color="#0A66C2" />, color: '#0A66C2', bg: '#EFF6FF' },
 };
 
+const toUtc = (raw: string) => (raw.endsWith('Z') || raw.includes('+') ? raw : raw + 'Z');
+
 const formatScheduledDate = (raw?: string): string => {
   if (!raw) return 'Unknown time';
   try {
-    const d = new Date(raw);
+    const d = new Date(toUtc(raw));
     return d.toLocaleString(undefined, {
       weekday: 'short',
       month: 'short',
@@ -48,7 +50,7 @@ const formatScheduledDate = (raw?: string): string => {
 
 const getCountdown = (raw?: string): string => {
   if (!raw) return '';
-  const diff = new Date(raw).getTime() - Date.now();
+  const diff = new Date(toUtc(raw)).getTime() - Date.now();
   if (diff <= 0) return 'Publishing soon…';
   const h = Math.floor(diff / 3_600_000);
   const m = Math.floor((diff % 3_600_000) / 60_000);
