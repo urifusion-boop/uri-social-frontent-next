@@ -3808,7 +3808,7 @@ const PlaybookPage = ({
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
         custom_font_enabled: customFontEnabled,
         custom_font_files: customFontFiles,
-        custom_font_analysis: customFontAnalysis,
+        custom_font_analysis: customFontAnalysis ?? undefined,
         custom_font_directive: customFontDirective,
       };
       const saveRes = await BrandProfileService.save(updated);
