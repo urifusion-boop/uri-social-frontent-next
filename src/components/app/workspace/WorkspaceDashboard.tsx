@@ -308,7 +308,7 @@ const TOUR_STEPS: TourStepDef[] = [
   {
     target: 'tnav-schedule',
     title: "Let's Create Your First Post",
-    body: "Head to Create Content to generate AI-drafted posts for all your platforms in seconds.",
+    body: 'Head to Create Content to generate AI-drafted posts for all your platforms in seconds.',
   },
 ];
 
@@ -496,7 +496,10 @@ function GuidedTour({ onDone }: { onDone: (navigate?: boolean) => void }) {
     };
   }, [step, current.target]);
 
-  const advance = () => { if (step < total - 1) setStep((s) => s + 1); else onDone(true); };
+  const advance = () => {
+    if (step < total - 1) setStep((s) => s + 1);
+    else onDone(true);
+  };
 
   if (!rect) return null;
 
@@ -524,10 +527,7 @@ function GuidedTour({ onDone }: { onDone: (navigate?: boolean) => void }) {
         }}
       />
       {/* Clickable backdrop (behind spotlight) to allow skip on outside click */}
-      <div
-        onClick={() => onDone()}
-        style={{ position: 'fixed', inset: 0, zIndex: 9996, cursor: 'default' }}
-      />
+      <div onClick={() => onDone()} style={{ position: 'fixed', inset: 0, zIndex: 9996, cursor: 'default' }} />
       {/* Card */}
       <div
         style={{
@@ -570,7 +570,16 @@ function GuidedTour({ onDone }: { onDone: (navigate?: boolean) => void }) {
           <button
             type="button"
             onClick={() => onDone()}
-            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.65)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '6px 2px' }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255,255,255,.65)',
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              padding: '6px 2px',
+            }}
           >
             Skip
           </button>
@@ -811,7 +820,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
       const response = await SocialMediaAgentService.getContentCalendar();
       if (response.status && response.responseData) {
         const allDrafts = response.responseData.drafts ?? [];
-        const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'denied', 'replaced', 'publish_failed']);
+        const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'denied', 'replaced']);
         const filtered = allDrafts.filter((d: ContentDraft) => {
           const s = d.status;
           const a = d.approval_status;
