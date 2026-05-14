@@ -3705,6 +3705,10 @@ const PlaybookPage = ({
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
   const [fontStyle, setFontStyle] = useState<string>('');
+  const [customFontEnabled, setCustomFontEnabled] = useState(false);
+  const [customFontFiles, setCustomFontFiles] = useState<{ url: string; filename: string }[]>([]);
+  const [customFontAnalysis, setCustomFontAnalysis] = useState<Record<string, unknown> | null>(null);
+  const [customFontDirective, setCustomFontDirective] = useState('');
 
   // Sync logo position when profile changes (e.g., after save/refresh)
   useEffect(() => {
@@ -3748,6 +3752,10 @@ const PlaybookPage = ({
     setLogoError('');
     setStyleSelections([...(profile.style_selections ?? [])]);
     setFontStyle(profile.font_style ?? '');
+    setCustomFontEnabled(profile.custom_font_enabled ?? false);
+    setCustomFontFiles(profile.custom_font_files ?? []);
+    setCustomFontAnalysis(profile.custom_font_analysis ?? null);
+    setCustomFontDirective(profile.custom_font_directive ?? '');
     setEditing(true);
   };
 
@@ -3798,6 +3806,10 @@ const PlaybookPage = ({
         style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
+        custom_font_enabled: customFontEnabled,
+        custom_font_files: customFontFiles,
+        custom_font_analysis: customFontAnalysis,
+        custom_font_directive: customFontDirective,
       };
       const saveRes = await BrandProfileService.save(updated);
       if (!saveRes.status) {
@@ -5052,7 +5064,26 @@ const PlaybookPage = ({
                 </button>
               </div>
             )}
-            <FontPickerGallery selected={fontStyle} onChange={setFontStyle} />
+            <FontPickerGallery
+              selected={fontStyle}
+              onChange={setFontStyle}
+              customFontEnabled={customFontEnabled}
+              customFontFilename={customFontFiles[0]?.filename}
+              customFontAnalysis={customFontAnalysis}
+              onCustomFontUpload={(data) => {
+                setCustomFontEnabled(true);
+                setCustomFontFiles([
+                  {
+                    url: data.fontUrl,
+                    filename: data.filename,
+                  },
+                ]);
+                setCustomFontAnalysis(data.analysis);
+                setCustomFontDirective(data.promptDirective);
+              }}
+              onUseCustomFont={() => setCustomFontEnabled(true)}
+              onUseLibraryFont={() => setCustomFontEnabled(false)}
+            />
           </div>
         )}
       </PbSection>
