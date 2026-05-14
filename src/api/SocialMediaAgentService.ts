@@ -590,6 +590,27 @@ export class SocialMediaAgentService {
     );
     return response.data;
   }
+
+  static async uploadCustomFont(file: File): Promise<UriResponse<CustomFontUploadResponse>> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response: Awaited<AxiosResponse<UriResponse<CustomFontUploadResponse>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.uploadCustomFont, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    return response.data;
+  }
+
+  static async analyzeCustomFont(fontUrl: string): Promise<UriResponse<CustomFontAnalysisResponse>> {
+    const response: Awaited<AxiosResponse<UriResponse<CustomFontAnalysisResponse>>> =
+      await UriHttpClient.getClient().post(
+        `${socialMediaAgentRoutes.analyzeCustomFont}?font_url=${encodeURIComponent(fontUrl)}`
+      );
+    return response.data;
+  }
 }
 
 export interface PerformancePost {
@@ -741,4 +762,26 @@ export interface AccountMetricsData {
 export interface ImageTextResponse {
   text: string;
   image_url: string;
+}
+
+export interface CustomFontUploadResponse {
+  font_url: string;
+  filename: string;
+  size_mb: number;
+}
+
+export interface CustomFontAnalysisResponse {
+  font_url: string;
+  analysis: {
+    font_category: string;
+    stroke_weight: string;
+    stroke_contrast: string;
+    letter_shape: string;
+    terminals: string;
+    x_height: string;
+    letter_spacing: string;
+    special_features: string[];
+    overall_feel: string;
+  };
+  prompt_directive: string;
 }
