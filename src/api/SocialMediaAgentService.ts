@@ -611,6 +611,14 @@ export class SocialMediaAgentService {
       );
     return response.data;
   }
+
+  static async generateBlogContent(data: BlogGenerationRequest): Promise<UriResponse<BlogContentResponse>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogContentResponse>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateBlog,
+      data
+    );
+    return response.data;
+  }
 }
 
 export interface PerformancePost {
@@ -784,4 +792,29 @@ export interface CustomFontAnalysisResponse {
     overall_feel: string;
   };
   prompt_directive: string;
+}
+
+export interface BlogGenerationRequest {
+  topic: string;
+  keywords: string[];
+  tone: 'professional' | 'inspirational' | 'educational' | 'conversational';
+  word_count: 1000 | 2000 | 3000;
+}
+
+export interface BlogContentResponse {
+  draft_id: string;
+  title: string;
+  meta_description: string;
+  content: string;
+  reading_time: number;
+  word_count: number;
+  featured_image_url: string;
+  social_snippets: {
+    linkedin: string;
+    twitter: string;
+    facebook: string;
+  };
+  keywords: string[];
+  tone: string;
+  generated_at: string;
 }
