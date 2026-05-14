@@ -33,7 +33,9 @@ type ISocialMediaAgentApi =
   | 'storyboardFrameJob'
   | 'publishVideoDraft'
   | 'videoPublishJob'
-  | 'extractImageText';
+  | 'extractImageText'
+  | 'uploadCustomFont'
+  | 'analyzeCustomFont';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -66,6 +68,8 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   publishVideoDraft: '/publish-video-draft',
   videoPublishJob: '/video-publish-job',
   extractImageText: '/extract-image-text',
+  uploadCustomFont: '/upload-custom-font',
+  analyzeCustomFont: '/analyze-custom-font',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(
