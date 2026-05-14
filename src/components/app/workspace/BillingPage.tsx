@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import { Tooltip } from '@mui/material';
 import { useAuth } from '@/src/providers/AuthProvider';
 import {
   BillingService,
@@ -889,7 +890,31 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                     <I n="trending" s={20} c="#fff" />
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, color: '#999', fontWeight: 600 }}>TOTAL CREDITS</div>
+                    <Tooltip
+                      title="The total number of content credits included in your current plan each billing cycle. Each credit generates one full set of platform posts."
+                      arrow
+                      placement="top"
+                      enterTouchDelay={0}
+                      leaveTouchDelay={3000}
+                    >
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11,
+                          color: '#999',
+                          fontWeight: 600,
+                          cursor: 'help',
+                        }}
+                      >
+                        TOTAL CREDITS
+                        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 16v-4M12 8h.01" />
+                        </svg>
+                      </div>
+                    </Tooltip>
                     <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>{balance?.total_credits || 0}</div>
                   </div>
                 </div>
@@ -913,7 +938,31 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                     <I n="arrowDown" s={20} c="#fff" />
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, color: '#999', fontWeight: 600 }}>CREDITS USED</div>
+                    <Tooltip
+                      title="Credits consumed so far this billing cycle. Each content generation uses one credit."
+                      arrow
+                      placement="top"
+                      enterTouchDelay={0}
+                      leaveTouchDelay={3000}
+                    >
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11,
+                          color: '#999',
+                          fontWeight: 600,
+                          cursor: 'help',
+                        }}
+                      >
+                        CREDITS USED
+                        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 16v-4M12 8h.01" />
+                        </svg>
+                      </div>
+                    </Tooltip>
                     <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>{balance?.credits_used || 0}</div>
                   </div>
                 </div>
@@ -946,7 +995,31 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                     <I n="arrowUp" s={20} c="#fff" />
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, color: '#999', fontWeight: 600 }}>REMAINING</div>
+                    <Tooltip
+                      title="Credits still available this cycle. When this reaches zero, content generation is paused until your plan renews or you top up."
+                      arrow
+                      placement="top"
+                      enterTouchDelay={0}
+                      leaveTouchDelay={3000}
+                    >
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11,
+                          color: '#999',
+                          fontWeight: 600,
+                          cursor: 'help',
+                        }}
+                      >
+                        REMAINING
+                        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 16v-4M12 8h.01" />
+                        </svg>
+                      </div>
+                    </Tooltip>
                     <div style={{ fontSize: 24, fontWeight: 900, color: '#111' }}>
                       {balance?.credits_remaining || 0}
                     </div>

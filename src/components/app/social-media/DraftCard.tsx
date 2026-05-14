@@ -9,6 +9,7 @@ import {
   SocialMediaAgentService,
 } from '@/src/api/SocialMediaAgentService';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
+import { useRouter } from 'next/navigation';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
@@ -17,6 +18,7 @@ import {
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -26,11 +28,22 @@ import {
   Menu,
   MenuItem,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { useEffect, useRef, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
-import { MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import {
+  MdChevronLeft,
+  MdChevronRight,
+  MdEdit,
+  MdPalette,
+  MdImage,
+  MdAdd,
+  MdRemove,
+  MdMoreHoriz,
+  MdAutorenew,
+} from 'react-icons/md';
 import DraftEditor from './DraftEditor';
 
 interface DraftCardProps {
@@ -67,6 +80,7 @@ const PLATFORM_ASPECT: Record<string, string> = {
 };
 
 const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSelectToggle }: DraftCardProps) => {
+  const router = useRouter();
   const [draft, setDraft] = useState<ContentDraft>(initialDraft);
   const [editing, setEditing] = useState(false);
   const [denyOpen, setDenyOpen] = useState(false);
@@ -77,11 +91,18 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null); // null = not yet loaded
+  const [connectPromptOpen, setConnectPromptOpen] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const imageRetryRef = useRef(0);
   // Track the last image URL we reset state for — avoids re-shimmer on unrelated re-renders
-  const trackedImageUrlRef = useRef<string | undefined>(initialDraft.image_url);
+  const trackedImageUrlRef = useRef<string | undefined>(undefined); // Start as undefined to trigger cache check on mount
+
+  // Debug: Log whenever imageLoaded state changes
+  useEffect(() => {
+    console.log(`[DraftCard ${draft.id}] 📊 imageLoaded state changed to: ${imageLoaded}`);
+  }, [imageLoaded, draft.id]);
 
   // Image editing state
   const [editImageOpen, setEditImageOpen] = useState(false);
@@ -96,16 +117,79 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   );
 
   // Sync draft data from parent on any relevant field change.
-  // Only reset image load state when image_url actually changes to a new value —
-  // not on every fetchDrafts() call (slides/status refs change on every fetch).
+  // Always reset image load state to ensure images reload properly when navigating between tabs.
+  // This fixes the issue where images show "Loading..." forever after switching tabs.
   useEffect(() => {
     if (!editing) {
+      console.log(`[DraftCard ${initialDraft.id}] useEffect triggered`, {
+        image_url: initialDraft.image_url?.substring(0, 80),
+        has_image: initialDraft.has_image,
+        tracked_url: trackedImageUrlRef.current?.substring(0, 80),
+      });
+
       setDraft(initialDraft);
+
+      // Only reset image state if the URL actually changed
       if (initialDraft.image_url !== trackedImageUrlRef.current) {
-        setImageLoaded(false);
-        setImageError(false);
-        imageRetryRef.current = 0;
-        trackedImageUrlRef.current = initialDraft.image_url;
+        console.log(
+          `[DraftCard ${initialDraft.id}] Image URL changed from ${trackedImageUrlRef.current?.substring(0, 60)} to ${initialDraft.image_url?.substring(0, 60)}`
+        );
+
+        // Check browser cache BEFORE resetting imageLoaded to avoid flickering
+        if (initialDraft.image_url) {
+          const img = new Image();
+          const resolvedUrl = resolveUrl(initialDraft.image_url);
+          console.log(`[DraftCard ${initialDraft.id}] Checking cache for new URL:`, resolvedUrl.substring(0, 80));
+          img.src = resolvedUrl;
+
+          // Check if already complete (synchronously cached)
+          console.log(
+            `[DraftCard ${initialDraft.id}] img.complete=${img.complete}, img.naturalWidth=${img.naturalWidth}`
+          );
+
+          if (img.complete && img.naturalWidth > 0) {
+            // Image is cached - don't reset to false, keep it loaded
+            console.log(
+              `[DraftCard ${initialDraft.id}] ✅ New image already cached, keeping imageLoaded=true (no flicker)`
+            );
+            trackedImageUrlRef.current = initialDraft.image_url;
+            setImageLoaded(true); // Ensure it's true
+            // Don't reset imageError or retry count since image is working
+          } else {
+            // Image not cached - reset and wait for load
+            console.log(`[DraftCard ${initialDraft.id}] ⏳ New image not cached, resetting imageLoaded=false`);
+            setImageLoaded(false);
+            setImageError(false);
+            imageRetryRef.current = 0;
+            trackedImageUrlRef.current = initialDraft.image_url;
+
+            // Listen for load event
+            img.onload = () => {
+              console.log(`[DraftCard ${initialDraft.id}] 🎉 img.onload fired for new URL!`);
+              if (trackedImageUrlRef.current === initialDraft.image_url) {
+                console.log(`[DraftCard ${initialDraft.id}] ✅ URL matches, setting imageLoaded=true`);
+                setImageLoaded(true);
+              } else {
+                console.log(`[DraftCard ${initialDraft.id}] ⚠️ URL mismatch, ignoring onload`);
+              }
+            };
+            img.onerror = () => {
+              console.error(`[DraftCard ${initialDraft.id}] ❌ img.onerror fired for new URL!`);
+            };
+          }
+        } else {
+          console.log(`[DraftCard ${initialDraft.id}] No image_url present`);
+          setImageLoaded(false);
+          setImageError(false);
+          imageRetryRef.current = 0;
+          trackedImageUrlRef.current = initialDraft.image_url;
+        }
+      } else {
+        console.log(
+          `[DraftCard ${initialDraft.id}] Image URL unchanged, keeping current imageLoaded state (imageLoaded=${imageLoaded})`
+        );
+        // Don't reset - image is already loaded or loading
+        return;
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -134,6 +218,39 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     imageRetryRef.current = 0;
     loadedSlideUrls.clear();
   }, [draft.id, loadedSlideUrls]);
+
+  // Fetch connected platforms once on mount to gate the publish action
+  // Use a simple cache to prevent request spam when multiple cards mount
+  useEffect(() => {
+    const CACHE_KEY = 'social_connections_cache';
+    const CACHE_DURATION = 30000; // 30 seconds
+
+    // Check cache first
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (cached) {
+      try {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          setConnectedPlatforms(data);
+          return;
+        }
+      } catch (e) {
+        // Invalid cache, continue to fetch
+      }
+    }
+
+    // Fetch fresh data
+    SocialMediaAgentService.getConnections()
+      .then((res) => {
+        if (res.status && res.responseData) {
+          const platforms = res.responseData.connected_platforms ?? [];
+          setConnectedPlatforms(platforms);
+          // Cache the result
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: platforms, timestamp: Date.now() }));
+        }
+      })
+      .catch(() => setConnectedPlatforms([]));
+  }, []);
 
   // Listen for image edit events from other sources (e.g., background processing)
   useEffect(() => {
@@ -186,6 +303,17 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
   const handleApprove = async (option: ApprovePayload['schedule_option'], datetime?: string) => {
     setApproveAnchor(null);
+
+    // Gate publish/schedule on account connection. Skip check if connections haven't loaded yet.
+    if (option !== 'save_draft' && connectedPlatforms !== null) {
+      const platform = draft.platform?.toLowerCase() ?? '';
+      const isConnected = connectedPlatforms.map((p) => p.toLowerCase()).includes(platform);
+      if (!isConnected) {
+        setConnectPromptOpen(true);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const draftId = draft.draft_id ?? draft.id ?? '';
@@ -745,7 +873,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           <img
             src={resolveUrl(draft.image_url)}
             alt="Story image"
-            onLoad={() => setImageLoaded(true)}
+            onLoad={() => {
+              console.log(`[DraftCard ${draft.id}] 🖼️ IMG TAG onLoad fired (main image)`);
+              setImageLoaded(true);
+            }}
             onError={handleImageError}
             onClick={() => setLightboxOpen(true)}
             style={{
@@ -948,9 +1079,39 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
       {/* Image Edit Panel */}
       {!editing && draft.image_url && (
-        <Box sx={{ mt: 1.5, p: 1.5, background: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>
+        <Box
+          sx={{
+            mt: 1.5,
+            p: 2.5,
+            background: 'linear-gradient(135deg, #FFFFFF 0%, #FEFCFF 100%)',
+            borderRadius: '16px',
+            border: '1px solid #F3E8FF',
+            boxShadow: '0 1px 3px rgba(124, 58, 237, 0.05)',
+            position: 'relative',
+            opacity: editLoading ? 0.6 : 1,
+            pointerEvents: editLoading ? 'none' : 'auto',
+          }}
+        >
+          {editLoading && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 1,
+                zIndex: 10,
+              }}
+            >
+              <CircularProgress size={32} sx={{ color: '#7C3AED' }} />
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#7C3AED' }}>Editing image...</Typography>
+            </Box>
+          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#7C3AED', letterSpacing: '0.3px' }}>
               Edit Image {draft.image_version && draft.image_version > 1 ? `(v${draft.image_version})` : ''}
             </Typography>
             {draft.image_version && draft.image_version > 1 && (
@@ -959,105 +1120,302 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 variant="text"
                 disabled={editLoading}
                 onClick={handleUndoImage}
-                sx={{ textTransform: 'none', fontSize: 10, minWidth: 'auto', p: '2px 8px' }}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  minWidth: 'auto',
+                  p: '4px 12px',
+                  color: '#CD1B78',
+                  '&:hover': { background: '#FDF2F8' },
+                }}
               >
                 ↩ Undo
               </Button>
             )}
           </Box>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0.75 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1.5 }}>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
-              onClick={() => {
-                setEditFeedback('Change text');
+              startIcon={<MdEdit size={16} />}
+              onClick={async () => {
+                // Open dialog immediately with loading placeholder
+                setEditFeedback('Extracting text from image...');
                 setEditForceCategory('text_edit');
                 setEditImageOpen(true);
+
+                // Extract actual text from the image using Vision API in background
+                try {
+                  const imageUrl = draft.image_url;
+                  if (imageUrl) {
+                    const response = await SocialMediaAgentService.extractImageText(imageUrl);
+                    if (response.status && response.responseData?.text) {
+                      const extractedText = response.responseData.text;
+                      if (extractedText !== 'No text found') {
+                        setEditFeedback(extractedText);
+                      } else {
+                        setEditFeedback('');
+                      }
+                    } else {
+                      setEditFeedback('');
+                    }
+                  }
+                } catch (error) {
+                  console.error('Failed to extract image text:', error);
+                  setEditFeedback('');
+                }
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 12,
+                fontWeight: 600,
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
+                },
+              }}
             >
-              📝 Text
+              Text
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdPalette size={16} />}
               onClick={() => {
                 setEditFeedback('Change colours');
                 setEditForceCategory('style_edit');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 12,
+                fontWeight: 600,
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
+                },
+              }}
             >
-              🎨 Colours
+              Colours
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdImage size={16} />}
               onClick={() => {
                 setEditFeedback('Change background');
                 setEditForceCategory('style_edit');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 12,
+                fontWeight: 600,
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
+                },
+              }}
             >
-              🖼 Background
+              Background
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdAdd size={16} />}
               onClick={() => {
                 setEditFeedback('Add element');
                 setEditForceCategory('content_edit');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 12,
+                fontWeight: 600,
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
+                },
+              }}
             >
-              ➕ Add
+              Add
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdRemove size={16} />}
               onClick={() => {
                 setEditFeedback('Remove element');
                 setEditForceCategory('content_edit');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 12,
+                fontWeight: 600,
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
+                },
+              }}
             >
-              ➖ Remove
+              Remove
             </Button>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
+              startIcon={<MdMoreHoriz size={16} />}
               onClick={() => {
                 setEditFeedback('');
                 setEditForceCategory(undefined);
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 12,
+                fontWeight: 600,
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
+                },
+              }}
             >
-              ⌨ Other
+              Other
             </Button>
             <Button
               size="small"
               variant="outlined"
-              color="error"
               disabled={editLoading}
+              startIcon={<MdAutorenew size={16} />}
               onClick={() => {
                 setEditFeedback('Start over completely');
                 setEditForceCategory('full_redesign');
                 setEditImageOpen(true);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, py: 0.5 }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 12,
+                fontWeight: 600,
+                py: 1.5,
+                px: 2,
+                borderRadius: '10px',
+                borderColor: '#FCE7F3',
+                color: '#CD1B78',
+                background: '#FEF7FB',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  borderColor: '#EC4899',
+                  background: 'linear-gradient(135deg, #FDF2F8 0%, #FEF7FB 100%)',
+                  color: '#BE185D',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(205, 27, 120, 0.20)',
+                },
+                '&:disabled': {
+                  borderColor: '#FCE7F3',
+                  color: '#F9A8D4',
+                  background: '#FEF7FB',
+                },
+              }}
             >
-              🔄 Redesign
+              Redesign
             </Button>
           </Box>
         </Box>
@@ -1066,49 +1424,80 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       {/* Action row */}
       {!editing && (
         <Box display="flex" gap={1} flexWrap="wrap" mt={1}>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={() => setEditing(true)}
-            sx={{ textTransform: 'none', fontSize: '12px' }}
+          <Tooltip
+            title="Edit the caption and hashtags before publishing"
+            arrow
+            enterTouchDelay={0}
+            leaveTouchDelay={3000}
           >
-            Edit
-          </Button>
-          <Button
-            size="small"
-            variant="contained"
-            disabled={loading}
-            onClick={(e) => setApproveAnchor(e.currentTarget)}
-            sx={{
-              textTransform: 'none',
-              fontSize: '12px',
-              background: '#CD1B78',
-              '&:hover': { background: '#A01560' },
-            }}
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => setEditing(true)}
+              sx={{ textTransform: 'none', fontSize: '12px' }}
+            >
+              Edit
+            </Button>
+          </Tooltip>
+          <Tooltip
+            title="Approve this post — publish immediately, schedule for later, or save as draft"
+            arrow
+            enterTouchDelay={0}
+            leaveTouchDelay={3000}
           >
-            Approve
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            color="error"
-            disabled={loading}
-            onClick={() => setDenyOpen(true)}
-            sx={{ textTransform: 'none', fontSize: '12px' }}
+            <span>
+              <Button
+                size="small"
+                variant="contained"
+                disabled={loading}
+                onClick={(e) => setApproveAnchor(e.currentTarget)}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: '12px',
+                  background: '#CD1B78',
+                  '&:hover': { background: '#A01560' },
+                }}
+              >
+                Approve
+              </Button>
+            </span>
+          </Tooltip>
+          <Tooltip
+            title="Reject this draft — optionally request a regeneration with feedback"
+            arrow
+            enterTouchDelay={0}
+            leaveTouchDelay={3000}
           >
-            Deny
-          </Button>
-          <Button
-            size="small"
-            variant={confirmDelete ? 'contained' : 'outlined'}
-            color="error"
-            disabled={loading}
-            onClick={handleDelete}
-            onBlur={() => setConfirmDelete(false)}
-            sx={{ textTransform: 'none', fontSize: '12px', ml: 'auto' }}
-          >
-            {loading && confirmDelete ? 'Deleting...' : confirmDelete ? 'Confirm delete?' : 'Delete'}
-          </Button>
+            <span>
+              <Button
+                size="small"
+                variant="outlined"
+                color="error"
+                disabled={loading}
+                onClick={() => setDenyOpen(true)}
+                sx={{ textTransform: 'none', fontSize: '12px' }}
+              >
+                Deny
+              </Button>
+            </span>
+          </Tooltip>
+          <Box sx={{ ml: 'auto' }}>
+            <Tooltip title="Permanently delete this draft" arrow enterTouchDelay={0} leaveTouchDelay={3000}>
+              <span>
+                <Button
+                  size="small"
+                  variant={confirmDelete ? 'contained' : 'outlined'}
+                  color="error"
+                  disabled={loading}
+                  onClick={handleDelete}
+                  onBlur={() => setConfirmDelete(false)}
+                  sx={{ textTransform: 'none', fontSize: '12px' }}
+                >
+                  {loading && confirmDelete ? 'Deleting...' : confirmDelete ? 'Confirm delete?' : 'Delete'}
+                </Button>
+              </span>
+            </Tooltip>
+          </Box>
         </Box>
       )}
 
@@ -1351,6 +1740,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             onChange={(e) => setEditFeedback(e.target.value)}
             autoFocus
             disabled={editLoading}
+            InputProps={{
+              startAdornment:
+                editFeedback === 'Extracting text from image...' ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null,
+            }}
           />
         </DialogContent>
         <DialogActions>
@@ -1359,13 +1752,14 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           </Button>
           <Button
             variant="contained"
-            disabled={!editFeedback.trim() || editLoading}
+            disabled={!editFeedback.trim() || editLoading || editFeedback === 'Extracting text from image...'}
             onClick={() => handleEditImage(editFeedback, editForceCategory)}
             sx={{
               textTransform: 'none',
               background: '#CD1B78',
               '&:hover': { background: '#A01560' },
             }}
+            startIcon={editLoading ? <CircularProgress size={16} color="inherit" /> : null}
           >
             {editLoading ? 'Editing...' : 'Edit Image'}
           </Button>
@@ -1401,6 +1795,33 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             }}
           >
             Proceed
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Connect account prompt */}
+      <Dialog open={connectPromptOpen} onClose={() => setConnectPromptOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: '15px', fontWeight: 600 }}>Connect your account</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: '14px', color: '#374151' }}>
+            Your <strong style={{ textTransform: 'capitalize' }}>{draft.platform}</strong> account is not connected.
+            Connect it to publish or schedule posts.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          <Button size="small" onClick={() => setConnectPromptOpen(false)} sx={{ color: '#6B7280' }}>
+            Cancel
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            onClick={() => {
+              setConnectPromptOpen(false);
+              router.push('/workspace?tab=connections');
+            }}
+            sx={{ background: '#CD1B78', '&:hover': { background: '#a8155f' }, textTransform: 'none' }}
+          >
+            Connect Account
           </Button>
         </DialogActions>
       </Dialog>

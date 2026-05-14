@@ -32,15 +32,15 @@ const PLATFORM_ICONS: Record<string, string> = {
 };
 
 const TYPE_STYLE: Record<string, { bg: string; color: string; label: string }> = {
-  educational:      { bg: 'rgba(10,102,194,.1)',   color: '#0a66c2', label: 'Educational' },
-  relatable:        { bg: 'rgba(22,163,74,.1)',     color: '#15803d', label: 'Relatable' },
-  promotional:      { bg: 'rgba(194,24,91,.1)',     color: '#C2185B', label: 'Promotional' },
-  behind_the_scenes:{ bg: 'rgba(234,88,12,.1)',     color: '#c2410c', label: 'Behind the Scenes' },
-  engagement:       { bg: 'rgba(109,40,217,.1)',    color: '#6d28d9', label: 'Engagement' },
+  educational: { bg: 'rgba(10,102,194,.1)', color: '#0a66c2', label: 'Educational' },
+  relatable: { bg: 'rgba(22,163,74,.1)', color: '#15803d', label: 'Relatable' },
+  promotional: { bg: 'rgba(194,24,91,.1)', color: '#C2185B', label: 'Promotional' },
+  behind_the_scenes: { bg: 'rgba(234,88,12,.1)', color: '#c2410c', label: 'Behind the Scenes' },
+  engagement: { bg: 'rgba(109,40,217,.1)', color: '#6d28d9', label: 'Engagement' },
 };
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const CONNECTED_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'x', 'twitter', 'tiktok', 'threads'];
+const CONNECTED_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'x', 'twitter'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -190,13 +190,37 @@ const DayCard = ({
         <PlatformDots platforms={day.platforms} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           {day.acted_on && (
-            <span style={{ fontSize: 14 }} title="Draft created">✅</span>
+            <span style={{ fontSize: 14 }} title="Draft created">
+              ✅
+            </span>
           )}
           {day.final_score !== undefined && day.final_score >= 80 && (
-            <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(22,163,74,.12)', color: '#15803d', borderRadius: 20, padding: '1px 6px' }}>🟢 Strong</span>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                background: 'rgba(22,163,74,.12)',
+                color: '#15803d',
+                borderRadius: 20,
+                padding: '1px 6px',
+              }}
+            >
+              🟢 Strong
+            </span>
           )}
           {day.final_score !== undefined && day.final_score >= 60 && day.final_score < 80 && (
-            <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(234,179,8,.12)', color: '#a16207', borderRadius: 20, padding: '1px 6px' }}>🟡 Good</span>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                background: 'rgba(234,179,8,.12)',
+                color: '#a16207',
+                borderRadius: 20,
+                padding: '1px 6px',
+              }}
+            >
+              🟡 Good
+            </span>
           )}
         </div>
       </div>
@@ -371,7 +395,9 @@ const DayDetailModal = ({
 
         {/* Platforms */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-          <span style={{ fontSize: 11, color: '#bbb', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+          <span
+            style={{ fontSize: 11, color: '#bbb', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}
+          >
             Platforms
           </span>
           <PlatformDots platforms={day.platforms} />
@@ -414,9 +440,7 @@ const DayDetailModal = ({
               }}
             />
           </div>
-          <span style={{ fontSize: 13, color: '#444', fontWeight: 500 }}>
-            Include AI-generated image
-          </span>
+          <span style={{ fontSize: 13, color: '#444', fontWeight: 500 }}>Include AI-generated image</span>
         </div>
 
         {/* Actions */}
@@ -486,8 +510,11 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
     setLoading(true);
     try {
       const res = await SocialMediaAgentService.getCalendarPlan();
-      if (res.status && res.responseData) setPlan(res.responseData);
-      else setPlan(null);
+      if (res.status && res.responseData) {
+        setPlan(res.responseData);
+        // Sync platform selector to whatever the existing plan was generated for
+        if (res.responseData.platforms?.length) setPlatforms(res.responseData.platforms);
+      } else setPlan(null);
     } catch {
       setPlan(null);
     } finally {
@@ -501,6 +528,7 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
       return;
     }
     setGenerating(true);
+    setSelectedDay(null); // clear any open modal so it re-renders with fresh data
     try {
       const res = await SocialMediaAgentService.generateCalendarPlan(platforms, force);
       if (res.status && res.responseData) {
@@ -554,9 +582,7 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
         }}
       >
         <div style={{ fontSize: 36, marginBottom: 12 }}>🗓️</div>
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#111', marginBottom: 8 }}>
-          No plan for this week yet
-        </div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#111', marginBottom: 8 }}>No plan for this week yet</div>
         <div style={{ fontSize: 13, color: '#999', lineHeight: 1.6, marginBottom: 20 }}>
           Generate a 7-day content plan tailored to your brand. Each day gets a specific idea and content type.
         </div>
@@ -585,9 +611,9 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
                   style={{
                     padding: '5px 12px',
                     borderRadius: 20,
-                    border: `1.5px solid ${active ? PLATFORM_COLORS[p] ?? '#C2185B' : '#e5e3df'}`,
+                    border: `1.5px solid ${active ? (PLATFORM_COLORS[p] ?? '#C2185B') : '#e5e3df'}`,
                     background: active ? (PLATFORM_COLORS[p] ?? '#C2185B') + '14' : '#fff',
-                    color: active ? PLATFORM_COLORS[p] ?? '#C2185B' : '#666',
+                    color: active ? (PLATFORM_COLORS[p] ?? '#C2185B') : '#666',
                     fontSize: 12,
                     fontWeight: active ? 700 : 500,
                     cursor: 'pointer',
@@ -645,17 +671,80 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
               Week of {formatWeekLabel(plan.week_start)}
             </div>
             {plan.generation_method === 'data_driven' && (
-              <span style={{ fontSize: 10.5, fontWeight: 700, background: 'rgba(22,163,74,.12)', color: '#15803d', borderRadius: 20, padding: '2px 8px' }}>📊 Data-driven</span>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  background: 'rgba(22,163,74,.12)',
+                  color: '#15803d',
+                  borderRadius: 20,
+                  padding: '2px 8px',
+                }}
+              >
+                📊 Data-driven
+              </span>
             )}
             {plan.generation_method === 'trend_driven' && (
-              <span style={{ fontSize: 10.5, fontWeight: 700, background: 'rgba(234,88,12,.1)', color: '#c2410c', borderRadius: 20, padding: '2px 8px' }}>🔥 Trend-driven</span>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  background: 'rgba(234,88,12,.1)',
+                  color: '#c2410c',
+                  borderRadius: 20,
+                  padding: '2px 8px',
+                }}
+              >
+                🔥 Trend-driven
+              </span>
             )}
             {plan.generation_method === 'ai' && (
-              <span style={{ fontSize: 10.5, fontWeight: 700, background: '#f5f4f0', color: '#888', borderRadius: 20, padding: '2px 8px' }}>✨ AI-generated</span>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  background: '#f5f4f0',
+                  color: '#888',
+                  borderRadius: 20,
+                  padding: '2px 8px',
+                }}
+              >
+                ✨ AI-generated
+              </span>
             )}
           </div>
-          <div style={{ fontSize: 11.5, color: '#bbb' }}>
-            {plan.brand_snapshot?.brand_name ?? 'Your brand'} · {plan.platforms.join(', ')}
+          <div style={{ fontSize: 11.5, color: '#bbb', marginBottom: 6 }}>
+            {plan.brand_snapshot?.brand_name ?? 'Your brand'}
+          </div>
+          {/* Inline platform selector — changes take effect on next regenerate */}
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {CONNECTED_PLATFORMS.map((p) => {
+              const active = platforms.includes(p);
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => togglePlatform(p)}
+                  style={{
+                    padding: '2px 9px',
+                    borderRadius: 20,
+                    border: `1.5px solid ${active ? (PLATFORM_COLORS[p] ?? '#C2185B') : '#e5e3df'}`,
+                    background: active ? (PLATFORM_COLORS[p] ?? '#C2185B') + '18' : 'transparent',
+                    color: active ? (PLATFORM_COLORS[p] ?? '#C2185B') : '#bbb',
+                    fontSize: 10.5,
+                    fontWeight: active ? 700 : 500,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--wf)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    transition: 'all .15s',
+                  }}
+                >
+                  {PLATFORM_ICONS[p] ?? '🌐'} {p.charAt(0).toUpperCase() + p.slice(1)}
+                </button>
+              );
+            })}
           </div>
         </div>
         <button
@@ -711,7 +800,7 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
           .sort((a, b) => a.day_index - b.day_index)
           .map((day) => (
             <DayCard
-              key={day.day_index}
+              key={`${plan.plan_id}-${day.day_index}`}
               day={day}
               onClick={() => setSelectedDay(day)}
               isRegenerating={regeneratingDay === day.day_index}

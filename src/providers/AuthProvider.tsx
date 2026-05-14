@@ -125,12 +125,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Listen for credit consumption events from other components
   useEffect(() => {
     const unsubscribe = EventBus.on(EVENTS.CREDIT_CONSUMED, () => {
-      // Refresh credit balance whenever credits are consumed
+      // Refresh both credit balance and trial status whenever credits are consumed
       refreshCreditBalance();
+      refreshTrialStatus();
     });
 
     return () => unsubscribe();
-  }, [refreshCreditBalance]);
+  }, [refreshCreditBalance, refreshTrialStatus]);
 
   const saveUserDetails = (details: UserDto) => {
     localStorage.setItem(STORE_KEYS.USER_DETAILS, JSON.stringify(details));
@@ -151,6 +152,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAuthenticated(false);
     router.push('/login');
   }, [router]);
+
+  // Listen for unauthorized events from HTTP interceptor (401/403 errors)
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      console.warn('[Auth] Unauthorized event detected - logging out user');
+      logoutUser();
+    };
+
+    window.addEventListener('unauthorized', handleUnauthorized);
+
+    return () => {
+      window.removeEventListener('unauthorized', handleUnauthorized);
+    };
+  }, [logoutUser]);
 
   return (
     <AuthContext.Provider

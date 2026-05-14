@@ -55,6 +55,7 @@ export interface StoryboardPayload {
   optional_text?: string;
   target_platform: string;
   target_duration_seconds: number;
+  video_style?: string;
 }
 
 export interface VideoClip {
@@ -93,6 +94,16 @@ export interface VideoDraft {
   platforms: string[];
   status: string;
   created_at: string;
+}
+
+export interface VideoPublishJob {
+  job_id: string;
+  draft_id: string;
+  platform: string;
+  status: 'queued' | 'uploading' | 'processing' | 'published' | 'failed';
+  platform_post_id: string | null;
+  post_url: string | null;
+  error: string | null;
 }
 
 export interface RefinePayload {
@@ -251,6 +262,13 @@ export class SocialMediaAgentService {
   static async disconnectInstagramDirect(igUserId: string): Promise<UriResponse<string>> {
     const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
       `/social-media/connections/instagram-direct/${igUserId}`
+    );
+    return response.data;
+  }
+
+  static async disconnectFacebookDirect(): Promise<UriResponse<string>> {
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
+      `/social-media/connections/facebook-direct`
     );
     return response.data;
   }
@@ -545,6 +563,32 @@ export class SocialMediaAgentService {
     const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.storyboardFrameJob}/${jobId}`);
     return response.data;
   }
+
+  static async publishVideoDraft(payload: {
+    draft_id: string;
+    platform: string;
+    caption?: string;
+  }): Promise<UriResponse<{ job_id: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string }>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.publishVideoDraft,
+      payload
+    );
+    return response.data;
+  }
+
+  static async getVideoPublishJob(jobId: string): Promise<UriResponse<VideoPublishJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoPublishJob>>> = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.videoPublishJob}/${jobId}`
+    );
+    return response.data;
+  }
+
+  static async extractImageText(imageUrl: string): Promise<UriResponse<ImageTextResponse>> {
+    const response: Awaited<AxiosResponse<UriResponse<ImageTextResponse>>> = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.extractImageText}?image_url=${encodeURIComponent(imageUrl)}`
+    );
+    return response.data;
+  }
 }
 
 export interface PerformancePost {
@@ -691,4 +735,9 @@ export interface AccountMetricItem {
 export interface AccountMetricsData {
   has_data: boolean;
   accounts: AccountMetricItem[];
+}
+
+export interface ImageTextResponse {
+  text: string;
+  image_url: string;
 }

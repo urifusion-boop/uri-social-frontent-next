@@ -65,6 +65,8 @@ const CreditDisplay = () => {
             : `${tier} plan: ${creditsRemaining} campaign${creditsRemaining === 1 ? '' : 's'} remaining this month.`
       }
       arrow
+      enterTouchDelay={0}
+      leaveTouchDelay={3000}
     >
       <Box
         onClick={() => router.push('/pricing')}

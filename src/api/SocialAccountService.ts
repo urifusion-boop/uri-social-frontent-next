@@ -65,4 +65,13 @@ export class SocialAccountService {
     );
     return response.data;
   }
+
+  static async finalizeFacebookDirect(fbPageId: string): Promise<UriResponse<{ page_id: string }>> {
+    const response: AxiosResponse<UriResponse<{ page_id: string }>> = await UriHttpClient.getClient().post(
+      '/social-media/connect/facebook-direct/finalize',
+      null,
+      { params: { fb_page_id: fbPageId } }
+    );
+    return response.data;
+  }
 }
