@@ -148,49 +148,51 @@ export default function BlogGeneratorTab() {
   };
 
   return (
-    <div style={{ padding: '30px 30px 100px 30px', maxWidth: '1400px', margin: '0 auto', minHeight: '100vh' }}>
+    <div style={{ padding: '20px 30px 100px 30px', maxWidth: '1400px', margin: '0 auto', minHeight: '100vh' }}>
       {/* Header */}
-      <div style={{ marginBottom: '40px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-          <FiBook size={32} color={URI_PINK} />
-          <h1 style={{ fontSize: '32px', fontWeight: '700', margin: 0, color: '#1a1a1a' }}>Blog Content Generator</h1>
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+          <FiBook size={28} color={URI_PINK} />
+          <h1 style={{ fontSize: '28px', fontWeight: '700', margin: 0, color: '#1a1a1a' }}>Blog Content Generator</h1>
           <span
             style={{
               background: 'linear-gradient(135deg, #CD1B78 0%, #E94396 100%)',
               color: 'white',
-              padding: '4px 12px',
+              padding: '3px 10px',
               borderRadius: '20px',
-              fontSize: '12px',
+              fontSize: '11px',
               fontWeight: '600',
-              marginLeft: '8px',
+              marginLeft: '6px',
             }}
           >
             BETA
           </span>
         </div>
-        <p style={{ fontSize: '16px', color: '#666', margin: 0 }}>
+        <p style={{ fontSize: '14px', color: '#666', margin: 0 }}>
           Generate SEO-optimized blog posts with AI. Complete with featured images and social media snippets.
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: blogResult ? '500px 1fr' : '1fr', gap: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: blogResult ? '500px 1fr' : '1fr', gap: '20px' }}>
         {/* Generation Form */}
         <div
           style={{
             background: 'white',
-            borderRadius: '16px',
+            borderRadius: '12px',
             border: '1px solid #e5e7eb',
-            padding: '30px',
+            padding: '20px',
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
           }}
         >
-          <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px', color: '#1a1a1a' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#1a1a1a' }}>
             Generation Settings
           </h2>
 
           {/* Topic Input */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <label
+              style={{ display: 'block', fontWeight: '500', marginBottom: '6px', color: '#374151', fontSize: '14px' }}
+            >
               Blog Topic *
             </label>
             <input
@@ -201,22 +203,24 @@ export default function BlogGeneratorTab() {
               maxLength={200}
               style={{
                 width: '100%',
-                padding: '12px 16px',
+                padding: '10px 14px',
                 borderRadius: '8px',
                 border: '1px solid #d1d5db',
-                fontSize: '15px',
+                fontSize: '14px',
                 outline: 'none',
                 transition: 'border-color 0.2s',
               }}
               onFocus={(e) => (e.target.style.borderColor = URI_PINK)}
               onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
             />
-            <div style={{ fontSize: '13px', color: '#9ca3af', marginTop: '4px' }}>{topic.length}/200 characters</div>
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '3px' }}>{topic.length}/200 characters</div>
           </div>
 
           {/* Keywords Input */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <label
+              style={{ display: 'block', fontWeight: '500', marginBottom: '6px', color: '#374151', fontSize: '14px' }}
+            >
               SEO Keywords * (Press Enter to add)
             </label>
             <input
@@ -227,10 +231,10 @@ export default function BlogGeneratorTab() {
               placeholder="e.g., AI marketing"
               style={{
                 width: '100%',
-                padding: '12px 16px',
+                padding: '10px 14px',
                 borderRadius: '8px',
                 border: '1px solid #d1d5db',
-                fontSize: '15px',
+                fontSize: '14px',
                 outline: 'none',
                 transition: 'border-color 0.2s',
               }}
@@ -241,8 +245,8 @@ export default function BlogGeneratorTab() {
               style={{
                 display: 'flex',
                 flexWrap: 'wrap',
-                gap: '8px',
-                marginTop: '12px',
+                gap: '6px',
+                marginTop: '8px',
               }}
             >
               {keywords.map((keyword) => (
@@ -251,42 +255,44 @@ export default function BlogGeneratorTab() {
                   style={{
                     background: `${URI_PINK}15`,
                     color: URI_PINK,
-                    padding: '6px 12px',
+                    padding: '4px 10px',
                     borderRadius: '20px',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
+                    gap: '4px',
                     fontWeight: '500',
                   }}
                 >
                   {keyword}
-                  <FiX size={14} style={{ cursor: 'pointer' }} onClick={() => handleRemoveKeyword(keyword)} />
+                  <FiX size={13} style={{ cursor: 'pointer' }} onClick={() => handleRemoveKeyword(keyword)} />
                 </span>
               ))}
             </div>
             {keywords.length > 0 && (
-              <div style={{ fontSize: '13px', color: '#9ca3af', marginTop: '8px' }}>{keywords.length}/10 keywords</div>
+              <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '6px' }}>{keywords.length}/10 keywords</div>
             )}
           </div>
 
           {/* Tone Selector */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <label
+              style={{ display: 'block', fontWeight: '500', marginBottom: '6px', color: '#374151', fontSize: '14px' }}
+            >
               Content Tone
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
               {(['professional', 'inspirational', 'educational', 'conversational'] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTone(t)}
                   style={{
-                    padding: '12px',
+                    padding: '10px',
                     borderRadius: '8px',
                     border: `2px solid ${tone === t ? URI_PINK : '#e5e7eb'}`,
                     background: tone === t ? `${URI_PINK}10` : 'white',
                     color: tone === t ? URI_PINK : '#6b7280',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     fontWeight: '600',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -300,22 +306,24 @@ export default function BlogGeneratorTab() {
           </div>
 
           {/* Word Count Selector */}
-          <div style={{ marginBottom: '32px' }}>
-            <label style={{ display: 'block', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
+          <div style={{ marginBottom: '20px' }}>
+            <label
+              style={{ display: 'block', fontWeight: '500', marginBottom: '6px', color: '#374151', fontSize: '14px' }}
+            >
               Target Word Count
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
               {([1000, 2000, 3000] as const).map((wc) => (
                 <button
                   key={wc}
                   onClick={() => setWordCount(wc)}
                   style={{
-                    padding: '12px',
+                    padding: '10px',
                     borderRadius: '8px',
                     border: `2px solid ${wordCount === wc ? URI_PINK : '#e5e7eb'}`,
                     background: wordCount === wc ? `${URI_PINK}10` : 'white',
                     color: wordCount === wc ? URI_PINK : '#6b7280',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     fontWeight: '600',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -333,12 +341,12 @@ export default function BlogGeneratorTab() {
             disabled={isGenerating || !topic.trim() || keywords.length === 0}
             style={{
               width: '100%',
-              padding: '16px',
+              padding: '14px',
               borderRadius: '8px',
               border: 'none',
               background: isGenerating ? '#9ca3af' : `linear-gradient(135deg, ${URI_PINK} 0%, #E94396 100%)`,
               color: 'white',
-              fontSize: '16px',
+              fontSize: '15px',
               fontWeight: '600',
               cursor: isGenerating ? 'not-allowed' : 'pointer',
               display: 'flex',
