@@ -148,7 +148,7 @@ export default function BlogGeneratorTab() {
   };
 
   return (
-    <div style={{ padding: '30px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '30px 30px 100px 30px', maxWidth: '1400px', margin: '0 auto', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ marginBottom: '40px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
