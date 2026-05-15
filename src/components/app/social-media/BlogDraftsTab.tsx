@@ -102,7 +102,15 @@ export default function BlogDraftsTab() {
 
   if (selectedDraft) {
     return (
-      <div style={{ padding: '20px 30px', maxWidth: '1200px', margin: '0 auto', minHeight: '100vh' }}>
+      <div
+        style={{
+          padding: '20px 30px 100px 30px',
+          maxWidth: '1200px',
+          margin: '0 auto',
+          minHeight: '100vh',
+          overflow: 'auto',
+        }}
+      >
         {/* Back button */}
         <button
           onClick={closeDraft}
@@ -248,7 +256,7 @@ export default function BlogDraftsTab() {
   }
 
   return (
-    <div style={{ padding: '20px 30px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '20px 30px 100px 30px', maxWidth: '1400px', margin: '0 auto', overflow: 'auto' }}>
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>Blog Drafts</h2>
         <p style={{ color: '#666', fontSize: '14px' }}>View and manage your AI-generated blog posts</p>
