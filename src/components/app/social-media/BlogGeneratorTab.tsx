@@ -17,6 +17,15 @@ export default function BlogGeneratorTab() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [blogResult, setBlogResult] = useState<BlogContentResponse | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check for mobile viewport
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleAddKeyword = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && keywordInput.trim()) {
@@ -148,10 +157,18 @@ export default function BlogGeneratorTab() {
   };
 
   return (
-    <div style={{ padding: '20px 30px 100px 30px', maxWidth: '1400px', margin: '0 auto', minHeight: '100vh' }}>
+    <div
+      style={{
+        padding: isMobile ? '16px 16px 100px 16px' : '20px 30px 100px 30px',
+        maxWidth: '1400px',
+        margin: '0 auto',
+        minHeight: '100vh',
+        overflow: 'auto',
+      }}
+    >
       {/* Header */}
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
           <FiBook size={28} color={URI_PINK} />
           <h1 style={{ fontSize: '28px', fontWeight: '700', margin: 0, color: '#1a1a1a' }}>Blog Content Generator</h1>
           <span
@@ -173,7 +190,14 @@ export default function BlogGeneratorTab() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: blogResult ? '500px 1fr' : '1fr', gap: '20px' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: blogResult && !isMobile ? 'minmax(320px, 500px) 1fr' : '1fr',
+          gap: '20px',
+          alignItems: 'start',
+        }}
+      >
         {/* Generation Form */}
         <div
           style={{
@@ -392,8 +416,6 @@ export default function BlogGeneratorTab() {
               border: '1px solid #e5e7eb',
               padding: '30px',
               boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-              maxHeight: '800px',
-              overflowY: 'auto',
             }}
           >
             <div
