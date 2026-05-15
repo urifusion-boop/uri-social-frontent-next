@@ -28,6 +28,7 @@ import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
+import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
@@ -5414,6 +5415,12 @@ const NAV = [
     tooltip: 'Discover trending topics and keywords relevant to your industry',
   },
   {
+    id: 'blog',
+    icon: 'book',
+    label: 'Blog Generator',
+    tooltip: 'Generate SEO-optimized blog posts with AI (Beta)',
+  },
+  {
     id: 'playbook',
     icon: 'book',
     label: 'Brand Playbook',
@@ -5702,6 +5709,7 @@ export default function WorkspaceDashboard() {
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
+    blog: <BlogGeneratorTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
     settings: (
       <SettingsPage

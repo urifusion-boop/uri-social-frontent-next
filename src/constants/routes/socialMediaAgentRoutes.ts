@@ -35,7 +35,8 @@ type ISocialMediaAgentApi =
   | 'videoPublishJob'
   | 'extractImageText'
   | 'uploadCustomFont'
-  | 'analyzeCustomFont';
+  | 'analyzeCustomFont'
+  | 'generateBlog';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -70,6 +71,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   extractImageText: '/extract-image-text',
   uploadCustomFont: '/upload-custom-font',
   analyzeCustomFont: '/analyze-custom-font',
+  generateBlog: '/generate-blog',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(
