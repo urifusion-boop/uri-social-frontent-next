@@ -28,6 +28,7 @@ import FontPickerGallery from '@/src/components/app/social-media/FontPickerGalle
 import { getFont } from '@/src/data/fontLibrary';
 import { getStyle } from '@/src/data/styleLibrary';
 import { MdOutlineCampaign } from 'react-icons/md';
+import { HexColorPicker } from 'react-colorful';
 import Navbar from '@/components/Navbar';
 
 // ─── Step order ──────────────────────────────────────────────────────────────
@@ -384,6 +385,9 @@ const ColorPicker = ({
   onChange: (c: string[]) => void;
   primary: string;
 }) => {
+  const [newColor, setNewColor] = useState('#C91A79');
+  const [showPicker, setShowPicker] = useState(false);
+
   const presets = [
     '#C91A79',
     '#7C3AED',
@@ -426,33 +430,153 @@ const ColorPicker = ({
           />
         ))}
       </Box>
-      <Box display="flex" alignItems="center" gap={1}>
+
+      {/* Interactive color picker */}
+      <Typography sx={{ fontSize: 11.5, color: '#6B7280', mb: 0.75, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <span>🎨</span> Or pick a custom color:
+      </Typography>
+      <Box display="flex" alignItems="flex-start" gap={1} sx={{ position: 'relative' }}>
+        {/* Clickable color swatch / picker trigger */}
         <Box
-          component="input"
-          type="text"
-          placeholder="#hex"
-          maxLength={7}
+          component="button"
+          onClick={() => setShowPicker(!showPicker)}
           sx={{
-            width: 90,
-            height: 36,
-            px: 1.25,
-            borderRadius: '8px',
-            border: '1px solid #E0DEF7',
-            background: '#F7F7FD',
-            fontSize: 12.5,
-            color: '#374151',
-            outline: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.25,
+            px: 1.75,
+            py: 1,
+            borderRadius: '10px',
+            border: `2px solid ${showPicker ? primary : '#C2185B55'}`,
+            background: showPicker ? `${primary}08` : '#FFF5F9',
+            cursor: 'pointer',
+            transition: 'all 0.18s',
+            boxShadow: showPicker ? `0 0 0 3px ${primary}22` : 'none',
+            '&:hover': {
+              borderColor: primary,
+              background: `${primary}08`,
+              boxShadow: `0 0 0 3px ${primary}18`,
+            },
             fontFamily: 'inherit',
           }}
-          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-            const t = e.currentTarget;
-            if (e.key === 'Enter' && t.value.match(/^#[0-9a-fA-F]{6}$/) && colors.length < 3) {
-              onChange([...colors, t.value]);
-              t.value = '';
+        >
+          {/* Live colour preview swatch */}
+          <Box
+            sx={{
+              width: 28,
+              height: 28,
+              borderRadius: '7px',
+              background: newColor,
+              border: '2px solid rgba(0,0,0,0.10)',
+              flexShrink: 0,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+            }}
+          />
+          <Box sx={{ textAlign: 'left' }}>
+            <Typography sx={{ fontSize: 11, color: '#9CA3AF', lineHeight: 1.2 }}>Click to open picker</Typography>
+            <Typography sx={{ fontSize: 13, color: '#374151', fontWeight: 600, letterSpacing: 0.3, lineHeight: 1.4 }}>
+              {newColor}
+            </Typography>
+          </Box>
+          <Typography sx={{ fontSize: 12, color: primary, ml: 0.5 }}>{showPicker ? '▲' : '▼'}</Typography>
+        </Box>
+
+        {/* + Add button */}
+        <Box
+          component="button"
+          disabled={colors.length >= 3}
+          onClick={() => {
+            if (colors.length < 3) {
+              onChange([...colors, newColor]);
+              setShowPicker(false);
             }
           }}
-        />
-        <Typography sx={{ fontSize: 11.5, color: '#9CA3AF' }}>{colors.length}/3 selected</Typography>
+          sx={{
+            height: 36,
+            px: 1.5,
+            borderRadius: '8px',
+            border: `1.5px solid ${primary}`,
+            background: '#fff',
+            color: primary,
+            fontSize: 12.5,
+            fontWeight: 700,
+            cursor: colors.length >= 3 ? 'not-allowed' : 'pointer',
+            opacity: colors.length >= 3 ? 0.4 : 1,
+            whiteSpace: 'nowrap',
+            fontFamily: 'inherit',
+            transition: 'all 0.15s',
+            '&:hover': { background: colors.length < 3 ? `${primary}10` : undefined },
+          }}
+        >
+          + Add
+        </Box>
+
+        <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', alignSelf: 'center' }}>
+          {colors.length}/3 selected
+        </Typography>
+
+        {/* HexColorPicker popup */}
+        {showPicker && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              mt: 1,
+              p: 1.5,
+              borderRadius: '12px',
+              background: '#fff',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+              zIndex: 1000,
+              minWidth: 200,
+            }}
+          >
+            <HexColorPicker color={newColor} onChange={setNewColor} style={{ width: '100%' }} />
+            <Box
+              component="input"
+              type="text"
+              value={newColor}
+              maxLength={7}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                const v = e.target.value;
+                if (v.match(/^#[0-9a-fA-F]{0,6}$/)) setNewColor(v);
+              }}
+              sx={{
+                mt: 1,
+                width: '100%',
+                height: 32,
+                px: 1,
+                borderRadius: '6px',
+                border: '1px solid #E0DEF7',
+                background: '#F7F7FD',
+                fontSize: 12.5,
+                color: '#374151',
+                outline: 'none',
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+              }}
+            />
+            <Box
+              component="button"
+              onClick={() => setShowPicker(false)}
+              sx={{
+                mt: 1,
+                width: '100%',
+                py: 0.75,
+                borderRadius: '6px',
+                border: '1px solid #E0DEF7',
+                background: '#F7F7FD',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                '&:hover': { background: '#EFEFEF' },
+              }}
+            >
+              Close
+            </Box>
+          </Box>
+        )}
       </Box>
     </Box>
   );

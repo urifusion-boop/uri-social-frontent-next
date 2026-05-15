@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { SocialMediaAgentService, BlogGenerationRequest, BlogContentResponse } from '@/src/api/SocialMediaAgentService';
-import { toast } from 'react-toastify';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { FiBook, FiDownload, FiCopy, FiCheck, FiX, FiLoader } from 'react-icons/fi';
 
 const URI_PINK = '#CD1B78';
@@ -33,12 +34,12 @@ export default function BlogGeneratorTab() {
 
   const handleGenerate = async () => {
     if (!topic.trim()) {
-      toast.error('Please enter a blog topic');
+      ToastService.showToast('Please enter a blog topic', ToastTypeEnum.Error);
       return;
     }
 
     if (keywords.length === 0) {
-      toast.error('Please add at least one keyword');
+      ToastService.showToast('Please add at least one keyword', ToastTypeEnum.Error);
       return;
     }
 
@@ -57,13 +58,16 @@ export default function BlogGeneratorTab() {
 
       if (response.status && response.responseData) {
         setBlogResult(response.responseData);
-        toast.success('Blog content generated successfully!');
+        ToastService.showToast('Blog content generated successfully!', ToastTypeEnum.Success);
       } else {
-        toast.error(response.message || 'Failed to generate blog content');
+        ToastService.showToast(response.responseMessage || 'Failed to generate blog content', ToastTypeEnum.Error);
       }
     } catch (error) {
       console.error('Blog generation error:', error);
-      toast.error((error as Error)?.message || 'An error occurred while generating blog content');
+      ToastService.showToast(
+        (error as Error)?.message || 'An error occurred while generating blog content',
+        ToastTypeEnum.Error
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -133,13 +137,13 @@ export default function BlogGeneratorTab() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success('Blog exported as HTML');
+    ToastService.showToast('Blog exported as HTML', ToastTypeEnum.Success);
   };
 
   const handleCopyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
-    toast.success('Copied to clipboard!');
+    ToastService.showToast('Copied to clipboard!', ToastTypeEnum.Success);
     setTimeout(() => setCopiedField(null), 2000);
   };
 
