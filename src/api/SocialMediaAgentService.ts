@@ -619,6 +619,20 @@ export class SocialMediaAgentService {
     );
     return response.data;
   }
+
+  static async getBlogDrafts(): Promise<UriResponse<BlogDraft[]>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogDraft[]>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.getBlogDrafts
+    );
+    return response.data;
+  }
+
+  static async getBlogDraft(draftId: string): Promise<UriResponse<BlogDraft>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogDraft>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.getBlogDraft.replace('{draft_id}', draftId)
+    );
+    return response.data;
+  }
 }
 
 export interface PerformancePost {
@@ -808,7 +822,8 @@ export interface BlogContentResponse {
   content: string;
   reading_time: number;
   word_count: number;
-  featured_image_url: string;
+  image_url: string | null;
+  has_image: boolean;
   social_snippets: {
     linkedin: string;
     twitter: string;
@@ -817,4 +832,27 @@ export interface BlogContentResponse {
   keywords: string[];
   tone: string;
   generated_at: string;
+}
+
+export interface BlogDraft {
+  id: string;
+  user_id: string;
+  status: string;
+  title: string;
+  meta_description: string;
+  content: string;
+  reading_time: number;
+  word_count: number;
+  featured_image_url: string | null;
+  has_image: boolean;
+  social_snippets: {
+    linkedin: string;
+    twitter: string;
+    facebook: string;
+  };
+  keywords: string[];
+  tone: string;
+  generated_at: string;
+  created_at: string;
+  updated_at: string;
 }

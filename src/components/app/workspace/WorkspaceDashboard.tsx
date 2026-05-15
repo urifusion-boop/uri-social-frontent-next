@@ -29,6 +29,7 @@ import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
+import BlogDraftsTab from '@/src/components/app/social-media/BlogDraftsTab';
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
@@ -77,6 +78,12 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       <>
         <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
         <path d="M4 4.5A2.5 2.5 0 016.5 2H20v20H6.5A2.5 2.5 0 014 19.5z" />
+      </>
+    ),
+    file: (
+      <>
+        <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z" />
+        <polyline points="13 2 13 9 20 9" />
       </>
     ),
     settings: (
@@ -5453,6 +5460,12 @@ const NAV = [
     tooltip: 'Generate SEO-optimized blog posts with AI (Beta)',
   },
   {
+    id: 'blog-drafts',
+    icon: 'file',
+    label: 'Blog Drafts',
+    tooltip: 'View and manage your AI-generated blog posts',
+  },
+  {
     id: 'playbook',
     icon: 'book',
     label: 'Brand Playbook',
@@ -5742,6 +5755,7 @@ export default function WorkspaceDashboard() {
     performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
     blog: <BlogGeneratorTab />,
+    'blog-drafts': <BlogDraftsTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
     settings: (
       <SettingsPage
