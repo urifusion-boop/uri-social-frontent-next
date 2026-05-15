@@ -517,10 +517,10 @@ export default function BlogGeneratorTab() {
             </div>
 
             {/* Featured Image */}
-            {blogResult.featured_image_url && (
+            {blogResult.image_url && (
               <div style={{ marginBottom: '24px' }}>
                 <img
-                  src={blogResult.featured_image_url}
+                  src={blogResult.image_url}
                   alt={blogResult.title}
                   style={{
                     width: '100%',
