@@ -775,6 +775,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   const [scheduleAllOpen, setScheduleAllOpen] = useState(false);
   const [scheduleAllAt, setScheduleAllAt] = useState('');
   const [scheduleAllLoading, setScheduleAllLoading] = useState(false);
+  const scheduleAllInProgress = useRef(false);
   // per-draft progress: null = pending, true = done, false = failed
   const [scheduleProgress, setScheduleProgress] = useState<Record<string, boolean | null>>({});
   const [syncImageOpen, setSyncImageOpen] = useState(false);
@@ -790,22 +791,34 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
 
   // Schedule each selected draft individually so failures are isolated per-platform.
   const handleScheduleAll = async () => {
-    if (!scheduleAllAt || scheduleAllLoading) return;
+    if (!scheduleAllAt || scheduleAllInProgress.current) return;
     const ids = Array.from(selectedDraftIds);
     if (!ids.length) return;
 
     const datetime = new Date(scheduleAllAt).toISOString();
+
+    // Pre-validate: Instagram requires an image — mark those as failed upfront.
+    const instagramNoImage = new Set(
+      ids.filter((id) => {
+        const d = drafts.find((dr) => (dr.draft_id ?? dr.id ?? '') === id);
+        return d?.platform?.toLowerCase() === 'instagram' && !d?.image_url && !d?.has_image;
+      })
+    );
+
     const initial: Record<string, boolean | null> = {};
     ids.forEach((id) => {
-      initial[id] = null;
+      initial[id] = instagramNoImage.has(id) ? false : null;
     });
     setScheduleProgress(initial);
+    scheduleAllInProgress.current = true;
     setScheduleAllLoading(true);
 
     let succeeded = 0;
-    let failed = 0;
+    let failed = instagramNoImage.size;
+    const succeededIds: string[] = [];
 
     for (const id of ids) {
+      if (instagramNoImage.has(id)) continue;
       try {
         const response = await SocialMediaAgentService.approveContent({
           draft_ids: [id],
@@ -814,17 +827,36 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
         });
         const ok = response.status === true;
         setScheduleProgress((prev) => ({ ...prev, [id]: ok }));
-        if (ok) succeeded++;
-        else failed++;
+        if (ok) {
+          succeeded++;
+          succeededIds.push(id);
+        } else {
+          failed++;
+        }
       } catch {
         setScheduleProgress((prev) => ({ ...prev, [id]: false }));
         failed++;
       }
     }
 
+    scheduleAllInProgress.current = false;
     setScheduleAllLoading(false);
 
-    if (succeeded > 0) {
+    // Remove succeeded IDs from selection so retries never re-submit an already-scheduled post.
+    if (succeededIds.length > 0) {
+      setSelectedDraftIds((prev) => {
+        const next = new Set(prev);
+        succeededIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
+
+    if (instagramNoImage.size > 0 && succeeded === 0 && failed === instagramNoImage.size) {
+      ToastService.showToast(
+        `${instagramNoImage.size} Instagram post${instagramNoImage.size !== 1 ? 's' : ''} skipped — add an image first`,
+        ToastTypeEnum.Warning
+      );
+    } else if (succeeded > 0) {
       ToastService.showToast(
         failed > 0
           ? `${succeeded} scheduled, ${failed} failed — check the results`
@@ -1261,10 +1293,17 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                   {/* Per-draft progress rows */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
                     {drafts
-                      .filter((d) => selectedDraftIds.has(d.draft_id ?? d.id ?? ''))
+                      .filter((d) => {
+                        const id = d.draft_id ?? d.id ?? '';
+                        return Object.keys(scheduleProgress).length > 0
+                          ? id in scheduleProgress
+                          : selectedDraftIds.has(id);
+                      })
                       .map((d) => {
                         const id = d.draft_id ?? d.id ?? '';
                         const status = scheduleProgress[id]; // null=pending, true=ok, false=fail
+                        const isIgNoImage =
+                          status === false && d.platform?.toLowerCase() === 'instagram' && !d.image_url && !d.has_image;
                         const platformColors: Record<string, string> = {
                           instagram: '#E1306C',
                           facebook: '#1877F2',
@@ -1306,22 +1345,15 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                                 whiteSpace: 'nowrap',
                               }}
                             >
-                              {d.content?.slice(0, 40)}
-                              {d.content && d.content.length > 40 ? '…' : ''}
+                              {isIgNoImage ? 'Needs an image' : d.content?.slice(0, 40)}
+                              {!isIgNoImage && d.content && d.content.length > 40 ? '…' : ''}
                             </span>
                             <span
                               style={{
                                 fontSize: 13,
                                 fontWeight: 700,
                                 flexShrink: 0,
-                                color:
-                                  status === true
-                                    ? '#16A34A'
-                                    : status === false
-                                      ? '#DC2626'
-                                      : scheduleAllLoading && status === null
-                                        ? '#9CA3AF'
-                                        : '#9CA3AF',
+                                color: status === true ? '#16A34A' : status === false ? '#DC2626' : '#9CA3AF',
                               }}
                             >
                               {status === true ? '✓' : status === false ? '✗' : scheduleAllLoading ? '…' : ''}
