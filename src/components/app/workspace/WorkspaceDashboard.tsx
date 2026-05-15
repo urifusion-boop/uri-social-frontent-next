@@ -769,11 +769,13 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     return !d.image_url;
   };
 
-  // Multi-select batch scheduling
+  // Multi-select scheduling
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
   const [scheduleAllOpen, setScheduleAllOpen] = useState(false);
   const [scheduleAllAt, setScheduleAllAt] = useState('');
   const [scheduleAllLoading, setScheduleAllLoading] = useState(false);
+  // per-draft progress: null = pending, true = done, false = failed
+  const [scheduleProgress, setScheduleProgress] = useState<Record<string, boolean | null>>({});
   const [syncImageOpen, setSyncImageOpen] = useState(false);
 
   const toggleDraftSelection = (id: string) => {
@@ -785,36 +787,62 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
     });
   };
 
+  // Schedule each selected draft individually so failures are isolated per-platform.
   const handleScheduleAll = async () => {
     if (!scheduleAllAt || scheduleAllLoading) return;
     const ids = Array.from(selectedDraftIds);
     if (!ids.length) return;
+
+    const datetime = new Date(scheduleAllAt).toISOString();
+    const initial: Record<string, boolean | null> = {};
+    ids.forEach((id) => {
+      initial[id] = null;
+    });
+    setScheduleProgress(initial);
     setScheduleAllLoading(true);
-    try {
-      const response = await SocialMediaAgentService.approveContent({
-        draft_ids: ids,
-        schedule_option: 'schedule',
-        scheduled_datetime: new Date(scheduleAllAt).toISOString(),
-      });
-      if (response.status) {
-        const selectedDrafts = drafts.filter((d) => selectedDraftIds.has(d.draft_id ?? d.id ?? ''));
-        const platformSet = new Set(selectedDrafts.map((d) => d.platform).filter(Boolean));
-        ToastService.showToast(
-          `${ids.length} post${ids.length !== 1 ? 's' : ''} scheduled across ${platformSet.size} platform${platformSet.size !== 1 ? 's' : ''}`,
-          ToastTypeEnum.Success
-        );
-        setSelectedDraftIds(new Set());
-        setScheduleAllOpen(false);
-        setScheduleAllAt('');
-        fetchDrafts();
-        fetchScheduled();
-      } else {
-        ToastService.showToast(response.responseMessage || 'Scheduling failed', ToastTypeEnum.Error);
+
+    let succeeded = 0;
+    let failed = 0;
+
+    for (const id of ids) {
+      try {
+        const response = await SocialMediaAgentService.approveContent({
+          draft_ids: [id],
+          schedule_option: 'schedule',
+          scheduled_datetime: datetime,
+        });
+        const ok = response.status === true;
+        setScheduleProgress((prev) => ({ ...prev, [id]: ok }));
+        if (ok) succeeded++;
+        else failed++;
+      } catch {
+        setScheduleProgress((prev) => ({ ...prev, [id]: false }));
+        failed++;
       }
-    } catch {
-      ToastService.showToast('Scheduling failed', ToastTypeEnum.Error);
-    } finally {
-      setScheduleAllLoading(false);
+    }
+
+    setScheduleAllLoading(false);
+
+    if (succeeded > 0) {
+      ToastService.showToast(
+        failed > 0
+          ? `${succeeded} scheduled, ${failed} failed — check the results`
+          : `${succeeded} post${succeeded !== 1 ? 's' : ''} scheduled`,
+        failed > 0 ? ToastTypeEnum.Warning : ToastTypeEnum.Success
+      );
+    } else {
+      ToastService.showToast('All posts failed to schedule', ToastTypeEnum.Error);
+    }
+
+    if (succeeded > 0) {
+      fetchDrafts();
+      fetchScheduled();
+    }
+    if (failed === 0) {
+      setSelectedDraftIds(new Set());
+      setScheduleAllOpen(false);
+      setScheduleAllAt('');
+      setScheduleProgress({});
     }
   };
 
@@ -1192,7 +1220,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
               </>
             )}
 
-            {/* Schedule selected posts dialog */}
+            {/* Schedule dialog — one API call per draft, isolated failures */}
             {scheduleAllOpen && (
               <div
                 style={{
@@ -1205,7 +1233,10 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                   zIndex: 1300,
                 }}
                 onClick={() => {
-                  if (!scheduleAllLoading) setScheduleAllOpen(false);
+                  if (!scheduleAllLoading) {
+                    setScheduleAllOpen(false);
+                    setScheduleProgress({});
+                  }
                 }}
               >
                 <div
@@ -1213,82 +1244,128 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                     background: '#fff',
                     borderRadius: 16,
                     padding: 28,
-                    width: 400,
+                    width: 420,
                     maxWidth: '92vw',
                     boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <p style={{ fontSize: 18, fontWeight: 700, color: '#111', margin: '0 0 6px' }}>
+                  <p style={{ fontSize: 18, fontWeight: 700, color: '#111', margin: '0 0 4px' }}>
                     Schedule {selectedDraftIds.size} post{selectedDraftIds.size !== 1 ? 's' : ''}
                   </p>
-                  <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 18px' }}>
-                    All selected posts will publish at this time. If two selected posts share the same platform, only
-                    the most recent one will be kept.
+                  <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 16px' }}>
+                    Each post is scheduled independently.
                   </p>
 
-                  {/* Selected platform breakdown */}
-                  {(() => {
-                    const selectedDrafts = drafts.filter((d) => selectedDraftIds.has(d.draft_id ?? d.id ?? ''));
-                    const byPlatform: Record<string, number> = {};
-                    selectedDrafts.forEach((d) => {
-                      const p = d.platform ?? 'unknown';
-                      byPlatform[p] = (byPlatform[p] ?? 0) + 1;
-                    });
-                    const platformColors: Record<string, string> = {
-                      instagram: '#E1306C',
-                      facebook: '#1877F2',
-                      twitter: '#1DA1F2',
-                      linkedin: '#0A66C2',
-                    };
-                    return (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                        {Object.entries(byPlatform).map(([platform, count]) => (
-                          <span
-                            key={platform}
+                  {/* Per-draft progress rows */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+                    {drafts
+                      .filter((d) => selectedDraftIds.has(d.draft_id ?? d.id ?? ''))
+                      .map((d) => {
+                        const id = d.draft_id ?? d.id ?? '';
+                        const status = scheduleProgress[id]; // null=pending, true=ok, false=fail
+                        const platformColors: Record<string, string> = {
+                          instagram: '#E1306C',
+                          facebook: '#1877F2',
+                          twitter: '#1DA1F2',
+                          linkedin: '#0A66C2',
+                        };
+                        return (
+                          <div
+                            key={id}
                             style={{
-                              background: '#F9FAFB',
-                              border: '1px solid #E5E7EB',
-                              borderRadius: 20,
-                              padding: '4px 12px',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: platformColors[platform] ?? '#374151',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              background: status === false ? '#FEF2F2' : status === true ? '#F0FDF4' : '#F9FAFB',
+                              border: `1px solid ${status === false ? '#FECACA' : status === true ? '#BBF7D0' : '#E5E7EB'}`,
                             }}
                           >
-                            {platform.charAt(0).toUpperCase() + platform.slice(1)}
-                            {count > 1 ? ` · ${count} drafts` : ''}
-                          </span>
-                        ))}
-                      </div>
-                    );
-                  })()}
+                            <span
+                              style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                flexShrink: 0,
+                                background: platformColors[d.platform] ?? '#9CA3AF',
+                              }}
+                            />
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#374151', flex: 1 }}>
+                              {d.platform.charAt(0).toUpperCase() + d.platform.slice(1)}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                color: '#6B7280',
+                                flex: 2,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {d.content?.slice(0, 40)}
+                              {d.content && d.content.length > 40 ? '…' : ''}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                flexShrink: 0,
+                                color:
+                                  status === true
+                                    ? '#16A34A'
+                                    : status === false
+                                      ? '#DC2626'
+                                      : scheduleAllLoading && status === null
+                                        ? '#9CA3AF'
+                                        : '#9CA3AF',
+                              }}
+                            >
+                              {status === true ? '✓' : status === false ? '✗' : scheduleAllLoading ? '…' : ''}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
 
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
-                    Publish at
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={scheduleAllAt}
-                    onChange={(e) => setScheduleAllAt(e.target.value)}
-                    min={(() => {
-                      const d = new Date(Date.now() + 5 * 60 * 1000);
-                      const pad = (n: number) => String(n).padStart(2, '0');
-                      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                    })()}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      border: '1.5px solid #E5E7EB',
-                      fontSize: 14,
-                      marginBottom: 22,
-                      boxSizing: 'border-box',
-                    }}
-                  />
+                  {/* Date picker — hidden once scheduling starts */}
+                  {Object.keys(scheduleProgress).length === 0 && (
+                    <>
+                      <label
+                        style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}
+                      >
+                        Publish at
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={scheduleAllAt}
+                        onChange={(e) => setScheduleAllAt(e.target.value)}
+                        min={(() => {
+                          const d = new Date(Date.now() + 5 * 60 * 1000);
+                          const pad = (n: number) => String(n).padStart(2, '0');
+                          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                        })()}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          border: '1.5px solid #E5E7EB',
+                          fontSize: 14,
+                          marginBottom: 22,
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </>
+                  )}
+
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                     <button
-                      onClick={() => setScheduleAllOpen(false)}
+                      onClick={() => {
+                        setScheduleAllOpen(false);
+                        setScheduleProgress({});
+                      }}
                       disabled={scheduleAllLoading}
                       style={{
                         padding: '9px 20px',
@@ -1302,24 +1379,28 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                         opacity: scheduleAllLoading ? 0.5 : 1,
                       }}
                     >
-                      Cancel
+                      {Object.values(scheduleProgress).some((v) => v !== null) && !scheduleAllLoading
+                        ? 'Close'
+                        : 'Cancel'}
                     </button>
-                    <button
-                      onClick={handleScheduleAll}
-                      disabled={!scheduleAllAt || scheduleAllLoading}
-                      style={{
-                        padding: '9px 20px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: !scheduleAllAt || scheduleAllLoading ? '#E5E7EB' : '#CD1B78',
-                        color: !scheduleAllAt || scheduleAllLoading ? '#9CA3AF' : '#fff',
-                        fontSize: 13,
-                        fontWeight: 700,
-                        cursor: !scheduleAllAt || scheduleAllLoading ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      {scheduleAllLoading ? 'Scheduling…' : 'Confirm Schedule'}
-                    </button>
+                    {Object.keys(scheduleProgress).length === 0 && (
+                      <button
+                        onClick={handleScheduleAll}
+                        disabled={!scheduleAllAt || scheduleAllLoading}
+                        style={{
+                          padding: '9px 20px',
+                          borderRadius: 8,
+                          border: 'none',
+                          background: !scheduleAllAt || scheduleAllLoading ? '#E5E7EB' : '#CD1B78',
+                          color: !scheduleAllAt || scheduleAllLoading ? '#9CA3AF' : '#fff',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: !scheduleAllAt || scheduleAllLoading ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {scheduleAllLoading ? 'Scheduling…' : 'Confirm Schedule'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
