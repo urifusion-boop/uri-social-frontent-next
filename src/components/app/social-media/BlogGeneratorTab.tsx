@@ -85,12 +85,23 @@ export default function BlogGeneratorTab() {
   const handleExportHTML = () => {
     if (!blogResult) return;
 
+    // Format date
+    const formatDate = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    };
+
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="${blogResult.meta_description}">
+    <meta name="keywords" content="${blogResult.keywords.join(', ')}">
     <title>${blogResult.title}</title>
     <style>
         body {
@@ -100,11 +111,38 @@ export default function BlogGeneratorTab() {
             margin: 0 auto;
             padding: 40px 20px;
             color: #333;
+            background: #fff;
+        }
+        .blog-header {
+            margin-bottom: 3em;
+            padding-bottom: 2em;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .blog-meta-description {
+            font-size: 1.2em;
+            color: #666;
+            font-style: italic;
+            margin: 1em 0 1.5em 0;
+            line-height: 1.6;
+        }
+        .blog-meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            font-size: 0.95em;
+            color: #999;
+            margin-top: 1em;
+        }
+        .blog-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
         }
         h1 {
             font-size: 2.5em;
-            margin-bottom: 0.5em;
+            margin-bottom: 0.3em;
             color: #1a1a1a;
+            line-height: 1.2;
         }
         h2 {
             font-size: 1.8em;
@@ -130,10 +168,34 @@ export default function BlogGeneratorTab() {
         li {
             margin: 0.5em 0;
         }
+        @media (max-width: 768px) {
+            body {
+                padding: 20px 16px;
+            }
+            h1 {
+                font-size: 2em;
+            }
+            h2 {
+                font-size: 1.5em;
+            }
+        }
     </style>
 </head>
 <body>
-    ${blogResult.content}
+    <article>
+        <header class="blog-header">
+            <h1>${blogResult.title}</h1>
+            <p class="blog-meta-description">${blogResult.meta_description}</p>
+            <div class="blog-meta">
+                <span>📖 ${blogResult.reading_time} min read</span>
+                <span>📝 ${blogResult.word_count} words</span>
+                <span>📅 ${formatDate(blogResult.generated_at)}</span>
+            </div>
+        </header>
+        <main>
+            ${blogResult.content}
+        </main>
+    </article>
 </body>
 </html>`;
 
