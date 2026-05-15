@@ -6093,7 +6093,7 @@ export default function WorkspaceDashboard() {
           )}
 
           {/* Page content */}
-          <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: nav === 'workspace' ? 'hidden' : 'auto' }}>
             {nav === 'workspace' ? (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '14px 14px 8px' : '18px 24px 8px' }}>
