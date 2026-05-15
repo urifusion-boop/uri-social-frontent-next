@@ -717,7 +717,10 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
             {plan.brand_snapshot?.brand_name ?? 'Your brand'}
           </div>
           {/* Inline platform selector — changes take effect on next regenerate */}
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          <div
+            title="Toggle platforms on or off. Hit 'Regenerate week' to generate a fresh plan for your new selection."
+            style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}
+          >
             {CONNECTED_PLATFORMS.map((p) => {
               const active = platforms.includes(p);
               return (
@@ -725,6 +728,7 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
                   key={p}
                   type="button"
                   onClick={() => togglePlatform(p)}
+                  title={active ? `Remove ${p.charAt(0).toUpperCase() + p.slice(1)}` : `Add ${p.charAt(0).toUpperCase() + p.slice(1)}`}
                   style={{
                     padding: '2px 9px',
                     borderRadius: 20,
@@ -746,6 +750,16 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
               );
             })}
           </div>
+          {/* Static hint */}
+          <div style={{ fontSize: 10, color: '#c8c5be', marginTop: 4 }}>
+            Tap to change platforms · hit <span style={{ fontWeight: 700 }}>Regenerate week</span> to apply
+          </div>
+          {/* Dynamic warning when selection differs from the current plan */}
+          {JSON.stringify([...platforms].sort()) !== JSON.stringify([...(plan.platforms ?? [])].sort()) && (
+            <div style={{ fontSize: 10, color: '#c2410c', marginTop: 2, fontWeight: 600 }}>
+              ↻ Platform changed — regenerate week to apply
+            </div>
+          )}
         </div>
         <button
           onClick={() => handleGenerate(true)}
