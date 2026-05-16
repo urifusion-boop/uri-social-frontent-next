@@ -1026,7 +1026,6 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
     },
-    { key: 'video', label: 'Video', tooltip: 'Create AI-generated video storyboards for your brand' },
   ];
 
   return (
