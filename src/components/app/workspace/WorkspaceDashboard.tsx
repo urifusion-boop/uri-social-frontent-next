@@ -737,7 +737,7 @@ interface PostItem {
 ═══════════════════════════════════════════════════════════════════════════ */
 type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
 
-const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
+const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; isMobile?: boolean }) => {
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
   const activeTabRef = useRef<ContentTab>('create');
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
@@ -1031,41 +1031,62 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8f7f5' }}>
       {/* Header */}
-      <div style={{ padding: '20px 24px 0', background: '#fff', borderBottom: '1px solid #edecea' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div
+        style={{
+          padding: isMobile ? '10px 12px 0' : '20px 24px 0',
+          background: '#fff',
+          borderBottom: '1px solid #edecea',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: isMobile ? 10 : 16,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg,#880E4F,#E91E63)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <I n="calendar" s={17} c="#fff" />
-            </div>
+            {!isMobile && (
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: 'linear-gradient(135deg,#880E4F,#E91E63)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <I n="calendar" s={17} c="#fff" />
+              </div>
+            )}
             <div>
-              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
+              <h2 style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
                 Content Manager
               </h2>
-              <p style={{ fontSize: 11.5, color: '#999', margin: 0 }}>Create, review and schedule your posts</p>
+              {!isMobile && (
+                <p style={{ fontSize: 11.5, color: '#999', margin: 0 }}>Create, review and schedule your posts</p>
+              )}
             </div>
           </div>
           {/* Quick stats */}
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ display: 'flex', gap: isMobile ? 10 : 12 }}>
             {drafts.length > 0 && (
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#C2185B', lineHeight: 1 }}>{drafts.length}</div>
+                <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#C2185B', lineHeight: 1 }}>
+                  {drafts.length}
+                </div>
                 <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>DRAFTS</div>
               </div>
             )}
             {scheduled.length > 0 && (
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#0a66c2', lineHeight: 1 }}>{scheduled.length}</div>
+                <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#0a66c2', lineHeight: 1 }}>
+                  {scheduled.length}
+                </div>
                 <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>SCHEDULED</div>
               </div>
             )}
@@ -1102,18 +1123,18 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
                 <button
                   onClick={() => setActiveTab(t.key)}
                   style={{
-                    padding: '9px 14px 10px',
+                    padding: isMobile ? '8px 10px 9px' : '9px 14px 10px',
                     border: 'none',
                     background: 'none',
                     cursor: 'pointer',
-                    fontSize: 13,
+                    fontSize: isMobile ? 12 : 13,
                     fontWeight: active ? 700 : 500,
                     fontFamily: 'var(--wf)',
                     color: active ? '#C2185B' : '#777',
                     borderBottom: active ? '2.5px solid #C2185B' : '2.5px solid transparent',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: isMobile ? 4 : 6,
                     whiteSpace: 'nowrap',
                     transition: 'color .15s',
                     outline: 'none',
@@ -1146,7 +1167,7 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '20px 24px' }}>
         {activeTab === 'create' && <ContentGeneratorForm onGenerated={handleGenerated} />}
 
         {activeTab === 'video' && <VideoStoryboardGenerator />}
@@ -1162,77 +1183,138 @@ const ContentManagerPage = ({ onJane }: { onJane: () => void }) => {
             ) : (
               <>
                 {/* Selection action bar — appears when posts are selected */}
-                {selectedDraftIds.size > 0 && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      background: '#fff',
-                      border: '1.5px solid #CD1B78',
-                      borderRadius: 10,
-                      padding: '10px 16px',
-                      marginBottom: 14,
-                    }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#CD1B78', flex: 1 }}>
-                      {selectedDraftIds.size} post{selectedDraftIds.size > 1 ? 's' : ''} selected
-                    </span>
-                    {(() => {
-                      const selectedWithImages = drafts.filter((d) => {
-                        const id = d.draft_id ?? d.id ?? '';
-                        return selectedDraftIds.has(id) && d.image_url;
-                      });
-                      return selectedWithImages.length >= 2 ? (
-                        <button
-                          onClick={() => setSyncImageOpen(true)}
+                {selectedDraftIds.size > 0 &&
+                  (() => {
+                    const selectedWithImages = drafts.filter((d) => {
+                      const id = d.draft_id ?? d.id ?? '';
+                      return selectedDraftIds.has(id) && d.image_url;
+                    });
+                    const showSync = selectedWithImages.length >= 2;
+                    const syncBtn = showSync ? (
+                      <button
+                        onClick={() => setSyncImageOpen(true)}
+                        style={{
+                          background: '#fff',
+                          color: '#CD1B78',
+                          border: '1.5px solid #CD1B78',
+                          borderRadius: 8,
+                          padding: isMobile ? '6px 10px' : '6px 14px',
+                          fontSize: isMobile ? 12 : 13,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                        }}
+                      >
+                        Sync Image
+                      </button>
+                    ) : null;
+                    return isMobile ? (
+                      <div
+                        style={{
+                          background: '#fff',
+                          border: '1.5px solid #CD1B78',
+                          borderRadius: 10,
+                          padding: '8px 10px',
+                          marginBottom: 14,
+                        }}
+                      >
+                        <div
                           style={{
-                            background: '#fff',
-                            color: '#CD1B78',
-                            border: '1.5px solid #CD1B78',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: 7,
+                          }}
+                        >
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#CD1B78' }}>
+                            {selectedDraftIds.size} post{selectedDraftIds.size > 1 ? 's' : ''} selected
+                          </span>
+                          <button
+                            onClick={() => setSelectedDraftIds(new Set())}
+                            style={{
+                              background: 'none',
+                              border: '1px solid #E5E7EB',
+                              borderRadius: 7,
+                              padding: '4px 10px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: '#6B7280',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {syncBtn}
+                          <button
+                            onClick={() => setScheduleAllOpen(true)}
+                            style={{
+                              flex: 1,
+                              background: '#CD1B78',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 8,
+                              padding: '7px 12px',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Schedule All
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          background: '#fff',
+                          border: '1.5px solid #CD1B78',
+                          borderRadius: 10,
+                          padding: '10px 16px',
+                          marginBottom: 14,
+                        }}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#CD1B78', flex: 1 }}>
+                          {selectedDraftIds.size} post{selectedDraftIds.size > 1 ? 's' : ''} selected
+                        </span>
+                        {syncBtn}
+                        <button
+                          onClick={() => setScheduleAllOpen(true)}
+                          style={{
+                            background: '#CD1B78',
+                            color: '#fff',
+                            border: 'none',
                             borderRadius: 8,
-                            padding: '6px 14px',
+                            padding: '6px 16px',
                             fontSize: 13,
                             fontWeight: 700,
                             cursor: 'pointer',
                           }}
                         >
-                          Sync Image
+                          Schedule All
                         </button>
-                      ) : null;
-                    })()}
-                    <button
-                      onClick={() => setScheduleAllOpen(true)}
-                      style={{
-                        background: '#CD1B78',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 8,
-                        padding: '6px 16px',
-                        fontSize: 13,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Schedule All
-                    </button>
-                    <button
-                      onClick={() => setSelectedDraftIds(new Set())}
-                      style={{
-                        background: 'none',
-                        border: '1px solid #E5E7EB',
-                        borderRadius: 8,
-                        padding: '6px 12px',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: '#6B7280',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                )}
+                        <button
+                          onClick={() => setSelectedDraftIds(new Set())}
+                          style={{
+                            background: 'none',
+                            border: '1px solid #E5E7EB',
+                            borderRadius: 8,
+                            padding: '6px 12px',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: '#6B7280',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    );
+                  })()}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {drafts.map((draft) => {
@@ -5736,7 +5818,7 @@ export default function WorkspaceDashboard() {
 
   const PAGES: Record<string, ReactNode> = {
     messages: <MessagesPage onJane={goWorkspace} />,
-    schedule: <ContentManagerPage onJane={goWorkspace} />,
+    schedule: <ContentManagerPage onJane={goWorkspace} isMobile={isMobile} />,
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
