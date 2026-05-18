@@ -18,7 +18,7 @@
     }
   },
   "globalHeaders": {
-    "content-security-policy": "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data: blob:; connect-src 'self' https://api.urisocial.com https://api-staging.urisocial.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; script-src-elem 'self' 'unsafe-inline' blob:"
+    "content-security-policy": "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data: blob:; connect-src 'self' https://api.urisocial.com https://api-staging.urisocial.com https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://www.googletagmanager.com; script-src-elem 'self' 'unsafe-inline' blob: https://www.googletagmanager.com"
   },
   "mimeTypes": {
     ".json": "application/json"
