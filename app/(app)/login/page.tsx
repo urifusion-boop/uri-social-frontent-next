@@ -3,6 +3,7 @@
 import { AuthService } from '@/src/api/AuthService';
 import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { useAuth } from '@/src/providers/AuthProvider';
+import { trackEvent } from '@/lib/analytics';
 import {
   Box,
   Button,
@@ -147,6 +148,7 @@ function LoginContent() {
   }, []);
 
   const handleGoogleSignIn = () => {
+    trackEvent('auth_google_click', { action: tab === 'login' ? 'sign_in' : 'sign_up' });
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) {
       setError('Google sign-in is not configured yet.');
@@ -231,6 +233,7 @@ function LoginContent() {
       saveUserDetails(userDto as unknown as Parameters<typeof saveUserDetails>[0]);
 
       setSuccess(tab === 'login' ? 'Login successful! Redirecting...' : 'Account created successfully! Redirecting...');
+      trackEvent('auth_success', { method: 'email', action: tab });
 
       const onboardingDone = await BrandProfileService.isOnboardingDone();
       setTimeout(() => {
@@ -310,6 +313,7 @@ function LoginContent() {
               setSuccess('');
               setEmailError('');
               setPasswordError('');
+              trackEvent('auth_tab_switch', { tab: v });
             }}
             sx={{
               mb: 2.5,

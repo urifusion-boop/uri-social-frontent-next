@@ -2,6 +2,7 @@
 
 import { GenerateContentPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { BillingService } from '@/src/api/BillingService';
+import { trackEvent } from '@/lib/analytics';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
@@ -255,6 +256,13 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
 
       if (response.status) {
         ToastService.showToast('Content generated! Check your Drafts tab.', ToastTypeEnum.Success);
+        trackEvent('content_generated', {
+          platforms: selectedPlatforms,
+          post_type: postType,
+          include_images: includeImages,
+          has_reference_image: !!referenceImage,
+          ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
+        });
         onGenerated();
 
         // Emit credit consumed event - AuthProvider will auto-refresh balance
@@ -280,6 +288,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
         }
         // PRD Section 8: Handle 402 Payment Required
         else if (response.responseCode === 402) {
+          trackEvent('out_of_credits', { source: 'content_generation' });
           setOutOfCreditsOpen(true);
         } else {
           ToastService.showToast(_friendlyGenerationError(response.responseMessage), ToastTypeEnum.Error);

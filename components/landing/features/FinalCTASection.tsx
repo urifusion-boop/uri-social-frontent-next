@@ -1,3 +1,7 @@
+'use client';
+
+import { trackEvent } from '@/lib/analytics';
+
 const FinalCTASection = () => {
   return (
     <section
@@ -77,8 +81,10 @@ const FinalCTASection = () => {
           </p>
 
           <button
+            type="button"
             className="comic-btn px-10 py-4 rounded-lg text-lg"
             style={{ backgroundColor: 'black', color: 'white' }}
+            onClick={() => trackEvent('final_cta_click')}
           >
             HIRE JANE →
           </button>

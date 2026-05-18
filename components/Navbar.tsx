@@ -8,6 +8,7 @@ import { Menu, X, Settings, LogOut, LayoutDashboard, Bug } from 'lucide-react';
 import BugReportModal from '@/src/components/app/atoms/BugReportModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/src/providers/AuthProvider';
+import { trackEvent } from '@/lib/analytics';
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
@@ -42,6 +43,7 @@ export default function Navbar() {
 
   const handleLogout = () => {
     setProfileMenuOpen(false);
+    trackEvent('logout');
     logoutUser();
   };
 
@@ -83,6 +85,7 @@ export default function Navbar() {
               href="/how-she-works"
               className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
+              onClick={() => trackEvent('nav_click', { destination: 'how_it_works' })}
             >
               How It Works
             </Link>
@@ -90,6 +93,7 @@ export default function Navbar() {
               href="/pricing"
               className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
+              onClick={() => trackEvent('nav_click', { destination: 'pricing' })}
             >
               Pricing
             </Link>
@@ -97,6 +101,7 @@ export default function Navbar() {
               href="/about"
               className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
+              onClick={() => trackEvent('nav_click', { destination: 'about' })}
             >
               About
             </Link>
@@ -104,6 +109,7 @@ export default function Navbar() {
               href="/contact"
               className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
               style={{ color: 'rgba(0, 0, 0, 0.7)' }}
+              onClick={() => trackEvent('nav_click', { destination: 'contact' })}
             >
               Contact
             </Link>
@@ -141,6 +147,7 @@ export default function Navbar() {
                           <button
                             onClick={() => {
                               setProfileMenuOpen(false);
+                              trackEvent('profile_menu_click', { action: 'dashboard' });
                               router.push('/workspace');
                             }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
@@ -152,6 +159,7 @@ export default function Navbar() {
                           <button
                             onClick={() => {
                               setProfileMenuOpen(false);
+                              trackEvent('profile_menu_click', { action: 'billing' });
                               router.push('/workspace?tab=billing');
                             }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
@@ -176,6 +184,7 @@ export default function Navbar() {
                           <button
                             onClick={() => {
                               setProfileMenuOpen(false);
+                              trackEvent('profile_menu_click', { action: 'settings' });
                               router.push('/workspace?tab=settings');
                             }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
@@ -187,6 +196,7 @@ export default function Navbar() {
                           <button
                             onClick={() => {
                               setProfileMenuOpen(false);
+                              trackEvent('profile_menu_click', { action: 'bug_report' });
                               setBugModalOpen(true);
                             }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
@@ -216,6 +226,7 @@ export default function Navbar() {
                   href="/login"
                   className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
                   style={{ color: 'rgba(0, 0, 0, 0.7)' }}
+                  onClick={() => trackEvent('nav_cta_click', { button: 'sign_in' })}
                 >
                   Sign In
                 </Link>
@@ -223,6 +234,7 @@ export default function Navbar() {
                   href="/login?tab=signup"
                   className="comic-btn px-4 py-2 rounded-lg text-xs"
                   style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}
+                  onClick={() => trackEvent('nav_cta_click', { button: 'get_started' })}
                 >
                   Get Started Free
                 </Link>

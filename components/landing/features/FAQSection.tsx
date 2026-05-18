@@ -1,7 +1,10 @@
+'use client';
+
 import Link from 'next/link';
 import { useState } from 'react';
 import { Sparkles, ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { trackEvent } from '@/lib/analytics';
 
 const FAQSection = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -71,7 +74,12 @@ const FAQSection = () => {
               transition={{ duration: 0.4, delay: index * 0.05 }}
             >
               <button
-                onClick={() => setOpenIndex(openIndex === index ? null : index)}
+                type="button"
+                onClick={() => {
+                  const opening = openIndex !== index;
+                  setOpenIndex(opening ? index : null);
+                  if (opening) trackEvent('faq_expanded', { question: faq.question });
+                }}
                 className="w-full bg-card border border-border rounded-xl p-6 hover:border-primary/50 transition-all duration-300 text-left group"
               >
                 <div className="flex items-start justify-between gap-4">

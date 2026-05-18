@@ -3,6 +3,7 @@
 import { AutoGenerateSettings, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
+import { trackEvent } from '@/lib/analytics';
 import {
   Box,
   Button,
@@ -63,6 +64,7 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
       });
       if (response.status) {
         ToastService.showToast('Settings saved', ToastTypeEnum.Success);
+        trackEvent('auto_generate_settings_saved', { enabled, platforms, frequency, include_images: includeImages });
         onSettingsChange();
       } else {
         ToastService.showToast(response.responseMessage || 'Save failed', ToastTypeEnum.Error);
@@ -80,6 +82,7 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
       const resp = await SocialMediaAgentService.triggerAutoGenerate();
       if (resp.status) {
         ToastService.showToast('Content generating — switching to Drafts', ToastTypeEnum.Success);
+        trackEvent('auto_generate_triggered', { platforms, frequency });
 
         // Switch to drafts immediately so the user can see drafts appear
         onSettingsChange();
@@ -140,7 +143,10 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
             >
               <Switch
                 checked={enabled}
-                onChange={(e) => setEnabled(e.target.checked)}
+                onChange={(e) => {
+                  setEnabled(e.target.checked);
+                  trackEvent('auto_generate_toggled', { enabled: e.target.checked });
+                }}
                 size="small"
                 sx={{
                   '& .MuiSwitch-switchBase.Mui-checked': { color: '#CD1B78' },

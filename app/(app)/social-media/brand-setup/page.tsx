@@ -30,6 +30,7 @@ import { getStyle } from '@/src/data/styleLibrary';
 import { MdOutlineCampaign } from 'react-icons/md';
 import { HexColorPicker } from 'react-colorful';
 import Navbar from '@/components/Navbar';
+import { trackEvent } from '@/lib/analytics';
 
 // ─── Step order ──────────────────────────────────────────────────────────────
 const STEPS = [
@@ -858,7 +859,10 @@ function BrandSetupPageContent() {
     }
   }, [searchParams, checkingExisting, router]);
 
-  const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  const next = () => {
+    trackEvent('onboarding_step_complete', { step: step, step_name: STEPS[step] });
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  };
   const prev = () => setStep((s) => Math.max(s - 1, 0));
   const toggle = <T,>(arr: T[], setArr: (v: T[]) => void, val: T, max?: number) =>
     setArr(arr.includes(val) ? arr.filter((x) => x !== val) : max && arr.length >= max ? arr : [...arr, val]);
@@ -929,6 +933,7 @@ function BrandSetupPageContent() {
     };
     try {
       await BrandProfileService.complete(profile);
+      trackEvent('onboarding_complete');
       router.push('/workspace');
     } catch {
       setSaving(false);

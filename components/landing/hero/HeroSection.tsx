@@ -1,5 +1,6 @@
 'use client';
 
+import { trackEvent } from '@/lib/analytics';
 import WhatsAppPhoneMockup from './WhatsAppPhoneMockup';
 
 const HeroSection = () => {
@@ -35,6 +36,7 @@ const HeroSection = () => {
                   color: 'white',
                   border: '3px solid black',
                 }}
+                onClick={() => trackEvent('hero_cta_click', { button: 'hire_jane' })}
               >
                 HIRE JANE — IT'S FREE
               </button>
@@ -45,6 +47,7 @@ const HeroSection = () => {
                   color: 'hsl(340, 74%, 42%)',
                   border: '3px solid black',
                 }}
+                onClick={() => trackEvent('hero_cta_click', { button: 'see_in_action' })}
               >
                 SEE HER IN ACTION
               </button>

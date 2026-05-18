@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { X, Bug, ChevronDown, Loader2, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BugReportService } from '@/src/api/BugReportService';
+import { trackEvent } from '@/lib/analytics';
 
 const CATEGORIES = [
   { value: 'ui', label: 'UI / Display issue' },
@@ -57,6 +58,7 @@ export default function BugReportModal({ isOpen, onClose }: BugReportModalProps)
       });
 
       if (res.status) {
+        trackEvent('bug_report_submitted', { category });
         setSubmitted(true);
       } else {
         toast.error(res.responseMessage || 'Failed to submit. Please try again.');

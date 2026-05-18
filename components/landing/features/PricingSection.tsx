@@ -1,3 +1,7 @@
+'use client';
+
+import { trackEvent } from '@/lib/analytics';
+
 const PricingSection = () => {
   const plans = [
     {
@@ -123,6 +127,7 @@ const PricingSection = () => {
                 </ul>
 
                 <button
+                  type="button"
                   className={`w-full py-3 rounded-lg font-black uppercase tracking-wide text-sm comic-btn ${
                     plan.popular ? '' : ''
                   }`}
@@ -130,6 +135,7 @@ const PricingSection = () => {
                     backgroundColor: plan.popular ? 'hsl(340, 74%, 42%)' : 'white',
                     color: plan.popular ? 'white' : 'black',
                   }}
+                  onClick={() => trackEvent('landing_pricing_cta_click', { plan: plan.name.toLowerCase(), cta: plan.cta })}
                 >
                   {plan.cta}
                 </button>

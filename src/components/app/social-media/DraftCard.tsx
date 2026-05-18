@@ -8,6 +8,7 @@ import {
   DenyPayload,
   SocialMediaAgentService,
 } from '@/src/api/SocialMediaAgentService';
+import { trackEvent } from '@/lib/analytics';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { useRouter } from 'next/navigation';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -382,6 +383,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           option === 'immediate' ? 'Published!' : option === 'schedule' ? 'Scheduled!' : 'Saved as draft',
           ToastTypeEnum.Success
         );
+        trackEvent('draft_approved', { option, platform: draft.platform });
         onRefresh();
       } else {
         ToastService.showToast(response.responseMessage || 'Approve failed', ToastTypeEnum.Error);
@@ -408,6 +410,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       const response = await SocialMediaAgentService.denyContent(payload);
       if (response.status) {
         ToastService.showToast('Draft denied', ToastTypeEnum.Success);
+        trackEvent('draft_denied', { platform: draft.platform, request_regen: requestRegen });
         setDenyOpen(false);
         onRefresh();
       } else {
@@ -431,6 +434,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       const response = await SocialMediaAgentService.deleteDraft(draftId);
       if (response.status) {
         ToastService.showToast('Draft deleted', ToastTypeEnum.Success);
+        trackEvent('draft_deleted', { platform: draft.platform });
         onRefresh();
       } else {
         ToastService.showToast(response.responseMessage || 'Delete failed', ToastTypeEnum.Error);
