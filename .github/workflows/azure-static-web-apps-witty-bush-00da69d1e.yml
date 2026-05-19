@@ -39,6 +39,8 @@ jobs:
           NEXT_PUBLIC_URI_API_BASE_URL: https://api.urisocial.com
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
           NODE_ENV: production
+          NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: phc_wCEFMsX7yQY4op5KkqVoYg3wGyMn56wWWghFYzBcFc4p
+          NEXT_PUBLIC_POSTHOG_HOST: https://us.i.posthog.com
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_WITTY_BUSH_00DA69D1E }}
           action: 'upload'

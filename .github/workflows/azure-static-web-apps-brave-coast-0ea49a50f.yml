@@ -40,6 +40,8 @@ jobs:
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
           NODE_ENV: production
           CACHE_BUST: ${{ env.CACHE_BUST }}
+          NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: phc_wCEFMsX7yQY4op5KkqVoYg3wGyMn56wWWghFYzBcFc4p
+          NEXT_PUBLIC_POSTHOG_HOST: https://us.i.posthog.com
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
