@@ -167,23 +167,6 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const items = Array.from(e.clipboardData.items);
-    const imageItem = items.find((item) => item.type.startsWith('image/'));
-
-    if (imageItem) {
-      const file = imageItem.getAsFile();
-      if (file) {
-        // Create a proper filename for pasted images
-        const timestamp = new Date().getTime();
-        const extension = file.type.split('/')[1] || 'png';
-        const renamedFile = new File([file], `pasted-image-${timestamp}.${extension}`, { type: file.type });
-
-        processImageFile(renamedFile, true);
-      }
-    }
-  };
-
   const removeReferenceImage = () => {
     setReferenceImage(null);
     setReferenceImageName('');
@@ -340,7 +323,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   const isValid = charCount >= 10 && charCount <= 5000 && selectedPlatforms.length > 0;
 
   return (
-    <Box sx={{ maxWidth: 700 }}>
+    <Box sx={{ maxWidth: 700, width: '100%' }}>
       <Box display="flex" alignItems="center" gap={0.75} mb={1}>
         <Typography fontSize="14px" color="#374151" fontWeight={500}>
           What do you want to post about?
@@ -477,7 +460,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
           </Box>
         </Tooltip>
       </Box>
-      <FormGroup row sx={{ mb: 3, gap: 1 }}>
+      <FormGroup row sx={{ mb: 3, gap: 1, flexWrap: 'wrap' }}>
         {PLATFORMS.map(({ key, label, icon }) => (
           <FormControlLabel
             key={key}
@@ -532,7 +515,8 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
                     py: 1.25,
                     cursor: disabled ? 'not-allowed' : 'pointer',
                     background: disabled ? '#F9FAFB' : active ? '#FDF2F8' : '#fff',
-                    minWidth: 120,
+                    flex: { xs: '1 1 calc(33% - 8px)', sm: '0 0 auto' },
+                    minWidth: { xs: 0, sm: 120 },
                     userSelect: 'none',
                     opacity: disabled ? 0.45 : 1,
                     transition: 'all 0.15s',
@@ -604,6 +588,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexWrap: { xs: 'wrap', sm: 'nowrap' },
           border: '1px solid',
           borderColor: includeImages ? '#CD1B78' : '#E5E7EB',
           borderRadius: '10px',
@@ -612,10 +597,11 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
           mb: 3,
           background: includeImages ? '#FDF2F8' : '#fff',
           cursor: 'pointer',
+          gap: 1,
         }}
         onClick={() => setIncludeImages((v) => !v)}
       >
-        <Box display="flex" alignItems="center" gap={1.5}>
+        <Box display="flex" alignItems="center" gap={1.5} sx={{ flex: 1, minWidth: 0 }}>
           <Box
             sx={{
               width: 36,

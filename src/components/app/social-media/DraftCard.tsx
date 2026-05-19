@@ -1111,7 +1111,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         <Box
           sx={{
             mt: 1.5,
-            p: 2.5,
+            p: { xs: 1.5, sm: 2.5 },
             background: 'linear-gradient(135deg, #FFFFFF 0%, #FEFCFF 100%)',
             borderRadius: '16px',
             border: '1px solid #F3E8FF',
@@ -1139,7 +1139,9 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#7C3AED' }}>Editing image...</Typography>
             </Box>
           )}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1.5, sm: 2.5 } }}
+          >
             <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#7C3AED', letterSpacing: '0.3px' }}>
               Edit Image {draft.image_version && draft.image_version > 1 ? `(v${draft.image_version})` : ''}
             </Typography>
@@ -1164,7 +1166,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             )}
           </Box>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1.5 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1.5 }}>
             <Button
               size="small"
               variant="outlined"
@@ -1426,6 +1428,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 py: 1.5,
                 px: 2,
                 borderRadius: '10px',
+                gridColumn: { xs: '1 / -1', sm: 'auto' },
                 borderColor: '#FCE7F3',
                 color: '#CD1B78',
                 background: '#FEF7FB',
@@ -1560,12 +1563,14 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             fullWidth
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
-            inputProps={{
-              min: (() => {
-                const d = new Date(Date.now() + 5 * 60 * 1000);
-                const pad = (n: number) => String(n).padStart(2, '0');
-                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-              })(),
+            slotProps={{
+              htmlInput: {
+                min: (() => {
+                  const d = new Date(Date.now() + 5 * 60 * 1000);
+                  const pad = (n: number) => String(n).padStart(2, '0');
+                  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                })(),
+              },
             }}
           />
         </DialogContent>
@@ -1769,9 +1774,13 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             onChange={(e) => setEditFeedback(e.target.value)}
             autoFocus
             disabled={editLoading}
-            InputProps={{
-              startAdornment:
-                editFeedback === 'Extracting text from image...' ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null,
+            slotProps={{
+              input: {
+                startAdornment:
+                  editFeedback === 'Extracting text from image...' ? (
+                    <CircularProgress size={16} sx={{ mr: 1 }} />
+                  ) : null,
+              },
             }}
           />
         </DialogContent>
