@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { BillingService, SubscriptionTier } from '@/src/api/BillingService';
-import { trackEvent } from '@/lib/analytics';
+import posthog from 'posthog-js';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +26,7 @@ export default function PricingPage() {
 
   useEffect(() => {
     fetchTiers();
+    posthog.capture('pricing_viewed');
   }, []);
 
   const fetchTiers = async () => {
@@ -46,13 +47,13 @@ export default function PricingPage() {
     }
 
     setSubscribing(tierId);
-    trackEvent('plan_selected', { tier_id: tierId });
+    posthog.capture('plan_selected', { tier_id: tierId });
 
     try {
       // PRD 6.3: Initialize SQUAD payment
       const paymentData = await BillingService.initializePayment(tierId);
 
-      trackEvent('checkout_started', { tier_id: tierId });
+      posthog.capture('checkout_started', { tier_id: tierId });
       // Redirect to SQUAD checkout page
       window.location.href = paymentData.payment_url;
     } catch (error: unknown) {

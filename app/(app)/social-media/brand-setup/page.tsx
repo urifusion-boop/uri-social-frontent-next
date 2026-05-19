@@ -31,6 +31,7 @@ import { MdOutlineCampaign } from 'react-icons/md';
 import { HexColorPicker } from 'react-colorful';
 import Navbar from '@/components/Navbar';
 import { trackEvent } from '@/lib/analytics';
+import posthog from 'posthog-js';
 
 // ─── Step order ──────────────────────────────────────────────────────────────
 const STEPS = [
@@ -933,7 +934,7 @@ function BrandSetupPageContent() {
     };
     try {
       await BrandProfileService.complete(profile);
-      trackEvent('onboarding_complete');
+      posthog.capture('onboarding_complete');
       router.push('/workspace');
     } catch {
       setSaving(false);

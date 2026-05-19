@@ -1,5 +1,6 @@
 'use client';
 
+import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandProfileData, BrandProfileService, CustomFontAnalysis } from '@/src/api/BrandProfileService';
 import {
@@ -1965,6 +1966,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           .then((res) => {
             if (res.status) {
               ToastService.showToast(`Instagram @${igUsername} connected!`, ToastTypeEnum.Success);
+              posthog.capture('social_account_connected', { platform: 'instagram', username: igUsername });
               loadStatuses();
             } else {
               ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
@@ -1981,6 +1983,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           .then((res) => {
             if (res.status) {
               ToastService.showToast(`${pageName} connected!`, ToastTypeEnum.Success);
+              posthog.capture('social_account_connected', { platform: 'facebook', page_name: pageName });
               loadStatuses();
             } else {
               ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error);

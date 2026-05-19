@@ -13,6 +13,7 @@ import { BillingService } from '@/src/api/BillingService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { Check, X, Loader2 } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
+import posthog from 'posthog-js'; // used for purchase_complete / purchase_failed (wizard-added)
 
 type VerificationStatus = 'verifying' | 'success' | 'failed' | 'pending';
 
@@ -43,7 +44,7 @@ function CheckoutCallbackContent() {
 
         if (verified) {
           // Success! Payment completed and credits allocated
-          trackEvent('purchase_complete', { transaction_ref: transactionRef });
+          posthog.capture('purchase_complete', { transaction_ref: transactionRef });
           setStatus('success');
           setMessage('Your subscription is now active!');
 
@@ -77,7 +78,7 @@ function CheckoutCallbackContent() {
             verifyPayment(ref, attempt + 1);
           }, 2000);
         } else {
-          trackEvent('purchase_failed', { transaction_ref: transactionRef });
+          posthog.capture('purchase_failed', { transaction_ref: transactionRef });
           setStatus('failed');
           setMessage(error instanceof Error ? error.message : 'Payment verification failed');
         }
