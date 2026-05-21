@@ -46,21 +46,27 @@ export default function SocialMediaPage() {
   }, [router]);
 
   useEffect(() => {
+    console.log('🔍 [Connection Check] useEffect triggered, brandCheckDone:', brandCheckDone);
+
     const checkConnections = async () => {
+      console.log('🔍 [Connection Check] Starting API call to check connections...');
       try {
         const response = await SocialConnectionService.getConnectionStatus();
-        console.log('Connection status response:', response);
+        console.log('✅ [Connection Check] Connection status response:', response);
         const hasAny = !!(response.facebook?.linked || response.instagram?.linked || response.linkedin?.linked);
-        console.log('Has any connections:', hasAny);
+        console.log('📊 [Connection Check] Has any connections:', hasAny);
         setHasConnections(hasAny);
       } catch (error) {
-        console.error('Error checking connections:', error);
+        console.error('❌ [Connection Check] Error checking connections:', error);
         setHasConnections(false);
       }
     };
 
     if (brandCheckDone) {
+      console.log('✅ [Connection Check] brandCheckDone is true, calling checkConnections()');
       checkConnections();
+    } else {
+      console.log('⏸️ [Connection Check] brandCheckDone is false, skipping check');
     }
   }, [brandCheckDone]);
 
