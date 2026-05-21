@@ -49,7 +49,7 @@ export default function SocialMediaPage() {
     const checkConnections = async () => {
       try {
         const response = await SocialConnectionService.getConnectionStatus();
-        const hasAny = response.facebook?.linked || response.instagram?.linked || response.linkedin?.linked;
+        const hasAny = !!(response.facebook?.linked || response.instagram?.linked || response.linkedin?.linked);
         setHasConnections(hasAny);
       } catch {
         setHasConnections(false);
