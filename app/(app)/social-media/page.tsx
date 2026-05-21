@@ -256,7 +256,6 @@ export default function SocialMediaPage() {
         </Box>
 
         <Box sx={{ px: 3, py: 4 }}>
-          {console.log('hasConnections state:', hasConnections)}
           {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
           {activeTab === 'create' && <ContentGeneratorForm onGenerated={handleGenerated} />}
