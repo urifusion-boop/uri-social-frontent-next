@@ -49,9 +49,12 @@ export default function SocialMediaPage() {
     const checkConnections = async () => {
       try {
         const response = await SocialConnectionService.getConnectionStatus();
+        console.log('Connection status response:', response);
         const hasAny = !!(response.facebook?.linked || response.instagram?.linked || response.linkedin?.linked);
+        console.log('Has any connections:', hasAny);
         setHasConnections(hasAny);
-      } catch {
+      } catch (error) {
+        console.error('Error checking connections:', error);
         setHasConnections(false);
       }
     };
@@ -247,6 +250,7 @@ export default function SocialMediaPage() {
         </Box>
 
         <Box sx={{ px: 3, py: 4 }}>
+          {console.log('hasConnections state:', hasConnections)}
           {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
           {activeTab === 'create' && <ContentGeneratorForm onGenerated={handleGenerated} />}
