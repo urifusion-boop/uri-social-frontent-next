@@ -5537,18 +5537,18 @@ const NAV = [
     label: 'Market Intel',
     tooltip: 'Discover trending topics and keywords relevant to your industry',
   },
-  {
-    id: 'blog',
-    icon: 'book',
-    label: 'Blog Generator',
-    tooltip: 'Generate SEO-optimized blog posts with AI (Beta)',
-  },
-  {
-    id: 'blog-drafts',
-    icon: 'file',
-    label: 'Blog Drafts',
-    tooltip: 'View and manage your AI-generated blog posts',
-  },
+  // {
+  //   id: 'blog',
+  //   icon: 'book',
+  //   label: 'Blog Generator',
+  //   tooltip: 'Generate SEO-optimized blog posts with AI (Beta)',
+  // },
+  // {
+  //   id: 'blog-drafts',
+  //   icon: 'file',
+  //   label: 'Blog Drafts',
+  //   tooltip: 'View and manage your AI-generated blog posts',
+  // },
   {
     id: 'playbook',
     icon: 'book',
@@ -5838,8 +5838,8 @@ export default function WorkspaceDashboard() {
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
-    blog: <BlogGeneratorTab />,
-    'blog-drafts': <BlogDraftsTab />,
+    // blog: <BlogGeneratorTab />,
+    // 'blog-drafts': <BlogDraftsTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
     settings: (
       <SettingsPage
