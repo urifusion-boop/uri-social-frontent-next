@@ -13,7 +13,6 @@ function VerifyEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { saveUserTokens, saveUserDetails, userDetails } = useAuth();
-  const [email] = useState(searchParams.get('email') || userDetails?.email || '');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -22,6 +21,9 @@ function VerifyEmailContent() {
   const [resendSuccess, setResendSuccess] = useState('');
   const [codeError, setCodeError] = useState('');
   const [autoSent, setAutoSent] = useState(false);
+
+  // Get email from URL params or logged-in user
+  const email = searchParams.get('email') || userDetails?.email || '';
 
   const validateCode = (code: string): boolean => {
     if (!code.trim()) {
