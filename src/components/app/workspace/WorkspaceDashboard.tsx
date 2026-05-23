@@ -5370,6 +5370,66 @@ const SettingsPage = ({
 }) => {
   const { userDetails } = useAuth();
   const router = useRouter();
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
+  const handleChangePassword = async () => {
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setPasswordError('All fields are required.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+
+    if (oldPassword === newPassword) {
+      setPasswordError('New password must be different from current password.');
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      const res = await SocialMediaAgentService.changePassword({
+        current_password: oldPassword,
+        new_password: newPassword,
+      });
+
+      if (!res.status) {
+        setPasswordError(res.responseMessage || 'Failed to change password.');
+        return;
+      }
+
+      setPasswordSuccess('Password changed successfully!');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        setShowPasswordForm(false);
+        setPasswordSuccess('');
+      }, 2000);
+    } catch (err: unknown) {
+      const e = err as { data?: { detail?: string; responseMessage?: string }; message?: string };
+      setPasswordError(e?.data?.detail || e?.data?.responseMessage || e?.message || 'Failed to change password.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   return (
     <SubPage title="Settings" icon="settings" desc="Manage your account and brand preferences" onJane={onJane}>
@@ -5391,6 +5451,144 @@ const SettingsPage = ({
             <div style={{ fontSize: 13.5, color: '#333', fontWeight: 500 }}>{userDetails?.email || ''}</div>
           </div>
         </div>
+      </div>
+
+      {/* Security Section */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: showPasswordForm ? 14 : 0,
+          }}
+        >
+          <h3 style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <I n="lock" s={16} c="#C2185B" />
+            Security
+          </h3>
+          <button
+            onClick={() => setShowPasswordForm(!showPasswordForm)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 7,
+              border: '1px solid #e5e3df',
+              background: showPasswordForm ? '#FDF2F8' : '#fff',
+              cursor: 'pointer',
+              fontFamily: 'var(--wf)',
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#C2185B',
+            }}
+          >
+            {showPasswordForm ? 'Cancel' : 'Change Password'}
+          </button>
+        </div>
+
+        {showPasswordForm && (
+          <div style={{ marginTop: 14 }}>
+            {passwordError && (
+              <div
+                style={{
+                  background: '#FEE2E2',
+                  color: '#991B1B',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  marginBottom: 12,
+                }}
+              >
+                {passwordError}
+              </div>
+            )}
+            {passwordSuccess && (
+              <div
+                style={{
+                  background: '#D1FAE5',
+                  color: '#065F46',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  marginBottom: 12,
+                }}
+              >
+                {passwordSuccess}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: '#999', marginBottom: 6, fontWeight: 600 }}>CURRENT PASSWORD</div>
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #e5e3df',
+                    borderRadius: 8,
+                    fontFamily: 'var(--wf)',
+                    fontSize: 13,
+                  }}
+                  placeholder="Enter current password"
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#999', marginBottom: 6, fontWeight: 600 }}>NEW PASSWORD</div>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #e5e3df',
+                    borderRadius: 8,
+                    fontFamily: 'var(--wf)',
+                    fontSize: 13,
+                  }}
+                  placeholder="Enter new password (min 8 characters)"
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#999', marginBottom: 6, fontWeight: 600 }}>
+                  CONFIRM NEW PASSWORD
+                </div>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #e5e3df',
+                    borderRadius: 8,
+                    fontFamily: 'var(--wf)',
+                    fontSize: 13,
+                  }}
+                  placeholder="Confirm new password"
+                />
+              </div>
+              <button
+                onClick={handleChangePassword}
+                disabled={passwordLoading}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: passwordLoading ? '#ccc' : 'linear-gradient(135deg, #C2185B, #E91E63)',
+                  color: '#fff',
+                  cursor: passwordLoading ? 'not-allowed' : 'pointer',
+                  fontFamily: 'var(--wf)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >
+                {passwordLoading ? 'Changing...' : 'Update Password'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Brand Settings */}
@@ -5444,30 +5642,6 @@ const SettingsPage = ({
           Quick Actions
         </h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button
-            onClick={() => router.push('/settings/security')}
-            style={{
-              width: '100%',
-              padding: '12px 14px',
-              borderRadius: 9,
-              border: '1px solid #e5e3df',
-              background: '#fff',
-              cursor: 'pointer',
-              fontFamily: 'var(--wf)',
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#333',
-              textAlign: 'left',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <span>Change Password</span>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M6 12L10 8L6 4" stroke="#999" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </button>
           <button
             onClick={() => onNavChange('billing')}
             style={{
