@@ -5486,72 +5486,102 @@ const SettingsPage = ({
         </div>
 
         {showPasswordForm && (
-          <div style={{ marginTop: 14 }}>
+          <div
+            style={{ marginTop: 14, background: '#FAFAFA', padding: 16, borderRadius: 10, border: '1px solid #F0F0F0' }}
+          >
             {passwordError && (
               <div
                 style={{
-                  background: '#FEE2E2',
-                  color: '#991B1B',
-                  padding: '8px 12px',
+                  background: '#FEF2F2',
+                  color: '#DC2626',
+                  padding: '10px 14px',
                   borderRadius: 8,
-                  fontSize: 12,
-                  marginBottom: 12,
+                  fontSize: 12.5,
+                  marginBottom: 14,
+                  fontWeight: 500,
+                  border: '1px solid #FEE2E2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
                 }}
               >
+                <I n="alert" s={14} c="#DC2626" />
                 {passwordError}
               </div>
             )}
             {passwordSuccess && (
               <div
                 style={{
-                  background: '#D1FAE5',
-                  color: '#065F46',
-                  padding: '8px 12px',
+                  background: '#F0FDF4',
+                  color: '#16A34A',
+                  padding: '10px 14px',
                   borderRadius: 8,
-                  fontSize: 12,
-                  marginBottom: 12,
+                  fontSize: 12.5,
+                  marginBottom: 14,
+                  fontWeight: 500,
+                  border: '1px solid #DCFCE7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
                 }}
               >
+                <I n="check" s={14} c="#16A34A" />
                 {passwordSuccess}
               </div>
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <div style={{ fontSize: 11, color: '#999', marginBottom: 6, fontWeight: 600 }}>CURRENT PASSWORD</div>
+                <div style={{ fontSize: 11, color: '#777', marginBottom: 7, fontWeight: 600, letterSpacing: '0.3px' }}>
+                  CURRENT PASSWORD
+                </div>
                 <input
                   type="password"
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #e5e3df',
-                    borderRadius: 8,
+                    padding: '11px 14px',
+                    border: '1.5px solid #E5E7EB',
+                    borderRadius: 9,
                     fontFamily: 'var(--wf)',
-                    fontSize: 13,
+                    fontSize: 13.5,
+                    fontWeight: 500,
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    background: '#fff',
                   }}
-                  placeholder="Enter current password"
+                  placeholder="••••••••"
+                  onFocus={(e) => (e.target.style.borderColor = '#C2185B')}
+                  onBlur={(e) => (e.target.style.borderColor = '#E5E7EB')}
                 />
               </div>
               <div>
-                <div style={{ fontSize: 11, color: '#999', marginBottom: 6, fontWeight: 600 }}>NEW PASSWORD</div>
+                <div style={{ fontSize: 11, color: '#777', marginBottom: 7, fontWeight: 600, letterSpacing: '0.3px' }}>
+                  NEW PASSWORD
+                </div>
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #e5e3df',
-                    borderRadius: 8,
+                    padding: '11px 14px',
+                    border: '1.5px solid #E5E7EB',
+                    borderRadius: 9,
                     fontFamily: 'var(--wf)',
-                    fontSize: 13,
+                    fontSize: 13.5,
+                    fontWeight: 500,
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    background: '#fff',
                   }}
-                  placeholder="Enter new password (min 8 characters)"
+                  placeholder="Minimum 8 characters"
+                  onFocus={(e) => (e.target.style.borderColor = '#C2185B')}
+                  onBlur={(e) => (e.target.style.borderColor = '#E5E7EB')}
                 />
               </div>
               <div>
-                <div style={{ fontSize: 11, color: '#999', marginBottom: 6, fontWeight: 600 }}>
+                <div style={{ fontSize: 11, color: '#777', marginBottom: 7, fontWeight: 600, letterSpacing: '0.3px' }}>
                   CONFIRM NEW PASSWORD
                 </div>
                 <input
@@ -5560,31 +5590,52 @@ const SettingsPage = ({
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #e5e3df',
-                    borderRadius: 8,
+                    padding: '11px 14px',
+                    border: '1.5px solid #E5E7EB',
+                    borderRadius: 9,
                     fontFamily: 'var(--wf)',
-                    fontSize: 13,
+                    fontSize: 13.5,
+                    fontWeight: 500,
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    background: '#fff',
                   }}
-                  placeholder="Confirm new password"
+                  placeholder="Re-enter new password"
+                  onFocus={(e) => (e.target.style.borderColor = '#C2185B')}
+                  onBlur={(e) => (e.target.style.borderColor = '#E5E7EB')}
                 />
               </div>
               <button
                 onClick={handleChangePassword}
                 disabled={passwordLoading}
                 style={{
-                  padding: '10px 16px',
-                  borderRadius: 8,
+                  marginTop: 6,
+                  padding: '11px 18px',
+                  borderRadius: 9,
                   border: 'none',
-                  background: passwordLoading ? '#ccc' : 'linear-gradient(135deg, #C2185B, #E91E63)',
-                  color: '#fff',
+                  background: passwordLoading ? '#E5E7EB' : 'linear-gradient(135deg, #C2185B, #E91E63)',
+                  color: passwordLoading ? '#9CA3AF' : '#fff',
                   cursor: passwordLoading ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--wf)',
-                  fontSize: 13,
-                  fontWeight: 600,
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  transition: 'all 0.2s',
+                  boxShadow: passwordLoading ? 'none' : '0 2px 8px rgba(194, 24, 91, 0.25)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!passwordLoading) {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(194, 24, 91, 0.35)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!passwordLoading) {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(194, 24, 91, 0.25)';
+                  }
                 }}
               >
-                {passwordLoading ? 'Changing...' : 'Update Password'}
+                {passwordLoading ? 'Updating Password...' : 'Update Password'}
               </button>
             </div>
           </div>
