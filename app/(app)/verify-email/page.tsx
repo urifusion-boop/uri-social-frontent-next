@@ -155,7 +155,7 @@ function VerifyEmailContent() {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #FDF2F8 0%, #F9FAFB 100%)',
         px: 2,
-        py: { xs: 10, sm: 12 },
+        py: 4,
       }}
     >
       <Fade in timeout={500}>
@@ -163,7 +163,7 @@ function VerifyEmailContent() {
           sx={{
             background: '#fff',
             borderRadius: '16px',
-            p: { xs: 2.5, md: 3 },
+            p: { xs: 2, md: 2.5 },
             maxWidth: 440,
             width: '100%',
             boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
@@ -171,7 +171,7 @@ function VerifyEmailContent() {
           }}
         >
           {/* Header */}
-          <Box display="flex" alignItems="center" gap={1.5} mb={3}>
+          <Box display="flex" alignItems="center" gap={1.5} mb={2}>
             <Box
               sx={{
                 backgroundColor: '#CD1B78',
@@ -194,24 +194,24 @@ function VerifyEmailContent() {
           </Box>
 
           {/* Email Icon */}
-          <Box display="flex" justifyContent="center" mb={2}>
+          <Box display="flex" justifyContent="center" mb={1.5}>
             <Box
               sx={{
                 backgroundColor: '#FDF2F8',
-                p: 2.5,
+                p: 2,
                 borderRadius: '50%',
                 display: 'inline-flex',
               }}
             >
-              <MdEmail size={48} color="#CD1B78" />
+              <MdEmail size={40} color="#CD1B78" />
             </Box>
           </Box>
 
           {/* Title */}
-          <Typography fontWeight={700} fontSize="24px" color="#111827" textAlign="center" mb={1}>
+          <Typography fontWeight={700} fontSize="22px" color="#111827" textAlign="center" mb={0.5}>
             Verify Your Email
           </Typography>
-          <Typography fontSize="14px" color="#6B7280" textAlign="center" mb={3}>
+          <Typography fontSize="13px" color="#6B7280" textAlign="center" mb={2}>
             We've sent a 6-digit code to <strong>{email}</strong>. Please enter it below to verify your account.
           </Typography>
 
@@ -220,7 +220,7 @@ function VerifyEmailContent() {
             <Alert
               icon={<MdCheckCircle fontSize={18} />}
               severity="success"
-              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '13px', py: 0.5 }}
+              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '12px', py: 0.3 }}
             >
               {success}
             </Alert>
@@ -231,7 +231,7 @@ function VerifyEmailContent() {
             <Alert
               icon={<MdCheckCircle fontSize={18} />}
               severity="info"
-              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '13px', py: 0.5 }}
+              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '12px', py: 0.3 }}
             >
               {resendSuccess}
             </Alert>
@@ -242,7 +242,7 @@ function VerifyEmailContent() {
             <Alert
               icon={<MdError fontSize={18} />}
               severity="error"
-              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '13px', py: 0.5 }}
+              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '12px', py: 0.3 }}
               onClose={() => setError('')}
             >
               {error}
