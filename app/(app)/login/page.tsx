@@ -213,6 +213,19 @@ function LoginContent() {
         return;
       }
 
+      // Handle signup - redirect to email verification
+      if (tab === 'signup') {
+        const { requiresVerification } = res.responseData as unknown as Record<string, unknown>;
+        if (requiresVerification) {
+          setSuccess('Account created! Check your email for verification code.');
+          setTimeout(() => {
+            router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+          }, 1500);
+          return;
+        }
+      }
+
+      // Handle login - save tokens and proceed
       const {
         accessToken,
         userId,
@@ -253,6 +266,16 @@ function LoginContent() {
         e?.data?.responseMessage ||
         e?.message ||
         'Something went wrong.';
+
+      // Check if error is about email verification
+      if (detail.toLowerCase().includes('verify your email')) {
+        setError('Please verify your email first.');
+        setTimeout(() => {
+          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+        }, 2000);
+        return;
+      }
+
       setError(getErrorMessage(detail, tab === 'login'));
     } finally {
       setLoading(false);
@@ -445,7 +468,7 @@ function LoginContent() {
                 ),
               }}
               sx={{
-                mb: 2,
+                mb: 1,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '10px',
                   '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
@@ -453,6 +476,24 @@ function LoginContent() {
                 '& .MuiInputLabel-root.Mui-focused': { color: '#CD1B78' },
               }}
             />
+
+            {/* Forgot Password Link (only for login) */}
+            {tab === 'login' && (
+              <Box textAlign="right" mb={2}>
+                <Typography
+                  component="span"
+                  fontSize="13px"
+                  color="#CD1B78"
+                  fontWeight={600}
+                  sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                  onClick={() => router.push('/forgot-password')}
+                >
+                  Forgot password?
+                </Typography>
+              </Box>
+            )}
+
+            {tab === 'signup' && <Box mb={2} />}
 
             {/* Submit Button */}
             <Button
