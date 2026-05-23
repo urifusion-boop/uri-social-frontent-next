@@ -35,6 +35,8 @@ import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import VerifyEmailModal from '@/components/VerifyEmailModal';
+import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
 import { hexToColorName } from '@/src/utils/colorNamer';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
@@ -745,7 +747,15 @@ interface PostItem {
 ═══════════════════════════════════════════════════════════════════════════ */
 type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
 
-const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; isMobile?: boolean }) => {
+const ContentManagerPage = ({
+  onJane,
+  isMobile = false,
+  requireEmailVerification,
+}: {
+  onJane: () => void;
+  isMobile?: boolean;
+  requireEmailVerification: (callback?: () => void) => boolean;
+}) => {
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
   const activeTabRef = useRef<ContentTab>('create');
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
@@ -1176,7 +1186,9 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '20px 24px' }}>
-        {activeTab === 'create' && <ContentGeneratorForm onGenerated={handleGenerated} />}
+        {activeTab === 'create' && (
+          <ContentGeneratorForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+        )}
 
         {activeTab === 'video' && <VideoStoryboardGenerator />}
 
@@ -5596,6 +5608,7 @@ const MORE_NAV = [
 export default function WorkspaceDashboard() {
   const { logoutUser, userDetails } = useAuth();
   const { unreadCount } = useNotifications();
+  const { showVerifyModal, setShowVerifyModal, requireEmailVerification } = useEmailVerification();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -5834,7 +5847,13 @@ export default function WorkspaceDashboard() {
 
   const PAGES: Record<string, ReactNode> = {
     messages: <MessagesPage onJane={goWorkspace} />,
-    schedule: <ContentManagerPage onJane={goWorkspace} isMobile={isMobile} />,
+    schedule: (
+      <ContentManagerPage
+        onJane={goWorkspace}
+        isMobile={isMobile}
+        requireEmailVerification={requireEmailVerification}
+      />
+    ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
@@ -6576,6 +6595,9 @@ export default function WorkspaceDashboard() {
           sessionStorage.setItem('trial_expired_dismissed', '1');
         }}
       />
+
+      {/* Email Verification Modal */}
+      <VerifyEmailModal open={showVerifyModal} onClose={() => setShowVerifyModal(false)} />
     </>
   );
 }

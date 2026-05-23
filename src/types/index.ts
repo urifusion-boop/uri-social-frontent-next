@@ -10,6 +10,7 @@ export interface UserDto {
   lastName?: string;
   role?: string;
   userType?: string;
+  emailVerified?: boolean; // Email verification status
   // PRD 7.1: Credit Balance (added for billing system)
   creditBalance?: number;
   creditsRemaining?: number;

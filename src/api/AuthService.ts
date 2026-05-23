@@ -21,6 +21,7 @@ export interface AuthResponseData {
   firstName: string;
   lastName: string;
   requiresVerification?: boolean;
+  emailVerified?: boolean;
 }
 
 export interface VerifyEmailRequest {

@@ -9,6 +9,8 @@ import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
+import VerifyEmailModal from '@/components/VerifyEmailModal';
+import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { Box, CircularProgress, Tab, Tabs, Typography } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,6 +20,7 @@ type TabKey = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto';
 
 export default function SocialMediaPage() {
   const router = useRouter();
+  const { showVerifyModal, setShowVerifyModal, isEmailVerified, requireEmailVerification } = useEmailVerification();
   const [brandCheckDone, setBrandCheckDone] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('create');
   const activeTabRef = useRef<TabKey>('create');
@@ -258,7 +261,9 @@ export default function SocialMediaPage() {
         <Box sx={{ px: 3, py: 4 }}>
           {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
-          {activeTab === 'create' && <ContentGeneratorForm onGenerated={handleGenerated} />}
+          {activeTab === 'create' && (
+            <ContentGeneratorForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+          )}
 
           {activeTab === 'drafts' && (
             <>
@@ -334,6 +339,9 @@ export default function SocialMediaPage() {
           )}
         </Box>
       </Box>
+
+      {/* Email Verification Modal */}
+      <VerifyEmailModal open={showVerifyModal} onClose={() => setShowVerifyModal(false)} />
     </DashboardLayout>
   );
 }

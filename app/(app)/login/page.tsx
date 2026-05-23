@@ -233,9 +233,16 @@ function LoginContent() {
         firstName: fName,
         lastName: lName,
         trial,
+        emailVerified,
       } = res.responseData as unknown as Record<string, unknown>;
       saveUserTokens({ accessToken: accessToken as string, refreshToken: '' });
-      const userDto: Record<string, unknown> = { userId, email: userEmail, firstName: fName, lastName: lName };
+      const userDto: Record<string, unknown> = {
+        userId,
+        email: userEmail,
+        firstName: fName,
+        lastName: lName,
+        emailVerified: emailVerified ?? false,
+      };
       if (trial && typeof trial === 'object') {
         const t = trial as Record<string, unknown>;
         userDto.isTrial = t.is_trial;
