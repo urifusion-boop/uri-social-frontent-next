@@ -136,7 +136,7 @@ function ResetPasswordContent() {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #FDF2F8 0%, #F9FAFB 100%)',
         px: 2,
-        py: { xs: 10, sm: 12 },
+        py: 4,
       }}
     >
       <Fade in timeout={500}>
@@ -144,7 +144,7 @@ function ResetPasswordContent() {
           sx={{
             background: '#fff',
             borderRadius: '16px',
-            p: { xs: 2.5, md: 3 },
+            p: { xs: 2, md: 2.5 },
             maxWidth: 440,
             width: '100%',
             boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
@@ -152,7 +152,7 @@ function ResetPasswordContent() {
           }}
         >
           {/* Header */}
-          <Box display="flex" alignItems="center" gap={1.5} mb={3}>
+          <Box display="flex" alignItems="center" gap={1.5} mb={2}>
             <Box
               sx={{
                 backgroundColor: '#CD1B78',
@@ -175,24 +175,24 @@ function ResetPasswordContent() {
           </Box>
 
           {/* Lock Icon */}
-          <Box display="flex" justifyContent="center" mb={2}>
+          <Box display="flex" justifyContent="center" mb={1.5}>
             <Box
               sx={{
                 backgroundColor: '#FDF2F8',
-                p: 2.5,
+                p: 2,
                 borderRadius: '50%',
                 display: 'inline-flex',
               }}
             >
-              <MdLockReset size={48} color="#CD1B78" />
+              <MdLockReset size={40} color="#CD1B78" />
             </Box>
           </Box>
 
           {/* Title */}
-          <Typography fontWeight={700} fontSize="24px" color="#111827" textAlign="center" mb={1}>
+          <Typography fontWeight={700} fontSize="22px" color="#111827" textAlign="center" mb={0.5}>
             Reset Your Password
           </Typography>
-          <Typography fontSize="14px" color="#6B7280" textAlign="center" mb={3}>
+          <Typography fontSize="13px" color="#6B7280" textAlign="center" mb={2}>
             Enter the code we sent to <strong>{email}</strong> and choose a new password.
           </Typography>
 
@@ -201,7 +201,7 @@ function ResetPasswordContent() {
             <Alert
               icon={<MdCheckCircle fontSize={18} />}
               severity="success"
-              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '13px', py: 0.5 }}
+              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '12px', py: 0.3 }}
             >
               {success}
             </Alert>
@@ -212,7 +212,7 @@ function ResetPasswordContent() {
             <Alert
               icon={<MdError fontSize={18} />}
               severity="error"
-              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '13px', py: 0.5 }}
+              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '12px', py: 0.3 }}
               onClose={() => setError('')}
             >
               {error}
@@ -246,7 +246,7 @@ function ResetPasswordContent() {
                 style: { textAlign: 'center', fontSize: '20px', letterSpacing: '6px', fontWeight: 600 },
               }}
               sx={{
-                mb: 1.5,
+                mb: 1.2,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '10px',
                   '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
@@ -279,7 +279,7 @@ function ResetPasswordContent() {
                 ),
               }}
               sx={{
-                mb: 1.5,
+                mb: 1.2,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '10px',
                   '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
