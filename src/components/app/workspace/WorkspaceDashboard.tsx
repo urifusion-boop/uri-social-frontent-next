@@ -5445,6 +5445,30 @@ const SettingsPage = ({
         </h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button
+            onClick={() => router.push('/settings/security')}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: 9,
+              border: '1px solid #e5e3df',
+              background: '#fff',
+              cursor: 'pointer',
+              fontFamily: 'var(--wf)',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#333',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <span>Change Password</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 12L10 8L6 4" stroke="#999" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
             onClick={() => onNavChange('billing')}
             style={{
               width: '100%',
