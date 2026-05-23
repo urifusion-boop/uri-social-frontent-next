@@ -163,7 +163,7 @@ function VerifyEmailContent() {
           sx={{
             background: '#fff',
             borderRadius: '16px',
-            p: { xs: 2, md: 2.5 },
+            p: { xs: 1.5, md: 2 },
             maxWidth: 440,
             width: '100%',
             boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
@@ -171,7 +171,7 @@ function VerifyEmailContent() {
           }}
         >
           {/* Header */}
-          <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+          <Box display="flex" alignItems="center" gap={1.5} mb={1.5}>
             <Box
               sx={{
                 backgroundColor: '#CD1B78',
@@ -194,33 +194,33 @@ function VerifyEmailContent() {
           </Box>
 
           {/* Email Icon */}
-          <Box display="flex" justifyContent="center" mb={1.5}>
+          <Box display="flex" justifyContent="center" mb={1}>
             <Box
               sx={{
                 backgroundColor: '#FDF2F8',
-                p: 2,
+                p: 1.5,
                 borderRadius: '50%',
                 display: 'inline-flex',
               }}
             >
-              <MdEmail size={40} color="#CD1B78" />
+              <MdEmail size={36} color="#CD1B78" />
             </Box>
           </Box>
 
           {/* Title */}
-          <Typography fontWeight={700} fontSize="22px" color="#111827" textAlign="center" mb={0.5}>
+          <Typography fontWeight={700} fontSize="20px" color="#111827" textAlign="center" mb={0.3}>
             Verify Your Email
           </Typography>
-          <Typography fontSize="13px" color="#6B7280" textAlign="center" mb={2}>
+          <Typography fontSize="12px" color="#6B7280" textAlign="center" mb={1.5}>
             We've sent a 6-digit code to <strong>{email}</strong>. Please enter it below to verify your account.
           </Typography>
 
           {/* Success Message */}
           <Collapse in={!!success}>
             <Alert
-              icon={<MdCheckCircle fontSize={18} />}
+              icon={<MdCheckCircle fontSize={16} />}
               severity="success"
-              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '12px', py: 0.3 }}
+              sx={{ mb: 1.2, borderRadius: '8px', fontWeight: 500, fontSize: '11px', py: 0.2 }}
             >
               {success}
             </Alert>
@@ -229,9 +229,9 @@ function VerifyEmailContent() {
           {/* Resend Success Message */}
           <Collapse in={!!resendSuccess}>
             <Alert
-              icon={<MdCheckCircle fontSize={18} />}
+              icon={<MdCheckCircle fontSize={16} />}
               severity="info"
-              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '12px', py: 0.3 }}
+              sx={{ mb: 1.2, borderRadius: '8px', fontWeight: 500, fontSize: '11px', py: 0.2 }}
             >
               {resendSuccess}
             </Alert>
@@ -240,9 +240,9 @@ function VerifyEmailContent() {
           {/* Error Message */}
           <Collapse in={!!error}>
             <Alert
-              icon={<MdError fontSize={18} />}
+              icon={<MdError fontSize={16} />}
               severity="error"
-              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '12px', py: 0.3 }}
+              sx={{ mb: 1.2, borderRadius: '8px', fontWeight: 500, fontSize: '11px', py: 0.2 }}
               onClose={() => setError('')}
             >
               {error}
@@ -277,7 +277,7 @@ function VerifyEmailContent() {
                 style: { textAlign: 'center', fontSize: '24px', letterSpacing: '8px', fontWeight: 600 },
               }}
               sx={{
-                mb: 2,
+                mb: 1.5,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '10px',
                   '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
@@ -297,8 +297,8 @@ function VerifyEmailContent() {
                 background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
                 textTransform: 'none',
                 fontWeight: 600,
-                fontSize: '16px',
-                py: 1.5,
+                fontSize: '15px',
+                py: 1.2,
                 borderRadius: '10px',
                 boxShadow: '0 4px 14px rgba(205, 27, 120, 0.35)',
                 '&:hover': {
@@ -316,13 +316,13 @@ function VerifyEmailContent() {
           </Box>
 
           {/* Divider */}
-          <Box display="flex" alignItems="center" gap={1.5} my={2.5}>
+          <Box display="flex" alignItems="center" gap={1.5} my={1.5}>
             <Box sx={{ flex: 1, height: '1px', background: '#E5E7EB' }} />
           </Box>
 
           {/* Resend Code */}
           <Box textAlign="center">
-            <Typography fontSize="13px" color="#6B7280" mb={1}>
+            <Typography fontSize="12px" color="#6B7280" mb={0.8}>
               Didn't receive the code?
             </Typography>
             <Button
@@ -333,7 +333,7 @@ function VerifyEmailContent() {
               sx={{
                 textTransform: 'none',
                 fontWeight: 600,
-                fontSize: '14px',
+                fontSize: '13px',
                 color: '#CD1B78',
                 '&:hover': {
                   backgroundColor: '#FDF2F8',
@@ -345,10 +345,10 @@ function VerifyEmailContent() {
           </Box>
 
           {/* Back to Login */}
-          <Typography fontSize="13px" color="#6B7280" textAlign="center" mt={2.5}>
+          <Typography fontSize="12px" color="#6B7280" textAlign="center" mt={1.5}>
             <Typography
               component="span"
-              fontSize="13px"
+              fontSize="12px"
               color="#CD1B78"
               fontWeight={600}
               sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}

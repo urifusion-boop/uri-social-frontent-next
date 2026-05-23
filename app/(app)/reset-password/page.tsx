@@ -144,7 +144,7 @@ function ResetPasswordContent() {
           sx={{
             background: '#fff',
             borderRadius: '16px',
-            p: { xs: 2, md: 2.5 },
+            p: { xs: 1.5, md: 2 },
             maxWidth: 440,
             width: '100%',
             boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
@@ -152,7 +152,7 @@ function ResetPasswordContent() {
           }}
         >
           {/* Header */}
-          <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+          <Box display="flex" alignItems="center" gap={1.5} mb={1.5}>
             <Box
               sx={{
                 backgroundColor: '#CD1B78',
@@ -175,33 +175,33 @@ function ResetPasswordContent() {
           </Box>
 
           {/* Lock Icon */}
-          <Box display="flex" justifyContent="center" mb={1.5}>
+          <Box display="flex" justifyContent="center" mb={1}>
             <Box
               sx={{
                 backgroundColor: '#FDF2F8',
-                p: 2,
+                p: 1.5,
                 borderRadius: '50%',
                 display: 'inline-flex',
               }}
             >
-              <MdLockReset size={40} color="#CD1B78" />
+              <MdLockReset size={36} color="#CD1B78" />
             </Box>
           </Box>
 
           {/* Title */}
-          <Typography fontWeight={700} fontSize="22px" color="#111827" textAlign="center" mb={0.5}>
+          <Typography fontWeight={700} fontSize="20px" color="#111827" textAlign="center" mb={0.3}>
             Reset Your Password
           </Typography>
-          <Typography fontSize="13px" color="#6B7280" textAlign="center" mb={2}>
+          <Typography fontSize="12px" color="#6B7280" textAlign="center" mb={1.5}>
             Enter the code we sent to <strong>{email}</strong> and choose a new password.
           </Typography>
 
           {/* Success Message */}
           <Collapse in={!!success}>
             <Alert
-              icon={<MdCheckCircle fontSize={18} />}
+              icon={<MdCheckCircle fontSize={16} />}
               severity="success"
-              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '12px', py: 0.3 }}
+              sx={{ mb: 1.2, borderRadius: '8px', fontWeight: 500, fontSize: '11px', py: 0.2 }}
             >
               {success}
             </Alert>
@@ -210,9 +210,9 @@ function ResetPasswordContent() {
           {/* Error Message */}
           <Collapse in={!!error}>
             <Alert
-              icon={<MdError fontSize={18} />}
+              icon={<MdError fontSize={16} />}
               severity="error"
-              sx={{ mb: 1.5, borderRadius: '8px', fontWeight: 500, fontSize: '12px', py: 0.3 }}
+              sx={{ mb: 1.2, borderRadius: '8px', fontWeight: 500, fontSize: '11px', py: 0.2 }}
               onClose={() => setError('')}
             >
               {error}
@@ -246,7 +246,7 @@ function ResetPasswordContent() {
                 style: { textAlign: 'center', fontSize: '20px', letterSpacing: '6px', fontWeight: 600 },
               }}
               sx={{
-                mb: 1.2,
+                mb: 1,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '10px',
                   '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
@@ -279,7 +279,7 @@ function ResetPasswordContent() {
                 ),
               }}
               sx={{
-                mb: 1.2,
+                mb: 1,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '10px',
                   '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
@@ -336,8 +336,8 @@ function ResetPasswordContent() {
                 background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
                 textTransform: 'none',
                 fontWeight: 600,
-                fontSize: '16px',
-                py: 1.5,
+                fontSize: '15px',
+                py: 1.2,
                 borderRadius: '10px',
                 boxShadow: '0 4px 14px rgba(205, 27, 120, 0.35)',
                 '&:hover': {
@@ -355,10 +355,10 @@ function ResetPasswordContent() {
           </Box>
 
           {/* Back to Login */}
-          <Typography fontSize="13px" color="#6B7280" textAlign="center" mt={2.5}>
+          <Typography fontSize="12px" color="#6B7280" textAlign="center" mt={1.5}>
             <Typography
               component="span"
-              fontSize="13px"
+              fontSize="12px"
               color="#CD1B78"
               fontWeight={600}
               sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
