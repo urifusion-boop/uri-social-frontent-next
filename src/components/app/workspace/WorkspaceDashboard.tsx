@@ -768,6 +768,7 @@ const ContentManagerPage = ({
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [draftsError, setDraftsError] = useState(false);
   const [loadingScheduled, setLoadingScheduled] = useState(false);
+  const [scheduledError, setScheduledError] = useState(false);
   const [loadingAuto, setLoadingAuto] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollAttemptsRef = useRef<number>(0);
@@ -934,7 +935,7 @@ const ContentManagerPage = ({
   }, []);
 
   const fetchScheduled = useCallback(async (silent = false) => {
-    if (!silent) setLoadingScheduled(true);
+    if (!silent) { setLoadingScheduled(true); setScheduledError(false); }
     try {
       const r = await SocialMediaAgentService.getScheduled();
       if (r.status && r.responseData) {
@@ -948,9 +949,11 @@ const ContentManagerPage = ({
         } else {
           pollAttemptsRef.current = 0;
         }
+      } else {
+        setScheduledError(true);
       }
     } catch {
-      /* no-op */
+      setScheduledError(true);
     } finally {
       if (!silent) setLoadingScheduled(false);
     }
@@ -1593,6 +1596,8 @@ const ContentManagerPage = ({
           <>
             {loadingScheduled ? (
               <CMSpinner />
+            ) : scheduledError ? (
+              <CMEmptyState message="Couldn't load scheduled posts — tap to retry." retry={fetchScheduled} />
             ) : scheduled.length === 0 ? (
               <CMEmptyState message="No scheduled posts. Approve a draft and choose 'Schedule' to add one." />
             ) : (
