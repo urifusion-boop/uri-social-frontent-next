@@ -3529,29 +3529,34 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                   >
                     Engagement · Last {days}d
                   </div>
-                  {acc.engagement ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                      {[
-                        ['Views', fmt(acc.engagement.views)],
-                        ['Likes', fmt(acc.engagement.likes)],
-                        ['Comments', fmt(acc.engagement.comments)],
-                        ['Shares', fmt(acc.engagement.shares)],
-                        ['Reposts', fmt(acc.engagement.reposts)],
-                        ['Quotes', fmt(acc.engagement.quotes)],
-                      ].map(([l, v]) => (
-                        <div key={l as string} style={{ minWidth: 60 }}>
-                          <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: '#bbb', fontStyle: 'italic' }}>
-                      {acc.engagement_note ??
-                        PLATFORM_ENGAGEMENT_NOTE[acc.network] ??
-                        'Engagement data unavailable for this period.'}
-                    </div>
-                  )}
+                  {(() => {
+                    const engagementEntries = acc.engagement
+                      ? ([
+                          ['Views', acc.engagement.views],
+                          ['Likes', acc.engagement.likes],
+                          ['Comments', acc.engagement.comments],
+                          ['Shares', acc.engagement.shares],
+                          ['Reposts', acc.engagement.reposts],
+                          ['Quotes', acc.engagement.quotes],
+                        ] as [string, number | null][]).filter(([, v]) => v != null)
+                      : [];
+                    return engagementEntries.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                        {engagementEntries.map(([l, v]) => (
+                          <div key={l} style={{ minWidth: 60 }}>
+                            <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{fmt(v!)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: '#bbb', fontStyle: 'italic' }}>
+                        {acc.engagement_note ??
+                          PLATFORM_ENGAGEMENT_NOTE[acc.network] ??
+                          'Engagement data unavailable for this period.'}
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
