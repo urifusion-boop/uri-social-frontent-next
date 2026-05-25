@@ -134,9 +134,14 @@ export interface ApprovedDraft {
   publish_result?: ApprovePublishResult;
 }
 
+export interface ApproveError {
+  draft_id: string;
+  error: string;
+}
+
 export interface ApproveResult {
   approved_drafts: ApprovedDraft[];
-  errors: string[];
+  errors: ApproveError[];
   schedule_option: string;
   scheduled_datetime: string | null;
   approved_at: string;

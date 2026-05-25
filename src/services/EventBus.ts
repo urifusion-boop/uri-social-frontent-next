@@ -82,6 +82,7 @@ export const EVENTS = {
   DRAFT_UPDATED: 'draft:updated',
   DRAFT_CREATED: 'draft:created',
   DRAFT_DELETED: 'draft:deleted',
+  DRAFT_SCHEDULED: 'draft:scheduled',
 
   // Image events
   IMAGE_EDIT_STARTED: 'image:edit:started',

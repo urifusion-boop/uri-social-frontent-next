@@ -52,6 +52,8 @@ import NotificationBell from '@/src/components/app/atoms/NotificationBell';
 import NotificationsPanel from '@/src/components/app/workspace/NotificationsPanel';
 import { useNotifications } from '@/src/providers/NotificationProvider';
 import { Tooltip } from '@mui/material';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
+import { AuthService } from '@/src/api/AuthService';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -1009,6 +1011,13 @@ const ContentManagerPage = ({
     },
     []
   );
+
+  // Refresh scheduled tab whenever a DraftCard successfully schedules a post.
+  useEffect(() => {
+    return EventBus.on(EVENTS.DRAFT_SCHEDULED, () => {
+      fetchScheduled();
+    });
+  }, [fetchScheduled]);
 
   const handleGenerated = () => {
     setActiveTab('drafts');
@@ -5405,8 +5414,8 @@ const SettingsPage = ({
     setPasswordLoading(true);
 
     try {
-      const res = await SocialMediaAgentService.changePassword({
-        current_password: oldPassword,
+      const res = await AuthService.changePassword({
+        old_password: oldPassword,
         new_password: newPassword,
       });
 
