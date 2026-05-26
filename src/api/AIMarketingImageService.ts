@@ -69,41 +69,41 @@ export class AIMarketingImageService {
    */
   static async listTemplates(category?: string): Promise<AxiosResponse<UriResponse<AIMarketingTemplate[]>>> {
     const params = category ? { category } : {};
-    return UriHttpClient.get(`${BASE}/templates`, { params });
+    return UriHttpClient.getClient().get(`${BASE}/templates`, { params });
   }
 
   /**
    * Get a specific template by ID
    */
   static async getTemplate(templateId: string): Promise<AxiosResponse<UriResponse<AIMarketingTemplate>>> {
-    return UriHttpClient.get(`${BASE}/templates/${templateId}`);
+    return UriHttpClient.getClient().get(`${BASE}/templates/${templateId}`);
   }
 
   /**
    * Generate an AI marketing image
    */
   static async generateImage(request: GenerateImageRequest): Promise<AxiosResponse<UriResponse<AIImageGeneration>>> {
-    return UriHttpClient.post(`${BASE}/generate`, request);
+    return UriHttpClient.getClient().post(`${BASE}/generate`, request);
   }
 
   /**
    * Get user's generation history
    */
   static async getGenerationHistory(limit: number = 50): Promise<AxiosResponse<UriResponse<AIImageGeneration[]>>> {
-    return UriHttpClient.get(`${BASE}/generations`, { params: { limit } });
+    return UriHttpClient.getClient().get(`${BASE}/generations`, { params: { limit } });
   }
 
   /**
    * Get user's generation statistics
    */
   static async getStats(): Promise<AxiosResponse<UriResponse<GenerationStats>>> {
-    return UriHttpClient.get(`${BASE}/stats`);
+    return UriHttpClient.getClient().get(`${BASE}/stats`);
   }
 
   /**
    * Get available template categories
    */
   static async getCategories(): Promise<AxiosResponse<UriResponse<string[]>>> {
-    return UriHttpClient.get(`${BASE}/categories`);
+    return UriHttpClient.getClient().get(`${BASE}/categories`);
   }
 }

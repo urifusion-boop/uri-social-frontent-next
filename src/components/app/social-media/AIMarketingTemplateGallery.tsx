@@ -3,7 +3,7 @@
 import { AIMarketingImageService, AIMarketingTemplate, GenerateImageRequest } from '@/src/api/AIMarketingImageService';
 import { Box, Typography, TextField, CircularProgress, Alert } from '@mui/material';
 import { useState, useEffect } from 'react';
-import { FaCheckCircle, FaImage, FaDownload, FaSparkles } from 'react-icons/fa';
+import { FaCheckCircle, FaImage, FaDownload, FaMagic } from 'react-icons/fa';
 import Image from 'next/image';
 
 interface AIMarketingTemplateGalleryProps {
@@ -202,7 +202,7 @@ export default function AIMarketingTemplateGallery({ onTemplateGenerated }: AIMa
           setError('Image generated but URL not available');
         }
       } else {
-        setError(response.data.message || 'Generation failed');
+        setError(response.data.responseMessage || 'Generation failed');
       }
     } catch (err) {
       console.error('Failed to generate image:', err);
@@ -231,7 +231,7 @@ export default function AIMarketingTemplateGallery({ onTemplateGenerated }: AIMa
       {/* Header */}
       <Box sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <FaSparkles size={16} color={primary} />
+          <FaMagic size={16} color={primary} />
           <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f' }}>AI Marketing Image Templates</Typography>
         </Box>
         <Typography sx={{ fontSize: 12, color: '#6B7280', lineHeight: 1.5 }}>
@@ -364,7 +364,7 @@ export default function AIMarketingTemplateGallery({ onTemplateGenerated }: AIMa
               </>
             ) : (
               <>
-                <FaSparkles size={14} />
+                <FaMagic size={14} />
                 <span>Generate Image</span>
               </>
             )}
