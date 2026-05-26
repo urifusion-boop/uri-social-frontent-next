@@ -309,39 +309,18 @@ export default function AIMarketingTemplateGallery({ onTemplateGenerated }: AIMa
       {selectedTemplate && (
         <Box
           sx={{
-            background: 'linear-gradient(135deg, #fef3f9 0%, #fef9fc 100%)',
-            border: `2px solid ${primary}22`,
-            borderRadius: '16px',
-            p: 3,
-            mb: 3,
-            boxShadow: '0 4px 12px rgba(194, 24, 91, 0.08)',
+            background: '#fff',
+            border: '1px solid #E0DEF7',
+            borderRadius: '12px',
+            p: 2.5,
+            mb: 2,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2.5 }}>
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                borderRadius: '8px',
-                background: `linear-gradient(135deg, ${primary} 0%, #E91E63 100%)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <FaMagic size={14} color="#fff" />
-            </Box>
-            <Box>
-              <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f', lineHeight: 1.2 }}>
-                Customize "{selectedTemplate.name}"
-              </Typography>
-              <Typography sx={{ fontSize: 11, color: '#6B7280', mt: 0.5 }}>
-                Fill in the details to generate your marketing image
-              </Typography>
-            </Box>
-          </Box>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0d0e0f', mb: 2 }}>
+            Customize "{selectedTemplate.name}"
+          </Typography>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             {selectedTemplate.variables.map((variable) => {
               const labelText = variable
                 .replace(/[\[\]]/g, '')
@@ -355,40 +334,41 @@ export default function AIMarketingTemplateGallery({ onTemplateGenerated }: AIMa
                 <Box key={variable}>
                   <Typography
                     sx={{
-                      fontSize: 12,
+                      fontSize: 11.5,
                       fontWeight: 600,
-                      color: '#374151',
-                      mb: 0.75,
-                      letterSpacing: '0.3px',
+                      color: '#64748b',
+                      mb: 0.5,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
                     }}
                   >
                     {labelText}
                   </Typography>
-                  <TextField
-                    placeholder={`Enter your ${labelText.toLowerCase()}`}
+                  <Box
+                    component="input"
+                    type="text"
                     value={variables[variable] || ''}
-                    onChange={(e) => setVariables({ ...variables, [variable]: e.target.value })}
-                    fullWidth
-                    variant="outlined"
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setVariables({ ...variables, [variable]: e.target.value })
+                    }
+                    placeholder={`e.g. ${labelText === 'Product' ? 'Bloom Coffee Roasters' : labelText === 'Service' ? 'AI-powered content creation' : 'URISocial'}`}
                     sx={{
-                      '& .MuiOutlinedInput-root': {
-                        background: '#fff',
-                        fontSize: 13,
-                        borderRadius: '10px',
-                        '& fieldset': {
-                          borderColor: '#E5E7EB',
-                          borderWidth: '1.5px',
-                        },
-                        '&:hover fieldset': {
-                          borderColor: `${primary}66`,
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: primary,
-                          borderWidth: '2px',
-                        },
+                      width: '100%',
+                      height: 40,
+                      px: 1.5,
+                      borderRadius: '10px',
+                      border: '1px solid #E0DEF7',
+                      background: '#F7F7FD',
+                      fontSize: 13.5,
+                      color: '#1f2937',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      fontFamily: 'inherit',
+                      '&:focus': {
+                        borderColor: primary,
                       },
-                      '& .MuiOutlinedInput-input': {
-                        py: 1.25,
+                      '&::placeholder': {
+                        color: '#9ca3af',
                       },
                     }}
                   />
@@ -398,19 +378,23 @@ export default function AIMarketingTemplateGallery({ onTemplateGenerated }: AIMa
           </Box>
 
           {error && (
-            <Alert
-              severity="error"
+            <Box
               sx={{
-                mt: 2.5,
+                mt: 1.5,
+                p: 1.5,
+                borderRadius: '8px',
+                background: '#FEF2F2',
+                border: '1px solid #FEE2E2',
                 fontSize: 12,
-                borderRadius: '10px',
-                '& .MuiAlert-icon': {
-                  fontSize: 18,
-                },
+                color: '#991B1B',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 1,
               }}
             >
-              {error}
-            </Alert>
+              <span>⚠️</span>
+              <span>{error}</span>
+            </Box>
           )}
 
           <Box
@@ -418,42 +402,36 @@ export default function AIMarketingTemplateGallery({ onTemplateGenerated }: AIMa
             onClick={handleGenerateImage}
             disabled={generating}
             sx={{
-              mt: 2.5,
+              mt: 2,
               width: '100%',
-              px: 3,
-              py: 1.75,
-              borderRadius: '12px',
+              height: 44,
+              borderRadius: '10px',
               border: 'none',
-              background: generating ? '#9CA3AF' : `linear-gradient(135deg, ${primary} 0%, #E91E63 100%)`,
-              color: '#fff',
-              fontSize: 14,
+              background: generating ? '#E0DEF7' : primary,
+              color: generating ? '#64748b' : '#fff',
+              fontSize: 13.5,
               fontWeight: 700,
               cursor: generating ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 1.5,
-              transition: 'all 0.2s',
-              boxShadow: generating ? 'none' : `0 4px 12px ${primary}40`,
+              gap: 1,
+              transition: 'all 0.15s',
+              fontFamily: 'inherit',
               '&:hover': {
-                background: generating ? '#9CA3AF' : `linear-gradient(135deg, ${primary}dd 0%, #E91E63dd 100%)`,
-                transform: generating ? 'none' : 'translateY(-1px)',
-                boxShadow: generating ? 'none' : `0 6px 16px ${primary}50`,
-              },
-              '&:active': {
-                transform: 'translateY(0)',
+                background: generating ? '#E0DEF7' : `${primary}dd`,
               },
             }}
           >
             {generating ? (
               <>
-                <CircularProgress size={18} sx={{ color: '#fff' }} />
-                <span>Generating your image...</span>
+                <CircularProgress size={14} sx={{ color: '#64748b' }} />
+                <span>Generating...</span>
               </>
             ) : (
               <>
-                <FaMagic size={16} />
-                <span>Generate Marketing Image</span>
+                <FaMagic size={13} />
+                <span>Generate Image</span>
               </>
             )}
           </Box>
