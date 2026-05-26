@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { FaArrowLeft, FaCheckCircle, FaImage, FaTimes } from 'react-icons/fa';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
+import AIMarketingTemplateGallery from '@/src/components/app/social-media/AIMarketingTemplateGallery';
 import { getFont } from '@/src/data/fontLibrary';
 import { getStyle } from '@/src/data/styleLibrary';
 import { MdOutlineCampaign } from 'react-icons/md';
@@ -1320,7 +1321,14 @@ function BrandSetupPageContent() {
               </Box>
               <StylePickerGallery industry={industry} selected={styleSelections} onChange={setStyleSelections} />
             </Box>
-            <Box display="flex" gap={1.5} alignItems="center">
+
+            {/* AI Marketing Image Templates */}
+            <Box mt={3}>
+              <Divider sx={{ mb: 3 }} />
+              <AIMarketingTemplateGallery />
+            </Box>
+
+            <Box display="flex" gap={1.5} alignItems="center" mt={3}>
               <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
                 Continue →
               </CustomButton>
