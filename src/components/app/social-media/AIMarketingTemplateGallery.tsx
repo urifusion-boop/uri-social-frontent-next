@@ -140,21 +140,36 @@ export default function AIMarketingTemplateGallery({ onTemplateGenerated }: AIMa
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   useEffect(() => {
+    console.log('🎨 [AIMarketingTemplateGallery] Component mounted, loading templates...');
     loadTemplates();
   }, []);
 
   const loadTemplates = async () => {
+    console.log('📡 [AIMarketingTemplateGallery] Starting template fetch...');
     try {
       setLoading(true);
+      console.log('📡 [AIMarketingTemplateGallery] Calling AIMarketingImageService.listTemplates()...');
       const response = await AIMarketingImageService.listTemplates();
+      console.log('✅ [AIMarketingTemplateGallery] Response received:', response);
+      console.log('✅ [AIMarketingTemplateGallery] Response data:', response.data);
+      console.log('✅ [AIMarketingTemplateGallery] Response status:', response.data.status);
+      console.log('✅ [AIMarketingTemplateGallery] Response data array:', response.data.responseData);
+
       if (response.data.status) {
-        setTemplates(response.data.responseData || []);
+        const templates = response.data.responseData || [];
+        console.log('✅ [AIMarketingTemplateGallery] Templates loaded:', templates.length, 'templates');
+        setTemplates(templates);
+      } else {
+        console.error('❌ [AIMarketingTemplateGallery] Response status is false:', response.data);
+        setError(response.data.responseMessage || 'Failed to load templates');
       }
     } catch (err) {
-      console.error('Failed to load templates:', err);
+      console.error('❌ [AIMarketingTemplateGallery] Failed to load templates:', err);
+      console.error('❌ [AIMarketingTemplateGallery] Error details:', JSON.stringify(err, null, 2));
       setError('Failed to load templates. Please try again.');
     } finally {
       setLoading(false);
+      console.log('🏁 [AIMarketingTemplateGallery] Loading finished');
     }
   };
 
