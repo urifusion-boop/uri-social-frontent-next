@@ -28,6 +28,7 @@ import { FaFacebook, FaInstagram, FaLinkedin, FaWhatsapp } from 'react-icons/fa'
 import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
+import AIMarketingTemplateGallery from '@/src/components/app/social-media/AIMarketingTemplateGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
 import BlogDraftsTab from '@/src/components/app/social-media/BlogDraftsTab';
@@ -935,7 +936,10 @@ const ContentManagerPage = ({
   }, []);
 
   const fetchScheduled = useCallback(async (silent = false) => {
-    if (!silent) { setLoadingScheduled(true); setScheduledError(false); }
+    if (!silent) {
+      setLoadingScheduled(true);
+      setScheduledError(false);
+    }
     try {
       const r = await SocialMediaAgentService.getScheduled();
       if (r.status && r.responseData) {
@@ -3531,14 +3535,16 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                   </div>
                   {(() => {
                     const engagementEntries = acc.engagement
-                      ? ([
-                          ['Views', acc.engagement.views],
-                          ['Likes', acc.engagement.likes],
-                          ['Comments', acc.engagement.comments],
-                          ['Shares', acc.engagement.shares],
-                          ['Reposts', acc.engagement.reposts],
-                          ['Quotes', acc.engagement.quotes],
-                        ] as [string, number | null][]).filter(([, v]) => v != null)
+                      ? (
+                          [
+                            ['Views', acc.engagement.views],
+                            ['Likes', acc.engagement.likes],
+                            ['Comments', acc.engagement.comments],
+                            ['Shares', acc.engagement.shares],
+                            ['Reposts', acc.engagement.reposts],
+                            ['Quotes', acc.engagement.quotes],
+                          ] as [string, number | null][]
+                        ).filter(([, v]) => v != null)
                       : [];
                     return engagementEntries.length > 0 ? (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
@@ -5276,6 +5282,19 @@ const PlaybookPage = ({
               selected={styleSelections}
               onChange={setStyleSelections}
             />
+
+            {/* AI Marketing Image Templates */}
+            <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid #f0ede8' }}>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0d0e0f', marginBottom: 4 }}>
+                  AI Marketing Templates
+                </div>
+                <div style={{ fontSize: 12.5, color: '#888' }}>
+                  Generate professional marketing images from expert-crafted prompts
+                </div>
+              </div>
+              <AIMarketingTemplateGallery />
+            </div>
           </div>
         )}
       </PbSection>
