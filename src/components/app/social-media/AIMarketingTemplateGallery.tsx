@@ -309,39 +309,106 @@ export default function AIMarketingTemplateGallery({ onTemplateGenerated }: AIMa
       {selectedTemplate && (
         <Box
           sx={{
-            background: '#F9FAFB',
-            border: '1px solid #E5E7EB',
-            borderRadius: '12px',
-            p: 2,
-            mb: 2,
+            background: 'linear-gradient(135deg, #fef3f9 0%, #fef9fc 100%)',
+            border: `2px solid ${primary}22`,
+            borderRadius: '16px',
+            p: 3,
+            mb: 3,
+            boxShadow: '0 4px 12px rgba(194, 24, 91, 0.08)',
           }}
         >
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0d0e0f', mb: 1.5 }}>
-            Customize "{selectedTemplate.name}"
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2.5 }}>
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: '8px',
+                background: `linear-gradient(135deg, ${primary} 0%, #E91E63 100%)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <FaMagic size={14} color="#fff" />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f', lineHeight: 1.2 }}>
+                Customize "{selectedTemplate.name}"
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: '#6B7280', mt: 0.5 }}>
+                Fill in the details to generate your marketing image
+              </Typography>
+            </Box>
+          </Box>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            {selectedTemplate.variables.map((variable) => (
-              <TextField
-                key={variable}
-                label={variable.replace(/_/g, ' ')}
-                placeholder={`Enter ${variable.toLowerCase().replace(/_/g, ' ')}`}
-                value={variables[variable] || ''}
-                onChange={(e) => setVariables({ ...variables, [variable]: e.target.value })}
-                size="small"
-                fullWidth
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    background: '#fff',
-                    fontSize: 13,
-                  },
-                }}
-              />
-            ))}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {selectedTemplate.variables.map((variable) => {
+              const labelText = variable
+                .replace(/[\[\]]/g, '')
+                .replace(/_/g, ' ')
+                .toLowerCase()
+                .split(' ')
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+
+              return (
+                <Box key={variable}>
+                  <Typography
+                    sx={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#374151',
+                      mb: 0.75,
+                      letterSpacing: '0.3px',
+                    }}
+                  >
+                    {labelText}
+                  </Typography>
+                  <TextField
+                    placeholder={`Enter your ${labelText.toLowerCase()}`}
+                    value={variables[variable] || ''}
+                    onChange={(e) => setVariables({ ...variables, [variable]: e.target.value })}
+                    fullWidth
+                    variant="outlined"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        background: '#fff',
+                        fontSize: 13,
+                        borderRadius: '10px',
+                        '& fieldset': {
+                          borderColor: '#E5E7EB',
+                          borderWidth: '1.5px',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: `${primary}66`,
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: primary,
+                          borderWidth: '2px',
+                        },
+                      },
+                      '& .MuiOutlinedInput-input': {
+                        py: 1.25,
+                      },
+                    }}
+                  />
+                </Box>
+              );
+            })}
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mt: 1.5, fontSize: 12 }}>
+            <Alert
+              severity="error"
+              sx={{
+                mt: 2.5,
+                fontSize: 12,
+                borderRadius: '10px',
+                '& .MuiAlert-icon': {
+                  fontSize: 18,
+                },
+              }}
+            >
               {error}
             </Alert>
           )}
@@ -351,36 +418,42 @@ export default function AIMarketingTemplateGallery({ onTemplateGenerated }: AIMa
             onClick={handleGenerateImage}
             disabled={generating}
             sx={{
-              mt: 1.5,
+              mt: 2.5,
               width: '100%',
               px: 3,
-              py: 1.5,
-              borderRadius: '8px',
+              py: 1.75,
+              borderRadius: '12px',
               border: 'none',
-              background: generating ? '#9CA3AF' : primary,
+              background: generating ? '#9CA3AF' : `linear-gradient(135deg, ${primary} 0%, #E91E63 100%)`,
               color: '#fff',
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: 14,
+              fontWeight: 700,
               cursor: generating ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 1,
-              transition: 'all 0.15s',
+              gap: 1.5,
+              transition: 'all 0.2s',
+              boxShadow: generating ? 'none' : `0 4px 12px ${primary}40`,
               '&:hover': {
-                background: generating ? '#9CA3AF' : `${primary}dd`,
+                background: generating ? '#9CA3AF' : `linear-gradient(135deg, ${primary}dd 0%, #E91E63dd 100%)`,
+                transform: generating ? 'none' : 'translateY(-1px)',
+                boxShadow: generating ? 'none' : `0 6px 16px ${primary}50`,
+              },
+              '&:active': {
+                transform: 'translateY(0)',
               },
             }}
           >
             {generating ? (
               <>
-                <CircularProgress size={16} sx={{ color: '#fff' }} />
-                <span>Generating...</span>
+                <CircularProgress size={18} sx={{ color: '#fff' }} />
+                <span>Generating your image...</span>
               </>
             ) : (
               <>
-                <FaMagic size={14} />
-                <span>Generate Image</span>
+                <FaMagic size={16} />
+                <span>Generate Marketing Image</span>
               </>
             )}
           </Box>
