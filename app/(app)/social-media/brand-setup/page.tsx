@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { BrandProfileData, BrandProfileService } from '@/src/api/BrandProfileService';
-import { SocialAccountService } from '@/src/api/SocialAccountService';
+import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
 import CustomButton from '@/src/components/app/atoms/CustomButton';
 import useCustomTheme from '@/src/hooks/theme.hook';
 import { useAuth } from '@/src/providers/AuthProvider';
@@ -596,6 +596,18 @@ function BrandSetupPageContent() {
   const [saving, setSaving] = useState(false);
   const [checkingExisting, setCheckingExisting] = useState(true);
 
+  // ── Connect accounts ──────────────────────────────────────────
+  const [connectPhase, setConnectPhase] = useState<'selecting' | 'connecting' | 'pending' | 'finalizing' | 'success'>(
+    'selecting'
+  );
+  const [selectedConnectPlatform, setSelectedConnectPlatform] = useState<string | null>(null);
+  const [connectSessionToken, setConnectSessionToken] = useState<string | null>(null);
+  const [availablePages, setAvailablePages] = useState<AvailablePage[]>([]);
+  const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
+  const [connectNetworkName, setConnectNetworkName] = useState('');
+  const [connectedAccountNames, setConnectedAccountNames] = useState<string[]>([]);
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+
   // ── Basics ────────────────────────────────────────────────────
   const [brandName, setBrandName] = useState('');
   const [industry, setIndustry] = useState('');
@@ -771,8 +783,26 @@ function BrandSetupPageContent() {
         router.replace(`/settings/social-accounts?sessionToken=${encodeURIComponent(sessionToken)}&connected=pending`);
         return;
       }
-      // Onboarding OAuth callback — don't redirect to workspace
+      // Onboarding OAuth callback — navigate to connectAccounts step and load pending pages
       setCheckingExisting(false);
+      setStep(STEPS.indexOf('connectAccounts'));
+      setConnectSessionToken(sessionToken);
+      setConnectPhase('connecting');
+      SocialAccountService.pendingConnection(sessionToken)
+        .then((res) => {
+          if (res.status && res.responseData?.available_pages) {
+            const pages: AvailablePage[] = res.responseData.available_pages;
+            setAvailablePages(pages);
+            setConnectNetworkName(res.responseData.network_name || 'Facebook');
+            const selectableIds = pages.filter((p) => !p.auto_connect).map((p) => p.id);
+            setSelectedPageIds(selectableIds);
+            setConnectPhase('pending');
+          } else {
+            setConnectPhase('selecting');
+          }
+        })
+        .catch(() => setConnectPhase('selecting'));
+      router.replace('/social-media/brand-setup');
       return;
     }
 
