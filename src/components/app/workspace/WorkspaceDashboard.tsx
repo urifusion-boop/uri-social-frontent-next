@@ -1857,7 +1857,7 @@ const PLATFORMS = [
     label: 'Facebook',
     color: '#1877F2',
     bg: '#E7F0FD',
-    flow: 'facebook_direct',
+    flow: 'facebook_oauth',
     tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social',
   },
   {
@@ -1865,7 +1865,7 @@ const PLATFORMS = [
     label: 'Instagram',
     color: '#E4405F',
     bg: '#FDE7EC',
-    flow: 'instagram_direct',
+    flow: 'instagram_oauth',
     tooltip:
       'Connect your Instagram Business account to publish feed posts, carousels, and stories directly from URI Social',
   },
@@ -2081,25 +2081,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const handleConnect = async (id: string, flow: string) => {
-    if (flow === 'instagram_direct') {
+    if (flow === 'instagram_oauth' || flow === 'facebook_oauth') {
       setConnecting(id);
-      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
-      window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
-      return;
-    }
-    if (flow === 'facebook_direct') {
-      setConnecting(id);
-      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
-      window.location.href = `${apiBase}/social-media/connect/facebook-direct/initiate?source=settings`;
-      return;
-    }
-    if (flow === 'facebook_oauth') {
-      setConnecting(id);
+      const platform = flow === 'instagram_oauth' ? 'instagram' : 'facebook';
       try {
-        const res = await SocialAccountService.initiateConnection(['facebook'], 'settings');
-        if (res.status && res.responseData?.auth_urls?.facebook) {
+        const res = await SocialAccountService.initiateConnection([platform], 'settings');
+        if (res.status && res.responseData?.auth_urls?.[platform]) {
           localStorage.setItem('outstand_connect_source', 'settings');
-          window.location.href = res.responseData.auth_urls.facebook;
+          window.location.href = res.responseData.auth_urls[platform];
           return;
         }
         ToastService.showToast('Could not start connection. Please try again.', ToastTypeEnum.Error);
