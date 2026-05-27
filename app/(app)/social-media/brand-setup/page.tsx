@@ -793,7 +793,7 @@ function BrandSetupPageContent() {
           if (res.status && res.responseData?.available_pages) {
             const pages: AvailablePage[] = res.responseData.available_pages;
             setAvailablePages(pages);
-            setConnectNetworkName(res.responseData.network_name || 'Facebook');
+            setConnectNetworkName(res.responseData.network || 'Facebook');
             const selectableIds = pages.filter((p) => !p.auto_connect).map((p) => p.id);
             setSelectedPageIds(selectableIds);
             setConnectPhase('pending');
