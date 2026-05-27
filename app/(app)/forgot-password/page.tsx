@@ -5,7 +5,7 @@ import posthog from 'posthog-js';
 import { Box, Button, CircularProgress, TextField, Typography, Alert, Fade, Collapse } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { MdOutlineCampaign, MdCheckCircle, MdError, MdLockReset } from 'react-icons/md';
+import { MdOutlineCampaign, MdCheckCircle, MdError, MdLockReset, MdEmail } from 'react-icons/md';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      setSuccess('If an account exists with this email, a password reset code has been sent. Please check your inbox.');
+      setSuccess('✅ Reset code sent! Check your email inbox and spam/junk folder.');
       posthog.capture('password_reset_requested', { email });
 
       // Redirect to reset password page after 2 seconds
@@ -136,9 +136,26 @@ export default function ForgotPasswordPage() {
           <Typography fontWeight={700} fontSize="24px" color="#111827" textAlign="center" mb={1}>
             Forgot Password?
           </Typography>
-          <Typography fontSize="14px" color="#6B7280" textAlign="center" mb={3}>
+          <Typography fontSize="14px" color="#6B7280" textAlign="center" mb={2}>
             No worries! Enter your email address and we'll send you a code to reset your password.
           </Typography>
+
+          {/* Spam Folder Warning */}
+          <Alert
+            severity="warning"
+            icon={<MdEmail fontSize={18} />}
+            sx={{
+              mb: 2,
+              borderRadius: '8px',
+              fontSize: '13px',
+              backgroundColor: '#FEF3C7',
+              border: '1px solid #FCD34D',
+              '& .MuiAlert-icon': { color: '#F59E0B' },
+              '& .MuiAlert-message': { color: '#78350F', fontWeight: 600 },
+            }}
+          >
+            📧 Remember to check your <strong>spam/junk folder</strong> for the reset code!
+          </Alert>
 
           {/* Success Message */}
           <Collapse in={!!success}>

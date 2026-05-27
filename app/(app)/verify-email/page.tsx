@@ -129,7 +129,7 @@ function VerifyEmailContent() {
         return;
       }
 
-      setResendSuccess('Verification code sent! Please check your email.');
+      setResendSuccess('✅ Code sent! Check your inbox and spam/junk folder.');
       posthog.capture('verification_code_resent', { email });
     } catch (err: unknown) {
       const e = err as {
@@ -231,9 +231,26 @@ function VerifyEmailContent() {
           <Typography fontWeight={700} fontSize="20px" color="#111827" textAlign="center" mb={0.3}>
             Verify Your Email
           </Typography>
-          <Typography fontSize="12px" color="#6B7280" textAlign="center" mb={1.5}>
+          <Typography fontSize="12px" color="#6B7280" textAlign="center" mb={0.5}>
             We've sent a 6-digit code to <strong>{email}</strong>. Please enter it below to verify your account.
           </Typography>
+
+          {/* Spam Folder Notice */}
+          <Alert
+            severity="warning"
+            icon={<MdEmail fontSize={18} />}
+            sx={{
+              mb: 1.5,
+              borderRadius: '8px',
+              fontSize: '12px',
+              backgroundColor: '#FEF3C7',
+              border: '1px solid #FCD34D',
+              '& .MuiAlert-icon': { color: '#F59E0B' },
+              '& .MuiAlert-message': { color: '#78350F', fontWeight: 500 },
+            }}
+          >
+            📧 Can't find the code? <strong>Check your spam/junk folder!</strong>
+          </Alert>
 
           {/* Success Message */}
           <Collapse in={!!success}>
