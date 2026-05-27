@@ -156,8 +156,10 @@ export interface DenyPayload {
 export interface SocialConnection {
   platform: string;
   page_name?: string;
+  account_name?: string;
+  username?: string;
   fan_count?: number;
-  status: 'active' | 'expired';
+  status?: 'active' | 'expired';
   page_id?: string;
   outstand_account_id?: string;
   ig_user_id?: string;

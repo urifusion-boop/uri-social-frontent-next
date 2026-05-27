@@ -1955,18 +1955,20 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       }
       if (fbIg?.responseData) {
         const conns = fbIg.responseData.connections ?? {};
+        const fbConn = conns.facebook?.[0];
+        const igConn = conns.instagram?.[0];
         next.facebook = {
           linked: !!conns.facebook?.length,
-          account_name: conns.facebook?.[0]?.page_name,
-          outstand_account_id: conns.facebook?.[0]?.outstand_account_id,
-          connected_via: conns.facebook?.[0]?.connected_via,
+          account_name: fbConn?.account_name || fbConn?.page_name || fbConn?.username,
+          outstand_account_id: fbConn?.outstand_account_id,
+          connected_via: fbConn?.connected_via,
         };
         next.instagram = {
           linked: !!conns.instagram?.length,
-          account_name: conns.instagram?.[0]?.page_name,
-          outstand_account_id: conns.instagram?.[0]?.outstand_account_id,
-          ig_user_id: conns.instagram?.[0]?.ig_user_id,
-          connected_via: conns.instagram?.[0]?.connected_via,
+          account_name: igConn?.account_name || igConn?.page_name || igConn?.username,
+          outstand_account_id: igConn?.outstand_account_id,
+          ig_user_id: igConn?.ig_user_id,
+          connected_via: igConn?.connected_via,
         };
       } else {
         next.facebook = { linked: false };
@@ -2261,78 +2263,94 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             Select which accounts you want to manage through URI Social.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-            {availablePages.length === 0 ? (
-              <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>
-                No accounts found. Make sure you have admin access to at least one page.
-              </div>
-            ) : (
-              availablePages.map((page) => {
-                const isSelected = selectedPageIds.includes(page.id);
-                const isIg = page.type === 'instagram_business_account' || page.network === 'instagram';
+            {(() => {
+              const selectablePages = availablePages.filter((p) => !p.auto_connect);
+              const autoPages = availablePages.filter((p) => p.auto_connect);
+              if (selectablePages.length === 0) {
                 return (
-                  <div
-                    key={page.id}
-                    onClick={() =>
-                      setSelectedPageIds((prev) =>
-                        prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
-                      )
-                    }
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      padding: '11px 14px',
-                      borderRadius: 10,
-                      border: `2px solid ${isSelected ? '#C2185B' : '#edecea'}`,
-                      background: isSelected ? '#FDF2F8' : '#fff',
-                      cursor: 'pointer',
-                      transition: 'all .15s',
-                    }}
-                  >
-                    {page.profilePictureUrl ? (
-                      <img
-                        src={page.profilePictureUrl}
-                        alt={page.name}
-                        style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: '50%',
-                          background: isIg ? '#FDE7EC' : '#E7F0FD',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 16,
-                        }}
-                      >
-                        {isIg ? '📸' : '📘'}
-                      </div>
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{page.name}</div>
-                      {page.username && <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>@{page.username}</div>}
-                    </div>
-                    <div
-                      style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: '50%',
-                        border: `2px solid ${isSelected ? '#C2185B' : '#ddd'}`,
-                        background: isSelected ? '#C2185B' : '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {isSelected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
-                    </div>
+                  <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>
+                    No accounts found. Make sure you have admin access to at least one page.
                   </div>
                 );
-              })
-            )}
+              }
+              return (
+                <>
+                  {selectablePages.map((page) => {
+                    const isSelected = selectedPageIds.includes(page.id);
+                    return (
+                      <div
+                        key={page.id}
+                        onClick={() =>
+                          setSelectedPageIds((prev) =>
+                            prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
+                          )
+                        }
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          padding: '11px 14px',
+                          borderRadius: 10,
+                          border: `2px solid ${isSelected ? '#C2185B' : '#edecea'}`,
+                          background: isSelected ? '#FDF2F8' : '#fff',
+                          cursor: 'pointer',
+                          transition: 'all .15s',
+                        }}
+                      >
+                        {page.profilePictureUrl ? (
+                          <img
+                            src={page.profilePictureUrl}
+                            alt={page.name}
+                            style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: '50%',
+                              background: '#E7F0FD',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 16,
+                            }}
+                          >
+                            📘
+                          </div>
+                        )}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{page.name}</div>
+                          {page.username && <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>@{page.username}</div>}
+                        </div>
+                        <div
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: '50%',
+                            border: `2px solid ${isSelected ? '#C2185B' : '#ddd'}`,
+                            background: isSelected ? '#C2185B' : '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {isSelected && (
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {autoPages.length > 0 && (
+                    <div style={{ fontSize: 11.5, color: '#6B7280', padding: '6px 4px' }}>
+                      Instagram Business Account{autoPages.length > 1 ? 's' : ''} linked to your page
+                      {autoPages.length > 1 ? 's' : ''} will be connected automatically.
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button
