@@ -788,7 +788,7 @@ function BrandSetupPageContent() {
       setStep(STEPS.indexOf('connectAccounts'));
       setConnectSessionToken(sessionToken);
       setConnectPhase('connecting');
-      SocialAccountService.pendingConnection(sessionToken)
+      SocialAccountService.getPendingConnection(sessionToken)
         .then((res) => {
           if (res.status && res.responseData?.available_pages) {
             const pages: AvailablePage[] = res.responseData.available_pages;
