@@ -6,7 +6,7 @@ import { SocialAccountService } from '@/src/api/SocialAccountService';
 import CustomButton from '@/src/components/app/atoms/CustomButton';
 import useCustomTheme from '@/src/hooks/theme.hook';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { Box, CircularProgress, Divider, LinearProgress, Typography } from '@mui/material';
+import { Box, Checkbox, CircularProgress, Divider, LinearProgress, Typography } from '@mui/material';
 import Grid from '@mui/material/GridLegacy';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -25,6 +25,7 @@ import posthog from 'posthog-js';
 // ─── Step order ──────────────────────────────────────────────────────────────
 const STEPS = [
   'welcome',
+  'connectAccounts',
   'basics',
   'identity',
   'personality',
