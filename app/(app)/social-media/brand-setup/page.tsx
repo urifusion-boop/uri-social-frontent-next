@@ -11,7 +11,18 @@ import Grid from '@mui/material/GridLegacy';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCheckCircle, FaImage, FaTimes } from 'react-icons/fa';
+import {
+  FaArrowLeft,
+  FaCheckCircle,
+  FaFacebook,
+  FaImage,
+  FaInstagram,
+  FaLinkedin,
+  FaTimes,
+  FaWhatsapp,
+} from 'react-icons/fa';
+import { FaXTwitter } from 'react-icons/fa6';
+import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
 import { getFont } from '@/src/data/fontLibrary';
