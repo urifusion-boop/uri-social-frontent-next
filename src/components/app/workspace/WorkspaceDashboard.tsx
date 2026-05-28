@@ -3210,26 +3210,8 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                 </div>
               </div>
 
-              {/* Insights note (e.g. LinkedIn API limitation) */}
-              {data.summary.insights_note && (
-                <div
-                  style={{
-                    background: '#fffbf0',
-                    border: '1px solid #fde68a',
-                    borderRadius: 10,
-                    padding: '10px 14px',
-                    marginBottom: 14,
-                    fontSize: 12.5,
-                    color: '#92400e',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  ℹ️ {data.summary.insights_note}
-                </div>
-              )}
-
-              {/* Per-platform breakdown */}
-              {Object.keys(data.by_platform).length > 0 && (
+              {/* Per-platform breakdown — LinkedIn excluded (no public API for engagement stats) */}
+              {Object.keys(data.by_platform).filter(pl => pl !== 'linkedin').length > 0 && (
                 <div
                   style={{
                     background: '#fff',
@@ -3252,7 +3234,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                     By Platform
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {Object.entries(data.by_platform).map(([pl, stats]) => (
+                    {Object.entries(data.by_platform).filter(([pl]) => pl !== 'linkedin').map(([pl, stats]) => (
                       <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div
                           style={{
