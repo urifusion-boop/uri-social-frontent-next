@@ -982,7 +982,7 @@ function BrandSetupPageContent() {
             color: '#E4405F',
             bg: '#FDE7EC',
             description: 'Business & creator accounts',
-            flow: 'outstand',
+            flow: 'instagram_direct',
           },
           {
             id: 'linkedin',
@@ -1083,7 +1083,15 @@ function BrandSetupPageContent() {
             return;
           }
 
-          // Outstand flow (Facebook, Instagram, and other platforms)
+          // Instagram direct — Meta/Facebook Login flow
+          if (platform.flow === 'instagram_direct') {
+            setConnectPhase('connecting');
+            const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+            window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=onboarding`;
+            return;
+          }
+
+          // Outstand flow (Facebook and other platforms)
           setConnectPhase('connecting');
           try {
             const res = await SocialAccountService.initiateConnection([selectedConnectPlatform]);
