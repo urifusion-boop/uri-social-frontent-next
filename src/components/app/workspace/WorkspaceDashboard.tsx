@@ -1562,13 +1562,29 @@ const ContentManagerPage = ({
                 onClose={() => setSyncImageOpen(false)}
                 onDone={(sourceId, targetIds) => {
                   const sourceDraft = drafts.find((d) => (d.draft_id ?? d.id) === sourceId);
-                  if (sourceDraft?.image_url) {
-                    const url = sourceDraft.image_url;
-                    setDrafts((prev) =>
-                      prev.map((d) =>
-                        targetIds.includes(d.draft_id ?? d.id ?? '') ? { ...d, image_url: url, has_image: true } : d
-                      )
-                    );
+                  if (sourceDraft) {
+                    if (sourceDraft.post_type === 'carousel' && sourceDraft.slides) {
+                      const sourceSlides = sourceDraft.slides;
+                      setDrafts((prev) =>
+                        prev.map((d) => {
+                          if (!targetIds.includes(d.draft_id ?? d.id ?? '')) return d;
+                          const targetSlides = d.slides ?? [];
+                          if (targetSlides.length !== sourceSlides.length) return d;
+                          return {
+                            ...d,
+                            has_image: true,
+                            slides: targetSlides.map((s, i) => ({ ...s, image_url: sourceSlides[i]?.image_url })),
+                          };
+                        })
+                      );
+                    } else if (sourceDraft.image_url) {
+                      const url = sourceDraft.image_url;
+                      setDrafts((prev) =>
+                        prev.map((d) =>
+                          targetIds.includes(d.draft_id ?? d.id ?? '') ? { ...d, image_url: url, has_image: true } : d
+                        )
+                      );
+                    }
                   }
                   setSyncImageOpen(false);
                   setSelectedDraftIds(new Set());

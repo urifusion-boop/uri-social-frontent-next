@@ -1,6 +1,6 @@
 'use client';
 
-import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { CarouselSlide, ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { useState } from 'react';
@@ -27,11 +27,67 @@ function resolveUrl(url: string) {
   return url;
 }
 
+function SlideStrip({ slides }: { slides: CarouselSlide[] }) {
+  const visible = slides.slice(0, 4);
+  return (
+    <div style={{ display: 'flex', gap: 3, padding: '6px 8px', background: '#F9FAFB', borderTop: '1px solid #F3F4F6' }}>
+      {visible.map((s, i) => (
+        <div
+          key={i}
+          style={{
+            flex: 1,
+            aspectRatio: '1',
+            background: '#E5E7EB',
+            borderRadius: 4,
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          {s.image_url ? (
+            <img
+              src={resolveUrl(s.image_url)}
+              alt={`slide ${i + 1}`}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <div style={{ width: '100%', height: '100%', background: '#D1D5DB' }} />
+          )}
+        </div>
+      ))}
+      {slides.length > 4 && (
+        <div
+          style={{
+            width: 24,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 10,
+            color: '#6B7280',
+            fontWeight: 700,
+          }}
+        >
+          +{slides.length - 4}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SyncImageDialog({ drafts, selectedIds, onClose, onDone }: SyncImageDialogProps) {
-  const selectedDrafts = drafts.filter((d) => {
-    const id = d.draft_id ?? d.id ?? '';
-    return selectedIds.has(id) && d.image_url;
-  });
+  const selected = drafts.filter((d) => selectedIds.has(d.draft_id ?? d.id ?? ''));
+
+  const allCarousels = selected.every((d) => d.post_type === 'carousel');
+  const isCarouselMode = allCarousels && selected.some((d) => d.post_type === 'carousel');
+
+  // For carousel mode: only allow syncing between drafts with the same slide count
+  const slideCounts = isCarouselMode ? selected.map((d) => (d.slides ?? []).length) : [];
+  const allSameSlideCount = slideCounts.length > 0 && slideCounts.every((n) => n === slideCounts[0]);
+  const slideCountMismatch = isCarouselMode && !allSameSlideCount;
+
+  // For feed mode: only show drafts that have an image
+  const eligibleDrafts = isCarouselMode
+    ? selected.filter((d) => (d.slides ?? []).some((s) => s.image_url))
+    : selected.filter((d) => d.image_url);
 
   const [sourceDraftId, setSourceDraftId] = useState<string>('');
   const [applying, setApplying] = useState(false);
@@ -40,19 +96,25 @@ export default function SyncImageDialog({ drafts, selectedIds, onClose, onDone }
     if (!sourceDraftId) return;
     setApplying(true);
     try {
-      const targetIds = drafts
-        .filter((d) => {
-          const id = d.draft_id ?? d.id ?? '';
-          return selectedIds.has(id) && id !== sourceDraftId;
-        })
+      const targetIds = selected
+        .filter((d) => (d.draft_id ?? d.id) !== sourceDraftId)
         .map((d) => d.draft_id ?? d.id ?? '');
 
       const res = await SocialMediaAgentService.syncImageAcrossDrafts(sourceDraftId, targetIds);
       if (res.status) {
-        ToastService.showToast(
-          `Image applied to ${res.responseData?.updated_count ?? targetIds.length} platform${targetIds.length !== 1 ? 's' : ''}`,
-          ToastTypeEnum.Success
-        );
+        const skipped = (res.responseData as { skipped?: { id: string; reason: string }[] })?.skipped ?? [];
+        const count = res.responseData?.updated_count ?? targetIds.length;
+        if (skipped.length > 0) {
+          ToastService.showToast(
+            `Synced to ${count} platform${count !== 1 ? 's' : ''}. ${skipped.length} skipped (slide count mismatch).`,
+            ToastTypeEnum.Warning
+          );
+        } else {
+          ToastService.showToast(
+            `${isCarouselMode ? 'Slide images' : 'Image'} applied to ${count} platform${count !== 1 ? 's' : ''}`,
+            ToastTypeEnum.Success
+          );
+        }
         onDone(sourceDraftId, targetIds);
       } else {
         ToastService.showToast(res.responseMessage || 'Failed to sync image', ToastTypeEnum.Error);
@@ -82,28 +144,53 @@ export default function SyncImageDialog({ drafts, selectedIds, onClose, onDone }
           background: '#fff',
           borderRadius: 16,
           padding: 28,
-          width: 520,
+          width: 560,
           maxWidth: '92vw',
           boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <p style={{ fontSize: 17, fontWeight: 700, color: '#111', margin: '0 0 4px' }}>Sync image across platforms</p>
+        <p style={{ fontSize: 17, fontWeight: 700, color: '#111', margin: '0 0 4px' }}>
+          {isCarouselMode ? 'Sync carousel slides across platforms' : 'Sync image across platforms'}
+        </p>
         <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 20px' }}>
-          Pick which platform&apos;s image to use. It will be applied to all other selected posts while keeping their
-          individual captions.
+          {isCarouselMode
+            ? "Pick which platform's slide images to use. All slide images will be applied to the other selected carousels."
+            : "Pick which platform's image to use. It will be applied to all other selected posts while keeping their individual captions."}
         </p>
 
-        {selectedDrafts.length === 0 ? (
+        {slideCountMismatch && (
+          <div
+            style={{
+              background: '#FEF3C7',
+              border: '1px solid #FDE68A',
+              borderRadius: 8,
+              padding: '10px 14px',
+              marginBottom: 16,
+              fontSize: 13,
+              color: '#92400E',
+            }}
+          >
+            Selected carousels have different slide counts ({slideCounts.join(', ')} slides). Only carousels with the
+            same number of slides can be synced.
+          </div>
+        )}
+
+        {eligibleDrafts.length === 0 ? (
           <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '24px 0' }}>
-            None of the selected drafts have images yet. Generate images first.
+            {isCarouselMode
+              ? 'None of the selected carousels have slide images yet. Generate images first.'
+              : 'None of the selected drafts have images yet. Generate images first.'}
           </p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-            {selectedDrafts.map((draft) => {
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+            {eligibleDrafts.map((draft) => {
               const id = draft.draft_id ?? draft.id ?? '';
               const meta = platformMeta[draft.platform] ?? { label: draft.platform, icon: null, color: '#6B7280' };
               const selected = sourceDraftId === id;
+              const slides = draft.slides ?? [];
+              const slideCount = slides.length;
+
               return (
                 <button
                   key={id}
@@ -119,17 +206,20 @@ export default function SyncImageDialog({ drafts, selectedIds, onClose, onDone }
                     flexDirection: 'column',
                     alignItems: 'stretch',
                     transition: 'border-color 0.15s, background 0.15s',
+                    textAlign: 'left',
                   }}
                 >
-                  {/* Thumbnail */}
-                  <div style={{ width: '100%', aspectRatio: '4/3', background: '#F3F4F6', overflow: 'hidden' }}>
-                    <img
-                      src={resolveUrl(draft.image_url!)}
-                      alt={meta.label}
-                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                    />
-                  </div>
-                  {/* Platform label */}
+                  {isCarouselMode ? (
+                    <SlideStrip slides={slides} />
+                  ) : (
+                    <div style={{ width: '100%', aspectRatio: '4/3', background: '#F3F4F6', overflow: 'hidden' }}>
+                      <img
+                        src={resolveUrl(draft.image_url!)}
+                        alt={meta.label}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      />
+                    </div>
+                  )}
                   <div
                     style={{
                       display: 'flex',
@@ -143,6 +233,9 @@ export default function SyncImageDialog({ drafts, selectedIds, onClose, onDone }
                     <span style={{ fontSize: 12, fontWeight: 600, color: selected ? '#CD1B78' : '#374151' }}>
                       {meta.label}
                     </span>
+                    {isCarouselMode && (
+                      <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 2 }}>{slideCount} slides</span>
+                    )}
                     {selected && (
                       <span style={{ marginLeft: 'auto', fontSize: 11, color: '#CD1B78', fontWeight: 700 }}>✓</span>
                     )}
@@ -155,8 +248,9 @@ export default function SyncImageDialog({ drafts, selectedIds, onClose, onDone }
 
         {sourceDraftId && (
           <p style={{ fontSize: 12, color: '#6B7280', margin: '14px 0 0' }}>
-            This image will be applied to the other {selectedIds.size - 1} selected platform
-            {selectedIds.size - 1 !== 1 ? 's' : ''}.
+            {isCarouselMode
+              ? `All ${(eligibleDrafts.find((d) => (d.draft_id ?? d.id) === sourceDraftId)?.slides ?? []).length} slide images will be applied to the other ${selectedIds.size - 1} selected carousel${selectedIds.size - 1 !== 1 ? 's' : ''}.`
+              : `This image will be applied to the other ${selectedIds.size - 1} selected platform${selectedIds.size - 1 !== 1 ? 's' : ''}.`}
           </p>
         )}
 
@@ -178,19 +272,19 @@ export default function SyncImageDialog({ drafts, selectedIds, onClose, onDone }
           </button>
           <button
             onClick={handleApply}
-            disabled={!sourceDraftId || applying || selectedDrafts.length < 2}
+            disabled={!sourceDraftId || applying || eligibleDrafts.length < 2 || slideCountMismatch}
             style={{
               padding: '8px 20px',
               borderRadius: 8,
               border: 'none',
-              background: !sourceDraftId || applying ? '#E5E7EB' : '#CD1B78',
-              color: !sourceDraftId || applying ? '#9CA3AF' : '#fff',
+              background: !sourceDraftId || applying || slideCountMismatch ? '#E5E7EB' : '#CD1B78',
+              color: !sourceDraftId || applying || slideCountMismatch ? '#9CA3AF' : '#fff',
               fontSize: 13,
               fontWeight: 700,
-              cursor: !sourceDraftId || applying ? 'not-allowed' : 'pointer',
+              cursor: !sourceDraftId || applying || slideCountMismatch ? 'not-allowed' : 'pointer',
             }}
           >
-            {applying ? 'Applying…' : 'Apply to all selected'}
+            {applying ? 'Applying…' : isCarouselMode ? 'Sync slides to all selected' : 'Apply to all selected'}
           </button>
         </div>
       </div>
