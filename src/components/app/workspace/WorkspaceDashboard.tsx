@@ -1865,7 +1865,7 @@ const PLATFORMS = [
     label: 'Instagram',
     color: '#E4405F',
     bg: '#FDE7EC',
-    flow: 'instagram_oauth',
+    flow: 'instagram_direct',
     tooltip:
       'Connect your Instagram Business account to publish feed posts, carousels, and stories directly from URI Social',
   },
@@ -2083,14 +2083,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const handleConnect = async (id: string, flow: string) => {
-    if (flow === 'instagram_oauth' || flow === 'facebook_oauth') {
+    if (flow === 'facebook_oauth') {
       setConnecting(id);
-      const platform = flow === 'instagram_oauth' ? 'instagram' : 'facebook';
       try {
-        const res = await SocialAccountService.initiateConnection([platform], 'settings');
-        if (res.status && res.responseData?.auth_urls?.[platform]) {
+        const res = await SocialAccountService.initiateConnection(['facebook'], 'settings');
+        if (res.status && res.responseData?.auth_urls?.facebook) {
           localStorage.setItem('outstand_connect_source', 'settings');
-          window.location.href = res.responseData.auth_urls[platform];
+          window.location.href = res.responseData.auth_urls.facebook;
           return;
         }
         ToastService.showToast('Could not start connection. Please try again.', ToastTypeEnum.Error);
@@ -2099,6 +2098,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       } finally {
         setConnecting(null);
       }
+      return;
+    }
+    if (flow === 'instagram_direct') {
+      setConnecting(id);
+      // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+      window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
       return;
     }
     if (flow === 'phone') {
