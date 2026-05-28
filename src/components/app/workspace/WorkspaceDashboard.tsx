@@ -1222,7 +1222,9 @@ const ContentManagerPage = ({
                   (() => {
                     const selectedWithImages = drafts.filter((d) => {
                       const id = d.draft_id ?? d.id ?? '';
-                      return selectedDraftIds.has(id) && d.image_url;
+                      const hasImage =
+                        d.post_type === 'carousel' ? (d.slides ?? []).some((s) => s.image_url) : !!d.image_url;
+                      return selectedDraftIds.has(id) && hasImage;
                     });
                     const showSync = selectedWithImages.length >= 2;
                     const syncBtn = showSync ? (
@@ -3227,7 +3229,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
               </div>
 
               {/* Per-platform breakdown — LinkedIn excluded (no public API for engagement stats) */}
-              {Object.keys(data.by_platform).filter(pl => pl !== 'linkedin').length > 0 && (
+              {Object.keys(data.by_platform).filter((pl) => pl !== 'linkedin').length > 0 && (
                 <div
                   style={{
                     background: '#fff',
@@ -3250,54 +3252,58 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                     By Platform
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {Object.entries(data.by_platform).filter(([pl]) => pl !== 'linkedin').map(([pl, stats]) => (
-                      <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 8,
-                            background: (PLATFORM_COLORS[pl] ?? '#666') + '18',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 16,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {platformIcon[pl] ?? '🌐'}
-                        </div>
-                        <div style={{ flex: 1 }}>
+                    {Object.entries(data.by_platform)
+                      .filter(([pl]) => pl !== 'linkedin')
+                      .map(([pl, stats]) => (
+                        <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <div
                             style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 8,
+                              background: (PLATFORM_COLORS[pl] ?? '#666') + '18',
                               display: 'flex',
                               alignItems: 'center',
-                              justifyContent: 'space-between',
-                              marginBottom: 3,
+                              justifyContent: 'center',
+                              fontSize: 16,
+                              flexShrink: 0,
                             }}
                           >
-                            <span style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>
-                              {pl}
-                            </span>
-                            <span style={{ fontSize: 12, color: '#999' }}>
-                              {stats.posts} post{stats.posts !== 1 ? 's' : ''}
-                            </span>
+                            {platformIcon[pl] ?? '🌐'}
                           </div>
-                          <div style={{ display: 'flex', gap: 14 }}>
-                            {[
-                              ['Impressions', fmt(stats.impressions)],
-                              ['Reach', fmt(stats.reach)],
-                              ['Eng.', `${stats.avg_engagement_rate}%`],
-                            ].map(([l, v]) => (
-                              <div key={l}>
-                                <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
-                              </div>
-                            ))}
+                          <div style={{ flex: 1 }}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginBottom: 3,
+                              }}
+                            >
+                              <span
+                                style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}
+                              >
+                                {pl}
+                              </span>
+                              <span style={{ fontSize: 12, color: '#999' }}>
+                                {stats.posts} post{stats.posts !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 14 }}>
+                              {[
+                                ['Impressions', fmt(stats.impressions)],
+                                ['Reach', fmt(stats.reach)],
+                                ['Eng.', `${stats.avg_engagement_rate}%`],
+                              ].map(([l, v]) => (
+                                <div key={l}>
+                                  <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </div>
               )}
