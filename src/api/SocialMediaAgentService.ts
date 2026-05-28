@@ -681,6 +681,8 @@ export interface PerformanceData {
     total_shares: number;
     total_views: number;
     avg_engagement_rate: number;
+    insights_available?: boolean;
+    insights_note?: string | null;
   };
   by_platform: Record<string, PerformancePlatformSummary>;
   top_posts: PerformancePost[];

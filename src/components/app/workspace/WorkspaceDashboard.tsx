@@ -3013,7 +3013,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
       icon="chart"
       desc={
         view === 'posts'
-          ? 'Real-time insights from your published posts via Outstand'
+          ? 'Real-time insights from your published posts'
           : 'Account-level metrics for your connected social profiles'
       }
       onJane={onJane}
@@ -3209,6 +3209,24 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                   )}
                 </div>
               </div>
+
+              {/* Insights note (e.g. LinkedIn API limitation) */}
+              {data.summary.insights_note && (
+                <div
+                  style={{
+                    background: '#fffbf0',
+                    border: '1px solid #fde68a',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    marginBottom: 14,
+                    fontSize: 12.5,
+                    color: '#92400e',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  ℹ️ {data.summary.insights_note}
+                </div>
+              )}
 
               {/* Per-platform breakdown */}
               {Object.keys(data.by_platform).length > 0 && (
