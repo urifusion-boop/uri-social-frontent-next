@@ -6099,6 +6099,13 @@ export default function WorkspaceDashboard() {
     return () => window.removeEventListener('resize', ck);
   }, []);
 
+  // Keep nav in sync with the ?tab= URL param so that router.push('/workspace?tab=connections')
+  // from child components (DraftCard, Schedule All dialog) actually switches the visible section.
+  useEffect(() => {
+    const tab = searchParams?.get('tab');
+    if (tab) setNav(tab);
+  }, [searchParams]);
+
   useEffect(() => {
     if (!localStorage.getItem('uri_tour_v1')) {
       const t = setTimeout(() => setTourOpen(true), 900);
