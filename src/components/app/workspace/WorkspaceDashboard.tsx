@@ -1908,6 +1908,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [availablePages, setAvailablePages] = useState<AvailablePage[]>([]);
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
   const [networkName, setNetworkName] = useState('');
+  // Which platform initiated the Outstand connect (used to filter the page picker)
+  const [pendingPlatform, setPendingPlatform] = useState<string>('');
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -2043,6 +2045,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     } else if (connected === 'pending' && token) {
       setSessionToken(token);
       setPhase('pending');
+      const storedPlatform = localStorage.getItem('outstand_connect_platform') ?? '';
+      if (storedPlatform) {
+        setPendingPlatform(storedPlatform);
+        localStorage.removeItem('outstand_connect_platform');
+      }
       router.replace('/workspace?tab=connections');
       SocialAccountService.getPendingConnection(token)
         .then((res) => {
@@ -2074,6 +2081,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         setSessionToken(null);
         setAvailablePages([]);
         setSelectedPageIds([]);
+        setPendingPlatform('');
         loadStatuses();
       } else {
         ToastService.showToast('Finalization failed. Please try again.', ToastTypeEnum.Error);
@@ -2107,6 +2115,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         const res = await SocialAccountService.initiateConnection(['facebook'], 'settings');
         if (res.status && res.responseData?.auth_urls?.facebook) {
           localStorage.setItem('outstand_connect_source', 'settings');
+          localStorage.setItem('outstand_connect_platform', id); // track which platform initiated
           window.location.href = res.responseData.auth_urls.facebook;
           return;
         }
@@ -2288,8 +2297,17 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
             {(() => {
-              const selectablePages = availablePages.filter((p) => !p.auto_connect);
-              const autoPages = availablePages.filter((p) => p.auto_connect);
+              // Filter pages to only show the platform that initiated the connect.
+              // Outstand's OAuth may return both Facebook pages and linked Instagram accounts;
+              // this ensures clicking "Connect Facebook" only shows Facebook pages (not IG), and vice versa.
+              const platformPages = pendingPlatform
+                ? availablePages.filter((p) => {
+                    const pageNetwork = (p.network ?? p.type ?? '').toLowerCase();
+                    return !pageNetwork || pageNetwork.includes(pendingPlatform.toLowerCase());
+                  })
+                : availablePages;
+              const selectablePages = platformPages.filter((p) => !p.auto_connect);
+              const autoPages = platformPages.filter((p) => p.auto_connect);
               if (selectablePages.length === 0) {
                 return (
                   <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>
@@ -2405,6 +2423,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                 setSessionToken(null);
                 setAvailablePages([]);
                 setSelectedPageIds([]);
+                setPendingPlatform('');
               }}
               style={{
                 background: 'none',
