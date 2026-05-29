@@ -640,6 +640,14 @@ export class SocialMediaAgentService {
     );
     return response.data;
   }
+
+  static async agentChat(
+    messages: { role: string; content: string }[]
+  ): Promise<UriResponse<{ reply: string; navigate: string | null }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ reply: string; navigate: string | null }>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.agentChat, { messages });
+    return response.data;
+  }
 }
 
 export interface PerformancePost {

@@ -38,7 +38,8 @@ type ISocialMediaAgentApi =
   | 'analyzeCustomFont'
   | 'generateBlog'
   | 'getBlogDrafts'
-  | 'getBlogDraft';
+  | 'getBlogDraft'
+  | 'agentChat';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -76,6 +77,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   generateBlog: '/generate-blog',
   getBlogDrafts: '/blog-drafts',
   getBlogDraft: '/blog-drafts/{draft_id}',
+  agentChat: '/agent/chat',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

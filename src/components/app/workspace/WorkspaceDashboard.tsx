@@ -6074,6 +6074,7 @@ export default function WorkspaceDashboard() {
   const [billingTab, setBillingTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>('overview');
   const [sIdx, setSIdx] = useState(0);
   const [feed, setFeed] = useState<FeedMsg[]>([]);
+  const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
@@ -6186,117 +6187,39 @@ export default function WorkspaceDashboard() {
     setFeed((f) => [...f, { id: 'u' + Date.now(), type: 'user', time: now, content: txt }]);
     setTyping(true);
 
-    try {
-      const l = txt.toLowerCase();
-      if (
-        l.includes('generate') ||
-        l.includes('create') ||
-        l.includes('draft') ||
-        l.includes('post') ||
-        l.includes('write')
-      ) {
-        const res = await SocialMediaAgentService.generateContent({
-          seed_content: txt,
-          platforms: ['instagram', 'facebook'],
-          include_images: false,
-        });
-        setTyping(false);
-        const drafts: ContentDraft[] =
-          (res as unknown as { responseData: { drafts: ContentDraft[] } }).responseData?.drafts ?? [];
-        if (res.status && drafts.length > 0) {
-          setFeed((f) => [
-            ...f,
-            {
-              id: 'j' + Date.now(),
-              type: 'jane-card',
-              time: now,
-              content: (
-                <div>
-                  <p style={{ margin: '0 0 10px', fontSize: 13, color: '#444' }}>
-                    Generated {drafts.length} draft{drafts.length > 1 ? 's' : ''}. Check{' '}
-                    <strong>Posting Schedule → Needs Review</strong>.
-                  </p>
-                  {drafts.slice(0, 2).map((d) => (
-                    <div
-                      key={d.id ?? d.draft_id}
-                      style={{
-                        marginBottom: 8,
-                        padding: '12px 14px',
-                        borderRadius: 10,
-                        background: '#f9f9f9',
-                        border: '1px solid #edecea',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-                        <PlatformDot p={d.platform} />
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#222' }}>
-                          {d.platform.charAt(0).toUpperCase() + d.platform.slice(1)}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 12.5, color: '#555', margin: 0, lineHeight: 1.5 }}>
-                        {d.content.slice(0, 120)}
-                        {d.content.length > 120 ? '…' : ''}
-                      </p>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => goTo('schedule')}
-                    style={{
-                      marginTop: 8,
-                      padding: '8px 14px',
-                      borderRadius: 8,
-                      border: 'none',
-                      background: '#111',
-                      color: '#E91E63',
-                      fontWeight: 600,
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      fontFamily: 'var(--wf)',
-                    }}
-                  >
-                    Review in Posting Schedule →
-                  </button>
-                </div>
-              ),
-            },
-          ]);
-        } else {
-          setFeed((f) => [
-            ...f,
-            {
-              id: 'j' + Date.now(),
-              type: 'jane',
-              time: now,
-              content: <p style={{ margin: 0 }}>I ran into an issue generating content. Please try again.</p>,
-            },
-          ]);
-        }
-        return;
-      }
+    const nextHistory = [...chatHistory, { role: 'user', content: txt }];
+    setChatHistory(nextHistory);
 
-      await new Promise((r) => setTimeout(r, 1200));
+    try {
+      const res = await SocialMediaAgentService.agentChat(nextHistory);
       setTyping(false);
-      let reply: ReactNode = (
-        <p style={{ margin: 0 }}>
-          Got it! To generate posts, just tell me what topic or campaign you want content for.
-        </p>
-      );
-      if (l.includes('schedule') || l.includes('queue') || l.includes('pending')) {
-        reply = (
-          <p style={{ margin: 0 }}>
-            Check the <strong>Posting Schedule</strong> tab to see your full queue, drafts, and scheduled posts — all in
-            one place with the weekly calendar.
-          </p>
-        );
-      } else if (l.includes('performance') || l.includes('analytic')) {
-        reply = (
-          <p style={{ margin: 0 }}>
-            Connect your social accounts in <strong>Settings → Social Accounts</strong> and I'll pull real performance
-            data for you.
-          </p>
-        );
+
+      if (res.status && res.responseData) {
+        const { reply, navigate } = res.responseData;
+        setFeed((f) => [
+          ...f,
+          {
+            id: 'j' + Date.now(),
+            type: 'jane',
+            time: now,
+            content: <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{reply}</p>,
+          },
+        ]);
+        setChatHistory((h) => [...h, { role: 'assistant', content: reply }]);
+        if (navigate) {
+          setTimeout(() => goTo(navigate), 400);
+        }
+      } else {
+        setFeed((f) => [
+          ...f,
+          {
+            id: 'j' + Date.now(),
+            type: 'jane',
+            time: now,
+            content: <p style={{ margin: 0 }}>Something went wrong. Please try again.</p>,
+          },
+        ]);
       }
-      setFeed((f) => [...f, { id: 'j' + Date.now(), type: 'jane', time: now, content: reply }]);
     } catch {
       setTyping(false);
       setFeed((f) => [
