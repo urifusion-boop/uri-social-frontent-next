@@ -758,6 +758,7 @@ const ContentManagerPage = ({
   isMobile?: boolean;
   requireEmailVerification: (callback?: () => void) => boolean;
 }) => {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
   const activeTabRef = useRef<ContentTab>('create');
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
@@ -799,6 +800,8 @@ const ContentManagerPage = ({
   const scheduleAllInProgress = useRef(false);
   // per-draft progress: null = pending, true = done, false = failed
   const [scheduleProgress, setScheduleProgress] = useState<Record<string, boolean | null>>({});
+  // draft IDs that failed pre-validation because the platform account is not connected
+  const [scheduleUnconnectedIds, setScheduleUnconnectedIds] = useState<Set<string>>(new Set());
   const [syncImageOpen, setSyncImageOpen] = useState(false);
 
   const toggleDraftSelection = (id: string) => {
@@ -818,9 +821,34 @@ const ContentManagerPage = ({
 
     const datetime = new Date(scheduleAllAt).toISOString();
 
+    // Read connected platforms from the session cache (same key DraftCard uses).
+    let connectedPlatforms: string[] = [];
+    try {
+      const raw = sessionStorage.getItem('social_connections_cache');
+      if (raw) {
+        const { data, timestamp } = JSON.parse(raw) as { data: string[]; timestamp: number };
+        if (Date.now() - timestamp < 5 * 60 * 1000) connectedPlatforms = data ?? [];
+      }
+    } catch {
+      /* noop */
+    }
+
+    // Pre-validate: platform account not connected — mark those as failed upfront.
+    const unconnected = new Set(
+      connectedPlatforms.length > 0
+        ? ids.filter((id) => {
+            const d = drafts.find((dr) => (dr.draft_id ?? dr.id ?? '') === id);
+            const platform = d?.platform?.toLowerCase() ?? '';
+            return platform && !connectedPlatforms.map((p) => p.toLowerCase()).includes(platform);
+          })
+        : []
+    );
+    setScheduleUnconnectedIds(unconnected);
+
     // Pre-validate: Instagram requires an image — mark those as failed upfront.
     const instagramNoImage = new Set(
       ids.filter((id) => {
+        if (unconnected.has(id)) return false; // already caught above
         const d = drafts.find((dr) => (dr.draft_id ?? dr.id ?? '') === id);
         return d?.platform?.toLowerCase() === 'instagram' && !d?.image_url && !d?.has_image;
       })
@@ -828,18 +856,18 @@ const ContentManagerPage = ({
 
     const initial: Record<string, boolean | null> = {};
     ids.forEach((id) => {
-      initial[id] = instagramNoImage.has(id) ? false : null;
+      initial[id] = unconnected.has(id) || instagramNoImage.has(id) ? false : null;
     });
     setScheduleProgress(initial);
     scheduleAllInProgress.current = true;
     setScheduleAllLoading(true);
 
     let succeeded = 0;
-    let failed = instagramNoImage.size;
+    let failed = unconnected.size + instagramNoImage.size;
     const succeededIds: string[] = [];
 
     for (const id of ids) {
-      if (instagramNoImage.has(id)) continue;
+      if (unconnected.has(id) || instagramNoImage.has(id)) continue;
       try {
         const response = await SocialMediaAgentService.approveContent({
           draft_ids: [id],
@@ -872,7 +900,10 @@ const ContentManagerPage = ({
       });
     }
 
-    if (instagramNoImage.size > 0 && succeeded === 0 && failed === instagramNoImage.size) {
+    const onlyPrevalidFailed = succeeded === 0 && failed === unconnected.size + instagramNoImage.size;
+    if (onlyPrevalidFailed && unconnected.size > 0) {
+      // All failures were unconnected accounts — don't show generic error toast (dialog explains it)
+    } else if (instagramNoImage.size > 0 && succeeded === 0 && failed === instagramNoImage.size) {
       ToastService.showToast(
         `${instagramNoImage.size} Instagram post${instagramNoImage.size !== 1 ? 's' : ''} skipped — add an image first`,
         ToastTypeEnum.Warning
@@ -1387,6 +1418,7 @@ const ContentManagerPage = ({
                   if (!scheduleAllLoading) {
                     setScheduleAllOpen(false);
                     setScheduleProgress({});
+                    setScheduleUnconnectedIds(new Set());
                   }
                 }}
               >
@@ -1420,8 +1452,13 @@ const ContentManagerPage = ({
                       .map((d) => {
                         const id = d.draft_id ?? d.id ?? '';
                         const status = scheduleProgress[id]; // null=pending, true=ok, false=fail
+                        const isNoConnection = status === false && scheduleUnconnectedIds.has(id);
                         const isIgNoImage =
-                          status === false && d.platform?.toLowerCase() === 'instagram' && !d.image_url && !d.has_image;
+                          status === false &&
+                          !isNoConnection &&
+                          d.platform?.toLowerCase() === 'instagram' &&
+                          !d.image_url &&
+                          !d.has_image;
                         const platformColors: Record<string, string> = {
                           instagram: '#E1306C',
                           facebook: '#1877F2',
@@ -1463,8 +1500,12 @@ const ContentManagerPage = ({
                                 whiteSpace: 'nowrap',
                               }}
                             >
-                              {isIgNoImage ? 'Needs an image' : d.content?.slice(0, 40)}
-                              {!isIgNoImage && d.content && d.content.length > 40 ? '…' : ''}
+                              {isNoConnection
+                                ? 'Account not connected'
+                                : isIgNoImage
+                                  ? 'Needs an image'
+                                  : d.content?.slice(0, 40)}
+                              {!isNoConnection && !isIgNoImage && d.content && d.content.length > 40 ? '…' : ''}
                             </span>
                             <span
                               style={{
@@ -1511,11 +1552,58 @@ const ContentManagerPage = ({
                     </>
                   )}
 
+                  {/* Connect Account prompt — shown after scheduling when some platforms weren't connected */}
+                  {scheduleUnconnectedIds.size > 0 &&
+                    Object.keys(scheduleProgress).length > 0 &&
+                    !scheduleAllLoading && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          background: '#FEF3C7',
+                          border: '1px solid #FDE68A',
+                          marginBottom: 14,
+                        }}
+                      >
+                        <span style={{ fontSize: 12.5, color: '#92400E' }}>
+                          {scheduleUnconnectedIds.size} platform{scheduleUnconnectedIds.size !== 1 ? 's' : ''} not
+                          connected
+                        </span>
+                        <button
+                          onClick={() => {
+                            setScheduleAllOpen(false);
+                            setScheduleProgress({});
+                            setScheduleUnconnectedIds(new Set());
+                            router.push('/workspace?tab=connections');
+                          }}
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: '#CD1B78',
+                            color: '#fff',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            fontFamily: 'var(--wf)',
+                          }}
+                        >
+                          Connect Account
+                        </button>
+                      </div>
+                    )}
+
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                     <button
                       onClick={() => {
                         setScheduleAllOpen(false);
                         setScheduleProgress({});
+                        setScheduleUnconnectedIds(new Set());
                       }}
                       disabled={scheduleAllLoading}
                       style={{
@@ -3260,7 +3348,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
               </div>
 
               {/* Per-platform breakdown — LinkedIn excluded (no public API for engagement stats) */}
-              {(
+              {
                 <div
                   style={{
                     background: '#fff',
@@ -3282,56 +3370,60 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                   >
                     By Platform
                   </div>
-                  {Object.keys(data.by_platform).filter(pl => pl !== 'linkedin').length > 0 ? (
+                  {Object.keys(data.by_platform).filter((pl) => pl !== 'linkedin').length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {Object.entries(data.by_platform).filter(([pl]) => pl !== 'linkedin').map(([pl, stats]) => (
-                        <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 8,
-                              background: (PLATFORM_COLORS[pl] ?? '#666') + '18',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: 16,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {platformIcon[pl] ?? '🌐'}
-                          </div>
-                          <div style={{ flex: 1 }}>
+                      {Object.entries(data.by_platform)
+                        .filter(([pl]) => pl !== 'linkedin')
+                        .map(([pl, stats]) => (
+                          <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div
                               style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 8,
+                                background: (PLATFORM_COLORS[pl] ?? '#666') + '18',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'space-between',
-                                marginBottom: 3,
+                                justifyContent: 'center',
+                                fontSize: 16,
+                                flexShrink: 0,
                               }}
                             >
-                              <span style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>
-                                {pl}
-                              </span>
-                              <span style={{ fontSize: 12, color: '#999' }}>
-                                {stats.posts} post{stats.posts !== 1 ? 's' : ''}
-                              </span>
+                              {platformIcon[pl] ?? '🌐'}
                             </div>
-                            <div style={{ display: 'flex', gap: 14 }}>
-                              {[
-                                ['Impressions', fmt(stats.impressions)],
-                                ['Reach', fmt(stats.reach)],
-                                ['Eng.', `${stats.avg_engagement_rate}%`],
-                              ].map(([l, v]) => (
-                                <div key={l}>
-                                  <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
-                                  <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
-                                </div>
-                              ))}
+                            <div style={{ flex: 1 }}>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  marginBottom: 3,
+                                }}
+                              >
+                                <span
+                                  style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}
+                                >
+                                  {pl}
+                                </span>
+                                <span style={{ fontSize: 12, color: '#999' }}>
+                                  {stats.posts} post{stats.posts !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', gap: 14 }}>
+                                {[
+                                  ['Impressions', fmt(stats.impressions)],
+                                  ['Reach', fmt(stats.reach)],
+                                  ['Eng.', `${stats.avg_engagement_rate}%`],
+                                ].map(([l, v]) => (
+                                  <div key={l}>
+                                    <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   ) : (
                     <div style={{ fontSize: 12.5, color: '#bbb', textAlign: 'center', padding: '10px 0' }}>
@@ -3339,7 +3431,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                     </div>
                   )}
                 </div>
-              )}
+              }
 
               {/* Calendar engagement intelligence */}
               {calPerf?.has_data && <CalPerfSection data={calPerf} />}
@@ -3362,103 +3454,105 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                     Top Posts
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {data.top_posts.filter((post: PerformancePost) => post.platform !== 'linkedin').map((post: PerformancePost) => (
-                      <div key={post.draft_id}>
-                        <div
-                          onClick={() => setExpandedPost(expandedPost === post.draft_id ? null : post.draft_id)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: 10,
-                            padding: '10px 12px',
-                            borderRadius: 10,
-                            border: '1px solid #f0eeec',
-                            cursor: 'pointer',
-                            background: expandedPost === post.draft_id ? '#fdf8fc' : '#fafaf8',
-                          }}
-                        >
+                    {data.top_posts
+                      .filter((post: PerformancePost) => post.platform !== 'linkedin')
+                      .map((post: PerformancePost) => (
+                        <div key={post.draft_id}>
                           <div
+                            onClick={() => setExpandedPost(expandedPost === post.draft_id ? null : post.draft_id)}
                             style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: 7,
-                              background: (PLATFORM_COLORS[post.platform] ?? '#666') + '18',
                               display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: 14,
-                              flexShrink: 0,
+                              alignItems: 'flex-start',
+                              gap: 10,
+                              padding: '10px 12px',
+                              borderRadius: 10,
+                              border: '1px solid #f0eeec',
+                              cursor: 'pointer',
+                              background: expandedPost === post.draft_id ? '#fdf8fc' : '#fafaf8',
                             }}
                           >
-                            {platformIcon[post.platform] ?? '🌐'}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
                             <div
                               style={{
-                                fontSize: 12.5,
-                                color: '#374151',
-                                lineHeight: 1.45,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
+                                width: 28,
+                                height: 28,
+                                borderRadius: 7,
+                                background: (PLATFORM_COLORS[post.platform] ?? '#666') + '18',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 14,
+                                flexShrink: 0,
                               }}
                             >
-                              {post.content_preview || '(No preview)'}
+                              {platformIcon[post.platform] ?? '🌐'}
                             </div>
-                            <div style={{ display: 'flex', gap: 12, marginTop: 5 }}>
-                              {[
-                                ['👁', fmt(post.impressions)],
-                                ['❤️', fmt(post.likes)],
-                                ['💬', fmt(post.comments)],
-                                ['🔁', fmt(post.shares)],
-                              ].map(([ic, v]) => (
-                                <span key={ic as string} style={{ fontSize: 11.5, color: '#666' }}>
-                                  {ic} {v}
-                                </span>
-                              ))}
-                              <span style={{ marginLeft: 'auto', fontSize: 11, color: '#C2185B', fontWeight: 700 }}>
-                                {post.engagement_rate}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        {expandedPost === post.draft_id && (
-                          <div
-                            style={{
-                              padding: '10px 12px 12px',
-                              background: '#fdf8fc',
-                              borderRadius: '0 0 10px 10px',
-                              border: '1px solid #f0eeec',
-                              borderTop: 'none',
-                              display: 'flex',
-                              flexWrap: 'wrap',
-                              gap: 8,
-                            }}
-                          >
-                            {[
-                              ['Views', fmt(post.views)],
-                              ['Reach', fmt(post.reach)],
-                              ['Engagement Rate', `${post.engagement_rate}%`],
-                            ].map(([l, v]) => (
-                              <div key={l as string} style={{ flex: '1 1 80px' }}>
-                                <div
-                                  style={{
-                                    fontSize: 10.5,
-                                    color: '#bbb',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: 0.4,
-                                    marginBottom: 2,
-                                  }}
-                                >
-                                  {l}
-                                </div>
-                                <div style={{ fontSize: 15, fontWeight: 800, color: '#111' }}>{v}</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontSize: 12.5,
+                                  color: '#374151',
+                                  lineHeight: 1.45,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {post.content_preview || '(No preview)'}
                               </div>
-                            ))}
+                              <div style={{ display: 'flex', gap: 12, marginTop: 5 }}>
+                                {[
+                                  ['👁', fmt(post.impressions)],
+                                  ['❤️', fmt(post.likes)],
+                                  ['💬', fmt(post.comments)],
+                                  ['🔁', fmt(post.shares)],
+                                ].map(([ic, v]) => (
+                                  <span key={ic as string} style={{ fontSize: 11.5, color: '#666' }}>
+                                    {ic} {v}
+                                  </span>
+                                ))}
+                                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#C2185B', fontWeight: 700 }}>
+                                  {post.engagement_rate}%
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          {expandedPost === post.draft_id && (
+                            <div
+                              style={{
+                                padding: '10px 12px 12px',
+                                background: '#fdf8fc',
+                                borderRadius: '0 0 10px 10px',
+                                border: '1px solid #f0eeec',
+                                borderTop: 'none',
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 8,
+                              }}
+                            >
+                              {[
+                                ['Views', fmt(post.views)],
+                                ['Reach', fmt(post.reach)],
+                                ['Engagement Rate', `${post.engagement_rate}%`],
+                              ].map(([l, v]) => (
+                                <div key={l as string} style={{ flex: '1 1 80px' }}>
+                                  <div
+                                    style={{
+                                      fontSize: 10.5,
+                                      color: '#bbb',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: 0.4,
+                                      marginBottom: 2,
+                                    }}
+                                  >
+                                    {l}
+                                  </div>
+                                  <div style={{ fontSize: 15, fontWeight: 800, color: '#111' }}>{v}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                   </div>
                 </div>
               )}
@@ -3528,110 +3622,114 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
 
           {!accountLoading && !accountError && accountData?.has_data && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {accountData.accounts.filter((acc: AccountMetricItem) => acc.network !== 'linkedin').map((acc: AccountMetricItem) => (
-                <div
-                  key={acc.account_id}
-                  style={{
-                    background: '#fff',
-                    borderRadius: 12,
-                    border: '1px solid #edecea',
-                    padding: '16px 18px',
-                  }}
-                >
-                  {/* Account header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 9,
-                        background: (PLATFORM_COLORS[acc.network] ?? '#666') + '18',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 18,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {platformIcon[acc.network] ?? '🌐'}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{acc.page_name ?? acc.network}</div>
-                      <div style={{ fontSize: 11, color: '#bbb', textTransform: 'capitalize' }}>
-                        {acc.category ?? acc.network}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Follower stats — only show fields that aren't null */}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                    {[
-                      ['Followers', acc.followers_count],
-                      ...(acc.following_count != null ? [['Following', acc.following_count]] : []),
-                      ...(acc.posts_count != null ? [['Posts', acc.posts_count]] : []),
-                    ].map(([l, v]) => (
-                      <div key={l as string} style={{ background: '#fafaf8', borderRadius: 8, padding: '10px 14px' }}>
-                        <div
-                          style={{
-                            fontSize: 10.5,
-                            color: '#bbb',
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.4,
-                            marginBottom: 3,
-                          }}
-                        >
-                          {l}
-                        </div>
-                        <div style={{ fontSize: 17, fontWeight: 800, color: '#111' }}>{fmt(v as number)}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Engagement over period */}
+              {accountData.accounts
+                .filter((acc: AccountMetricItem) => acc.network !== 'linkedin')
+                .map((acc: AccountMetricItem) => (
                   <div
+                    key={acc.account_id}
                     style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: '#C2185B',
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.6,
-                      marginBottom: 8,
+                      background: '#fff',
+                      borderRadius: 12,
+                      border: '1px solid #edecea',
+                      padding: '16px 18px',
                     }}
                   >
-                    Engagement · Last {days}d
-                  </div>
-                  {(() => {
-                    const engagementEntries = acc.engagement
-                      ? (
-                          [
-                            ['Views', acc.engagement.views],
-                            ['Likes', acc.engagement.likes],
-                            ['Comments', acc.engagement.comments],
-                            ['Shares', acc.engagement.shares],
-                            ['Reposts', acc.engagement.reposts],
-                            ['Quotes', acc.engagement.quotes],
-                          ] as [string, number | null][]
-                        ).filter(([, v]) => v != null)
-                      : [];
-                    return engagementEntries.length > 0 ? (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                        {engagementEntries.map(([l, v]) => (
-                          <div key={l} style={{ minWidth: 60 }}>
-                            <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{fmt(v!)}</span>
+                    {/* Account header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 9,
+                          background: (PLATFORM_COLORS[acc.network] ?? '#666') + '18',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 18,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {platformIcon[acc.network] ?? '🌐'}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>
+                          {acc.page_name ?? acc.network}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#bbb', textTransform: 'capitalize' }}>
+                          {acc.category ?? acc.network}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Follower stats — only show fields that aren't null */}
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                      {[
+                        ['Followers', acc.followers_count],
+                        ...(acc.following_count != null ? [['Following', acc.following_count]] : []),
+                        ...(acc.posts_count != null ? [['Posts', acc.posts_count]] : []),
+                      ].map(([l, v]) => (
+                        <div key={l as string} style={{ background: '#fafaf8', borderRadius: 8, padding: '10px 14px' }}>
+                          <div
+                            style={{
+                              fontSize: 10.5,
+                              color: '#bbb',
+                              textTransform: 'uppercase',
+                              letterSpacing: 0.4,
+                              marginBottom: 3,
+                            }}
+                          >
+                            {l}
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 12, color: '#bbb', fontStyle: 'italic' }}>
-                        {acc.engagement_note ??
-                          PLATFORM_ENGAGEMENT_NOTE[acc.network] ??
-                          'Engagement data unavailable for this period.'}
-                      </div>
-                    );
-                  })()}
-                </div>
-              ))}
+                          <div style={{ fontSize: 17, fontWeight: 800, color: '#111' }}>{fmt(v as number)}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Engagement over period */}
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: '#C2185B',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.6,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Engagement · Last {days}d
+                    </div>
+                    {(() => {
+                      const engagementEntries = acc.engagement
+                        ? (
+                            [
+                              ['Views', acc.engagement.views],
+                              ['Likes', acc.engagement.likes],
+                              ['Comments', acc.engagement.comments],
+                              ['Shares', acc.engagement.shares],
+                              ['Reposts', acc.engagement.reposts],
+                              ['Quotes', acc.engagement.quotes],
+                            ] as [string, number | null][]
+                          ).filter(([, v]) => v != null)
+                        : [];
+                      return engagementEntries.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                          {engagementEntries.map(([l, v]) => (
+                            <div key={l} style={{ minWidth: 60 }}>
+                              <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{fmt(v!)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: '#bbb', fontStyle: 'italic' }}>
+                          {acc.engagement_note ??
+                            PLATFORM_ENGAGEMENT_NOTE[acc.network] ??
+                            'Engagement data unavailable for this period.'}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ))}
             </div>
           )}
         </>
