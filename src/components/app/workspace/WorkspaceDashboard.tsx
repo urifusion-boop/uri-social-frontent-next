@@ -6113,11 +6113,23 @@ export default function WorkspaceDashboard() {
     }
   }, []);
 
-  const closeTour = useCallback((navigate = false) => {
-    setTourOpen(false);
-    localStorage.setItem('uri_tour_v1', '1');
-    if (navigate) setNav('schedule');
-  }, []);
+  // Keep URL in sync with nav so that router.push('/workspace?tab=X') always triggers a URL change.
+  const goTo = useCallback(
+    (id: string) => {
+      setNav(id);
+      router.replace(`/workspace?tab=${id}`, { scroll: false } as Parameters<typeof router.replace>[1]);
+    },
+    [router]
+  );
+
+  const closeTour = useCallback(
+    (navigate = false) => {
+      setTourOpen(false);
+      localStorage.setItem('uri_tour_v1', '1');
+      if (navigate) goTo('schedule');
+    },
+    [goTo]
+  );
 
   // Show trial expired modal on first visit after expiry
   useEffect(() => {
@@ -6228,7 +6240,7 @@ export default function WorkspaceDashboard() {
                     </div>
                   ))}
                   <button
-                    onClick={() => setNav('schedule')}
+                    onClick={() => goTo('schedule')}
                     style={{
                       marginTop: 8,
                       padding: '8px 14px',
@@ -6299,7 +6311,7 @@ export default function WorkspaceDashboard() {
     }
   };
 
-  const goWorkspace = () => setNav('workspace');
+  const goWorkspace = () => goTo('workspace');
   const brandName = profile?.brand_name ?? 'Your Brand';
   const brandInitials = brandName
     .split(' ')
@@ -6324,12 +6336,7 @@ export default function WorkspaceDashboard() {
     'blog-drafts': <BlogDraftsTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
     settings: (
-      <SettingsPage
-        onJane={goWorkspace}
-        brandName={brandName}
-        onNavChange={setNav}
-        onBillingTabChange={setBillingTab}
-      />
+      <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
     ),
     billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
     notifications: <NotificationsPanel />,
@@ -6438,7 +6445,7 @@ export default function WorkspaceDashboard() {
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
                     <button
                       id={`tnav-${n.id}`}
-                      onClick={() => setNav(n.id)}
+                      onClick={() => goTo(n.id)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -6630,22 +6637,22 @@ export default function WorkspaceDashboard() {
               </button>
 
               {/* Notification Bell */}
-              <NotificationBell isMobile={isMobile} onViewAll={() => setNav('notifications')} />
+              <NotificationBell isMobile={isMobile} onViewAll={() => goTo('notifications')} />
 
               {/* Trial Badge */}
               {!isMobile && userDetails?.trialActive && (
                 <TrialBanner
                   daysRemaining={userDetails.trialDaysRemaining ?? 0}
                   creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
-                  onClick={() => setNav('billing')}
+                  onClick={() => goTo('billing')}
                 />
               )}
 
               {/* Credit Balance Badge */}
-              {!isMobile && !userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => setNav('billing')} />}
+              {!isMobile && !userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => goTo('billing')} />}
 
               {/* Profile Dropdown */}
-              <WorkspaceProfileDropdown onNavigate={setNav} onLogout={logoutUser} />
+              <WorkspaceProfileDropdown onNavigate={goTo} onLogout={logoutUser} />
             </div>
           </div>
 
@@ -6876,7 +6883,7 @@ export default function WorkspaceDashboard() {
                       if (t.id === 'more') {
                         setMoreOpen((o) => !o);
                       } else {
-                        setNav(t.id);
+                        goTo(t.id);
                         setMoreOpen(false);
                       }
                     }}
@@ -6977,7 +6984,7 @@ export default function WorkspaceDashboard() {
                   <button
                     key={n.id}
                     onClick={() => {
-                      setNav(n.id);
+                      goTo(n.id);
                       setMoreOpen(false);
                     }}
                     style={{
