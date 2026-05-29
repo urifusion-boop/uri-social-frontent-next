@@ -226,6 +226,16 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
         <rect x="1" y="5" width="15" height="14" rx="2" />
       </>
     ),
+    paperclip: (
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+    ),
+    broom: (
+      <>
+        <path d="M3 21l9-9" />
+        <path d="M12.22 6.22L16 2l6 6-3.78 3.78a3 3 0 01-4.24 0l-1.76-1.76a3 3 0 010-4.24z" />
+        <path d="M11 13H3l1.5 7h5L11 13z" />
+      </>
+    ),
   };
   return (
     <svg
@@ -6075,6 +6085,10 @@ export default function WorkspaceDashboard() {
   const [sIdx, setSIdx] = useState(0);
   const [feed, setFeed] = useState<FeedMsg[]>([]);
   const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
+  const [historyMessages, setHistoryMessages] = useState<
+    { role: string; content: string; created_at: string }[] | null
+  >(null);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
@@ -6083,6 +6097,7 @@ export default function WorkspaceDashboard() {
   const [trialExpiredOpen, setTrialExpiredOpen] = useState(false);
   const [trialEndingDismissed, setTrialEndingDismissed] = useState(false);
   const feedEnd = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     BrandProfileService.isOnboardingDone().then((done) => {
@@ -6140,7 +6155,35 @@ export default function WorkspaceDashboard() {
     }
   }, [userDetails?.trialExpired, userDetails?.subscriptionTier]);
 
+  // Load persisted conversation history on mount
   useEffect(() => {
+    SocialMediaAgentService.getAgentChatHistory()
+      .then((res) => {
+        if (res.status && Array.isArray(res.responseData)) {
+          setHistoryMessages(res.responseData);
+        } else {
+          setHistoryMessages([]);
+        }
+      })
+      .catch(() => setHistoryMessages([]));
+  }, []);
+
+  // Show greeting or restore history once both profile and history are ready
+  useEffect(() => {
+    if (historyMessages === null) return; // still loading
+    if (historyMessages.length > 0) {
+      const msgs: FeedMsg[] = historyMessages.map((m, i) => ({
+        id: 'hist_' + i,
+        type: m.role === 'user' ? 'user' : 'jane',
+        time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        content: m.role === 'user' ? m.content : <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.content}</p>,
+      }));
+      setFeed(msgs);
+      setChatHistory(historyMessages.map((m) => ({ role: m.role, content: m.content })));
+      setTimeout(() => setReady(true), 120);
+      return;
+    }
+    // No history — show welcome greeting
     const name = profile?.brand_name ?? 'your brand';
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setFeed([
@@ -6151,16 +6194,16 @@ export default function WorkspaceDashboard() {
         content: (
           <div>
             <p style={{ margin: 0 }}>
-              Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}! Here's your briefing for{' '}
+              Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}! Here&apos;s your briefing for{' '}
               <strong>{name}</strong>:
             </p>
             <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13, color: '#555', lineHeight: 1.7 }}>
               <li>
                 Check <strong>Posting Schedule</strong> for posts needing review
               </li>
-              <li>Type a topic below and I'll draft content across your platforms</li>
+              <li>Type a topic or question and URI Agent will help you</li>
               <li>
-                Connect social accounts in <strong>Settings</strong> to unlock analytics
+                Connect social accounts in <strong>Connected Accounts</strong> to unlock publishing
               </li>
             </ul>
           </div>
@@ -6168,7 +6211,7 @@ export default function WorkspaceDashboard() {
       },
     ]);
     setTimeout(() => setReady(true), 120);
-  }, [profile]);
+  }, [historyMessages, profile]);
 
   useEffect(() => {
     const iv = setInterval(() => setSIdx((i) => (i + 1) % STATUS_MSGS.length), 5000);
@@ -6179,10 +6222,46 @@ export default function WorkspaceDashboard() {
     feedEnd.current?.scrollIntoView({ behavior: 'smooth' });
   }, [feed, typing]);
 
+  const autoGrowTextarea = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  };
+
+  const clearConversation = async () => {
+    try {
+      await SocialMediaAgentService.clearAgentChat();
+    } catch {
+      // noop — clear locally anyway
+    }
+    setChatHistory([]);
+    setHistoryMessages([]);
+    setClearConfirmOpen(false);
+    const name = profile?.brand_name ?? 'your brand';
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setFeed([
+      {
+        id: 'w' + Date.now(),
+        type: 'jane',
+        time: now,
+        content: (
+          <div>
+            <p style={{ margin: 0 }}>
+              Conversation cleared. Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}, <strong>{name}</strong>
+              ! What can I help you with?
+            </p>
+          </div>
+        ),
+      },
+    ]);
+  };
+
   const sendMsg = async () => {
     if (!input.trim()) return;
     const txt = input.trim();
     setInput('');
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setFeed((f) => [...f, { id: 'u' + Date.now(), type: 'user', time: now, content: txt }]);
     setTyping(true);
@@ -6559,6 +6638,27 @@ export default function WorkspaceDashboard() {
                 <I n="edit" s={14} c="#666" />
               </button>
 
+              {/* Clear conversation — workspace only */}
+              {nav === 'workspace' && (
+                <button
+                  onClick={() => setClearConfirmOpen(true)}
+                  title="Clear conversation"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 7,
+                    border: '1px solid #e5e3df',
+                    background: '#fff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <I n="broom" s={14} c="#666" />
+                </button>
+              )}
+
               {/* Notification Bell */}
               <NotificationBell isMobile={isMobile} onViewAll={() => goTo('notifications')} />
 
@@ -6735,16 +6835,39 @@ export default function WorkspaceDashboard() {
                       boxShadow: '0 3px 16px rgba(0,0,0,.05)',
                     }}
                   >
-                    <input
+                    <button
+                      onClick={() => ToastService.showToast('Image attachments coming soon!', ToastTypeEnum.Warning)}
+                      title="Attach image"
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 7,
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <I n="paperclip" s={16} c="#aaa" />
+                    </button>
+                    <textarea
+                      ref={textareaRef}
                       value={input}
-                      onChange={(e) => setInput(e.target.value)}
+                      onChange={(e) => {
+                        setInput(e.target.value);
+                        autoGrowTextarea();
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           sendMsg();
                         }
                       }}
-                      placeholder="Tell URI Agent what to create — e.g. 'Write 3 posts about our new product launch'"
+                      rows={1}
+                      placeholder="Ask URI Agent anything — e.g. 'Write 3 posts about our product launch'"
                       style={{
                         flex: 1,
                         border: 'none',
@@ -6754,6 +6877,9 @@ export default function WorkspaceDashboard() {
                         padding: '9px 0',
                         background: 'transparent',
                         color: '#222',
+                        resize: 'none',
+                        overflow: 'hidden',
+                        lineHeight: 1.5,
                       }}
                     />
                     <button
@@ -6768,6 +6894,7 @@ export default function WorkspaceDashboard() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                         transition: 'background .2s',
                       }}
                     >
@@ -6785,6 +6912,72 @@ export default function WorkspaceDashboard() {
               PAGES[nav]
             )}
           </div>
+
+          {/* Clear conversation confirmation dialog */}
+          {clearConfirmOpen && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.4)',
+                zIndex: 1500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onClick={() => setClearConfirmOpen(false)}
+            >
+              <div
+                style={{
+                  background: '#fff',
+                  borderRadius: 16,
+                  padding: 28,
+                  width: 420,
+                  maxWidth: '90vw',
+                  boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p style={{ fontSize: 16, fontWeight: 700, color: '#111', margin: '0 0 8px' }}>Clear conversation?</p>
+                <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 20px', lineHeight: 1.6 }}>
+                  This will clear your current conversation with URI Agent. You&apos;ll start fresh. URI Agent will
+                  still remember your brand profile and voice, but the chat history will be removed.
+                </p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setClearConfirmOpen(false)}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: 8,
+                      border: '1.5px solid #E5E7EB',
+                      background: '#fff',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#374151',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={clearConversation}
+                    style={{
+                      padding: '8px 20px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: '#C2185B',
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Clear conversation
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* BOTTOM NAV — mobile only */}
           {isMobile && (

@@ -648,6 +648,19 @@ export class SocialMediaAgentService {
       await UriHttpClient.getClient().post(socialMediaAgentRoutes.agentChat, { messages });
     return response.data;
   }
+
+  static async getAgentChatHistory(): Promise<UriResponse<{ role: string; content: string; created_at: string }[]>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ role: string; content: string; created_at: string }[]>>> =
+      await UriHttpClient.getClient().get(socialMediaAgentRoutes.agentChatHistory);
+    return response.data;
+  }
+
+  static async clearAgentChat(): Promise<UriResponse<{ cleared: boolean }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ cleared: boolean }>>> = await UriHttpClient.getClient().delete(
+      socialMediaAgentRoutes.clearAgentChat
+    );
+    return response.data;
+  }
 }
 
 export interface PerformancePost {
