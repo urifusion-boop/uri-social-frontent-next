@@ -307,10 +307,9 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     if (loading) return;
     setApproveAnchor(null);
 
-    // Gate publish/schedule on account connection.
-    // Skip if connections haven't loaded (null) or API returned empty [] (treat as unknown).
-    // Only block when we have a non-empty list and the platform is confirmed absent.
-    if (option !== 'save_draft' && connectedPlatforms !== null && connectedPlatforms.length > 0) {
+    // Gate publish/schedule on account connection. Skip only if connections haven't loaded yet (null).
+    // An empty array means no platforms are connected — block publish in that case too.
+    if (option !== 'save_draft' && connectedPlatforms !== null) {
       const platform = draft.platform?.toLowerCase() ?? '';
       const isConnected = connectedPlatforms.map((p) => p.toLowerCase()).includes(platform);
       if (!isConnected) {

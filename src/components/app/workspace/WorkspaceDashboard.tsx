@@ -2106,6 +2106,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             if (res.status) {
               ToastService.showToast(`Instagram @${igUsername} connected!`, ToastTypeEnum.Success);
               posthog.capture('social_account_connected', { platform: 'instagram', username: igUsername });
+              try {
+                sessionStorage.removeItem('social_connections_cache');
+              } catch {
+                /* noop */
+              }
               loadStatuses();
             } else {
               ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
@@ -2170,6 +2175,12 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         setAvailablePages([]);
         setSelectedPageIds([]);
         setPendingPlatform('');
+        // Bust DraftCard's cached connected_platforms so it reflects the new connection immediately.
+        try {
+          sessionStorage.removeItem('social_connections_cache');
+        } catch {
+          /* noop */
+        }
         loadStatuses();
       } else {
         ToastService.showToast('Finalization failed. Please try again.', ToastTypeEnum.Error);
@@ -2322,6 +2333,12 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           ToastService.showToast('Could not disconnect Facebook. Please try again.', ToastTypeEnum.Error);
           return;
         }
+      }
+      // Invalidate DraftCard's connection cache so it re-fetches after a disconnect.
+      try {
+        sessionStorage.removeItem('social_connections_cache');
+      } catch {
+        /* noop */
       }
       // Reload from server to confirm disconnect — do not optimistically set linked: false
       await loadStatuses();
