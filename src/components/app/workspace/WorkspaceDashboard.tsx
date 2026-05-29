@@ -3248,7 +3248,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
               </div>
 
               {/* Per-platform breakdown — LinkedIn excluded (no public API for engagement stats) */}
-              {Object.keys(data.by_platform).filter((pl) => pl !== 'linkedin').length > 0 && (
+              {(
                 <div
                   style={{
                     background: '#fff',
@@ -3270,10 +3270,9 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                   >
                     By Platform
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {Object.entries(data.by_platform)
-                      .filter(([pl]) => pl !== 'linkedin')
-                      .map(([pl, stats]) => (
+                  {Object.keys(data.by_platform).filter(pl => pl !== 'linkedin').length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {Object.entries(data.by_platform).filter(([pl]) => pl !== 'linkedin').map(([pl, stats]) => (
                         <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <div
                             style={{
@@ -3299,9 +3298,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                                 marginBottom: 3,
                               }}
                             >
-                              <span
-                                style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}
-                              >
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>
                                 {pl}
                               </span>
                               <span style={{ fontSize: 12, color: '#999' }}>
@@ -3323,15 +3320,20 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                           </div>
                         </div>
                       ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12.5, color: '#bbb', textAlign: 'center', padding: '10px 0' }}>
+                      Publish to Instagram or Facebook to see your breakdown here.
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Calendar engagement intelligence */}
               {calPerf?.has_data && <CalPerfSection data={calPerf} />}
 
-              {/* Top posts */}
-              {data.top_posts.length > 0 && (
+              {/* Top posts — LinkedIn excluded */}
+              {data.top_posts.filter((p: PerformancePost) => p.platform !== 'linkedin').length > 0 && (
                 <div
                   style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}
                 >
@@ -3348,7 +3350,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                     Top Posts
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {data.top_posts.map((post: PerformancePost) => (
+                    {data.top_posts.filter((post: PerformancePost) => post.platform !== 'linkedin').map((post: PerformancePost) => (
                       <div key={post.draft_id}>
                         <div
                           onClick={() => setExpandedPost(expandedPost === post.draft_id ? null : post.draft_id)}
@@ -3514,7 +3516,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
 
           {!accountLoading && !accountError && accountData?.has_data && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {accountData.accounts.map((acc: AccountMetricItem) => (
+              {accountData.accounts.filter((acc: AccountMetricItem) => acc.network !== 'linkedin').map((acc: AccountMetricItem) => (
                 <div
                   key={acc.account_id}
                   style={{
