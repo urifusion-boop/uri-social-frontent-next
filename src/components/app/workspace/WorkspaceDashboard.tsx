@@ -2298,12 +2298,24 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
             {(() => {
               // Filter pages to only show the platform that initiated the connect.
-              // Outstand's OAuth may return both Facebook pages and linked Instagram accounts;
-              // this ensures clicking "Connect Facebook" only shows Facebook pages (not IG), and vice versa.
+              // Outstand returns type:'page' for Facebook pages and type:'instagram_account' (or similar)
+              // for Instagram accounts. Ensure clicking "Connect Facebook" never shows IG accounts.
+              const OUTSTAND_FACEBOOK_TYPES = new Set(['page', 'facebook', 'facebook_page']);
+              const OUTSTAND_INSTAGRAM_TYPES = new Set(['instagram', 'instagram_account', 'instagram_business']);
               const platformPages = pendingPlatform
                 ? availablePages.filter((p) => {
-                    const pageNetwork = (p.network ?? p.type ?? '').toLowerCase();
-                    return !pageNetwork || pageNetwork.includes(pendingPlatform.toLowerCase());
+                    const rawType = (p.type ?? '').toLowerCase();
+                    const rawNetwork = (p.network ?? '').toLowerCase();
+                    if (pendingPlatform === 'facebook') {
+                      // Accept pages that are Facebook-type or have no type info
+                      if (rawNetwork) return rawNetwork === 'facebook';
+                      return !rawType || OUTSTAND_FACEBOOK_TYPES.has(rawType);
+                    }
+                    if (pendingPlatform === 'instagram') {
+                      if (rawNetwork) return rawNetwork === 'instagram';
+                      return !rawType || OUTSTAND_INSTAGRAM_TYPES.has(rawType);
+                    }
+                    return true;
                   })
                 : availablePages;
               const selectablePages = platformPages.filter((p) => !p.auto_connect);
