@@ -99,7 +99,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     can_proceed?: boolean;
   } | null>(null);
 
-  const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook');
+  const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook' || p === 'linkedin');
 
   // Reset post type to feed if selector is hidden (no Instagram/Facebook selected)
   useEffect(() => {
