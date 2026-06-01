@@ -661,6 +661,73 @@ export class SocialMediaAgentService {
     );
     return response.data;
   }
+
+  static agentChatStream(
+    messages: { role: string; content: string }[],
+    callbacks: {
+      onToken: (token: string) => void;
+      onDone: (navigate: string | null) => void;
+      onError: (msg: string) => void;
+    }
+  ): { abort: () => void } {
+    const controller = new AbortController();
+    const baseUrl = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
+    const tokens: { accessToken?: string } = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('@URI@USER_TOKENS') ?? '{}');
+      } catch {
+        return {};
+      }
+    })();
+    const url = `${baseUrl}${socialMediaAgentRoutes.agentChatStream}`;
+
+    (async () => {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(tokens.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
+          },
+          body: JSON.stringify({ messages }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok || !res.body) {
+          callbacks.onError('Stream request failed.');
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const ev = JSON.parse(line.slice(6));
+              if (ev.token !== undefined) callbacks.onToken(ev.token);
+              else if (ev.done) callbacks.onDone(ev.navigate ?? null);
+              else if (ev.error) callbacks.onError(ev.error);
+            } catch {
+              // ignore malformed SSE line
+            }
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        callbacks.onError('Connection lost. Please try again.');
+      }
+    })();
+
+    return { abort: () => controller.abort() };
+  }
 }
 
 export interface PerformancePost {

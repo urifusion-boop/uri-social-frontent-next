@@ -41,7 +41,8 @@ type ISocialMediaAgentApi =
   | 'getBlogDraft'
   | 'agentChat'
   | 'agentChatHistory'
-  | 'clearAgentChat';
+  | 'clearAgentChat'
+  | 'agentChatStream';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -82,6 +83,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   agentChat: '/agent/chat',
   agentChatHistory: '/agent/chat/history',
   clearAgentChat: '/agent/chat/history',
+  agentChatStream: '/agent/chat/stream',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

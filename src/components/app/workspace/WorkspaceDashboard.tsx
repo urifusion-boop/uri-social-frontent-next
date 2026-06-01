@@ -6091,6 +6091,8 @@ export default function WorkspaceDashboard() {
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
+  const [streamingText, setStreamingText] = useState<string | null>(null);
+  const streamAbortRef = useRef<{ abort: () => void } | null>(null);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -6220,7 +6222,7 @@ export default function WorkspaceDashboard() {
 
   useEffect(() => {
     feedEnd.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [feed, typing]);
+  }, [feed, typing, streamingText]);
 
   const autoGrowTextarea = () => {
     const el = textareaRef.current;
@@ -6257,8 +6259,8 @@ export default function WorkspaceDashboard() {
     ]);
   };
 
-  const sendMsg = async () => {
-    if (!input.trim()) return;
+  const sendMsg = () => {
+    if (!input.trim() || streamingText !== null) return;
     const txt = input.trim();
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -6269,48 +6271,47 @@ export default function WorkspaceDashboard() {
     const nextHistory = [...chatHistory, { role: 'user', content: txt }];
     setChatHistory(nextHistory);
 
-    try {
-      const res = await SocialMediaAgentService.agentChat(nextHistory);
-      setTyping(false);
+    let accumulated = '';
 
-      if (res.status && res.responseData) {
-        const { reply, navigate } = res.responseData;
+    const handle = SocialMediaAgentService.agentChatStream(nextHistory, {
+      onToken: (token) => {
+        accumulated += token;
+        setTyping(false);
+        setStreamingText(accumulated);
+      },
+      onDone: (navigate) => {
+        const finalText = accumulated;
+        setStreamingText(null);
+        streamAbortRef.current = null;
         setFeed((f) => [
           ...f,
           {
             id: 'j' + Date.now(),
             type: 'jane',
             time: now,
-            content: <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{reply}</p>,
+            content: <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{finalText}</p>,
           },
         ]);
-        setChatHistory((h) => [...h, { role: 'assistant', content: reply }]);
-        if (navigate) {
-          setTimeout(() => goTo(navigate), 400);
-        }
-      } else {
+        setChatHistory((h) => [...h, { role: 'assistant', content: finalText }]);
+        if (navigate) setTimeout(() => goTo(navigate), 400);
+      },
+      onError: (msg) => {
+        setTyping(false);
+        setStreamingText(null);
+        streamAbortRef.current = null;
         setFeed((f) => [
           ...f,
           {
             id: 'j' + Date.now(),
             type: 'jane',
             time: now,
-            content: <p style={{ margin: 0 }}>Something went wrong. Please try again.</p>,
+            content: <p style={{ margin: 0 }}>{msg}</p>,
           },
         ]);
-      }
-    } catch {
-      setTyping(false);
-      setFeed((f) => [
-        ...f,
-        {
-          id: 'j' + Date.now(),
-          type: 'jane',
-          time: now,
-          content: <p style={{ margin: 0 }}>Something went wrong. Please try again.</p>,
-        },
-      ]);
-    }
+      },
+    });
+
+    streamAbortRef.current = handle;
   };
 
   const goWorkspace = () => goTo('workspace');
@@ -6783,7 +6784,8 @@ export default function WorkspaceDashboard() {
                       )}
                     </div>
                   ))}
-                  {typing && (
+                  {/* Typing dots — shown while waiting for first token */}
+                  {typing && streamingText === null && (
                     <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
                       <JaneAvatar size={30} />
                       <div
@@ -6808,6 +6810,62 @@ export default function WorkspaceDashboard() {
                               }}
                             />
                           ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Streaming bubble — live text as tokens arrive */}
+                  {streamingText !== null && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: isMobile ? 6 : 10,
+                        alignItems: 'flex-start',
+                        marginBottom: 20,
+                      }}
+                    >
+                      <JaneAvatar size={isMobile ? 26 : 30} />
+                      <div style={{ maxWidth: isMobile ? '90%' : 560, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#C2185B' }}>URI Agent</span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: '#C2185B',
+                              background: 'rgba(194,24,91,.07)',
+                              padding: '1px 6px',
+                              borderRadius: 3,
+                              fontWeight: 600,
+                            }}
+                          >
+                            AI
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            padding: '11px 16px',
+                            borderRadius: '3px 14px 14px 14px',
+                            background: '#fff',
+                            border: '1px solid #edecea',
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                            color: '#333',
+                          }}
+                        >
+                          <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                            {streamingText}
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                width: 2,
+                                height: '1em',
+                                background: '#C2185B',
+                                marginLeft: 2,
+                                verticalAlign: 'text-bottom',
+                                animation: 'wTypeBounce 1s infinite',
+                              }}
+                            />
+                          </p>
                         </div>
                       </div>
                     </div>
