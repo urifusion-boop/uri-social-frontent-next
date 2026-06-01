@@ -6361,7 +6361,7 @@ export default function WorkspaceDashboard() {
               content: <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{reply}</p>,
             },
           ]);
-          if (navigate) setTimeout(() => goTo(navigate), 400);
+          if (navigate) setTimeout(() => goTo(navigate), 2000);
         }
       }, 38);
 
