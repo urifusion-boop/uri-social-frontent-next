@@ -6286,7 +6286,7 @@ export default function WorkspaceDashboard() {
     }
   };
 
-  const sendMsg = () => {
+  const sendMsg = async () => {
     if ((!input.trim() && !attachment?.uploadedUrl) || streamingText !== null) return;
     const txt = input.trim();
     const imageUrl = attachment?.uploadedUrl ?? undefined;
@@ -6296,7 +6296,6 @@ export default function WorkspaceDashboard() {
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // User message — show image thumbnail if attached
     setFeed((f) => [
       ...f,
       {
@@ -6323,51 +6322,63 @@ export default function WorkspaceDashboard() {
     const nextHistory = [...chatHistory, { role: 'user', content: userContent }];
     setChatHistory(nextHistory);
 
-    let accumulated = '';
+    try {
+      const res = await SocialMediaAgentService.agentChat(nextHistory, imageUrl);
+      setTyping(false);
 
-    const handle = SocialMediaAgentService.agentChatStream(
-      nextHistory,
-      {
-        onToken: (token) => {
-          accumulated += token;
-          setTyping(false);
-          setStreamingText(accumulated);
-        },
-        onDone: (navigate) => {
-          const finalText = accumulated;
-          setStreamingText(null);
-          streamAbortRef.current = null;
+      if (!res.status || !res.responseData) {
+        setFeed((f) => [
+          ...f,
+          {
+            id: 'j' + Date.now(),
+            type: 'jane',
+            time: now,
+            content: <p style={{ margin: 0 }}>Something went wrong. Please try again.</p>,
+          },
+        ]);
+        return;
+      }
+
+      const { reply, navigate } = res.responseData;
+      setChatHistory((h) => [...h, { role: 'assistant', content: reply }]);
+
+      // Simulate streaming — display reply word-by-word so it feels live
+      const words = reply.split(' ');
+      let idx = 0;
+      setStreamingText('');
+      const iv = setInterval(() => {
+        idx += 1;
+        const chunk = words.slice(0, idx).join(' ');
+        setStreamingText(idx < words.length ? chunk : null);
+        if (idx >= words.length) {
+          clearInterval(iv);
           setFeed((f) => [
             ...f,
             {
               id: 'j' + Date.now(),
               type: 'jane',
               time: now,
-              content: <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{finalText}</p>,
+              content: <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{reply}</p>,
             },
           ]);
-          setChatHistory((h) => [...h, { role: 'assistant', content: finalText }]);
           if (navigate) setTimeout(() => goTo(navigate), 400);
-        },
-        onError: (msg) => {
-          setTyping(false);
-          setStreamingText(null);
-          streamAbortRef.current = null;
-          setFeed((f) => [
-            ...f,
-            {
-              id: 'j' + Date.now(),
-              type: 'jane',
-              time: now,
-              content: <p style={{ margin: 0 }}>{msg}</p>,
-            },
-          ]);
-        },
-      },
-      imageUrl
-    );
+        }
+      }, 38);
 
-    streamAbortRef.current = handle;
+      streamAbortRef.current = { abort: () => clearInterval(iv) };
+    } catch {
+      setTyping(false);
+      setStreamingText(null);
+      setFeed((f) => [
+        ...f,
+        {
+          id: 'j' + Date.now(),
+          type: 'jane',
+          time: now,
+          content: <p style={{ margin: 0 }}>Something went wrong. Please try again.</p>,
+        },
+      ]);
+    }
   };
 
   const goWorkspace = () => goTo('workspace');
