@@ -6046,6 +6046,40 @@ function detectNavigateFromReply(reply: string): string | null {
   return null;
 }
 
+function detectGenerateFromReply(reply: string, userMessage: string): { topic: string; platforms: string[] } | null {
+  const agentSaid = reply.toLowerCase();
+  const userSaid = userMessage.toLowerCase();
+
+  // Only trigger if the reply clearly indicates generation is happening
+  const agentIsGenerating =
+    agentSaid.includes('generating posts') ||
+    agentSaid.includes('generating content') ||
+    agentSaid.includes('on it!') ||
+    agentSaid.includes('creating posts') ||
+    agentSaid.includes('drafting posts');
+
+  // User must have asked for content creation
+  const userWantsContent =
+    userSaid.includes('generate') ||
+    userSaid.includes('create') ||
+    userSaid.includes('write') ||
+    userSaid.includes('draft') ||
+    userSaid.includes('make posts') ||
+    userSaid.includes('make content');
+
+  if (!agentIsGenerating || !userWantsContent) return null;
+
+  // Extract platforms from user message
+  const platforms: string[] = [];
+  if (userSaid.includes('instagram')) platforms.push('instagram');
+  if (userSaid.includes('facebook')) platforms.push('facebook');
+  if (userSaid.includes('linkedin')) platforms.push('linkedin');
+  if (platforms.length === 0) platforms.push('instagram', 'facebook');
+
+  // Use the user's message as the topic (it contains the full intent)
+  return { topic: userMessage, platforms };
+}
+
 const STATUS_MSGS = [
   'Monitoring trends in your niche...',
   'Analysing audience engagement patterns...',
@@ -6411,9 +6445,13 @@ export default function WorkspaceDashboard() {
       }
 
       const { reply, navigate, generate } = res.responseData;
+      console.log('[URI Agent] generate:', generate, '| navigate:', navigate);
       setChatHistory((h) => [...h, { role: 'assistant', content: reply }]);
 
       const effectiveNavigate = navigate ?? detectNavigateFromReply(reply);
+
+      // If model replied "generating..." but forgot to set the generate field, extract topic from reply
+      const effectiveGenerate = generate ?? detectGenerateFromReply(reply, userContent);
 
       // Simulate streaming — display reply word-by-word so it feels live
       const words = reply.split(' ');
@@ -6437,7 +6475,9 @@ export default function WorkspaceDashboard() {
           if (effectiveNavigate) setTimeout(() => goTo(effectiveNavigate), 2000);
 
           // Trigger content generation after reply finishes
-          if (generate?.topic) {
+          if (effectiveGenerate?.topic) {
+            const genTopic = effectiveGenerate.topic;
+            const genPlatforms = effectiveGenerate.platforms ?? ['instagram', 'facebook'];
             const genCardId = 'gen_' + Date.now();
             setFeed((f) => [
               ...f,
@@ -6463,7 +6503,7 @@ export default function WorkspaceDashboard() {
                       ))}
                     </div>
                     <span style={{ fontSize: 12.5, color: '#666' }}>
-                      Generating posts for <strong>{generate.topic}</strong>…
+                      Generating posts for <strong>{genTopic}</strong>…
                     </span>
                   </div>
                 ),
@@ -6471,76 +6511,94 @@ export default function WorkspaceDashboard() {
             ]);
 
             SocialMediaAgentService.generateContent({
-              seed_content: generate.topic,
-              platforms: generate.platforms ?? ['instagram', 'facebook'],
+              seed_content: genTopic,
+              platforms: genPlatforms,
               include_images: false,
-            }).then((genRes) => {
-              const drafts: ContentDraft[] =
-                (genRes as unknown as { responseData: { drafts: ContentDraft[] } }).responseData?.drafts ?? [];
+            })
+              .then((genRes) => {
+                const drafts: ContentDraft[] =
+                  (genRes as unknown as { responseData: { drafts: ContentDraft[] } }).responseData?.drafts ?? [];
 
-              const cardContent =
-                genRes.status && drafts.length > 0 ? (
-                  <div>
-                    <p style={{ margin: '0 0 10px', fontSize: 13, color: '#444' }}>
-                      Generated {drafts.length} draft{drafts.length !== 1 ? 's' : ''} for{' '}
-                      <strong>{generate.topic}</strong>. Preview:
-                    </p>
-                    {drafts.slice(0, 2).map((d) => (
-                      <div
-                        key={d.id ?? d.draft_id}
+                const cardContent =
+                  genRes.status && drafts.length > 0 ? (
+                    <div>
+                      <p style={{ margin: '0 0 10px', fontSize: 13, color: '#444' }}>
+                        Generated {drafts.length} draft{drafts.length !== 1 ? 's' : ''} for <strong>{genTopic}</strong>.
+                        Preview:
+                      </p>
+                      {drafts.slice(0, 2).map((d) => (
+                        <div
+                          key={d.id ?? d.draft_id}
+                          style={{
+                            marginBottom: 8,
+                            padding: '10px 12px',
+                            borderRadius: 10,
+                            background: '#f9f9f9',
+                            border: '1px solid #edecea',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <PlatformDot p={d.platform} />
+                            <span
+                              style={{ fontSize: 11.5, fontWeight: 600, color: '#374151', textTransform: 'capitalize' }}
+                            >
+                              {d.platform}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: 12.5, color: '#555', margin: 0, lineHeight: 1.5 }}>
+                            {d.content.slice(0, 110)}
+                            {d.content.length > 110 ? '…' : ''}
+                          </p>
+                        </div>
+                      ))}
+                      {drafts.length > 2 && (
+                        <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 8px' }}>
+                          +{drafts.length - 2} more in Posting Schedule
+                        </p>
+                      )}
+                      <button
+                        onClick={() => goTo('schedule')}
                         style={{
-                          marginBottom: 8,
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          background: '#f9f9f9',
-                          border: '1px solid #edecea',
+                          marginTop: 4,
+                          padding: '8px 14px',
+                          borderRadius: 8,
+                          border: 'none',
+                          background: '#111',
+                          color: '#E91E63',
+                          fontWeight: 600,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--wf)',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <PlatformDot p={d.platform} />
-                          <span
-                            style={{ fontSize: 11.5, fontWeight: 600, color: '#374151', textTransform: 'capitalize' }}
-                          >
-                            {d.platform}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: 12.5, color: '#555', margin: 0, lineHeight: 1.5 }}>
-                          {d.content.slice(0, 110)}
-                          {d.content.length > 110 ? '…' : ''}
-                        </p>
-                      </div>
-                    ))}
-                    {drafts.length > 2 && (
-                      <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 8px' }}>
-                        +{drafts.length - 2} more in Posting Schedule
-                      </p>
-                    )}
-                    <button
-                      onClick={() => goTo('schedule')}
-                      style={{
-                        marginTop: 4,
-                        padding: '8px 14px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: '#111',
-                        color: '#E91E63',
-                        fontWeight: 600,
-                        fontSize: 12,
-                        cursor: 'pointer',
-                        fontFamily: 'var(--wf)',
-                      }}
-                    >
-                      Review in Posting Schedule →
-                    </button>
-                  </div>
-                ) : (
-                  <p style={{ margin: 0, fontSize: 13, color: '#555' }}>
-                    I ran into an issue generating content. Please try again.
-                  </p>
-                );
+                        Review in Posting Schedule →
+                      </button>
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, fontSize: 13, color: '#555' }}>
+                      I ran into an issue generating content. Please try again.
+                    </p>
+                  );
 
-              setFeed((f) => f.map((m) => (m.id === genCardId ? { ...m, content: cardContent } : m)));
-            });
+                setFeed((f) => f.map((m) => (m.id === genCardId ? { ...m, content: cardContent } : m)));
+              })
+              .catch((err) => {
+                console.error('[URI Agent] generateContent error:', err);
+                setFeed((f) =>
+                  f.map((m) =>
+                    m.id === genCardId
+                      ? {
+                          ...m,
+                          content: (
+                            <p style={{ margin: 0, fontSize: 13, color: '#555' }}>
+                              I ran into an issue generating content. Please try again.
+                            </p>
+                          ),
+                        }
+                      : m
+                  )
+                );
+              });
           }
         }
       }, 38);
