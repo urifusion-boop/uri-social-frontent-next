@@ -645,11 +645,19 @@ export class SocialMediaAgentService {
     messages: { role: string; content: string }[],
     imageUrl?: string
   ): Promise<
-    UriResponse<{ reply: string; navigate: string | null; generate: { topic: string; platforms: string[] } | null }>
+    UriResponse<{
+      reply: string;
+      navigate: string | null;
+      generate: { topic: string; platforms: string[]; include_images: boolean } | null;
+    }>
   > {
     const response: Awaited<
       AxiosResponse<
-        UriResponse<{ reply: string; navigate: string | null; generate: { topic: string; platforms: string[] } | null }>
+        UriResponse<{
+          reply: string;
+          navigate: string | null;
+          generate: { topic: string; platforms: string[]; include_images: boolean } | null;
+        }>
       >
     > = await UriHttpClient.getClient().post(socialMediaAgentRoutes.agentChat, {
       messages,

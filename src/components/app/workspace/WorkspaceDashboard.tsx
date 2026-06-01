@@ -6046,11 +6046,13 @@ function detectNavigateFromReply(reply: string): string | null {
   return null;
 }
 
-function detectGenerateFromReply(reply: string, userMessage: string): { topic: string; platforms: string[] } | null {
+function detectGenerateFromReply(
+  reply: string,
+  userMessage: string
+): { topic: string; platforms: string[]; include_images: boolean } | null {
   const agentSaid = reply.toLowerCase();
   const userSaid = userMessage.toLowerCase();
 
-  // Only trigger if the reply clearly indicates generation is happening
   const agentIsGenerating =
     agentSaid.includes('generating posts') ||
     agentSaid.includes('generating content') ||
@@ -6058,7 +6060,6 @@ function detectGenerateFromReply(reply: string, userMessage: string): { topic: s
     agentSaid.includes('creating posts') ||
     agentSaid.includes('drafting posts');
 
-  // User must have asked for content creation
   const userWantsContent =
     userSaid.includes('generate') ||
     userSaid.includes('create') ||
@@ -6069,15 +6070,20 @@ function detectGenerateFromReply(reply: string, userMessage: string): { topic: s
 
   if (!agentIsGenerating || !userWantsContent) return null;
 
-  // Extract platforms from user message
   const platforms: string[] = [];
   if (userSaid.includes('instagram')) platforms.push('instagram');
   if (userSaid.includes('facebook')) platforms.push('facebook');
   if (userSaid.includes('linkedin')) platforms.push('linkedin');
   if (platforms.length === 0) platforms.push('instagram', 'facebook');
 
-  // Use the user's message as the topic (it contains the full intent)
-  return { topic: userMessage, platforms };
+  const include_images =
+    userSaid.includes('with image') ||
+    userSaid.includes('with photo') ||
+    userSaid.includes('with visual') ||
+    userSaid.includes('with picture') ||
+    userSaid.includes('with graphic');
+
+  return { topic: userMessage, platforms, include_images };
 }
 
 const STATUS_MSGS = [
@@ -6478,6 +6484,7 @@ export default function WorkspaceDashboard() {
           if (effectiveGenerate?.topic) {
             const genTopic = effectiveGenerate.topic;
             const genPlatforms = effectiveGenerate.platforms ?? ['instagram', 'facebook'];
+            const genIncludeImages = effectiveGenerate.include_images ?? false;
             const genCardId = 'gen_' + Date.now();
             setFeed((f) => [
               ...f,
@@ -6513,7 +6520,7 @@ export default function WorkspaceDashboard() {
             SocialMediaAgentService.generateContent({
               seed_content: genTopic,
               platforms: genPlatforms,
-              include_images: true,
+              include_images: genIncludeImages,
             })
               .then((genRes) => {
                 const drafts: ContentDraft[] =
