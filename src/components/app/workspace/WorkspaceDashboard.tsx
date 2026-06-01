@@ -6340,6 +6340,7 @@ export default function WorkspaceDashboard() {
       }
 
       const { reply, navigate } = res.responseData;
+      console.log('[URI Agent] navigate:', navigate, '| reply:', reply.slice(0, 60));
       setChatHistory((h) => [...h, { role: 'assistant', content: reply }]);
 
       // Simulate streaming — display reply word-by-word so it feels live
