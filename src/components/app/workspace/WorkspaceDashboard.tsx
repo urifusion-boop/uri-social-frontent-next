@@ -5976,29 +5976,70 @@ interface FeedMsg {
 }
 
 function detectNavigateFromReply(reply: string): string | null {
-  // Normalize curly/typographic quotes to plain ASCII so model output always matches
+  // Normalize curly/typographic quotes to plain ASCII (using Unicode escapes to avoid source encoding issues)
   const r = reply
     .toLowerCase()
-    .replace(/[‘’‚‛]/g, "'")
-    .replace(/[“”]/g, '"');
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
+
+  // Section-name phrases — if the reply mentions a section in any navigational context
+  const sectionPhrases: [string[], string][] = [
+    [['billing section', 'billing tab', 'in the billing', 'to the billing', 'view billing', 'your billing'], 'billing'],
+    [
+      [
+        'connected accounts section',
+        'connected accounts tab',
+        'in the connected accounts',
+        'to the connected accounts',
+        'connected accounts page',
+        'connect your instagram',
+        'connect your facebook',
+        'connect your linkedin',
+      ],
+      'connections',
+    ],
+    [
+      ['posting schedule', 'in the schedule', 'to the schedule', 'needs review', 'your drafts', 'in drafts'],
+      'schedule',
+    ],
+    [
+      ['performance section', 'performance tab', 'in the performance', 'to the performance', 'performance page'],
+      'performance',
+    ],
+    [['brand playbook', 'in the playbook', 'to the playbook'], 'playbook'],
+    [['market intel', 'in the intel', 'to the intel'], 'intel'],
+    [['blog generator', 'blog section', 'in the blog', 'to the blog'], 'blog'],
+    [['settings section', 'settings tab', 'in the settings', 'to the settings', 'settings page'], 'settings'],
+    [['notifications section', 'notifications tab', 'in the notifications'], 'notifications'],
+  ];
+
+  for (const [phrases, key] of sectionPhrases) {
+    if (phrases.some((p) => r.includes(p))) return key;
+  }
+
+  // Fallback: generic navigation phrases + section keyword
   const isNavigating =
     r.includes('take you to') ||
     r.includes('taking you to') ||
-    r.includes('i will take you') ||
-    r.includes('let me take you') ||
-    r.includes('head to the') ||
+    r.includes('navigate to') ||
+    r.includes('go to the') ||
+    r.includes('head to') ||
+    r.includes('visit the') ||
     r.includes('sending you to') ||
     r.includes('opening the') ||
     r.includes('redirecting you') ||
-    r.includes("let's go to") ||
-    r.includes('navigate you');
+    r.includes("let's go") ||
+    r.includes('can find it in') ||
+    r.includes('you can go') ||
+    r.includes('i will take you') ||
+    r.includes('let me take you');
   if (!isNavigating) return null;
   if (r.includes('billing')) return 'billing';
   if (r.includes('connected account') || r.includes('connection')) return 'connections';
-  if (r.includes('posting schedule') || r.includes('schedule') || r.includes('draft')) return 'schedule';
+  if (r.includes('schedule') || r.includes('draft')) return 'schedule';
   if (r.includes('performance') || r.includes('analytic')) return 'performance';
-  if (r.includes('brand playbook') || r.includes('playbook')) return 'playbook';
-  if (r.includes('market intel') || r.includes('intel')) return 'intel';
+  if (r.includes('playbook')) return 'playbook';
+  if (r.includes('intel')) return 'intel';
   if (r.includes('blog')) return 'blog';
   if (r.includes('settings')) return 'settings';
   if (r.includes('notification')) return 'notifications';
