@@ -644,12 +644,17 @@ export class SocialMediaAgentService {
   static async agentChat(
     messages: { role: string; content: string }[],
     imageUrl?: string
-  ): Promise<UriResponse<{ reply: string; navigate: string | null }>> {
-    const response: Awaited<AxiosResponse<UriResponse<{ reply: string; navigate: string | null }>>> =
-      await UriHttpClient.getClient().post(socialMediaAgentRoutes.agentChat, {
-        messages,
-        ...(imageUrl ? { image_url: imageUrl } : {}),
-      });
+  ): Promise<
+    UriResponse<{ reply: string; navigate: string | null; generate: { topic: string; platforms: string[] } | null }>
+  > {
+    const response: Awaited<
+      AxiosResponse<
+        UriResponse<{ reply: string; navigate: string | null; generate: { topic: string; platforms: string[] } | null }>
+      >
+    > = await UriHttpClient.getClient().post(socialMediaAgentRoutes.agentChat, {
+      messages,
+      ...(imageUrl ? { image_url: imageUrl } : {}),
+    });
     return response.data;
   }
 

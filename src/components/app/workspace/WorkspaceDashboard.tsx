@@ -6366,10 +6366,9 @@ export default function WorkspaceDashboard() {
         return;
       }
 
-      const { reply, navigate } = res.responseData;
+      const { reply, navigate, generate } = res.responseData;
       setChatHistory((h) => [...h, { role: 'assistant', content: reply }]);
 
-      // If the model didn't set navigate but the reply implies going somewhere, detect it from the text
       const effectiveNavigate = navigate ?? detectNavigateFromReply(reply);
 
       // Simulate streaming — display reply word-by-word so it feels live
@@ -6392,6 +6391,113 @@ export default function WorkspaceDashboard() {
             },
           ]);
           if (effectiveNavigate) setTimeout(() => goTo(effectiveNavigate), 2000);
+
+          // Trigger content generation after reply finishes
+          if (generate?.topic) {
+            const genCardId = 'gen_' + Date.now();
+            setFeed((f) => [
+              ...f,
+              {
+                id: genCardId,
+                type: 'jane-card',
+                time: now,
+                content: (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {[0, 1, 2].map((i) => (
+                        <div
+                          key={i}
+                          style={{
+                            width: 5,
+                            height: 5,
+                            borderRadius: '50%',
+                            background: '#C2185B',
+                            opacity: 0.5,
+                            animation: `wTypeBounce 1.2s ${i * 0.15}s infinite`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span style={{ fontSize: 12.5, color: '#666' }}>
+                      Generating posts for <strong>{generate.topic}</strong>…
+                    </span>
+                  </div>
+                ),
+              },
+            ]);
+
+            SocialMediaAgentService.generateContent({
+              seed_content: generate.topic,
+              platforms: generate.platforms ?? ['instagram', 'facebook'],
+              include_images: false,
+            }).then((genRes) => {
+              const drafts: ContentDraft[] =
+                (genRes as unknown as { responseData: { drafts: ContentDraft[] } }).responseData?.drafts ?? [];
+
+              const cardContent =
+                genRes.status && drafts.length > 0 ? (
+                  <div>
+                    <p style={{ margin: '0 0 10px', fontSize: 13, color: '#444' }}>
+                      Generated {drafts.length} draft{drafts.length !== 1 ? 's' : ''} for{' '}
+                      <strong>{generate.topic}</strong>. Preview:
+                    </p>
+                    {drafts.slice(0, 2).map((d) => (
+                      <div
+                        key={d.id ?? d.draft_id}
+                        style={{
+                          marginBottom: 8,
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          background: '#f9f9f9',
+                          border: '1px solid #edecea',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <PlatformDot p={d.platform} />
+                          <span
+                            style={{ fontSize: 11.5, fontWeight: 600, color: '#374151', textTransform: 'capitalize' }}
+                          >
+                            {d.platform}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: 12.5, color: '#555', margin: 0, lineHeight: 1.5 }}>
+                          {d.content.slice(0, 110)}
+                          {d.content.length > 110 ? '…' : ''}
+                        </p>
+                      </div>
+                    ))}
+                    {drafts.length > 2 && (
+                      <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 8px' }}>
+                        +{drafts.length - 2} more in Posting Schedule
+                      </p>
+                    )}
+                    <button
+                      onClick={() => goTo('schedule')}
+                      style={{
+                        marginTop: 4,
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: '#111',
+                        color: '#E91E63',
+                        fontWeight: 600,
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--wf)',
+                      }}
+                    >
+                      Review in Posting Schedule →
+                    </button>
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, fontSize: 13, color: '#555' }}>
+                    I ran into an issue generating content. Please try again.
+                  </p>
+                );
+
+              setFeed((f) => f.map((m) => (m.id === genCardId ? { ...m, content: cardContent } : m)));
+            });
+          }
         }
       }, 38);
 
