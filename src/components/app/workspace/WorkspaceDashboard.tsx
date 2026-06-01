@@ -6513,7 +6513,7 @@ export default function WorkspaceDashboard() {
             SocialMediaAgentService.generateContent({
               seed_content: genTopic,
               platforms: genPlatforms,
-              include_images: false,
+              include_images: true,
             })
               .then((genRes) => {
                 const drafts: ContentDraft[] =
