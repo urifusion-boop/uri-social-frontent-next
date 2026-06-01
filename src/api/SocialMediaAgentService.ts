@@ -662,13 +662,27 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async uploadChatImage(file: File): Promise<UriResponse<{ url: string }>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response: Awaited<AxiosResponse<UriResponse<{ url: string }>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.agentChatUpload,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    );
+    return response.data;
+  }
+
   static agentChatStream(
     messages: { role: string; content: string }[],
     callbacks: {
       onToken: (token: string) => void;
       onDone: (navigate: string | null) => void;
       onError: (msg: string) => void;
-    }
+    },
+    imageUrl?: string
   ): { abort: () => void } {
     const controller = new AbortController();
     const baseUrl = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
@@ -689,7 +703,7 @@ export class SocialMediaAgentService {
             'Content-Type': 'application/json',
             ...(tokens.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
           },
-          body: JSON.stringify({ messages }),
+          body: JSON.stringify({ messages, ...(imageUrl ? { image_url: imageUrl } : {}) }),
           signal: controller.signal,
         });
 

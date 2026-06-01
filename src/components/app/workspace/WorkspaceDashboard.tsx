@@ -6093,6 +6093,12 @@ export default function WorkspaceDashboard() {
   const [typing, setTyping] = useState(false);
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const streamAbortRef = useRef<{ abort: () => void } | null>(null);
+  const [attachment, setAttachment] = useState<{
+    previewUrl: string;
+    uploadedUrl: string | null;
+    uploading: boolean;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -6259,57 +6265,107 @@ export default function WorkspaceDashboard() {
     ]);
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!e.target.files) return;
+    e.target.value = ''; // reset so same file can be re-selected
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setAttachment({ previewUrl, uploadedUrl: null, uploading: true });
+    try {
+      const res = await SocialMediaAgentService.uploadChatImage(file);
+      if (res.status && res.responseData?.url) {
+        setAttachment({ previewUrl, uploadedUrl: res.responseData.url, uploading: false });
+      } else {
+        setAttachment(null);
+        ToastService.showToast('Image upload failed. Please try again.', ToastTypeEnum.Error);
+      }
+    } catch {
+      setAttachment(null);
+      ToastService.showToast('Image upload failed. Please try again.', ToastTypeEnum.Error);
+    }
+  };
+
   const sendMsg = () => {
-    if (!input.trim() || streamingText !== null) return;
+    if ((!input.trim() && !attachment?.uploadedUrl) || streamingText !== null) return;
     const txt = input.trim();
+    const imageUrl = attachment?.uploadedUrl ?? undefined;
+    const previewUrl = attachment?.previewUrl;
     setInput('');
+    setAttachment(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setFeed((f) => [...f, { id: 'u' + Date.now(), type: 'user', time: now, content: txt }]);
+
+    // User message — show image thumbnail if attached
+    setFeed((f) => [
+      ...f,
+      {
+        id: 'u' + Date.now(),
+        type: 'user',
+        time: now,
+        content: previewUrl ? (
+          <div>
+            <img
+              src={previewUrl}
+              alt="attachment"
+              style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, display: 'block', marginBottom: txt ? 8 : 0 }}
+            />
+            {txt && <span>{txt}</span>}
+          </div>
+        ) : (
+          txt
+        ),
+      },
+    ]);
     setTyping(true);
 
-    const nextHistory = [...chatHistory, { role: 'user', content: txt }];
+    const userContent = txt || '(image)';
+    const nextHistory = [...chatHistory, { role: 'user', content: userContent }];
     setChatHistory(nextHistory);
 
     let accumulated = '';
 
-    const handle = SocialMediaAgentService.agentChatStream(nextHistory, {
-      onToken: (token) => {
-        accumulated += token;
-        setTyping(false);
-        setStreamingText(accumulated);
+    const handle = SocialMediaAgentService.agentChatStream(
+      nextHistory,
+      {
+        onToken: (token) => {
+          accumulated += token;
+          setTyping(false);
+          setStreamingText(accumulated);
+        },
+        onDone: (navigate) => {
+          const finalText = accumulated;
+          setStreamingText(null);
+          streamAbortRef.current = null;
+          setFeed((f) => [
+            ...f,
+            {
+              id: 'j' + Date.now(),
+              type: 'jane',
+              time: now,
+              content: <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{finalText}</p>,
+            },
+          ]);
+          setChatHistory((h) => [...h, { role: 'assistant', content: finalText }]);
+          if (navigate) setTimeout(() => goTo(navigate), 400);
+        },
+        onError: (msg) => {
+          setTyping(false);
+          setStreamingText(null);
+          streamAbortRef.current = null;
+          setFeed((f) => [
+            ...f,
+            {
+              id: 'j' + Date.now(),
+              type: 'jane',
+              time: now,
+              content: <p style={{ margin: 0 }}>{msg}</p>,
+            },
+          ]);
+        },
       },
-      onDone: (navigate) => {
-        const finalText = accumulated;
-        setStreamingText(null);
-        streamAbortRef.current = null;
-        setFeed((f) => [
-          ...f,
-          {
-            id: 'j' + Date.now(),
-            type: 'jane',
-            time: now,
-            content: <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{finalText}</p>,
-          },
-        ]);
-        setChatHistory((h) => [...h, { role: 'assistant', content: finalText }]);
-        if (navigate) setTimeout(() => goTo(navigate), 400);
-      },
-      onError: (msg) => {
-        setTyping(false);
-        setStreamingText(null);
-        streamAbortRef.current = null;
-        setFeed((f) => [
-          ...f,
-          {
-            id: 'j' + Date.now(),
-            type: 'jane',
-            time: now,
-            content: <p style={{ margin: 0 }}>{msg}</p>,
-          },
-        ]);
-      },
-    });
+      imageUrl
+    );
 
     streamAbortRef.current = handle;
   };
@@ -6880,6 +6936,69 @@ export default function WorkspaceDashboard() {
                     background: 'linear-gradient(0deg,#f5f4f0 80%,transparent)',
                   }}
                 >
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/heic"
+                    style={{ display: 'none' }}
+                    onChange={handleFileSelect}
+                  />
+
+                  {/* Attachment thumbnail preview */}
+                  {attachment && (
+                    <div style={{ position: 'relative', display: 'inline-block', marginBottom: 6 }}>
+                      <img
+                        src={attachment.previewUrl}
+                        alt="attachment preview"
+                        style={{
+                          height: 72,
+                          width: 72,
+                          objectFit: 'cover',
+                          borderRadius: 8,
+                          border: '1.5px solid #e5e3df',
+                          opacity: attachment.uploading ? 0.5 : 1,
+                        }}
+                      />
+                      {attachment.uploading && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 10,
+                            color: '#666',
+                            fontWeight: 600,
+                          }}
+                        >
+                          uploading…
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setAttachment(null)}
+                        style={{
+                          position: 'absolute',
+                          top: -6,
+                          right: -6,
+                          width: 18,
+                          height: 18,
+                          borderRadius: '50%',
+                          background: '#374151',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      >
+                        <I n="x" s={10} c="#fff" />
+                      </button>
+                    </div>
+                  )}
+
                   <div
                     id="tour-chat-input"
                     style={{
@@ -6888,13 +7007,15 @@ export default function WorkspaceDashboard() {
                       alignItems: 'flex-end',
                       background: '#fff',
                       borderRadius: 13,
-                      border: '1.5px solid #e5e3df',
+                      border: `1.5px solid ${attachment ? '#C2185B' : '#e5e3df'}`,
                       padding: '5px 5px 5px 16px',
                       boxShadow: '0 3px 16px rgba(0,0,0,.05)',
+                      transition: 'border-color 0.2s',
                     }}
                   >
                     <button
-                      onClick={() => ToastService.showToast('Image attachments coming soon!', ToastTypeEnum.Warning)}
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={attachment?.uploading}
                       title="Attach image"
                       style={{
                         width: 32,
@@ -6902,14 +7023,14 @@ export default function WorkspaceDashboard() {
                         borderRadius: 7,
                         border: 'none',
                         background: 'transparent',
-                        cursor: 'pointer',
+                        cursor: attachment?.uploading ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0,
                       }}
                     >
-                      <I n="paperclip" s={16} c="#aaa" />
+                      <I n="paperclip" s={16} c={attachment ? '#C2185B' : '#aaa'} />
                     </button>
                     <textarea
                       ref={textareaRef}
@@ -6942,13 +7063,22 @@ export default function WorkspaceDashboard() {
                     />
                     <button
                       onClick={sendMsg}
+                      disabled={attachment?.uploading}
                       style={{
                         width: 38,
                         height: 38,
                         borderRadius: 9,
                         border: 'none',
-                        background: input.trim() ? '#C2185B' : '#eee',
-                        cursor: input.trim() ? 'pointer' : 'default',
+                        background: attachment?.uploading
+                          ? '#eee'
+                          : input.trim() || attachment?.uploadedUrl
+                            ? '#C2185B'
+                            : '#eee',
+                        cursor: attachment?.uploading
+                          ? 'not-allowed'
+                          : input.trim() || attachment?.uploadedUrl
+                            ? 'pointer'
+                            : 'default',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -6956,7 +7086,11 @@ export default function WorkspaceDashboard() {
                         transition: 'background .2s',
                       }}
                     >
-                      <I n="send" s={15} c={input.trim() ? '#fff' : '#ccc'} />
+                      <I
+                        n="send"
+                        s={15}
+                        c={attachment?.uploading ? '#ccc' : input.trim() || attachment?.uploadedUrl ? '#fff' : '#ccc'}
+                      />
                     </button>
                   </div>
                   <div style={{ textAlign: 'center', marginTop: 5 }}>
