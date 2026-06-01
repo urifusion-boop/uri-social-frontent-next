@@ -5976,15 +5976,18 @@ interface FeedMsg {
 }
 
 function detectNavigateFromReply(reply: string): string | null {
-  const r = reply.toLowerCase();
+  // Normalize curly/typographic quotes to plain ASCII so model output always matches
+  const r = reply
+    .toLowerCase()
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[“”]/g, '"');
   const isNavigating =
-    r.includes("i'll take you") ||
+    r.includes('take you to') ||
+    r.includes('taking you to') ||
     r.includes('i will take you') ||
-    r.includes("i'm taking you") ||
-    r.includes('taking you') ||
     r.includes('let me take you') ||
     r.includes('head to the') ||
-    r.includes("i'm sending you") ||
+    r.includes('sending you to') ||
     r.includes('opening the') ||
     r.includes('redirecting you') ||
     r.includes("let's go to") ||
