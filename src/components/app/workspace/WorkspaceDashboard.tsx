@@ -5975,6 +5975,33 @@ interface FeedMsg {
   content: ReactNode;
 }
 
+function detectNavigateFromReply(reply: string): string | null {
+  const r = reply.toLowerCase();
+  const isNavigating =
+    r.includes("i'll take you") ||
+    r.includes('i will take you') ||
+    r.includes("i'm taking you") ||
+    r.includes('taking you') ||
+    r.includes('let me take you') ||
+    r.includes('head to the') ||
+    r.includes("i'm sending you") ||
+    r.includes('opening the') ||
+    r.includes('redirecting you') ||
+    r.includes("let's go to") ||
+    r.includes('navigate you');
+  if (!isNavigating) return null;
+  if (r.includes('billing')) return 'billing';
+  if (r.includes('connected account') || r.includes('connection')) return 'connections';
+  if (r.includes('posting schedule') || r.includes('schedule') || r.includes('draft')) return 'schedule';
+  if (r.includes('performance') || r.includes('analytic')) return 'performance';
+  if (r.includes('brand playbook') || r.includes('playbook')) return 'playbook';
+  if (r.includes('market intel') || r.includes('intel')) return 'intel';
+  if (r.includes('blog')) return 'blog';
+  if (r.includes('settings')) return 'settings';
+  if (r.includes('notification')) return 'notifications';
+  return null;
+}
+
 const STATUS_MSGS = [
   'Monitoring trends in your niche...',
   'Analysing audience engagement patterns...',
@@ -6340,8 +6367,10 @@ export default function WorkspaceDashboard() {
       }
 
       const { reply, navigate } = res.responseData;
-      console.log('[URI Agent] navigate:', navigate, '| reply:', reply.slice(0, 60));
       setChatHistory((h) => [...h, { role: 'assistant', content: reply }]);
+
+      // If the model didn't set navigate but the reply implies going somewhere, detect it from the text
+      const effectiveNavigate = navigate ?? detectNavigateFromReply(reply);
 
       // Simulate streaming — display reply word-by-word so it feels live
       const words = reply.split(' ');
@@ -6362,7 +6391,7 @@ export default function WorkspaceDashboard() {
               content: <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{reply}</p>,
             },
           ]);
-          if (navigate) setTimeout(() => goTo(navigate), 2000);
+          if (effectiveNavigate) setTimeout(() => goTo(effectiveNavigate), 2000);
         }
       }, 38);
 
