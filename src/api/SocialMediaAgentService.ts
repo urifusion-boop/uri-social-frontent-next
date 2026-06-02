@@ -643,12 +643,12 @@ export class SocialMediaAgentService {
 
   static async agentChat(
     messages: { role: string; content: string }[],
-    imageUrl?: string
+    imageUrl?: string,
+    brandContext?: BrandContext
   ): Promise<
     UriResponse<{
       reply: string;
       navigate: string | null;
-      generate: { topic: string; platforms: string[]; include_images: boolean } | null;
     }>
   > {
     const response: Awaited<
@@ -656,12 +656,12 @@ export class SocialMediaAgentService {
         UriResponse<{
           reply: string;
           navigate: string | null;
-          generate: { topic: string; platforms: string[]; include_images: boolean } | null;
         }>
       >
     > = await UriHttpClient.getClient().post(socialMediaAgentRoutes.agentChat, {
       messages,
       ...(imageUrl ? { image_url: imageUrl } : {}),
+      ...(brandContext ? { brand_context: brandContext } : {}),
     });
     return response.data;
   }
@@ -699,7 +699,8 @@ export class SocialMediaAgentService {
       onDone: (navigate: string | null) => void;
       onError: (msg: string) => void;
     },
-    imageUrl?: string
+    imageUrl?: string,
+    brandContext?: BrandContext
   ): { abort: () => void } {
     const controller = new AbortController();
     const baseUrl = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
@@ -720,7 +721,11 @@ export class SocialMediaAgentService {
             'Content-Type': 'application/json',
             ...(tokens.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
           },
-          body: JSON.stringify({ messages, ...(imageUrl ? { image_url: imageUrl } : {}) }),
+          body: JSON.stringify({
+            messages,
+            ...(imageUrl ? { image_url: imageUrl } : {}),
+            ...(brandContext ? { brand_context: brandContext } : {}),
+          }),
           signal: controller.signal,
         });
 

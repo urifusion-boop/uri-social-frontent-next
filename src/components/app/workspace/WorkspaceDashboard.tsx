@@ -5970,7 +5970,7 @@ const SettingsPage = ({
 /* ── Feed types ─────────────────────────────────────────────────────────── */
 interface FeedMsg {
   id: string;
-  type: 'jane' | 'jane-card' | 'user';
+  type: 'jane' | 'user';
   time: string;
   content: ReactNode;
 }
@@ -5999,7 +5999,19 @@ function detectNavigateFromReply(reply: string): string | null {
       'connections',
     ],
     [
-      ['posting schedule', 'in the schedule', 'to the schedule', 'needs review', 'your drafts', 'in drafts'],
+      [
+        'posting schedule',
+        'in the schedule',
+        'to the schedule',
+        'needs review',
+        'your drafts',
+        'in drafts',
+        'create content',
+        'content creator',
+        'head to create',
+        'in create content',
+        'to create content',
+      ],
       'schedule',
     ],
     [
@@ -6044,46 +6056,6 @@ function detectNavigateFromReply(reply: string): string | null {
   if (r.includes('settings')) return 'settings';
   if (r.includes('notification')) return 'notifications';
   return null;
-}
-
-function detectGenerateFromReply(
-  reply: string,
-  userMessage: string
-): { topic: string; platforms: string[]; include_images: boolean } | null {
-  const agentSaid = reply.toLowerCase();
-  const userSaid = userMessage.toLowerCase();
-
-  const agentIsGenerating =
-    agentSaid.includes('generating posts') ||
-    agentSaid.includes('generating content') ||
-    agentSaid.includes('on it!') ||
-    agentSaid.includes('creating posts') ||
-    agentSaid.includes('drafting posts');
-
-  const userWantsContent =
-    userSaid.includes('generate') ||
-    userSaid.includes('create') ||
-    userSaid.includes('write') ||
-    userSaid.includes('draft') ||
-    userSaid.includes('make posts') ||
-    userSaid.includes('make content');
-
-  if (!agentIsGenerating || !userWantsContent) return null;
-
-  const platforms: string[] = [];
-  if (userSaid.includes('instagram')) platforms.push('instagram');
-  if (userSaid.includes('facebook')) platforms.push('facebook');
-  if (userSaid.includes('linkedin')) platforms.push('linkedin');
-  if (platforms.length === 0) platforms.push('instagram', 'facebook');
-
-  const include_images =
-    userSaid.includes('with image') ||
-    userSaid.includes('with photo') ||
-    userSaid.includes('with visual') ||
-    userSaid.includes('with picture') ||
-    userSaid.includes('with graphic');
-
-  return { topic: userMessage, platforms, include_images };
 }
 
 const STATUS_MSGS = [
@@ -6313,14 +6285,14 @@ export default function WorkspaceDashboard() {
         content: (
           <div>
             <p style={{ margin: 0 }}>
-              Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}! Here&apos;s your briefing for{' '}
-              <strong>{name}</strong>:
+              Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}! I&apos;m fully briefed on{' '}
+              <strong>{name}</strong> and ready to help.
             </p>
             <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13, color: '#555', lineHeight: 1.7 }}>
+              <li>Ask me anything about your brand — voice, audience, strategy, or performance</li>
               <li>
-                Check <strong>Posting Schedule</strong> for posts needing review
+                Want to create posts? Head to <strong>Create Content</strong> in the sidebar
               </li>
-              <li>Type a topic or question and URI Agent will help you</li>
               <li>
                 Connect social accounts in <strong>Connected Accounts</strong> to unlock publishing
               </li>
@@ -6367,8 +6339,8 @@ export default function WorkspaceDashboard() {
         content: (
           <div>
             <p style={{ margin: 0 }}>
-              Conversation cleared. Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}, <strong>{name}</strong>
-              ! What can I help you with?
+              Conversation cleared. Still fully briefed on <strong>{name}</strong> — ask me anything about your brand,
+              strategy, or audience.
             </p>
           </div>
         ),
@@ -6433,8 +6405,24 @@ export default function WorkspaceDashboard() {
     const nextHistory = [...chatHistory, { role: 'user', content: userContent }];
     setChatHistory(nextHistory);
 
+    const brandContext = profile
+      ? {
+          brand_name: profile.brand_name,
+          industry: profile.industry,
+          business_description: profile.product_description,
+          brand_voice: profile.derived_voice ?? profile.voice_sample,
+          target_audience: profile.audience_age_range
+            ? Array.isArray(profile.audience_age_range)
+              ? profile.audience_age_range.join(', ')
+              : profile.audience_age_range
+            : undefined,
+          key_products_services: profile.content_pillars,
+          brand_colors: profile.brand_colors,
+        }
+      : undefined;
+
     try {
-      const res = await SocialMediaAgentService.agentChat(nextHistory, imageUrl);
+      const res = await SocialMediaAgentService.agentChat(nextHistory, imageUrl, brandContext);
       setTyping(false);
 
       if (!res.status || !res.responseData) {
@@ -6450,16 +6438,11 @@ export default function WorkspaceDashboard() {
         return;
       }
 
-      const { reply, navigate, generate } = res.responseData;
-      console.log('[URI Agent] generate:', generate, '| navigate:', navigate);
+      const { reply, navigate } = res.responseData;
       setChatHistory((h) => [...h, { role: 'assistant', content: reply }]);
 
       const effectiveNavigate = navigate ?? detectNavigateFromReply(reply);
 
-      // If model replied "generating..." but forgot to set the generate field, extract topic from reply
-      const effectiveGenerate = generate ?? detectGenerateFromReply(reply, userContent);
-
-      // Simulate streaming — display reply word-by-word so it feels live
       const words = reply.split(' ');
       let idx = 0;
       setStreamingText('');
@@ -6479,134 +6462,6 @@ export default function WorkspaceDashboard() {
             },
           ]);
           if (effectiveNavigate) setTimeout(() => goTo(effectiveNavigate), 2000);
-
-          // Trigger content generation after reply finishes
-          if (effectiveGenerate?.topic) {
-            const genTopic = effectiveGenerate.topic;
-            const genPlatforms = effectiveGenerate.platforms ?? ['instagram', 'facebook'];
-            const genIncludeImages = effectiveGenerate.include_images ?? false;
-            const genCardId = 'gen_' + Date.now();
-            setFeed((f) => [
-              ...f,
-              {
-                id: genCardId,
-                type: 'jane-card',
-                time: now,
-                content: (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {[0, 1, 2].map((i) => (
-                        <div
-                          key={i}
-                          style={{
-                            width: 5,
-                            height: 5,
-                            borderRadius: '50%',
-                            background: '#C2185B',
-                            opacity: 0.5,
-                            animation: `wTypeBounce 1.2s ${i * 0.15}s infinite`,
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <span style={{ fontSize: 12.5, color: '#666' }}>
-                      Generating posts for <strong>{genTopic}</strong>…
-                    </span>
-                  </div>
-                ),
-              },
-            ]);
-
-            SocialMediaAgentService.generateContent({
-              seed_content: genTopic,
-              platforms: genPlatforms,
-              include_images: genIncludeImages,
-            })
-              .then((genRes) => {
-                const drafts: ContentDraft[] =
-                  (genRes as unknown as { responseData: { drafts: ContentDraft[] } }).responseData?.drafts ?? [];
-
-                const cardContent =
-                  genRes.status && drafts.length > 0 ? (
-                    <div>
-                      <p style={{ margin: '0 0 10px', fontSize: 13, color: '#444' }}>
-                        Generated {drafts.length} draft{drafts.length !== 1 ? 's' : ''} for <strong>{genTopic}</strong>.
-                        Preview:
-                      </p>
-                      {drafts.slice(0, 2).map((d) => (
-                        <div
-                          key={d.id ?? d.draft_id}
-                          style={{
-                            marginBottom: 8,
-                            padding: '10px 12px',
-                            borderRadius: 10,
-                            background: '#f9f9f9',
-                            border: '1px solid #edecea',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            <PlatformDot p={d.platform} />
-                            <span
-                              style={{ fontSize: 11.5, fontWeight: 600, color: '#374151', textTransform: 'capitalize' }}
-                            >
-                              {d.platform}
-                            </span>
-                          </div>
-                          <p style={{ fontSize: 12.5, color: '#555', margin: 0, lineHeight: 1.5 }}>
-                            {d.content.slice(0, 110)}
-                            {d.content.length > 110 ? '…' : ''}
-                          </p>
-                        </div>
-                      ))}
-                      {drafts.length > 2 && (
-                        <p style={{ fontSize: 12, color: '#9CA3AF', margin: '4px 0 8px' }}>
-                          +{drafts.length - 2} more in Posting Schedule
-                        </p>
-                      )}
-                      <button
-                        onClick={() => goTo('schedule')}
-                        style={{
-                          marginTop: 4,
-                          padding: '8px 14px',
-                          borderRadius: 8,
-                          border: 'none',
-                          background: '#111',
-                          color: '#E91E63',
-                          fontWeight: 600,
-                          fontSize: 12,
-                          cursor: 'pointer',
-                          fontFamily: 'var(--wf)',
-                        }}
-                      >
-                        Review in Posting Schedule →
-                      </button>
-                    </div>
-                  ) : (
-                    <p style={{ margin: 0, fontSize: 13, color: '#555' }}>
-                      I ran into an issue generating content. Please try again.
-                    </p>
-                  );
-
-                setFeed((f) => f.map((m) => (m.id === genCardId ? { ...m, content: cardContent } : m)));
-              })
-              .catch((err) => {
-                console.error('[URI Agent] generateContent error:', err);
-                setFeed((f) =>
-                  f.map((m) =>
-                    m.id === genCardId
-                      ? {
-                          ...m,
-                          content: (
-                            <p style={{ margin: 0, fontSize: 13, color: '#555' }}>
-                              I ran into an issue generating content. Please try again.
-                            </p>
-                          ),
-                        }
-                      : m
-                  )
-                );
-              });
-          }
         }
       }, 38);
 
@@ -7302,7 +7157,7 @@ export default function WorkspaceDashboard() {
                         }
                       }}
                       rows={1}
-                      placeholder="Ask URI Agent anything — e.g. 'Write 3 posts about our product launch'"
+                      placeholder="Ask about your brand, strategy, audience, or anything else…"
                       style={{
                         flex: 1,
                         border: 'none',
