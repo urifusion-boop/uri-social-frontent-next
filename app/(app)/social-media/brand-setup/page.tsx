@@ -783,8 +783,26 @@ function BrandSetupPageContent() {
         router.replace(`/settings/social-accounts?sessionToken=${encodeURIComponent(sessionToken)}&connected=pending`);
         return;
       }
-      // Onboarding OAuth callback — don't redirect to workspace
+      // Onboarding OAuth callback — navigate to connectAccounts step and load pending pages
       setCheckingExisting(false);
+      setStep(STEPS.indexOf('connectAccounts'));
+      setConnectSessionToken(sessionToken);
+      setConnectPhase('connecting');
+      SocialAccountService.getPendingConnection(sessionToken)
+        .then((res) => {
+          if (res.status && res.responseData?.available_pages) {
+            const pages: AvailablePage[] = res.responseData.available_pages;
+            setAvailablePages(pages);
+            setConnectNetworkName(res.responseData.network || 'Facebook');
+            const selectableIds = pages.filter((p) => !p.auto_connect).map((p) => p.id);
+            setSelectedPageIds(selectableIds);
+            setConnectPhase('pending');
+          } else {
+            setConnectPhase('selecting');
+          }
+        })
+        .catch(() => setConnectPhase('selecting'));
+      router.replace('/social-media/brand-setup');
       return;
     }
 
@@ -794,71 +812,8 @@ function BrandSetupPageContent() {
     });
   }, [userDetails, router, searchParams]);
 
-  // Detect OAuth callback return from Outstand (?sessionToken=...&connected=pending)
-  // or LinkedIn/X callback (?connected=true&platform=linkedin&username=...)
-  useEffect(() => {
-    if (checkingExisting) return;
-    const sessionToken = searchParams.get('sessionToken');
-    const connected = searchParams.get('connected');
-    const platform = searchParams.get('platform');
-    const username = searchParams.get('username');
-
-    // Instagram direct OAuth callback
-    if (connected === 'instagram_direct') {
-      const igUserId = searchParams.get('ig_user_id');
-      const igUsername = searchParams.get('username') ?? 'Instagram';
-      router.replace('/social-media/brand-setup');
-      if (igUserId) {
-        SocialAccountService.finalizeInstagramDirect(igUserId)
-          .then(() => {
-            setConnectedAccountNames((prev) => [...prev, `@${igUsername}`]);
-            setStep(STEPS.indexOf('connectAccounts'));
-            setConnectPhase('success');
-          })
-          .catch(() => {
-            setConnectPhase('selecting');
-          });
-      }
-      return;
-    }
-
-    if (connected === 'true' && platform) {
-      // New LinkedIn / X OAuth callback
-      const displayName = username ? decodeURIComponent(username) : platform;
-      setConnectedAccountNames((prev) => [...prev, displayName]);
-      setStep(STEPS.indexOf('connectAccounts'));
-      setConnectPhase('success');
-      router.replace('/social-media/brand-setup');
-    } else if (connected === 'false' && platform) {
-      setStep(STEPS.indexOf('connectAccounts'));
-      setConnectPhase('selecting');
-      router.replace('/social-media/brand-setup');
-    } else if (connected === 'pending' && typeof sessionToken === 'string' && sessionToken) {
-      setConnectSessionToken(sessionToken);
-      setStep(STEPS.indexOf('connectAccounts'));
-      setConnectPhase('connecting');
-      router.replace('/social-media/brand-setup');
-
-      SocialAccountService.getPendingConnection(sessionToken)
-        .then((res) => {
-          if (res.status && res.responseData) {
-            const pages = res.responseData.available_pages ?? [];
-            setAvailablePages(pages);
-            setConnectNetworkName(res.responseData.network ?? '');
-            const selectable = pages.filter((p) => !p.auto_connect);
-            if (selectable.length === 1) setSelectedPageIds([selectable[0].id]);
-            setConnectPhase('pending');
-          } else {
-            setConnectPhase('selecting');
-          }
-        })
-        .catch(() => setConnectPhase('selecting'));
-    } else if (connected === 'false') {
-      setStep(STEPS.indexOf('connectAccounts'));
-      setConnectPhase('selecting');
-      router.replace('/social-media/brand-setup');
-    }
-  }, [searchParams, checkingExisting, router]);
+  // Note: OAuth callbacks for social connections now handled in /settings/social-accounts
+  // since account connection was moved out of onboarding flow
 
   const next = () => {
     trackEvent('onboarding_step_complete', { step: step, step_name: STEPS[step] });
@@ -1027,7 +982,7 @@ function BrandSetupPageContent() {
             color: '#E4405F',
             bg: '#FDE7EC',
             description: 'Business & creator accounts',
-            flow: 'outstand',
+            flow: 'instagram_direct',
           },
           {
             id: 'linkedin',
@@ -1128,17 +1083,15 @@ function BrandSetupPageContent() {
             return;
           }
 
-          // Instagram: direct OAuth flow (bypasses Outstand)
-          if (selectedConnectPlatform === 'instagram') {
-            const apiBase =
-              process.env.NODE_ENV !== 'production'
-                ? process.env.NEXT_PUBLIC_URI_API_BASE_URL_DEV
-                : process.env.NEXT_PUBLIC_URI_API_BASE_URL;
+          // Instagram direct — Meta/Facebook Login flow
+          if (platform.flow === 'instagram_direct') {
+            setConnectPhase('connecting');
+            const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
             window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=onboarding`;
             return;
           }
 
-          // Outstand flow (Facebook / other platforms)
+          // Outstand flow (Facebook and other platforms)
           setConnectPhase('connecting');
           try {
             const res = await SocialAccountService.initiateConnection([selectedConnectPlatform]);
@@ -1925,7 +1878,8 @@ function BrandSetupPageContent() {
               </Box>
               <StylePickerGallery industry={industry} selected={styleSelections} onChange={setStyleSelections} />
             </Box>
-            <Box display="flex" gap={1.5} alignItems="center">
+
+            <Box display="flex" gap={1.5} alignItems="center" mt={3}>
               <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
                 Continue →
               </CustomButton>

@@ -48,6 +48,7 @@ const NUM_SLIDES_OPTIONS = [2, 3, 4, 5];
 
 interface ContentGeneratorFormProps {
   onGenerated: () => void;
+  requireEmailVerification: (callback?: () => void) => boolean;
 }
 
 function _friendlyGenerationError(msg?: string): string {
@@ -68,7 +69,7 @@ function _friendlyGenerationError(msg?: string): string {
   return 'Content generation failed. Please try again.';
 }
 
-const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
+const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: ContentGeneratorFormProps) => {
   const [seedContent, setSeedContent] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
   const [includeImages, setIncludeImages] = useState(false);
@@ -98,7 +99,7 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
     can_proceed?: boolean;
   } | null>(null);
 
-  const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook');
+  const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook' || p === 'linkedin');
 
   // Reset post type to feed if selector is hidden (no Instagram/Facebook selected)
   useEffect(() => {
@@ -291,6 +292,12 @@ const ContentGeneratorForm = ({ onGenerated }: ContentGeneratorFormProps) => {
   };
 
   const handleGenerate = async () => {
+    // Check email verification FIRST before anything else
+    const canProceed = requireEmailVerification();
+    if (!canProceed) {
+      return; // Modal will show, user can verify and come back
+    }
+
     if (seedContent.trim().length < 10) {
       ToastService.showToast('Seed content must be at least 10 characters', ToastTypeEnum.Error);
       return;

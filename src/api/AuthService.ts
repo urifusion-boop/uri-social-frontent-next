@@ -20,6 +20,32 @@ export interface AuthResponseData {
   email: string;
   firstName: string;
   lastName: string;
+  requiresVerification?: boolean;
+  emailVerified?: boolean;
+}
+
+export interface VerifyEmailRequest {
+  email: string;
+  code: string;
+}
+
+export interface ResendVerificationRequest {
+  email: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  code: string;
+  new_password: string;
+}
+
+export interface ChangePasswordRequest {
+  old_password: string;
+  new_password: string;
 }
 
 export class AuthService {
@@ -43,6 +69,46 @@ export class AuthService {
     const response: AxiosResponse<UriResponse<AuthResponseData>> = await UriHttpClient.getClient().post(
       '/social-media/auth/google',
       { code, redirect_uri: redirectUri }
+    );
+    return response.data;
+  }
+
+  static async verifyEmail(data: VerifyEmailRequest): Promise<UriResponse<AuthResponseData>> {
+    const response: AxiosResponse<UriResponse<AuthResponseData>> = await UriHttpClient.getClient().post(
+      '/social-media/auth/verify-email',
+      data
+    );
+    return response.data;
+  }
+
+  static async resendVerification(data: ResendVerificationRequest): Promise<UriResponse<{ email: string }>> {
+    const response: AxiosResponse<UriResponse<{ email: string }>> = await UriHttpClient.getClient().post(
+      '/social-media/auth/resend-verification',
+      data
+    );
+    return response.data;
+  }
+
+  static async forgotPassword(data: ForgotPasswordRequest): Promise<UriResponse<object>> {
+    const response: AxiosResponse<UriResponse<object>> = await UriHttpClient.getClient().post(
+      '/social-media/auth/forgot-password',
+      data
+    );
+    return response.data;
+  }
+
+  static async resetPassword(data: ResetPasswordRequest): Promise<UriResponse<object>> {
+    const response: AxiosResponse<UriResponse<object>> = await UriHttpClient.getClient().post(
+      '/social-media/auth/reset-password',
+      data
+    );
+    return response.data;
+  }
+
+  static async changePassword(data: ChangePasswordRequest): Promise<UriResponse<object>> {
+    const response: AxiosResponse<UriResponse<object>> = await UriHttpClient.getClient().post(
+      '/social-media/auth/change-password',
+      data
     );
     return response.data;
   }

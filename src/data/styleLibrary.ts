@@ -6,6 +6,8 @@ export interface StyleTemplate {
   gradient: [string, string];
   image: string;
   promptFragment: string;
+  styleType?: string; // 'marketing_template' for AI Marketing Templates
+  templateCategory?: string; // 'editorial', 'beverage', 'food', 'ecommerce'
 }
 
 const U = (id: string) => `https://images.unsplash.com/photo-${id}?w=600&h=300&fit=crop&auto=format&q=80`;
@@ -1140,6 +1142,1824 @@ export const STYLES: StyleTemplate[] = [
     image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/art-piece/street-market.jpg',
     promptFragment: `Create a street-market art-piece product poster in 9:16 mobile wallpaper format (1080x1920). Advanced design level. Ultra-realistic. ENVIRONMENT: The product is displayed in a vibrant street market scene — colourful market stalls, fresh produce, handmade goods, bustling energy. Background shows market life — crates, baskets, textiles, natural textures. The aesthetic is authentic, colourful, and community-focused. PRODUCT PLACEMENT: The product sits prominently on a market table or stand, surrounded by market elements but clearly the hero of the scene. Takes up 20-30% of the frame. BRANDING INTEGRATION: Brand logo is placed at the top centre in a bold, friendly font (black or market colour). Tagline is positioned below the logo or near the product in a complementary handcrafted font. Feature badges (e.g., 'Fresh', 'Local', 'Handmade') are placed near the bottom in colourful frames. LAYOUT & COMPOSITION: 9:16 vertical format. Market scene fills the background. Product in lower-middle area on market stand. Logo at top. Badges at bottom. The composition is vibrant, authentic, and community-focused. LIGHTING: Natural daylight. Bright, colourful, authentic. Slight shadows from market canopy. COLOR PALETTE: Vibrant market colours — reds, yellows, greens, oranges, natural wood tones. Product colours pop against colourful market backdrop. MOOD: Authentic, vibrant, community, fresh, local, colourful, energetic. QUALITY: 4K, ultra-realistic, street photography, authentic commercial aesthetic.`,
   },
+
+  // ══════════════════════════════════════════════════════════════
+  // AI MARKETING TEMPLATES (Professional Prompt-Engineered Templates)
+  // ══════════════════════════════════════════════════════════════
+
+  {
+    slug: 'modern_doodle_collage',
+    name: 'Modern Doodle Collage',
+    description: 'Editorial fashion poster with playful doodle graphics and minimalist product focus',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#f5e6d3', '#ff6b9d'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/marketing-templates/modern-doodle-collage.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'editorial',
+    promptFragment: `FORMAT:\nSquare or 4:5 social media poster. Minimalist editorial composition with a human model in a dynamic fashion pose interacting with [PRODUCT_NAME]. The layout is split into three visual zones: top (playful doodle graphics), middle (human model + product), bottom (clean text space).\n\nSTYLE:\nModern editorial fashion meets playful collage. The aesthetic blends minimalist product photography with hand-drawn doodle overlays — think illustrated stars, arrows, squiggles, and abstract shapes floating around the model and product. The doodles add personality without overwhelming the composition.\n\nCOMPOSITION:\n• Top 25%: Abstract doodle elements (stars, arrows, circles) in accent colors — playful but not chaotic\n• Middle 50%: Human model in a confident, natural pose holding or wearing [PRODUCT_NAME]. The model should look editorial but relatable. Product is clearly visible and well-lit. Background is a solid soft color (cream, light grey, or pastel)\n• Bottom 25%: Clean text space with plenty of breathing room. Simple bold typography for headline or tagline\n\nMODEL:\nA diverse, fashionable human model in casual-chic attire (neutral tones to not compete with product). Natural, confident expression. The model is interacting with [PRODUCT_NAME] — holding it, wearing it, or showcasing it in a lifestyle context. Pose is dynamic but not overly stylized.\n\nTYPOGRAPHY:\nBold sans-serif headline at the bottom in a single accent color (pulled from product or doodles). Text is large, legible, and has space around it. Optional: Small subtext in lighter weight.\n\nCOLOR PALETTE:\nBase: Soft neutral background (cream, off-white, light grey, blush pink)\nAccent: 1-2 vibrant colors for doodles and text (coral, teal, mustard yellow, or bold red)\nProduct colors should pop against the neutral base\n\nLIGHTING:\nSoft, even editorial lighting. No harsh shadows. The model and product should be well-lit with a slight halo effect to make them stand out from the background.\n\nMOOD:\nFresh, approachable, editorial, playful, confident. It feels like a high-end fashion campaign but with personality and warmth.\n\nQUALITY:\nHigh-resolution, clean lines, polished but not overly retouched. Doodles should look intentional and hand-drawn (not clipart).\n\nFINAL RENDER:\nA balanced composition where the human model and [PRODUCT_NAME] are the clear heroes, framed by playful doodle accents and clean typography. The result is scroll-stopping, shareable, and perfectly suited for Instagram feed or stories.`,
+  },
+
+  {
+    slug: 'minimalist_editorial',
+    name: 'Minimalist Editorial',
+    description: 'Clean luxury aesthetic with bold typography and sophisticated product showcase',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#f5f5f5', '#8b7d6b'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/marketing-templates/minimalist-editorial.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'editorial',
+    promptFragment: `FORMAT:\nSquare or 4:5 Instagram post. High-end editorial layout with extreme minimalism. The focus is on [PRODUCT_NAME] as the singular hero, supported by bold typography and abundant negative space.\n\nSTYLE:\nUltra-minimalist luxury editorial. Think high-fashion magazine spreads — clean, sophisticated, with an almost architectural precision. Every element is intentional. The aesthetic is expensive, refined, and confidence-inducing.\n\nCOMPOSITION:\n• Top 30%: Bold, oversized typography (brand name or product headline) in a modern serif or sans-serif. Text is aligned left or centered with lots of breathing room\n• Middle 40%: [PRODUCT_NAME] shot in pristine detail against a solid background (pure white, soft grey, or muted pastel). The product is lit dramatically to create subtle shadows and depth. It sits slightly off-center for visual interest\n• Bottom 30%: Clean space with optional tagline in small, refined type. Minimal text — let the product speak\n\nMODEL:\nNo human model. This is pure product-focused editorial. [PRODUCT_NAME] is the star, captured in sharp detail with perfect lighting and angles.\n\nTYPOGRAPHY:\nBold, oversized headline in a luxury typeface (modern serif like Playfair Display or clean sans like Helvetica Neue). Text is large, confident, and takes up significant visual space. Color is typically black, charcoal, or a muted accent color.\n\nCOLOR PALETTE:\nMonochromatic or duo-tone:\n• Background: Pure white, soft grey, cream, or muted pastel (blush, sage, powder blue)\n• Product: Natural product colors, but overall palette is restrained and cohesive\n• Typography: Black, charcoal, or a single muted accent color\n\nLIGHTING:\nStudio lighting with dramatic contrast. The product should have defined shadows that add depth without being harsh. Think luxury product photography — clean, controlled, with a sense of dimension.\n\nMOOD:\nLuxurious, confident, sophisticated, expensive, editorial, aspirational. This is for brands that want to feel premium and high-end.\n\nQUALITY:\nUltra-high resolution. Razor-sharp product detail. Flawless execution. Every pixel is intentional.\n\nFINAL RENDER:\nA striking, museum-quality image where [PRODUCT_NAME] is elevated to art. Bold typography commands attention, while negative space creates breathing room. The result is unmistakably premium and scroll-stopping.`,
+  },
+
+  {
+    slug: 'drink_splash',
+    name: 'Drink Splash',
+    description: 'High-energy beverage photography with dramatic liquid motion and vibrant colors',
+    industryTags: ['food_beverage', 'general_other'],
+    gradient: ['#00d4ff', '#ff6b35'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/marketing-templates/drink-splash.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'beverage',
+    promptFragment: `FORMAT:\nSquare or 4:5 social media post. High-energy commercial product shot optimized for beverage brands. The composition is centered, dynamic, and designed to stop the scroll.\n\nSTYLE:\nHigh-energy commercial beverage photography. Think Red Bull, Coca-Cola, or craft beer campaigns — vibrant, fresh, and full of motion. The aesthetic is polished but energetic, with a focus on freshness, flavor, and movement.\n\nCOMPOSITION:\n• Center: [PRODUCT_NAME] (bottle, can, or glass) is the clear hero, positioned dead center or slightly off-center for dynamic tension\n• Foreground: Dramatic liquid splash frozen mid-motion — droplets flying, liquid arcing through the air. The splash should feel powerful but not chaotic. It frames the product without obscuring it\n• Background: Solid vibrant color or gradient that complements the drink (electric blue, citrus orange, lime green, deep red). The background is clean and allows the product and splash to pop\n• Optional garnish: Fresh fruit slices (lemon, lime, orange, berries) floating near the splash or at the base of the product\n\nMODEL:\nNo human model. This is pure product and motion. [PRODUCT_NAME] is the star, supported by the liquid splash and color.\n\nTYPOGRAPHY:\nOptional: Bold product name or tagline at the top or bottom in a modern, punchy typeface. Text should be minimal and not compete with the splash. Color is typically white or a bright accent that contrasts with the background.\n\nCOLOR PALETTE:\nVibrant and high-contrast:\n• Background: Bold, saturated color (electric blue, bright orange, lime green, deep magenta, or gradient)\n• Product: Natural product colors (label, liquid color)\n• Splash: Clear or tinted to match the drink (water, juice, soda bubbles)\n• Garnish: Natural fruit colors for added freshness\n\nLIGHTING:\nHigh-speed studio lighting to freeze the splash in perfect detail. Dramatic backlighting or side lighting creates highlights on the droplets and product. The lighting should make the liquid glisten and the product label sharp and readable.\n\nMOOD:\nEnergetic, refreshing, bold, dynamic, thirst-quenching. This is for brands that want to convey freshness, flavor, and excitement.\n\nQUALITY:\nUltra-high resolution. Razor-sharp details on droplets, splash motion, and product label. High-speed capture aesthetic — every droplet is crisp.\n\nFINAL RENDER:\nA jaw-dropping action shot where [PRODUCT_NAME] is surrounded by a dramatic liquid splash that feels alive. Vibrant colors, sharp details, and dynamic motion create an image that screams refreshment and energy. Perfect for social feeds, ads, or hero banners.`,
+  },
+
+  {
+    slug: 'food_trust_builder',
+    name: 'Food Trust Builder',
+    description: 'Authentic farm-to-table aesthetic with natural ingredients and transparent sourcing story',
+    industryTags: ['food_beverage', 'health_wellness', 'general_other'],
+    gradient: ['#d4a574', '#5d7a3f'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/marketing-templates/food-trust-builder.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'food',
+    promptFragment: `FORMAT:\n4:5 or square Instagram post. Authentic, trust-building food photography designed for brands that prioritize transparency, quality ingredients, and ethical sourcing. The composition tells a story of craftsmanship and care.\n\nSTYLE:\nFarm-to-table meets artisanal food photography. The aesthetic is warm, natural, and honest — think farmers market, rustic kitchens, and handcrafted food. It feels real, not overly styled. The goal is to build trust and convey quality.\n\nCOMPOSITION:\n• Center: [PRODUCT_NAME] (packaged food product or prepared dish) is the hero, placed on a natural surface (wood table, marble counter, linen cloth)\n• Surrounding context: Raw ingredients that go into the product are arranged around it — fresh vegetables, grains, herbs, spices. These ingredients tell the sourcing story and emphasize quality\n• Props: Natural, minimal props — wooden bowls, ceramic dishes, fresh herbs, burlap, twine. Props should support, not distract\n• Layout: Flat lay or 45-degree angle. Ingredients are arranged in a natural, unforced way with space between elements\n\nMODEL:\nOptional: Human hands in the frame — preparing food, holding ingredients, or arranging the product. Hands should look real and diverse (not stock photo perfect). If no hands, the composition is purely product + ingredients.\n\nTYPOGRAPHY:\nOptional: Small, handwritten-style text overlay with key messaging — 'Made with [ingredient]', 'Farm Fresh', 'No Preservatives', '100% Organic'. Text is subtle, transparent, and placed in negative space. Typically white or soft black.\n\nCOLOR PALETTE:\nWarm, natural, earthy:\n• Base: Natural wood tones, cream, linen whites, soft greys\n• Ingredients: Vibrant natural colors — greens (herbs, vegetables), reds (tomatoes, peppers), golden yellows (grains, oils)\n• Product: Natural packaging colors (kraft paper, earth tones, or brand colors that feel organic)\n\nLIGHTING:\nSoft natural window light from the side or above. Gentle shadows that add depth without being harsh. The lighting should feel like morning sunlight in a kitchen — warm, inviting, and honest.\n\nMOOD:\nTrustworthy, authentic, wholesome, transparent, artisanal, farm-fresh, honest. This is for brands that want to emphasize quality, sourcing, and care.\n\nQUALITY:\nHigh resolution but not overly polished. Textures should be visible — wood grain, fabric weave, herb details. The aesthetic is 'real food, real ingredients'.\n\nFINAL RENDER:\nA warm, inviting image where [PRODUCT_NAME] is surrounded by the raw ingredients and context that tell its story. The viewer immediately understands the quality, sourcing, and care behind the product. Perfect for organic brands, artisanal food companies, and transparency-focused marketing.`,
+  },
+
+  {
+    slug: 'hyperpop_perspective',
+    name: 'Hyperpop Perspective',
+    description: 'Bold ultra-saturated aesthetic with dramatic angles and Gen-Z energy',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'tech_innovation', 'general_other'],
+    gradient: ['#ff0080', '#00ffff'],
+    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/marketing-templates/hyperpop-perspective.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'ecommerce',
+    promptFragment: `FORMAT:\n4:5 or 9:16 vertical social post. Ultra-modern, hyper-saturated product photography designed for Gen-Z and bold brands. The composition is dramatic, colorful, and unmistakably attention-grabbing.\n\nSTYLE:\nHyperpop meets maximalist product photography. Think neon-soaked, high-contrast, ultra-vibrant aesthetics inspired by cyberpunk, Y2K nostalgia, and digital art. The vibe is bold, confident, and designed to stop thumbs mid-scroll.\n\nCOMPOSITION:\n• Center-stage: [PRODUCT_NAME] is shot from a dramatic low angle or tilted perspective (Dutch angle). The product feels larger-than-life and powerful\n• Background: Vibrant gradient or solid neon color (electric pink, cyan blue, acid green, sunset orange). Background can include subtle geometric shapes, gradients, or light streaks for added energy\n• Lighting effects: Neon glows, lens flares, light streaks, or holographic reflections around the product. These effects add dimension and futuristic energy\n• Foreground elements: Optional floating geometric shapes (spheres, cubes, rings) in complementary neon colors to frame the product\n\nMODEL:\nOptional: If human presence is needed, include a Gen-Z model with bold style (colorful hair, statement makeup, futuristic accessories). Model is secondary to the product and shot from dramatic angles. If no model, the product is the sole hero.\n\nTYPOGRAPHY:\nBold, futuristic typeface (think techno, cyberpunk, or ultra-bold sans). Text is large, layered, and colorful — often with gradient fills, glows, or 3D effects. Headline sits at top or bottom with high contrast against the background.\n\nCOLOR PALETTE:\nUltra-saturated and high-contrast:\n• Background: Neon gradients (pink-to-blue, orange-to-purple, green-to-cyan) or solid neon colors\n• Product: Natural product colors, but the lighting and effects make it pop with neon highlights\n• Accents: Electric blue, hot pink, acid green, cyber yellow, magenta, holographic reflections\n\nLIGHTING:\nDramatic, high-contrast lighting with neon accent lights. The product is backlit or side-lit to create glowing edges (rim lighting). Lens flares, light leaks, and glows are intentional and add to the futuristic aesthetic.\n\nMOOD:\nBold, energetic, futuristic, confident, rebellious, hyper-modern. This is for brands targeting Gen-Z, gaming culture, or anyone wanting to make a loud statement.\n\nQUALITY:\nUltra-high resolution with intentional digital effects. Colors are pumped to maximum saturation. Details are sharp, but the aesthetic embraces digital maximalism.\n\nFINAL RENDER:\nA visually explosive image where [PRODUCT_NAME] dominates the frame with dramatic angles, neon colors, and futuristic energy. The result is impossible to ignore — perfect for bold brands, hype drops, and Gen-Z-focused campaigns.`,
+  },
+
+  // ══════════════════════════════════════════════════════════════
+  // VISUAL STYLE GUIDES 2026 (28 Professional Styles)
+  // ══════════════════════════════════════════════════════════════
+
+  // ── STARTUP / SAAS VISUAL STYLES (13 styles) ──────────────────
+
+  {
+    slug: 'strategic_collage_editorial',
+    name: 'Strategic Collage Editorial',
+    description: 'Premium startup-editorial with modern strategic collage aesthetic and paper textures.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#1a1a2e', '#6a5acd'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/strategic-collage-editorial.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create a premium startup-editorial campaign visual in a modern "strategic collage" aesthetic.
+
+STYLE:
+• Clean SaaS branding blended with magazine editorial design and subtle handcrafted paper textures.
+
+LAYOUT:
+• Asymmetrical split-screen composition.
+• Left section: Strategic collage arrangement featuring paper torn-edge elements layered tastefully—never messy.
+• Right section: Clean, editorial-style hero photograph or bold product/interface screenshot.
+
+COMPOSITION:
+• Collage elements: white or off-white paper shapes with natural torn edges, layered with subtle shadows (depth without chaos).
+• Include minimal accent marks: delicate pencil sketch lines, faint dotted Bézier curves, or small geometric shapes.
+• Paper stack depth: 2–3 layers maximum; must appear planned and strategic, not cluttered.
+• Balance: left side is textural and artistic; right side is bold, clean, professional.
+
+SUBJECT:
+• Right-side visual: Founder portrait, clean interface mockup, or strategic brand imagery (e.g., laptop, charts, typography lockup).
+• If showing interface: crisply rendered UI with soft gradients or modern SaaS brand colors (blues, purples, warm neutrals).
+
+TYPOGRAPHY:
+• Include minimal editorial-style text overlay: subheadline or tagline in a refined sans-serif or slim serif typeface.
+• Text positioned with breathing room—never crowding elements.
+• Acceptable tone: professional, strategic, aspirational, human.
+
+LIGHTING:
+• Natural editorial lighting: soft directional shadows creating gentle dimension.
+• Collage elements: subtle drop shadows to lift layers.
+• Right-side imagery: natural or softly lit studio quality.
+
+TEXTURE:
+• Visible paper grain and hand-torn edge texture on collage pieces—realistic but not overly rough.
+• Clean sections remain crisp and polished.
+
+COLOR SYSTEM:
+• Collage base: white, ivory, soft cream, pale grey.
+• Accent colors from brand (subtle blues, lilac, warm beige, muted coral).
+• Right-side image: full-color brand visuals or muted editorial tones.
+
+MOOD:
+• Strategic, editorial, thoughtfully composed, modern, human-centered, refined.
+• Feels premium without feeling cold; creative without being chaotic.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic torn paper texture and shadow rendering.
+• Balanced composition where collage and editorial photography integrate seamlessly.`,
+  },
+
+  {
+    slug: 'premium_utility_minimalism',
+    name: 'Premium Utility Minimalism',
+    description: 'Brutalist-functional minimalism with industrial elegance and high-contrast lighting.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#0a0a0a', '#d4d4d8'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/premium-utility-minimalism.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create a brutalist-functional minimalist campaign visual with industrial elegance and precision engineering.
+
+STYLE:
+• Modern utility meets premium craftsmanship. Think Apple's industrial design language meets architectural brutalism.
+
+LAYOUT:
+• Clean centered composition or asymmetric left/right hero product split.
+• Generous negative space on all sides—breathing room is essential.
+
+COMPOSITION:
+• Monochromatic or near-monochromatic base palette: blacks, greys, whites, metallics.
+• Product or subject rendered with ultra-clean lines and functional design language.
+• Optional subtle grid or geometric guide overlay—minimal, not decorative.
+
+SUBJECT:
+• Premium product, device, or interface mockup floating or placed on industrial surface (brushed metal, concrete, black glass).
+• If showing interface: ultra-refined UI in high contrast, with crisp shadows and modern functional design.
+• If showing physical product: precision-machined aesthetic, premium materials visible.
+
+TYPOGRAPHY:
+• Minimal sans-serif—Helvetica Neue, Euclid, Inter, or similar functional typeface.
+• Single headline or tagline, small and restrained—never overpowering the product.
+• Optional: small technical annotation labels in light grey for added context.
+
+LIGHTING:
+• High-contrast studio lighting with dramatic shadows.
+• Single directional key light creating sharp definition and clean shadow falloff.
+• Subtle rim lighting on product edges for premium dimensionality.
+
+TEXTURE:
+• Visible premium material textures: brushed aluminum, anodized black, matte concrete, leather grain.
+• Surfaces should feel expensive and functional.
+
+COLOR SYSTEM:
+• Base: pure black, charcoal grey, white, cool greys.
+• Accents: single brand color if needed (muted blue, steel teal, or warm copper).
+• Metallics allowed as material finishes (silver, gunmetal, brushed gold).
+
+MOOD:
+• Functional, precise, premium, confident, architectural, brutalist elegance.
+• Feels expensive and intentional—nothing superfluous.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic material rendering and lighting.
+• Geometric precision and mathematical balance.`,
+  },
+
+  {
+    slug: 'neo_brutalist_startup',
+    name: 'Neo-Brutalist Startup',
+    description: 'Bold geometries, raw unfinished aesthetic, high-contrast brand statements.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#000000', '#ff6b35'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/neo-brutalist-startup.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create a neo-brutalist startup campaign visual with bold geometries and raw unfinished aesthetic.
+
+STYLE:
+• Brutalism meets modern digital design—raw, geometric, unapologetic, high-impact.
+
+LAYOUT:
+• Grid-based or asymmetric geometric block layout.
+• Hard edges, no rounded corners—everything angular and structural.
+• Large bold shapes divided into clear visual zones.
+
+COMPOSITION:
+• High-contrast geometric shapes: thick borders, solid color blocks, overlapping rectangles.
+• Optional: exposed grid lines, visible structural guides, or faint blueprint-style annotations.
+• Typography integrated as bold structural elements—text as architecture.
+
+SUBJECT:
+• Product, interface mockup, or abstract brand representation.
+• Interface: high-contrast UI with bold geometric containers and thick borders.
+• Physical products: shown against stark geometric backgrounds or framed by bold shapes.
+
+TYPOGRAPHY:
+• Ultra-bold sans-serif headlines (Druk, Neue Haas Grotesk Bold, or similar).
+• Large, structural, and confident—text occupies significant visual weight.
+• Optional small utility text in lighter weight for balance.
+
+LIGHTING:
+• Flat or slightly directional lighting—no soft gradients.
+• High-contrast shadows—sharp and geometric, not soft.
+• Optional harsh rim lighting for added drama.
+
+TEXTURE:
+• Raw concrete, exposed industrial surfaces, matte blacks, unfinished materials.
+• Surfaces feel solid and functional.
+
+COLOR SYSTEM:
+• Base: black, white, grey, raw concrete tones.
+• Bold accent: single high-impact brand color (electric orange, vivid red, cobalt blue, neon yellow).
+• Limited palette—high contrast.
+
+MOOD:
+• Bold, unapologetic, structural, raw, confident, architectural.
+• Feels powerful and intentional—design as statement.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Crisp geometric rendering and strong visual hierarchy.
+• Photorealistic material textures.`,
+  },
+
+  {
+    slug: 'cinematic_startup_realism',
+    name: 'Cinematic Startup Realism',
+    description: 'Founder-focused cinematic storytelling with film-grade depth and warm natural light.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#2d1b00', '#f5a962'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/cinematic-startup-realism.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create a cinematic startup campaign visual with founder-focused storytelling and film-grade realism.
+
+STYLE:
+• Cinematic documentary aesthetic—natural, human, authentic, with shallow depth of field.
+
+LAYOUT:
+• Rule of thirds composition with intentional negative space.
+• Subject positioned naturally, not centered—feels candid but intentional.
+
+COMPOSITION:
+• Shallow depth of field (f/1.4–f/2.8 aesthetic)—subject in sharp focus, background softly blurred.
+• Natural framing: use architectural elements, windows, or doorways to frame subject.
+• Foreground elements: subtle bokeh or out-of-focus objects add cinematic layering.
+
+SUBJECT:
+• Founder or team member in real workspace environment—office, café, studio, or urban setting.
+• Natural candid pose—working, thinking, conversing—not overly staged.
+• Professional attire appropriate to brand (casual-professional, tailored, modern).
+
+WARDROBE:
+• Modern professional: neutral tones (black, navy, grey, white) with subtle brand color accents.
+• Refined but approachable—no overly formal suits unless brand-appropriate.
+
+ENVIRONMENT:
+• Real-world workspace: modern office, open studio, urban café, or architectural backdrop.
+• Natural materials: wood, brick, concrete, glass—feels real and grounded.
+• Soft ambient light from windows or natural sources.
+
+TYPOGRAPHY:
+• Minimal serif or clean sans-serif subheadline or tagline.
+• Small, tasteful, positioned with breathing room—never competing with photography.
+
+LIGHTING:
+• Soft natural light from windows or ambient sources—golden hour or diffused daylight preferred.
+• Gentle shadows and highlights—natural human skin tones.
+• Optional subtle practical lights in background (desk lamps, monitors) for depth.
+
+TEXTURE:
+• Natural materials: wood grain, fabric weave, concrete texture.
+• Realistic human skin tones and fabric rendering.
+
+COLOR SYSTEM:
+• Warm natural tones: golden hour warmth, amber accents, soft shadows.
+• Muted brand colors integrated subtly (in clothing, environment, or light accents).
+• Natural color grading—slightly desaturated with warm lift.
+
+MOOD:
+• Authentic, human, cinematic, aspirational, grounded, founder-focused.
+• Feels real and relatable—not overly polished or corporate.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic with cinematic depth of field.
+• Film-grade color grading and natural lighting.`,
+  },
+
+  {
+    slug: 'futuristic_enterprise_glow',
+    name: 'Futuristic Enterprise Glow',
+    description: 'Tech-forward holographic UI with glowing interfaces and cyberpunk-lite aesthetics.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#0a0a1a', '#00d4ff'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/futuristic-enterprise-glow.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create a futuristic enterprise campaign visual with holographic UI and glowing interfaces.
+
+STYLE:
+• Tech-forward sci-fi aesthetic—glowing interfaces, holographic projections, cyberpunk-lite elegance.
+
+LAYOUT:
+• Layered interface composition with glowing UI elements floating in 3D space.
+• Central hero interface or dashboard with supporting holographic data panels.
+
+COMPOSITION:
+• Holographic UI panels: transparent glowing interfaces with neon edge highlights.
+• Depth layering: multiple interface panels at varying z-depths creating dimensional space.
+• Subtle grid or wireframe elements in background for sci-fi context.
+
+SUBJECT:
+• Futuristic dashboard, interface mockup, or data visualization.
+• Interface elements: charts, graphs, data panels, code snippets—all rendered with glowing edges.
+• Optional: sleek device or screen displaying interface.
+
+TYPOGRAPHY:
+• Futuristic sans-serif typeface (Orbitron, Exo, Rajdhani, or similar).
+• Glowing text with subtle neon edge glow—blues, cyans, purples.
+• Data labels and UI annotations integrated into interface panels.
+
+LIGHTING:
+• Glowing neon lighting from interface elements—primary light source.
+• Dark ambient environment with interface glow illuminating surroundings.
+• Subtle rim lighting on any physical elements (devices, hands).
+
+TEXTURE:
+• Glowing glass-like transparency on holographic panels.
+• Subtle scan lines or digital noise for sci-fi authenticity.
+• Reflective surfaces on devices or environment.
+
+COLOR SYSTEM:
+• Base: deep blacks, dark navy, charcoal greys.
+• Glow colors: electric cyan, neon blue, bright purple, teal green.
+• Accents: white UI text and high-contrast data visualizations.
+
+MOOD:
+• Futuristic, intelligent, enterprise-grade, tech-forward, glowing elegance.
+• Feels advanced and cutting-edge—not overly cyberpunk, still professional.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic glowing effects and holographic transparency.
+• Dimensional depth and layering.`,
+  },
+
+  {
+    slug: 'quiet_luxury_saas',
+    name: 'Quiet Luxury SaaS',
+    description: 'Old-money sophistication meets modern tech—muted tones and premium material details.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#3e3e3e', '#c5b8a5'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/quiet-luxury-saas.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create a quiet luxury SaaS campaign visual with old-money sophistication and premium materials.
+
+STYLE:
+• Quiet luxury aesthetic—understated elegance, premium materials, muted sophistication.
+
+LAYOUT:
+• Centered or asymmetric minimal composition with generous negative space.
+• Hero product or interface displayed with restrained confidence.
+
+COMPOSITION:
+• Premium material surfaces: leather, marble, brushed metal, fine fabric.
+• Product or interface placed on luxury surface or integrated into refined environment.
+• Minimal decorative elements—luxury through restraint.
+
+SUBJECT:
+• Premium device, refined interface mockup, or elegant brand representation.
+• Interface: clean UI with muted brand colors and sophisticated typography.
+• Physical products: high-end materials and craftsmanship visible.
+
+TYPOGRAPHY:
+• Elegant serif or refined sans-serif (Canela, Freight, Graphik, or similar).
+• Small, understated, perfectly kerned—never loud.
+• Optional tasteful monogram or minimal brand lockup.
+
+LIGHTING:
+• Soft directional lighting creating gentle shadows.
+• Natural window light or diffused studio light—never harsh.
+• Subtle highlights on premium material textures.
+
+TEXTURE:
+• Visible premium material details: leather grain, marble veining, fabric weave, wood grain.
+• Surfaces feel expensive and tactile.
+
+COLOR SYSTEM:
+• Base: warm neutrals—cream, taupe, soft grey, charcoal, ivory.
+• Accent: muted brand colors (sage green, dusty blue, warm terracotta, forest green).
+• Metallics: brushed gold, rose gold, champagne bronze—subtle and refined.
+
+MOOD:
+• Sophisticated, understated, premium, timeless, quietly confident.
+• Luxury through restraint—feels expensive without shouting.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic material rendering and natural lighting.
+• Impeccable composition and balance.`,
+  },
+
+  {
+    slug: 'kinetic_startup_energy',
+    name: 'Kinetic Startup Energy',
+    description: 'High-motion blur, speed lines, dynamic action—capturing momentum and velocity.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#1a1a1a', '#ff4500'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/kinetic-startup-energy.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create a kinetic startup campaign visual with high-motion blur and dynamic action.
+
+STYLE:
+• Kinetic energy aesthetic—motion blur, speed lines, dynamic movement, velocity.
+
+LAYOUT:
+• Diagonal or off-axis composition suggesting forward momentum.
+• Subject positioned with directional flow—left to right or bottom to top.
+
+COMPOSITION:
+• Motion blur: directional blur trails suggesting speed and movement.
+• Speed lines: subtle geometric lines or streaks reinforcing direction.
+• Foreground and background elements: blurred with subject in partial focus.
+
+SUBJECT:
+• Founder in motion (walking, running, gesturing dynamically).
+• Device or product captured mid-action (spinning, flying, launching).
+• Interface: animated UI elements with motion trails or dynamic transitions.
+
+TYPOGRAPHY:
+• Bold dynamic typeface with motion-inspired design (italicized, skewed, or with speed lines).
+• Text positioned with directional energy—never static.
+
+LIGHTING:
+• Dynamic lighting with motion blur creating light trails.
+• High-contrast lighting emphasizing speed and action.
+• Optional light streaks or lens flares for kinetic energy.
+
+TEXTURE:
+• Motion blur creating soft texture in blurred areas.
+• Sharp details in focal point contrasting with blurred surroundings.
+
+COLOR SYSTEM:
+• Base: blacks, greys, deep blues.
+• Energy accents: bright orange, electric red, neon yellow, vivid magenta.
+• Gradient transitions suggesting movement and speed.
+
+MOOD:
+• Energetic, dynamic, fast-paced, momentum-driven, action-oriented.
+• Feels like movement and progress—never static.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Realistic motion blur and kinetic effects.
+• Sharp focal details with dynamic surrounding blur.`,
+  },
+
+  {
+    slug: 'afro_futurist_enterprise',
+    name: 'Afro-Futurist Enterprise',
+    description: 'African cultural patterns meet sci-fi tech—bold colors and futuristic optimism.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#1a0f00', '#ffb700'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/afro-futurist-enterprise.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create an Afro-futurist enterprise campaign visual with African cultural patterns and sci-fi tech.
+
+STYLE:
+• Afro-futurism aesthetic—African cultural heritage meets futuristic technology and optimism.
+
+LAYOUT:
+• Centered hero composition or dynamic asymmetric layout.
+• African-inspired geometric patterns integrated as background or framing elements.
+
+COMPOSITION:
+• Geometric patterns: Kente, Adinkra, or abstract African-inspired designs—subtle and modern.
+• Futuristic elements: holographic overlays, glowing interfaces, tech elements.
+• Layered depth: cultural patterns in background, tech elements in foreground.
+
+SUBJECT:
+• Founder, team member, or model of African descent in modern-futuristic setting.
+• Interface or product with Afro-futuristic design language.
+• Optional: traditional African textiles or artifacts integrated with modern tech.
+
+WARDROBE:
+• Modern professional attire with African-inspired prints, colors, or accessories.
+• Futuristic styling: sleek tailoring with cultural accents.
+
+ENVIRONMENT:
+• Futuristic setting with cultural warmth—modern office, tech lab, or urban backdrop.
+• African-inspired architectural elements or patterns integrated subtly.
+
+TYPOGRAPHY:
+• Bold modern typeface with geometric African pattern accents.
+• Text positioned with cultural and futuristic balance.
+
+LIGHTING:
+• Warm golden lighting mixed with cool futuristic glows.
+• Dramatic lighting emphasizing subject with cultural warmth.
+• Optional holographic glow effects for futuristic touch.
+
+TEXTURE:
+• African textile patterns: visible fabric weave or geometric pattern details.
+• Futuristic surfaces: glowing interfaces, metallic finishes.
+
+COLOR SYSTEM:
+• Base: deep blacks, warm browns, rich golds.
+• Cultural accents: bright yellows, oranges, reds, greens—African palette.
+• Futuristic accents: electric blues, cyans, neon purples.
+
+MOOD:
+• Optimistic, futuristic, culturally proud, tech-forward, warm.
+• Celebrates African heritage while embracing future innovation.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic with cultural and futuristic elements balanced.
+• Vibrant colors and dynamic composition.`,
+  },
+
+  {
+    slug: 'founder_documentary',
+    name: 'Founder Documentary',
+    description: 'Raw candid storytelling—black and white or muted tones with authentic human moments.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#1a1a1a', '#8a8a8a'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/founder-documentary.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create a founder documentary campaign visual with raw candid storytelling and authentic human moments.
+
+STYLE:
+• Documentary photography aesthetic—black and white or muted tones, candid, authentic.
+
+LAYOUT:
+• Natural candid composition following documentary photography rules.
+• Subject positioned naturally—rule of thirds or centered with intention.
+
+COMPOSITION:
+• Shallow depth of field creating cinematic focus on subject.
+• Natural framing using environment (doorways, windows, architecture).
+• Foreground elements for layering and depth.
+
+SUBJECT:
+• Founder or team member in authentic moment—working, thinking, conversing.
+• Real environment—office, home workspace, café, urban setting.
+• Natural expression and body language—not posed or staged.
+
+WARDROBE:
+• Authentic personal style—casual, professional, or creative depending on brand.
+• No overly formal attire unless genuinely representative.
+
+ENVIRONMENT:
+• Real-world workspace with authentic details and imperfections.
+• Natural materials and lived-in spaces—feels honest and human.
+
+TYPOGRAPHY:
+• Minimal—small caption-style text if any.
+• Typewriter or documentary-style typeface—understated and authentic.
+
+LIGHTING:
+• Natural available light—window light, ambient indoor light, golden hour outdoor.
+• Soft shadows and natural skin tones.
+• No artificial studio lighting—documentary realism.
+
+TEXTURE:
+• Visible film grain or subtle texture for documentary aesthetic.
+• Natural material textures in environment.
+
+COLOR SYSTEM:
+• Black and white with rich tonal range (preferred).
+• Alternative: muted desaturated color with warm or cool grade.
+• Natural human skin tones and environmental colors.
+
+MOOD:
+• Authentic, human, vulnerable, honest, documentary, intimate.
+• Feels real and unfiltered—storytelling through genuine moments.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic with documentary-style rendering.
+• Natural lighting and candid composition.`,
+  },
+
+  {
+    slug: 'intelligent_interface_surrealism',
+    name: 'Intelligent Interface Surrealism',
+    description: 'AI-inspired dreamlike interfaces with floating elements and soft gradients.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#1a0033', '#b366ff'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/intelligent-interface-surrealism.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create an intelligent interface surrealism campaign visual with AI-inspired dreamlike elements.
+
+STYLE:
+• Surreal tech aesthetic—AI-inspired, dreamlike, floating interfaces, soft gradients, intelligent beauty.
+
+LAYOUT:
+• Floating interface elements in three-dimensional dreamlike space.
+• Central hero interface with supporting elements suspended around it.
+
+COMPOSITION:
+• Floating UI panels: transparent, glowing, softly rendered interfaces.
+• Abstract AI-inspired shapes: neural network patterns, flowing data streams, geometric AI symbols.
+• Soft depth of field: foreground sharp, background elements softly blurred.
+
+SUBJECT:
+• Futuristic AI-powered interface or intelligent dashboard.
+• Floating data visualizations, neural network diagrams, or abstract AI representations.
+• Optional: human hand interacting with floating interface.
+
+TYPOGRAPHY:
+• Elegant futuristic sans-serif with soft glow.
+• Text integrated into floating interface elements.
+• AI-inspired data labels and intelligent annotations.
+
+LIGHTING:
+• Soft ambient glow from interface elements.
+• Dreamlike diffused lighting—no harsh shadows.
+• Gradient lighting transitions creating surreal depth.
+
+TEXTURE:
+• Soft glowing transparency on UI elements.
+• Subtle particle effects or light dust for dreamlike atmosphere.
+• Smooth gradient surfaces.
+
+COLOR SYSTEM:
+• Base: soft blacks, deep purples, midnight blues.
+• Glow colors: soft purples, electric violets, gentle cyan, warm pinks.
+• Gradient transitions: smooth blends creating dreamlike atmosphere.
+
+MOOD:
+• Intelligent, dreamlike, surreal, AI-powered, elegant, futuristic.
+• Feels advanced and beautiful—AI aesthetics meet surreal art.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic glowing effects and soft rendering.
+• Dreamlike depth and floating composition.`,
+  },
+
+  {
+    slug: 'tactical_workspace_realism',
+    name: 'Tactical Workspace Realism',
+    description: 'Overhead tactical workspace—organized tools, devices, and work materials.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#2d2d2d', '#7a7a7a'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/tactical-workspace-realism.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create a tactical workspace realism campaign visual with overhead organized tools and devices.
+
+STYLE:
+• Overhead flat-lay workspace aesthetic—organized, tactical, professional toolkit.
+
+LAYOUT:
+• Overhead bird's-eye view composition.
+• Grid-organized or knolling-style arrangement of tools and devices.
+
+COMPOSITION:
+• Organized workspace items: laptop, notebook, pen, coffee, device, cables, accessories.
+• Knolling arrangement: items aligned at right angles creating visual order.
+• Generous negative space on clean surface (wood desk, concrete, matte black).
+
+SUBJECT:
+• Professional workspace tools and devices.
+• Laptop or tablet displaying interface or brand content.
+• Work essentials: notebook, coffee, phone, headphones, minimal accessories.
+
+TYPOGRAPHY:
+• Minimal—small branded labels or interface text visible on screens.
+• Optional small tagline positioned with breathing room.
+
+LIGHTING:
+• Soft directional overhead lighting.
+• Gentle shadows defining object edges and creating depth.
+• Natural light aesthetic—window light preferred.
+
+TEXTURE:
+• Visible material textures: wood grain, metal finish, leather, fabric.
+• Realistic object rendering with tactile details.
+
+COLOR SYSTEM:
+• Base: natural wood tones, matte black, grey, white.
+• Accents: minimal brand colors in screen displays or small accessories.
+• Muted professional palette—never overly colorful.
+
+MOOD:
+• Organized, tactical, professional, minimalist, workspace-focused.
+• Feels productive and intentional—everything has its place.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic with detailed material rendering.
+• Precise alignment and composition.`,
+  },
+
+  {
+    slug: 'internet_culture_maximalism',
+    name: 'Internet Culture Maximalism',
+    description: 'Meme-adjacent maximalist chaos—stickers, emoji, bold text, Gen-Z internet energy.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#ff00ff', '#00ffff'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/internet-culture-maximalism.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create an internet culture maximalism campaign visual with meme-adjacent chaos and Gen-Z energy.
+
+STYLE:
+• Internet culture maximalism—stickers, emoji, bold text, chaotic energy, meme-adjacent.
+
+LAYOUT:
+• Dense layered composition with multiple overlapping elements.
+• Controlled chaos—busy but intentionally designed.
+
+COMPOSITION:
+• Layered elements: stickers, emoji, text blocks, product cutouts, graphic shapes.
+• Overlapping layers creating visual density.
+• Bold colorful borders, shapes, and graphic elements.
+
+SUBJECT:
+• Product, interface mockup, or founder cutout.
+• Surrounded by internet culture elements: emoji reactions, chat bubbles, stickers.
+• Optional: meme-inspired visual references (without being actual memes).
+
+TYPOGRAPHY:
+• Bold ultra-condensed headlines in bright colors.
+• Multiple text layers with different sizes and colors.
+• Internet slang or conversational tone—authentic Gen-Z voice.
+
+LIGHTING:
+• Bright flat lighting—no dramatic shadows.
+• High saturation and high contrast.
+• Optional: digital glow effects on text or elements.
+
+TEXTURE:
+• Digital sticker textures, flat graphic elements.
+• Optional subtle scan lines or digital noise.
+
+COLOR SYSTEM:
+• Vibrant maximalist palette: hot pink, electric cyan, bright yellow, neon green, vivid purple.
+• High saturation and high contrast—nothing muted.
+• RGB aesthetic—digital-first colors.
+
+MOOD:
+• Chaotic, energetic, internet-native, Gen-Z, meme-adjacent, fun.
+• Feels like digital culture and online community—never boring.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Crisp graphic elements and vibrant colors.
+• Controlled maximalist composition.`,
+  },
+
+  {
+    slug: 'optimistic_human_future',
+    name: 'Optimistic Human Future',
+    description: 'Warm human-tech harmony—soft pastels, people-first, hopeful future vision.',
+    industryTags: ['fintech_saas_tech', 'professional_services', 'general_other'],
+    gradient: ['#ffe0b2', '#80deea'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/optimistic-human-future.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'saas',
+    promptFragment: `Create an optimistic human future campaign visual with warm human-tech harmony and hopeful vision.
+
+STYLE:
+• Optimistic futurism aesthetic—human-centered, warm, soft pastels, hopeful future.
+
+LAYOUT:
+• Balanced human and tech composition.
+• Subject positioned naturally with tech elements integrated softly.
+
+COMPOSITION:
+• Human subject: founder, team member, or diverse individuals.
+• Tech elements: soft glowing interfaces, gentle holographic overlays, subtle data visualizations.
+• Integration: tech enhances human presence without dominating.
+
+SUBJECT:
+• People interacting naturally with technology.
+• Diverse representation—gender, ethnicity, age.
+• Natural expressions—smiling, collaborative, engaged.
+
+WARDROBE:
+• Modern casual-professional attire in soft colors.
+• Comfortable and approachable—not corporate or overly formal.
+
+ENVIRONMENT:
+• Bright airy spaces—natural light, open interiors, or outdoor settings.
+• Natural elements: plants, wood, natural materials mixed with modern tech.
+
+TYPOGRAPHY:
+• Friendly rounded sans-serif or warm humanist typeface.
+• Optimistic messaging—hopeful and human-centered.
+
+LIGHTING:
+• Soft natural lighting—window light or golden hour outdoor.
+• Gentle highlights and warm skin tones.
+• Optional soft tech glow—never harsh.
+
+TEXTURE:
+• Natural materials: fabric, wood, organic surfaces.
+• Soft tech surfaces—glowing interfaces with gentle transparency.
+
+COLOR SYSTEM:
+• Base: soft pastels—peach, sky blue, lavender, mint green, warm cream.
+• Accent: gentle brand colors—muted but optimistic.
+• Warm and cool balance—never cold or sterile.
+
+MOOD:
+• Optimistic, human-centered, warm, hopeful, collaborative, future-positive.
+• Technology serves humanity—people first.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic with warm natural rendering.
+• Soft lighting and hopeful composition.`,
+  },
+
+  // ── FASHION VISUAL STYLES (10 styles) ─────────────────────────
+
+  {
+    slug: 'neo_luxury_street',
+    name: 'Neo-Luxury Street',
+    description: 'High-fashion streetwear meets luxury editorial—bold contrast and urban elegance.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#000000', '#ffd700'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/neo-luxury-street.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'fashion',
+    promptFragment: `Create a neo-luxury streetwear campaign visual with high-fashion editorial meets urban elegance.
+
+STYLE:
+• Luxury streetwear aesthetic—high-fashion editorial meets street culture.
+
+LAYOUT:
+• Centered or rule-of-thirds fashion portrait composition.
+• Subject positioned with confident urban stance.
+
+COMPOSITION:
+• Full-body or upper-body fashion portrait.
+• Urban backdrop: concrete walls, city architecture, minimalist urban setting.
+• Bold contrast between luxury styling and raw urban environment.
+
+SUBJECT:
+• Fashion model in luxury streetwear styling.
+• Confident pose—editorial stance with street attitude.
+• Direct gaze or candid editorial expression.
+
+WARDROBE:
+• Luxury streetwear: designer hoodies, tailored outerwear, premium sneakers, statement accessories.
+• Monochromatic or bold color-blocked outfits.
+• Mix of high-fashion and street culture elements.
+
+ENVIRONMENT:
+• Urban settings: concrete walls, city streets, minimalist architecture.
+• Industrial backdrops: warehouses, parking structures, urban landscapes.
+
+TYPOGRAPHY:
+• Bold sans-serif headlines—luxury brand style.
+• Minimal text—brand name or bold statement.
+
+LIGHTING:
+• High-contrast dramatic lighting.
+• Strong directional light creating sharp shadows.
+• Urban natural light or dramatic studio lighting.
+
+TEXTURE:
+• Luxury fabric details visible—leather, premium cotton, designer materials.
+• Urban textures: concrete, metal, weathered surfaces.
+
+COLOR SYSTEM:
+• Base: black, white, grey, concrete tones.
+• Luxury accents: gold, metallics, bold brand colors (red, electric blue).
+
+MOOD:
+• Confident, luxury, urban, editorial, bold.
+• High-fashion meets street culture.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Editorial fashion photography quality.
+• Sharp details and dramatic lighting.`,
+  },
+
+  {
+    slug: 'afro_cinematic_fashion',
+    name: 'Afro-Cinematic Fashion',
+    description: 'Cinematic African fashion portraiture—rich fabrics, cultural pride, warm cinematic tones.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#4a2c2a', '#d4a574'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/afro-cinematic-fashion.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'fashion',
+    promptFragment: `Create an Afro-cinematic fashion campaign visual with rich fabrics and cultural pride.
+
+STYLE:
+• Cinematic African fashion aesthetic—rich fabrics, cultural pride, warm tones.
+
+LAYOUT:
+• Centered or dynamic fashion portrait composition.
+• Subject positioned with regal confidence.
+
+COMPOSITION:
+• Full-body or upper-body fashion portrait.
+• African-inspired backdrop or warm neutral setting.
+• Shallow depth of field emphasizing subject and fabric details.
+
+SUBJECT:
+• Model of African descent in African-inspired fashion.
+• Confident regal pose—cultural pride and elegance.
+• Natural hair styling or traditional African hairstyles.
+
+WARDROBE:
+• African-inspired fashion: Ankara prints, kente cloth, modern African designers.
+• Rich fabrics: silk, cotton, traditional textiles with bold patterns.
+• Mix of traditional and contemporary African fashion.
+• Gold jewelry and cultural accessories.
+
+ENVIRONMENT:
+• Warm neutral backdrop or African-inspired architectural setting.
+• Natural materials: warm earth tones, wooden elements, textured fabrics.
+
+TYPOGRAPHY:
+• Elegant serif or bold display typeface.
+• Minimal text—brand name or cultural statement.
+
+LIGHTING:
+• Warm cinematic lighting—golden hour aesthetic.
+• Soft directional light creating gentle shadows.
+• Warm skin tones and rich fabric colors enhanced.
+
+TEXTURE:
+• Visible fabric patterns and textile details.
+• Rich material textures—silk sheen, cotton weave.
+
+COLOR SYSTEM:
+• Base: warm browns, rich golds, deep oranges, burgundy.
+• Pattern colors: bright yellows, reds, greens, blues (African palette).
+• Warm cinematic grading.
+
+MOOD:
+• Regal, confident, culturally proud, cinematic, elegant.
+• Celebrates African fashion and heritage.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Cinematic fashion photography quality.
+• Rich colors and fabric details.`,
+  },
+
+  {
+    slug: 'hyper_minimal_fashion',
+    name: 'Hyper-Minimal Fashion',
+    description: 'Ultra-minimal fashion sculpture—monochrome neutrals and architectural simplicity.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#f5f5f5', '#a0a0a0'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/hyper-minimal-fashion.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'fashion',
+    promptFragment: `Create a hyper-minimal fashion campaign visual with monochrome neutrals and architectural simplicity.
+
+STYLE:
+• Hyper-minimalist fashion aesthetic—monochrome, architectural, sculptural simplicity.
+
+LAYOUT:
+• Centered or asymmetric minimal composition.
+• Generous negative space surrounding subject.
+
+COMPOSITION:
+• Fashion portrait with architectural precision.
+• Pure white or neutral backdrop—absolutely minimal.
+• Subject positioned with geometric precision.
+
+SUBJECT:
+• Model in minimal fashion styling.
+• Sculptural pose—architectural body language.
+• Neutral expression—no emotion, pure form.
+
+WARDROBE:
+• Minimal monochrome fashion: all-white, all-black, or neutral tones.
+• Architectural silhouettes: clean lines, structured tailoring, minimal details.
+• Premium fabrics: linen, cotton, wool—visible quality.
+
+ENVIRONMENT:
+• Pure white studio or minimal architectural setting.
+• No visible props or distractions—subject and negative space only.
+
+TYPOGRAPHY:
+• Minimal sans-serif typeface—small and restrained.
+• Single word or short phrase—positioned with mathematical precision.
+
+LIGHTING:
+• Soft even lighting—no harsh shadows.
+• Gentle directional light creating subtle dimension.
+• High-key lighting preferred.
+
+TEXTURE:
+• Visible premium fabric textures—linen weave, wool texture.
+• Subtle material details creating tactile interest.
+
+COLOR SYSTEM:
+• Monochrome: pure white, soft cream, light grey, black.
+• No color—only neutrals and natural tones.
+
+MOOD:
+• Minimal, architectural, sculptural, refined, quiet luxury.
+• Fashion as art and form.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic with minimal aesthetic.
+• Perfect lighting and composition.`,
+  },
+
+  {
+    slug: 'raw_youth_culture',
+    name: 'Raw Youth Culture',
+    description: 'Unpolished youth energy—grainy film texture and candid street moments.',
+    industryTags: ['fashion_ecommerce', 'events_entertainment', 'general_other'],
+    gradient: ['#2d2d2d', '#ff4500'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/raw-youth-culture.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'fashion',
+    promptFragment: `Create a raw youth culture campaign visual with unpolished energy and candid street moments.
+
+STYLE:
+• Raw youth culture aesthetic—grainy film texture, candid street photography, unpolished energy.
+
+LAYOUT:
+• Natural candid composition—rule of thirds or centered spontaneity.
+• Subject captured in authentic moment.
+
+COMPOSITION:
+• Candid street photography style.
+• Urban environment: city streets, skateparks, youth hangout spots.
+• Natural framing using environment.
+
+SUBJECT:
+• Young model or group in authentic youth culture moment.
+• Candid poses—moving, laughing, skating, hanging out.
+• Real energy—not overly posed.
+
+WARDROBE:
+• Youth streetwear: hoodies, baggy jeans, sneakers, caps, vintage tees.
+• Authentic youth fashion—not styled for perfection.
+• Layered casual styling.
+
+ENVIRONMENT:
+• Urban youth settings: skate spots, street corners, city backdrops, graffiti walls.
+• Real locations—not studio sets.
+
+TYPOGRAPHY:
+• Bold grungy or hand-drawn typeface.
+• Minimal text—youth slang or brand tag.
+
+LIGHTING:
+• Natural street lighting—no studio setup.
+• Available light: daytime urban light or streetlights.
+• Harsh shadows and real lighting imperfections.
+
+TEXTURE:
+• Heavy film grain or digital noise.
+• Gritty texture overlay for raw aesthetic.
+• Fabric textures and urban surface details.
+
+COLOR SYSTEM:
+• Desaturated with lifted shadows—film-like grading.
+• Urban colors: greys, blacks, faded denim blues, rust reds.
+• Optional color pop on key fashion item.
+
+MOOD:
+• Raw, authentic, youthful, energetic, unpolished, street culture.
+• Real moments—not manufactured perfection.
+
+QUALITY:
+• High resolution with intentional grain and grit.
+• Candid photography aesthetic.
+• Authentic street energy.`,
+  },
+
+  {
+    slug: 'dreamlike_fashion_surrealism',
+    name: 'Dreamlike Fashion Surrealism',
+    description: 'Surreal fashion fantasy—soft focus dreamscapes and ethereal floating elements.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#e0b3ff', '#ffd6f5'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/dreamlike-fashion-surrealism.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'fashion',
+    promptFragment: `Create a dreamlike fashion surrealism campaign visual with soft focus dreamscapes and ethereal elements.
+
+STYLE:
+• Surreal fashion aesthetic—dreamlike, soft focus, ethereal, fantasy elements.
+
+LAYOUT:
+• Centered or floating composition in dreamlike space.
+• Subject suspended in surreal environment.
+
+COMPOSITION:
+• Surreal setting: floating fabrics, suspended elements, dreamlike backdrops.
+• Soft focus surrounding subject with sharp center focus.
+• Ethereal layering creating dreamlike depth.
+
+SUBJECT:
+• Model in flowing ethereal fashion.
+• Floating or suspended pose—defying gravity.
+• Serene or distant expression—dreamlike presence.
+
+WARDROBE:
+• Flowing ethereal fabrics: silk, chiffon, organza, tulle.
+• Soft colors: pastels, whites, pale pinks, lavender, soft blues.
+• Romantic silhouettes with movement.
+
+ENVIRONMENT:
+• Dreamlike surreal setting: soft clouds, abstract gradients, floating elements.
+• Optional natural elements: flowers, water, light particles.
+
+TYPOGRAPHY:
+• Elegant flowing typeface—script or soft serif.
+• Minimal text—poetic or dreamlike messaging.
+
+LIGHTING:
+• Soft diffused lighting—no harsh shadows.
+• Gentle glow creating ethereal atmosphere.
+• Backlit or softly lit from above.
+
+TEXTURE:
+• Soft fabric movement and flow.
+• Ethereal transparency and layering.
+• Subtle light particles or soft glow.
+
+COLOR SYSTEM:
+• Base: soft pastels—pale pink, lavender, mint, peach, ivory.
+• Dreamy gradients—soft transitions.
+• Warm or cool ethereal tones.
+
+MOOD:
+• Dreamlike, ethereal, surreal, romantic, fantasy, soft.
+• Fashion as art and dream.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic with surreal composition.
+• Soft focus and ethereal rendering.`,
+  },
+
+  {
+    slug: 'coastal_luxury_escape',
+    name: 'Coastal Luxury Escape',
+    description: 'Beach resort luxury—linen fashion and golden hour coastal elegance.',
+    industryTags: ['fashion_ecommerce', 'travel_hospitality', 'beauty_wellness', 'general_other'],
+    gradient: ['#f5e6d3', '#4a90a4'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/coastal-luxury-escape.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'fashion',
+    promptFragment: `Create a coastal luxury escape campaign visual with beach resort elegance and linen fashion.
+
+STYLE:
+• Coastal luxury aesthetic—beach resort elegance, linen fashion, golden hour warmth.
+
+LAYOUT:
+• Rule-of-thirds beach composition.
+• Subject positioned with coastal backdrop.
+
+COMPOSITION:
+• Beach or coastal setting: ocean, sand, resort architecture.
+• Golden hour lighting creating warm coastal atmosphere.
+• Natural elements: palm trees, ocean waves, coastal landscape.
+
+SUBJECT:
+• Model in luxury resort fashion.
+• Relaxed elegant pose—beach resort confidence.
+• Natural wind-swept hair and relaxed styling.
+
+WARDROBE:
+• Coastal luxury fashion: linen clothing, flowing dresses, resort wear, straw hats.
+• Neutral tones: whites, beiges, soft blues, natural linen colors.
+• Lightweight premium fabrics.
+
+ENVIRONMENT:
+• Beach resort settings: sandy beaches, coastal villas, poolside luxury.
+• Natural coastal elements: ocean, palm trees, resort architecture.
+
+TYPOGRAPHY:
+• Elegant serif or refined sans-serif.
+• Minimal text—resort lifestyle messaging.
+
+LIGHTING:
+• Golden hour coastal lighting—warm and soft.
+• Natural sunlight creating gentle shadows.
+• Warm skin tones and coastal glow.
+
+TEXTURE:
+• Linen fabric texture visible.
+• Sand, water, and natural coastal textures.
+
+COLOR SYSTEM:
+• Base: warm neutrals—ivory, sand beige, soft whites.
+• Coastal accents: ocean blues, aqua, soft turquoise.
+• Golden hour warmth throughout.
+
+MOOD:
+• Luxury resort, coastal elegance, relaxed sophistication, escape, warmth.
+• High-end vacation lifestyle.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Natural coastal lighting and atmosphere.
+• Luxury resort fashion photography quality.`,
+  },
+
+  {
+    slug: 'performance_futurism',
+    name: 'Performance Futurism',
+    description: 'Technical sportswear meets sci-fi—bold geometric designs and athletic innovation.',
+    industryTags: ['fashion_ecommerce', 'fitness_gym', 'sports_fitness', 'general_other'],
+    gradient: ['#0a0a1a', '#00ff88'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/performance-futurism.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'fashion',
+    promptFragment: `Create a performance futurism campaign visual with technical sportswear and sci-fi aesthetics.
+
+STYLE:
+• Performance futurism aesthetic—technical sportswear meets sci-fi innovation.
+
+LAYOUT:
+• Dynamic athletic composition with futuristic elements.
+• Subject positioned in action-ready or athletic pose.
+
+COMPOSITION:
+• Athletic subject in performance wear.
+• Futuristic backdrop: geometric shapes, tech elements, neon accents.
+• Dynamic lines or motion elements suggesting performance.
+
+SUBJECT:
+• Athletic model in technical performance wear.
+• Athletic pose—ready for action or mid-movement.
+• Strong confident expression.
+
+WARDROBE:
+• Technical sportswear: athletic fits, performance fabrics, futuristic athleisure.
+• Bold geometric patterns or color-blocking.
+• Modern athletic silhouettes with tech details.
+
+ENVIRONMENT:
+• Futuristic athletic setting: tech gym, geometric backdrop, or abstract sci-fi environment.
+• Optional: holographic elements or tech overlays.
+
+TYPOGRAPHY:
+• Bold tech-inspired typeface—angular and modern.
+• Performance-focused messaging—innovation and capability.
+
+LIGHTING:
+• High-contrast dramatic lighting.
+• Neon accent lights in brand colors.
+• Strong shadows creating athletic drama.
+
+TEXTURE:
+• Technical fabric details visible—moisture-wicking, mesh, compression.
+• Futuristic surface textures—metallic, matte tech finishes.
+
+COLOR SYSTEM:
+• Base: blacks, greys, tech whites.
+• Neon accents: electric green, cyan blue, bright orange, vivid magenta.
+• High-tech color palette.
+
+MOOD:
+• Athletic, futuristic, innovative, powerful, tech-forward.
+• Performance meets future innovation.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Sharp athletic details and futuristic elements.
+• Dynamic composition and lighting.`,
+  },
+
+  {
+    slug: 'vintage_luxury_revival',
+    name: 'Vintage Luxury Revival',
+    description: 'Old-world fashion elegance—vintage textures and timeless luxury aesthetics.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'perfume_fragrance', 'general_other'],
+    gradient: ['#5d4037', '#d7ccc8'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/vintage-luxury-revival.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'fashion',
+    promptFragment: `Create a vintage luxury revival campaign visual with old-world elegance and timeless aesthetics.
+
+STYLE:
+• Vintage luxury aesthetic—old-world fashion elegance, timeless luxury, heritage styling.
+
+LAYOUT:
+• Classic fashion portrait composition.
+• Subject positioned with timeless elegance.
+
+COMPOSITION:
+• Heritage fashion portrait.
+• Vintage-inspired backdrop: classic interiors, antique furnishings, timeless settings.
+• Film photography aesthetic with vintage color grading.
+
+SUBJECT:
+• Model in vintage-inspired luxury fashion.
+• Classic elegant pose—timeless fashion portraiture.
+• Refined expression and styling.
+
+WARDROBE:
+• Vintage-inspired luxury fashion: tailored suits, classic silhouettes, heritage brands.
+• Rich fabrics: velvet, silk, wool, leather.
+• Timeless colors: burgundy, forest green, navy, camel, black.
+
+ENVIRONMENT:
+• Classic vintage settings: heritage interiors, antique furniture, luxury estates.
+• Old-world architecture and timeless backdrops.
+
+TYPOGRAPHY:
+• Classic serif typeface—timeless elegance.
+• Minimal text—heritage brand style.
+
+LIGHTING:
+• Soft vintage-style lighting.
+• Warm film-like color temperature.
+• Gentle shadows creating dimension.
+
+TEXTURE:
+• Vintage film grain texture.
+• Rich fabric textures—velvet sheen, leather patina, silk drape.
+• Aged patina on surroundings.
+
+COLOR SYSTEM:
+• Base: warm vintage tones—sepia, warm browns, muted golds.
+• Luxury colors: burgundy, forest green, navy, rich blacks.
+• Vintage film color grading—warm with lifted shadows.
+
+MOOD:
+• Timeless, elegant, heritage luxury, vintage sophistication, old-world charm.
+• Classic fashion with modern quality.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Vintage film aesthetic with modern clarity.
+• Rich colors and timeless composition.`,
+  },
+
+  {
+    slug: 'hyper_commercial_fashion',
+    name: 'Hyper-Commercial Fashion',
+    description: 'High-energy fast-fashion campaign—bold colors and youthful commercial energy.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'general_other'],
+    gradient: ['#ff0050', '#ffcc00'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/hyper-commercial-fashion.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'fashion',
+    promptFragment: `Create a hyper-commercial fashion campaign visual with high-energy and bold colors.
+
+STYLE:
+• Hyper-commercial fashion aesthetic—high-energy, bold colors, youthful commercial energy.
+
+LAYOUT:
+• Dynamic energetic composition.
+• Subject positioned with commercial confidence.
+
+COMPOSITION:
+• Fashion portrait with commercial energy.
+• Bold colorful backdrop—vibrant solids or gradients.
+• Multiple looks or dynamic poses for commercial versatility.
+
+SUBJECT:
+• Model in trendy commercial fashion.
+• Energetic pose—jumping, laughing, dynamic movement.
+• Confident youthful expression.
+
+WARDROBE:
+• On-trend fast fashion: bold colors, trendy silhouettes, accessible styles.
+• Color-blocked outfits or coordinated bold looks.
+• Youthful commercial styling.
+
+ENVIRONMENT:
+• Studio with bold colorful backdrops.
+• Solid color walls or gradient backgrounds.
+• Clean commercial setting.
+
+TYPOGRAPHY:
+• Bold sans-serif headlines—commercial impact.
+• Sale messaging or bold brand statements.
+
+LIGHTING:
+• Bright flat commercial lighting.
+• High-key lighting—minimal shadows.
+• Even illumination for commercial clarity.
+
+TEXTURE:
+• Fashion fabric details clearly visible.
+• Clean commercial rendering—no heavy grading.
+
+COLOR SYSTEM:
+• Bold vibrant colors: hot pink, electric blue, sunny yellow, bright red, vivid orange.
+• High saturation—commercial impact.
+• Color-coordinated outfits and backdrops.
+
+MOOD:
+• Energetic, youthful, commercial, accessible, bold, fun.
+• Fast fashion energy—trendy and immediate.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Commercial photography quality.
+• Bold colors and energetic composition.`,
+  },
+
+  {
+    slug: 'romantic_noir_fashion',
+    name: 'Romantic Noir Fashion',
+    description: 'Dark romantic elegance—moody low-key lighting and dramatic fashion storytelling.',
+    industryTags: ['fashion_ecommerce', 'beauty_wellness', 'perfume_fragrance', 'general_other'],
+    gradient: ['#1a1a1a', '#8b4789'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/romantic-noir-fashion.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'fashion',
+    promptFragment: `Create a romantic noir fashion campaign visual with dark elegance and dramatic storytelling.
+
+STYLE:
+• Romantic noir aesthetic—dark elegance, moody low-key lighting, dramatic fashion.
+
+LAYOUT:
+• Centered or rule-of-thirds dramatic composition.
+• Subject positioned in moody cinematic setting.
+
+COMPOSITION:
+• Low-key dramatic fashion portrait.
+• Dark moody backdrop with selective lighting.
+• Shallow depth of field creating cinematic focus.
+
+SUBJECT:
+• Model in elegant dark fashion.
+• Dramatic pose—mysterious and romantic.
+• Intense or distant expression—storytelling through emotion.
+
+WARDROBE:
+• Dark romantic fashion: flowing blacks, deep burgundy, midnight blue, dark florals.
+• Luxe fabrics: silk, velvet, lace, leather.
+• Romantic silhouettes with dramatic details.
+
+ENVIRONMENT:
+• Moody interior settings: candlelit rooms, dark architectural spaces, dramatic backdrops.
+• Minimal visible environment—darkness with selective reveals.
+
+TYPOGRAPHY:
+• Elegant serif or script typeface.
+• Minimal text—poetic or mysterious messaging.
+
+LIGHTING:
+• Low-key dramatic lighting—mostly shadows with selective highlights.
+• Single light source creating strong contrast.
+• Candlelight or dramatic side lighting aesthetic.
+
+TEXTURE:
+• Rich fabric textures visible in highlights—velvet depth, silk sheen, lace details.
+• Dramatic shadow textures creating depth.
+
+COLOR SYSTEM:
+• Base: deep blacks, charcoal, midnight tones.
+• Romantic accents: deep burgundy, dark purple, forest green, gold highlights.
+• Low-key moody color grading.
+
+MOOD:
+• Mysterious, romantic, dramatic, elegant, noir, cinematic.
+• Dark luxury and emotional storytelling.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Cinematic low-key lighting and atmosphere.
+• Dramatic fashion photography quality.`,
+  },
+
+  // ── PRODUCT VISUAL STYLES (5 styles) ──────────────────────────
+
+  {
+    slug: 'elemental_explosion_realism',
+    name: 'Elemental Explosion Realism',
+    description: 'Hyper-realistic product explosions with fruits, liquids, or ingredients mid-air.',
+    industryTags: ['food_beverage', 'beauty_wellness', 'general_other'],
+    gradient: ['#ff6b35', '#ffd60a'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/elemental-explosion-realism.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'product',
+    promptFragment: `Create a hyper-realistic product explosion visual with ingredients mid-air.
+
+STYLE:
+• Hyper-realistic explosion photography—ingredients frozen mid-air with dynamic energy.
+
+LAYOUT:
+• Centered product with explosive elements surrounding it.
+• Radial composition emanating from product center.
+
+COMPOSITION:
+• Product hero positioned center.
+• Ingredients exploding outward—fruits, liquids, powders, elements.
+• Dynamic frozen-motion capture—ingredients suspended in air.
+• Liquid splashes, fruit slices, powder clouds captured mid-explosion.
+
+SUBJECT:
+• Product bottle, package, or container as hero center.
+• Ingredients or elements that represent product contents exploding around it.
+• High-speed photography capturing moment of impact.
+
+TYPOGRAPHY:
+• Bold product name or tagline—positioned clear of explosion elements.
+• Optional ingredient callouts or benefit text.
+
+LIGHTING:
+• High-speed studio lighting freezing motion.
+• Dramatic lighting emphasizing flying elements and liquid splashes.
+• Backlit or side-lit for dimensional depth.
+
+TEXTURE:
+• Hyper-realistic texture details—water droplets, fruit flesh, powder particles.
+• Product packaging details clearly rendered.
+• Material transparency and reflections.
+
+COLOR SYSTEM:
+• Base: clean white or gradient backdrop.
+• Vibrant ingredient colors—natural fruit colors, liquid hues, powder tones.
+• Product brand colors prominently featured.
+
+MOOD:
+• Dynamic, explosive, fresh, energetic, ingredient-focused.
+• Captures freshness and natural ingredients.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• High-speed photography realism.
+• Photorealistic ingredients and liquid physics.`,
+  },
+
+  {
+    slug: 'monumental_product_worship',
+    name: 'Monumental Product Worship',
+    description: 'Product as monument—low-angle hero worship with dramatic scale and grandeur.',
+    industryTags: ['food_beverage', 'beauty_wellness', 'fashion_ecommerce', 'general_other'],
+    gradient: ['#1a1a2e', '#6a5acd'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/monumental-product-worship.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'product',
+    promptFragment: `Create a monumental product worship visual with low-angle hero worship and dramatic scale.
+
+STYLE:
+• Monumental product photography—low-angle dramatic perspective making product feel massive and heroic.
+
+LAYOUT:
+• Low-angle looking-up composition.
+• Product positioned as towering monument.
+
+COMPOSITION:
+• Product shot from low angle creating monumental scale.
+• Dramatic perspective making product appear larger-than-life.
+• Sky or gradient backdrop creating epic scale.
+• Optional: clouds, light rays, or atmospheric elements adding grandeur.
+
+SUBJECT:
+• Product bottle, package, or item positioned as heroic monument.
+• Dramatic low-angle perspective emphasizing scale and importance.
+
+TYPOGRAPHY:
+• Bold epic typeface—monumental brand statement.
+• Text positioned to emphasize scale and importance.
+
+LIGHTING:
+• Dramatic cinematic lighting—backlit or side-lit.
+• God rays or light beams adding epic atmosphere.
+• Strong contrast creating heroic drama.
+
+TEXTURE:
+• Product material details highly visible—glass reflections, metallic finishes, label details.
+• Atmospheric texture—clouds, light rays, environmental atmosphere.
+
+COLOR SYSTEM:
+• Base: dramatic skies—sunset gradients, storm clouds, epic backdrops.
+• Product colors stand bold against dramatic background.
+• Cinematic color grading—epic and dramatic.
+
+MOOD:
+• Monumental, heroic, epic, powerful, worship-worthy, dramatic.
+• Product as hero and centerpiece.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Cinematic product photography.
+• Dramatic perspective and lighting.`,
+  },
+
+  {
+    slug: 'ingredient_world_immersion',
+    name: 'Ingredient World Immersion',
+    description: 'Product immersed in its ingredient world—surrounded by natural source materials.',
+    industryTags: ['food_beverage', 'beauty_wellness', 'general_other'],
+    gradient: ['#2d5016', '#a8c256'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/ingredient-world-immersion.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'product',
+    promptFragment: `Create an ingredient world immersion visual with product surrounded by natural source materials.
+
+STYLE:
+• Ingredient immersion aesthetic—product literally immersed in or surrounded by its natural ingredients.
+
+LAYOUT:
+• Centered product with ingredient environment surrounding it.
+• Product hero within ingredient ecosystem.
+
+COMPOSITION:
+• Product positioned within dense ingredient environment.
+• Ingredients arranged naturally around and behind product.
+• Depth layering—foreground ingredients, product hero, background ingredients.
+• Natural organic arrangement—not overly staged.
+
+SUBJECT:
+• Product bottle, package, or container.
+• Natural ingredients that source the product—fruits, vegetables, herbs, botanicals, grains.
+• Ingredients arranged creating immersive natural world.
+
+TYPOGRAPHY:
+• Natural organic typeface—handwritten or botanical style.
+• Minimal text—ingredient focus or benefit callout.
+
+LIGHTING:
+• Natural soft lighting—window light or diffused studio light.
+• Gentle shadows creating depth without harshness.
+• Ingredients beautifully lit showing natural textures.
+
+TEXTURE:
+• Visible natural ingredient textures—fruit skin, leaf veins, grain details.
+• Product packaging materials clearly rendered.
+• Organic surface textures.
+
+COLOR SYSTEM:
+• Natural ingredient colors—greens, earth tones, natural fruit colors.
+• Product brand colors integrated naturally.
+• Organic color palette—never artificial.
+
+MOOD:
+• Natural, organic, ingredient-focused, fresh, wholesome, immersive.
+• Transparency and natural sourcing.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic ingredient details.
+• Natural lighting and organic composition.`,
+  },
+
+  {
+    slug: 'atmospheric_luxury_suspension',
+    name: 'Atmospheric Luxury Suspension',
+    description: 'Product floating in atmospheric dreamscape—luxury beauty photography with ethereal atmosphere.',
+    industryTags: ['beauty_wellness', 'perfume_fragrance', 'fashion_ecommerce', 'general_other'],
+    gradient: ['#e8d5c4', '#c19a6b'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/atmospheric-luxury-suspension.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'product',
+    promptFragment: `Create an atmospheric luxury suspension visual with product floating in ethereal dreamscape.
+
+STYLE:
+• Luxury beauty suspension aesthetic—product floating in atmospheric dreamscape with ethereal elegance.
+
+LAYOUT:
+• Centered floating product composition.
+• Product suspended in ethereal space.
+
+COMPOSITION:
+• Product floating or suspended mid-air.
+• Atmospheric elements—soft clouds, gentle mist, light particles, ethereal glow.
+• Dreamy gradient backdrop creating luxury atmosphere.
+• Optional: delicate floating elements (petals, light particles, subtle geometric shapes).
+
+SUBJECT:
+• Luxury product—perfume bottle, beauty product, premium packaging.
+• Product floating gracefully with elegant suspension.
+
+TYPOGRAPHY:
+• Elegant serif or refined script typeface.
+• Minimal text—luxury brand name or elegant tagline.
+
+LIGHTING:
+• Soft diffused luxury lighting.
+• Gentle highlights on product creating premium glow.
+• Atmospheric backlighting creating ethereal depth.
+
+TEXTURE:
+• Premium product materials—glass reflections, metallic accents, luxury packaging.
+• Soft atmospheric textures—mist, light particles, gentle gradients.
+
+COLOR SYSTEM:
+• Base: soft luxury tones—champagne, rose gold, soft pink, ivory, pale blue.
+• Dreamy gradients—smooth transitions creating atmospheric depth.
+• Metallic accents—gold, rose gold, silver.
+
+MOOD:
+• Luxurious, ethereal, dreamy, elegant, atmospheric, premium.
+• Beauty as art and luxury.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Photorealistic with dreamlike atmosphere.
+• Luxury product photography quality.`,
+  },
+
+  {
+    slug: 'cinematic_narrative_product_scene',
+    name: 'Cinematic Narrative Product Scene',
+    description: 'Product placed in cinematic lifestyle scene—storytelling through environment and context.',
+    industryTags: ['food_beverage', 'beauty_wellness', 'fashion_ecommerce', 'general_other'],
+    gradient: ['#3e2723', '#8d6e63'],
+    image:
+      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/visual-style-guides-2026/cinematic-narrative-product-scene.jpg',
+    styleType: 'marketing_template',
+    templateCategory: 'product',
+    promptFragment: `Create a cinematic narrative product scene with storytelling through environment and context.
+
+STYLE:
+• Cinematic product storytelling—product placed in lifestyle scene with narrative depth.
+
+LAYOUT:
+• Rule-of-thirds cinematic composition.
+• Product integrated naturally into lifestyle scene.
+
+COMPOSITION:
+• Product placed in realistic lifestyle environment.
+• Scene tells story of product usage or lifestyle context.
+• Shallow depth of field—product in focus, environment softly blurred.
+• Natural props and environmental elements creating narrative.
+
+SUBJECT:
+• Product naturally integrated into lifestyle scene.
+• Scene context: morning routine, dining experience, beauty ritual, work environment.
+• Optional: hands interacting with product or environmental storytelling.
+
+ENVIRONMENT:
+• Lifestyle settings: kitchen table, bathroom counter, workspace, outdoor picnic, café.
+• Natural materials and real-world context.
+• Authentic lived-in spaces—not overly staged.
+
+TYPOGRAPHY:
+• Minimal cinematic typeface—small and tasteful.
+• Optional caption or narrative text.
+
+LIGHTING:
+• Natural cinematic lighting—window light, golden hour, ambient indoor light.
+• Soft shadows creating depth and realism.
+• Film-like color grading.
+
+TEXTURE:
+• Natural material textures—wood grain, fabric, stone, ceramic.
+• Product details clearly visible.
+• Environmental texture creating realism.
+
+COLOR SYSTEM:
+• Natural lifestyle colors—warm wood tones, neutral fabrics, natural materials.
+• Product brand colors integrated naturally.
+• Cinematic color grading—slightly desaturated with warm or cool tones.
+
+MOOD:
+• Cinematic, narrative, lifestyle, authentic, relatable, storytelling.
+• Product in real life context.
+
+QUALITY:
+• Ultra-high resolution (8K).
+• Cinematic lifestyle photography.
+• Photorealistic with narrative depth.`,
+  },
 ];
 
 export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
@@ -1173,6 +2993,17 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'art_velvet_stage',
     'art_sunset_canvas',
     'art_street_market',
+    // Fashion Visual Style Guides 2026 (10 styles)
+    'neo_luxury_street',
+    'afro_cinematic_fashion',
+    'hyper_minimal_fashion',
+    'raw_youth_culture',
+    'dreamlike_fashion_surrealism',
+    'coastal_luxury_escape',
+    'performance_futurism',
+    'vintage_luxury_revival',
+    'hyper_commercial_fashion',
+    'romantic_noir_fashion',
   ],
   food_beverage: [
     'overhead_feast',
@@ -1200,6 +3031,12 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'art_ocean_surface',
     'art_workshop_craft',
     'art_street_market',
+    // Product Visual Style Guides 2026 (5 styles)
+    'elemental_explosion_realism',
+    'monumental_product_worship',
+    'ingredient_world_immersion',
+    'atmospheric_luxury_suspension',
+    'cinematic_narrative_product_scene',
   ],
   fintech_saas_tech: [
     'corporate_gradient',
@@ -1225,6 +3062,20 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     // Art-Piece Poster Styles (9:16)
     'art_neon_underground',
     'art_tech_orbit',
+    // Startup/SaaS Visual Style Guides 2026 (13 styles)
+    'strategic_collage_editorial',
+    'premium_utility_minimalism',
+    'neo_brutalist_startup',
+    'cinematic_startup_realism',
+    'futuristic_enterprise_glow',
+    'quiet_luxury_saas',
+    'kinetic_startup_energy',
+    'afro_futurist_enterprise',
+    'founder_documentary',
+    'intelligent_interface_surrealism',
+    'tactical_workspace_realism',
+    'internet_culture_maximalism',
+    'optimistic_human_future',
   ],
   beauty_wellness: [
     'glow_up',
@@ -1254,6 +3105,12 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'art_botanical_garden',
     'art_crystal_cave',
     'art_ocean_surface',
+    // Product Visual Style Guides 2026 (5 styles)
+    'elemental_explosion_realism',
+    'monumental_product_worship',
+    'ingredient_world_immersion',
+    'atmospheric_luxury_suspension',
+    'cinematic_narrative_product_scene',
   ],
   real_estate: [
     'property_showcase',
@@ -1359,6 +3216,16 @@ export const INDUSTRY_STYLE_MAP: Record<string, string[]> = {
     'art_tech_orbit',
     'art_sunset_canvas',
     'art_street_market',
+    // Visual Style Guides 2026 (Representative selection)
+    'strategic_collage_editorial',
+    'premium_utility_minimalism',
+    'cinematic_startup_realism',
+    'neo_luxury_street',
+    'afro_cinematic_fashion',
+    'hyper_minimal_fashion',
+    'elemental_explosion_realism',
+    'monumental_product_worship',
+    'atmospheric_luxury_suspension',
   ],
   perfume_fragrance: [
     'perf_editorial_ingredient',

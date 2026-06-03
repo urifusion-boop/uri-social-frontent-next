@@ -35,6 +35,8 @@ import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import VerifyEmailModal from '@/components/VerifyEmailModal';
+import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
 import { hexToColorName } from '@/src/utils/colorNamer';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
@@ -50,6 +52,8 @@ import NotificationBell from '@/src/components/app/atoms/NotificationBell';
 import NotificationsPanel from '@/src/components/app/workspace/NotificationsPanel';
 import { useNotifications } from '@/src/providers/NotificationProvider';
 import { Tooltip } from '@mui/material';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
+import { AuthService } from '@/src/api/AuthService';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -220,6 +224,16 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       <>
         <polygon points="23 7 16 12 23 17 23 7" />
         <rect x="1" y="5" width="15" height="14" rx="2" />
+      </>
+    ),
+    paperclip: (
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+    ),
+    broom: (
+      <>
+        <path d="M3 21l9-9" />
+        <path d="M12.22 6.22L16 2l6 6-3.78 3.78a3 3 0 01-4.24 0l-1.76-1.76a3 3 0 010-4.24z" />
+        <path d="M11 13H3l1.5 7h5L11 13z" />
       </>
     ),
   };
@@ -745,7 +759,16 @@ interface PostItem {
 ═══════════════════════════════════════════════════════════════════════════ */
 type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
 
-const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; isMobile?: boolean }) => {
+const ContentManagerPage = ({
+  onJane,
+  isMobile = false,
+  requireEmailVerification,
+}: {
+  onJane: () => void;
+  isMobile?: boolean;
+  requireEmailVerification: (callback?: () => void) => boolean;
+}) => {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
   const activeTabRef = useRef<ContentTab>('create');
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
@@ -756,6 +779,7 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [draftsError, setDraftsError] = useState(false);
   const [loadingScheduled, setLoadingScheduled] = useState(false);
+  const [scheduledError, setScheduledError] = useState(false);
   const [loadingAuto, setLoadingAuto] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollAttemptsRef = useRef<number>(0);
@@ -786,6 +810,8 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
   const scheduleAllInProgress = useRef(false);
   // per-draft progress: null = pending, true = done, false = failed
   const [scheduleProgress, setScheduleProgress] = useState<Record<string, boolean | null>>({});
+  // draft IDs that failed pre-validation because the platform account is not connected
+  const [scheduleUnconnectedIds, setScheduleUnconnectedIds] = useState<Set<string>>(new Set());
   const [syncImageOpen, setSyncImageOpen] = useState(false);
 
   const toggleDraftSelection = (id: string) => {
@@ -805,9 +831,34 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
 
     const datetime = new Date(scheduleAllAt).toISOString();
 
+    // Read connected platforms from the session cache (same key DraftCard uses).
+    let connectedPlatforms: string[] = [];
+    try {
+      const raw = sessionStorage.getItem('social_connections_cache');
+      if (raw) {
+        const { data, timestamp } = JSON.parse(raw) as { data: string[]; timestamp: number };
+        if (Date.now() - timestamp < 5 * 60 * 1000) connectedPlatforms = data ?? [];
+      }
+    } catch {
+      /* noop */
+    }
+
+    // Pre-validate: platform account not connected — mark those as failed upfront.
+    const unconnected = new Set(
+      connectedPlatforms.length > 0
+        ? ids.filter((id) => {
+            const d = drafts.find((dr) => (dr.draft_id ?? dr.id ?? '') === id);
+            const platform = d?.platform?.toLowerCase() ?? '';
+            return platform && !connectedPlatforms.map((p) => p.toLowerCase()).includes(platform);
+          })
+        : []
+    );
+    setScheduleUnconnectedIds(unconnected);
+
     // Pre-validate: Instagram requires an image — mark those as failed upfront.
     const instagramNoImage = new Set(
       ids.filter((id) => {
+        if (unconnected.has(id)) return false; // already caught above
         const d = drafts.find((dr) => (dr.draft_id ?? dr.id ?? '') === id);
         return d?.platform?.toLowerCase() === 'instagram' && !d?.image_url && !d?.has_image;
       })
@@ -815,18 +866,18 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
 
     const initial: Record<string, boolean | null> = {};
     ids.forEach((id) => {
-      initial[id] = instagramNoImage.has(id) ? false : null;
+      initial[id] = unconnected.has(id) || instagramNoImage.has(id) ? false : null;
     });
     setScheduleProgress(initial);
     scheduleAllInProgress.current = true;
     setScheduleAllLoading(true);
 
     let succeeded = 0;
-    let failed = instagramNoImage.size;
+    let failed = unconnected.size + instagramNoImage.size;
     const succeededIds: string[] = [];
 
     for (const id of ids) {
-      if (instagramNoImage.has(id)) continue;
+      if (unconnected.has(id) || instagramNoImage.has(id)) continue;
       try {
         const response = await SocialMediaAgentService.approveContent({
           draft_ids: [id],
@@ -859,7 +910,10 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
       });
     }
 
-    if (instagramNoImage.size > 0 && succeeded === 0 && failed === instagramNoImage.size) {
+    const onlyPrevalidFailed = succeeded === 0 && failed === unconnected.size + instagramNoImage.size;
+    if (onlyPrevalidFailed && unconnected.size > 0) {
+      // All failures were unconnected accounts — don't show generic error toast (dialog explains it)
+    } else if (instagramNoImage.size > 0 && succeeded === 0 && failed === instagramNoImage.size) {
       ToastService.showToast(
         `${instagramNoImage.size} Instagram post${instagramNoImage.size !== 1 ? 's' : ''} skipped — add an image first`,
         ToastTypeEnum.Warning
@@ -922,7 +976,10 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
   }, []);
 
   const fetchScheduled = useCallback(async (silent = false) => {
-    if (!silent) setLoadingScheduled(true);
+    if (!silent) {
+      setLoadingScheduled(true);
+      setScheduledError(false);
+    }
     try {
       const r = await SocialMediaAgentService.getScheduled();
       if (r.status && r.responseData) {
@@ -936,9 +993,11 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
         } else {
           pollAttemptsRef.current = 0;
         }
+      } else {
+        setScheduledError(true);
       }
     } catch {
-      /* no-op */
+      setScheduledError(true);
     } finally {
       if (!silent) setLoadingScheduled(false);
     }
@@ -999,6 +1058,13 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
     },
     []
   );
+
+  // Refresh scheduled tab whenever a DraftCard successfully schedules a post.
+  useEffect(() => {
+    return EventBus.on(EVENTS.DRAFT_SCHEDULED, () => {
+      fetchScheduled();
+    });
+  }, [fetchScheduled]);
 
   const handleGenerated = () => {
     setActiveTab('drafts');
@@ -1176,7 +1242,9 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '20px 24px' }}>
-        {activeTab === 'create' && <ContentGeneratorForm onGenerated={handleGenerated} />}
+        {activeTab === 'create' && (
+          <ContentGeneratorForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+        )}
 
         {activeTab === 'video' && <VideoStoryboardGenerator />}
 
@@ -1195,7 +1263,9 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
                   (() => {
                     const selectedWithImages = drafts.filter((d) => {
                       const id = d.draft_id ?? d.id ?? '';
-                      return selectedDraftIds.has(id) && d.image_url;
+                      const hasImage =
+                        d.post_type === 'carousel' ? (d.slides ?? []).some((s) => s.image_url) : !!d.image_url;
+                      return selectedDraftIds.has(id) && hasImage;
                     });
                     const showSync = selectedWithImages.length >= 2;
                     const syncBtn = showSync ? (
@@ -1358,6 +1428,7 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
                   if (!scheduleAllLoading) {
                     setScheduleAllOpen(false);
                     setScheduleProgress({});
+                    setScheduleUnconnectedIds(new Set());
                   }
                 }}
               >
@@ -1391,8 +1462,13 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
                       .map((d) => {
                         const id = d.draft_id ?? d.id ?? '';
                         const status = scheduleProgress[id]; // null=pending, true=ok, false=fail
+                        const isNoConnection = status === false && scheduleUnconnectedIds.has(id);
                         const isIgNoImage =
-                          status === false && d.platform?.toLowerCase() === 'instagram' && !d.image_url && !d.has_image;
+                          status === false &&
+                          !isNoConnection &&
+                          d.platform?.toLowerCase() === 'instagram' &&
+                          !d.image_url &&
+                          !d.has_image;
                         const platformColors: Record<string, string> = {
                           instagram: '#E1306C',
                           facebook: '#1877F2',
@@ -1434,8 +1510,12 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
                                 whiteSpace: 'nowrap',
                               }}
                             >
-                              {isIgNoImage ? 'Needs an image' : d.content?.slice(0, 40)}
-                              {!isIgNoImage && d.content && d.content.length > 40 ? '…' : ''}
+                              {isNoConnection
+                                ? 'Account not connected'
+                                : isIgNoImage
+                                  ? 'Needs an image'
+                                  : d.content?.slice(0, 40)}
+                              {!isNoConnection && !isIgNoImage && d.content && d.content.length > 40 ? '…' : ''}
                             </span>
                             <span
                               style={{
@@ -1482,11 +1562,58 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
                     </>
                   )}
 
+                  {/* Connect Account prompt — shown after scheduling when some platforms weren't connected */}
+                  {scheduleUnconnectedIds.size > 0 &&
+                    Object.keys(scheduleProgress).length > 0 &&
+                    !scheduleAllLoading && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          background: '#FEF3C7',
+                          border: '1px solid #FDE68A',
+                          marginBottom: 14,
+                        }}
+                      >
+                        <span style={{ fontSize: 12.5, color: '#92400E' }}>
+                          {scheduleUnconnectedIds.size} platform{scheduleUnconnectedIds.size !== 1 ? 's' : ''} not
+                          connected
+                        </span>
+                        <button
+                          onClick={() => {
+                            setScheduleAllOpen(false);
+                            setScheduleProgress({});
+                            setScheduleUnconnectedIds(new Set());
+                            router.push('/workspace?tab=connections');
+                          }}
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: '#CD1B78',
+                            color: '#fff',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            fontFamily: 'var(--wf)',
+                          }}
+                        >
+                          Connect Account
+                        </button>
+                      </div>
+                    )}
+
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                     <button
                       onClick={() => {
                         setScheduleAllOpen(false);
                         setScheduleProgress({});
+                        setScheduleUnconnectedIds(new Set());
                       }}
                       disabled={scheduleAllLoading}
                       style={{
@@ -1535,13 +1662,29 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
                 onClose={() => setSyncImageOpen(false)}
                 onDone={(sourceId, targetIds) => {
                   const sourceDraft = drafts.find((d) => (d.draft_id ?? d.id) === sourceId);
-                  if (sourceDraft?.image_url) {
-                    const url = sourceDraft.image_url;
-                    setDrafts((prev) =>
-                      prev.map((d) =>
-                        targetIds.includes(d.draft_id ?? d.id ?? '') ? { ...d, image_url: url, has_image: true } : d
-                      )
-                    );
+                  if (sourceDraft) {
+                    if (sourceDraft.post_type === 'carousel' && sourceDraft.slides) {
+                      const sourceSlides = sourceDraft.slides;
+                      setDrafts((prev) =>
+                        prev.map((d) => {
+                          if (!targetIds.includes(d.draft_id ?? d.id ?? '')) return d;
+                          const targetSlides = d.slides ?? [];
+                          if (targetSlides.length !== sourceSlides.length) return d;
+                          return {
+                            ...d,
+                            has_image: true,
+                            slides: targetSlides.map((s, i) => ({ ...s, image_url: sourceSlides[i]?.image_url })),
+                          };
+                        })
+                      );
+                    } else if (sourceDraft.image_url) {
+                      const url = sourceDraft.image_url;
+                      setDrafts((prev) =>
+                        prev.map((d) =>
+                          targetIds.includes(d.draft_id ?? d.id ?? '') ? { ...d, image_url: url, has_image: true } : d
+                        )
+                      );
+                    }
                   }
                   setSyncImageOpen(false);
                   setSelectedDraftIds(new Set());
@@ -1572,6 +1715,8 @@ const ContentManagerPage = ({ onJane, isMobile = false }: { onJane: () => void; 
           <>
             {loadingScheduled ? (
               <CMSpinner />
+            ) : scheduledError ? (
+              <CMEmptyState message="Couldn't load scheduled posts — tap to retry." retry={fetchScheduled} />
             ) : scheduled.length === 0 ? (
               <CMEmptyState message="No scheduled posts. Approve a draft and choose 'Schedule' to add one." />
             ) : (
@@ -1828,7 +1973,7 @@ const PLATFORMS = [
     label: 'Facebook',
     color: '#1877F2',
     bg: '#E7F0FD',
-    flow: 'facebook_direct',
+    flow: 'facebook_oauth',
     tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social',
   },
   {
@@ -1861,6 +2006,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [availablePages, setAvailablePages] = useState<AvailablePage[]>([]);
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
   const [networkName, setNetworkName] = useState('');
+  // Which platform initiated the Outstand connect (used to filter the page picker)
+  const [pendingPlatform, setPendingPlatform] = useState<string>('');
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -1926,18 +2073,20 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       }
       if (fbIg?.responseData) {
         const conns = fbIg.responseData.connections ?? {};
+        const fbConn = conns.facebook?.[0];
+        const igConn = conns.instagram?.[0];
         next.facebook = {
           linked: !!conns.facebook?.length,
-          account_name: conns.facebook?.[0]?.page_name,
-          outstand_account_id: conns.facebook?.[0]?.outstand_account_id,
-          connected_via: conns.facebook?.[0]?.connected_via,
+          account_name: fbConn?.account_name || fbConn?.page_name || fbConn?.username,
+          outstand_account_id: fbConn?.outstand_account_id,
+          connected_via: fbConn?.connected_via,
         };
         next.instagram = {
           linked: !!conns.instagram?.length,
-          account_name: conns.instagram?.[0]?.page_name,
-          outstand_account_id: conns.instagram?.[0]?.outstand_account_id,
-          ig_user_id: conns.instagram?.[0]?.ig_user_id,
-          connected_via: conns.instagram?.[0]?.connected_via,
+          account_name: igConn?.account_name || igConn?.page_name || igConn?.username,
+          outstand_account_id: igConn?.outstand_account_id,
+          ig_user_id: igConn?.ig_user_id,
+          connected_via: igConn?.connected_via,
         };
       } else {
         next.facebook = { linked: false };
@@ -1967,6 +2116,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             if (res.status) {
               ToastService.showToast(`Instagram @${igUsername} connected!`, ToastTypeEnum.Success);
               posthog.capture('social_account_connected', { platform: 'instagram', username: igUsername });
+              try {
+                sessionStorage.removeItem('social_connections_cache');
+              } catch {
+                /* noop */
+              }
               loadStatuses();
             } else {
               ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
@@ -1994,6 +2148,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     } else if (connected === 'pending' && token) {
       setSessionToken(token);
       setPhase('pending');
+      const storedPlatform = localStorage.getItem('outstand_connect_platform') ?? '';
+      if (storedPlatform) {
+        setPendingPlatform(storedPlatform);
+        localStorage.removeItem('outstand_connect_platform');
+      }
       router.replace('/workspace?tab=connections');
       SocialAccountService.getPendingConnection(token)
         .then((res) => {
@@ -2025,6 +2184,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         setSessionToken(null);
         setAvailablePages([]);
         setSelectedPageIds([]);
+        setPendingPlatform('');
+        // Bust DraftCard's cached connected_platforms so it reflects the new connection immediately.
+        try {
+          sessionStorage.removeItem('social_connections_cache');
+        } catch {
+          /* noop */
+        }
         loadStatuses();
       } else {
         ToastService.showToast('Finalization failed. Please try again.', ToastTypeEnum.Error);
@@ -2052,24 +2218,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const handleConnect = async (id: string, flow: string) => {
-    if (flow === 'instagram_direct') {
-      setConnecting(id);
-      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
-      window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
-      return;
-    }
-    if (flow === 'facebook_direct') {
-      setConnecting(id);
-      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
-      window.location.href = `${apiBase}/social-media/connect/facebook-direct/initiate?source=settings`;
-      return;
-    }
     if (flow === 'facebook_oauth') {
       setConnecting(id);
       try {
         const res = await SocialAccountService.initiateConnection(['facebook'], 'settings');
         if (res.status && res.responseData?.auth_urls?.facebook) {
           localStorage.setItem('outstand_connect_source', 'settings');
+          localStorage.setItem('outstand_connect_platform', id); // track which platform initiated
           window.location.href = res.responseData.auth_urls.facebook;
           return;
         }
@@ -2079,6 +2234,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       } finally {
         setConnecting(null);
       }
+      return;
+    }
+    if (flow === 'instagram_direct') {
+      setConnecting(id);
+      // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+      window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
       return;
     }
     if (flow === 'phone') {
@@ -2182,6 +2344,12 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           return;
         }
       }
+      // Invalidate DraftCard's connection cache so it re-fetches after a disconnect.
+      try {
+        sessionStorage.removeItem('social_connections_cache');
+      } catch {
+        /* noop */
+      }
       // Reload from server to confirm disconnect — do not optimistically set linked: false
       await loadStatuses();
       ToastService.showToast('Account disconnected.', ToastTypeEnum.Success);
@@ -2243,78 +2411,115 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             Select which accounts you want to manage through URI Social.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-            {availablePages.length === 0 ? (
-              <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>
-                No accounts found. Make sure you have admin access to at least one page.
-              </div>
-            ) : (
-              availablePages.map((page) => {
-                const isSelected = selectedPageIds.includes(page.id);
-                const isIg = page.type === 'instagram_business_account' || page.network === 'instagram';
-                return (
-                  <div
-                    key={page.id}
-                    onClick={() =>
-                      setSelectedPageIds((prev) =>
-                        prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
-                      )
+            {(() => {
+              // Filter pages to only show the platform that initiated the connect.
+              // Outstand returns type:'page' for Facebook pages and type:'instagram_account' (or similar)
+              // for Instagram accounts. Ensure clicking "Connect Facebook" never shows IG accounts.
+              const OUTSTAND_FACEBOOK_TYPES = new Set(['page', 'facebook', 'facebook_page']);
+              const OUTSTAND_INSTAGRAM_TYPES = new Set(['instagram', 'instagram_account', 'instagram_business']);
+              const platformPages = pendingPlatform
+                ? availablePages.filter((p) => {
+                    const rawType = (p.type ?? '').toLowerCase();
+                    const rawNetwork = (p.network ?? '').toLowerCase();
+                    if (pendingPlatform === 'facebook') {
+                      // Accept pages that are Facebook-type or have no type info
+                      if (rawNetwork) return rawNetwork === 'facebook';
+                      return !rawType || OUTSTAND_FACEBOOK_TYPES.has(rawType);
                     }
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      padding: '11px 14px',
-                      borderRadius: 10,
-                      border: `2px solid ${isSelected ? '#C2185B' : '#edecea'}`,
-                      background: isSelected ? '#FDF2F8' : '#fff',
-                      cursor: 'pointer',
-                      transition: 'all .15s',
-                    }}
-                  >
-                    {page.profilePictureUrl ? (
-                      <img
-                        src={page.profilePictureUrl}
-                        alt={page.name}
-                        style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: '50%',
-                          background: isIg ? '#FDE7EC' : '#E7F0FD',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 16,
-                        }}
-                      >
-                        {isIg ? '📸' : '📘'}
-                      </div>
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{page.name}</div>
-                      {page.username && <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>@{page.username}</div>}
-                    </div>
-                    <div
-                      style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: '50%',
-                        border: `2px solid ${isSelected ? '#C2185B' : '#ddd'}`,
-                        background: isSelected ? '#C2185B' : '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {isSelected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
-                    </div>
+                    if (pendingPlatform === 'instagram') {
+                      if (rawNetwork) return rawNetwork === 'instagram';
+                      return !rawType || OUTSTAND_INSTAGRAM_TYPES.has(rawType);
+                    }
+                    return true;
+                  })
+                : availablePages;
+              const selectablePages = platformPages.filter((p) => !p.auto_connect);
+              const autoPages = platformPages.filter((p) => p.auto_connect);
+              if (selectablePages.length === 0) {
+                return (
+                  <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>
+                    No accounts found. Make sure you have admin access to at least one page.
                   </div>
                 );
-              })
-            )}
+              }
+              return (
+                <>
+                  {selectablePages.map((page) => {
+                    const isSelected = selectedPageIds.includes(page.id);
+                    return (
+                      <div
+                        key={page.id}
+                        onClick={() =>
+                          setSelectedPageIds((prev) =>
+                            prev.includes(page.id) ? prev.filter((x) => x !== page.id) : [...prev, page.id]
+                          )
+                        }
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          padding: '11px 14px',
+                          borderRadius: 10,
+                          border: `2px solid ${isSelected ? '#C2185B' : '#edecea'}`,
+                          background: isSelected ? '#FDF2F8' : '#fff',
+                          cursor: 'pointer',
+                          transition: 'all .15s',
+                        }}
+                      >
+                        {page.profilePictureUrl ? (
+                          <img
+                            src={page.profilePictureUrl}
+                            alt={page.name}
+                            style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: '50%',
+                              background: '#E7F0FD',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 16,
+                            }}
+                          >
+                            📘
+                          </div>
+                        )}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>{page.name}</div>
+                          {page.username && <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>@{page.username}</div>}
+                        </div>
+                        <div
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: '50%',
+                            border: `2px solid ${isSelected ? '#C2185B' : '#ddd'}`,
+                            background: isSelected ? '#C2185B' : '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {isSelected && (
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {autoPages.length > 0 && (
+                    <div style={{ fontSize: 11.5, color: '#6B7280', padding: '6px 4px' }}>
+                      Instagram Business Account{autoPages.length > 1 ? 's' : ''} linked to your page
+                      {autoPages.length > 1 ? 's' : ''} will be connected automatically.
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button
@@ -2345,6 +2550,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                 setSessionToken(null);
                 setAvailablePages([]);
                 setSelectedPageIds([]);
+                setPendingPlatform('');
               }}
               style={{
                 background: 'none',
@@ -2971,7 +3177,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
       icon="chart"
       desc={
         view === 'posts'
-          ? 'Real-time insights from your published posts via Outstand'
+          ? 'Real-time insights from your published posts'
           : 'Account-level metrics for your connected social profiles'
       }
       onJane={onJane}
@@ -3168,8 +3374,8 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                 </div>
               </div>
 
-              {/* Per-platform breakdown */}
-              {Object.keys(data.by_platform).length > 0 && (
+              {/* Per-platform breakdown — LinkedIn excluded (no public API for engagement stats) */}
+              {
                 <div
                   style={{
                     background: '#fff',
@@ -3191,64 +3397,74 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                   >
                     By Platform
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {Object.entries(data.by_platform).map(([pl, stats]) => (
-                      <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 8,
-                            background: (PLATFORM_COLORS[pl] ?? '#666') + '18',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 16,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {platformIcon[pl] ?? '🌐'}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              marginBottom: 3,
-                            }}
-                          >
-                            <span style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>
-                              {pl}
-                            </span>
-                            <span style={{ fontSize: 12, color: '#999' }}>
-                              {stats.posts} post{stats.posts !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', gap: 14 }}>
-                            {[
-                              ['Impressions', fmt(stats.impressions)],
-                              ['Reach', fmt(stats.reach)],
-                              ['Eng.', `${stats.avg_engagement_rate}%`],
-                            ].map(([l, v]) => (
-                              <div key={l}>
-                                <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
+                  {Object.keys(data.by_platform).filter((pl) => pl !== 'linkedin').length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {Object.entries(data.by_platform)
+                        .filter(([pl]) => pl !== 'linkedin')
+                        .map(([pl, stats]) => (
+                          <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 8,
+                                background: (PLATFORM_COLORS[pl] ?? '#666') + '18',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 16,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {platformIcon[pl] ?? '🌐'}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  marginBottom: 3,
+                                }}
+                              >
+                                <span
+                                  style={{ fontSize: 13, fontWeight: 700, color: '#111', textTransform: 'capitalize' }}
+                                >
+                                  {pl}
+                                </span>
+                                <span style={{ fontSize: 12, color: '#999' }}>
+                                  {stats.posts} post{stats.posts !== 1 ? 's' : ''}
+                                </span>
                               </div>
-                            ))}
+                              <div style={{ display: 'flex', gap: 14 }}>
+                                {[
+                                  ['Impressions', fmt(stats.impressions)],
+                                  ['Reach', fmt(stats.reach)],
+                                  ['Eng.', `${stats.avg_engagement_rate}%`],
+                                ].map(([l, v]) => (
+                                  <div key={l}>
+                                    <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12.5, color: '#bbb', textAlign: 'center', padding: '10px 0' }}>
+                      Publish to Instagram or Facebook to see your breakdown here.
+                    </div>
+                  )}
                 </div>
-              )}
+              }
 
               {/* Calendar engagement intelligence */}
               {calPerf?.has_data && <CalPerfSection data={calPerf} />}
 
-              {/* Top posts */}
-              {data.top_posts.length > 0 && (
+              {/* Top posts — LinkedIn excluded */}
+              {data.top_posts.filter((p: PerformancePost) => p.platform !== 'linkedin').length > 0 && (
                 <div
                   style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: '16px 18px' }}
                 >
@@ -3265,103 +3481,105 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
                     Top Posts
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {data.top_posts.map((post: PerformancePost) => (
-                      <div key={post.draft_id}>
-                        <div
-                          onClick={() => setExpandedPost(expandedPost === post.draft_id ? null : post.draft_id)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: 10,
-                            padding: '10px 12px',
-                            borderRadius: 10,
-                            border: '1px solid #f0eeec',
-                            cursor: 'pointer',
-                            background: expandedPost === post.draft_id ? '#fdf8fc' : '#fafaf8',
-                          }}
-                        >
+                    {data.top_posts
+                      .filter((post: PerformancePost) => post.platform !== 'linkedin')
+                      .map((post: PerformancePost) => (
+                        <div key={post.draft_id}>
                           <div
+                            onClick={() => setExpandedPost(expandedPost === post.draft_id ? null : post.draft_id)}
                             style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: 7,
-                              background: (PLATFORM_COLORS[post.platform] ?? '#666') + '18',
                               display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: 14,
-                              flexShrink: 0,
+                              alignItems: 'flex-start',
+                              gap: 10,
+                              padding: '10px 12px',
+                              borderRadius: 10,
+                              border: '1px solid #f0eeec',
+                              cursor: 'pointer',
+                              background: expandedPost === post.draft_id ? '#fdf8fc' : '#fafaf8',
                             }}
                           >
-                            {platformIcon[post.platform] ?? '🌐'}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
                             <div
                               style={{
-                                fontSize: 12.5,
-                                color: '#374151',
-                                lineHeight: 1.45,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
+                                width: 28,
+                                height: 28,
+                                borderRadius: 7,
+                                background: (PLATFORM_COLORS[post.platform] ?? '#666') + '18',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 14,
+                                flexShrink: 0,
                               }}
                             >
-                              {post.content_preview || '(No preview)'}
+                              {platformIcon[post.platform] ?? '🌐'}
                             </div>
-                            <div style={{ display: 'flex', gap: 12, marginTop: 5 }}>
-                              {[
-                                ['👁', fmt(post.impressions)],
-                                ['❤️', fmt(post.likes)],
-                                ['💬', fmt(post.comments)],
-                                ['🔁', fmt(post.shares)],
-                              ].map(([ic, v]) => (
-                                <span key={ic as string} style={{ fontSize: 11.5, color: '#666' }}>
-                                  {ic} {v}
-                                </span>
-                              ))}
-                              <span style={{ marginLeft: 'auto', fontSize: 11, color: '#C2185B', fontWeight: 700 }}>
-                                {post.engagement_rate}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        {expandedPost === post.draft_id && (
-                          <div
-                            style={{
-                              padding: '10px 12px 12px',
-                              background: '#fdf8fc',
-                              borderRadius: '0 0 10px 10px',
-                              border: '1px solid #f0eeec',
-                              borderTop: 'none',
-                              display: 'flex',
-                              flexWrap: 'wrap',
-                              gap: 8,
-                            }}
-                          >
-                            {[
-                              ['Views', fmt(post.views)],
-                              ['Reach', fmt(post.reach)],
-                              ['Engagement Rate', `${post.engagement_rate}%`],
-                            ].map(([l, v]) => (
-                              <div key={l as string} style={{ flex: '1 1 80px' }}>
-                                <div
-                                  style={{
-                                    fontSize: 10.5,
-                                    color: '#bbb',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: 0.4,
-                                    marginBottom: 2,
-                                  }}
-                                >
-                                  {l}
-                                </div>
-                                <div style={{ fontSize: 15, fontWeight: 800, color: '#111' }}>{v}</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontSize: 12.5,
+                                  color: '#374151',
+                                  lineHeight: 1.45,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {post.content_preview || '(No preview)'}
                               </div>
-                            ))}
+                              <div style={{ display: 'flex', gap: 12, marginTop: 5 }}>
+                                {[
+                                  ['👁', fmt(post.impressions)],
+                                  ['❤️', fmt(post.likes)],
+                                  ['💬', fmt(post.comments)],
+                                  ['🔁', fmt(post.shares)],
+                                ].map(([ic, v]) => (
+                                  <span key={ic as string} style={{ fontSize: 11.5, color: '#666' }}>
+                                    {ic} {v}
+                                  </span>
+                                ))}
+                                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#C2185B', fontWeight: 700 }}>
+                                  {post.engagement_rate}%
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          {expandedPost === post.draft_id && (
+                            <div
+                              style={{
+                                padding: '10px 12px 12px',
+                                background: '#fdf8fc',
+                                borderRadius: '0 0 10px 10px',
+                                border: '1px solid #f0eeec',
+                                borderTop: 'none',
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 8,
+                              }}
+                            >
+                              {[
+                                ['Views', fmt(post.views)],
+                                ['Reach', fmt(post.reach)],
+                                ['Engagement Rate', `${post.engagement_rate}%`],
+                              ].map(([l, v]) => (
+                                <div key={l as string} style={{ flex: '1 1 80px' }}>
+                                  <div
+                                    style={{
+                                      fontSize: 10.5,
+                                      color: '#bbb',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: 0.4,
+                                      marginBottom: 2,
+                                    }}
+                                  >
+                                    {l}
+                                  </div>
+                                  <div style={{ fontSize: 15, fontWeight: 800, color: '#111' }}>{v}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                   </div>
                 </div>
               )}
@@ -3431,103 +3649,114 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
 
           {!accountLoading && !accountError && accountData?.has_data && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {accountData.accounts.map((acc: AccountMetricItem) => (
-                <div
-                  key={acc.account_id}
-                  style={{
-                    background: '#fff',
-                    borderRadius: 12,
-                    border: '1px solid #edecea',
-                    padding: '16px 18px',
-                  }}
-                >
-                  {/* Account header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 9,
-                        background: (PLATFORM_COLORS[acc.network] ?? '#666') + '18',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 18,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {platformIcon[acc.network] ?? '🌐'}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{acc.page_name ?? acc.network}</div>
-                      <div style={{ fontSize: 11, color: '#bbb', textTransform: 'capitalize' }}>
-                        {acc.category ?? acc.network}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Follower stats — only show fields that aren't null */}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                    {[
-                      ['Followers', acc.followers_count],
-                      ...(acc.following_count != null ? [['Following', acc.following_count]] : []),
-                      ...(acc.posts_count != null ? [['Posts', acc.posts_count]] : []),
-                    ].map(([l, v]) => (
-                      <div key={l as string} style={{ background: '#fafaf8', borderRadius: 8, padding: '10px 14px' }}>
-                        <div
-                          style={{
-                            fontSize: 10.5,
-                            color: '#bbb',
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.4,
-                            marginBottom: 3,
-                          }}
-                        >
-                          {l}
-                        </div>
-                        <div style={{ fontSize: 17, fontWeight: 800, color: '#111' }}>{fmt(v as number)}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Engagement over period */}
+              {accountData.accounts
+                .filter((acc: AccountMetricItem) => acc.network !== 'linkedin')
+                .map((acc: AccountMetricItem) => (
                   <div
+                    key={acc.account_id}
                     style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: '#C2185B',
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.6,
-                      marginBottom: 8,
+                      background: '#fff',
+                      borderRadius: 12,
+                      border: '1px solid #edecea',
+                      padding: '16px 18px',
                     }}
                   >
-                    Engagement · Last {days}d
-                  </div>
-                  {acc.engagement ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                    {/* Account header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 9,
+                          background: (PLATFORM_COLORS[acc.network] ?? '#666') + '18',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 18,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {platformIcon[acc.network] ?? '🌐'}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>
+                          {acc.page_name ?? acc.network}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#bbb', textTransform: 'capitalize' }}>
+                          {acc.category ?? acc.network}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Follower stats — only show fields that aren't null */}
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                       {[
-                        ['Views', fmt(acc.engagement.views)],
-                        ['Likes', fmt(acc.engagement.likes)],
-                        ['Comments', fmt(acc.engagement.comments)],
-                        ['Shares', fmt(acc.engagement.shares)],
-                        ['Reposts', fmt(acc.engagement.reposts)],
-                        ['Quotes', fmt(acc.engagement.quotes)],
+                        ['Followers', acc.followers_count],
+                        ...(acc.following_count != null ? [['Following', acc.following_count]] : []),
+                        ...(acc.posts_count != null ? [['Posts', acc.posts_count]] : []),
                       ].map(([l, v]) => (
-                        <div key={l as string} style={{ minWidth: 60 }}>
-                          <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{v}</span>
+                        <div key={l as string} style={{ background: '#fafaf8', borderRadius: 8, padding: '10px 14px' }}>
+                          <div
+                            style={{
+                              fontSize: 10.5,
+                              color: '#bbb',
+                              textTransform: 'uppercase',
+                              letterSpacing: 0.4,
+                              marginBottom: 3,
+                            }}
+                          >
+                            {l}
+                          </div>
+                          <div style={{ fontSize: 17, fontWeight: 800, color: '#111' }}>{fmt(v as number)}</div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: '#bbb', fontStyle: 'italic' }}>
-                      {acc.engagement_note ??
-                        PLATFORM_ENGAGEMENT_NOTE[acc.network] ??
-                        'Engagement data unavailable for this period.'}
+
+                    {/* Engagement over period */}
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: '#C2185B',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.6,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Engagement · Last {days}d
                     </div>
-                  )}
-                </div>
-              ))}
+                    {(() => {
+                      const engagementEntries = acc.engagement
+                        ? (
+                            [
+                              ['Views', acc.engagement.views],
+                              ['Likes', acc.engagement.likes],
+                              ['Comments', acc.engagement.comments],
+                              ['Shares', acc.engagement.shares],
+                              ['Reposts', acc.engagement.reposts],
+                              ['Quotes', acc.engagement.quotes],
+                            ] as [string, number | null][]
+                          ).filter(([, v]) => v != null)
+                        : [];
+                      return engagementEntries.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                          {engagementEntries.map(([l, v]) => (
+                            <div key={l} style={{ minWidth: 60 }}>
+                              <span style={{ fontSize: 11, color: '#bbb' }}>{l} </span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{fmt(v!)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: '#bbb', fontStyle: 'italic' }}>
+                          {acc.engagement_note ??
+                            PLATFORM_ENGAGEMENT_NOTE[acc.network] ??
+                            'Engagement data unavailable for this period.'}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ))}
             </div>
           )}
         </>
@@ -5358,6 +5587,66 @@ const SettingsPage = ({
 }) => {
   const { userDetails } = useAuth();
   const router = useRouter();
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
+  const handleChangePassword = async () => {
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setPasswordError('All fields are required.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+
+    if (oldPassword === newPassword) {
+      setPasswordError('New password must be different from current password.');
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      const res = await AuthService.changePassword({
+        old_password: oldPassword,
+        new_password: newPassword,
+      });
+
+      if (!res.status) {
+        setPasswordError(res.responseMessage || 'Failed to change password.');
+        return;
+      }
+
+      setPasswordSuccess('Password changed successfully!');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        setShowPasswordForm(false);
+        setPasswordSuccess('');
+      }, 2000);
+    } catch (err: unknown) {
+      const e = err as { data?: { detail?: string; responseMessage?: string }; message?: string };
+      setPasswordError(e?.data?.detail || e?.data?.responseMessage || e?.message || 'Failed to change password.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   return (
     <SubPage title="Settings" icon="settings" desc="Manage your account and brand preferences" onJane={onJane}>
@@ -5379,6 +5668,195 @@ const SettingsPage = ({
             <div style={{ fontSize: 13.5, color: '#333', fontWeight: 500 }}>{userDetails?.email || ''}</div>
           </div>
         </div>
+      </div>
+
+      {/* Security Section */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: showPasswordForm ? 14 : 0,
+          }}
+        >
+          <h3 style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <I n="lock" s={16} c="#C2185B" />
+            Security
+          </h3>
+          <button
+            onClick={() => setShowPasswordForm(!showPasswordForm)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 7,
+              border: '1px solid #e5e3df',
+              background: showPasswordForm ? '#FDF2F8' : '#fff',
+              cursor: 'pointer',
+              fontFamily: 'var(--wf)',
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#C2185B',
+            }}
+          >
+            {showPasswordForm ? 'Cancel' : 'Change Password'}
+          </button>
+        </div>
+
+        {showPasswordForm && (
+          <div
+            style={{ marginTop: 14, background: '#FAFAFA', padding: 16, borderRadius: 10, border: '1px solid #F0F0F0' }}
+          >
+            {passwordError && (
+              <div
+                style={{
+                  background: '#FEF2F2',
+                  color: '#DC2626',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  marginBottom: 14,
+                  fontWeight: 500,
+                  border: '1px solid #FEE2E2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <I n="alert" s={14} c="#DC2626" />
+                {passwordError}
+              </div>
+            )}
+            {passwordSuccess && (
+              <div
+                style={{
+                  background: '#F0FDF4',
+                  color: '#16A34A',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  marginBottom: 14,
+                  fontWeight: 500,
+                  border: '1px solid #DCFCE7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <I n="check" s={14} c="#16A34A" />
+                {passwordSuccess}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 11, color: '#777', marginBottom: 7, fontWeight: 600, letterSpacing: '0.3px' }}>
+                  CURRENT PASSWORD
+                </div>
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    border: '1.5px solid #E5E7EB',
+                    borderRadius: 9,
+                    fontFamily: 'var(--wf)',
+                    fontSize: 13.5,
+                    fontWeight: 500,
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    background: '#fff',
+                  }}
+                  placeholder="••••••••"
+                  onFocus={(e) => (e.target.style.borderColor = '#C2185B')}
+                  onBlur={(e) => (e.target.style.borderColor = '#E5E7EB')}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#777', marginBottom: 7, fontWeight: 600, letterSpacing: '0.3px' }}>
+                  NEW PASSWORD
+                </div>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    border: '1.5px solid #E5E7EB',
+                    borderRadius: 9,
+                    fontFamily: 'var(--wf)',
+                    fontSize: 13.5,
+                    fontWeight: 500,
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    background: '#fff',
+                  }}
+                  placeholder="Minimum 8 characters"
+                  onFocus={(e) => (e.target.style.borderColor = '#C2185B')}
+                  onBlur={(e) => (e.target.style.borderColor = '#E5E7EB')}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#777', marginBottom: 7, fontWeight: 600, letterSpacing: '0.3px' }}>
+                  CONFIRM NEW PASSWORD
+                </div>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    border: '1.5px solid #E5E7EB',
+                    borderRadius: 9,
+                    fontFamily: 'var(--wf)',
+                    fontSize: 13.5,
+                    fontWeight: 500,
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    background: '#fff',
+                  }}
+                  placeholder="Re-enter new password"
+                  onFocus={(e) => (e.target.style.borderColor = '#C2185B')}
+                  onBlur={(e) => (e.target.style.borderColor = '#E5E7EB')}
+                />
+              </div>
+              <button
+                onClick={handleChangePassword}
+                disabled={passwordLoading}
+                style={{
+                  marginTop: 6,
+                  padding: '11px 18px',
+                  borderRadius: 9,
+                  border: 'none',
+                  background: passwordLoading ? '#E5E7EB' : 'linear-gradient(135deg, #C2185B, #E91E63)',
+                  color: passwordLoading ? '#9CA3AF' : '#fff',
+                  cursor: passwordLoading ? 'not-allowed' : 'pointer',
+                  fontFamily: 'var(--wf)',
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  transition: 'all 0.2s',
+                  boxShadow: passwordLoading ? 'none' : '0 2px 8px rgba(194, 24, 91, 0.25)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!passwordLoading) {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(194, 24, 91, 0.35)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!passwordLoading) {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(194, 24, 91, 0.25)';
+                  }
+                }}
+              >
+                {passwordLoading ? 'Updating Password...' : 'Update Password'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Brand Settings */}
@@ -5492,9 +5970,92 @@ const SettingsPage = ({
 /* ── Feed types ─────────────────────────────────────────────────────────── */
 interface FeedMsg {
   id: string;
-  type: 'jane' | 'jane-card' | 'user';
+  type: 'jane' | 'user';
   time: string;
   content: ReactNode;
+}
+
+function detectNavigateFromReply(reply: string): string | null {
+  // Normalize curly/typographic quotes to plain ASCII (using Unicode escapes to avoid source encoding issues)
+  const r = reply
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
+
+  // Section-name phrases — if the reply mentions a section in any navigational context
+  const sectionPhrases: [string[], string][] = [
+    [['billing section', 'billing tab', 'in the billing', 'to the billing', 'view billing', 'your billing'], 'billing'],
+    [
+      [
+        'connected accounts section',
+        'connected accounts tab',
+        'in the connected accounts',
+        'to the connected accounts',
+        'connected accounts page',
+        'connect your instagram',
+        'connect your facebook',
+        'connect your linkedin',
+      ],
+      'connections',
+    ],
+    [
+      [
+        'posting schedule',
+        'in the schedule',
+        'to the schedule',
+        'needs review',
+        'your drafts',
+        'in drafts',
+        'create content',
+        'content creator',
+        'head to create',
+        'in create content',
+        'to create content',
+      ],
+      'schedule',
+    ],
+    [
+      ['performance section', 'performance tab', 'in the performance', 'to the performance', 'performance page'],
+      'performance',
+    ],
+    [['brand playbook', 'in the playbook', 'to the playbook'], 'playbook'],
+    [['market intel', 'in the intel', 'to the intel'], 'intel'],
+    [['blog generator', 'blog section', 'in the blog', 'to the blog'], 'blog'],
+    [['settings section', 'settings tab', 'in the settings', 'to the settings', 'settings page'], 'settings'],
+    [['notifications section', 'notifications tab', 'in the notifications'], 'notifications'],
+  ];
+
+  for (const [phrases, key] of sectionPhrases) {
+    if (phrases.some((p) => r.includes(p))) return key;
+  }
+
+  // Fallback: generic navigation phrases + section keyword
+  const isNavigating =
+    r.includes('take you to') ||
+    r.includes('taking you to') ||
+    r.includes('navigate to') ||
+    r.includes('go to the') ||
+    r.includes('head to') ||
+    r.includes('visit the') ||
+    r.includes('sending you to') ||
+    r.includes('opening the') ||
+    r.includes('redirecting you') ||
+    r.includes("let's go") ||
+    r.includes('can find it in') ||
+    r.includes('you can go') ||
+    r.includes('i will take you') ||
+    r.includes('let me take you');
+  if (!isNavigating) return null;
+  if (r.includes('billing')) return 'billing';
+  if (r.includes('connected account') || r.includes('connection')) return 'connections';
+  if (r.includes('schedule') || r.includes('draft')) return 'schedule';
+  if (r.includes('performance') || r.includes('analytic')) return 'performance';
+  if (r.includes('playbook')) return 'playbook';
+  if (r.includes('intel')) return 'intel';
+  if (r.includes('blog')) return 'blog';
+  if (r.includes('settings')) return 'settings';
+  if (r.includes('notification')) return 'notifications';
+  return null;
 }
 
 const STATUS_MSGS = [
@@ -5596,6 +6157,7 @@ const MORE_NAV = [
 export default function WorkspaceDashboard() {
   const { logoutUser, userDetails } = useAuth();
   const { unreadCount } = useNotifications();
+  const { showVerifyModal, setShowVerifyModal, requireEmailVerification } = useEmailVerification();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -5605,14 +6167,28 @@ export default function WorkspaceDashboard() {
   const [billingTab, setBillingTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>('overview');
   const [sIdx, setSIdx] = useState(0);
   const [feed, setFeed] = useState<FeedMsg[]>([]);
+  const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
+  const [historyMessages, setHistoryMessages] = useState<
+    { role: string; content: string; created_at: string }[] | null
+  >(null);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
+  const [streamingText, setStreamingText] = useState<string | null>(null);
+  const streamAbortRef = useRef<{ abort: () => void } | null>(null);
+  const [attachment, setAttachment] = useState<{
+    previewUrl: string;
+    uploadedUrl: string | null;
+    uploading: boolean;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [trialExpiredOpen, setTrialExpiredOpen] = useState(false);
   const [trialEndingDismissed, setTrialEndingDismissed] = useState(false);
   const feedEnd = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     BrandProfileService.isOnboardingDone().then((done) => {
@@ -5630,6 +6206,13 @@ export default function WorkspaceDashboard() {
     return () => window.removeEventListener('resize', ck);
   }, []);
 
+  // Keep nav in sync with the ?tab= URL param so that router.push('/workspace?tab=connections')
+  // from child components (DraftCard, Schedule All dialog) actually switches the visible section.
+  useEffect(() => {
+    const tab = searchParams?.get('tab');
+    if (tab) setNav(tab);
+  }, [searchParams]);
+
   useEffect(() => {
     if (!localStorage.getItem('uri_tour_v1')) {
       const t = setTimeout(() => setTourOpen(true), 900);
@@ -5637,11 +6220,23 @@ export default function WorkspaceDashboard() {
     }
   }, []);
 
-  const closeTour = useCallback((navigate = false) => {
-    setTourOpen(false);
-    localStorage.setItem('uri_tour_v1', '1');
-    if (navigate) setNav('schedule');
-  }, []);
+  // Keep URL in sync with nav so that router.push('/workspace?tab=X') always triggers a URL change.
+  const goTo = useCallback(
+    (id: string) => {
+      setNav(id);
+      router.replace(`/workspace?tab=${id}`, { scroll: false } as Parameters<typeof router.replace>[1]);
+    },
+    [router]
+  );
+
+  const closeTour = useCallback(
+    (navigate = false) => {
+      setTourOpen(false);
+      localStorage.setItem('uri_tour_v1', '1');
+      if (navigate) goTo('schedule');
+    },
+    [goTo]
+  );
 
   // Show trial expired modal on first visit after expiry
   useEffect(() => {
@@ -5651,7 +6246,35 @@ export default function WorkspaceDashboard() {
     }
   }, [userDetails?.trialExpired, userDetails?.subscriptionTier]);
 
+  // Load persisted conversation history on mount
   useEffect(() => {
+    SocialMediaAgentService.getAgentChatHistory()
+      .then((res) => {
+        if (res.status && Array.isArray(res.responseData)) {
+          setHistoryMessages(res.responseData);
+        } else {
+          setHistoryMessages([]);
+        }
+      })
+      .catch(() => setHistoryMessages([]));
+  }, []);
+
+  // Show greeting or restore history once both profile and history are ready
+  useEffect(() => {
+    if (historyMessages === null) return; // still loading
+    if (historyMessages.length > 0) {
+      const msgs: FeedMsg[] = historyMessages.map((m, i) => ({
+        id: 'hist_' + i,
+        type: m.role === 'user' ? 'user' : 'jane',
+        time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        content: m.role === 'user' ? m.content : <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{m.content}</p>,
+      }));
+      setFeed(msgs);
+      setChatHistory(historyMessages.map((m) => ({ role: m.role, content: m.content })));
+      setTimeout(() => setReady(true), 120);
+      return;
+    }
+    // No history — show welcome greeting
     const name = profile?.brand_name ?? 'your brand';
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setFeed([
@@ -5662,16 +6285,16 @@ export default function WorkspaceDashboard() {
         content: (
           <div>
             <p style={{ margin: 0 }}>
-              Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}! Here's your briefing for{' '}
-              <strong>{name}</strong>:
+              Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}! I&apos;m fully briefed on{' '}
+              <strong>{name}</strong> and ready to help.
             </p>
             <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13, color: '#555', lineHeight: 1.7 }}>
+              <li>Ask me anything about your brand — voice, audience, strategy, or performance</li>
               <li>
-                Check <strong>Posting Schedule</strong> for posts needing review
+                Want to create posts? Head to <strong>Create Content</strong> in the sidebar
               </li>
-              <li>Type a topic below and I'll draft content across your platforms</li>
               <li>
-                Connect social accounts in <strong>Settings</strong> to unlock analytics
+                Connect social accounts in <strong>Connected Accounts</strong> to unlock publishing
               </li>
             </ul>
           </div>
@@ -5679,7 +6302,7 @@ export default function WorkspaceDashboard() {
       },
     ]);
     setTimeout(() => setReady(true), 120);
-  }, [profile]);
+  }, [historyMessages, profile]);
 
   useEffect(() => {
     const iv = setInterval(() => setSIdx((i) => (i + 1) % STATUS_MSGS.length), 5000);
@@ -5688,129 +6311,164 @@ export default function WorkspaceDashboard() {
 
   useEffect(() => {
     feedEnd.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [feed, typing]);
+  }, [feed, typing, streamingText]);
+
+  const autoGrowTextarea = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  };
+
+  const clearConversation = async () => {
+    try {
+      await SocialMediaAgentService.clearAgentChat();
+    } catch {
+      // noop — clear locally anyway
+    }
+    setChatHistory([]);
+    setHistoryMessages([]);
+    setClearConfirmOpen(false);
+    const name = profile?.brand_name ?? 'your brand';
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setFeed([
+      {
+        id: 'w' + Date.now(),
+        type: 'jane',
+        time: now,
+        content: (
+          <div>
+            <p style={{ margin: 0 }}>
+              Conversation cleared. Still fully briefed on <strong>{name}</strong> — ask me anything about your brand,
+              strategy, or audience.
+            </p>
+          </div>
+        ),
+      },
+    ]);
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!e.target.files) return;
+    e.target.value = ''; // reset so same file can be re-selected
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setAttachment({ previewUrl, uploadedUrl: null, uploading: true });
+    try {
+      const res = await SocialMediaAgentService.uploadChatImage(file);
+      if (res.status && res.responseData?.url) {
+        setAttachment({ previewUrl, uploadedUrl: res.responseData.url, uploading: false });
+      } else {
+        setAttachment(null);
+        ToastService.showToast('Image upload failed. Please try again.', ToastTypeEnum.Error);
+      }
+    } catch {
+      setAttachment(null);
+      ToastService.showToast('Image upload failed. Please try again.', ToastTypeEnum.Error);
+    }
+  };
 
   const sendMsg = async () => {
-    if (!input.trim()) return;
+    if ((!input.trim() && !attachment?.uploadedUrl) || streamingText !== null) return;
     const txt = input.trim();
+    const imageUrl = attachment?.uploadedUrl ?? undefined;
+    const previewUrl = attachment?.previewUrl;
     setInput('');
+    setAttachment(null);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setFeed((f) => [...f, { id: 'u' + Date.now(), type: 'user', time: now, content: txt }]);
+
+    setFeed((f) => [
+      ...f,
+      {
+        id: 'u' + Date.now(),
+        type: 'user',
+        time: now,
+        content: previewUrl ? (
+          <div>
+            <img
+              src={previewUrl}
+              alt="attachment"
+              style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, display: 'block', marginBottom: txt ? 8 : 0 }}
+            />
+            {txt && <span>{txt}</span>}
+          </div>
+        ) : (
+          txt
+        ),
+      },
+    ]);
     setTyping(true);
 
+    const userContent = txt || '(image)';
+    const nextHistory = [...chatHistory, { role: 'user', content: userContent }];
+    setChatHistory(nextHistory);
+
+    const brandContext = profile
+      ? {
+          brand_name: profile.brand_name,
+          industry: profile.industry,
+          business_description: profile.product_description,
+          brand_voice: profile.derived_voice ?? profile.voice_sample,
+          target_audience: profile.audience_age_range
+            ? Array.isArray(profile.audience_age_range)
+              ? profile.audience_age_range.join(', ')
+              : profile.audience_age_range
+            : undefined,
+          key_products_services: profile.content_pillars,
+          brand_colors: profile.brand_colors,
+        }
+      : undefined;
+
     try {
-      const l = txt.toLowerCase();
-      if (
-        l.includes('generate') ||
-        l.includes('create') ||
-        l.includes('draft') ||
-        l.includes('post') ||
-        l.includes('write')
-      ) {
-        const res = await SocialMediaAgentService.generateContent({
-          seed_content: txt,
-          platforms: ['instagram', 'facebook'],
-          include_images: false,
-        });
-        setTyping(false);
-        const drafts: ContentDraft[] =
-          (res as unknown as { responseData: { drafts: ContentDraft[] } }).responseData?.drafts ?? [];
-        if (res.status && drafts.length > 0) {
-          setFeed((f) => [
-            ...f,
-            {
-              id: 'j' + Date.now(),
-              type: 'jane-card',
-              time: now,
-              content: (
-                <div>
-                  <p style={{ margin: '0 0 10px', fontSize: 13, color: '#444' }}>
-                    Generated {drafts.length} draft{drafts.length > 1 ? 's' : ''}. Check{' '}
-                    <strong>Posting Schedule → Needs Review</strong>.
-                  </p>
-                  {drafts.slice(0, 2).map((d) => (
-                    <div
-                      key={d.id ?? d.draft_id}
-                      style={{
-                        marginBottom: 8,
-                        padding: '12px 14px',
-                        borderRadius: 10,
-                        background: '#f9f9f9',
-                        border: '1px solid #edecea',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-                        <PlatformDot p={d.platform} />
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#222' }}>
-                          {d.platform.charAt(0).toUpperCase() + d.platform.slice(1)}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 12.5, color: '#555', margin: 0, lineHeight: 1.5 }}>
-                        {d.content.slice(0, 120)}
-                        {d.content.length > 120 ? '…' : ''}
-                      </p>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => setNav('schedule')}
-                    style={{
-                      marginTop: 8,
-                      padding: '8px 14px',
-                      borderRadius: 8,
-                      border: 'none',
-                      background: '#111',
-                      color: '#E91E63',
-                      fontWeight: 600,
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      fontFamily: 'var(--wf)',
-                    }}
-                  >
-                    Review in Posting Schedule →
-                  </button>
-                </div>
-              ),
-            },
-          ]);
-        } else {
+      const res = await SocialMediaAgentService.agentChat(nextHistory, imageUrl, brandContext);
+      setTyping(false);
+
+      if (!res.status || !res.responseData) {
+        setFeed((f) => [
+          ...f,
+          {
+            id: 'j' + Date.now(),
+            type: 'jane',
+            time: now,
+            content: <p style={{ margin: 0 }}>Something went wrong. Please try again.</p>,
+          },
+        ]);
+        return;
+      }
+
+      const { reply, navigate } = res.responseData;
+      setChatHistory((h) => [...h, { role: 'assistant', content: reply }]);
+
+      const effectiveNavigate = navigate ?? detectNavigateFromReply(reply);
+
+      const words = reply.split(' ');
+      let idx = 0;
+      setStreamingText('');
+      const iv = setInterval(() => {
+        idx += 1;
+        const chunk = words.slice(0, idx).join(' ');
+        setStreamingText(idx < words.length ? chunk : null);
+        if (idx >= words.length) {
+          clearInterval(iv);
           setFeed((f) => [
             ...f,
             {
               id: 'j' + Date.now(),
               type: 'jane',
               time: now,
-              content: <p style={{ margin: 0 }}>I ran into an issue generating content. Please try again.</p>,
+              content: <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{reply}</p>,
             },
           ]);
+          if (effectiveNavigate) setTimeout(() => goTo(effectiveNavigate), 2000);
         }
-        return;
-      }
+      }, 38);
 
-      await new Promise((r) => setTimeout(r, 1200));
-      setTyping(false);
-      let reply: ReactNode = (
-        <p style={{ margin: 0 }}>
-          Got it! To generate posts, just tell me what topic or campaign you want content for.
-        </p>
-      );
-      if (l.includes('schedule') || l.includes('queue') || l.includes('pending')) {
-        reply = (
-          <p style={{ margin: 0 }}>
-            Check the <strong>Posting Schedule</strong> tab to see your full queue, drafts, and scheduled posts — all in
-            one place with the weekly calendar.
-          </p>
-        );
-      } else if (l.includes('performance') || l.includes('analytic')) {
-        reply = (
-          <p style={{ margin: 0 }}>
-            Connect your social accounts in <strong>Settings → Social Accounts</strong> and I'll pull real performance
-            data for you.
-          </p>
-        );
-      }
-      setFeed((f) => [...f, { id: 'j' + Date.now(), type: 'jane', time: now, content: reply }]);
+      streamAbortRef.current = { abort: () => clearInterval(iv) };
     } catch {
       setTyping(false);
+      setStreamingText(null);
       setFeed((f) => [
         ...f,
         {
@@ -5823,7 +6481,7 @@ export default function WorkspaceDashboard() {
     }
   };
 
-  const goWorkspace = () => setNav('workspace');
+  const goWorkspace = () => goTo('workspace');
   const brandName = profile?.brand_name ?? 'Your Brand';
   const brandInitials = brandName
     .split(' ')
@@ -5834,7 +6492,13 @@ export default function WorkspaceDashboard() {
 
   const PAGES: Record<string, ReactNode> = {
     messages: <MessagesPage onJane={goWorkspace} />,
-    schedule: <ContentManagerPage onJane={goWorkspace} isMobile={isMobile} />,
+    schedule: (
+      <ContentManagerPage
+        onJane={goWorkspace}
+        isMobile={isMobile}
+        requireEmailVerification={requireEmailVerification}
+      />
+    ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
@@ -5842,12 +6506,7 @@ export default function WorkspaceDashboard() {
     // 'blog-drafts': <BlogDraftsTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
     settings: (
-      <SettingsPage
-        onJane={goWorkspace}
-        brandName={brandName}
-        onNavChange={setNav}
-        onBillingTabChange={setBillingTab}
-      />
+      <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
     ),
     billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
     notifications: <NotificationsPanel />,
@@ -5956,7 +6615,7 @@ export default function WorkspaceDashboard() {
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
                     <button
                       id={`tnav-${n.id}`}
-                      onClick={() => setNav(n.id)}
+                      onClick={() => goTo(n.id)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -6147,23 +6806,44 @@ export default function WorkspaceDashboard() {
                 <I n="edit" s={14} c="#666" />
               </button>
 
+              {/* Clear conversation — workspace only */}
+              {nav === 'workspace' && (
+                <button
+                  onClick={() => setClearConfirmOpen(true)}
+                  title="Clear conversation"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 7,
+                    border: '1px solid #e5e3df',
+                    background: '#fff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <I n="broom" s={14} c="#666" />
+                </button>
+              )}
+
               {/* Notification Bell */}
-              <NotificationBell isMobile={isMobile} onViewAll={() => setNav('notifications')} />
+              <NotificationBell isMobile={isMobile} onViewAll={() => goTo('notifications')} />
 
               {/* Trial Badge */}
               {!isMobile && userDetails?.trialActive && (
                 <TrialBanner
                   daysRemaining={userDetails.trialDaysRemaining ?? 0}
                   creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
-                  onClick={() => setNav('billing')}
+                  onClick={() => goTo('billing')}
                 />
               )}
 
               {/* Credit Balance Badge */}
-              {!isMobile && !userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => setNav('billing')} />}
+              {!isMobile && !userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => goTo('billing')} />}
 
               {/* Profile Dropdown */}
-              <WorkspaceProfileDropdown onNavigate={setNav} onLogout={logoutUser} />
+              <WorkspaceProfileDropdown onNavigate={goTo} onLogout={logoutUser} />
             </div>
           </div>
 
@@ -6271,7 +6951,8 @@ export default function WorkspaceDashboard() {
                       )}
                     </div>
                   ))}
-                  {typing && (
+                  {/* Typing dots — shown while waiting for first token */}
+                  {typing && streamingText === null && (
                     <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
                       <JaneAvatar size={30} />
                       <div
@@ -6300,6 +6981,62 @@ export default function WorkspaceDashboard() {
                       </div>
                     </div>
                   )}
+                  {/* Streaming bubble — live text as tokens arrive */}
+                  {streamingText !== null && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: isMobile ? 6 : 10,
+                        alignItems: 'flex-start',
+                        marginBottom: 20,
+                      }}
+                    >
+                      <JaneAvatar size={isMobile ? 26 : 30} />
+                      <div style={{ maxWidth: isMobile ? '90%' : 560, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#C2185B' }}>URI Agent</span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: '#C2185B',
+                              background: 'rgba(194,24,91,.07)',
+                              padding: '1px 6px',
+                              borderRadius: 3,
+                              fontWeight: 600,
+                            }}
+                          >
+                            AI
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            padding: '11px 16px',
+                            borderRadius: '3px 14px 14px 14px',
+                            background: '#fff',
+                            border: '1px solid #edecea',
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                            color: '#333',
+                          }}
+                        >
+                          <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                            {streamingText}
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                width: 2,
+                                height: '1em',
+                                background: '#C2185B',
+                                marginLeft: 2,
+                                verticalAlign: 'text-bottom',
+                                animation: 'wTypeBounce 1s infinite',
+                              }}
+                            />
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div ref={feedEnd} />
                 </div>
                 <div
@@ -6310,6 +7047,69 @@ export default function WorkspaceDashboard() {
                     background: 'linear-gradient(0deg,#f5f4f0 80%,transparent)',
                   }}
                 >
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/heic"
+                    style={{ display: 'none' }}
+                    onChange={handleFileSelect}
+                  />
+
+                  {/* Attachment thumbnail preview */}
+                  {attachment && (
+                    <div style={{ position: 'relative', display: 'inline-block', marginBottom: 6 }}>
+                      <img
+                        src={attachment.previewUrl}
+                        alt="attachment preview"
+                        style={{
+                          height: 72,
+                          width: 72,
+                          objectFit: 'cover',
+                          borderRadius: 8,
+                          border: '1.5px solid #e5e3df',
+                          opacity: attachment.uploading ? 0.5 : 1,
+                        }}
+                      />
+                      {attachment.uploading && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 10,
+                            color: '#666',
+                            fontWeight: 600,
+                          }}
+                        >
+                          uploading…
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setAttachment(null)}
+                        style={{
+                          position: 'absolute',
+                          top: -6,
+                          right: -6,
+                          width: 18,
+                          height: 18,
+                          borderRadius: '50%',
+                          background: '#374151',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      >
+                        <I n="x" s={10} c="#fff" />
+                      </button>
+                    </div>
+                  )}
+
                   <div
                     id="tour-chat-input"
                     style={{
@@ -6318,21 +7118,46 @@ export default function WorkspaceDashboard() {
                       alignItems: 'flex-end',
                       background: '#fff',
                       borderRadius: 13,
-                      border: '1.5px solid #e5e3df',
+                      border: `1.5px solid ${attachment ? '#C2185B' : '#e5e3df'}`,
                       padding: '5px 5px 5px 16px',
                       boxShadow: '0 3px 16px rgba(0,0,0,.05)',
+                      transition: 'border-color 0.2s',
                     }}
                   >
-                    <input
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={attachment?.uploading}
+                      title="Attach image"
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 7,
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: attachment?.uploading ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <I n="paperclip" s={16} c={attachment ? '#C2185B' : '#aaa'} />
+                    </button>
+                    <textarea
+                      ref={textareaRef}
                       value={input}
-                      onChange={(e) => setInput(e.target.value)}
+                      onChange={(e) => {
+                        setInput(e.target.value);
+                        autoGrowTextarea();
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           sendMsg();
                         }
                       }}
-                      placeholder="Tell URI Agent what to create — e.g. 'Write 3 posts about our new product launch'"
+                      rows={1}
+                      placeholder="Ask about your brand, strategy, audience, or anything else…"
                       style={{
                         flex: 1,
                         border: 'none',
@@ -6342,24 +7167,41 @@ export default function WorkspaceDashboard() {
                         padding: '9px 0',
                         background: 'transparent',
                         color: '#222',
+                        resize: 'none',
+                        overflow: 'hidden',
+                        lineHeight: 1.5,
                       }}
                     />
                     <button
                       onClick={sendMsg}
+                      disabled={attachment?.uploading}
                       style={{
                         width: 38,
                         height: 38,
                         borderRadius: 9,
                         border: 'none',
-                        background: input.trim() ? '#C2185B' : '#eee',
-                        cursor: input.trim() ? 'pointer' : 'default',
+                        background: attachment?.uploading
+                          ? '#eee'
+                          : input.trim() || attachment?.uploadedUrl
+                            ? '#C2185B'
+                            : '#eee',
+                        cursor: attachment?.uploading
+                          ? 'not-allowed'
+                          : input.trim() || attachment?.uploadedUrl
+                            ? 'pointer'
+                            : 'default',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                         transition: 'background .2s',
                       }}
                     >
-                      <I n="send" s={15} c={input.trim() ? '#fff' : '#ccc'} />
+                      <I
+                        n="send"
+                        s={15}
+                        c={attachment?.uploading ? '#ccc' : input.trim() || attachment?.uploadedUrl ? '#fff' : '#ccc'}
+                      />
                     </button>
                   </div>
                   <div style={{ textAlign: 'center', marginTop: 5 }}>
@@ -6373,6 +7215,72 @@ export default function WorkspaceDashboard() {
               PAGES[nav]
             )}
           </div>
+
+          {/* Clear conversation confirmation dialog */}
+          {clearConfirmOpen && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.4)',
+                zIndex: 1500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onClick={() => setClearConfirmOpen(false)}
+            >
+              <div
+                style={{
+                  background: '#fff',
+                  borderRadius: 16,
+                  padding: 28,
+                  width: 420,
+                  maxWidth: '90vw',
+                  boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p style={{ fontSize: 16, fontWeight: 700, color: '#111', margin: '0 0 8px' }}>Clear conversation?</p>
+                <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 20px', lineHeight: 1.6 }}>
+                  This will clear your current conversation with URI Agent. You&apos;ll start fresh. URI Agent will
+                  still remember your brand profile and voice, but the chat history will be removed.
+                </p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setClearConfirmOpen(false)}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: 8,
+                      border: '1.5px solid #E5E7EB',
+                      background: '#fff',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#374151',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={clearConversation}
+                    style={{
+                      padding: '8px 20px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: '#C2185B',
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Clear conversation
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* BOTTOM NAV — mobile only */}
           {isMobile && (
@@ -6394,7 +7302,7 @@ export default function WorkspaceDashboard() {
                       if (t.id === 'more') {
                         setMoreOpen((o) => !o);
                       } else {
-                        setNav(t.id);
+                        goTo(t.id);
                         setMoreOpen(false);
                       }
                     }}
@@ -6495,7 +7403,7 @@ export default function WorkspaceDashboard() {
                   <button
                     key={n.id}
                     onClick={() => {
-                      setNav(n.id);
+                      goTo(n.id);
                       setMoreOpen(false);
                     }}
                     style={{
@@ -6576,6 +7484,9 @@ export default function WorkspaceDashboard() {
           sessionStorage.setItem('trial_expired_dismissed', '1');
         }}
       />
+
+      {/* Email Verification Modal */}
+      <VerifyEmailModal open={showVerifyModal} onClose={() => setShowVerifyModal(false)} />
     </>
   );
 }

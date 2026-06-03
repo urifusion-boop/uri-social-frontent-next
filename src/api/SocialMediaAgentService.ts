@@ -134,9 +134,14 @@ export interface ApprovedDraft {
   publish_result?: ApprovePublishResult;
 }
 
+export interface ApproveError {
+  draft_id: string;
+  error: string;
+}
+
 export interface ApproveResult {
   approved_drafts: ApprovedDraft[];
-  errors: string[];
+  errors: ApproveError[];
   schedule_option: string;
   scheduled_datetime: string | null;
   approved_at: string;
@@ -151,8 +156,10 @@ export interface DenyPayload {
 export interface SocialConnection {
   platform: string;
   page_name?: string;
+  account_name?: string;
+  username?: string;
   fan_count?: number;
-  status: 'active' | 'expired';
+  status?: 'active' | 'expired';
   page_id?: string;
   outstand_account_id?: string;
   ig_user_id?: string;
@@ -633,6 +640,130 @@ export class SocialMediaAgentService {
     );
     return response.data;
   }
+
+  static async agentChat(
+    messages: { role: string; content: string }[],
+    imageUrl?: string,
+    brandContext?: BrandContext
+  ): Promise<
+    UriResponse<{
+      reply: string;
+      navigate: string | null;
+    }>
+  > {
+    const response: Awaited<
+      AxiosResponse<
+        UriResponse<{
+          reply: string;
+          navigate: string | null;
+        }>
+      >
+    > = await UriHttpClient.getClient().post(socialMediaAgentRoutes.agentChat, {
+      messages,
+      ...(imageUrl ? { image_url: imageUrl } : {}),
+      ...(brandContext ? { brand_context: brandContext } : {}),
+    });
+    return response.data;
+  }
+
+  static async getAgentChatHistory(): Promise<UriResponse<{ role: string; content: string; created_at: string }[]>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ role: string; content: string; created_at: string }[]>>> =
+      await UriHttpClient.getClient().get(socialMediaAgentRoutes.agentChatHistory);
+    return response.data;
+  }
+
+  static async clearAgentChat(): Promise<UriResponse<{ cleared: boolean }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ cleared: boolean }>>> = await UriHttpClient.getClient().delete(
+      socialMediaAgentRoutes.clearAgentChat
+    );
+    return response.data;
+  }
+
+  static async uploadChatImage(file: File): Promise<UriResponse<{ url: string }>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response: Awaited<AxiosResponse<UriResponse<{ url: string }>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.agentChatUpload,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    );
+    return response.data;
+  }
+
+  static agentChatStream(
+    messages: { role: string; content: string }[],
+    callbacks: {
+      onToken: (token: string) => void;
+      onDone: (navigate: string | null) => void;
+      onError: (msg: string) => void;
+    },
+    imageUrl?: string,
+    brandContext?: BrandContext
+  ): { abort: () => void } {
+    const controller = new AbortController();
+    const baseUrl = process.env.NEXT_PUBLIC_URI_API_BASE_URL ?? '';
+    const tokens: { accessToken?: string } = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('@URI@USER_TOKENS') ?? '{}');
+      } catch {
+        return {};
+      }
+    })();
+    const url = `${baseUrl}${socialMediaAgentRoutes.agentChatStream}`;
+
+    (async () => {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(tokens.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
+          },
+          body: JSON.stringify({
+            messages,
+            ...(imageUrl ? { image_url: imageUrl } : {}),
+            ...(brandContext ? { brand_context: brandContext } : {}),
+          }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok || !res.body) {
+          callbacks.onError('Stream request failed.');
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const ev = JSON.parse(line.slice(6));
+              if (ev.token !== undefined) callbacks.onToken(ev.token);
+              else if (ev.done) callbacks.onDone(ev.navigate ?? null);
+              else if (ev.error) callbacks.onError(ev.error);
+            } catch {
+              // ignore malformed SSE line
+            }
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        callbacks.onError('Connection lost. Please try again.');
+      }
+    })();
+
+    return { abort: () => controller.abort() };
+  }
 }
 
 export interface PerformancePost {
@@ -674,6 +805,8 @@ export interface PerformanceData {
     total_shares: number;
     total_views: number;
     avg_engagement_rate: number;
+    insights_available?: boolean;
+    insights_note?: string | null;
   };
   by_platform: Record<string, PerformancePlatformSummary>;
   top_posts: PerformancePost[];

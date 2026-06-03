@@ -96,7 +96,12 @@ export default function StylePickerGallery({ industry, selected, onChange }: Sty
 
   const industryStyles = getStylesForIndustry(industry || 'general_other');
   const allStyles = STYLES;
-  const styles = viewAll ? allStyles : industryStyles;
+
+  // Separate marketing templates from regular styles
+  const marketingTemplates = allStyles.filter((s) => s.styleType === 'marketing_template');
+  const regularStyles = allStyles.filter((s) => !s.styleType || s.styleType !== 'marketing_template');
+
+  const styles = viewAll ? regularStyles : industryStyles;
 
   const toggle = (slug: string) => {
     if (selected.includes(slug)) {
@@ -142,6 +147,7 @@ export default function StylePickerGallery({ industry, selected, onChange }: Sty
         </Box>
       </Box>
 
+      {/* Regular Visual Styles */}
       <Box
         sx={{
           display: 'grid',
@@ -159,6 +165,62 @@ export default function StylePickerGallery({ industry, selected, onChange }: Sty
           />
         ))}
       </Box>
+
+      {/* AI Marketing Templates Section */}
+      {marketingTemplates.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          {/* Section Header */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              mb: 2,
+              pb: 1.5,
+              borderBottom: `2px solid ${primary}22`,
+            }}
+          >
+            <Box
+              sx={{
+                background: `linear-gradient(135deg, ${primary}, #FF6B9D)`,
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                px: 1.5,
+                py: 0.5,
+                borderRadius: '6px',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}
+            >
+              Pro Templates
+            </Box>
+            <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f' }}>AI Marketing Templates</Typography>
+            <Typography sx={{ fontSize: 11, color: '#6B7280', fontStyle: 'italic' }}>
+              Professional prompt-engineered templates
+            </Typography>
+          </Box>
+
+          {/* Templates Grid */}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+              gap: 1.5,
+            }}
+          >
+            {marketingTemplates.map((template) => (
+              <StyleCard
+                key={template.slug}
+                style={template}
+                isSelected={selected.includes(template.slug)}
+                onToggle={() => toggle(template.slug)}
+                primary={primary}
+              />
+            ))}
+          </Box>
+        </Box>
+      )}
 
       {selected.length >= MAX_SELECTIONS && (
         <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mt: 1.5, textAlign: 'center' }}>

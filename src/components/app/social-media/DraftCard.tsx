@@ -307,7 +307,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     if (loading) return;
     setApproveAnchor(null);
 
-    // Gate publish/schedule on account connection. Skip check if connections haven't loaded yet.
+    // Gate publish/schedule on account connection. Skip only if connections haven't loaded yet (null).
+    // An empty array means no platforms are connected — block publish in that case too.
     if (option !== 'save_draft' && connectedPlatforms !== null) {
       const platform = draft.platform?.toLowerCase() ?? '';
       const isConnected = connectedPlatforms.map((p) => p.toLowerCase()).includes(platform);
@@ -328,6 +329,23 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       const response = await SocialMediaAgentService.approveContent(payload);
 
       if (response.status) {
+        // For schedule/save_draft: surface any per-draft error the backend returned.
+        // The backend always returns status:true but puts failure details in errors[].
+        if (option !== 'immediate') {
+          const errors = response.responseData?.errors ?? [];
+          const myError = errors.find((e) => e.draft_id === draftId);
+          if (myError) {
+            ToastService.showToast(myError.error, ToastTypeEnum.Error);
+            return;
+          }
+          // Confirm something actually got scheduled/saved (approved_drafts might be empty)
+          const approved = response.responseData?.approved_drafts ?? [];
+          if (approved.length === 0 && option === 'schedule') {
+            ToastService.showToast('Failed to schedule — please try again', ToastTypeEnum.Error);
+            return;
+          }
+        }
+
         // Check if any draft's publish_result indicates the agent backend
         // didn't actually post it (e.g. "not implemented yet" for LinkedIn/X).
         // In that case fall back to calling the platform publish endpoint directly.
@@ -385,6 +403,9 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           ToastTypeEnum.Success
         );
         posthog.capture('draft_approved', { option, platform: draft.platform });
+        if (option === 'schedule') {
+          EventBus.emit(EVENTS.DRAFT_SCHEDULED, { draftId, platform: draft.platform });
+        }
         onRefresh();
       } else {
         ToastService.showToast(response.responseMessage || 'Approve failed', ToastTypeEnum.Error);

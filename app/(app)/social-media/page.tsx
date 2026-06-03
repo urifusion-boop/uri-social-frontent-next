@@ -2,11 +2,15 @@
 
 import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { AutoGenerateSettings, ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
+import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
+import VerifyEmailModal from '@/components/VerifyEmailModal';
+import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { Box, CircularProgress, Tab, Tabs, Typography } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,6 +20,7 @@ type TabKey = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto';
 
 export default function SocialMediaPage() {
   const router = useRouter();
+  const { showVerifyModal, setShowVerifyModal, isEmailVerified, requireEmailVerification } = useEmailVerification();
   const [brandCheckDone, setBrandCheckDone] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('create');
   const activeTabRef = useRef<TabKey>('create');
@@ -31,6 +36,7 @@ export default function SocialMediaPage() {
   const pollCountRef = useRef(0);
   const MAX_POLLS = 15; // 15 × 4s = 60s max wait
   const [loadingAutoSettings, setLoadingAutoSettings] = useState(false);
+  const [hasConnections, setHasConnections] = useState<boolean | null>(null);
 
   useEffect(() => {
     BrandProfileService.isOnboardingDone().then((done) => {
@@ -41,6 +47,31 @@ export default function SocialMediaPage() {
       }
     });
   }, [router]);
+
+  useEffect(() => {
+    console.log('🔍 [Connection Check] useEffect triggered, brandCheckDone:', brandCheckDone);
+
+    const checkConnections = async () => {
+      console.log('🔍 [Connection Check] Starting API call to check connections...');
+      try {
+        const response = await SocialConnectionService.getConnectionStatus();
+        console.log('✅ [Connection Check] Connection status response:', response);
+        const hasAny = !!(response.facebook?.linked || response.instagram?.linked || response.linkedin?.linked);
+        console.log('📊 [Connection Check] Has any connections:', hasAny);
+        setHasConnections(hasAny);
+      } catch (error) {
+        console.error('❌ [Connection Check] Error checking connections:', error);
+        setHasConnections(false);
+      }
+    };
+
+    if (brandCheckDone) {
+      console.log('✅ [Connection Check] brandCheckDone is true, calling checkConnections()');
+      checkConnections();
+    } else {
+      console.log('⏸️ [Connection Check] brandCheckDone is false, skipping check');
+    }
+  }, [brandCheckDone]);
 
   const fetchDrafts = useCallback(async (silent = false) => {
     if (!silent) {
@@ -161,6 +192,10 @@ export default function SocialMediaPage() {
     if (activeTabRef.current === 'drafts') fetchDrafts();
   }, [fetchDrafts]);
 
+  const handleConnectAccounts = () => {
+    router.push('/settings/social-accounts');
+  };
+
   if (!brandCheckDone) {
     return (
       <Box
@@ -224,7 +259,11 @@ export default function SocialMediaPage() {
         </Box>
 
         <Box sx={{ px: 3, py: 4 }}>
-          {activeTab === 'create' && <ContentGeneratorForm onGenerated={handleGenerated} />}
+          {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
+
+          {activeTab === 'create' && (
+            <ContentGeneratorForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+          )}
 
           {activeTab === 'drafts' && (
             <>
@@ -300,6 +339,9 @@ export default function SocialMediaPage() {
           )}
         </Box>
       </Box>
+
+      {/* Email Verification Modal */}
+      <VerifyEmailModal open={showVerifyModal} onClose={() => setShowVerifyModal(false)} />
     </DashboardLayout>
   );
 }

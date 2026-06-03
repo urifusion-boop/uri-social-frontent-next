@@ -45,6 +45,11 @@ const ConnectedAccountCard = ({ connection, onDisconnect }: ConnectedAccountCard
         connection.ig_user_id
       ) {
         response = await SocialMediaAgentService.disconnectInstagramDirect(connection.ig_user_id);
+      } else if (
+        connection.platform === 'facebook' &&
+        connection.connected_via?.startsWith('facebook_direct')
+      ) {
+        response = await SocialMediaAgentService.disconnectFacebookDirect();
       } else if (connection.outstand_account_id) {
         response = await SocialMediaAgentService.disconnectPlatform(connection.outstand_account_id);
       } else {

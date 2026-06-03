@@ -120,4 +120,45 @@ export class SocialConnectionService {
     const res: AxiosResponse<UriResponse<string>> = await UriHttpClient.getClient().delete('/whatsapp/connect');
     return res.data;
   }
+
+  // ── Connection Status (All Platforms) ────────────────────────────────────
+
+  static async getConnectionStatus(): Promise<{
+    facebook?: { linked: boolean };
+    instagram?: { linked: boolean };
+    linkedin?: { linked: boolean };
+  }> {
+    try {
+      const res: AxiosResponse<
+        UriResponse<
+          Array<{
+            platform: string;
+            connection_status?: string;
+          }>
+        >
+      > = await UriHttpClient.getClient().get('/social-media/debug/connections-raw');
+
+      if (!res.data.status || !res.data.responseData) {
+        return {};
+      }
+
+      const connections = res.data.responseData;
+      const status: {
+        facebook?: { linked: boolean };
+        instagram?: { linked: boolean };
+        linkedin?: { linked: boolean };
+      } = {};
+
+      for (const conn of connections) {
+        const platform = conn.platform?.toLowerCase();
+        if (platform === 'facebook' || platform === 'instagram' || platform === 'linkedin') {
+          status[platform] = { linked: true };
+        }
+      }
+
+      return status;
+    } catch {
+      return {};
+    }
+  }
 }

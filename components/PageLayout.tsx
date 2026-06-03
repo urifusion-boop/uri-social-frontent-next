@@ -14,7 +14,10 @@ export default function PageLayout({ children }: { children: React.ReactNode }) 
     pathname?.startsWith('/dashboard') ||
     pathname?.startsWith('/social-media') ||
     pathname?.startsWith('/settings') ||
-    pathname === '/login';
+    pathname === '/login' ||
+    pathname === '/verify-email' ||
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password';
 
   if (isApp) {
     return <AuthProvider>{children}</AuthProvider>;
