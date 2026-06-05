@@ -69,14 +69,23 @@ export default function SocialMediaPage() {
     };
 
     const checkV3Status = async () => {
+      console.log('🔍 [V3 Check] Starting V3 status check...');
       try {
         const response = await V3Service.getStatus();
+        console.log('✅ [V3 Check] V3 status response:', response);
         if (response.status && response.responseData) {
-          setV3Enabled(response.responseData.use_v3_prompts);
+          const isEnabled = response.responseData.use_v3_prompts;
+          console.log('📊 [V3 Check] V3 enabled:', isEnabled);
+          setV3Enabled(isEnabled);
+        } else {
+          console.warn('⚠️ [V3 Check] Invalid response format:', response);
+          setV3Enabled(false);
         }
       } catch (error) {
         console.error('❌ [V3 Check] Error checking V3 status:', error);
+        setV3Enabled(false);
       } finally {
+        console.log('✅ [V3 Check] Setting loadingV3Status to false');
         setLoadingV3Status(false);
       }
     };
@@ -280,6 +289,12 @@ export default function SocialMediaPage() {
 
           {activeTab === 'create' && (
             <>
+              {console.log(
+                '🎨 [Render] Create tab rendering. loadingV3Status:',
+                loadingV3Status,
+                'v3Enabled:',
+                v3Enabled
+              )}
               {!loadingV3Status && (
                 <Box
                   sx={{
