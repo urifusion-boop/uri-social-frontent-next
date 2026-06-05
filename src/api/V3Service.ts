@@ -93,8 +93,8 @@ export class V3Service {
   static async toggleV3(enabled: boolean): Promise<UriResponse<V3ToggleResponse>> {
     try {
       const response: AxiosResponse<UriResponse<V3ToggleResponse>> = await UriHttpClient.getClient().post(
-        `${V3_BASE}/toggle`,
-        { enabled }
+        `${V3_BASE}/toggle?enabled=${enabled}`,
+        {}
       );
       return response.data;
     } catch (error) {
