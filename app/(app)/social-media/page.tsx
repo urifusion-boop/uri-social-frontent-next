@@ -3,6 +3,7 @@
 import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { AutoGenerateSettings, ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
+import { V3Service } from '@/src/api/V3Service';
 import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
@@ -37,6 +38,8 @@ export default function SocialMediaPage() {
   const MAX_POLLS = 15; // 15 × 4s = 60s max wait
   const [loadingAutoSettings, setLoadingAutoSettings] = useState(false);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
+  const [v3Enabled, setV3Enabled] = useState(false);
+  const [loadingV3Status, setLoadingV3Status] = useState(true);
 
   useEffect(() => {
     BrandProfileService.isOnboardingDone().then((done) => {
@@ -65,9 +68,23 @@ export default function SocialMediaPage() {
       }
     };
 
+    const checkV3Status = async () => {
+      try {
+        const response = await V3Service.getStatus();
+        if (response.status && response.responseData) {
+          setV3Enabled(response.responseData.use_v3_prompts);
+        }
+      } catch (error) {
+        console.error('❌ [V3 Check] Error checking V3 status:', error);
+      } finally {
+        setLoadingV3Status(false);
+      }
+    };
+
     if (brandCheckDone) {
       console.log('✅ [Connection Check] brandCheckDone is true, calling checkConnections()');
       checkConnections();
+      checkV3Status();
     } else {
       console.log('⏸️ [Connection Check] brandCheckDone is false, skipping check');
     }
@@ -262,7 +279,63 @@ export default function SocialMediaPage() {
           {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
           {activeTab === 'create' && (
-            <ContentGeneratorForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+            <>
+              {!loadingV3Status && (
+                <Box
+                  sx={{
+                    mb: 2,
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: v3Enabled
+                      ? 'linear-gradient(135deg, rgba(194, 24, 91, 0.1), rgba(142, 21, 69, 0.05))'
+                      : 'rgba(229, 231, 235, 0.5)',
+                    border: v3Enabled ? '1px solid rgba(194, 24, 91, 0.2)' : '1px solid #e5e7eb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box
+                      sx={{
+                        background: v3Enabled ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#9ca3af',
+                        color: '#fff',
+                        borderRadius: 1.5,
+                        px: 1.5,
+                        py: 0.5,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                      }}
+                    >
+                      {v3Enabled ? '✨ V3 Enabled' : 'V2 Standard'}
+                    </Box>
+                    <Typography sx={{ fontSize: 13, color: '#666' }}>
+                      {v3Enabled
+                        ? 'Using enhanced 10-block prompts with expanded vocabulary'
+                        : 'Using standard 6-section prompt system'}
+                    </Typography>
+                  </Box>
+                  <Typography
+                    component="a"
+                    href="/workspace?tab=playbook"
+                    sx={{
+                      fontSize: 12,
+                      color: '#C2185B',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      '&:hover': { textDecoration: 'underline' },
+                    }}
+                  >
+                    {v3Enabled ? 'Manage' : 'Enable V3'}
+                  </Typography>
+                </Box>
+              )}
+              <ContentGeneratorForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+            </>
           )}
 
           {activeTab === 'drafts' && (
