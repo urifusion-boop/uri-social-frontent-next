@@ -814,6 +814,8 @@ const ContentManagerPage = ({
   // draft IDs that failed pre-validation because the platform account is not connected
   const [scheduleUnconnectedIds, setScheduleUnconnectedIds] = useState<Set<string>>(new Set());
   const [syncImageOpen, setSyncImageOpen] = useState(false);
+  const [v3Enabled, setV3Enabled] = useState(false);
+  const [loadingV3Status, setLoadingV3Status] = useState(true);
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1067,6 +1069,32 @@ const ContentManagerPage = ({
     });
   }, [fetchScheduled]);
 
+  // Check V3 status on mount
+  useEffect(() => {
+    const checkV3Status = async () => {
+      console.log('🔍 [V3 Check - Workspace] Starting V3 status check...');
+      try {
+        const response = await V3Service.getStatus();
+        console.log('✅ [V3 Check - Workspace] V3 status response:', response);
+        if (response.status && response.responseData) {
+          const isEnabled = response.responseData.use_v3_prompts;
+          console.log('📊 [V3 Check - Workspace] V3 enabled:', isEnabled);
+          setV3Enabled(isEnabled);
+        } else {
+          console.warn('⚠️ [V3 Check - Workspace] Invalid response format:', response);
+          setV3Enabled(false);
+        }
+      } catch (error) {
+        console.error('❌ [V3 Check - Workspace] Error checking V3 status:', error);
+        setV3Enabled(false);
+      } finally {
+        console.log('✅ [V3 Check - Workspace] Setting loadingV3Status to false');
+        setLoadingV3Status(false);
+      }
+    };
+    checkV3Status();
+  }, []);
+
   const handleGenerated = () => {
     setActiveTab('drafts');
     fetchDrafts();
@@ -1244,7 +1272,70 @@ const ContentManagerPage = ({
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '20px 24px' }}>
         {activeTab === 'create' && (
-          <ContentGeneratorForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+          <>
+            {console.log(
+              '🎨 [Render - Workspace] Create tab rendering. loadingV3Status:',
+              loadingV3Status,
+              'v3Enabled:',
+              v3Enabled
+            )}
+            {!loadingV3Status && (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  borderRadius: 8,
+                  background: v3Enabled
+                    ? 'linear-gradient(135deg, rgba(194, 24, 91, 0.1), rgba(142, 21, 69, 0.05))'
+                    : 'rgba(229, 231, 235, 0.5)',
+                  border: v3Enabled ? '1px solid rgba(194, 24, 91, 0.2)' : '1px solid #e5e7eb',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      background: v3Enabled ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#9ca3af',
+                      color: '#fff',
+                      borderRadius: 6,
+                      padding: '6px 12px',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    {v3Enabled ? '✨ V3 Enabled' : 'V2 Standard'}
+                  </div>
+                  <span style={{ fontSize: 13, color: '#666' }}>
+                    {v3Enabled
+                      ? 'Using enhanced 10-block prompts with expanded vocabulary'
+                      : 'Using standard 6-section prompt system'}
+                  </span>
+                </div>
+                <a
+                  href="/workspace?tab=playbook"
+                  style={{
+                    fontSize: 12,
+                    color: '#C2185B',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                  onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                >
+                  {v3Enabled ? 'Manage' : 'Enable V3'}
+                </a>
+              </div>
+            )}
+            <ContentGeneratorForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+          </>
         )}
 
         {activeTab === 'video' && <VideoStoryboardGenerator />}
