@@ -35,6 +35,7 @@ import BlogDraftsTab from '@/src/components/app/social-media/BlogDraftsTab';
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
+import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
@@ -816,6 +817,7 @@ const ContentManagerPage = ({
   const [syncImageOpen, setSyncImageOpen] = useState(false);
   const [v3Enabled, setV3Enabled] = useState(false);
   const [loadingV3Status, setLoadingV3Status] = useState(true);
+  const [hasConnections, setHasConnections] = useState<boolean | null>(null);
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1069,7 +1071,7 @@ const ContentManagerPage = ({
     });
   }, [fetchScheduled]);
 
-  // Check V3 status on mount
+  // Check V3 status and connections on mount
   useEffect(() => {
     const checkV3Status = async () => {
       console.log('🔍 [V3 Check - Workspace] Starting V3 status check...');
@@ -1092,7 +1094,23 @@ const ContentManagerPage = ({
         setLoadingV3Status(false);
       }
     };
+
+    const checkConnections = async () => {
+      console.log('🔍 [Connection Check - Workspace] Starting connection check...');
+      try {
+        const response = await SocialConnectionService.getConnectionStatus();
+        console.log('✅ [Connection Check - Workspace] Connection status response:', response);
+        const hasAny = !!(response.facebook?.linked || response.instagram?.linked || response.linkedin?.linked);
+        console.log('📊 [Connection Check - Workspace] Has any connections:', hasAny);
+        setHasConnections(hasAny);
+      } catch (error) {
+        console.error('❌ [Connection Check - Workspace] Error checking connections:', error);
+        setHasConnections(false);
+      }
+    };
+
     checkV3Status();
+    checkConnections();
   }, []);
 
   const handleGenerated = () => {
@@ -1102,6 +1120,10 @@ const ContentManagerPage = ({
   const handleRefreshDrafts = useCallback(() => {
     if (activeTabRef.current === 'drafts') fetchDrafts();
   }, [fetchDrafts]);
+
+  const handleConnectAccounts = () => {
+    router.push('/workspace?tab=connections');
+  };
 
   const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
     { key: 'create', label: 'Create', tooltip: 'Generate new AI-powered posts for your social platforms' },
@@ -1277,8 +1299,11 @@ const ContentManagerPage = ({
               '🎨 [Render - Workspace] Create tab rendering. loadingV3Status:',
               loadingV3Status,
               'v3Enabled:',
-              v3Enabled
+              v3Enabled,
+              'hasConnections:',
+              hasConnections
             )}
+            {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
             {!loadingV3Status && (
               <div
                 style={{
