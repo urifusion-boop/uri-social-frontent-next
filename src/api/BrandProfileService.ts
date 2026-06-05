@@ -78,6 +78,7 @@ export interface BrandProfileData {
   custom_font_files?: { url: string; filename: string }[];
   custom_font_analysis?: CustomFontAnalysis;
   custom_font_directive?: string;
+  use_v3_prompts?: boolean; // V3 enhanced prompt system toggle
   onboarding_completed?: boolean;
   created_at?: string;
   updated_at?: string;

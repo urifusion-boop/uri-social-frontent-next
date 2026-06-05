@@ -3,6 +3,7 @@
 import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandProfileData, BrandProfileService, CustomFontAnalysis } from '@/src/api/BrandProfileService';
+import { V3Service } from '@/src/api/V3Service';
 import {
   AccountMetricItem,
   AccountMetricsData,
@@ -5570,7 +5571,269 @@ const PlaybookPage = ({
           </div>
         )}
       </PbSection>
+
+      {/* V3 Enhanced Prompts */}
+      <PbSection title="Enhanced Image Prompts (V3)">
+        <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
+          Our new 10-block prompt system for richer, more detailed images. Includes expanded aesthetic vocabulary,
+          better African representation, enhanced product preservation, and 100+ safety rules.
+        </div>
+        {!editing ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div
+              style={{
+                background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                color: p?.use_v3_prompts ? '#fff' : '#6b7280',
+                borderRadius: 8,
+                padding: '8px 16px',
+                fontSize: 12.5,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              {p?.use_v3_prompts ? (
+                <>
+                  <span>✨</span>
+                  <span>V3 Enabled</span>
+                </>
+              ) : (
+                <>
+                  <span>V2 Standard</span>
+                </>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: '#666' }}>
+              {p?.use_v3_prompts
+                ? 'Using V3 10-block architecture with enhanced vocabulary'
+                : 'Using V2 6-section prompt system'}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <button
+              onClick={async () => {
+                const newValue = !(p?.use_v3_prompts ?? false);
+                try {
+                  const response = await V3Service.toggleV3(newValue);
+                  if (response.status && response.responseData) {
+                    if (onProfileUpdate && p) {
+                      onProfileUpdate({ ...p, use_v3_prompts: newValue });
+                    }
+                    ToastService.showToast(
+                      newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
+                      ToastTypeEnum.Success
+                    );
+                    posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'playbook' });
+                  } else {
+                    throw new Error(response.responseMessage || 'Failed to toggle V3');
+                  }
+                } catch (error) {
+                  console.error('[Playbook] V3 toggle failed:', error);
+                  ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
+                }
+              }}
+              style={{
+                background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                color: p?.use_v3_prompts ? '#fff' : '#111',
+                border: 'none',
+                borderRadius: 8,
+                padding: '12px 20px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                transition: 'all 0.2s',
+                alignSelf: 'flex-start',
+              }}
+            >
+              {p?.use_v3_prompts ? (
+                <>
+                  <span>✨</span>
+                  <span>V3 Enabled</span>
+                  <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                </>
+              ) : (
+                <>
+                  <span>Enable V3</span>
+                  <span style={{ fontSize: 11, opacity: 0.7 }}>(Recommended)</span>
+                </>
+              )}
+            </button>
+            <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+              {p?.use_v3_prompts
+                ? 'V3 is active. All future image generations will use the enhanced 10-block prompt system.'
+                : 'Enable V3 for richer prompts with better quality, cultural sensitivity, and product preservation.'}
+            </div>
+          </div>
+        )}
+        {p?.use_v3_prompts && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              background: '#F7F7FD',
+              border: '1px solid #E0DEF7',
+              borderRadius: 8,
+              fontSize: 11.5,
+              color: '#555',
+              lineHeight: 1.6,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Enhancements Active:</div>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              <li>10-block prompt architecture (vs. 6-section)</li>
+              <li>400+ aesthetic vocabulary terms (vs. ~150)</li>
+              <li>11-dimensional style system with parametric control</li>
+              <li>100+ context-aware safety & exclusion rules</li>
+              <li>Enhanced African realism vocabulary for authentic representation</li>
+              <li>Improved product preservation with forensic analysis</li>
+            </ul>
+          </div>
+        )}
+      </PbSection>
     </SubPage>
+  );
+};
+
+/* ── V3 Toggle Button Component ────────────────────────────────────────── */
+const V3ToggleButton = () => {
+  const [v3Enabled, setV3Enabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState(false);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const response = await V3Service.getStatus();
+        if (response.status && response.responseData) {
+          setV3Enabled(response.responseData.use_v3_prompts);
+        }
+      } catch (error) {
+        console.error('[V3Toggle] Failed to fetch status:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStatus();
+  }, []);
+
+  const handleToggle = async () => {
+    setToggling(true);
+    const newValue = !v3Enabled;
+    try {
+      const response = await V3Service.toggleV3(newValue);
+      if (response.status && response.responseData) {
+        setV3Enabled(newValue);
+        ToastService.showToast(
+          newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
+          ToastTypeEnum.Success
+        );
+        posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'settings' });
+      } else {
+        throw new Error(response.responseMessage || 'Failed to toggle V3');
+      }
+    } catch (error) {
+      console.error('[V3Toggle] Toggle failed:', error);
+      ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ fontSize: 13, color: '#999' }}>Loading...</div>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            background: v3Enabled ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+            color: v3Enabled ? '#fff' : '#6b7280',
+            borderRadius: 8,
+            padding: '8px 16px',
+            fontSize: 12.5,
+            fontWeight: 600,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          {v3Enabled ? (
+            <>
+              <span>✨</span>
+              <span>V3 Enabled</span>
+            </>
+          ) : (
+            <>
+              <span>V2 Standard</span>
+            </>
+          )}
+        </div>
+        <div style={{ fontSize: 12, color: '#666' }}>
+          {v3Enabled ? 'Using V3 10-block architecture' : 'Using V2 6-section prompts'}
+        </div>
+      </div>
+
+      <button
+        onClick={handleToggle}
+        disabled={toggling}
+        style={{
+          padding: '11px 18px',
+          borderRadius: 9,
+          border: '1px solid #e5e3df',
+          background: toggling ? '#f3f4f6' : '#fff',
+          cursor: toggling ? 'not-allowed' : 'pointer',
+          fontFamily: 'var(--wf)',
+          fontSize: 13,
+          fontWeight: 600,
+          color: v3Enabled ? '#C2185B' : '#111',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          transition: 'all 0.2s',
+        }}
+      >
+        {toggling ? (
+          'Updating...'
+        ) : v3Enabled ? (
+          <>
+            <span>Disable V3</span>
+            <span style={{ fontSize: 11, color: '#999' }}>(Switch to V2)</span>
+          </>
+        ) : (
+          <>
+            <span>✨ Enable V3</span>
+            <span style={{ fontSize: 11, color: '#999' }}>(Recommended)</span>
+          </>
+        )}
+      </button>
+
+      {v3Enabled && (
+        <div
+          style={{
+            padding: 12,
+            background: '#F7F7FD',
+            border: '1px solid #E0DEF7',
+            borderRadius: 8,
+            fontSize: 11.5,
+            color: '#555',
+            lineHeight: 1.6,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Active</div>
+          <div>
+            Your next images will use the enhanced 10-block prompt system with better quality and cultural sensitivity.
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -5887,6 +6150,19 @@ const SettingsPage = ({
           <div style={{ fontSize: 11, color: '#999', marginBottom: 4, fontWeight: 600 }}>BRAND NAME</div>
           <div style={{ fontSize: 13.5, color: '#333', fontWeight: 500 }}>{brandName || 'Not set'}</div>
         </div>
+      </div>
+
+      {/* V3 Enhanced Prompts */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>✨</span>
+          Enhanced Image Prompts (V3)
+        </h3>
+        <div style={{ fontSize: 12.5, color: '#666', lineHeight: 1.6, marginBottom: 14 }}>
+          Enable our new 10-block prompt system for richer, more detailed images with better quality and cultural
+          sensitivity.
+        </div>
+        <V3ToggleButton />
       </div>
 
       {/* Subscription Info */}
