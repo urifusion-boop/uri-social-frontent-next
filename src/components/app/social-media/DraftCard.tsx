@@ -209,6 +209,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const slides = draft.slides ?? [];
   const isCarousel = postType === 'carousel' && slides.length > 0;
   const isStory = postType === 'story';
+  const isReel = postType === 'reel' || !!draft.video_url;
   const totalSlides = slides.length;
   const currentSlide = isCarousel ? slides[slideIndex] : null;
 
@@ -851,6 +852,50 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         </Box>
       )}
 
+      {/* ── Reel video (9:16) ── */}
+      {!editing && isReel && draft.video_url && (
+        <Box
+          mb={1.5}
+          sx={{
+            borderRadius: '8px',
+            overflow: 'hidden',
+            border: '1px solid #E5E7EB',
+            aspectRatio: '9 / 16',
+            width: '50%',
+            background: '#000',
+            position: 'relative',
+          }}
+        >
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              background: 'rgba(0,0,0,0.6)',
+              borderRadius: '6px',
+              px: 0.75,
+              py: 0.25,
+              zIndex: 2,
+            }}
+          >
+            <Typography fontSize="10px" fontWeight={700} color="#fff" letterSpacing={0.5}>
+              REEL
+            </Typography>
+          </Box>
+          <video
+            src={resolveUrl(draft.video_url)}
+            controls
+            playsInline
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              display: 'block',
+            }}
+          />
+        </Box>
+      )}
+
       {/* ── Story image (9:16) ── */}
       {!editing && isStory && draft.image_url && (
         <Box
@@ -978,6 +1023,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       {!editing &&
         !isCarousel &&
         !isStory &&
+        !isReel &&
         draft.image_url &&
         (() => {
           const specs = draft.image_specs;
@@ -1088,7 +1134,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             </Box>
           );
         })()}
-      {!editing && !isCarousel && !draft.image_url && (draft.has_image || draft.auto_generated) && (
+      {!editing && !isCarousel && !isReel && !draft.image_url && (draft.has_image || draft.auto_generated) && (
         <Box
           mb={1.5}
           sx={{
@@ -1129,7 +1175,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       )}
 
       {/* Image Edit Panel */}
-      {!editing && draft.image_url && (
+      {!editing && !isReel && draft.image_url && (
         <Box
           sx={{
             mt: 1.5,

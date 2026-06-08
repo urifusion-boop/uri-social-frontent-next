@@ -196,10 +196,11 @@ export interface ContentDraft {
   has_image?: boolean;
   image_failed?: boolean;
   image_retry_count?: number; // PRD 4.2: Track image retry count for credit deduction
+  video_url?: string;
   created_at?: string;
   scheduled_datetime?: string;
   auto_generated?: boolean;
-  post_type?: 'feed' | 'carousel' | 'story';
+  post_type?: 'feed' | 'carousel' | 'story' | 'reel';
   slides?: CarouselSlide[];
   image_specs?: { width: number; height: number };
   error_message?: string;
