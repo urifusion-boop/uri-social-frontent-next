@@ -37,6 +37,7 @@ import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -818,6 +819,7 @@ const ContentManagerPage = ({
   const [v3Enabled, setV3Enabled] = useState(false);
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
+  const [createMode, setCreateMode] = useState<'generate' | 'edit_video'>('generate');
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1304,62 +1306,107 @@ const ContentManagerPage = ({
               hasConnections
             )}
             {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
-            {!loadingV3Status && (
-              <div
-                style={{
-                  marginBottom: 16,
-                  padding: 12,
-                  borderRadius: 8,
-                  background: v3Enabled
-                    ? 'linear-gradient(135deg, rgba(194, 24, 91, 0.1), rgba(142, 21, 69, 0.05))'
-                    : 'rgba(229, 231, 235, 0.5)',
-                  border: v3Enabled ? '1px solid rgba(194, 24, 91, 0.2)' : '1px solid #e5e7eb',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: 12,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <div
-                    style={{
-                      background: v3Enabled ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#9ca3af',
-                      color: '#fff',
-                      borderRadius: 6,
-                      padding: '6px 12px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
-                  >
-                    {v3Enabled ? '✨ V3 Enabled' : 'V2 Standard'}
-                  </div>
-                  <span style={{ fontSize: 13, color: '#666' }}>
-                    {v3Enabled
-                      ? 'Using enhanced 10-block prompts with expanded vocabulary'
-                      : 'Using standard 6-section prompt system'}
-                  </span>
-                </div>
-                <a
-                  href="/workspace?tab=playbook"
+
+            {/* Create mode switcher */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              {(
+                [
+                  { key: 'generate', label: '✨ Generate Content' },
+                  { key: 'edit_video', label: '🎬 Edit My Video' },
+                ] as { key: 'generate' | 'edit_video'; label: string }[]
+              ).map((mode) => (
+                <button
+                  key={mode.key}
+                  onClick={() => setCreateMode(mode.key)}
                   style={{
-                    fontSize: 12,
-                    color: '#C2185B',
-                    textDecoration: 'none',
+                    padding: '8px 18px',
+                    borderRadius: 10,
+                    border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
+                    background: createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                    color: createMode === mode.key ? '#fff' : '#6B7280',
+                    fontSize: 13,
                     fontWeight: 600,
                     cursor: 'pointer',
+                    transition: 'all 0.15s',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
-                  onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
                 >
-                  {v3Enabled ? 'Manage' : 'Enable V3'}
-                </a>
-              </div>
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+
+            {createMode === 'generate' && (
+              <>
+                {!loadingV3Status && (
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      padding: 12,
+                      borderRadius: 8,
+                      background: v3Enabled
+                        ? 'linear-gradient(135deg, rgba(194, 24, 91, 0.1), rgba(142, 21, 69, 0.05))'
+                        : 'rgba(229, 231, 235, 0.5)',
+                      border: v3Enabled ? '1px solid rgba(194, 24, 91, 0.2)' : '1px solid #e5e7eb',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <div
+                        style={{
+                          background: v3Enabled ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#9ca3af',
+                          color: '#fff',
+                          borderRadius: 6,
+                          padding: '6px 12px',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        {v3Enabled ? '✨ V3 Enabled' : 'V2 Standard'}
+                      </div>
+                      <span style={{ fontSize: 13, color: '#666' }}>
+                        {v3Enabled
+                          ? 'Using enhanced 10-block prompts with expanded vocabulary'
+                          : 'Using standard 6-section prompt system'}
+                      </span>
+                    </div>
+                    <a
+                      href="/workspace?tab=playbook"
+                      style={{
+                        fontSize: 12,
+                        color: '#C2185B',
+                        textDecoration: 'none',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                    >
+                      {v3Enabled ? 'Manage' : 'Enable V3'}
+                    </a>
+                  </div>
+                )}
+                <ContentGeneratorForm
+                  onGenerated={handleGenerated}
+                  requireEmailVerification={requireEmailVerification}
+                />
+              </>
             )}
-            <ContentGeneratorForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+
+            {createMode === 'edit_video' && (
+              <VideoEditForm
+                onEditComplete={() => {
+                  handleGenerated();
+                  setCreateMode('generate');
+                }}
+              />
+            )}
           </>
         )}
 

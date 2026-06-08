@@ -96,6 +96,16 @@ export interface VideoDraft {
   created_at: string;
 }
 
+export interface VideoEditJob {
+  job_id: string;
+  status: 'processing' | 'complete' | 'failed';
+  progress?: number;
+  edited_video_url?: string;
+  draft?: ContentDraft;
+  edits_applied?: string[];
+  error?: string;
+}
+
 export interface VideoPublishJob {
   job_id: string;
   draft_id: string;
@@ -549,6 +559,22 @@ export class SocialMediaAgentService {
   static async listVideoDrafts(): Promise<UriResponse<VideoDraft[]>> {
     const response: Awaited<AxiosResponse<UriResponse<VideoDraft[]>>> = await UriHttpClient.getClient().get(
       socialMediaAgentRoutes.videoDrafts
+    );
+    return response.data;
+  }
+
+  static async submitVideoEdit(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string }>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.editVideo,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 }
+    );
+    return response.data;
+  }
+
+  static async getVideoEditJob(jobId: string): Promise<UriResponse<VideoEditJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoEditJob>>> = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.editVideoJob}/${jobId}`
     );
     return response.data;
   }
