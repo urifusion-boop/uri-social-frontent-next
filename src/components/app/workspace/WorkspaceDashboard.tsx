@@ -1153,6 +1153,11 @@ const ContentManagerPage = ({
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
     },
+    {
+      key: 'video',
+      label: '🎬 Video',
+      tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
+    },
   ];
 
   return (
