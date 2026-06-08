@@ -150,11 +150,16 @@ function LoginContent() {
   }, []);
 
   const handleGoogleSignIn = () => {
+    // Prevent double-click on Google button
+    if (googleLoading) return;
+
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) {
       setError('Google sign-in is not configured yet.');
       return;
     }
+
+    setGoogleLoading(true);
     const redirectUri = encodeURIComponent(window.location.origin + '/login');
     const scope = encodeURIComponent('openid email profile');
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&access_type=offline&prompt=select_account`;
@@ -190,6 +195,9 @@ function LoginContent() {
   };
 
   const handleSubmit = async () => {
+    // Prevent double submission
+    if (loading) return;
+
     setError('');
     setSuccess('');
 
