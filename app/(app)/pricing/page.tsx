@@ -31,11 +31,16 @@ export default function PricingPage() {
 
   const fetchTiers = async () => {
     try {
+      console.log('🔍 Fetching subscription tiers...');
       const data = await BillingService.getSubscriptionTiers();
+      console.log('✅ Tiers fetched:', data);
+      console.log('📊 Number of tiers:', data?.length);
       setTiers(data);
     } catch (error) {
-      console.error('Failed to fetch tiers:', error);
+      console.error('❌ Failed to fetch tiers:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
     } finally {
+      console.log('⏹️ Loading complete, tiers count:', tiers.length);
       setLoading(false);
     }
   };
@@ -75,6 +80,21 @@ export default function PricingPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="h-8 w-8 animate-spin text-[#CD1B78]" />
+      </div>
+    );
+  }
+
+  // Debug: Show if no tiers loaded
+  if (!loading && tiers.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8">
+          <p className="text-lg text-gray-600 mb-4">No pricing plans available</p>
+          <p className="text-sm text-gray-500">Please check console for errors</p>
+          <Button onClick={() => fetchTiers()} className="mt-4 bg-[#CD1B78] hover:bg-[#A01560]">
+            Retry
+          </Button>
+        </div>
       </div>
     );
   }
