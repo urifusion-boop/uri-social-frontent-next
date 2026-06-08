@@ -74,7 +74,7 @@ export default function VideoEditForm({ onEditComplete }: VideoEditFormProps) {
   const handleFile = (file: File) => {
     const err = validateFile(file);
     if (err) {
-      ToastService.show(err, ToastTypeEnum.ERROR);
+      ToastService.showToast(err, ToastTypeEnum.Error);
       return;
     }
     setVideoFile(file);
@@ -108,7 +108,7 @@ export default function VideoEditForm({ onEditComplete }: VideoEditFormProps) {
         } else if (job.status === 'failed') {
           clearInterval(pollRef.current!);
           setPhase('failed');
-          ToastService.show(job.error ?? 'Video editing failed. Please try again.', ToastTypeEnum.ERROR);
+          ToastService.showToast(job.error ?? 'Video editing failed. Please try again.', ToastTypeEnum.Error);
         }
       } catch {
         // transient network error — keep polling
@@ -128,12 +128,12 @@ export default function VideoEditForm({ onEditComplete }: VideoEditFormProps) {
       formData.append('enhancements', JSON.stringify(enhancements));
 
       const res = await SocialMediaAgentService.submitVideoEdit(formData);
-      if (!res.status || !res.responseData) throw new Error(res.message ?? 'Upload failed');
+      if (!res.status || !res.responseData) throw new Error(res.responseMessage ?? 'Upload failed');
       startPolling(res.responseData.job_id);
     } catch (err: unknown) {
       setPhase('failed');
       const message = err instanceof Error ? err.message : 'Upload failed. Please try again.';
-      ToastService.show(message, ToastTypeEnum.ERROR);
+      ToastService.showToast(message, ToastTypeEnum.Error);
     }
   };
 
