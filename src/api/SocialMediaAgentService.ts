@@ -567,7 +567,7 @@ export class SocialMediaAgentService {
     const response: Awaited<AxiosResponse<UriResponse<{ job_id: string }>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.editVideo,
       formData,
-      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 }
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 }
     );
     return response.data;
   }
