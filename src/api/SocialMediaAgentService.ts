@@ -791,6 +791,78 @@ export class SocialMediaAgentService {
 
     return { abort: () => controller.abort() };
   }
+
+  // ── Writing DNA Blog Generator ────────────────────────────────────────────
+
+  static async submitWritingDNAQuiz(data: WritingDNARequest): Promise<UriResponse<WritingDNAData>> {
+    const response: Awaited<AxiosResponse<UriResponse<WritingDNAData>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.writingDnaQuiz,
+      data
+    );
+    return response.data;
+  }
+
+  static async getWritingDNA(): Promise<UriResponse<WritingDNAData>> {
+    const response: Awaited<AxiosResponse<UriResponse<WritingDNAData>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.writingDna
+    );
+    return response.data;
+  }
+
+  static async generateBlogPost(data: BlogPostGenerateRequest): Promise<UriResponse<BlogPostGenerateResult>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogPostGenerateResult>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateBlogPost,
+      data
+    );
+    return response.data;
+  }
+
+  static async listBlogPosts(): Promise<UriResponse<BlogPostData[]>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogPostData[]>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.blogPosts
+    );
+    return response.data;
+  }
+
+  static async getBlogPostById(blogId: string): Promise<UriResponse<BlogPostData>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogPostData>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.blogPostById.replace('{blog_id}', blogId)
+    );
+    return response.data;
+  }
+
+  static async updateBlogPost(blogId: string, content: string, title?: string): Promise<UriResponse<BlogPostData>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogPostData>>> = await UriHttpClient.getClient().patch(
+      socialMediaAgentRoutes.blogPostById.replace('{blog_id}', blogId),
+      { content, ...(title ? { title } : {}) }
+    );
+    return response.data;
+  }
+
+  static async recordBlogPostFeedback(
+    blogId: string,
+    rating: 'up' | 'down',
+    issues?: string[]
+  ): Promise<UriResponse<{ blog_id: string; rating: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ blog_id: string; rating: string }>>> =
+      await UriHttpClient.getClient().post(
+        socialMediaAgentRoutes.blogPostFeedback.replace('{blog_id}', blogId),
+        { rating, issues }
+      );
+    return response.data;
+  }
+
+  static async publishBlogPost(
+    blogId: string,
+    publishedUrl?: string
+  ): Promise<UriResponse<{ blog_id: string; status: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ blog_id: string; status: string }>>> =
+      await UriHttpClient.getClient().post(
+        socialMediaAgentRoutes.blogPostPublish.replace('{blog_id}', blogId),
+        { published_url: publishedUrl }
+      );
+    return response.data;
+  }
 }
 
 export interface PerformancePost {
@@ -1013,6 +1085,81 @@ export interface BlogDraft {
   keywords: string[];
   tone: string;
   generated_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Writing DNA Blog Generator types ─────────────────────────────────────
+
+export interface WritingDNAAnswers {
+  q1: string;
+  q2: string;
+  q3: string;
+  q4: string;
+  q5: string;
+  q6: string;
+  q7: string;
+  q8: string;
+  q9: string;
+  q10: string;
+  q11: string;
+  q12: string;
+  q13: string;
+  q14: string;
+  q15: string;
+  q16: string;
+}
+
+export interface WritingDNARequest {
+  quiz_answers: WritingDNAAnswers;
+  writing_sample?: string;
+}
+
+export interface WritingDNAData {
+  user_id: string;
+  quiz_answers: WritingDNAAnswers;
+  sample_text?: string;
+  writing_dna_prompt: string;
+  aspirational_writers: string[];
+  dna_keys: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BlogPostGenerateRequest {
+  topic: string;
+  primary_keyword: string;
+  secondary_keywords?: string[];
+  word_count?: number;
+}
+
+export interface BlogPostGenerateResult {
+  blog_id: string;
+  title: string;
+  meta: string;
+  content: string;
+  word_count: number;
+  has_writing_dna: boolean;
+  status: string;
+  created_at: string;
+}
+
+export interface BlogPostData {
+  id: string;
+  user_id: string;
+  topic: string;
+  primary_keyword: string;
+  secondary_keywords: string[];
+  target_word_count: number;
+  generated_content: string;
+  generated_title: string;
+  generated_meta: string;
+  current_content: string;
+  current_title: string;
+  status: 'draft' | 'review' | 'published';
+  has_writing_dna: boolean;
+  feedback: { rating?: string; issues?: string[] };
+  published_url?: string;
   created_at: string;
   updated_at: string;
 }

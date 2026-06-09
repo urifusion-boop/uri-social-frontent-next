@@ -1,424 +1,383 @@
+'use client';
+
 import React, { useEffect, useState } from 'react';
-import { SocialMediaAgentService, BlogDraft } from '@/src/api/SocialMediaAgentService';
+import { SocialMediaAgentService, BlogPostData } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import { markdownToHtml } from '@/src/utils/markdown.util';
+import { FiCopy, FiCheck, FiDownload } from 'react-icons/fi';
+
+const URI_PINK = '#CD1B78';
 
 export default function BlogDraftsTab() {
-  const [drafts, setDrafts] = useState<BlogDraft[]>([]);
+  const [posts, setPosts] = useState<BlogPostData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDraft, setSelectedDraft] = useState<BlogDraft | null>(null);
-  const [pollingDraftId, setPollingDraftId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<BlogPostData | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchBlogDrafts();
+    fetchPosts();
   }, []);
 
-  // Poll for image generation if a draft is pending
-  useEffect(() => {
-    if (!pollingDraftId) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const response = await SocialMediaAgentService.getBlogDraft(pollingDraftId);
-        if (response.status && response.responseData) {
-          const updatedDraft = response.responseData;
-
-          // Update in list
-          setDrafts((prev) => prev.map((d) => (d.id === pollingDraftId ? updatedDraft : d)));
-
-          // Update selected draft if viewing
-          if (selectedDraft?.id === pollingDraftId) {
-            setSelectedDraft(updatedDraft);
-          }
-
-          // Stop polling if image is ready
-          if (updatedDraft.featured_image_url) {
-            setPollingDraftId(null);
-          }
-        }
-      } catch (error) {
-        console.error('Error polling draft:', error);
-      }
-    }, 3000); // Poll every 3 seconds
-
-    return () => clearInterval(interval);
-  }, [pollingDraftId, selectedDraft]);
-
-  const fetchBlogDrafts = async () => {
+  const fetchPosts = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const response = await SocialMediaAgentService.getBlogDrafts();
-
-      if (response.status && response.responseData) {
-        setDrafts(response.responseData);
-
-        // Auto-poll any drafts with pending images
-        const pendingDraft = response.responseData.find((d) => d.has_image && !d.featured_image_url);
-        if (pendingDraft) {
-          setPollingDraftId(pendingDraft.id);
-        }
+      const res = await SocialMediaAgentService.listBlogPosts();
+      if (res.status && res.responseData) {
+        setPosts(res.responseData);
       } else {
-        ToastService.showToast(response.responseMessage || 'Failed to fetch blog drafts', ToastTypeEnum.Error);
+        ToastService.showToast(res.responseMessage || 'Failed to load posts', ToastTypeEnum.Error);
       }
-    } catch (error) {
-      console.error('Error fetching blog drafts:', error);
-      ToastService.showToast('Failed to fetch blog drafts', ToastTypeEnum.Error);
+    } catch {
+      ToastService.showToast('Failed to load blog posts', ToastTypeEnum.Error);
     } finally {
       setLoading(false);
     }
   };
 
-  const viewDraft = (draft: BlogDraft) => {
-    setSelectedDraft(draft);
-
-    // Start polling if image is pending
-    if (draft.has_image && !draft.featured_image_url) {
-      setPollingDraftId(draft.id);
+  const viewPost = async (post: BlogPostData) => {
+    // List endpoint omits content fields — always fetch the full post by ID
+    setLoadingDetail(true);
+    try {
+      const res = await SocialMediaAgentService.getBlogPostById(post.id);
+      if (res.status && res.responseData) {
+        setSelected(res.responseData);
+      } else {
+        setSelected(post); // fallback to list data
+      }
+    } catch {
+      setSelected(post);
+    } finally {
+      setLoadingDetail(false);
     }
   };
 
-  const closeDraft = () => {
-    setSelectedDraft(null);
-    setPollingDraftId(null);
+  const handleCopy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const handleExportMarkdown = (post: BlogPostData) => {
+    const title = post.current_title || post.generated_title || post.topic || '';
+    const content = post.current_content || post.generated_content || '';
+    const md = `# ${title}\n\n> ${post.generated_meta || ''}\n\n${content}`;
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    ToastService.showToast('Exported as Markdown', ToastTypeEnum.Success);
+  };
+
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
+
+  const statusColors = (status: string) => {
+    if (status === 'published') return { bg: '#dcfce7', color: '#16a34a' };
+    if (status === 'review') return { bg: '#fef9c3', color: '#ca8a04' };
+    return { bg: '#f3f4f6', color: '#6b7280' };
   };
 
-  if (loading) {
+  // ── Detail view ──────────────────────────────────────────────────────────
+
+  if (loadingDetail) {
     return (
-      <div style={{ padding: '40px', textAlign: 'center' }}>
-        <div style={{ fontSize: '16px', color: '#666' }}>Loading blog drafts...</div>
+      <div style={{ padding: '60px', textAlign: 'center', color: '#9ca3af', fontSize: '15px' }}>
+        Loading post...
       </div>
     );
   }
 
-  if (selectedDraft) {
+  if (selected) {
+    const title = selected.current_title || selected.generated_title || selected.topic || '';
+    const content = selected.current_content || selected.generated_content || '';
+    const wordCount = content ? content.trim().split(/\s+/).filter(Boolean).length : 0;
+    const sc = statusColors(selected.status);
+
     return (
-      <div
-        style={{
-          padding: '20px 30px 100px 30px',
-          maxWidth: '1200px',
-          margin: '0 auto',
-          minHeight: '100vh',
-          height: 'auto',
-          overflowY: 'auto',
-          overflowX: 'hidden',
-        }}
-      >
-        {/* Back button */}
+      <div style={{ padding: '20px 30px 100px', maxWidth: '860px', margin: '0 auto', minHeight: '100vh' }}>
         <button
-          onClick={closeDraft}
+          onClick={() => setSelected(null)}
           style={{
             marginBottom: '20px',
             padding: '8px 16px',
             background: '#f5f5f5',
-            border: '1px solid #ddd',
-            borderRadius: '6px',
+            border: '1px solid #e5e7eb',
+            borderRadius: '8px',
             cursor: 'pointer',
             fontSize: '14px',
+            color: '#374151',
           }}
         >
           ← Back to Drafts
         </button>
 
-        {/* Featured Image */}
-        {selectedDraft.featured_image_url ? (
-          <img
-            src={selectedDraft.featured_image_url}
-            alt={selectedDraft.title}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111', lineHeight: '1.3', margin: 0, flex: 1 }}>
+            {title}
+          </h1>
+          <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+            <button onClick={() => handleCopy(title, 'title')} style={iconBtnStyle} title="Copy title">
+              {copied === 'title' ? <FiCheck size={15} color={URI_PINK} /> : <FiCopy size={15} color="#9ca3af" />}
+            </button>
+            <button onClick={() => handleExportMarkdown(selected)} style={iconBtnStyle} title="Export Markdown">
+              <FiDownload size={15} color="#9ca3af" />
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '20px' }}>
+          <span
             style={{
-              width: '100%',
-              maxHeight: '400px',
-              objectFit: 'cover',
-              borderRadius: '8px',
-              marginBottom: '24px',
-            }}
-          />
-        ) : selectedDraft.has_image ? (
-          <div
-            style={{
-              width: '100%',
-              height: '300px',
-              background: '#f9f9f9',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '24px',
-              border: '2px dashed #ddd',
+              background: sc.bg,
+              color: sc.color,
+              padding: '3px 10px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: '700',
+              textTransform: 'capitalize',
             }}
           >
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '16px', color: '#666', marginBottom: '8px' }}>
-                🎨 Generating featured image...
-              </div>
-              <div style={{ fontSize: '14px', color: '#999' }}>This may take 30-60 seconds</div>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Title */}
-        <h1 style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '12px', color: '#000' }}>
-          {selectedDraft.title}
-        </h1>
-
-        {/* Meta info */}
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', color: '#666', fontSize: '14px' }}>
-          <span>📖 {selectedDraft.reading_time} min read</span>
-          <span>📝 {selectedDraft.word_count} words</span>
-          <span>🏷️ {selectedDraft.tone}</span>
-          <span>📅 {formatDate(selectedDraft.created_at)}</span>
-        </div>
-
-        {/* Meta Description */}
-        <div
-          style={{
-            padding: '12px 16px',
-            background: '#f9f9f9',
-            borderRadius: '6px',
-            marginBottom: '24px',
-            fontSize: '14px',
-            color: '#555',
-            borderLeft: '4px solid #CD1B78',
-          }}
-        >
-          <strong>Meta Description:</strong> {selectedDraft.meta_description}
-        </div>
-
-        {/* Keywords */}
-        <div style={{ marginBottom: '24px' }}>
-          <strong style={{ fontSize: '14px', color: '#333' }}>Keywords: </strong>
-          {selectedDraft.keywords.map((keyword, i) => (
+            {selected.status}
+          </span>
+          {selected.has_writing_dna && (
             <span
-              key={i}
               style={{
-                display: 'inline-block',
-                padding: '4px 10px',
-                background: '#e8f5e9',
-                borderRadius: '12px',
-                fontSize: '13px',
-                marginRight: '8px',
-                marginTop: '4px',
+                background: `${URI_PINK}10`,
+                color: URI_PINK,
+                padding: '3px 10px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: '600',
               }}
             >
-              {keyword}
+              ✓ Your Voice
             </span>
-          ))}
+          )}
+          <span style={{ fontSize: '13px', color: '#9ca3af' }}>{wordCount} words</span>
+          <span style={{ fontSize: '13px', color: '#9ca3af' }}>{formatDate(selected.created_at)}</span>
         </div>
 
-        {/* Content */}
+        {selected.generated_meta && (
+          <div
+            style={{
+              background: '#f9fafb',
+              borderRadius: '8px',
+              padding: '12px 14px',
+              marginBottom: '24px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Meta Description
+              </p>
+              <p style={{ margin: 0, fontSize: '13px', color: '#374151', lineHeight: '1.5' }}>
+                {selected.generated_meta}
+              </p>
+            </div>
+            <button onClick={() => handleCopy(selected.generated_meta, 'meta')} style={iconBtnStyle}>
+              {copied === 'meta' ? <FiCheck size={15} color={URI_PINK} /> : <FiCopy size={15} color="#9ca3af" />}
+            </button>
+          </div>
+        )}
+
+        {selected.primary_keyword && (
+          <div style={{ marginBottom: '24px' }}>
+            <span style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>Keywords: </span>
+            {[selected.primary_keyword, ...selected.secondary_keywords].filter(Boolean).map((kw, i) => (
+              <span
+                key={i}
+                style={{
+                  display: 'inline-block',
+                  padding: '3px 10px',
+                  background: i === 0 ? `${URI_PINK}15` : '#f3f4f6',
+                  color: i === 0 ? URI_PINK : '#6b7280',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  marginRight: '6px',
+                  marginTop: '4px',
+                }}
+              >
+                {kw}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {selected.feedback?.rating && (
+          <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '20px' }}>
+            {selected.feedback.rating === 'up'
+              ? '👍 You said this sounded like you'
+              : '👎 You said this didn\'t sound quite right'}
+          </p>
+        )}
+
+        <div style={{ height: '1px', background: '#f3f4f6', marginBottom: '24px' }} />
+
         <div
-          style={{
-            fontSize: '16px',
-            lineHeight: '1.8',
-            color: '#333',
-            marginBottom: '32px',
-          }}
-          dangerouslySetInnerHTML={{ __html: selectedDraft.content }}
+          className="blog-content"
+          style={{ fontSize: '16px', lineHeight: '1.8', color: '#374151' }}
+          dangerouslySetInnerHTML={{ __html: markdownToHtml(content) }}
         />
 
-        {/* Social Snippets */}
-        <div style={{ marginTop: '40px', paddingTop: '24px', borderTop: '2px solid #eee' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px' }}>Social Media Snippets</h3>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* LinkedIn */}
-            <div style={{ padding: '12px', background: '#f0f7ff', borderRadius: '6px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#0077B5', marginBottom: '6px' }}>
-                LinkedIn
-              </div>
-              <div style={{ fontSize: '14px', color: '#333' }}>{selectedDraft.social_snippets.linkedin}</div>
-            </div>
-
-            {/* Twitter */}
-            <div style={{ padding: '12px', background: '#f0f9ff', borderRadius: '6px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1DA1F2', marginBottom: '6px' }}>Twitter</div>
-              <div style={{ fontSize: '14px', color: '#333' }}>{selectedDraft.social_snippets.twitter}</div>
-            </div>
-
-            {/* Facebook */}
-            <div style={{ padding: '12px', background: '#f0f4ff', borderRadius: '6px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1877F2', marginBottom: '6px' }}>
-                Facebook
-              </div>
-              <div style={{ fontSize: '14px', color: '#333' }}>{selectedDraft.social_snippets.facebook}</div>
-            </div>
+        {selected.published_url && (
+          <div
+            style={{
+              marginTop: '28px',
+              padding: '12px 16px',
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: '#16a34a',
+            }}
+          >
+            Published at:{' '}
+            <a href={selected.published_url} target="_blank" rel="noreferrer" style={{ color: '#16a34a', fontWeight: '600' }}>
+              {selected.published_url}
+            </a>
           </div>
-        </div>
+        )}
       </div>
     );
   }
 
+  // ── List view ────────────────────────────────────────────────────────────
+
   return (
-    <div
-      style={{
-        padding: '20px 30px 100px 30px',
-        maxWidth: '1400px',
-        margin: '0 auto',
-        height: 'auto',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-      }}
-    >
+    <div style={{ padding: '20px 30px 100px', maxWidth: '1200px', margin: '0 auto', minHeight: '100vh' }}>
       <div style={{ marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>Blog Drafts</h2>
-        <p style={{ color: '#666', fontSize: '14px' }}>View and manage your AI-generated blog posts</p>
+        <h2 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '4px', color: '#111' }}>Blog Posts</h2>
+        <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>All your generated and published blog posts</p>
       </div>
 
-      {drafts.length === 0 ? (
+      {loading ? (
+        <div style={{ padding: '60px', textAlign: 'center', color: '#9ca3af', fontSize: '15px' }}>
+          Loading posts...
+        </div>
+      ) : posts.length === 0 ? (
         <div
           style={{
             padding: '60px 20px',
             textAlign: 'center',
-            background: '#f9f9f9',
-            borderRadius: '8px',
-            border: '2px dashed #ddd',
+            background: '#f9fafb',
+            borderRadius: '12px',
+            border: '2px dashed #e5e7eb',
           }}
         >
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📝</div>
-          <div style={{ fontSize: '18px', color: '#666', marginBottom: '8px' }}>No blog drafts yet</div>
-          <div style={{ fontSize: '14px', color: '#999' }}>
-            Generate your first blog post using the Blog Generator tab
-          </div>
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>📝</div>
+          <p style={{ fontSize: '16px', color: '#6b7280', margin: '0 0 6px' }}>No blog posts yet</p>
+          <p style={{ fontSize: '14px', color: '#9ca3af', margin: 0 }}>
+            Use the Blog Generator tab to create your first post
+          </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-          {drafts.map((draft) => (
-            <div
-              key={draft.id}
-              onClick={() => viewDraft(draft)}
-              style={{
-                padding: '20px',
-                background: '#fff',
-                border: '1px solid #e0e0e0',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
-              }}
-            >
-              {/* Featured Image Thumbnail or Placeholder */}
-              {draft.featured_image_url ? (
-                <img
-                  src={draft.featured_image_url}
-                  alt={draft.title}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '18px' }}>
+          {posts.map((post) => {
+            const title = post.current_title || post.generated_title;
+            const sc = statusColors(post.status);
+            return (
+              <div
+                key={post.id}
+                onClick={() => viewPost(post)}
+                style={{
+                  background: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
+                }}
+              >
+                <div style={{ width: '100%', height: '6px', borderRadius: '4px', background: `linear-gradient(90deg, ${URI_PINK}30, ${URI_PINK}08)`, marginBottom: '14px' }} />
+
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                  <span style={{ background: sc.bg, color: sc.color, padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', textTransform: 'capitalize' }}>
+                    {post.status}
+                  </span>
+                  {post.has_writing_dna && (
+                    <span style={{ background: `${URI_PINK}10`, color: URI_PINK, padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>
+                      ✓ Your Voice
+                    </span>
+                  )}
+                  {post.feedback?.rating === 'up' && <span style={{ fontSize: '13px' }}>👍</span>}
+                </div>
+
+                <h3
                   style={{
-                    width: '100%',
-                    height: '180px',
-                    objectFit: 'cover',
-                    borderRadius: '6px',
-                    marginBottom: '12px',
-                  }}
-                />
-              ) : draft.has_image ? (
-                <div
-                  style={{
-                    width: '100%',
-                    height: '180px',
-                    background: '#f5f5f5',
-                    borderRadius: '6px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '12px',
-                    border: '2px dashed #ddd',
+                    fontSize: '15px',
+                    fontWeight: '700',
+                    color: '#111',
+                    marginBottom: '8px',
+                    lineHeight: '1.4',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
                   }}
                 >
-                  <div style={{ textAlign: 'center', color: '#999', fontSize: '13px' }}>
-                    <div>🎨</div>
-                    <div>Generating...</div>
-                  </div>
+                  {title || post.topic}
+                </h3>
+
+                {post.generated_meta && (
+                  <p
+                    style={{
+                      fontSize: '13px',
+                      color: '#6b7280',
+                      lineHeight: '1.5',
+                      marginBottom: '14px',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {post.generated_meta}
+                  </p>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#9ca3af', paddingTop: '10px', borderTop: '1px solid #f3f4f6' }}>
+                  <span>{post.primary_keyword}</span>
+                  <span>{formatDate(post.created_at)}</span>
                 </div>
-              ) : (
-                <div
-                  style={{
-                    width: '100%',
-                    height: '180px',
-                    background: 'linear-gradient(135deg, #CD1B78 0%, #FF6B9D 100%)',
-                    borderRadius: '6px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '12px',
-                    color: '#fff',
-                    fontSize: '48px',
-                  }}
-                >
-                  📝
-                </div>
-              )}
-
-              {/* Title */}
-              <h3
-                style={{
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  marginBottom: '8px',
-                  color: '#000',
-                  lineHeight: '1.4',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                }}
-              >
-                {draft.title}
-              </h3>
-
-              {/* Meta */}
-              <div
-                style={{
-                  fontSize: '13px',
-                  color: '#666',
-                  marginBottom: '8px',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                }}
-              >
-                {draft.meta_description}
               </div>
-
-              {/* Stats */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '12px',
-                  fontSize: '12px',
-                  color: '#999',
-                  marginTop: '12px',
-                  paddingTop: '12px',
-                  borderTop: '1px solid #f0f0f0',
-                }}
-              >
-                <span>📖 {draft.reading_time}min</span>
-                <span>📝 {draft.word_count} words</span>
-                <span>🏷️ {draft.tone}</span>
-              </div>
-
-              {/* Date */}
-              <div style={{ fontSize: '11px', color: '#bbb', marginTop: '8px' }}>{formatDate(draft.created_at)}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
+
+const iconBtnStyle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  padding: '6px',
+  borderRadius: '6px',
+  display: 'flex',
+  alignItems: 'center',
+};

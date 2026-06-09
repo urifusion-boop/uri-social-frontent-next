@@ -45,7 +45,14 @@ type ISocialMediaAgentApi =
   | 'agentChatStream'
   | 'agentChatUpload'
   | 'editVideo'
-  | 'editVideoJob';
+  | 'editVideoJob'
+  | 'writingDnaQuiz'
+  | 'writingDna'
+  | 'generateBlogPost'
+  | 'blogPosts'
+  | 'blogPostById'
+  | 'blogPostFeedback'
+  | 'blogPostPublish';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -90,6 +97,14 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   agentChatUpload: '/agent/chat/upload',
   editVideo: '/edit-video',
   editVideoJob: '/edit-video-job',
+  // Writing DNA Blog Generator
+  writingDnaQuiz: '/blog/writing-dna/quiz',
+  writingDna: '/blog/writing-dna',
+  generateBlogPost: '/blog/generate',
+  blogPosts: '/blog/posts',
+  blogPostById: '/blog/posts/{blog_id}',
+  blogPostFeedback: '/blog/posts/{blog_id}/feedback',
+  blogPostPublish: '/blog/posts/{blog_id}/publish',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(
