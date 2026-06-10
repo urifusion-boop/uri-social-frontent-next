@@ -18,6 +18,8 @@ const PLATFORMS = [
   { key: 'facebook_reels', label: 'Facebook', icon: <FaFacebook size={14} color="#1877F2" /> },
 ];
 
+type CaptionStyle = 'word_by_word' | 'full_line' | 'bold_pop';
+
 interface Enhancements {
   stabilise: boolean;
   colour_grade: boolean;
@@ -30,6 +32,10 @@ interface Enhancements {
   headline_text: string;
   cta_text: string;
   smart_trim: boolean;
+  auto_captions: boolean;
+  caption_style: CaptionStyle;
+  remove_fillers: boolean;
+  noise_reduction: boolean;
 }
 
 interface VideoEditFormProps {
@@ -55,6 +61,10 @@ export default function VideoEditForm({ onEditComplete }: VideoEditFormProps) {
     headline_text: '',
     cta_text: '',
     smart_trim: true,
+    auto_captions: true,
+    caption_style: 'word_by_word',
+    remove_fillers: true,
+    noise_reduction: true,
   });
 
   const [phase, setPhase] = useState<'idle' | 'uploading' | 'processing' | 'done' | 'failed'>('idle');
@@ -264,7 +274,9 @@ export default function VideoEditForm({ onEditComplete }: VideoEditFormProps) {
             [
               { key: 'stabilise', label: 'Stabilise footage' },
               { key: 'colour_grade', label: 'Colour grade to match brand style' },
+              { key: 'noise_reduction', label: 'Reduce background noise' },
               { key: 'crop_916', label: 'Crop to 9:16 for Reels/TikTok' },
+              { key: 'remove_fillers', label: 'Remove filler words (um, uh, hmm…)' },
               { key: 'add_intro', label: 'Add branded intro (1.5s)' },
               { key: 'add_outro', label: 'Add branded outro with CTA (2s)' },
               { key: 'smart_trim', label: 'Smart trim to best moments' },
@@ -288,6 +300,56 @@ export default function VideoEditForm({ onEditComplete }: VideoEditFormProps) {
               }
             />
           ))}
+
+          {/* Auto-captions toggle + style */}
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={enhancements.auto_captions}
+                onChange={() => toggle('auto_captions')}
+                disabled={isProcessing}
+                size="small"
+                sx={{ color: '#CD1B78', '&.Mui-checked': { color: '#CD1B78' }, py: 0.5 }}
+              />
+            }
+            label={
+              <Typography fontSize="13px" color="#374151" fontWeight={600}>
+                Auto-captions in brand colours ✨
+              </Typography>
+            }
+          />
+          {enhancements.auto_captions && (
+            <Box sx={{ ml: 4, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 0.5 }}>
+              <Typography fontSize="12px" color="#6B7280">
+                Style:
+              </Typography>
+              {(
+                [
+                  { key: 'word_by_word', label: 'Word by word' },
+                  { key: 'full_line', label: 'Full line' },
+                  { key: 'bold_pop', label: 'Bold pop' },
+                ] as { key: CaptionStyle; label: string }[]
+              ).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setEnhancements((prev) => ({ ...prev, caption_style: key }))}
+                  disabled={isProcessing}
+                  style={{
+                    padding: '2px 10px',
+                    borderRadius: 20,
+                    border: enhancements.caption_style === key ? '1.5px solid #CD1B78' : '1.5px solid #E5E7EB',
+                    background: enhancements.caption_style === key ? 'rgba(205,27,120,0.08)' : '#fff',
+                    color: enhancements.caption_style === key ? '#CD1B78' : '#6B7280',
+                    fontSize: 11,
+                    fontWeight: enhancements.caption_style === key ? 600 : 400,
+                    cursor: isProcessing ? 'default' : 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </Box>
+          )}
 
           {/* Music toggle + mood */}
           <FormControlLabel
@@ -415,7 +477,7 @@ export default function VideoEditForm({ onEditComplete }: VideoEditFormProps) {
           )}
           {phase === 'processing' && (
             <Typography fontSize="11px" color="#9CA3AF">
-              Stabilising · colour grading · adding your branding · about 30 seconds
+              Stabilising · colour grading · transcribing captions · adding your branding · ~45 seconds
             </Typography>
           )}
         </Box>
