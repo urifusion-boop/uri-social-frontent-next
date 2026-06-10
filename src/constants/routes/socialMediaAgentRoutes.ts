@@ -46,6 +46,10 @@ type ISocialMediaAgentApi =
   | 'agentChatUpload'
   | 'editVideo'
   | 'editVideoJob'
+  | 'polishVideo'
+  | 'polishVideoJob'
+  | 'polishVideoRestyle'
+  | 'videoPolishStyles'
   | 'writingDnaQuiz'
   | 'writingDna'
   | 'generateBlogPost'
@@ -97,6 +101,10 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   agentChatUpload: '/agent/chat/upload',
   editVideo: '/edit-video',
   editVideoJob: '/edit-video-job',
+  polishVideo: '/polish-video',
+  polishVideoJob: '/polish-video-job',
+  polishVideoRestyle: '/polish-video-restyle',
+  videoPolishStyles: '/video-polish-styles',
   // Writing DNA Blog Generator
   writingDnaQuiz: '/blog/writing-dna/quiz',
   writingDna: '/blog/writing-dna',

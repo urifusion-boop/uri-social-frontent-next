@@ -106,6 +106,41 @@ export interface VideoEditJob {
   error?: string;
 }
 
+export interface VideoPolishClip {
+  url: string;
+  duration: number;
+  caption_text: string;
+  title?: string;
+  virality_score?: number;
+}
+
+export interface VideoPolishJob {
+  job_id: string;
+  user_id: string;
+  style_preset: string;
+  language_setting: string;
+  status: 'ingesting' | 'processing' | 'ready' | 'failed';
+  status_message: string;
+  progress: number;
+  source_video_url: string;
+  source_duration_seconds: number;
+  source_quality_flags: { dark?: boolean; noisy?: boolean; short?: boolean };
+  output_clips: VideoPolishClip[];
+  credits_charged: number;
+  user_action: 'pending' | 'approved' | 'restyled' | 'skipped';
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface VideoPolishStyle {
+  name: string;
+  display_name: string;
+  description: string;
+  best_for: string;
+  energy_level: number;
+  good_for_intents: string[];
+}
+
 export interface VideoPublishJob {
   job_id: string;
   draft_id: string;
@@ -579,6 +614,32 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async getVideoPolishStyles(): Promise<UriResponse<VideoPolishStyle[]>> {
+    const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.videoPolishStyles);
+    return response.data;
+  }
+
+  static async submitVideoPolish(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.polishVideo, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+    return response.data;
+  }
+
+  static async getVideoPolishJob(jobId: string): Promise<UriResponse<VideoPolishJob>> {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.polishVideoJob}/${jobId}`);
+    return response.data;
+  }
+
+  static async restyleVideoPolish(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.polishVideoRestyle, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    });
+    return response.data;
+  }
+
   static async generateStoryboardFrames(
     scenes: StoryboardScene[],
     brandImages: string[] = []
@@ -845,10 +906,10 @@ export class SocialMediaAgentService {
     issues?: string[]
   ): Promise<UriResponse<{ blog_id: string; rating: string }>> {
     const response: Awaited<AxiosResponse<UriResponse<{ blog_id: string; rating: string }>>> =
-      await UriHttpClient.getClient().post(
-        socialMediaAgentRoutes.blogPostFeedback.replace('{blog_id}', blogId),
-        { rating, issues }
-      );
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.blogPostFeedback.replace('{blog_id}', blogId), {
+        rating,
+        issues,
+      });
     return response.data;
   }
 
@@ -857,10 +918,9 @@ export class SocialMediaAgentService {
     publishedUrl?: string
   ): Promise<UriResponse<{ blog_id: string; status: string }>> {
     const response: Awaited<AxiosResponse<UriResponse<{ blog_id: string; status: string }>>> =
-      await UriHttpClient.getClient().post(
-        socialMediaAgentRoutes.blogPostPublish.replace('{blog_id}', blogId),
-        { published_url: publishedUrl }
-      );
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.blogPostPublish.replace('{blog_id}', blogId), {
+        published_url: publishedUrl,
+      });
     return response.data;
   }
 }

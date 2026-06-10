@@ -38,6 +38,7 @@ import ContentGeneratorForm from '@/src/components/app/social-media/ContentGener
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
+import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -819,7 +820,8 @@ const ContentManagerPage = ({
   const [v3Enabled, setV3Enabled] = useState(false);
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
-  const [createMode, setCreateMode] = useState<'generate' | 'edit_video'>('generate');
+  const [createMode, setCreateMode] = useState<'generate' | 'video'>('generate');
+  const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video'>('edit_video');
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1313,31 +1315,64 @@ const ContentManagerPage = ({
             {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
             {/* Create mode switcher */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-              {(
-                [
-                  { key: 'generate', label: '✨ Generate Content' },
-                  { key: 'edit_video', label: '🎬 Edit My Video' },
-                ] as { key: 'generate' | 'edit_video'; label: string }[]
-              ).map((mode) => (
-                <button
-                  key={mode.key}
-                  onClick={() => setCreateMode(mode.key)}
-                  style={{
-                    padding: '8px 18px',
-                    borderRadius: 10,
-                    border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
-                    background: createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
-                    color: createMode === mode.key ? '#fff' : '#6B7280',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {mode.label}
-                </button>
-              ))}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(
+                  [
+                    { key: 'generate', label: '✨ Generate Content' },
+                    { key: 'video', label: '🎬 Video' },
+                  ] as { key: 'generate' | 'video'; label: string }[]
+                ).map((mode) => (
+                  <button
+                    key={mode.key}
+                    onClick={() => setCreateMode(mode.key)}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: 10,
+                      border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
+                      background:
+                        createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                      color: createMode === mode.key ? '#fff' : '#6B7280',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Video sub-mode selector */}
+              {createMode === 'video' && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingLeft: 4 }}>
+                  {(
+                    [
+                      { key: 'edit_video', label: 'Edit My Video' },
+                      { key: 'polish_video', label: 'Polish My Video' },
+                    ] as { key: 'edit_video' | 'polish_video'; label: string }[]
+                  ).map((sub) => (
+                    <button
+                      key={sub.key}
+                      onClick={() => setVideoSubMode(sub.key)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 8,
+                        border: videoSubMode === sub.key ? '2px solid #CD1B78' : '1.5px solid #E5E7EB',
+                        background: videoSubMode === sub.key ? '#FDF2F8' : '#fff',
+                        color: videoSubMode === sub.key ? '#CD1B78' : '#6B7280',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {sub.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {createMode === 'generate' && (
@@ -1404,9 +1439,18 @@ const ContentManagerPage = ({
               </>
             )}
 
-            {createMode === 'edit_video' && (
+            {createMode === 'video' && videoSubMode === 'edit_video' && (
               <VideoEditForm
                 onEditComplete={() => {
+                  handleGenerated();
+                  setCreateMode('generate');
+                }}
+              />
+            )}
+
+            {createMode === 'video' && videoSubMode === 'polish_video' && (
+              <VideoPolishForm
+                onPolishComplete={() => {
                   handleGenerated();
                   setCreateMode('generate');
                 }}
