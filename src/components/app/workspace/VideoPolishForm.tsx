@@ -54,11 +54,11 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
 
   const acceptFile = (file: File) => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      ToastService.show('Please upload an MP4 or MOV video.', ToastTypeEnum.ERROR);
+      ToastService.showToast('Please upload an MP4 or MOV video.', ToastTypeEnum.Error);
       return;
     }
     if (file.size > MAX_MB * 1024 * 1024) {
-      ToastService.show(`File too large. Maximum is ${MAX_MB}MB.`, ToastTypeEnum.ERROR);
+      ToastService.showToast(`File too large. Maximum is ${MAX_MB}MB.`, ToastTypeEnum.Error);
       return;
     }
     setVideoFile(file);
@@ -101,7 +101,7 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
 
   const handleSubmit = async () => {
     if (!videoFile) {
-      ToastService.show('Please select a video first.', ToastTypeEnum.ERROR);
+      ToastService.showToast('Please select a video first.', ToastTypeEnum.Error);
       return;
     }
 
@@ -125,7 +125,7 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
         'Upload failed. Please try again.';
-      ToastService.show(msg, ToastTypeEnum.ERROR);
+      ToastService.showToast(msg, ToastTypeEnum.Error);
       setPhase('pick');
     }
   };
@@ -147,14 +147,14 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
       if (!res?.responseData?.job_id) throw new Error('No job ID');
       startPolling(res.responseData.job_id);
     } catch {
-      ToastService.show('Restyle failed. Please try again.', ToastTypeEnum.ERROR);
+      ToastService.showToast('Restyle failed. Please try again.', ToastTypeEnum.Error);
       setPhase('ready');
     }
   };
 
   const handleApprove = () => {
     onPolishComplete();
-    ToastService.show('Clip added to your drafts!', ToastTypeEnum.SUCCESS);
+    ToastService.showToast('Clip added to your drafts!', ToastTypeEnum.Success);
   };
 
   const handleReset = () => {
