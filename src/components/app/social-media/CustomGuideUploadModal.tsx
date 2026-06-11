@@ -166,9 +166,9 @@ export default function CustomGuideUploadModal({ open, onClose, onSuccess, brand
       } else if (errorDetail.includes('Failed to download image')) {
         userMessage = '🔗 Failed to access the image. Please check the URL or try uploading again.';
         toastType = ToastTypeEnum.Error;
-      } else if (errorDetail.includes('plan limit') || errorDetail.includes('reached your limit')) {
+      } else if (errorDetail.includes('limit') || errorDetail.includes('reached')) {
         userMessage =
-          "⚠️ You've reached your plan limit (5 guides). Please delete an existing guide or upgrade your plan.";
+          "⚠️ You've reached the limit of 5 custom guides. Please delete an existing guide to upload a new one.";
         toastType = ToastTypeEnum.Warning;
       }
 

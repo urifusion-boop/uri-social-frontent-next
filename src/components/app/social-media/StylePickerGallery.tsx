@@ -1,13 +1,15 @@
 'use client';
 
 import { getStylesForIndustry, StyleTemplate, STYLES } from '@/src/data/styleLibrary';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, Typography, IconButton } from '@mui/material';
 import { useEffect, useState } from 'react';
-import { FaCheckCircle, FaPlus } from 'react-icons/fa';
+import { FaCheckCircle, FaPlus, FaTimes } from 'react-icons/fa';
 import { MdImage } from 'react-icons/md';
 import { CustomVisualGuide, CustomVisualGuideService } from '@/src/api/CustomVisualGuideService';
 import CustomGuideUploadModal from './CustomGuideUploadModal';
 import CustomGuideInfoTooltip from './CustomGuideInfoTooltip';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 const MAX_SELECTIONS = 7;
 
@@ -154,6 +156,22 @@ export default function StylePickerGallery({
     }
   };
 
+  const handleDeleteGuide = async (guideId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card selection
+    try {
+      await CustomVisualGuideService.archiveGuide(guideId);
+      setCustomGuides((prev) => prev.filter((g) => g.id !== guideId));
+      // Remove from selection if selected
+      if (onCustomGuideChange && selectedCustomGuides.includes(guideId)) {
+        onCustomGuideChange(selectedCustomGuides.filter((id) => id !== guideId));
+      }
+      ToastService.showToast('Custom guide deleted successfully', ToastTypeEnum.Success);
+    } catch (error) {
+      console.error('[StylePickerGallery] Error deleting guide:', error);
+      ToastService.showToast('Failed to delete custom guide', ToastTypeEnum.Error);
+    }
+  };
+
   const industryStyles = getStylesForIndustry(industry || 'general_other');
   const allStyles = STYLES;
 
@@ -275,6 +293,28 @@ export default function StylePickerGallery({
                         position: 'relative',
                       }}
                     >
+                      {/* Delete button */}
+                      <IconButton
+                        onClick={(e) => handleDeleteGuide(guide.id, e)}
+                        size="small"
+                        sx={{
+                          position: 'absolute',
+                          top: 6,
+                          right: 6,
+                          background: 'rgba(255,255,255,0.95)',
+                          backdropFilter: 'blur(4px)',
+                          width: 24,
+                          height: 24,
+                          zIndex: 2,
+                          '&:hover': {
+                            background: '#FEE2E2',
+                            color: '#EF4444',
+                          },
+                        }}
+                      >
+                        <FaTimes size={12} />
+                      </IconButton>
+
                       {isSelected && (
                         <Box
                           sx={{

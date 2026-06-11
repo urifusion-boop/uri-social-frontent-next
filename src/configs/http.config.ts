@@ -87,10 +87,12 @@ class UriHttpClient {
           // Don't clear on brand-profile 403 as user might not have completed onboarding
           // Don't clear on connect endpoints as these might have other authorization issues
           // Don't clear on notification endpoints as expired tokens are handled by polling
+          // Don't clear on custom-guides 403 as it might be plan limit
           const isBrandProfile = error.config?.url?.includes('/brand-profile');
           const isConnectEndpoint = error.config?.url?.includes('/connect');
           const isNotificationEndpoint = error.config?.url?.includes('/notifications');
-          if (!isBrandProfile && !isConnectEndpoint && !isNotificationEndpoint) {
+          const isCustomGuides = error.config?.url?.includes('/custom-guides');
+          if (!isBrandProfile && !isConnectEndpoint && !isNotificationEndpoint && !isCustomGuides) {
             this.clearUserData();
             window.dispatchEvent(new CustomEvent('unauthorized'));
           }
