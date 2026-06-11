@@ -108,13 +108,13 @@ export interface VideoEditJob {
 
 export interface VideoPolishClip {
   clip_url: string;
+  captioned_clip_url?: string;
   duration: number;
   caption_text: string;
   title?: string;
   topic?: string;
   hook?: string;
   virality_score?: number;
-  thumbnail_url?: string;
 }
 
 export interface VideoPolishJob {

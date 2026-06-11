@@ -472,12 +472,12 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
             </div>
           )}
 
-          {/* Video preview */}
+          {/* Video preview — prefer captioned version when available */}
           {job.output_clips[selectedClipIdx]?.clip_url && (
             <div style={{ marginBottom: 20, borderRadius: 16, overflow: 'hidden', background: '#000' }}>
               <video
-                key={job.output_clips[selectedClipIdx].clip_url}
-                src={job.output_clips[selectedClipIdx].clip_url}
+                key={job.output_clips[selectedClipIdx].captioned_clip_url || job.output_clips[selectedClipIdx].clip_url}
+                src={job.output_clips[selectedClipIdx].captioned_clip_url || job.output_clips[selectedClipIdx].clip_url}
                 controls
                 playsInline
                 style={{ width: '100%', maxHeight: 480, display: 'block' }}
