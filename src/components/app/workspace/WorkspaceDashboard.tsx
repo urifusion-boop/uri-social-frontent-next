@@ -4400,7 +4400,7 @@ const PlaybookPage = ({
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
-  const [selectedCustomGuide, setSelectedCustomGuide] = useState<string | undefined>(undefined);
+  const [selectedCustomGuides, setSelectedCustomGuides] = useState<string[]>([]);
   const [fontStyle, setFontStyle] = useState<string>('');
   const [customFontEnabled, setCustomFontEnabled] = useState(false);
   const [customFontFiles, setCustomFontFiles] = useState<{ url: string; filename: string }[]>([]);
@@ -4448,7 +4448,7 @@ const PlaybookPage = ({
     setLogoPosition(profile.logo_position ?? 'bottom_right');
     setLogoError('');
     setStyleSelections([...(profile.style_selections ?? [])]);
-    setSelectedCustomGuide(profile.selected_custom_guide);
+    setSelectedCustomGuides(profile.selected_custom_guides ?? []);
     setFontStyle(profile.font_style ?? '');
     setCustomFontEnabled(profile.custom_font_enabled ?? false);
     setCustomFontFiles(profile.custom_font_files ?? []);
@@ -4502,7 +4502,7 @@ const PlaybookPage = ({
         logo_position: logoPosition,
         style_selections: styleSelections,
         style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
-        selected_custom_guide: selectedCustomGuide,
+        selected_custom_guides: selectedCustomGuides,
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
         custom_font_enabled: customFontEnabled,
@@ -5658,21 +5658,21 @@ const PlaybookPage = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span
                 style={{
-                  background: styleSelections.length + (selectedCustomGuide ? 1 : 0) > 0 ? '#C2185B' : '#e5e7eb',
-                  color: styleSelections.length + (selectedCustomGuide ? 1 : 0) > 0 ? '#fff' : '#6b7280',
+                  background: styleSelections.length + selectedCustomGuides.length > 0 ? '#C2185B' : '#e5e7eb',
+                  color: styleSelections.length + selectedCustomGuides.length > 0 ? '#fff' : '#6b7280',
                   borderRadius: 99,
                   padding: '2px 10px',
                   fontSize: 11.5,
                   fontWeight: 600,
                 }}
               >
-                {styleSelections.length + (selectedCustomGuide ? 1 : 0)}/3 selected
+                {styleSelections.length + selectedCustomGuides.length}/3 selected
               </span>
-              {(styleSelections.length > 0 || selectedCustomGuide) && (
+              {(styleSelections.length > 0 || selectedCustomGuides.length > 0) && (
                 <button
                   onClick={() => {
                     setStyleSelections([]);
-                    setSelectedCustomGuide(undefined);
+                    setSelectedCustomGuides([]);
                   }}
                   style={{
                     background: 'none',
@@ -5692,8 +5692,8 @@ const PlaybookPage = ({
               industry={industry || p?.industry || 'general_other'}
               selected={styleSelections}
               onChange={setStyleSelections}
-              selectedCustomGuide={selectedCustomGuide}
-              onCustomGuideChange={setSelectedCustomGuide}
+              selectedCustomGuides={selectedCustomGuides}
+              onCustomGuideChange={setSelectedCustomGuides}
               brandId={profile?.id}
             />
           </div>

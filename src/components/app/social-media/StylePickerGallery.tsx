@@ -15,8 +15,8 @@ interface StylePickerGalleryProps {
   industry: string;
   selected: string[];
   onChange: (slugs: string[]) => void;
-  selectedCustomGuide?: string; // custom guide ID
-  onCustomGuideChange?: (guideId: string | undefined) => void;
+  selectedCustomGuides?: string[]; // custom guide IDs (array)
+  onCustomGuideChange?: (guideIds: string[]) => void;
   brandId?: string;
 }
 
@@ -101,7 +101,7 @@ export default function StylePickerGallery({
   industry,
   selected,
   onChange,
-  selectedCustomGuide,
+  selectedCustomGuides = [],
   onCustomGuideChange,
   brandId,
 }: StylePickerGalleryProps) {
@@ -138,16 +138,18 @@ export default function StylePickerGallery({
   const handleCustomGuideSelect = (guideId: string) => {
     if (onCustomGuideChange) {
       // Toggle selection
-      if (selectedCustomGuide === guideId) {
-        onCustomGuideChange(undefined);
+      if (selectedCustomGuides.includes(guideId)) {
+        // Deselect
+        onCustomGuideChange(selectedCustomGuides.filter((id) => id !== guideId));
       } else {
         // Check if we're at the selection limit
-        const currentSelectionCount = selected.length + (selectedCustomGuide ? 1 : 0);
+        const currentSelectionCount = selected.length + selectedCustomGuides.length;
         if (currentSelectionCount >= MAX_SELECTIONS) {
           // Already at limit, can't select another
           return;
         }
-        onCustomGuideChange(guideId);
+        // Select
+        onCustomGuideChange([...selectedCustomGuides, guideId]);
       }
     }
   };
@@ -165,8 +167,8 @@ export default function StylePickerGallery({
     if (selected.includes(slug)) {
       onChange(selected.filter((s) => s !== slug));
     } else {
-      // Check total selection count (library styles + custom guide)
-      const currentSelectionCount = selected.length + (selectedCustomGuide ? 1 : 0);
+      // Check total selection count (library styles + custom guides)
+      const currentSelectionCount = selected.length + selectedCustomGuides.length;
       if (currentSelectionCount >= MAX_SELECTIONS) {
         // silently enforce limit — caller should show guidance
         return;
@@ -241,7 +243,7 @@ export default function StylePickerGallery({
               }}
             >
               {customGuides.slice(0, 8).map((guide) => {
-                const isSelected = selectedCustomGuide === guide.id;
+                const isSelected = selectedCustomGuides.includes(guide.id);
                 return (
                   <Box
                     key={guide.id}
