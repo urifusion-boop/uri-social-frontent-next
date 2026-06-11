@@ -141,6 +141,12 @@ export default function StylePickerGallery({
       if (selectedCustomGuide === guideId) {
         onCustomGuideChange(undefined);
       } else {
+        // Check if we're at the selection limit
+        const currentSelectionCount = selected.length + (selectedCustomGuide ? 1 : 0);
+        if (currentSelectionCount >= MAX_SELECTIONS) {
+          // Already at limit, can't select another
+          return;
+        }
         onCustomGuideChange(guideId);
       }
     }
@@ -158,10 +164,13 @@ export default function StylePickerGallery({
   const toggle = (slug: string) => {
     if (selected.includes(slug)) {
       onChange(selected.filter((s) => s !== slug));
-    } else if (selected.length >= MAX_SELECTIONS) {
-      // silently enforce limit — caller should show guidance
-      return;
     } else {
+      // Check total selection count (library styles + custom guide)
+      const currentSelectionCount = selected.length + (selectedCustomGuide ? 1 : 0);
+      if (currentSelectionCount >= MAX_SELECTIONS) {
+        // silently enforce limit — caller should show guidance
+        return;
+      }
       onChange([...selected, slug]);
     }
   };
@@ -198,9 +207,7 @@ export default function StylePickerGallery({
               >
                 Custom
               </Box>
-              <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f' }}>
-                Your Visual Guides
-              </Typography>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f' }}>Your Visual Guides</Typography>
               <Typography sx={{ fontSize: 11, color: '#6B7280', fontStyle: 'italic' }}>
                 Reference images you've uploaded
               </Typography>
@@ -250,9 +257,7 @@ export default function StylePickerGallery({
                       p: 0,
                       textAlign: 'left',
                       transition: 'transform 0.15s, box-shadow 0.15s',
-                      boxShadow: isSelected
-                        ? `0 0 0 2px #fff, 0 0 0 4px ${primary}`
-                        : '0 2px 8px rgba(0,0,0,0.10)',
+                      boxShadow: isSelected ? `0 0 0 2px #fff, 0 0 0 4px ${primary}` : '0 2px 8px rgba(0,0,0,0.10)',
                       '&:hover': {
                         transform: 'translateY(-2px)',
                         boxShadow: isSelected ? `0 4px 16px ${primary}55` : '0 6px 18px rgba(0,0,0,0.16)',
@@ -299,8 +304,8 @@ export default function StylePickerGallery({
                             guide.match_outcome === 'STRONG_MATCH' || guide.match_outcome === 'DECENT_MATCH'
                               ? '#D1FAE5'
                               : guide.match_outcome === 'WEAK_MATCH'
-                              ? '#FEF3C7'
-                              : '#FEE2E2',
+                                ? '#FEF3C7'
+                                : '#FEE2E2',
                           borderRadius: '4px',
                           fontSize: 9,
                           fontWeight: 700,
@@ -308,8 +313,8 @@ export default function StylePickerGallery({
                             guide.match_outcome === 'STRONG_MATCH' || guide.match_outcome === 'DECENT_MATCH'
                               ? '#10B981'
                               : guide.match_outcome === 'WEAK_MATCH'
-                              ? '#F59E0B'
-                              : '#EF4444',
+                                ? '#F59E0B'
+                                : '#EF4444',
                           textTransform: 'uppercase',
                           letterSpacing: 0.3,
                         }}
@@ -317,10 +322,10 @@ export default function StylePickerGallery({
                         {guide.match_outcome === 'STRONG_MATCH'
                           ? 'Strong'
                           : guide.match_outcome === 'DECENT_MATCH'
-                          ? 'Good'
-                          : guide.match_outcome === 'WEAK_MATCH'
-                          ? 'Weak'
-                          : 'No Match'}
+                            ? 'Good'
+                            : guide.match_outcome === 'WEAK_MATCH'
+                              ? 'Weak'
+                              : 'No Match'}
                       </Box>
                     </Box>
 

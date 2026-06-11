@@ -5658,19 +5658,22 @@ const PlaybookPage = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span
                 style={{
-                  background: styleSelections.length > 0 ? '#C2185B' : '#e5e7eb',
-                  color: styleSelections.length > 0 ? '#fff' : '#6b7280',
+                  background: styleSelections.length + (selectedCustomGuide ? 1 : 0) > 0 ? '#C2185B' : '#e5e7eb',
+                  color: styleSelections.length + (selectedCustomGuide ? 1 : 0) > 0 ? '#fff' : '#6b7280',
                   borderRadius: 99,
                   padding: '2px 10px',
                   fontSize: 11.5,
                   fontWeight: 600,
                 }}
               >
-                {styleSelections.length}/3 selected
+                {styleSelections.length + (selectedCustomGuide ? 1 : 0)}/3 selected
               </span>
-              {styleSelections.length > 0 && (
+              {(styleSelections.length > 0 || selectedCustomGuide) && (
                 <button
-                  onClick={() => setStyleSelections([])}
+                  onClick={() => {
+                    setStyleSelections([]);
+                    setSelectedCustomGuide(undefined);
+                  }}
                   style={{
                     background: 'none',
                     border: 'none',
