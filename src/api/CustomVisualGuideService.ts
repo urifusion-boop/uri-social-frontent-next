@@ -6,8 +6,9 @@
  */
 
 import axios from 'axios';
+import { BackendUrlEnum } from '@/src/models/enum-models/BackendUrlEnum';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:9003';
+const API_BASE_URL = BackendUrlEnum.INSIGHTS;
 
 // ============================================================================
 // TYPES
@@ -57,7 +58,13 @@ export interface FontMatch {
 }
 
 export interface NextStepSuggestion {
-  type: 'use_match' | 'use_match_with_caveat' | 'upload_identified' | 'upload_descriptive' | 'use_brand_default_decorative' | 'use_brand_default';
+  type:
+    | 'use_match'
+    | 'use_match_with_caveat'
+    | 'upload_identified'
+    | 'upload_descriptive'
+    | 'use_brand_default_decorative'
+    | 'use_brand_default';
   message: string;
   actionable_link?: string;
 }
@@ -70,15 +77,15 @@ export interface CustomVisualGuide {
   aesthetic_summary: AestheticSummary;
   typography_match: TypographyMatch;
   match_outcome: MatchOutcome;
-  metadata_tags: Record<string, any>;
+  metadata_tags: Record<string, string | number | boolean>;
   times_used: number;
   status: 'active' | 'archived';
 }
 
 export interface CustomVisualGuideDetail extends CustomVisualGuide {
-  aesthetic_profile: Record<string, any>;
+  aesthetic_profile: Record<string, string | number | boolean | object>;
   prompt_fragment: string;
-  typography_extraction: Record<string, any>;
+  typography_extraction: Record<string, string | number | boolean | object>;
 }
 
 export interface UploadReferenceImageRequest {
@@ -109,39 +116,28 @@ export class CustomVisualGuideService {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await axios.post(
-        `${API_BASE_URL}/social-media/agent/chat/upload`,
-        formData,
-        {
-          headers: {
-            ...this.authHeaders,
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
+      const response = await axios.post(`${API_BASE_URL}/social-media/agent/chat/upload`, formData, {
+        headers: {
+          ...this.authHeaders,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
       if (response.data.status) {
         return response.data.responseData.url;
       }
       throw new Error(response.data.message || 'Failed to upload image');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[CustomVisualGuideService] Error uploading image file:', error);
-      throw new Error(
-        error.response?.data?.detail ||
-        error.response?.data?.message ||
-        'Failed to upload image'
-      );
+      const err = error as { response?: { data?: { detail?: string; message?: string } } };
+      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to upload image');
     }
   }
 
   /**
    * Upload and process a reference image to create a custom visual guide
    */
-  static async uploadReferenceImage(
-    imageUrl: string,
-    name: string,
-    brandId?: string
-  ): Promise<CustomVisualGuide> {
+  static async uploadReferenceImage(imageUrl: string, name: string, brandId?: string): Promise<CustomVisualGuide> {
     try {
       const response = await axios.post(
         `${API_BASE_URL}/social-media/custom-guides/upload`,
@@ -157,13 +153,10 @@ export class CustomVisualGuideService {
         return response.data.responseData;
       }
       throw new Error(response.data.message || 'Failed to upload reference image');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[CustomVisualGuideService] Error uploading reference image:', error);
-      throw new Error(
-        error.response?.data?.detail ||
-        error.response?.data?.message ||
-        'Failed to upload reference image'
-      );
+      const err = error as { response?: { data?: { detail?: string; message?: string } } };
+      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to upload reference image');
     }
   }
 
@@ -172,25 +165,19 @@ export class CustomVisualGuideService {
    */
   static async getUserGuides(status: 'active' | 'archived' = 'active'): Promise<CustomVisualGuide[]> {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/social-media/custom-guides`,
-        {
-          params: { status },
-          headers: this.authHeaders
-        }
-      );
+      const response = await axios.get(`${API_BASE_URL}/social-media/custom-guides`, {
+        params: { status },
+        headers: this.authHeaders,
+      });
 
       if (response.data.status) {
         return response.data.responseData.guides || [];
       }
       throw new Error(response.data.message || 'Failed to fetch guides');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[CustomVisualGuideService] Error fetching guides:', error);
-      throw new Error(
-        error.response?.data?.detail ||
-        error.response?.data?.message ||
-        'Failed to fetch guides'
-      );
+      const err = error as { response?: { data?: { detail?: string; message?: string } } };
+      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to fetch guides');
     }
   }
 
@@ -199,32 +186,25 @@ export class CustomVisualGuideService {
    */
   static async getGuideDetail(guideId: string): Promise<CustomVisualGuideDetail> {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/social-media/custom-guides/${guideId}`,
-        { headers: this.authHeaders }
-      );
+      const response = await axios.get(`${API_BASE_URL}/social-media/custom-guides/${guideId}`, {
+        headers: this.authHeaders,
+      });
 
       if (response.data.status) {
         return response.data.responseData;
       }
       throw new Error(response.data.message || 'Failed to fetch guide detail');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[CustomVisualGuideService] Error fetching guide detail:', error);
-      throw new Error(
-        error.response?.data?.detail ||
-        error.response?.data?.message ||
-        'Failed to fetch guide detail'
-      );
+      const err = error as { response?: { data?: { detail?: string; message?: string } } };
+      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to fetch guide detail');
     }
   }
 
   /**
    * Update the matched font for a guide
    */
-  static async updateGuideFont(
-    guideId: string,
-    matchedFontId: string
-  ): Promise<void> {
+  static async updateGuideFont(guideId: string, matchedFontId: string): Promise<void> {
     try {
       const response = await axios.patch(
         `${API_BASE_URL}/social-media/custom-guides/${guideId}/font`,
@@ -235,13 +215,10 @@ export class CustomVisualGuideService {
       if (!response.data.status) {
         throw new Error(response.data.message || 'Failed to update font');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[CustomVisualGuideService] Error updating font:', error);
-      throw new Error(
-        error.response?.data?.detail ||
-        error.response?.data?.message ||
-        'Failed to update font'
-      );
+      const err = error as { response?: { data?: { detail?: string; message?: string } } };
+      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to update font');
     }
   }
 
@@ -250,21 +227,17 @@ export class CustomVisualGuideService {
    */
   static async archiveGuide(guideId: string): Promise<void> {
     try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/social-media/custom-guides/${guideId}`,
-        { headers: this.authHeaders }
-      );
+      const response = await axios.delete(`${API_BASE_URL}/social-media/custom-guides/${guideId}`, {
+        headers: this.authHeaders,
+      });
 
       if (!response.data.status) {
         throw new Error(response.data.message || 'Failed to archive guide');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[CustomVisualGuideService] Error archiving guide:', error);
-      throw new Error(
-        error.response?.data?.detail ||
-        error.response?.data?.message ||
-        'Failed to archive guide'
-      );
+      const err = error as { response?: { data?: { detail?: string; message?: string } } };
+      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to archive guide');
     }
   }
 
@@ -287,13 +260,10 @@ export class CustomVisualGuideService {
         return response.data.responseData;
       }
       throw new Error(response.data.message || 'Failed to rematch fonts');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[CustomVisualGuideService] Error rematching fonts:', error);
-      throw new Error(
-        error.response?.data?.detail ||
-        error.response?.data?.message ||
-        'Failed to rematch fonts'
-      );
+      const err = error as { response?: { data?: { detail?: string; message?: string } } };
+      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to rematch fonts');
     }
   }
 
@@ -308,7 +278,7 @@ export class CustomVisualGuideService {
         {},
         {
           params: { new_font_id: newFontId },
-          headers: this.authHeaders
+          headers: this.authHeaders,
         }
       );
 
@@ -316,13 +286,10 @@ export class CustomVisualGuideService {
         return response.data.responseData.updated_guide_ids || [];
       }
       throw new Error(response.data.message || 'Failed to auto-rematch');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[CustomVisualGuideService] Error in auto-rematch:', error);
-      throw new Error(
-        error.response?.data?.detail ||
-        error.response?.data?.message ||
-        'Failed to auto-rematch'
-      );
+      const err = error as { response?: { data?: { detail?: string; message?: string } } };
+      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to auto-rematch');
     }
   }
 
@@ -336,10 +303,10 @@ export class CustomVisualGuideService {
         {},
         {
           params: { applied_font: appliedFont },
-          headers: this.authHeaders
+          headers: this.authHeaders,
         }
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Silently fail - analytics shouldn't break user flow
       console.warn('[CustomVisualGuideService] Failed to track usage:', error);
     }
