@@ -166,6 +166,10 @@ export default function CustomGuideUploadModal({ open, onClose, onSuccess, brand
       } else if (errorDetail.includes('Failed to download image')) {
         userMessage = '🔗 Failed to access the image. Please check the URL or try uploading again.';
         toastType = ToastTypeEnum.Error;
+      } else if (errorDetail.includes('plan limit') || errorDetail.includes('reached your limit')) {
+        userMessage =
+          "⚠️ You've reached your plan limit (5 guides). Please delete an existing guide or upgrade your plan.";
+        toastType = ToastTypeEnum.Warning;
       }
 
       updateUpload({
@@ -280,18 +284,19 @@ export default function CustomGuideUploadModal({ open, onClose, onSuccess, brand
             </Typography>
           </Box>
 
+          {/* Hidden file input - always present */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(e) => handleFileSelect(e.target.files)}
+          />
+
           {/* Upload Area */}
           {uploadingImages.length === 0 && (
             <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                style={{ display: 'none' }}
-                onChange={(e) => handleFileSelect(e.target.files)}
-              />
-
               <Box
                 onDragEnter={handleDrag}
                 onDragOver={handleDrag}
