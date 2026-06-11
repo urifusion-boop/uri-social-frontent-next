@@ -175,10 +175,11 @@ export default function CustomGuideUploadModal({ open, onClose, onSuccess, brand
       updateUpload({
         status: 'error',
         progress: 0,
-        error: errorDetail,
+        error: userMessage, // Use user-friendly message instead of raw error
       });
 
-      ToastService.showToast(userMessage, toastType);
+      // Don't show toast since error is already displayed in the UI
+      // ToastService.showToast(userMessage, toastType);
     }
   };
 
