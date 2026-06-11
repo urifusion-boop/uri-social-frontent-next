@@ -36,6 +36,11 @@ class UriHttpClient {
         } else {
           console.warn(`⚠️ [HTTP] No access token found for ${config.url}`);
         }
+        // Agency Accounts: scope every Jane request to the active brand.
+        const activeBrandId = this.getActiveBrandId();
+        if (activeBrandId) {
+          config.headers['X-Brand-Id'] = activeBrandId;
+        }
         return config;
       },
       (error) => {
@@ -69,6 +74,16 @@ class UriHttpClient {
       return JSON.parse(localStorage.getItem(STORE_KEYS.USER_TOKENS) || '{}');
     } catch {
       return {};
+    }
+  }
+
+  static readonly ACTIVE_BRAND_KEY = '@URI@ACTIVE_BRAND_ID';
+
+  private static getActiveBrandId(): string | null {
+    try {
+      return localStorage.getItem(this.ACTIVE_BRAND_KEY);
+    } catch {
+      return null;
     }
   }
 

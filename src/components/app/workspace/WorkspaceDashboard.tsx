@@ -32,6 +32,7 @@ import StylePickerGallery from '@/src/components/app/social-media/StylePickerGal
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
 import BlogDraftsTab from '@/src/components/app/social-media/BlogDraftsTab';
+import AgencyDashboard from '@/src/components/app/agency/AgencyDashboard';
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
@@ -76,6 +77,14 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       </>
     ),
     chart: <path d="M18 20V10M12 20V4M6 20v-6" />,
+    grid: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </>
+    ),
     globe: (
       <>
         <circle cx="12" cy="12" r="10" />
@@ -6596,6 +6605,12 @@ const NAV = [
     tooltip: 'Discover trending topics and keywords relevant to your industry',
   },
   {
+    id: 'agency',
+    icon: 'grid',
+    label: 'Agency',
+    tooltip: 'Manage your brands, team, credits, and reporting',
+  },
+  {
     id: 'blog',
     icon: 'book',
     label: 'Blog Generator',
@@ -6999,6 +7014,7 @@ export default function WorkspaceDashboard() {
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
+    agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
     'blog-drafts': <BlogDraftsTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,

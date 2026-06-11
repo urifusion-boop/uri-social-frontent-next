@@ -56,7 +56,19 @@ type ISocialMediaAgentApi =
   | 'blogPosts'
   | 'blogPostById'
   | 'blogPostFeedback'
-  | 'blogPostPublish';
+  | 'blogPostPublish'
+  | 'agency'
+  | 'agencyRoster'
+  | 'agencyBrands'
+  | 'agencyBrandsDuplicate'
+  | 'agencyBrandById'
+  | 'agencyMembers'
+  | 'agencyMemberById'
+  | 'agencyMemberBrand'
+  | 'agencyWalletTopup'
+  | 'agencySettings'
+  | 'agencyReportPortfolio'
+  | 'agencyReportBrand';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -113,6 +125,19 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   blogPostById: '/blog/posts/{blog_id}',
   blogPostFeedback: '/blog/posts/{blog_id}/feedback',
   blogPostPublish: '/blog/posts/{blog_id}/publish',
+  // Agency Accounts
+  agency: '/agency',
+  agencyRoster: '/agency/roster',
+  agencyBrands: '/agency/brands',
+  agencyBrandsDuplicate: '/agency/brands/duplicate',
+  agencyBrandById: '/agency/brands/{brand_id}',
+  agencyMembers: '/agency/members',
+  agencyMemberById: '/agency/members/{member_id}',
+  agencyMemberBrand: '/agency/members/{member_id}/brands/{brand_id}',
+  agencyWalletTopup: '/agency/wallet/topup',
+  agencySettings: '/agency/settings',
+  agencyReportPortfolio: '/agency/reports/portfolio',
+  agencyReportBrand: '/agency/reports/brand/{brand_id}',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(
