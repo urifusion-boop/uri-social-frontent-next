@@ -466,7 +466,7 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
                     fontWeight: 600,
                   }}
                 >
-                  Clip {i + 1} · {clip.duration}s
+                  Clip {i + 1} · {Math.round(clip.duration)}s
                 </button>
               ))}
             </div>
@@ -498,7 +498,7 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
             <div style={{ display: 'flex', gap: 24 }}>
               <div>
                 <span style={{ color: '#9CA3AF' }}>Length: </span>
-                {job.output_clips[selectedClipIdx]?.duration ?? 0}s
+                {Math.round(job.output_clips[selectedClipIdx]?.duration ?? 0)}s
               </div>
               <div>
                 <span style={{ color: '#9CA3AF' }}>Style: </span>
