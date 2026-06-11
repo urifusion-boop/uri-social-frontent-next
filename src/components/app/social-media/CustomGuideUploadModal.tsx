@@ -36,12 +36,7 @@ interface CustomGuideUploadModalProps {
   brandId?: string;
 }
 
-export default function CustomGuideUploadModal({
-  open,
-  onClose,
-  onSuccess,
-  brandId,
-}: CustomGuideUploadModalProps) {
+export default function CustomGuideUploadModal({ open, onClose, onSuccess, brandId }: CustomGuideUploadModalProps) {
   const [uploadingImages, setUploadingImages] = useState<UploadingImage[]>([]);
   const [guideName, setGuideName] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -105,9 +100,7 @@ export default function CustomGuideUploadModal({
 
   const processImageUpload = async (upload: UploadingImage) => {
     const updateUpload = (updates: Partial<UploadingImage>) => {
-      setUploadingImages((prev) =>
-        prev.map((u) => (u.preview === upload.preview ? { ...u, ...updates } : u))
-      );
+      setUploadingImages((prev) => prev.map((u) => (u.preview === upload.preview ? { ...u, ...updates } : u)));
     };
 
     try {
@@ -136,13 +129,26 @@ export default function CustomGuideUploadModal({
       ToastService.showToast(`Guide "${guide.name}" created successfully!`, ToastTypeEnum.Success);
     } catch (error: unknown) {
       console.error('[CustomGuideUploadModal] Upload failed:', error);
-      const err = error as { message?: string };
+      const err = error as { response?: { data?: { detail?: string }; status?: number }; message?: string };
+
+      // Check if it's a duplicate error (409 Conflict)
+      const errorDetail = err.response?.data?.detail || err.message || 'Upload failed';
+      const isDuplicate = err.response?.status === 409 || errorDetail.includes('already uploaded');
+
       updateUpload({
         status: 'error',
         progress: 0,
-        error: err.message || 'Upload failed',
+        error: errorDetail,
       });
-      ToastService.showToast(err.message || 'Failed to process image', ToastTypeEnum.Error);
+
+      if (isDuplicate) {
+        ToastService.showToast(
+          "⚠️ You've already uploaded this image. Find it in Brand Playbook → Custom Guides section.",
+          ToastTypeEnum.Warning
+        );
+      } else {
+        ToastService.showToast(errorDetail, ToastTypeEnum.Error);
+      }
     }
   };
 
@@ -156,18 +162,19 @@ export default function CustomGuideUploadModal({
     }
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    handleFileSelect(e.dataTransfer.files);
-  }, [uploadingImages.length]);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragActive(false);
+      handleFileSelect(e.dataTransfer.files);
+    },
+    [uploadingImages.length]
+  );
 
   const handleClose = () => {
     // Get completed guides
-    const completedGuides = uploadingImages
-      .filter((u) => u.status === 'complete' && u.result)
-      .map((u) => u.result!);
+    const completedGuides = uploadingImages.filter((u) => u.status === 'complete' && u.result).map((u) => u.result!);
 
     if (completedGuides.length > 0) {
       onSuccess(completedGuides);
@@ -301,11 +308,7 @@ export default function CustomGuideUploadModal({
                   key={upload.preview}
                   sx={{
                     border: `2px solid ${
-                      upload.status === 'complete'
-                        ? '#10B981'
-                        : upload.status === 'error'
-                        ? '#EF4444'
-                        : `${primary}22`
+                      upload.status === 'complete' ? '#10B981' : upload.status === 'error' ? '#EF4444' : `${primary}22`
                     }`,
                     borderRadius: '12px',
                     p: 2,
@@ -314,10 +317,7 @@ export default function CustomGuideUploadModal({
                 >
                   {upload.status === 'complete' && upload.result ? (
                     // Show preview card for completed guides
-                    <CustomGuidePreviewCard
-                      guide={upload.result}
-                      onRemove={() => removeUpload(upload.preview)}
-                    />
+                    <CustomGuidePreviewCard guide={upload.result} onRemove={() => removeUpload(upload.preview)} />
                   ) : (
                     // Show upload progress
                     <Box sx={{ display: 'flex', gap: 2 }}>
@@ -396,9 +396,7 @@ export default function CustomGuideUploadModal({
                             }}
                           >
                             <FaTimesCircle color="#DC2626" size={16} />
-                            <Typography sx={{ fontSize: 13, color: '#DC2626' }}>
-                              {upload.error}
-                            </Typography>
+                            <Typography sx={{ fontSize: 13, color: '#DC2626' }}>{upload.error}</Typography>
                           </Box>
                         )}
                       </Box>
