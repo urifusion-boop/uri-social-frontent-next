@@ -129,11 +129,24 @@ export default function CustomGuideUploadModal({ open, onClose, onSuccess, brand
       ToastService.showToast(`Guide "${guide.name}" created successfully!`, ToastTypeEnum.Success);
     } catch (error: unknown) {
       console.error('[CustomGuideUploadModal] Upload failed:', error);
-      const err = error as { response?: { data?: { detail?: string }; status?: number }; message?: string };
 
-      // Extract error message
-      let errorDetail = err.response?.data?.detail || err.message || 'Upload failed';
-      const statusCode = err.response?.status;
+      // The HTTP interceptor returns error.response (AxiosResponse), not the full AxiosError
+      // So error.data has the response data, not error.response.data
+      const err = error as {
+        data?: { detail?: string };
+        status?: number;
+        response?: { data?: { detail?: string }; status?: number };
+        message?: string;
+      };
+
+      console.log('[CustomGuideUploadModal] Full error object:', err);
+      console.log('[CustomGuideUploadModal] Error data:', err.data);
+      console.log('[CustomGuideUploadModal] Error data detail:', err.data?.detail);
+      console.log('[CustomGuideUploadModal] Error response:', err.response);
+
+      // Extract error message - check both err.data.detail (from interceptor) and err.response.data.detail (from axios)
+      let errorDetail = err.data?.detail || err.response?.data?.detail || err.message || 'Upload failed';
+      const statusCode = err.status || err.response?.status;
 
       console.log('[CustomGuideUploadModal] Error details:', {
         statusCode,
