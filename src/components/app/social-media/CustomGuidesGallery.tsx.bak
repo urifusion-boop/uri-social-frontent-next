@@ -74,7 +74,7 @@ export default function CustomGuidesGallery({
 
       const response = await CustomVisualGuideService.rematchFonts(guideId);
       if (!response.status || !response.responseData) {
-        throw new Error(response.responseMessage || 'Failed to rematch');
+        throw new Error(response.message || 'Failed to rematch');
       }
       const result = response.responseData;
 
@@ -111,7 +111,7 @@ export default function CustomGuidesGallery({
       await CustomVisualGuideService.archiveGuide(guideId);
       setGuides((prev) => prev.filter((g) => g.id !== guideId));
       ToastService.showToast('Guide archived successfully', ToastTypeEnum.Success);
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('[CustomGuidesGallery] Error archiving guide:', error);
       ToastService.showToast('Failed to archive guide', ToastTypeEnum.Error);
     }

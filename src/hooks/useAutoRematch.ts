@@ -15,7 +15,8 @@ export function useAutoRematch() {
     try {
       console.log('[AutoRematch] Triggering auto-rematch for new font:', newFontId);
 
-      const updatedGuideIds = await CustomVisualGuideService.autoRematchAfterFontUpload(newFontId);
+      const response = await CustomVisualGuideService.autoRematchAfterFontUpload(newFontId);
+      const updatedGuideIds = response.responseData?.updated_guide_ids || [];
 
       if (updatedGuideIds.length > 0) {
         ToastService.showToast(
@@ -27,7 +28,7 @@ export function useAutoRematch() {
       }
 
       return updatedGuideIds;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[AutoRematch] Error during auto-rematch:', error);
       // Silently fail - don't interrupt font upload flow
       return [];
@@ -53,7 +54,8 @@ export async function triggerAutoRematchForFont(newFontId: string): Promise<stri
   try {
     console.log('[AutoRematch] Triggering auto-rematch for new font:', newFontId);
 
-    const updatedGuideIds = await CustomVisualGuideService.autoRematchAfterFontUpload(newFontId);
+    const response = await CustomVisualGuideService.autoRematchAfterFontUpload(newFontId);
+    const updatedGuideIds = response.responseData?.updated_guide_ids || [];
 
     if (updatedGuideIds.length > 0) {
       ToastService.showToast(
@@ -63,7 +65,7 @@ export async function triggerAutoRematchForFont(newFontId: string): Promise<stri
     }
 
     return updatedGuideIds;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[AutoRematch] Error during auto-rematch:', error);
     return [];
   }

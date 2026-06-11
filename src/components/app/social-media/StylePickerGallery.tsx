@@ -119,8 +119,10 @@ export default function StylePickerGallery({
   const loadCustomGuides = async () => {
     try {
       setLoadingGuides(true);
-      const guides = await CustomVisualGuideService.getUserGuides('active');
-      setCustomGuides(guides);
+      const response = await CustomVisualGuideService.getUserGuides('active');
+      if (response.status && response.responseData) {
+        setCustomGuides(response.responseData.guides);
+      }
     } catch (error) {
       console.error('[StylePickerGallery] Error loading custom guides:', error);
     } finally {

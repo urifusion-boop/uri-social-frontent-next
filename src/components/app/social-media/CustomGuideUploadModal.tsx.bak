@@ -115,7 +115,7 @@ export default function CustomGuideUploadModal({
       updateUpload({ status: 'uploading', progress: 20 });
       const imageResponse = await CustomVisualGuideService.uploadImageFile(upload.file);
       if (!imageResponse.status || !imageResponse.responseData) {
-        throw new Error(imageResponse.responseMessage || 'Failed to upload image');
+        throw new Error(imageResponse.message || 'Failed to upload image');
       }
       const imageUrl = imageResponse.responseData.url;
 
@@ -127,7 +127,7 @@ export default function CustomGuideUploadModal({
 
       const guideResponse = await CustomVisualGuideService.uploadReferenceImage(imageUrl, name, brandId);
       if (!guideResponse.status || !guideResponse.responseData) {
-        throw new Error(guideResponse.responseMessage || 'Failed to create guide');
+        throw new Error(guideResponse.message || 'Failed to create guide');
       }
       const guide = guideResponse.responseData;
 

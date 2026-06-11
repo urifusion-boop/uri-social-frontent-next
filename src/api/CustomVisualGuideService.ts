@@ -1,10 +1,3 @@
-// src/api/CustomVisualGuideService.ts
-
-/**
- * Custom Visual Guide API Service
- * Handles reference image upload, analysis, font matching, and guide management.
- */
-
 import { UriHttpClient } from '@/src/configs/http.config';
 import { UriResponse } from '@/src/models/responses/UriResponse';
 import { AxiosResponse } from 'axios';
@@ -104,209 +97,79 @@ export interface UpdateGuideFontRequest {
 // ============================================================================
 
 export class CustomVisualGuideService {
-  /**
-   * Upload image file to Cloudinary
-   */
-  static async uploadImageFile(file: File): Promise<string> {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response: AxiosResponse<UriResponse<{ url: string }>> = await UriHttpClient.getClient().post(
-        '/social-media/agent/chat/upload',
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
-
-      if (response.data.status) {
-        return response.data.responseData.url;
-      }
-      throw new Error(response.data.message || 'Failed to upload image');
-    } catch (error: unknown) {
-      console.error('[CustomVisualGuideService] Error uploading image file:', error);
-      const err = error as { response?: { data?: { detail?: string; message?: string } } };
-      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to upload image');
-    }
+  static async uploadImageFile(file: File): Promise<UriResponse<{ url: string }>> {
+    const form = new FormData();
+    form.append('file', file);
+    const res: AxiosResponse<UriResponse<{ url: string }>> = await UriHttpClient.getClient().post(
+      '/social-media/agent/chat/upload',
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return res.data;
   }
 
-  /**
-   * Upload and process a reference image to create a custom visual guide
-   */
-  static async uploadReferenceImage(imageUrl: string, name: string, brandId?: string): Promise<CustomVisualGuide> {
-    try {
-      const response: AxiosResponse<UriResponse<CustomVisualGuide>> = await UriHttpClient.getClient().post(
-        `${BASE}/upload`,
-        {
-          image_url: imageUrl,
-          name,
-          brand_id: brandId,
-        } as UploadReferenceImageRequest
-      );
-
-      if (response.data.status) {
-        return response.data.responseData;
-      }
-      throw new Error(response.data.message || 'Failed to upload reference image');
-    } catch (error: unknown) {
-      console.error('[CustomVisualGuideService] Error uploading reference image:', error);
-      const err = error as { response?: { data?: { detail?: string; message?: string } } };
-      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to upload reference image');
-    }
+  static async uploadReferenceImage(
+    imageUrl: string,
+    name: string,
+    brandId?: string
+  ): Promise<UriResponse<CustomVisualGuide>> {
+    const res: AxiosResponse<UriResponse<CustomVisualGuide>> = await UriHttpClient.getClient().post(
+      `${BASE}/upload`,
+      { image_url: imageUrl, name, brand_id: brandId }
+    );
+    return res.data;
   }
 
-  /**
-   * Get all custom visual guides for the authenticated user
-   */
-  static async getUserGuides(status: 'active' | 'archived' = 'active'): Promise<CustomVisualGuide[]> {
-    try {
-      const response: AxiosResponse<UriResponse<{ guides: CustomVisualGuide[] }>> = await UriHttpClient.getClient().get(
-        BASE,
-        {
-          params: { status },
-        }
-      );
-
-      if (response.data.status) {
-        return response.data.responseData.guides || [];
-      }
-      throw new Error(response.data.message || 'Failed to fetch guides');
-    } catch (error: unknown) {
-      console.error('[CustomVisualGuideService] Error fetching guides:', error);
-      const err = error as { response?: { data?: { detail?: string; message?: string } } };
-      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to fetch guides');
-    }
+  static async getUserGuides(status: 'active' | 'archived' = 'active'): Promise<UriResponse<{ guides: CustomVisualGuide[] }>> {
+    const res: AxiosResponse<UriResponse<{ guides: CustomVisualGuide[] }>> = await UriHttpClient.getClient().get(BASE, {
+      params: { status },
+    });
+    return res.data;
   }
 
-  /**
-   * Get detailed information for a specific guide
-   */
-  static async getGuideDetail(guideId: string): Promise<CustomVisualGuideDetail> {
-    try {
-      const response: AxiosResponse<UriResponse<CustomVisualGuideDetail>> = await UriHttpClient.getClient().get(
-        `${BASE}/${guideId}`
-      );
-
-      if (response.data.status) {
-        return response.data.responseData;
-      }
-      throw new Error(response.data.message || 'Failed to fetch guide detail');
-    } catch (error: unknown) {
-      console.error('[CustomVisualGuideService] Error fetching guide detail:', error);
-      const err = error as { response?: { data?: { detail?: string; message?: string } } };
-      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to fetch guide detail');
-    }
+  static async getGuideDetail(guideId: string): Promise<UriResponse<CustomVisualGuideDetail>> {
+    const res: AxiosResponse<UriResponse<CustomVisualGuideDetail>> = await UriHttpClient.getClient().get(
+      `${BASE}/${guideId}`
+    );
+    return res.data;
   }
 
-  /**
-   * Update the matched font for a guide
-   */
-  static async updateGuideFont(guideId: string, matchedFontId: string): Promise<void> {
-    try {
-      const response: AxiosResponse<UriResponse<null>> = await UriHttpClient.getClient().patch(
-        `${BASE}/${guideId}/font`,
-        { matched_font_id: matchedFontId } as UpdateGuideFontRequest
-      );
-
-      if (!response.data.status) {
-        throw new Error(response.data.message || 'Failed to update font');
-      }
-    } catch (error: unknown) {
-      console.error('[CustomVisualGuideService] Error updating font:', error);
-      const err = error as { response?: { data?: { detail?: string; message?: string } } };
-      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to update font');
-    }
+  static async updateGuideFont(guideId: string, matchedFontId: string): Promise<UriResponse<null>> {
+    const res: AxiosResponse<UriResponse<null>> = await UriHttpClient.getClient().patch(`${BASE}/${guideId}/font`, {
+      matched_font_id: matchedFontId,
+    });
+    return res.data;
   }
 
-  /**
-   * Archive (soft delete) a custom visual guide
-   */
-  static async archiveGuide(guideId: string): Promise<void> {
-    try {
-      const response: AxiosResponse<UriResponse<null>> = await UriHttpClient.getClient().delete(`${BASE}/${guideId}`);
-
-      if (!response.data.status) {
-        throw new Error(response.data.message || 'Failed to archive guide');
-      }
-    } catch (error: unknown) {
-      console.error('[CustomVisualGuideService] Error archiving guide:', error);
-      const err = error as { response?: { data?: { detail?: string; message?: string } } };
-      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to archive guide');
-    }
+  static async archiveGuide(guideId: string): Promise<UriResponse<null>> {
+    const res: AxiosResponse<UriResponse<null>> = await UriHttpClient.getClient().delete(`${BASE}/${guideId}`);
+    return res.data;
   }
 
-  /**
-   * Re-run font matching for a guide
-   */
-  static async rematchFonts(guideId: string): Promise<{
-    match_outcome: MatchOutcome;
-    matched_font_id?: string;
-    match_confidence?: string;
-  }> {
-    try {
-      const response: AxiosResponse<
-        UriResponse<{
-          match_outcome: MatchOutcome;
-          matched_font_id?: string;
-          match_confidence?: string;
-        }>
-      > = await UriHttpClient.getClient().post(`${BASE}/${guideId}/rematch`, {});
-
-      if (response.data.status) {
-        return response.data.responseData;
-      }
-      throw new Error(response.data.message || 'Failed to rematch fonts');
-    } catch (error: unknown) {
-      console.error('[CustomVisualGuideService] Error rematching fonts:', error);
-      const err = error as { response?: { data?: { detail?: string; message?: string } } };
-      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to rematch fonts');
-    }
+  static async rematchFonts(
+    guideId: string
+  ): Promise<UriResponse<{ match_outcome: MatchOutcome; matched_font_id?: string; match_confidence?: string }>> {
+    const res: AxiosResponse<
+      UriResponse<{ match_outcome: MatchOutcome; matched_font_id?: string; match_confidence?: string }>
+    > = await UriHttpClient.getClient().post(`${BASE}/${guideId}/rematch`, {});
+    return res.data;
   }
 
-  /**
-   * Auto-rematch guides after uploading a new custom font
-   * PRD Section 11.7
-   */
-  static async autoRematchAfterFontUpload(newFontId: string): Promise<string[]> {
-    try {
-      const response: AxiosResponse<UriResponse<{ updated_guide_ids: string[] }>> =
-        await UriHttpClient.getClient().post(
-          `${BASE}/auto-rematch`,
-          {},
-          {
-            params: { new_font_id: newFontId },
-          }
-        );
-
-      if (response.data.status) {
-        return response.data.responseData.updated_guide_ids || [];
-      }
-      throw new Error(response.data.message || 'Failed to auto-rematch');
-    } catch (error: unknown) {
-      console.error('[CustomVisualGuideService] Error in auto-rematch:', error);
-      const err = error as { response?: { data?: { detail?: string; message?: string } } };
-      throw new Error(err.response?.data?.detail || err.response?.data?.message || 'Failed to auto-rematch');
-    }
+  static async autoRematchAfterFontUpload(newFontId: string): Promise<UriResponse<{ updated_guide_ids: string[] }>> {
+    const res: AxiosResponse<UriResponse<{ updated_guide_ids: string[] }>> = await UriHttpClient.getClient().post(
+      `${BASE}/auto-rematch`,
+      {},
+      { params: { new_font_id: newFontId } }
+    );
+    return res.data;
   }
 
-  /**
-   * Track guide usage when generating content
-   */
-  static async trackGuideUsage(guideId: string, appliedFont: boolean = false): Promise<void> {
-    try {
-      await UriHttpClient.getClient().post(
-        `${BASE}/${guideId}/track-usage`,
-        {},
-        {
-          params: { applied_font: appliedFont },
-        }
-      );
-    } catch (error: unknown) {
-      // Silently fail - analytics shouldn't break user flow
-      console.warn('[CustomVisualGuideService] Failed to track usage:', error);
-    }
+  static async trackGuideUsage(guideId: string, appliedFont: boolean = false): Promise<UriResponse<null>> {
+    const res: AxiosResponse<UriResponse<null>> = await UriHttpClient.getClient().post(
+      `${BASE}/${guideId}/track-usage`,
+      {},
+      { params: { applied_font: appliedFont } }
+    );
+    return res.data;
   }
 }
