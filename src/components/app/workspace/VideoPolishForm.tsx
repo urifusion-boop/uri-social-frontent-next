@@ -448,9 +448,9 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
             {selectedStyleObj?.display_name ?? selectedStyle.replace(/_/g, ' ')}
           </div>
 
-          {/* Clip selector if multiple */}
+          {/* Clip selector tabs */}
           {job.output_clips.length > 1 && (
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
               {job.output_clips.map((clip, i) => (
                 <button
                   key={i}
@@ -464,63 +464,121 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
                     color: selectedClipIdx === i ? '#CD1B78' : '#6B7280',
                     cursor: 'pointer',
                     fontWeight: 600,
+                    maxWidth: 180,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                   }}
+                  title={clip.title ?? `Clip ${i + 1}`}
                 >
-                  Clip {i + 1} · {Math.round(clip.duration)}s
+                  #{i + 1} ·{' '}
+                  {clip.title
+                    ? clip.title.slice(0, 22) + (clip.title.length > 22 ? '…' : '')
+                    : `${Math.round(clip.duration)}s`}
                 </button>
               ))}
             </div>
           )}
 
-          {/* Video preview — prefer captioned version when available */}
+          {/* Two-column: portrait video | transcript + metadata */}
           {job.output_clips[selectedClipIdx]?.clip_url && (
-            <div style={{ marginBottom: 20, borderRadius: 16, overflow: 'hidden', background: '#000' }}>
-              <video
-                key={job.output_clips[selectedClipIdx].captioned_clip_url || job.output_clips[selectedClipIdx].clip_url}
-                src={job.output_clips[selectedClipIdx].captioned_clip_url || job.output_clips[selectedClipIdx].clip_url}
-                controls
-                playsInline
-                style={{ width: '100%', maxHeight: 480, display: 'block' }}
-              />
+            <div style={{ display: 'flex', gap: 20, marginBottom: 20, alignItems: 'flex-start' }}>
+              {/* Portrait video player */}
+              <div
+                style={{
+                  flexShrink: 0,
+                  width: 220,
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                  background: '#000',
+                }}
+              >
+                <video
+                  key={
+                    job.output_clips[selectedClipIdx].captioned_clip_url || job.output_clips[selectedClipIdx].clip_url
+                  }
+                  src={
+                    job.output_clips[selectedClipIdx].captioned_clip_url || job.output_clips[selectedClipIdx].clip_url
+                  }
+                  controls
+                  playsInline
+                  style={{ width: '100%', display: 'block' }}
+                />
+              </div>
+
+              {/* Right panel: title, virality, transcript */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {/* Title */}
+                {job.output_clips[selectedClipIdx].title && (
+                  <div style={{ fontWeight: 700, fontSize: 15, color: '#111', marginBottom: 10 }}>
+                    {job.output_clips[selectedClipIdx].title}
+                  </div>
+                )}
+
+                {/* Virality score */}
+                {(job.output_clips[selectedClipIdx].virality_score ?? 0) > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 10 }}>
+                    <span style={{ fontWeight: 800, fontSize: 26, color: '#CD1B78', lineHeight: 1 }}>
+                      {(job.output_clips[selectedClipIdx].virality_score ?? 0).toFixed(1)}
+                    </span>
+                    <span style={{ fontSize: 13, color: '#9CA3AF' }}>/10 virality</span>
+                  </div>
+                )}
+
+                {/* Hook */}
+                {job.output_clips[selectedClipIdx].hook && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: '#6B7280',
+                      fontStyle: 'italic',
+                      marginBottom: 12,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    &ldquo;{job.output_clips[selectedClipIdx].hook}&rdquo;
+                  </div>
+                )}
+
+                {/* Transcript */}
+                {job.output_clips[selectedClipIdx].caption_text && (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: '#9CA3AF',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        marginBottom: 6,
+                      }}
+                    >
+                      Transcript
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: '#374151',
+                        lineHeight: 1.65,
+                        maxHeight: 260,
+                        overflowY: 'auto',
+                        paddingRight: 4,
+                      }}
+                    >
+                      {job.output_clips[selectedClipIdx].caption_text}
+                    </div>
+                  </div>
+                )}
+
+                {/* Duration + style metadata */}
+                <div style={{ marginTop: 12, fontSize: 12, color: '#9CA3AF' }}>
+                  {Math.round(job.output_clips[selectedClipIdx].duration)}s &middot;{' '}
+                  {selectedStyleObj?.display_name ?? selectedStyle.replace(/_/g, ' ')} &middot; {job.credits_charged}{' '}
+                  credits
+                </div>
+              </div>
             </div>
           )}
-
-          {/* Clip info */}
-          <div
-            style={{
-              background: '#F9FAFB',
-              borderRadius: 12,
-              padding: '14px 18px',
-              marginBottom: 20,
-              fontSize: 13,
-              color: '#374151',
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Clip details</div>
-            <div style={{ display: 'flex', gap: 24 }}>
-              <div>
-                <span style={{ color: '#9CA3AF' }}>Length: </span>
-                {Math.round(job.output_clips[selectedClipIdx]?.duration ?? 0)}s
-              </div>
-              <div>
-                <span style={{ color: '#9CA3AF' }}>Style: </span>
-                {selectedStyleObj?.display_name ?? selectedStyle}
-              </div>
-              <div>
-                <span style={{ color: '#9CA3AF' }}>Credits: </span>
-                {job.credits_charged}
-              </div>
-            </div>
-            {job.output_clips[selectedClipIdx]?.caption_text && (
-              <div style={{ marginTop: 10 }}>
-                <span style={{ color: '#9CA3AF' }}>Preview captions: </span>
-                <span style={{ fontStyle: 'italic' }}>
-                  {String(job.output_clips[selectedClipIdx].caption_text).slice(0, 120)}
-                  {String(job.output_clips[selectedClipIdx].caption_text).length > 120 ? '…' : ''}
-                </span>
-              </div>
-            )}
-          </div>
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
