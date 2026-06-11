@@ -131,9 +131,42 @@ export default function CustomGuideUploadModal({ open, onClose, onSuccess, brand
       console.error('[CustomGuideUploadModal] Upload failed:', error);
       const err = error as { response?: { data?: { detail?: string }; status?: number }; message?: string };
 
-      // Check if it's a duplicate error (409 Conflict)
-      const errorDetail = err.response?.data?.detail || err.message || 'Upload failed';
-      const isDuplicate = err.response?.status === 409 || errorDetail.includes('already uploaded');
+      // Extract error message
+      let errorDetail = err.response?.data?.detail || err.message || 'Upload failed';
+      const statusCode = err.response?.status;
+
+      // Remove redundant status code prefix from error message
+      errorDetail = errorDetail.replace(/^\d{3}:\s*/, '');
+
+      // Determine error type and show appropriate message
+      let userMessage = errorDetail;
+      let toastType = ToastTypeEnum.Error;
+
+      if (statusCode === 409 || errorDetail.includes('already uploaded')) {
+        userMessage = "⚠️ You've already uploaded this image. Find it in Brand Playbook → Custom Guides section.";
+        toastType = ToastTypeEnum.Warning;
+      } else if (
+        errorDetail.includes('copyrighted material') ||
+        errorDetail.includes('celebrities') ||
+        errorDetail.includes('trademarks')
+      ) {
+        userMessage =
+          '🚫 This image may contain copyrighted content (brands, celebrities, or ads). Please use your own original images.';
+        toastType = ToastTypeEnum.Warning;
+      } else if (errorDetail.includes('inappropriate content') || errorDetail.includes('NSFW')) {
+        userMessage = '🚫 This image contains inappropriate content. Please choose a different image.';
+        toastType = ToastTypeEnum.Warning;
+      } else if (
+        errorDetail.includes('quality is too low') ||
+        errorDetail.includes('resolution') ||
+        errorDetail.includes('blur')
+      ) {
+        userMessage = '📉 Image quality is too low. Please upload a higher resolution, clearer image.';
+        toastType = ToastTypeEnum.Warning;
+      } else if (errorDetail.includes('Failed to download image')) {
+        userMessage = '🔗 Failed to access the image. Please check the URL or try uploading again.';
+        toastType = ToastTypeEnum.Error;
+      }
 
       updateUpload({
         status: 'error',
@@ -141,14 +174,7 @@ export default function CustomGuideUploadModal({ open, onClose, onSuccess, brand
         error: errorDetail,
       });
 
-      if (isDuplicate) {
-        ToastService.showToast(
-          "⚠️ You've already uploaded this image. Find it in Brand Playbook → Custom Guides section.",
-          ToastTypeEnum.Warning
-        );
-      } else {
-        ToastService.showToast(errorDetail, ToastTypeEnum.Error);
-      }
+      ToastService.showToast(userMessage, toastType);
     }
   };
 
