@@ -5,10 +5,11 @@
  * Handles reference image upload, analysis, font matching, and guide management.
  */
 
-import axios from 'axios';
-import { BackendUrlEnum } from '@/src/models/enum-models/BackendUrlEnum';
+import { UriHttpClient } from '@/src/configs/http.config';
+import { UriResponse } from '@/src/models/responses/UriResponse';
+import { AxiosResponse } from 'axios';
 
-const API_BASE_URL = BackendUrlEnum.INSIGHTS;
+const BASE = '/social-media/custom-guides';
 
 // ============================================================================
 // TYPES
@@ -103,11 +104,6 @@ export interface UpdateGuideFontRequest {
 // ============================================================================
 
 export class CustomVisualGuideService {
-  private static get authHeaders() {
-    const token = localStorage.getItem('access_token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
   /**
    * Upload image file to Cloudinary
    */
@@ -116,12 +112,15 @@ export class CustomVisualGuideService {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await axios.post(`${API_BASE_URL}/social-media/agent/chat/upload`, formData, {
-        headers: {
-          ...this.authHeaders,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response: AxiosResponse<UriResponse<{ url: string }>> = await UriHttpClient.getClient().post(
+        '/social-media/agent/chat/upload',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
 
       if (response.data.status) {
         return response.data.responseData.url;
@@ -139,14 +138,13 @@ export class CustomVisualGuideService {
    */
   static async uploadReferenceImage(imageUrl: string, name: string, brandId?: string): Promise<CustomVisualGuide> {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/social-media/custom-guides/upload`,
+      const response: AxiosResponse<UriResponse<CustomVisualGuide>> = await UriHttpClient.getClient().post(
+        `${BASE}/upload`,
         {
           image_url: imageUrl,
           name,
           brand_id: brandId,
-        } as UploadReferenceImageRequest,
-        { headers: this.authHeaders }
+        } as UploadReferenceImageRequest
       );
 
       if (response.data.status) {
@@ -165,10 +163,12 @@ export class CustomVisualGuideService {
    */
   static async getUserGuides(status: 'active' | 'archived' = 'active'): Promise<CustomVisualGuide[]> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/social-media/custom-guides`, {
-        params: { status },
-        headers: this.authHeaders,
-      });
+      const response: AxiosResponse<UriResponse<{ guides: CustomVisualGuide[] }>> = await UriHttpClient.getClient().get(
+        BASE,
+        {
+          params: { status },
+        }
+      );
 
       if (response.data.status) {
         return response.data.responseData.guides || [];
@@ -186,9 +186,9 @@ export class CustomVisualGuideService {
    */
   static async getGuideDetail(guideId: string): Promise<CustomVisualGuideDetail> {
     try {
-      const response = await axios.get(`${API_BASE_URL}/social-media/custom-guides/${guideId}`, {
-        headers: this.authHeaders,
-      });
+      const response: AxiosResponse<UriResponse<CustomVisualGuideDetail>> = await UriHttpClient.getClient().get(
+        `${BASE}/${guideId}`
+      );
 
       if (response.data.status) {
         return response.data.responseData;
@@ -206,10 +206,9 @@ export class CustomVisualGuideService {
    */
   static async updateGuideFont(guideId: string, matchedFontId: string): Promise<void> {
     try {
-      const response = await axios.patch(
-        `${API_BASE_URL}/social-media/custom-guides/${guideId}/font`,
-        { matched_font_id: matchedFontId } as UpdateGuideFontRequest,
-        { headers: this.authHeaders }
+      const response: AxiosResponse<UriResponse<null>> = await UriHttpClient.getClient().patch(
+        `${BASE}/${guideId}/font`,
+        { matched_font_id: matchedFontId } as UpdateGuideFontRequest
       );
 
       if (!response.data.status) {
@@ -227,9 +226,7 @@ export class CustomVisualGuideService {
    */
   static async archiveGuide(guideId: string): Promise<void> {
     try {
-      const response = await axios.delete(`${API_BASE_URL}/social-media/custom-guides/${guideId}`, {
-        headers: this.authHeaders,
-      });
+      const response: AxiosResponse<UriResponse<null>> = await UriHttpClient.getClient().delete(`${BASE}/${guideId}`);
 
       if (!response.data.status) {
         throw new Error(response.data.message || 'Failed to archive guide');
@@ -250,11 +247,13 @@ export class CustomVisualGuideService {
     match_confidence?: string;
   }> {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/social-media/custom-guides/${guideId}/rematch`,
-        {},
-        { headers: this.authHeaders }
-      );
+      const response: AxiosResponse<
+        UriResponse<{
+          match_outcome: MatchOutcome;
+          matched_font_id?: string;
+          match_confidence?: string;
+        }>
+      > = await UriHttpClient.getClient().post(`${BASE}/${guideId}/rematch`, {});
 
       if (response.data.status) {
         return response.data.responseData;
@@ -273,14 +272,14 @@ export class CustomVisualGuideService {
    */
   static async autoRematchAfterFontUpload(newFontId: string): Promise<string[]> {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/social-media/custom-guides/auto-rematch`,
-        {},
-        {
-          params: { new_font_id: newFontId },
-          headers: this.authHeaders,
-        }
-      );
+      const response: AxiosResponse<UriResponse<{ updated_guide_ids: string[] }>> =
+        await UriHttpClient.getClient().post(
+          `${BASE}/auto-rematch`,
+          {},
+          {
+            params: { new_font_id: newFontId },
+          }
+        );
 
       if (response.data.status) {
         return response.data.responseData.updated_guide_ids || [];
@@ -298,12 +297,11 @@ export class CustomVisualGuideService {
    */
   static async trackGuideUsage(guideId: string, appliedFont: boolean = false): Promise<void> {
     try {
-      await axios.post(
-        `${API_BASE_URL}/social-media/custom-guides/${guideId}/track-usage`,
+      await UriHttpClient.getClient().post(
+        `${BASE}/${guideId}/track-usage`,
         {},
         {
           params: { applied_font: appliedFont },
-          headers: this.authHeaders,
         }
       );
     } catch (error: unknown) {
