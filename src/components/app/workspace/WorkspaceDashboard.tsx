@@ -4400,6 +4400,7 @@ const PlaybookPage = ({
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
+  const [selectedCustomGuide, setSelectedCustomGuide] = useState<string | undefined>(undefined);
   const [fontStyle, setFontStyle] = useState<string>('');
   const [customFontEnabled, setCustomFontEnabled] = useState(false);
   const [customFontFiles, setCustomFontFiles] = useState<{ url: string; filename: string }[]>([]);
@@ -4447,6 +4448,7 @@ const PlaybookPage = ({
     setLogoPosition(profile.logo_position ?? 'bottom_right');
     setLogoError('');
     setStyleSelections([...(profile.style_selections ?? [])]);
+    setSelectedCustomGuide(profile.selected_custom_guide);
     setFontStyle(profile.font_style ?? '');
     setCustomFontEnabled(profile.custom_font_enabled ?? false);
     setCustomFontFiles(profile.custom_font_files ?? []);
@@ -4500,6 +4502,7 @@ const PlaybookPage = ({
         logo_position: logoPosition,
         style_selections: styleSelections,
         style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+        selected_custom_guide: selectedCustomGuide,
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
         custom_font_enabled: customFontEnabled,
@@ -5686,6 +5689,9 @@ const PlaybookPage = ({
               industry={industry || p?.industry || 'general_other'}
               selected={styleSelections}
               onChange={setStyleSelections}
+              selectedCustomGuide={selectedCustomGuide}
+              onCustomGuideChange={setSelectedCustomGuide}
+              brandId={profile?.id}
             />
           </div>
         )}

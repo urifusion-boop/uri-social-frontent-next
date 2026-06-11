@@ -1,0 +1,461 @@
+'use client';
+
+import { CustomVisualGuide, CustomVisualGuideService, MatchOutcome } from '@/src/api/CustomVisualGuideService';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import {
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  IconButton,
+  Menu,
+  MenuItem,
+  Tab,
+  Tabs,
+  Typography,
+} from '@mui/material';
+import { useEffect, useState } from 'react';
+import { FaEllipsisV, FaPlus, FaRedo, FaTrash } from 'react-icons/fa';
+import { MdImage } from 'react-icons/md';
+import CustomGuidePreviewCard from './CustomGuidePreviewCard';
+import CustomGuideUploadModal from './CustomGuideUploadModal';
+
+interface CustomGuidesGalleryProps {
+  brandId?: string;
+  onGuideSelect?: (guide: CustomVisualGuide) => void;
+  selectable?: boolean;
+  selectedGuideId?: string;
+}
+
+export default function CustomGuidesGallery({
+  brandId,
+  onGuideSelect,
+  selectable = false,
+  selectedGuideId,
+}: CustomGuidesGalleryProps) {
+  const [guides, setGuides] = useState<CustomVisualGuide[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [filterTab, setFilterTab] = useState<'all' | 'strong' | 'weak' | 'no_match'>('all');
+  const [menuAnchor, setMenuAnchor] = useState<{ element: HTMLElement; guideId: string } | null>(null);
+  const [rematchingGuideId, setRematchingGuideId] = useState<string | null>(null);
+
+  const primary = '#CD1B78';
+
+  useEffect(() => {
+    loadGuides();
+  }, []);
+
+  const loadGuides = async () => {
+    try {
+      setLoading(true);
+      const fetchedGuides = await CustomVisualGuideService.getUserGuides('active');
+      setGuides(fetchedGuides);
+    } catch (error: any) {
+      console.error('[CustomGuidesGallery] Error loading guides:', error);
+      ToastService.showToast('Failed to load custom guides', ToastTypeEnum.Error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUploadSuccess = (newGuides: CustomVisualGuide[]) => {
+    setGuides((prev) => [...newGuides, ...prev]);
+    setUploadModalOpen(false);
+  };
+
+  const handleRematch = async (guideId: string) => {
+    try {
+      setRematchingGuideId(guideId);
+      setMenuAnchor(null);
+
+      const result = await CustomVisualGuideService.rematchFonts(guideId);
+
+      // Update the guide in state
+      setGuides((prev) =>
+        prev.map((g) =>
+          g.id === guideId
+            ? {
+                ...g,
+                match_outcome: result.match_outcome,
+                typography_match: {
+                  ...g.typography_match,
+                  match_outcome: result.match_outcome,
+                  matched_font_id: result.matched_font_id,
+                  match_confidence: result.match_confidence as any,
+                },
+              }
+            : g
+        )
+      );
+
+      ToastService.showToast('Font matching re-run successfully!', ToastTypeEnum.Success);
+    } catch (error: any) {
+      console.error('[CustomGuidesGallery] Error rematching:', error);
+      ToastService.showToast('Failed to rematch fonts', ToastTypeEnum.Error);
+    } finally {
+      setRematchingGuideId(null);
+    }
+  };
+
+  const handleArchive = async (guideId: string) => {
+    try {
+      setMenuAnchor(null);
+      await CustomVisualGuideService.archiveGuide(guideId);
+      setGuides((prev) => prev.filter((g) => g.id !== guideId));
+      ToastService.showToast('Guide archived successfully', ToastTypeEnum.Success);
+    } catch (error: any) {
+      console.error('[CustomGuidesGallery] Error archiving guide:', error);
+      ToastService.showToast('Failed to archive guide', ToastTypeEnum.Error);
+    }
+  };
+
+  const handleGuideClick = (guide: CustomVisualGuide) => {
+    if (selectable && onGuideSelect) {
+      onGuideSelect(guide);
+    }
+  };
+
+  // Filter guides based on selected tab
+  const filteredGuides = guides.filter((guide) => {
+    if (filterTab === 'all') return true;
+    if (filterTab === 'strong')
+      return guide.match_outcome === 'STRONG_MATCH' || guide.match_outcome === 'DECENT_MATCH';
+    if (filterTab === 'weak') return guide.match_outcome === 'WEAK_MATCH';
+    if (filterTab === 'no_match')
+      return (
+        guide.match_outcome === 'NO_RECOMMENDED_MATCH' ||
+        guide.match_outcome === 'NO_MATCH' ||
+        guide.match_outcome === 'NO_TYPOGRAPHY'
+      );
+    return true;
+  });
+
+  // Count by outcome
+  const countByOutcome = {
+    strong: guides.filter(
+      (g) => g.match_outcome === 'STRONG_MATCH' || g.match_outcome === 'DECENT_MATCH'
+    ).length,
+    weak: guides.filter((g) => g.match_outcome === 'WEAK_MATCH').length,
+    no_match: guides.filter(
+      (g) =>
+        g.match_outcome === 'NO_RECOMMENDED_MATCH' ||
+        g.match_outcome === 'NO_MATCH' ||
+        g.match_outcome === 'NO_TYPOGRAPHY'
+    ).length,
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+        <CircularProgress sx={{ color: primary }} />
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#0d0e0f', mb: 0.5 }}>
+            Custom Visual Guides
+          </Typography>
+          <Typography sx={{ fontSize: 13, color: '#6B7280' }}>
+            Reference images analyzed for visual style and typography
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<FaPlus />}
+          onClick={() => setUploadModalOpen(true)}
+          sx={{
+            background: primary,
+            color: '#fff',
+            textTransform: 'none',
+            fontWeight: 600,
+            borderRadius: '10px',
+            px: 3,
+            '&:hover': { background: '#B01667' },
+          }}
+        >
+          Upload Guide
+        </Button>
+      </Box>
+
+      {/* Filter tabs */}
+      {guides.length > 0 && (
+        <Box sx={{ mb: 3, borderBottom: '1px solid #E5E7EB' }}>
+          <Tabs
+            value={filterTab}
+            onChange={(_, value) => setFilterTab(value)}
+            sx={{
+              '& .MuiTab-root': {
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: 14,
+                minHeight: 42,
+              },
+              '& .Mui-selected': {
+                color: primary,
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: primary,
+              },
+            }}
+          >
+            <Tab label={`All (${guides.length})`} value="all" />
+            <Tab
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  Good Matches
+                  {countByOutcome.strong > 0 && (
+                    <Chip
+                      label={countByOutcome.strong}
+                      size="small"
+                      sx={{
+                        height: 18,
+                        fontSize: 11,
+                        background: '#D1FAE5',
+                        color: '#10B981',
+                        fontWeight: 600,
+                      }}
+                    />
+                  )}
+                </Box>
+              }
+              value="strong"
+            />
+            <Tab
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  Weak Matches
+                  {countByOutcome.weak > 0 && (
+                    <Chip
+                      label={countByOutcome.weak}
+                      size="small"
+                      sx={{
+                        height: 18,
+                        fontSize: 11,
+                        background: '#FEF3C7',
+                        color: '#F59E0B',
+                        fontWeight: 600,
+                      }}
+                    />
+                  )}
+                </Box>
+              }
+              value="weak"
+            />
+            <Tab
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  No Match
+                  {countByOutcome.no_match > 0 && (
+                    <Chip
+                      label={countByOutcome.no_match}
+                      size="small"
+                      sx={{
+                        height: 18,
+                        fontSize: 11,
+                        background: '#FEE2E2',
+                        color: '#EF4444',
+                        fontWeight: 600,
+                      }}
+                    />
+                  )}
+                </Box>
+              }
+              value="no_match"
+            />
+          </Tabs>
+        </Box>
+      )}
+
+      {/* Empty state */}
+      {guides.length === 0 && (
+        <Box
+          sx={{
+            textAlign: 'center',
+            py: 8,
+            px: 3,
+            border: '2px dashed #E5E7EB',
+            borderRadius: '16px',
+            background: '#F9FAFB',
+          }}
+        >
+          <MdImage size={64} color="#D1D5DB" style={{ marginBottom: 16 }} />
+          <Typography sx={{ fontSize: 16, fontWeight: 600, color: '#374151', mb: 1 }}>
+            No Custom Guides Yet
+          </Typography>
+          <Typography sx={{ fontSize: 14, color: '#6B7280', mb: 3, maxWidth: 400, mx: 'auto' }}>
+            Upload reference images to create custom visual guides. We'll analyze the style and typography to
+            help you create matching content.
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<FaPlus />}
+            onClick={() => setUploadModalOpen(true)}
+            sx={{
+              background: primary,
+              color: '#fff',
+              textTransform: 'none',
+              fontWeight: 600,
+              borderRadius: '10px',
+              px: 4,
+              py: 1.5,
+              '&:hover': { background: '#B01667' },
+            }}
+          >
+            Upload Your First Guide
+          </Button>
+        </Box>
+      )}
+
+      {/* Guides grid */}
+      {filteredGuides.length > 0 && (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
+            },
+            gap: 2.5,
+          }}
+        >
+          {filteredGuides.map((guide) => (
+            <Box
+              key={guide.id}
+              sx={{
+                position: 'relative',
+                cursor: selectable ? 'pointer' : 'default',
+                border: selectable && selectedGuideId === guide.id ? `2px solid ${primary}` : 'none',
+                borderRadius: '12px',
+                transition: 'all 0.2s',
+                '&:hover': selectable
+                  ? {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                    }
+                  : {},
+              }}
+              onClick={() => handleGuideClick(guide)}
+            >
+              {/* Menu button */}
+              <IconButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuAnchor({ element: e.currentTarget, guideId: guide.id });
+                }}
+                size="small"
+                sx={{
+                  position: 'absolute',
+                  top: 12,
+                  right: 12,
+                  background: 'rgba(255,255,255,0.9)',
+                  backdropFilter: 'blur(4px)',
+                  zIndex: 3,
+                  '&:hover': {
+                    background: '#fff',
+                  },
+                }}
+              >
+                <FaEllipsisV size={14} />
+              </IconButton>
+
+              <CustomGuidePreviewCard guide={guide} />
+
+              {/* Rematch indicator */}
+              {rematchingGuideId === guide.id && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(255,255,255,0.9)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 4,
+                  }}
+                >
+                  <CircularProgress sx={{ color: primary }} />
+                </Box>
+              )}
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      {/* No results for filter */}
+      {guides.length > 0 && filteredGuides.length === 0 && (
+        <Box sx={{ textAlign: 'center', py: 6 }}>
+          <Typography sx={{ fontSize: 14, color: '#6B7280' }}>
+            No guides found for this filter
+          </Typography>
+        </Box>
+      )}
+
+      {/* Context menu */}
+      <Menu
+        anchorEl={menuAnchor?.element}
+        open={Boolean(menuAnchor)}
+        onClose={() => setMenuAnchor(null)}
+        PaperProps={{
+          sx: {
+            borderRadius: '10px',
+            minWidth: 180,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          },
+        }}
+      >
+        <MenuItem
+          onClick={() => {
+            if (menuAnchor) handleRematch(menuAnchor.guideId);
+          }}
+          sx={{
+            fontSize: 14,
+            py: 1.25,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+          }}
+        >
+          <FaRedo size={14} color="#6B7280" />
+          Re-match Fonts
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (menuAnchor) handleArchive(menuAnchor.guideId);
+          }}
+          sx={{
+            fontSize: 14,
+            py: 1.25,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            color: '#EF4444',
+          }}
+        >
+          <FaTrash size={14} />
+          Archive Guide
+        </MenuItem>
+      </Menu>
+
+      {/* Upload modal */}
+      <CustomGuideUploadModal
+        open={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
+        onSuccess={handleUploadSuccess}
+        brandId={brandId}
+      />
+    </Box>
+  );
+}
