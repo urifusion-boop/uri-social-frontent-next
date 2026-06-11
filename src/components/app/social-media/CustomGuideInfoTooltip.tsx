@@ -2,8 +2,8 @@
 
 import { Box, IconButton, Popover, Typography } from '@mui/material';
 import { useState } from 'react';
-import { FaInfoCircle, FaCheckCircle } from 'react-icons/fa';
-import { MdImage, MdPalette, MdFont } from 'react-icons/md';
+import { FaInfoCircle, FaCheckCircle, FaFont } from 'react-icons/fa';
+import { MdImage, MdPalette } from 'react-icons/md';
 
 interface CustomGuideInfoTooltipProps {
   variant?: 'icon' | 'text';
@@ -105,9 +105,7 @@ export default function CustomGuideInfoTooltip({ variant = 'icon' }: CustomGuide
 
           {/* What we analyze */}
           <Box sx={{ mb: 2.5 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#0d0e0f', mb: 1.5 }}>
-              What we analyze:
-            </Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#0d0e0f', mb: 1.5 }}>What we analyze:</Typography>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               {/* Visual Style */}
@@ -150,12 +148,10 @@ export default function CustomGuideInfoTooltip({ variant = 'icon' }: CustomGuide
                     flexShrink: 0,
                   }}
                 >
-                  <MdFont size={18} color={primary} />
+                  <FaFont size={18} color={primary} />
                 </Box>
                 <Box>
-                  <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#0d0e0f', mb: 0.25 }}>
-                    Typography
-                  </Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#0d0e0f', mb: 0.25 }}>Typography</Typography>
                   <Typography sx={{ fontSize: 12, color: '#6B7280', lineHeight: 1.4 }}>
                     Font characteristics and automatic matching to your library
                   </Typography>
@@ -166,9 +162,7 @@ export default function CustomGuideInfoTooltip({ variant = 'icon' }: CustomGuide
 
           {/* Font Matching Outcomes */}
           <Box sx={{ mb: 2 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#0d0e0f', mb: 1.5 }}>
-              Font Matching:
-            </Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#0d0e0f', mb: 1.5 }}>Font Matching:</Typography>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

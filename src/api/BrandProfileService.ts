@@ -36,6 +36,7 @@ export interface CustomFontAnalysis {
 }
 
 export interface BrandProfileData {
+  id?: string;
   brand_name?: string;
   industry?: string;
   website?: string;
@@ -72,6 +73,7 @@ export interface BrandProfileData {
   style_selections?: string[];
   style_prompt_fragments?: string[];
   style_rotation_index?: number;
+  selected_custom_guide?: string;
   font_style?: string;
   font_style_prompt?: string;
   custom_font_enabled?: boolean;

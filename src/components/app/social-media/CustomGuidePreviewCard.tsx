@@ -2,8 +2,7 @@
 
 import { CustomVisualGuide, MatchOutcome } from '@/src/api/CustomVisualGuideService';
 import { Box, Button, Chip, IconButton, Typography } from '@mui/material';
-import { FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaTimes } from 'react-icons/fa';
-import { MdFont } from 'react-icons/md';
+import { FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaTimes, FaFont } from 'react-icons/fa';
 
 interface CustomGuidePreviewCardProps {
   guide: CustomVisualGuide;
@@ -63,7 +62,7 @@ export default function CustomGuidePreviewCard({
           bgColor: '#F3F4F6',
           icon: <FaInfoCircle size={18} />,
           label: 'No Match',
-          message: 'We couldn't identify a specific font to match.',
+          message: "We couldn't identify a specific font to match.",
         };
       case 'NO_TYPOGRAPHY':
         return {
@@ -154,9 +153,7 @@ export default function CustomGuidePreviewCard({
             border: `1px solid ${outcomeConfig.color}33`,
           }}
         >
-          <Box sx={{ color: outcomeConfig.color, display: 'flex', alignItems: 'center' }}>
-            {outcomeConfig.icon}
-          </Box>
+          <Box sx={{ color: outcomeConfig.color, display: 'flex', alignItems: 'center' }}>{outcomeConfig.icon}</Box>
           <Typography
             sx={{
               fontSize: 12,
@@ -211,7 +208,7 @@ export default function CustomGuidePreviewCard({
               mb: 1.5,
             }}
           >
-            <MdFont size={18} color={primary} />
+            <FaFont size={18} color={primary} />
             <Box sx={{ flex: 1 }}>
               <Typography sx={{ fontSize: 11, color: '#6B7280', mb: 0.25 }}>Matched Font</Typography>
               <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#0d0e0f' }}>
@@ -231,14 +228,14 @@ export default function CustomGuidePreviewCard({
                     guide.typography_match.match_confidence === 'high'
                       ? '#D1FAE5'
                       : guide.typography_match.match_confidence === 'medium'
-                      ? '#FEF3C7'
-                      : '#FEE2E2',
+                        ? '#FEF3C7'
+                        : '#FEE2E2',
                   color:
                     guide.typography_match.match_confidence === 'high'
                       ? '#10B981'
                       : guide.typography_match.match_confidence === 'medium'
-                      ? '#F59E0B'
-                      : '#EF4444',
+                        ? '#F59E0B'
+                        : '#EF4444',
                 }}
               />
             )}
@@ -256,9 +253,7 @@ export default function CustomGuidePreviewCard({
               mb: 1.5,
             }}
           >
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#92400E', mb: 0.5 }}>
-              Suggested Action:
-            </Typography>
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#92400E', mb: 0.5 }}>Suggested Action:</Typography>
             <Typography sx={{ fontSize: 12, color: '#78350F', lineHeight: 1.4 }}>
               {guide.typography_match.next_step_suggestion.message}
             </Typography>
@@ -286,9 +281,7 @@ export default function CustomGuidePreviewCard({
         {/* Aesthetic summary */}
         {!compact && guide.aesthetic_summary && (
           <Box>
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#0d0e0f', mb: 0.75 }}>
-              Visual Style:
-            </Typography>
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#0d0e0f', mb: 0.75 }}>Visual Style:</Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
               <Chip
                 label={guide.aesthetic_summary.visual_genre}
