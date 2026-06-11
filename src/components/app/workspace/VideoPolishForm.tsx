@@ -61,8 +61,22 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
       ToastService.showToast(`File too large. Maximum is ${MAX_MB}MB.`, ToastTypeEnum.Error);
       return;
     }
-    setVideoFile(file);
-    setVideoPreviewUrl(URL.createObjectURL(file));
+    const url = URL.createObjectURL(file);
+    const vid = document.createElement('video');
+    vid.preload = 'metadata';
+    vid.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      if (vid.duration < 120) {
+        ToastService.showToast(
+          `Video is too short (${Math.round(vid.duration)}s). Minimum is 2 minutes for AI polishing.`,
+          ToastTypeEnum.Error
+        );
+        return;
+      }
+      setVideoFile(file);
+      setVideoPreviewUrl(URL.createObjectURL(file));
+    };
+    vid.src = url;
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -240,7 +254,7 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
                   Drop your video here, or click to browse
                 </div>
                 <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 6 }}>
-                  MP4, MOV · Max 500MB · Max 10 minutes
+                  MP4, MOV · Min 2 min · Max 3 hours · Max 500MB
                 </div>
               </div>
             )}
