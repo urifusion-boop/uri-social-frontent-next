@@ -3,23 +3,16 @@
 import { CustomVisualGuide, CustomVisualGuideService, MatchOutcome } from '@/src/api/CustomVisualGuideService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import {
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  IconButton,
-  Menu,
-  MenuItem,
-  Tab,
-  Tabs,
-  Typography,
-} from '@mui/material';
+import { Box, Button, Chip, CircularProgress, IconButton, Menu, MenuItem, Tab, Tabs, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { FaEllipsisV, FaPlus, FaRedo, FaTrash } from 'react-icons/fa';
 import { MdImage } from 'react-icons/md';
 import CustomGuidePreviewCard from './CustomGuidePreviewCard';
 import CustomGuideUploadModal from './CustomGuideUploadModal';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import CustomFontUploader from './CustomFontUploader';
 
 interface CustomGuidesGalleryProps {
   brandId?: string;
@@ -40,6 +33,8 @@ export default function CustomGuidesGallery({
   const [filterTab, setFilterTab] = useState<'all' | 'strong' | 'weak' | 'no_match'>('all');
   const [menuAnchor, setMenuAnchor] = useState<{ element: HTMLElement; guideId: string } | null>(null);
   const [rematchingGuideId, setRematchingGuideId] = useState<string | null>(null);
+  const [fontUploadModalOpen, setFontUploadModalOpen] = useState(false);
+  const [guideForFontUpload, setGuideForFontUpload] = useState<string | null>(null);
 
   const primary = '#CD1B78';
 
@@ -123,11 +118,47 @@ export default function CustomGuidesGallery({
     }
   };
 
+  const handleFontUploadClick = (guideId: string) => {
+    setGuideForFontUpload(guideId);
+    setFontUploadModalOpen(true);
+  };
+
+  const handleFontAnalyzed = async (data: {
+    fontUrl: string;
+    filename: string;
+    analysis: unknown;
+    promptDirective: string;
+  }) => {
+    try {
+      // Extract font ID from URL (assuming format: .../fonts/{font_id}.ttf)
+      const fontIdMatch = data.fontUrl.match(/\/fonts\/([^/]+)\.(ttf|otf)/);
+      const fontId = fontIdMatch ? fontIdMatch[1] : data.filename.replace(/\.(ttf|otf)$/i, '');
+
+      if (guideForFontUpload) {
+        // Update the guide with the new font match
+        const updateResponse = await CustomVisualGuideService.updateGuideFont(guideForFontUpload, fontId);
+        if (updateResponse.status) {
+          // Fetch the updated guide to get the new font match details
+          const guideResponse = await CustomVisualGuideService.getGuideDetail(guideForFontUpload);
+          if (guideResponse.status && guideResponse.responseData) {
+            setGuides((prev) => prev.map((g) => (g.id === guideForFontUpload ? guideResponse.responseData! : g)));
+          }
+          ToastService.showToast('Font uploaded and matched successfully!', ToastTypeEnum.Success);
+        }
+      }
+
+      setFontUploadModalOpen(false);
+      setGuideForFontUpload(null);
+    } catch (error: unknown) {
+      console.error('[CustomGuidesGallery] Error handling font upload:', error);
+      ToastService.showToast('Failed to update guide with new font', ToastTypeEnum.Error);
+    }
+  };
+
   // Filter guides based on selected tab
   const filteredGuides = guides.filter((guide) => {
     if (filterTab === 'all') return true;
-    if (filterTab === 'strong')
-      return guide.match_outcome === 'STRONG_MATCH' || guide.match_outcome === 'DECENT_MATCH';
+    if (filterTab === 'strong') return guide.match_outcome === 'STRONG_MATCH' || guide.match_outcome === 'DECENT_MATCH';
     if (filterTab === 'weak') return guide.match_outcome === 'WEAK_MATCH';
     if (filterTab === 'no_match')
       return (
@@ -140,9 +171,7 @@ export default function CustomGuidesGallery({
 
   // Count by outcome
   const countByOutcome = {
-    strong: guides.filter(
-      (g) => g.match_outcome === 'STRONG_MATCH' || g.match_outcome === 'DECENT_MATCH'
-    ).length,
+    strong: guides.filter((g) => g.match_outcome === 'STRONG_MATCH' || g.match_outcome === 'DECENT_MATCH').length,
     weak: guides.filter((g) => g.match_outcome === 'WEAK_MATCH').length,
     no_match: guides.filter(
       (g) =>
@@ -292,12 +321,10 @@ export default function CustomGuidesGallery({
           }}
         >
           <MdImage size={64} color="#D1D5DB" style={{ marginBottom: 16 }} />
-          <Typography sx={{ fontSize: 16, fontWeight: 600, color: '#374151', mb: 1 }}>
-            No Custom Guides Yet
-          </Typography>
+          <Typography sx={{ fontSize: 16, fontWeight: 600, color: '#374151', mb: 1 }}>No Custom Guides Yet</Typography>
           <Typography sx={{ fontSize: 14, color: '#6B7280', mb: 3, maxWidth: 400, mx: 'auto' }}>
-            Upload reference images to create custom visual guides. We'll analyze the style and typography to
-            help you create matching content.
+            Upload reference images to create custom visual guides. We'll analyze the style and typography to help you
+            create matching content.
           </Typography>
           <Button
             variant="contained"
@@ -373,7 +400,7 @@ export default function CustomGuidesGallery({
                 <FaEllipsisV size={14} />
               </IconButton>
 
-              <CustomGuidePreviewCard guide={guide} />
+              <CustomGuidePreviewCard guide={guide} onSelectFont={handleFontUploadClick} />
 
               {/* Rematch indicator */}
               {rematchingGuideId === guide.id && (
@@ -403,9 +430,7 @@ export default function CustomGuidesGallery({
       {/* No results for filter */}
       {guides.length > 0 && filteredGuides.length === 0 && (
         <Box sx={{ textAlign: 'center', py: 6 }}>
-          <Typography sx={{ fontSize: 14, color: '#6B7280' }}>
-            No guides found for this filter
-          </Typography>
+          <Typography sx={{ fontSize: 14, color: '#6B7280' }}>No guides found for this filter</Typography>
         </Box>
       )}
 
@@ -462,6 +487,25 @@ export default function CustomGuidesGallery({
         onSuccess={handleUploadSuccess}
         brandId={brandId}
       />
+
+      {/* Font upload modal */}
+      <Dialog open={fontUploadModalOpen} onClose={() => setFontUploadModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Typography sx={{ fontSize: 18, fontWeight: 600, color: '#0d0e0f' }}>Upload Font</Typography>
+          <Typography sx={{ fontSize: 13, color: '#6B7280', mt: 0.5 }}>
+            Upload the matching font file (.ttf or .otf) to improve this custom guide
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <CustomFontUploader
+            onFontAnalyzed={handleFontAnalyzed}
+            onCancel={() => {
+              setFontUploadModalOpen(false);
+              setGuideForFontUpload(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

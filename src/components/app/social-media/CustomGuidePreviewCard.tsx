@@ -257,24 +257,44 @@ export default function CustomGuidePreviewCard({
             <Typography sx={{ fontSize: 12, color: '#78350F', lineHeight: 1.4 }}>
               {guide.typography_match.next_step_suggestion.message}
             </Typography>
-            {onSelectFont && (
-              <Button
-                size="small"
-                onClick={() => onSelectFont(guide.id)}
-                sx={{
-                  mt: 1,
-                  textTransform: 'none',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: primary,
-                  '&:hover': {
-                    background: `${primary}10`,
-                  },
-                }}
-              >
-                Upload Font →
-              </Button>
-            )}
+            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+              {guide.typography_match.next_step_suggestion.actionable_link && (
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={() => window.open(guide.typography_match.next_step_suggestion!.actionable_link, '_blank')}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    background: primary,
+                    color: '#fff',
+                    '&:hover': {
+                      background: '#9B1460',
+                    },
+                  }}
+                >
+                  Download from Google Fonts →
+                </Button>
+              )}
+              {onSelectFont && (
+                <Button
+                  size="small"
+                  onClick={() => onSelectFont(guide.id)}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: primary,
+                    '&:hover': {
+                      background: `${primary}10`,
+                    },
+                  }}
+                >
+                  Upload Font File →
+                </Button>
+              )}
+            </Box>
           </Box>
         )}
 
