@@ -1,7 +1,7 @@
 'use client';
 
 import { getStylesForIndustry, StyleTemplate, STYLES } from '@/src/data/styleLibrary';
-import { Box, Button, Typography, IconButton } from '@mui/material';
+import { Box, Button, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { FaCheckCircle, FaPlus, FaTimes } from 'react-icons/fa';
 import { MdImage } from 'react-icons/md';
@@ -112,6 +112,8 @@ export default function StylePickerGallery({
   const [customGuides, setCustomGuides] = useState<CustomVisualGuide[]>([]);
   const [loadingGuides, setLoadingGuides] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [guideToDelete, setGuideToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Load custom guides on mount
   useEffect(() => {
@@ -156,19 +158,29 @@ export default function StylePickerGallery({
     }
   };
 
-  const handleDeleteGuide = async (guideId: string, e: React.MouseEvent) => {
+  const handleDeleteClick = (guide: CustomVisualGuide, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card selection
+    setGuideToDelete({ id: guide.id, name: guide.name });
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!guideToDelete) return;
+
     try {
-      await CustomVisualGuideService.archiveGuide(guideId);
-      setCustomGuides((prev) => prev.filter((g) => g.id !== guideId));
+      await CustomVisualGuideService.archiveGuide(guideToDelete.id);
+      setCustomGuides((prev) => prev.filter((g) => g.id !== guideToDelete.id));
       // Remove from selection if selected
-      if (onCustomGuideChange && selectedCustomGuides.includes(guideId)) {
-        onCustomGuideChange(selectedCustomGuides.filter((id) => id !== guideId));
+      if (onCustomGuideChange && selectedCustomGuides.includes(guideToDelete.id)) {
+        onCustomGuideChange(selectedCustomGuides.filter((id) => id !== guideToDelete.id));
       }
       ToastService.showToast('Custom guide deleted successfully', ToastTypeEnum.Success);
     } catch (error) {
       console.error('[StylePickerGallery] Error deleting guide:', error);
       ToastService.showToast('Failed to delete custom guide', ToastTypeEnum.Error);
+    } finally {
+      setDeleteConfirmOpen(false);
+      setGuideToDelete(null);
     }
   };
 
@@ -295,7 +307,7 @@ export default function StylePickerGallery({
                     >
                       {/* Delete button */}
                       <IconButton
-                        onClick={(e) => handleDeleteGuide(guide.id, e)}
+                        onClick={(e) => handleDeleteClick(guide, e)}
                         size="small"
                         sx={{
                           position: 'absolute',
@@ -564,6 +576,44 @@ export default function StylePickerGallery({
         onSuccess={handleUploadSuccess}
         brandId={brandId}
       />
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 600, color: '#0d0e0f', pb: 1 }}>Delete Custom Guide?</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 14, color: '#6B7280', lineHeight: 1.5 }}>
+            Are you sure you want to delete <strong>"{guideToDelete?.name}"</strong>? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setDeleteConfirmOpen(false)}
+            sx={{
+              textTransform: 'none',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#6B7280',
+              '&:hover': { background: '#F3F4F6' },
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            variant="contained"
+            sx={{
+              textTransform: 'none',
+              fontSize: 13,
+              fontWeight: 600,
+              background: '#EF4444',
+              color: '#fff',
+              '&:hover': { background: '#DC2626' },
+            }}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
