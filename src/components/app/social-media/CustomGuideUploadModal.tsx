@@ -135,6 +135,13 @@ export default function CustomGuideUploadModal({ open, onClose, onSuccess, brand
       let errorDetail = err.response?.data?.detail || err.message || 'Upload failed';
       const statusCode = err.response?.status;
 
+      console.log('[CustomGuideUploadModal] Error details:', {
+        statusCode,
+        errorDetail,
+        hasDetail: !!err.response?.data?.detail,
+        rawError: err.response?.data,
+      });
+
       // Remove redundant status code prefix from error message
       errorDetail = errorDetail.replace(/^\d{3}:\s*/, '');
 
@@ -142,35 +149,37 @@ export default function CustomGuideUploadModal({ open, onClose, onSuccess, brand
       let userMessage = errorDetail;
       let toastType = ToastTypeEnum.Error;
 
-      if (statusCode === 409 || errorDetail.includes('already uploaded')) {
+      // Check error patterns (case-insensitive)
+      const errorLower = errorDetail.toLowerCase();
+
+      if (statusCode === 409 || errorLower.includes('already uploaded') || errorLower.includes('duplicate')) {
         userMessage = "⚠️ You've already uploaded this image. Find it in Brand Playbook → Custom Guides section.";
         toastType = ToastTypeEnum.Warning;
       } else if (
-        errorDetail.includes('copyrighted material') ||
-        errorDetail.includes('celebrities') ||
-        errorDetail.includes('trademarks')
+        errorLower.includes('copyrighted') ||
+        errorLower.includes('commercial ads') ||
+        errorLower.includes('celebrities') ||
+        errorLower.includes('trademarks')
       ) {
         userMessage =
           '🚫 This image may contain copyrighted content (brands, celebrities, or ads). Please use your own original images.';
         toastType = ToastTypeEnum.Warning;
-      } else if (errorDetail.includes('inappropriate content') || errorDetail.includes('NSFW')) {
+      } else if (errorLower.includes('inappropriate') || errorLower.includes('nsfw')) {
         userMessage = '🚫 This image contains inappropriate content. Please choose a different image.';
         toastType = ToastTypeEnum.Warning;
-      } else if (
-        errorDetail.includes('quality is too low') ||
-        errorDetail.includes('resolution') ||
-        errorDetail.includes('blur')
-      ) {
+      } else if (errorLower.includes('quality') || errorLower.includes('resolution') || errorLower.includes('blur')) {
         userMessage = '📉 Image quality is too low. Please upload a higher resolution, clearer image.';
         toastType = ToastTypeEnum.Warning;
-      } else if (errorDetail.includes('Failed to download image')) {
+      } else if (errorLower.includes('failed to download')) {
         userMessage = '🔗 Failed to access the image. Please check the URL or try uploading again.';
         toastType = ToastTypeEnum.Error;
-      } else if (errorDetail.includes('limit') || errorDetail.includes('reached')) {
+      } else if (errorLower.includes('limit') || errorLower.includes('reached')) {
         userMessage =
           "⚠️ You've reached the limit of 5 custom guides. Please delete an existing guide to upload a new one.";
         toastType = ToastTypeEnum.Warning;
       }
+
+      console.log('[CustomGuideUploadModal] Final message:', { userMessage, toastType });
 
       updateUpload({
         status: 'error',
