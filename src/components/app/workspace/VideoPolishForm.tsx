@@ -35,6 +35,10 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
   const [job, setJob] = useState<VideoPolishJob | null>(null);
   const [selectedClipIdx, setSelectedClipIdx] = useState(0);
 
+  // Caption preset (fetched from Reap)
+  const [captionPresets, setCaptionPresets] = useState<{ id: string; name: string; source: string }[]>([]);
+  const [selectedCaptionPreset, setSelectedCaptionPreset] = useState('system_beasty');
+
   // Clip action state (reframe / dub)
   const [actionPanel, setActionPanel] = useState<'reframe' | 'dub' | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -42,11 +46,16 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
   const [dubLang, setDubLang] = useState('fr');
   const [reframeOrientation, setReframeOrientation] = useState<'landscape' | 'square'>('landscape');
 
-  // Load style presets on mount
+  // Load style + caption presets on mount
   useEffect(() => {
     SocialMediaAgentService.getVideoPolishStyles()
       .then((res) => {
         if (res?.responseData) setStyles(res.responseData);
+      })
+      .catch(() => {});
+    SocialMediaAgentService.getVideoCaptionPresets()
+      .then((res) => {
+        if (res?.responseData?.length) setCaptionPresets(res.responseData);
       })
       .catch(() => {});
   }, []);
@@ -135,6 +144,7 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
       formData.append('video', videoFile);
       formData.append('style_preset', selectedStyle);
       formData.append('language', 'en-NG');
+      formData.append('captions_preset', selectedCaptionPreset);
 
       const res = await SocialMediaAgentService.submitVideoPolish(formData);
       if (!res?.responseData?.job_id) throw new Error('No job ID returned');
@@ -397,6 +407,33 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
           >
             Polish My Video ✨
           </button>
+
+          {/* Caption preset picker — only show when presets loaded from Reap */}
+          {captionPresets.length > 0 && (
+            <div style={{ marginTop: 14, marginBottom: 4 }}>
+              <div style={{ fontWeight: 600, color: '#374151', fontSize: 13, marginBottom: 8 }}>Caption style</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {captionPresets.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setSelectedCaptionPreset(p.id)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      border: selectedCaptionPreset === p.id ? '2px solid #CD1B78' : '1.5px solid #E5E7EB',
+                      background: selectedCaptionPreset === p.id ? '#FDF2F8' : '#fff',
+                      fontWeight: selectedCaptionPreset === p.id ? 700 : 400,
+                      color: selectedCaptionPreset === p.id ? '#CD1B78' : '#6B7280',
+                    }}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', marginTop: 10 }}>
             1 credit for clips under 2 min · 2 credits for 2–10 min

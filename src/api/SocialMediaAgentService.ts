@@ -625,6 +625,11 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async getVideoCaptionPresets(): Promise<UriResponse<{ id: string; name: string; source: string }[]>> {
+    const response = await UriHttpClient.getClient().get('/video-polish-caption-presets');
+    return response.data;
+  }
+
   static async submitVideoPolish(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
     const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.polishVideo, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
