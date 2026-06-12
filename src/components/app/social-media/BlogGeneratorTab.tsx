@@ -20,6 +20,7 @@ import {
   FiZap,
 } from 'react-icons/fi';
 import WritingDNAQuiz from './WritingDNAQuiz';
+import BlogDraftsTab from './BlogDraftsTab';
 import { markdownToHtml } from '@/src/utils/markdown.util';
 
 const URI_PINK = '#CD1B78';
@@ -36,6 +37,7 @@ const FEEDBACK_ISSUES = [
 
 export default function BlogGeneratorTab() {
   const [view, setView] = useState<'main' | 'quiz'>('main');
+  const [mode, setMode] = useState<'generate' | 'drafts'>('generate');
   const [dna, setDna] = useState<WritingDNAData | null>(null);
   const [dnaLoading, setDnaLoading] = useState(true);
 
@@ -256,10 +258,10 @@ export default function BlogGeneratorTab() {
     <div style={{ padding: pad, maxWidth: '900px', margin: '0 auto', minHeight: '100vh' }}>
 
       {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
           <FiBook size={26} color={URI_PINK} />
-          <h1 style={{ fontSize: '26px', fontWeight: '700', margin: 0, color: '#111' }}>Blog Generator</h1>
+          <h1 style={{ fontSize: '26px', fontWeight: '700', margin: 0, color: '#111' }}>Blog</h1>
           <span
             style={{
               background: `linear-gradient(135deg, ${URI_PINK} 0%, #E94396 100%)`,
@@ -278,8 +280,37 @@ export default function BlogGeneratorTab() {
         </p>
       </div>
 
-      {/* DNA Status card */}
-      {!dnaLoading && (
+      {/* Sub-tabs: Generate | Drafts */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+        <button
+          onClick={() => setMode('generate')}
+          style={{
+            padding: '8px 18px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+            border: `2px solid ${mode === 'generate' ? URI_PINK : '#e5e7eb'}`,
+            background: mode === 'generate' ? `${URI_PINK}10` : 'white',
+            color: mode === 'generate' ? URI_PINK : '#6b7280',
+          }}
+        >
+          Generate
+        </button>
+        <button
+          onClick={() => setMode('drafts')}
+          style={{
+            padding: '8px 18px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+            border: `2px solid ${mode === 'drafts' ? URI_PINK : '#e5e7eb'}`,
+            background: mode === 'drafts' ? `${URI_PINK}10` : 'white',
+            color: mode === 'drafts' ? URI_PINK : '#6b7280',
+          }}
+        >
+          Drafts
+        </button>
+      </div>
+
+      {/* Drafts mode renders the drafts list and nothing else */}
+      {mode === 'drafts' && <BlogDraftsTab />}
+
+      {/* DNA Status card (generate mode only) */}
+      {mode === 'generate' && !dnaLoading && (
         dna ? (
           <DNAActiveCard dna={dna} onRetake={() => setView('quiz')} />
         ) : (
@@ -288,6 +319,7 @@ export default function BlogGeneratorTab() {
       )}
 
       {/* Generation form */}
+      {mode === 'generate' && (
       <div
         style={{
           background: 'white',
@@ -440,9 +472,10 @@ export default function BlogGeneratorTab() {
           )}
         </button>
       </div>
+      )}
 
       {/* Result */}
-      {result && (
+      {mode === 'generate' && result && (
         <div ref={resultRef} style={{ marginTop: '28px' }}>
           <BlogResult
             result={result}

@@ -31,7 +31,6 @@ import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
-import BlogDraftsTab from '@/src/components/app/social-media/BlogDraftsTab';
 import AgencyDashboard from '@/src/components/app/agency/AgencyDashboard';
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
@@ -6535,6 +6534,41 @@ const SettingsPage = ({
         </div>
       </div>
 
+      {/* Agency */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <I n="grid" s={16} c="#C2185B" />
+          Agency
+        </h3>
+        <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>
+          Manage multiple brands, your team, shared credit pool, and reporting.
+        </p>
+        <button
+          onClick={() => onNavChange('agency')}
+          style={{
+            width: '100%',
+            padding: '12px 14px',
+            borderRadius: 9,
+            border: '1px solid #e5e3df',
+            background: '#fff',
+            cursor: 'pointer',
+            fontFamily: 'var(--wf)',
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#333',
+            textAlign: 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>Open Agency Dashboard</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M6 12L10 8L6 4" stroke="#999" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
       {/* Quick Actions */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -6731,22 +6765,10 @@ const NAV = [
     tooltip: 'Discover trending topics and keywords relevant to your industry',
   },
   {
-    id: 'agency',
-    icon: 'grid',
-    label: 'Agency',
-    tooltip: 'Manage your brands, team, credits, and reporting',
-  },
-  {
     id: 'blog',
     icon: 'book',
-    label: 'Blog Generator',
-    tooltip: 'Generate SEO-optimized blog posts with AI (Beta)',
-  },
-  {
-    id: 'blog-drafts',
-    icon: 'file',
-    label: 'Blog Drafts',
-    tooltip: 'View and manage your AI-generated blog posts',
+    label: 'Blog',
+    tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
   },
   {
     id: 'playbook',
@@ -7142,7 +7164,6 @@ export default function WorkspaceDashboard() {
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
-    'blog-drafts': <BlogDraftsTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
     settings: (
       <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
