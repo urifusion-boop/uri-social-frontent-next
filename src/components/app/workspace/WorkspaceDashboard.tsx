@@ -39,6 +39,7 @@ import AccountConnectionBanner from '@/src/components/app/social-media/AccountCo
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
+import VideoProductionForm from '@/src/components/app/workspace/VideoProductionForm';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -829,7 +830,7 @@ const ContentManagerPage = ({
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'video'>('generate');
-  const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video'>('edit_video');
+  const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video' | 'produce_video'>('edit_video');
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1359,7 +1360,8 @@ const ContentManagerPage = ({
                     [
                       { key: 'edit_video', label: 'Edit My Video' },
                       { key: 'polish_video', label: 'Polish My Video' },
-                    ] as { key: 'edit_video' | 'polish_video'; label: string }[]
+                      { key: 'produce_video', label: '✨ Produce My Video' },
+                    ] as { key: 'edit_video' | 'polish_video' | 'produce_video'; label: string }[]
                   ).map((sub) => (
                     <button
                       key={sub.key}
@@ -1461,6 +1463,14 @@ const ContentManagerPage = ({
                 onPolishComplete={() => {
                   handleGenerated();
                   setCreateMode('generate');
+                }}
+              />
+            )}
+
+            {createMode === 'video' && videoSubMode === 'produce_video' && (
+              <VideoProductionForm
+                onComplete={() => {
+                  handleGenerated();
                 }}
               />
             )}

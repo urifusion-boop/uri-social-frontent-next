@@ -677,6 +677,33 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  // ── Video Production ──────────────────────────────────────────────────────
+
+  static async submitVideoProduction(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post('/produce-video', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+    return response.data;
+  }
+
+  static async getVideoProductionJob(jobId: string): Promise<
+    UriResponse<{
+      job_id: string;
+      status: 'processing' | 'ready' | 'failed';
+      status_message: string;
+      progress: number;
+      output_url: string | null;
+      video_type: string;
+      pacing_note: string;
+      cuts: { remove_start: number; remove_end: number; reason: string }[];
+      zooms: { at: number; type: string; intensity: string; reason: string }[];
+    }>
+  > {
+    const response = await UriHttpClient.getClient().get(`/produce-video-job/${jobId}`);
+    return response.data;
+  }
+
   static async generateStoryboardFrames(
     scenes: StoryboardScene[],
     brandImages: string[] = []
