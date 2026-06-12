@@ -5961,9 +5961,16 @@ const PlaybookPage = ({
             <button
               onClick={async () => {
                 const newValue = !(p?.canvas_editor_enabled ?? false);
+                console.log('🎨 Canvas Editor Toggle:', {
+                  currentValue: p?.canvas_editor_enabled,
+                  newValue,
+                  profileData: p,
+                });
                 try {
                   const updatedProfile = { ...p, canvas_editor_enabled: newValue };
+                  console.log('🎨 Saving profile:', updatedProfile);
                   const response = await BrandProfileService.save(updatedProfile);
+                  console.log('🎨 Save response:', response);
                   if (response.status) {
                     onProfileUpdate({ ...p, canvas_editor_enabled: newValue });
                     ToastService.showToast(
@@ -5971,8 +5978,15 @@ const PlaybookPage = ({
                       ToastTypeEnum.Success
                     );
                     posthog.capture('canvas_editor_toggle', { enabled: newValue });
+                  } else {
+                    console.error('🎨 Save failed - response.status is false:', response);
+                    ToastService.showToast(
+                      'Failed to save: ' + (response.responseMessage || 'Unknown error'),
+                      ToastTypeEnum.Error
+                    );
                   }
                 } catch (error) {
+                  console.error('🎨 Canvas Editor save error:', error);
                   ToastService.showToast('Failed to update Canvas Editor setting', ToastTypeEnum.Error);
                 }
               }}
