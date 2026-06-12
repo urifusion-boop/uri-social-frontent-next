@@ -94,7 +94,14 @@ export class BrandProfileService {
   }
 
   static async save(data: BrandProfileData): Promise<UriResponse<BrandProfileData>> {
+    console.log('🎨 BrandProfileService.save() called with data:', {
+      canvas_editor_enabled: data.canvas_editor_enabled,
+      use_v3_prompts: data.use_v3_prompts,
+      keys: Object.keys(data),
+      fullData: data,
+    });
     const res: AxiosResponse<UriResponse<BrandProfileData>> = await UriHttpClient.getClient().post(BASE, data);
+    console.log('🎨 BrandProfileService.save() response:', res.data);
     return res.data;
   }
 
