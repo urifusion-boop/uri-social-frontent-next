@@ -110,11 +110,14 @@ export interface VideoPolishClip {
   clip_url: string;
   captioned_clip_url?: string;
   duration: number;
-  caption_text: string;
+  caption_text: string; // Reap social media caption
+  transcript?: string; // actual spoken words from transcription
   title?: string;
   topic?: string;
   hook?: string;
   virality_score?: number;
+  start_time?: number;
+  end_time?: number;
 }
 
 export interface VideoPolishJob {
@@ -640,6 +643,32 @@ export class SocialMediaAgentService {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 30000,
     });
+    return response.data;
+  }
+
+  static async clipAction(
+    jobId: string,
+    clipIdx: number,
+    action: 'reframe' | 'dub',
+    params: { orientation?: string; source_language?: string; target_language?: string }
+  ): Promise<UriResponse<{ action_job_id: string; status: string }>> {
+    const fd = new FormData();
+    fd.append('job_id', jobId);
+    fd.append('clip_idx', String(clipIdx));
+    fd.append('action', action);
+    if (params.orientation) fd.append('orientation', params.orientation);
+    if (params.source_language) fd.append('source_language', params.source_language);
+    if (params.target_language) fd.append('target_language', params.target_language);
+    const response = await UriHttpClient.getClient().post('/polish-video-clip-action', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  static async getClipActionResult(
+    actionJobId: string
+  ): Promise<UriResponse<{ status: string; clip_url?: string; error?: string }>> {
+    const response = await UriHttpClient.getClient().get(`/polish-video-clip-action/${actionJobId}`);
     return response.data;
   }
 

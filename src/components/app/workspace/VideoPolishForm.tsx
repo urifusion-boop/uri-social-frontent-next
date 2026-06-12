@@ -35,6 +35,13 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
   const [job, setJob] = useState<VideoPolishJob | null>(null);
   const [selectedClipIdx, setSelectedClipIdx] = useState(0);
 
+  // Clip action state (reframe / dub)
+  const [actionPanel, setActionPanel] = useState<'reframe' | 'dub' | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionResult, setActionResult] = useState<Record<number, string>>({}); // clipIdx → new url
+  const [dubLang, setDubLang] = useState('fr');
+  const [reframeOrientation, setReframeOrientation] = useState<'landscape' | 'square'>('landscape');
+
   // Load style presets on mount
   useEffect(() => {
     SocialMediaAgentService.getVideoPolishStyles()
@@ -180,6 +187,47 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
     setProgress(0);
     setStatusMessage('');
     setSelectedClipIdx(0);
+    setActionPanel(null);
+    setActionResult({});
+  };
+
+  const handleClipAction = async () => {
+    if (!job) return;
+    setActionLoading(true);
+    setActionPanel(null);
+    try {
+      const params =
+        actionPanel === 'reframe'
+          ? { orientation: reframeOrientation }
+          : { source_language: 'en', target_language: dubLang };
+      const res = await SocialMediaAgentService.clipAction(job.job_id, selectedClipIdx, actionPanel!, params);
+      const actionJobId = res?.responseData?.action_job_id;
+      if (!actionJobId) throw new Error('No action job ID');
+
+      // Poll for result
+      const pollAction = setInterval(async () => {
+        try {
+          const r = await SocialMediaAgentService.getClipActionResult(actionJobId);
+          const data = r?.responseData;
+          if (data?.status === 'completed' && data.clip_url) {
+            clearInterval(pollAction);
+            setActionResult((prev) => ({ ...prev, [selectedClipIdx]: data.clip_url! }));
+            setActionLoading(false);
+            ToastService.showToast('Done! New clip ready below.', ToastTypeEnum.Success);
+          } else if (data?.status === 'failed') {
+            clearInterval(pollAction);
+            setActionLoading(false);
+            ToastService.showToast(data.error ?? 'Action failed.', ToastTypeEnum.Error);
+          }
+        } catch {
+          clearInterval(pollAction);
+          setActionLoading(false);
+        }
+      }, 8000);
+    } catch (err) {
+      setActionLoading(false);
+      ToastService.showToast((err as Error)?.message ?? 'Failed to start action.', ToastTypeEnum.Error);
+    }
   };
 
   const selectedStyleObj = styles.find((s) => s.name === selectedStyle);
@@ -540,8 +588,8 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
                   </div>
                 )}
 
-                {/* Transcript */}
-                {job.output_clips[selectedClipIdx].caption_text && (
+                {/* Transcript — actual spoken words from Reap transcription */}
+                {(job.output_clips[selectedClipIdx].transcript || job.output_clips[selectedClipIdx].caption_text) && (
                   <div>
                     <div
                       style={{
@@ -560,11 +608,35 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
                         fontSize: 13,
                         color: '#374151',
                         lineHeight: 1.65,
-                        maxHeight: 260,
+                        maxHeight: 200,
                         overflowY: 'auto',
                         paddingRight: 4,
+                        background: '#F9FAFB',
+                        borderRadius: 8,
+                        padding: '10px 12px',
                       }}
                     >
+                      {job.output_clips[selectedClipIdx].transcript || job.output_clips[selectedClipIdx].caption_text}
+                    </div>
+                  </div>
+                )}
+
+                {/* Social Caption */}
+                {job.output_clips[selectedClipIdx].caption_text && job.output_clips[selectedClipIdx].transcript && (
+                  <div style={{ marginTop: 10 }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: '#9CA3AF',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        marginBottom: 6,
+                      }}
+                    >
+                      Caption
+                    </div>
+                    <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>
                       {job.output_clips[selectedClipIdx].caption_text}
                     </div>
                   </div>
@@ -577,6 +649,192 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
                   credits
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Per-clip actions: Reframe, Dub, Download */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setActionPanel(actionPanel === 'reframe' ? null : 'reframe')}
+              disabled={actionLoading}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                border: '1.5px solid #E5E7EB',
+                background: actionPanel === 'reframe' ? '#FDF2F8' : '#fff',
+                color: actionPanel === 'reframe' ? '#CD1B78' : '#374151',
+                cursor: 'pointer',
+              }}
+            >
+              ↔ Reframe
+            </button>
+            <button
+              onClick={() => setActionPanel(actionPanel === 'dub' ? null : 'dub')}
+              disabled={actionLoading}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                border: '1.5px solid #E5E7EB',
+                background: actionPanel === 'dub' ? '#FDF2F8' : '#fff',
+                color: actionPanel === 'dub' ? '#CD1B78' : '#374151',
+                cursor: 'pointer',
+              }}
+            >
+              🌐 Dub
+            </button>
+            <a
+              href={
+                actionResult[selectedClipIdx] ||
+                job.output_clips[selectedClipIdx]?.captioned_clip_url ||
+                job.output_clips[selectedClipIdx]?.clip_url
+              }
+              download={`clip-${selectedClipIdx + 1}.mp4`}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                border: '1.5px solid #E5E7EB',
+                background: '#fff',
+                color: '#374151',
+                textDecoration: 'none',
+                display: 'inline-block',
+              }}
+            >
+              ⬇ Download
+            </a>
+          </div>
+
+          {/* Reframe panel */}
+          {actionPanel === 'reframe' && (
+            <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 10 }}>Reframe to:</div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {(['landscape', 'square'] as const).map((o) => (
+                  <button
+                    key={o}
+                    onClick={() => setReframeOrientation(o)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      border: reframeOrientation === o ? '2px solid #CD1B78' : '1.5px solid #E5E7EB',
+                      background: reframeOrientation === o ? '#FDF2F8' : '#fff',
+                      fontWeight: reframeOrientation === o ? 700 : 400,
+                      color: reframeOrientation === o ? '#CD1B78' : '#374151',
+                    }}
+                  >
+                    {o === 'landscape' ? '16:9 Landscape' : '1:1 Square'}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleClipAction}
+                disabled={actionLoading}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, #CD1B78, #A01560)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {actionLoading ? 'Processing…' : 'Reframe Clip'}
+              </button>
+            </div>
+          )}
+
+          {/* Dub panel */}
+          {actionPanel === 'dub' && (
+            <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '14px 16px', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 10 }}>Dub into:</div>
+              <select
+                value={dubLang}
+                onChange={(e) => setDubLang(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1.5px solid #E5E7EB',
+                  fontSize: 13,
+                  marginBottom: 12,
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+                <option value="de">German</option>
+                <option value="pt">Portuguese</option>
+                <option value="it">Italian</option>
+                <option value="hi">Hindi</option>
+                <option value="ar">Arabic</option>
+                <option value="yo">Yoruba</option>
+                <option value="ha">Hausa</option>
+                <option value="ig">Igbo</option>
+                <option value="sw">Swahili</option>
+                <option value="zh">Chinese (Mandarin)</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+              </select>
+              <br />
+              <button
+                onClick={handleClipAction}
+                disabled={actionLoading}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 8,
+                  background: 'linear-gradient(135deg, #CD1B78, #A01560)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {actionLoading ? 'Processing…' : 'Dub Clip'}
+              </button>
+            </div>
+          )}
+
+          {/* Reframe/Dub result clip */}
+          {actionResult[selectedClipIdx] && (
+            <div style={{ marginBottom: 16, borderRadius: 12, overflow: 'hidden', border: '1.5px solid #CD1B78' }}>
+              <div
+                style={{ background: '#FDF2F8', padding: '8px 14px', fontSize: 12, fontWeight: 600, color: '#CD1B78' }}
+              >
+                Processed clip ready
+              </div>
+              <video
+                key={actionResult[selectedClipIdx]}
+                src={actionResult[selectedClipIdx]}
+                controls
+                playsInline
+                style={{ width: '100%', display: 'block', maxHeight: 320 }}
+              />
+              <a
+                href={actionResult[selectedClipIdx]}
+                download="processed-clip.mp4"
+                style={{
+                  display: 'block',
+                  textAlign: 'center',
+                  padding: '10px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#CD1B78',
+                  background: '#FDF2F8',
+                  textDecoration: 'none',
+                }}
+              >
+                ⬇ Download processed clip
+              </a>
             </div>
           )}
 
