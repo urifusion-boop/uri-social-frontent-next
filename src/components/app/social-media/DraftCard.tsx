@@ -47,6 +47,7 @@ import {
   MdAutorenew,
 } from 'react-icons/md';
 import DraftEditor from './DraftEditor';
+import CanvasEditor from './canvas-editor/CanvasEditor';
 
 interface DraftCardProps {
   draft: ContentDraft;
@@ -117,6 +118,9 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [creditWarningData, setCreditWarningData] = useState<{ message?: string; credits_required?: number } | null>(
     null
   );
+
+  // Canvas Editor state
+  const [canvasEditorOpen, setCanvasEditorOpen] = useState(false);
 
   // Sync draft data from parent on any relevant field change.
   // Always reset image load state to ensure images reload properly when navigating between tabs.
@@ -1368,6 +1372,38 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             >
               Background
             </Button>
+
+            {/* Canvas Editor Button - Only show if draft has layered document */}
+            {'document' in draft && draft.document && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<MdEdit size={16} />}
+                onClick={() => setCanvasEditorOpen(true)}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  py: 1.5,
+                  px: 2,
+                  borderRadius: '10px',
+                  borderColor: '#FED7AA',
+                  color: '#EA580C',
+                  background: '#FFFBF7',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&:hover': {
+                    borderColor: '#FB923C',
+                    background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)',
+                    color: '#EA580C',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 8px 16px rgba(234, 88, 12, 0.15)',
+                  },
+                }}
+              >
+                Canvas ✨
+              </Button>
+            )}
+
             <Button
               size="small"
               variant="outlined"
@@ -1984,6 +2020,20 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             </Button>
           </Box>
         </Box>
+      )}
+
+      {/* Canvas Editor Modal */}
+      {canvasEditorOpen && 'document' in draft && draft.document && (
+        <CanvasEditor
+          draftId={draft.id || draft.draft_id || ''}
+          onClose={() => setCanvasEditorOpen(false)}
+          onSave={() => {
+            // Update draft with new image
+            ToastService.showToast('Image saved from Canvas Editor', ToastTypeEnum.Success);
+            setCanvasEditorOpen(false);
+            onRefresh();
+          }}
+        />
       )}
     </Box>
   );

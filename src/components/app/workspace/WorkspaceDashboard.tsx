@@ -5925,6 +5925,118 @@ const PlaybookPage = ({
           </div>
         )}
       </PbSection>
+
+      {/* Canvas Editor Toggle */}
+      <PbSection title="Canvas Editor (Beta)">
+        <p style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6, marginBottom: 16 }}>
+          Enable advanced post editing with drag-drop layers, text editing, and multi-format export
+        </p>
+        {p && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div
+                style={{
+                  background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                  color: p?.canvas_editor_enabled ? '#fff' : '#6b7280',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                {p?.canvas_editor_enabled ? (
+                  <>
+                    <span>✨</span>
+                    <span>Canvas Enabled</span>
+                  </>
+                ) : (
+                  <span>Disabled</span>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={async () => {
+                const newValue = !(p?.canvas_editor_enabled ?? false);
+                try {
+                  const updatedProfile = { ...p, canvas_editor_enabled: newValue };
+                  const response = await BrandProfileService.save(updatedProfile);
+                  if (response.status) {
+                    onProfileUpdate({ ...p, canvas_editor_enabled: newValue });
+                    ToastService.showToast(
+                      newValue ? '✨ Canvas Editor Enabled!' : 'Canvas Editor Disabled',
+                      ToastTypeEnum.Success
+                    );
+                    posthog.capture('canvas_editor_toggle', { enabled: newValue });
+                  }
+                } catch (error) {
+                  ToastService.showToast('Failed to update Canvas Editor setting', ToastTypeEnum.Error);
+                }
+              }}
+              style={{
+                background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                color: p?.canvas_editor_enabled ? '#fff' : '#111',
+                border: 'none',
+                borderRadius: 8,
+                padding: '12px 20px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                transition: 'all 0.2s',
+                alignSelf: 'flex-start',
+              }}
+            >
+              {p?.canvas_editor_enabled ? (
+                <>
+                  <span>✨</span>
+                  <span>Canvas Enabled</span>
+                  <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                </>
+              ) : (
+                <>
+                  <span>Enable Canvas Editor</span>
+                  <span style={{ fontSize: 11, opacity: 0.7 }}>(Beta)</span>
+                </>
+              )}
+            </button>
+            <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+              {p?.canvas_editor_enabled
+                ? 'Canvas Editor is active. Generated posts will have editable layers for text, logo, and background.'
+                : 'Enable Canvas Editor to edit posts with drag-drop layers and export to multiple aspect ratios.'}
+            </div>
+          </div>
+        )}
+        {p?.canvas_editor_enabled && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              background: '#FFF7ED',
+              border: '1px solid #FED7AA',
+              borderRadius: 8,
+              fontSize: 11.5,
+              color: '#555',
+              lineHeight: 1.6,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 6, color: '#EA580C' }}>✨ Canvas Editor Features:</div>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              <li>Edit text content, fonts, colors, and positions</li>
+              <li>Drag & drop repositioning for all layers</li>
+              <li>Undo/redo support (50 operations)</li>
+              <li>Export to multiple formats (1:1, 9:16, 4:5, 16:9)</li>
+              <li>Layer management (show/hide, delete, reorder)</li>
+              <li>Visual editing without regenerating (saves credits)</li>
+            </ul>
+          </div>
+        )}
+      </PbSection>
     </SubPage>
   );
 };

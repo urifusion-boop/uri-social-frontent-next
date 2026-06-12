@@ -81,6 +81,7 @@ export interface BrandProfileData {
   custom_font_analysis?: CustomFontAnalysis;
   custom_font_directive?: string;
   use_v3_prompts?: boolean; // V3 enhanced prompt system toggle
+  canvas_editor_enabled?: boolean; // Canvas Editor feature flag
   onboarding_completed?: boolean;
   created_at?: string;
   updated_at?: string;
