@@ -37,9 +37,11 @@ export function useCanvasEditor(draftId: string) {
         isDirty: false,
       }));
     } catch (err: unknown) {
-      const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to load canvas document';
+      const errorMsg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Failed to load canvas document';
       setError(errorMsg);
-      ToastService.showToast(ToastTypeEnum.ERROR, errorMsg);
+      ToastService.showToast(errorMsg, ToastTypeEnum.Error);
     } finally {
       setLoading(false);
     }
@@ -62,8 +64,9 @@ export function useCanvasEditor(draftId: string) {
           canUndo: true,
         }));
       } catch (err: unknown) {
-        const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to update layer';
-        ToastService.showToast(ToastTypeEnum.ERROR, errorMsg);
+        const errorMsg =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to update layer';
+        ToastService.showToast(errorMsg, ToastTypeEnum.Error);
         throw err;
       }
     },
@@ -99,10 +102,11 @@ export function useCanvasEditor(draftId: string) {
         document: response.document,
         canRedo: true,
       }));
-      ToastService.showToast(ToastTypeEnum.SUCCESS, 'Undone');
+      ToastService.showToast('Undone', ToastTypeEnum.Success);
     } catch (err: unknown) {
-      const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Nothing to undo';
-      ToastService.showToast(ToastTypeEnum.WARNING, errorMsg);
+      const errorMsg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Nothing to undo';
+      ToastService.showToast(errorMsg, ToastTypeEnum.Warning);
     }
   }, [draftId]);
 
@@ -117,10 +121,11 @@ export function useCanvasEditor(draftId: string) {
         document: response.document,
         canUndo: true,
       }));
-      ToastService.showToast(ToastTypeEnum.SUCCESS, 'Redone');
+      ToastService.showToast('Redone', ToastTypeEnum.Success);
     } catch (err: unknown) {
-      const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Nothing to redo';
-      ToastService.showToast(ToastTypeEnum.WARNING, errorMsg);
+      const errorMsg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Nothing to redo';
+      ToastService.showToast(errorMsg, ToastTypeEnum.Warning);
     }
   }, [draftId]);
 
@@ -137,10 +142,11 @@ export function useCanvasEditor(draftId: string) {
           selectedLayerId: prev.selectedLayerId === layerId ? null : prev.selectedLayerId,
           isDirty: true,
         }));
-        ToastService.showToast(ToastTypeEnum.SUCCESS, 'Layer deleted');
+        ToastService.showToast('Layer deleted', ToastTypeEnum.Success);
       } catch (err: unknown) {
-        const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to delete layer';
-        ToastService.showToast(ToastTypeEnum.ERROR, errorMsg);
+        const errorMsg =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to delete layer';
+        ToastService.showToast(errorMsg, ToastTypeEnum.Error);
         throw err;
       }
     },
@@ -160,8 +166,10 @@ export function useCanvasEditor(draftId: string) {
           isDirty: true,
         }));
       } catch (err: unknown) {
-        const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to reorder layers';
-        ToastService.showToast(ToastTypeEnum.ERROR, errorMsg);
+        const errorMsg =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          'Failed to reorder layers';
+        ToastService.showToast(errorMsg, ToastTypeEnum.Error);
         throw err;
       }
     },
@@ -180,11 +188,13 @@ export function useCanvasEditor(draftId: string) {
           output_format: 'png',
           quality: 95,
         });
-        ToastService.showToast(ToastTypeEnum.SUCCESS, `Rendered ${aspectRatio} image`);
+        ToastService.showToast(`Rendered ${aspectRatio} image`, ToastTypeEnum.Success);
         return response;
       } catch (err: unknown) {
-        const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to render document';
-        ToastService.showToast(ToastTypeEnum.ERROR, errorMsg);
+        const errorMsg =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          'Failed to render document';
+        ToastService.showToast(errorMsg, ToastTypeEnum.Error);
         throw err;
       } finally {
         setState((prev) => ({ ...prev, isRendering: false }));

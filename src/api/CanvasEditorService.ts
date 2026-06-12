@@ -4,12 +4,8 @@
  * Handles all API calls to Canvas Editor backend endpoints
  */
 
-import http from '@/src/configs/http.config';
-import {
-  LayeredDocument,
-  RenderDocumentPayload,
-  DocumentEdit,
-} from '@/src/types/canvas.types';
+import { UriHttpClient } from '@/src/configs/http.config';
+import { LayeredDocument, RenderDocumentPayload, DocumentEdit } from '@/src/types/canvas.types';
 
 export interface CanvasDocumentResponse {
   draft_id: string;
@@ -49,7 +45,7 @@ export class CanvasEditorService {
    * Get layered document for a draft
    */
   static async getDocument(draftId: string): Promise<CanvasDocumentResponse> {
-    const response = await http.get<CanvasDocumentResponse>(
+    const response = await UriHttpClient.getClient().get<CanvasDocumentResponse>(
       `${this.BASE_PATH}/drafts/${draftId}/document`
     );
     return response.data;
@@ -63,7 +59,7 @@ export class CanvasEditorService {
     layerId: string,
     updates: Record<string, unknown>
   ): Promise<LayerUpdateResponse> {
-    const response = await http.post<LayerUpdateResponse>(
+    const response = await UriHttpClient.getClient().post<LayerUpdateResponse>(
       `${this.BASE_PATH}/drafts/${draftId}/layers/${layerId}/update`,
       { layer_id: layerId, updates }
     );
@@ -74,7 +70,7 @@ export class CanvasEditorService {
    * Undo the last edit
    */
   static async undo(draftId: string): Promise<LayerUpdateResponse> {
-    const response = await http.post<LayerUpdateResponse>(
+    const response = await UriHttpClient.getClient().post<LayerUpdateResponse>(
       `${this.BASE_PATH}/drafts/${draftId}/undo`
     );
     return response.data;
@@ -84,7 +80,7 @@ export class CanvasEditorService {
    * Redo the last undone edit
    */
   static async redo(draftId: string): Promise<LayerUpdateResponse> {
-    const response = await http.post<LayerUpdateResponse>(
+    const response = await UriHttpClient.getClient().post<LayerUpdateResponse>(
       `${this.BASE_PATH}/drafts/${draftId}/redo`
     );
     return response.data;
@@ -93,11 +89,8 @@ export class CanvasEditorService {
   /**
    * Render document to final image
    */
-  static async render(
-    draftId: string,
-    payload: RenderDocumentPayload = {}
-  ): Promise<RenderResponse> {
-    const response = await http.post<RenderResponse>(
+  static async render(draftId: string, payload: RenderDocumentPayload = {}): Promise<RenderResponse> {
+    const response = await UriHttpClient.getClient().post<RenderResponse>(
       `${this.BASE_PATH}/drafts/${draftId}/render`,
       payload
     );
@@ -107,11 +100,8 @@ export class CanvasEditorService {
   /**
    * Reorder layers
    */
-  static async reorderLayers(
-    draftId: string,
-    layerOrder: string[]
-  ): Promise<LayerUpdateResponse> {
-    const response = await http.post<LayerUpdateResponse>(
+  static async reorderLayers(draftId: string, layerOrder: string[]): Promise<LayerUpdateResponse> {
+    const response = await UriHttpClient.getClient().post<LayerUpdateResponse>(
       `${this.BASE_PATH}/drafts/${draftId}/layers/reorder`,
       { layer_order: layerOrder }
     );
@@ -122,7 +112,7 @@ export class CanvasEditorService {
    * Delete a layer
    */
   static async deleteLayer(draftId: string, layerId: string): Promise<LayerUpdateResponse> {
-    const response = await http.delete<LayerUpdateResponse>(
+    const response = await UriHttpClient.getClient().delete<LayerUpdateResponse>(
       `${this.BASE_PATH}/drafts/${draftId}/layers/${layerId}`
     );
     return response.data;
@@ -132,7 +122,7 @@ export class CanvasEditorService {
    * Get edit history
    */
   static async getEditHistory(draftId: string, limit = 50): Promise<EditHistoryResponse> {
-    const response = await http.get<EditHistoryResponse>(
+    const response = await UriHttpClient.getClient().get<EditHistoryResponse>(
       `${this.BASE_PATH}/drafts/${draftId}/edit-history`,
       { params: { limit } }
     );

@@ -8,6 +8,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Stage, Layer as KonvaLayer, Image as KonvaImage, Text as KonvaText, Transformer } from 'react-konva';
+import Konva from 'konva';
 import { useCanvasEditor } from './hooks/useCanvasEditor';
 import { Layer, TextLayer, BackgroundLayer, BrandAssetLayer } from '@/src/types/canvas.types';
 import { CircularProgress, Box } from '@mui/material';
@@ -40,9 +41,9 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
   } = useCanvasEditor(draftId);
 
   const [images, setImages] = useState<Record<string, HTMLImageElement>>({});
-  const stageRef = useRef<typeof Stage | null>(null);
-  const transformerRef = useRef<typeof Transformer | null>(null);
-  const [selectedNode, setSelectedNode] = useState<unknown>(null);
+  const stageRef = useRef<Konva.Stage | null>(null);
+  const transformerRef = useRef<Konva.Transformer | null>(null);
+  const [selectedNode, setSelectedNode] = useState<Konva.Node | null>(null);
 
   /**
    * Load images for background and brand assets
@@ -81,13 +82,13 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
     if (!transformerRef.current || !selectedNode) return;
 
     transformerRef.current.nodes([selectedNode]);
-    transformerRef.current.getLayer().batchDraw();
+    transformerRef.current.getLayer()?.batchDraw();
   }, [selectedNode]);
 
   /**
    * Handle layer click
    */
-  const handleLayerClick = (layer: Layer, node: unknown) => {
+  const handleLayerClick = (layer: Layer, node: Konva.Node) => {
     if (layer.locked) return;
 
     selectLayer(layer.id);
@@ -97,7 +98,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
   /**
    * Handle drag end - update layer position
    */
-  const handleDragEnd = async (layer: Layer, e: { target: { x: () => number; y: () => number } }) => {
+  const handleDragEnd = async (layer: Layer, e: Konva.KonvaEventObject<DragEvent>) => {
     await updateLayer(layer.id, {
       x: e.target.x(),
       y: e.target.y(),
@@ -107,20 +108,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
   /**
    * Handle transform end - update layer size/rotation
    */
-  const handleTransformEnd = async (
-    layer: Layer,
-    e: {
-      target: {
-        x: () => number;
-        y: () => number;
-        scaleX: () => number;
-        scaleY: () => number;
-        width: () => number;
-        height: () => number;
-        rotation: () => number;
-      };
-    }
-  ) => {
+  const handleTransformEnd = async (layer: Layer, e: Konva.KonvaEventObject<Event>) => {
     const node = e.target;
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
@@ -141,7 +129,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
   /**
    * Handle background click - deselect
    */
-  const handleStageClick = (e: { target: { getStage: () => unknown } }) => {
+  const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (e.target === e.target.getStage()) {
       selectLayer(null);
       setSelectedNode(null);
@@ -326,11 +314,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
       {/* Main Content */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Property Panel (Left) */}
-        <CanvasPropertyPanel
-          selectedLayerId={selectedLayerId}
-          document={document}
-          onUpdateLayer={updateLayer}
-        />
+        <CanvasPropertyPanel selectedLayerId={selectedLayerId} document={document} onUpdateLayer={updateLayer} />
 
         {/* Canvas Area (Center) */}
         <div

@@ -1374,7 +1374,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             </Button>
 
             {/* Canvas Editor Button - Only show if draft has layered document */}
-            {'document' in draft && draft.document && (
+            {'document' in draft && draft.document ? (
               <Button
                 size="small"
                 variant="outlined"
@@ -1402,7 +1402,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               >
                 Canvas ✨
               </Button>
-            )}
+            ) : null}
 
             <Button
               size="small"
@@ -2023,18 +2023,17 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       )}
 
       {/* Canvas Editor Modal */}
-      {canvasEditorOpen && 'document' in draft && draft.document && (
+      {canvasEditorOpen && 'document' in draft && draft.document ? (
         <CanvasEditor
           draftId={draft.id || draft.draft_id || ''}
           onClose={() => setCanvasEditorOpen(false)}
           onSave={() => {
-            // Update draft with new image
             ToastService.showToast('Image saved from Canvas Editor', ToastTypeEnum.Success);
             setCanvasEditorOpen(false);
             onRefresh();
           }}
         />
-      )}
+      ) : null}
     </Box>
   );
 };
