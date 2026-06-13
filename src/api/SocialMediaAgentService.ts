@@ -680,7 +680,7 @@ export class SocialMediaAgentService {
   // ── Video Production ──────────────────────────────────────────────────────
 
   static async submitVideoProduction(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
-    const response = await UriHttpClient.getClient().post('/produce-video', formData, {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.produceVideo, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 60000,
     });
@@ -700,7 +700,7 @@ export class SocialMediaAgentService {
       zooms: { at: number; type: string; intensity: string; reason: string }[];
     }>
   > {
-    const response = await UriHttpClient.getClient().get(`/produce-video-job/${jobId}`);
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.produceVideoJob}/${jobId}`);
     return response.data;
   }
 
