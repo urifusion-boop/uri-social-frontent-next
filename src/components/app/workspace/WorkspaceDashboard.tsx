@@ -3325,7 +3325,7 @@ const CalPerfSection = ({ data }: { data: CalendarPerformanceData }) => {
 };
 
 const PerformancePage = ({ onJane }: { onJane: () => void }) => {
-  const [view, setView] = useState<'posts' | 'accounts'>('posts');
+  const [view, setView] = useState<'posts' | 'accounts' | 'intel'>('posts');
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -3409,7 +3409,9 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
       desc={
         view === 'posts'
           ? 'Real-time insights from your published posts'
-          : 'Account-level metrics for your connected social profiles'
+          : view === 'accounts'
+            ? 'Account-level metrics for your connected social profiles'
+            : 'Industry keyword trends powered by Google'
       }
       onJane={onJane}
     >
@@ -3423,7 +3425,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
           marginBottom: 14,
         }}
       >
-        {(['posts', 'accounts'] as const).map((v) => (
+        {(['posts', 'accounts', 'intel'] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -3442,12 +3444,13 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
               textTransform: 'capitalize',
             }}
           >
-            {v === 'posts' ? 'Posts' : 'Accounts'}
+            {v === 'posts' ? 'Posts' : v === 'accounts' ? 'Accounts' : 'Market Intel'}
           </button>
         ))}
       </div>
 
-      {/* Range selector */}
+      {/* Range selector (not shown for Market Intel) */}
+      {view !== 'intel' && (
       <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
         {[7, 30, 90].map((d) => (
           <button
@@ -3470,6 +3473,10 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
         ))}
         <span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb', alignSelf: 'center' }}>Last {days} days</span>
       </div>
+      )}
+
+      {/* ── MARKET INTEL VIEW ── */}
+      {view === 'intel' && <IntelPage onJane={onJane} embedded />}
 
       {/* ── POSTS VIEW ── */}
       {view === 'posts' && (
@@ -3996,7 +4003,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
   );
 };
 
-const IntelPage = ({ onJane }: { onJane: () => void }) => {
+const IntelPage = ({ onJane, embedded }: { onJane: () => void; embedded?: boolean }) => {
   const [trends, setTrends] = useState<TrendsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -4046,17 +4053,8 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
     return null;
   };
 
-  return (
-    <SubPage
-      title="Market Intel"
-      icon="globe"
-      desc={
-        trends
-          ? `Trending in ${trends.industry.charAt(0).toUpperCase() + trends.industry.slice(1)}`
-          : 'Industry keyword trends powered by Google'
-      }
-      onJane={onJane}
-    >
+  const content = (
+    <>
       {loading && (
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 40 }}>
           <div
@@ -4192,6 +4190,23 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
           ))}
         </div>
       )}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <SubPage
+      title="Market Intel"
+      icon="globe"
+      desc={
+        trends
+          ? `Trending in ${trends.industry.charAt(0).toUpperCase() + trends.industry.slice(1)}`
+          : 'Industry keyword trends powered by Google'
+      }
+      onJane={onJane}
+    >
+      {content}
     </SubPage>
   );
 };
@@ -6766,13 +6781,7 @@ const NAV = [
     id: 'performance',
     icon: 'chart',
     label: 'Performance',
-    tooltip: 'Track engagement, reach, and post performance across all connected platforms',
-  },
-  {
-    id: 'intel',
-    icon: 'globe',
-    label: 'Market Intel',
-    tooltip: 'Discover trending topics and keywords relevant to your industry',
+    tooltip: 'Posts, accounts, and market intel — all your insights in one place',
   },
   {
     id: 'blog',
@@ -6785,12 +6794,6 @@ const NAV = [
     icon: 'book',
     label: 'Brand Playbook',
     tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
-  },
-  {
-    id: 'notifications',
-    icon: 'bell',
-    label: 'Notifications',
-    tooltip: 'View recent activity, scheduled post updates, and system alerts',
   },
   {
     id: 'settings',
@@ -6815,8 +6818,6 @@ const MOBILE_TABS = [
 ];
 
 const MORE_NAV = [
-  { id: 'intel', icon: 'globe', label: 'Market Intel' },
-  { id: 'notifications', icon: 'bell', label: 'Notifications' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
 ];
