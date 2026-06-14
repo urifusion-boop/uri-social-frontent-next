@@ -30,16 +30,21 @@ export function useCanvasEditor(draftId: string) {
     try {
       setLoading(true);
       setError(null);
+      console.log('🎨 Loading canvas document for draft:', draftId);
       const response = await CanvasEditorService.getDocument(draftId);
+      console.log('🎨 Canvas document response:', response);
       setState((prev) => ({
         ...prev,
         document: response.document,
         isDirty: false,
       }));
     } catch (err: unknown) {
+      console.error('🎨 Failed to load canvas document:', err);
       const errorMsg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as { response?: { data?: { message?: string; detail?: string } } })?.response?.data?.message ||
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
         'Failed to load canvas document';
+      console.error('🎨 Error message:', errorMsg);
       setError(errorMsg);
       ToastService.showToast(errorMsg, ToastTypeEnum.Error);
     } finally {
