@@ -67,7 +67,19 @@ export default function AgencyDashboard() {
       </div>
 
       {section === 'roster' && (
-        <RosterSection activeBrand={activeBrand} onOpenBrand={(bid) => { setActiveBrandId(bid); setActiveBrand(bid); ToastService.showToast('Now working on this brand', ToastTypeEnum.Success); }} />
+        <RosterSection
+          activeBrand={activeBrand}
+          onOpenBrand={(bid) => {
+            // Persist the active brand, then do a full navigation so the ENTIRE app
+            // (Jane, playbook, drafts, performance, profile) re-fetches for the new
+            // brand. Without a hard reset, stale state from the previous brand can be
+            // saved under the new brand_id — a cross-brand data corruption risk.
+            setActiveBrandId(bid);
+            setActiveBrand(bid);
+            ToastService.showToast('Switching brand…', ToastTypeEnum.Success);
+            window.location.assign('/workspace');
+          }}
+        />
       )}
       {section === 'members' && <MembersSection />}
       {section === 'reports' && <ReportsSection />}
