@@ -128,6 +128,8 @@ function LoginContent() {
           trial,
           is_new_user: isNewUser,
         } = res.responseData as unknown as Record<string, unknown>;
+        // Reset any active brand from a previous session/user on this browser
+        localStorage.removeItem('@URI@ACTIVE_BRAND_ID');
         saveUserTokens({ accessToken: accessToken as string, refreshToken: '' });
         const userDto: Record<string, unknown> = { userId, email: userEmail, firstName: fName, lastName: lName };
         if (trial && typeof trial === 'object') {
@@ -245,6 +247,8 @@ function LoginContent() {
         trial,
         emailVerified,
       } = res.responseData as unknown as Record<string, unknown>;
+      // Reset any active brand from a previous session/user on this browser
+      localStorage.removeItem('@URI@ACTIVE_BRAND_ID');
       saveUserTokens({ accessToken: accessToken as string, refreshToken: '' });
       const userDto: Record<string, unknown> = {
         userId,
