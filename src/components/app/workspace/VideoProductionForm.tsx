@@ -131,8 +131,22 @@ export default function VideoProductionForm({ onComplete }: Props) {
       setPhase('processing');
       setStatusMessage('Starting pipeline…');
       startPolling(res.responseData.job_id);
-    } catch {
-      ToastService.showToast('Upload failed. Please try again.', ToastTypeEnum.Error);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number }; code?: string; message?: string };
+      const status = axiosErr?.response?.status;
+      const code = axiosErr?.code;
+      const msg = axiosErr?.message;
+      console.error('[VideoProduction] upload error:', { status, code, msg });
+
+      if (code === 'ECONNABORTED' || msg?.includes('timeout')) {
+        ToastService.showToast('Upload timed out — try a smaller video or a faster connection.', ToastTypeEnum.Error);
+      } else if (status === 413) {
+        ToastService.showToast('Video file is too large for upload.', ToastTypeEnum.Error);
+      } else if (status === 401 || status === 403) {
+        ToastService.showToast('Session expired — please log in again.', ToastTypeEnum.Error);
+      } else {
+        ToastService.showToast('Upload failed. Please try again.', ToastTypeEnum.Error);
+      }
       setPhase('pick');
     }
   };
