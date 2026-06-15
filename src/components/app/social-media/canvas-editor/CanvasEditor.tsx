@@ -287,6 +287,13 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
   const canvasWidth = document.canvas.width;
   const canvasHeight = document.canvas.height;
 
+  // Calculate scale to fit canvas in viewport (with padding)
+  // Max display size: 800x800 to ensure it fits on most screens
+  const maxDisplaySize = 800;
+  const scale = Math.min(maxDisplaySize / canvasWidth, maxDisplaySize / canvasHeight);
+  const displayWidth = canvasWidth * scale;
+  const displayHeight = canvasHeight * scale;
+
   // Sort layers by z-index (bottom to top)
   const sortedLayers = [...document.layers].sort((a, b) => a.z_index - b.z_index);
 
@@ -340,14 +347,22 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
               boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
               borderRadius: '8px',
               overflow: 'hidden',
+              width: displayWidth,
+              height: displayHeight,
             }}
           >
             <Stage
               width={canvasWidth}
               height={canvasHeight}
+              scaleX={scale}
+              scaleY={scale}
               ref={stageRef}
               onClick={handleStageClick}
               onTap={handleStageClick}
+              style={{
+                width: displayWidth,
+                height: displayHeight,
+              }}
             >
               <KonvaLayer>
                 {sortedLayers.map((layer) => renderLayer(layer))}
