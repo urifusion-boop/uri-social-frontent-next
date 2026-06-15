@@ -53,6 +53,7 @@ export default function VideoProductionForm({ onComplete }: Props) {
   const [pacingNote, setPacingNote] = useState('');
   const [cuts, setCuts] = useState<{ remove_start: number; remove_end: number; reason: string }[]>([]);
   const [zooms, setZooms] = useState<{ at: number; type: string; intensity: string; reason: string }[]>([]);
+  const [soundEffects, setSoundEffects] = useState<{ at: number; type: string; reason: string }[]>([]);
 
   useEffect(() => {
     return () => {
@@ -96,6 +97,7 @@ export default function VideoProductionForm({ onComplete }: Props) {
           setPacingNote(j.pacing_note ?? '');
           setCuts(j.cuts ?? []);
           setZooms(j.zooms ?? []);
+          setSoundEffects(j.sound_effects ?? []);
           setPhase('ready');
         } else if (j.status === 'failed') {
           clearInterval(pollRef.current!);
@@ -143,6 +145,7 @@ export default function VideoProductionForm({ onComplete }: Props) {
     setOutputUrl(null);
     setCuts([]);
     setZooms([]);
+    setSoundEffects([]);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -185,7 +188,7 @@ export default function VideoProductionForm({ onComplete }: Props) {
         </div>
 
         {/* Edit decision summary */}
-        {(cuts.length > 0 || zooms.length > 0) && (
+        {(cuts.length > 0 || zooms.length > 0 || soundEffects.length > 0) && (
           <div
             style={{
               background: '#f8f7f5',
@@ -196,15 +199,20 @@ export default function VideoProductionForm({ onComplete }: Props) {
             }}
           >
             <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 8 }}>AI Edit Decisions</div>
-            <div style={{ display: 'flex', gap: 16 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               {cuts.length > 0 && (
                 <div style={{ fontSize: 12, color: '#C2185B' }}>
-                  ✂️ <strong>{cuts.length}</strong> cut{cuts.length !== 1 ? 's' : ''} applied
+                  ✂️ <strong>{cuts.length}</strong> cut{cuts.length !== 1 ? 's' : ''}
                 </div>
               )}
               {zooms.length > 0 && (
                 <div style={{ fontSize: 12, color: '#1976D2' }}>
-                  🔍 <strong>{zooms.length}</strong> zoom{zooms.length !== 1 ? 's' : ''} applied
+                  🔍 <strong>{zooms.length}</strong> zoom{zooms.length !== 1 ? 's' : ''}
+                </div>
+              )}
+              {soundEffects.length > 0 && (
+                <div style={{ fontSize: 12, color: '#7B1FA2' }}>
+                  🔊 <strong>{soundEffects.length}</strong> SFX
                 </div>
               )}
             </div>
