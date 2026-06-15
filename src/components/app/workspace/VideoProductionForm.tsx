@@ -97,7 +97,9 @@ export default function VideoProductionForm({ onComplete }: Props) {
           setPacingNote(j.pacing_note ?? '');
           setCuts(j.cuts ?? []);
           setZooms(j.zooms ?? []);
-          setSoundEffects((j as { sound_effects?: unknown[] }).sound_effects ?? []);
+          setSoundEffects(
+            (j as { sound_effects?: { at: number; type: string; reason: string }[] }).sound_effects ?? []
+          );
           setPhase('ready');
         } else if (j.status === 'failed') {
           clearInterval(pollRef.current!);
