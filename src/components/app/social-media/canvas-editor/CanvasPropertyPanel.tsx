@@ -17,11 +17,7 @@ interface CanvasPropertyPanelProps {
   onUpdateLayer: (layerId: string, updates: Partial<Layer>) => Promise<void>;
 }
 
-const CanvasPropertyPanel: React.FC<CanvasPropertyPanelProps> = ({
-  selectedLayerId,
-  document,
-  onUpdateLayer,
-}) => {
+const CanvasPropertyPanel: React.FC<CanvasPropertyPanelProps> = ({ selectedLayerId, document, onUpdateLayer }) => {
   const selectedLayer = document.layers.find((l) => l.id === selectedLayerId);
 
   const [textContent, setTextContent] = useState('');
@@ -71,16 +67,36 @@ const CanvasPropertyPanel: React.FC<CanvasPropertyPanelProps> = ({
           backgroundColor: '#1a1a1a',
           borderRight: '1px solid #3a3a3a',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           padding: '32px',
+          gap: '20px',
           color: '#888',
           fontSize: '14px',
           textAlign: 'center',
           lineHeight: '1.6',
         }}
       >
-        🔒 This layer is locked and cannot be edited
+        <div>🔒 This layer is locked and cannot be edited</div>
+        <button
+          onClick={() => onUpdateLayer(selectedLayer.id, { locked: false })}
+          style={{
+            padding: '12px 24px',
+            backgroundColor: '#ffa726',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: '14px',
+            transition: 'background-color 0.2s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#fb8c00')}
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffa726')}
+        >
+          🔓 Unlock Layer
+        </button>
       </div>
     );
   }

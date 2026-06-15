@@ -89,10 +89,16 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
    * Handle layer click
    */
   const handleLayerClick = (layer: Layer, node: Konva.Node) => {
-    if (layer.locked) return;
-
+    // Allow selecting locked layers (user can view properties and unlock them)
+    // But prevent dragging/transforming (handled by draggable prop)
     selectLayer(layer.id);
-    setSelectedNode(node);
+
+    // Only attach transformer to unlocked layers
+    if (!layer.locked) {
+      setSelectedNode(node);
+    } else {
+      setSelectedNode(null);
+    }
   };
 
   /**
@@ -371,6 +377,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
           onSelectLayer={selectLayer}
           onDeleteLayer={deleteLayer}
           onToggleVisibility={toggleLayerVisibility}
+          onUpdateLayer={updateLayer}
         />
       </div>
     </div>

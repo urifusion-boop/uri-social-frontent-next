@@ -9,7 +9,16 @@
 import React from 'react';
 import { LayeredDocument, Layer } from '@/src/types/canvas.types';
 import { IconButton, Tooltip } from '@mui/material';
-import { MdVisibility, MdVisibilityOff, MdDelete, MdLock, MdImage, MdTextFields, MdBrush } from 'react-icons/md';
+import {
+  MdVisibility,
+  MdVisibilityOff,
+  MdDelete,
+  MdLock,
+  MdLockOpen,
+  MdImage,
+  MdTextFields,
+  MdBrush,
+} from 'react-icons/md';
 
 interface CanvasLayerPanelProps {
   document: LayeredDocument;
@@ -17,6 +26,7 @@ interface CanvasLayerPanelProps {
   onSelectLayer: (layerId: string) => void;
   onDeleteLayer: (layerId: string) => void;
   onToggleVisibility: (layerId: string) => void;
+  onUpdateLayer: (layerId: string, updates: Partial<Layer>) => Promise<void>;
 }
 
 const CanvasLayerPanel: React.FC<CanvasLayerPanelProps> = ({
@@ -25,6 +35,7 @@ const CanvasLayerPanel: React.FC<CanvasLayerPanelProps> = ({
   onSelectLayer,
   onDeleteLayer,
   onToggleVisibility,
+  onUpdateLayer,
 }) => {
   const getLayerIcon = (layer: Layer) => {
     switch (layer.type) {
@@ -121,9 +132,7 @@ const CanvasLayerPanel: React.FC<CanvasLayerPanelProps> = ({
               }}
             >
               {/* Layer Icon */}
-              <div style={{ color: '#CD1B78', display: 'flex', alignItems: 'center' }}>
-                {getLayerIcon(layer)}
-              </div>
+              <div style={{ color: '#CD1B78', display: 'flex', alignItems: 'center' }}>{getLayerIcon(layer)}</div>
 
               {/* Layer Name */}
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -140,7 +149,16 @@ const CanvasLayerPanel: React.FC<CanvasLayerPanelProps> = ({
                   {getLayerName(layer)}
                 </div>
                 {layer.locked && (
-                  <div style={{ fontSize: '11px', color: '#888', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: '#888',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      marginTop: '2px',
+                    }}
+                  >
                     <MdLock size={12} />
                     Locked
                   </div>
@@ -149,6 +167,22 @@ const CanvasLayerPanel: React.FC<CanvasLayerPanelProps> = ({
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: '4px' }}>
+                {/* Lock/Unlock Toggle */}
+                {layer.locked && (
+                  <Tooltip title="Unlock Layer">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdateLayer(layer.id, { locked: false });
+                      }}
+                      sx={{ color: '#ffa726', '&:hover': { backgroundColor: 'rgba(255,167,38,0.1)' } }}
+                    >
+                      <MdLockOpen size={16} />
+                    </IconButton>
+                  </Tooltip>
+                )}
+
                 {/* Visibility Toggle */}
                 <Tooltip title={layer.visible ? 'Hide Layer' : 'Show Layer'}>
                   <IconButton
