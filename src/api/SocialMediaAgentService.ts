@@ -679,10 +679,18 @@ export class SocialMediaAgentService {
 
   // ── Video Production ──────────────────────────────────────────────────────
 
-  static async submitVideoProduction(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+  static async submitVideoProduction(
+    formData: FormData,
+    onUploadProgress?: (percent: number) => void
+  ): Promise<UriResponse<{ job_id: string }>> {
     const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.produceVideo, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000, // 5 min — large file upload on mobile may take 2+ minutes
+      timeout: 0, // no timeout — upload duration depends on file size + connection speed
+      onUploadProgress: onUploadProgress
+        ? (e: ProgressEvent) => {
+            if (e.total) onUploadProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        : undefined,
     });
     return response.data;
   }

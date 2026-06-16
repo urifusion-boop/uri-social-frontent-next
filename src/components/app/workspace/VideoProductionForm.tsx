@@ -125,7 +125,10 @@ export default function VideoProductionForm({ onComplete }: Props) {
       formData.append('video', videoFile);
       formData.append('video_type', videoType);
 
-      const res = await SocialMediaAgentService.submitVideoProduction(formData);
+      const res = await SocialMediaAgentService.submitVideoProduction(formData, (pct) => {
+        setProgress(pct);
+        setStatusMessage(`Uploading… ${pct}%`);
+      });
       if (!res?.responseData?.job_id) throw new Error('No job ID returned');
 
       setPhase('processing');
