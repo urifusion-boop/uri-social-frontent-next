@@ -1,7 +1,7 @@
 import { UriHttpClient } from '@/src/configs/http.config';
 import { socialMediaAgentRoutes } from '@/src/constants/routes/socialMediaAgentRoutes';
 import { UriResponse } from '@/src/models/responses/UriResponse';
-import { AxiosResponse } from 'axios';
+import { AxiosProgressEvent, AxiosResponse } from 'axios';
 
 export interface BrandContext {
   brand_name?: string;
@@ -687,7 +687,7 @@ export class SocialMediaAgentService {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 0, // no timeout — upload duration depends on file size + connection speed
       onUploadProgress: onUploadProgress
-        ? (e: ProgressEvent) => {
+        ? (e: AxiosProgressEvent) => {
             if (e.total) onUploadProgress(Math.round((e.loaded / e.total) * 100));
           }
         : undefined,
