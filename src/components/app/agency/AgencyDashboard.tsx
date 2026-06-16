@@ -309,7 +309,6 @@ function MembersSection() {
   const [members, setMembers] = useState<AgencyMember[]>([]);
   const [brands, setBrands] = useState<BrandAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showInvite, setShowInvite] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -329,9 +328,8 @@ function MembersSection() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button style={primary} onClick={() => setShowInvite(true)}><FiPlus size={15} /> Invite Member</button>
-      </div>
+      {/* Invite Member is hidden for now — a user invited into a second agency while
+          already belonging to one silently breaks (V1 supports one agency per user). */}
       {loading ? <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>Loading…</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {members.map((m) => (
@@ -339,7 +337,7 @@ function MembersSection() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div>
                   <span style={{ fontWeight: 700, color: '#111' }}>
-                    {m.user_id ? `${m.user_id.slice(0, 14)}…` : m.email || 'Pending invite'}
+                    {m.email || (m.user_id ? `${m.user_id.slice(0, 14)}…` : 'Pending invite')}
                   </span>
                   {m.status === 'invited' && (
                     <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: '#ca8a04', background: '#fef9c3', padding: '2px 8px', borderRadius: 10 }}>pending</span>
@@ -369,7 +367,6 @@ function MembersSection() {
           ))}
         </div>
       )}
-      {showInvite && <InviteModal onClose={() => setShowInvite(false)} onInvited={() => { setShowInvite(false); load(); }} />}
     </div>
   );
 }
