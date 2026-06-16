@@ -3452,28 +3452,28 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
 
       {/* Range selector (not shown for Market Intel) */}
       {view !== 'intel' && (
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-        {[7, 30, 90].map((d) => (
-          <button
-            key={d}
-            onClick={() => setDays(d)}
-            style={{
-              padding: '5px 14px',
-              borderRadius: 20,
-              border: `1.5px solid ${days === d ? '#C2185B' : '#e5e3df'}`,
-              background: days === d ? '#fdf0f6' : '#fff',
-              color: days === d ? '#C2185B' : '#666',
-              fontSize: 12.5,
-              fontWeight: days === d ? 700 : 500,
-              cursor: 'pointer',
-              fontFamily: 'var(--wf)',
-            }}
-          >
-            {d}d
-          </button>
-        ))}
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb', alignSelf: 'center' }}>Last {days} days</span>
-      </div>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          {[7, 30, 90].map((d) => (
+            <button
+              key={d}
+              onClick={() => setDays(d)}
+              style={{
+                padding: '5px 14px',
+                borderRadius: 20,
+                border: `1.5px solid ${days === d ? '#C2185B' : '#e5e3df'}`,
+                background: days === d ? '#fdf0f6' : '#fff',
+                color: days === d ? '#C2185B' : '#666',
+                fontSize: 12.5,
+                fontWeight: days === d ? 700 : 500,
+                cursor: 'pointer',
+                fontFamily: 'var(--wf)',
+              }}
+            >
+              {d}d
+            </button>
+          ))}
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb', alignSelf: 'center' }}>Last {days} days</span>
+        </div>
       )}
 
       {/* ── MARKET INTEL VIEW ── */}
@@ -4447,6 +4447,31 @@ const PlaybookPage = ({
       setLogoPosition(profile.logo_position);
     }
   }, [profile?.logo_position]);
+
+  // Auto-save custom guide selections
+  const handleCustomGuideChange = async (guideIds: string[]) => {
+    setSelectedCustomGuides(guideIds);
+
+    // Auto-save to backend
+    if (profile) {
+      try {
+        const updatedProfile = {
+          ...profile,
+          selected_custom_guides: guideIds,
+          style_rotation_index: 0, // Reset rotation when guides change
+        };
+        const response = await BrandProfileService.save(updatedProfile);
+        if (response.status) {
+          onProfileUpdate({ ...profile, selected_custom_guides: guideIds, style_rotation_index: 0 });
+          console.log('🎨 Custom guides auto-saved:', guideIds);
+        } else {
+          console.error('🎨 Auto-save failed:', response);
+        }
+      } catch (error) {
+        console.error('🎨 Error auto-saving custom guides:', error);
+      }
+    }
+  };
 
   const startEdit = () => {
     if (!profile) return;
@@ -5706,7 +5731,7 @@ const PlaybookPage = ({
                 <button
                   onClick={() => {
                     setStyleSelections([]);
-                    setSelectedCustomGuides([]);
+                    handleCustomGuideChange([]);
                   }}
                   style={{
                     background: 'none',
@@ -5727,7 +5752,7 @@ const PlaybookPage = ({
               selected={styleSelections}
               onChange={setStyleSelections}
               selectedCustomGuides={selectedCustomGuides}
-              onCustomGuideChange={setSelectedCustomGuides}
+              onCustomGuideChange={handleCustomGuideChange}
               brandId={profile?.id}
             />
           </div>
