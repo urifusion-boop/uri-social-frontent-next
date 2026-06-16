@@ -346,9 +346,10 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
               backgroundColor: 'white',
               boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
               borderRadius: '8px',
-              overflow: 'hidden',
+              overflow: 'visible',
               width: displayWidth,
               height: displayHeight,
+              position: 'relative',
             }}
           >
             <Stage
@@ -362,6 +363,7 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
               style={{
                 width: displayWidth,
                 height: displayHeight,
+                display: 'block',
               }}
             >
               <KonvaLayer>
