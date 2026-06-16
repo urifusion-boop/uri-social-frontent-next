@@ -103,11 +103,13 @@ class UriHttpClient {
           // Don't clear on connect endpoints as these might have other authorization issues
           // Don't clear on notification endpoints as expired tokens are handled by polling
           // Don't clear on custom-guides 403 as it might be plan limit
+          // Don't clear on billing endpoints — auth errors here are secondary; auth endpoints are authoritative
           const isBrandProfile = error.config?.url?.includes('/brand-profile');
           const isConnectEndpoint = error.config?.url?.includes('/connect');
           const isNotificationEndpoint = error.config?.url?.includes('/notifications');
           const isCustomGuides = error.config?.url?.includes('/custom-guides');
-          if (!isBrandProfile && !isConnectEndpoint && !isNotificationEndpoint && !isCustomGuides) {
+          const isBillingEndpoint = error.config?.url?.includes('/billing');
+          if (!isBrandProfile && !isConnectEndpoint && !isNotificationEndpoint && !isCustomGuides && !isBillingEndpoint) {
             this.clearUserData();
             window.dispatchEvent(new CustomEvent('unauthorized'));
           }

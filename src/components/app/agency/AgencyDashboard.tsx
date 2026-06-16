@@ -13,7 +13,7 @@ import {
 } from '@/src/api/AgencyService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { FiPlus, FiUsers, FiGrid, FiBarChart2, FiCreditCard, FiCopy, FiX } from 'react-icons/fi';
+import { FiPlus, FiUsers, FiGrid, FiBarChart2, FiCreditCard, FiCopy, FiX, FiEdit2, FiCheck } from 'react-icons/fi';
 
 const URI_PINK = '#CD1B78';
 
@@ -50,12 +50,7 @@ export default function AgencyDashboard() {
     <div style={{ padding: '24px 32px 100px', maxWidth: 1200, margin: '0 auto', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, color: '#111' }}>{agency.name}</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6b7280' }}>
-            One agency. Many brands. One credit pool.
-          </p>
-        </div>
+        <EditableAgencyName agency={agency} onChange={setAgency} />
         <WalletBadge agency={agency} onChange={setAgency} />
       </div>
 
@@ -120,6 +115,74 @@ function CreateAgencyPrompt({ onCreated }: { onCreated: (a: Agency) => void }) {
       >
         {busy ? 'Creating…' : 'Create Agency'}
       </button>
+    </div>
+  );
+}
+
+// ── Editable agency name ─────────────────────────────────────────────────────
+
+function EditableAgencyName({ agency, onChange }: { agency: Agency; onChange: (a: Agency) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(agency.name);
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === agency.name) { setEditing(false); setName(agency.name); return; }
+    setBusy(true);
+    try {
+      const res = await AgencyService.updateAgency(trimmed);
+      if (res.status && res.responseData) {
+        onChange(res.responseData);
+        ToastService.showToast('Agency name updated', ToastTypeEnum.Success);
+        setEditing(false);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Failed to update name', ToastTypeEnum.Error);
+      }
+    } catch {
+      ToastService.showToast('Failed to update name', ToastTypeEnum.Error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            autoFocus
+            aria-label="Agency name"
+            placeholder="Agency name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setEditing(false); setName(agency.name); } }}
+            disabled={busy}
+            style={{ fontSize: 22, fontWeight: 800, color: '#111', border: `2px solid ${URI_PINK}`, borderRadius: 8, padding: '4px 10px', outline: 'none' }}
+          />
+          <button onClick={save} disabled={busy} title="Save" style={{ background: 'none', border: 'none', cursor: busy ? 'not-allowed' : 'pointer', color: URI_PINK, padding: 4 }}>
+            <FiCheck size={18} />
+          </button>
+          <button onClick={() => { setEditing(false); setName(agency.name); }} disabled={busy} title="Cancel" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4 }}>
+            <FiX size={18} />
+          </button>
+        </div>
+        <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6b7280' }}>One agency. Many brands. One credit pool.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0, color: '#111' }}>{agency.name}</h1>
+        <button onClick={() => setEditing(true)} title="Rename agency" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4 }}>
+          <FiEdit2 size={16} />
+        </button>
+      </div>
+      <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6b7280' }}>
+        One agency. Many brands. One credit pool.
+      </p>
     </div>
   );
 }
@@ -275,7 +338,12 @@ function MembersSection() {
             <div key={m.agency_member_id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div>
-                  <span style={{ fontWeight: 700, color: '#111' }}>{m.user_id.slice(0, 14)}…</span>
+                  <span style={{ fontWeight: 700, color: '#111' }}>
+                    {m.user_id ? `${m.user_id.slice(0, 14)}…` : m.email || 'Pending invite'}
+                  </span>
+                  {m.status === 'invited' && (
+                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: '#ca8a04', background: '#fef9c3', padding: '2px 8px', borderRadius: 10 }}>pending</span>
+                  )}
                   <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: m.role === 'admin' ? URI_PINK : '#6b7280', textTransform: 'uppercase' }}>{m.role}</span>
                 </div>
                 {m.role !== 'admin' && (

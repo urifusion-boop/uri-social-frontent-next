@@ -32,6 +32,7 @@ import StylePickerGallery from '@/src/components/app/social-media/StylePickerGal
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
 import AgencyDashboard from '@/src/components/app/agency/AgencyDashboard';
+import { AgencyService, BrandAccount, getActiveBrandId, setActiveBrandId } from '@/src/api/AgencyService';
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
@@ -6855,6 +6856,8 @@ export default function WorkspaceDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [switcherBrands, setSwitcherBrands] = useState<BrandAccount[] | null>(null);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [trialExpiredOpen, setTrialExpiredOpen] = useState(false);
   const [trialEndingDismissed, setTrialEndingDismissed] = useState(false);
@@ -6875,6 +6878,12 @@ export default function WorkspaceDashboard() {
     ck();
     window.addEventListener('resize', ck);
     return () => window.removeEventListener('resize', ck);
+  }, []);
+
+  useEffect(() => {
+    AgencyService.listBrands()
+      .then((res) => setSwitcherBrands(res.status ? res.responseData ?? [] : []))
+      .catch(() => setSwitcherBrands([]));
   }, []);
 
   // Keep nav in sync with the ?tab= URL param so that router.push('/workspace?tab=connections')
@@ -7327,6 +7336,7 @@ export default function WorkspaceDashboard() {
             </div>
             <div
               style={{
+                position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -7335,7 +7345,24 @@ export default function WorkspaceDashboard() {
                 borderTop: '1px solid rgba(255,255,255,.05)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              {switcherOpen && switcherBrands && switcherBrands.length > 1 && (
+                <div
+                  onClick={() => setSwitcherOpen(false)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                />
+              )}
+              <div
+                onClick={() => {
+                  if (switcherBrands && switcherBrands.length > 1) setSwitcherOpen((o) => !o);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 9,
+                  cursor: switcherBrands && switcherBrands.length > 1 ? 'pointer' : 'default',
+                  position: 'relative',
+                }}
+              >
                 {profile?.logo_url ? (
                   <img
                     src={profile.logo_url}
@@ -7363,6 +7390,59 @@ export default function WorkspaceDashboard() {
                     {userDetails?.subscriptionTier || 'Free'} Plan
                   </div>
                 </div>
+                {switcherOpen && switcherBrands && switcherBrands.length > 1 && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      marginBottom: 10,
+                      width: 220,
+                      background: '#231227',
+                      border: '1px solid rgba(255,255,255,.08)',
+                      borderRadius: 10,
+                      boxShadow: '0 8px 24px rgba(0,0,0,.4)',
+                      overflow: 'hidden',
+                      zIndex: 999,
+                    }}
+                  >
+                    <div style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase' }}>
+                      Switch brand
+                    </div>
+                    {switcherBrands.map((b) => {
+                      const active = b.brand_id === getActiveBrandId();
+                      return (
+                        <button
+                          key={b.brand_id}
+                          onClick={() => {
+                            setSwitcherOpen(false);
+                            if (active) return;
+                            setActiveBrandId(b.brand_id);
+                            window.location.assign('/workspace');
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            width: '100%',
+                            padding: '9px 12px',
+                            background: active ? 'rgba(233,30,99,.12)' : 'transparent',
+                            border: 'none',
+                            color: active ? '#fce4ec' : 'rgba(255,255,255,.65)',
+                            fontSize: 13,
+                            fontWeight: active ? 600 : 400,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</span>
+                          {active && <I n="check" s={13} c="#E91E63" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <button
                 onClick={logoutUser}

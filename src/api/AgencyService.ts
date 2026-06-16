@@ -39,7 +39,8 @@ export interface RosterBrand extends BrandAccount {
 export interface AgencyMember {
   agency_member_id: string;
   agency_id: string;
-  user_id: string;
+  user_id: string | null;
+  email: string | null;
   role: 'admin' | 'agent';
   status: string;
   joined_at: string | null;
@@ -107,6 +108,11 @@ export class AgencyService {
       name,
       plan_tier: planTier ?? 'agency_starter',
     });
+    return res.data;
+  }
+
+  static async updateAgency(name: string): Promise<UriResponse<Agency>> {
+    const res: AxiosResponse<UriResponse<Agency>> = await UriHttpClient.getClient().patch(R.agency, { name });
     return res.data;
   }
 
