@@ -7,7 +7,14 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Stage, Layer as KonvaLayer, Image as KonvaImage, Text as KonvaText, Transformer } from 'react-konva';
+import {
+  Stage,
+  Layer as KonvaLayer,
+  Image as KonvaImage,
+  Text as KonvaText,
+  Rect as KonvaRect,
+  Transformer,
+} from 'react-konva';
 import Konva from 'konva';
 import { useCanvasEditor } from './hooks/useCanvasEditor';
 import { Layer, TextLayer, BackgroundLayer, BrandAssetLayer } from '@/src/types/canvas.types';
@@ -143,29 +150,43 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
   };
 
   /**
-   * Render text layer
+   * Render text layer with optional background to cover original text
    */
   const renderTextLayer = (layer: TextLayer) => {
     return (
-      <KonvaText
-        key={layer.id}
-        id={layer.id}
-        text={layer.content}
-        x={layer.x || 0}
-        y={layer.y || 0}
-        fontSize={layer.font_size}
-        fontFamily={layer.font_family}
-        fill={layer.color}
-        fontStyle={layer.font_weight && layer.font_weight > 400 ? 'bold' : 'normal'}
-        align={layer.align || 'left'}
-        width={layer.width}
-        draggable={!layer.locked}
-        visible={layer.visible}
-        onClick={(e) => handleLayerClick(layer, e.target)}
-        onTap={(e) => handleLayerClick(layer, e.target)}
-        onDragEnd={(e) => handleDragEnd(layer, e)}
-        onTransformEnd={(e) => handleTransformEnd(layer, e)}
-      />
+      <React.Fragment key={layer.id}>
+        {/* Background rectangle to cover original text in base image */}
+        {layer.background_color && (
+          <KonvaRect
+            x={layer.x || 0}
+            y={layer.y || 0}
+            width={layer.width || 200}
+            height={layer.height || layer.font_size * 1.2}
+            fill={layer.background_color}
+            listening={false}
+            visible={layer.visible}
+          />
+        )}
+        {/* Editable text layer on top */}
+        <KonvaText
+          id={layer.id}
+          text={layer.content}
+          x={layer.x || 0}
+          y={layer.y || 0}
+          fontSize={layer.font_size}
+          fontFamily={layer.font_family}
+          fill={layer.color}
+          fontStyle={layer.font_weight && layer.font_weight > 400 ? 'bold' : 'normal'}
+          align={layer.align || 'left'}
+          width={layer.width}
+          draggable={!layer.locked}
+          visible={layer.visible}
+          onClick={(e) => handleLayerClick(layer, e.target)}
+          onTap={(e) => handleLayerClick(layer, e.target)}
+          onDragEnd={(e) => handleDragEnd(layer, e)}
+          onTransformEnd={(e) => handleTransformEnd(layer, e)}
+        />
+      </React.Fragment>
     );
   };
 

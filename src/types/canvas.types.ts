@@ -39,6 +39,7 @@ export interface TextLayer extends BaseLayer {
   font_size: number;
   font_weight?: number;
   color: string;
+  background_color?: string; // Background color behind text (extracted from image)
   align?: 'left' | 'center' | 'right';
   vertical_align?: 'top' | 'middle' | 'bottom';
   line_height?: number;
