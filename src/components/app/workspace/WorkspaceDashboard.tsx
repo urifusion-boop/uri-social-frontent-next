@@ -2397,10 +2397,23 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           ToastService.showToast('Could not load accounts. Please try again.', ToastTypeEnum.Error);
           setPhase('idle');
         });
+    } else if (connected === 'true') {
+      const platform = searchParams.get('platform') ?? '';
+      const username = searchParams.get('username') ? decodeURIComponent(searchParams.get('username')!) : platform;
+      router.replace('/workspace?tab=connections');
+      if (platform) {
+        ToastService.showToast(`${username} connected successfully!`, ToastTypeEnum.Success);
+        posthog.capture('social_account_connected', { platform, username });
+        try { sessionStorage.removeItem('social_connections_cache'); } catch { /* noop */ }
+        loadStatuses();
+      }
+      // If this page is running inside a popup, close it so the opener's polling timer fires
+      if (typeof window !== 'undefined' && window.opener) window.close();
     } else if (connected === 'false') {
       const err = searchParams.get('error');
       ToastService.showToast(err ?? 'Connection failed. Please try again.', ToastTypeEnum.Error);
       router.replace('/workspace?tab=connections');
+      if (typeof window !== 'undefined' && window.opener) window.close();
     }
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
