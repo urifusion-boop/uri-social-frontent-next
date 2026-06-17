@@ -6879,6 +6879,13 @@ export default function WorkspaceDashboard() {
     uploading: boolean;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Revoke blob URL when attachment changes or unmounts to prevent stale-blob errors
+  useEffect(() => {
+    return () => {
+      if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachment?.previewUrl]);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [switcherBrands, setSwitcherBrands] = useState<BrandAccount[] | null>(null);
@@ -7090,10 +7097,10 @@ export default function WorkspaceDashboard() {
         id: 'u' + Date.now(),
         type: 'user',
         time: now,
-        content: previewUrl ? (
+        content: (imageUrl || previewUrl) ? (
           <div>
             <img
-              src={previewUrl}
+              src={imageUrl ?? previewUrl}
               alt="attachment"
               style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, display: 'block', marginBottom: txt ? 8 : 0 }}
             />

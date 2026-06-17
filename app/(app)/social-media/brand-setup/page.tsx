@@ -766,7 +766,7 @@ function BrandSetupPageContent() {
     const platform = searchParams.get('platform');
     const sessionToken = searchParams.get('sessionToken');
 
-    // LinkedIn / X popup-flow callback — if initiated from workspace, go back there
+    // LinkedIn / X popup-flow callback (including fallback full-page redirect)
     if ((connected === 'true' || connected === 'false') && platform) {
       const oauthSource = localStorage.getItem('uri_oauth_connect_source');
       if (oauthSource === 'workspace') {
@@ -774,6 +774,18 @@ function BrandSetupPageContent() {
         router.replace('/workspace');
         return;
       }
+      // Popup was blocked → full-page redirect came back here — mirror what the
+      // popup-close handler does so the user sees the success/failure state.
+      if (connected === 'true') {
+        const username = searchParams.get('username');
+        const displayName = username ? decodeURIComponent(username) : platform;
+        setConnectedAccountNames((prev) => [...prev, displayName]);
+        setConnectPhase('success');
+      } else {
+        setConnectPhase('selecting');
+      }
+      router.replace('/social-media/brand-setup');
+      return;
     }
 
     if (connected === 'pending' && sessionToken) {
