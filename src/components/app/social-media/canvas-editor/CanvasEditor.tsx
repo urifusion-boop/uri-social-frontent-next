@@ -341,50 +341,40 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ draftId, onClose, onSave })
             padding: '40px',
           }}
         >
-          <div
+          <Stage
+            width={canvasWidth}
+            height={canvasHeight}
+            scaleX={scale}
+            scaleY={scale}
+            ref={stageRef}
+            onClick={handleStageClick}
+            onTap={handleStageClick}
             style={{
-              backgroundColor: 'white',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-              borderRadius: '8px',
-              overflow: 'visible',
               width: displayWidth,
               height: displayHeight,
-              position: 'relative',
+              display: 'block',
+              backgroundColor: 'white',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
             }}
           >
-            <Stage
-              width={canvasWidth}
-              height={canvasHeight}
-              scaleX={scale}
-              scaleY={scale}
-              ref={stageRef}
-              onClick={handleStageClick}
-              onTap={handleStageClick}
-              style={{
-                width: displayWidth,
-                height: displayHeight,
-                display: 'block',
-              }}
-            >
-              <KonvaLayer>
-                {sortedLayers.map((layer) => renderLayer(layer))}
+            <KonvaLayer>
+              {sortedLayers.map((layer) => renderLayer(layer))}
 
-                {/* Transformer for selected layer */}
-                {selectedNode && (
-                  <Transformer
-                    ref={transformerRef}
-                    boundBoxFunc={(oldBox, newBox) => {
-                      // Limit resize
-                      if (newBox.width < 5 || newBox.height < 5) {
-                        return oldBox;
-                      }
-                      return newBox;
-                    }}
-                  />
-                )}
-              </KonvaLayer>
-            </Stage>
-          </div>
+              {/* Transformer for selected layer */}
+              {selectedNode && (
+                <Transformer
+                  ref={transformerRef}
+                  boundBoxFunc={(oldBox, newBox) => {
+                    // Limit resize
+                    if (newBox.width < 5 || newBox.height < 5) {
+                      return oldBox;
+                    }
+                    return newBox;
+                  }}
+                />
+              )}
+            </KonvaLayer>
+          </Stage>
         </div>
 
         {/* Layer Panel (Right) */}

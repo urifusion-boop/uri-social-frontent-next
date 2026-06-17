@@ -11,6 +11,7 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import posthog from 'posthog-js';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
+import { UriHttpClient } from '@/src/configs/http.config';
 import { useRouter } from 'next/navigation';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
@@ -2035,10 +2036,21 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         <CanvasEditor
           draftId={draft.id || draft.draft_id || ''}
           onClose={() => setCanvasEditorOpen(false)}
-          onSave={() => {
-            ToastService.showToast('Image saved from Canvas Editor', ToastTypeEnum.Success);
-            setCanvasEditorOpen(false);
-            onRefresh();
+          onSave={async (imageUrl: string) => {
+            try {
+              // Update draft with new rendered image
+              const draftId = draft.id || draft.draft_id || '';
+              await UriHttpClient.getClient().patch(`/social-media/drafts/${draftId}`, {
+                image_url: imageUrl,
+              });
+
+              ToastService.showToast('✅ Canvas edits saved to draft!', ToastTypeEnum.Success);
+              setCanvasEditorOpen(false);
+              onRefresh(); // Refresh to show updated image
+            } catch (error) {
+              console.error('Failed to save canvas image to draft:', error);
+              ToastService.showToast('Failed to save image', ToastTypeEnum.Error);
+            }
           }}
         />
       ) : null}
