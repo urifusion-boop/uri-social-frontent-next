@@ -8,6 +8,7 @@ import { MdImage } from 'react-icons/md';
 import { CustomVisualGuide, CustomVisualGuideService } from '@/src/api/CustomVisualGuideService';
 import CustomGuideUploadModal from './CustomGuideUploadModal';
 import CustomGuideInfoTooltip from './CustomGuideInfoTooltip';
+import CustomGuidesV2Gallery from './CustomGuidesV2Gallery';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -17,8 +18,10 @@ interface StylePickerGalleryProps {
   industry: string;
   selected: string[];
   onChange: (slugs: string[]) => void;
-  selectedCustomGuides?: string[]; // custom guide IDs (array)
+  selectedCustomGuides?: string[]; // custom guide V1 IDs (array)
   onCustomGuideChange?: (guideIds: string[]) => void;
+  selectedCustomGuidesV2?: string[]; // custom guide V2 IDs (array)
+  onCustomGuideV2Change?: (guideIds: string[]) => void;
   brandId?: string;
 }
 
@@ -105,6 +108,8 @@ export default function StylePickerGallery({
   onChange,
   selectedCustomGuides = [],
   onCustomGuideChange,
+  selectedCustomGuidesV2 = [],
+  onCustomGuideV2Change,
   brandId,
 }: StylePickerGalleryProps) {
   const primary = '#CD1B78';
@@ -147,7 +152,7 @@ export default function StylePickerGallery({
         onCustomGuideChange(selectedCustomGuides.filter((id) => id !== guideId));
       } else {
         // Check if we're at the selection limit
-        const currentSelectionCount = selected.length + selectedCustomGuides.length;
+        const currentSelectionCount = selected.length + selectedCustomGuides.length + selectedCustomGuidesV2.length;
         if (currentSelectionCount >= MAX_SELECTIONS) {
           // Already at limit, can't select another
           return;
@@ -197,8 +202,8 @@ export default function StylePickerGallery({
     if (selected.includes(slug)) {
       onChange(selected.filter((s) => s !== slug));
     } else {
-      // Check total selection count (library styles + custom guides)
-      const currentSelectionCount = selected.length + selectedCustomGuides.length;
+      // Check total selection count (library styles + custom guides V1 + V2)
+      const currentSelectionCount = selected.length + selectedCustomGuides.length + selectedCustomGuidesV2.length;
       if (currentSelectionCount >= MAX_SELECTIONS) {
         // silently enforce limit — caller should show guidance
         return;
@@ -454,6 +459,17 @@ export default function StylePickerGallery({
               </Button>
             </Box>
           )}
+        </Box>
+      )}
+
+      {/* Custom Visual Guides V2 Section */}
+      {onCustomGuideV2Change && (
+        <Box sx={{ mb: 4 }}>
+          <CustomGuidesV2Gallery
+            selectedGuideIds={selectedCustomGuidesV2}
+            onSelectionChange={onCustomGuideV2Change}
+            brandId={brandId}
+          />
         </Box>
       )}
 

@@ -32,7 +32,7 @@ export default function CustomGuidesV2Gallery({
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<{ element: HTMLElement; guideId: string } | null>(null);
 
-  const primary = '#8B5CF6'; // Purple for V2
+  const primary = '#CD1B78'; // Brand pink
 
   useEffect(() => {
     loadGuides();
@@ -94,46 +94,53 @@ export default function CustomGuidesV2Gallery({
 
   return (
     <Box>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-            <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#0d0e0f' }}>
-              Custom Style Guides V2
-            </Typography>
-            <Box
-              sx={{
-                px: 1,
-                py: 0.25,
-                borderRadius: '6px',
-                background: 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)',
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 700,
-              }}
-            >
-              ADVANCED
-            </Box>
+      {/* Section Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mb: 2,
+          pb: 1.5,
+          borderBottom: `2px solid ${primary}22`,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box
+            sx={{
+              background: `linear-gradient(135deg, ${primary}, #9B1460)`,
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 700,
+              px: 1.5,
+              py: 0.5,
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+            }}
+          >
+            V2
           </Box>
-          <Typography sx={{ fontSize: 13, color: '#6B7280' }}>
-            Advanced style transfer with GPT-4o Vision • Reference images used directly
+          <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f' }}>Advanced Style Transfer</Typography>
+          <Typography sx={{ fontSize: 11, color: '#6B7280', fontStyle: 'italic' }}>
+            GPT-4o Vision • Reference images used directly
           </Typography>
         </Box>
         <Button
-          variant="contained"
+          size="small"
           startIcon={<FaPlus />}
           onClick={() => setUploadModalOpen(true)}
           sx={{
-            background: `linear-gradient(135deg, ${primary} 0%, #EC4899 100%)`,
-            color: '#fff',
             textTransform: 'none',
+            fontSize: 12,
             fontWeight: 600,
-            borderRadius: '10px',
-            px: 3,
-            '&:hover': { opacity: 0.9 },
+            color: primary,
+            '&:hover': {
+              background: `${primary}10`,
+            },
           }}
         >
-          Upload Style Reference
+          Upload
         </Button>
       </Box>
 
@@ -141,38 +148,38 @@ export default function CustomGuidesV2Gallery({
       {guides.length === 0 && (
         <Box
           sx={{
+            p: 4,
             textAlign: 'center',
-            py: 8,
-            px: 3,
-            border: `2px dashed ${primary}30`,
-            borderRadius: '16px',
-            background: `${primary}05`,
+            border: '2px dashed #E5E7EB',
+            borderRadius: '12px',
+            background: '#F9FAFB',
           }}
         >
-          <MdImage size={64} color={primary} style={{ marginBottom: 16, opacity: 0.5 }} />
-          <Typography sx={{ fontSize: 16, fontWeight: 600, color: '#374151', mb: 1 }}>
-            No V2 Style Guides Yet
+          <MdImage size={48} color="#9CA3AF" style={{ marginBottom: 12 }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#6B7280', mb: 1.5 }}>
+            No V2 guides yet
           </Typography>
-          <Typography sx={{ fontSize: 14, color: '#6B7280', mb: 3, maxWidth: 450, mx: 'auto' }}>
-            Upload reference images to create advanced style transfer guides. GPT-4o Vision analyzes your reference and
-            applies the style to your brand content while protecting identity.
+          <Typography sx={{ fontSize: 12, color: '#9CA3AF', mb: 2 }}>
+            GPT-4o Vision analyzes reference images & applies style while protecting your identity
           </Typography>
           <Button
-            variant="contained"
+            size="small"
+            variant="outlined"
             startIcon={<FaPlus />}
             onClick={() => setUploadModalOpen(true)}
             sx={{
-              background: `linear-gradient(135deg, ${primary} 0%, #EC4899 100%)`,
-              color: '#fff',
               textTransform: 'none',
+              fontSize: 12,
               fontWeight: 600,
-              borderRadius: '10px',
-              px: 4,
-              py: 1.5,
-              '&:hover': { opacity: 0.9 },
+              borderColor: primary,
+              color: primary,
+              '&:hover': {
+                borderColor: primary,
+                background: `${primary}10`,
+              },
             }}
           >
-            Upload Your First Style Reference
+            Upload Your First Guide
           </Button>
         </Box>
       )}

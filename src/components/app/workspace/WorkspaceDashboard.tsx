@@ -5734,21 +5734,22 @@ const PlaybookPage = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span
                 style={{
-                  background: styleSelections.length + selectedCustomGuides.length > 0 ? '#C2185B' : '#e5e7eb',
-                  color: styleSelections.length + selectedCustomGuides.length > 0 ? '#fff' : '#6b7280',
+                  background: styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0 ? '#C2185B' : '#e5e7eb',
+                  color: styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0 ? '#fff' : '#6b7280',
                   borderRadius: 99,
                   padding: '2px 10px',
                   fontSize: 11.5,
                   fontWeight: 600,
                 }}
               >
-                {styleSelections.length + selectedCustomGuides.length}/3 selected
+                {styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length}/3 selected
               </span>
-              {(styleSelections.length > 0 || selectedCustomGuides.length > 0) && (
+              {(styleSelections.length > 0 || selectedCustomGuides.length > 0 || selectedCustomGuidesV2.length > 0) && (
                 <button
                   onClick={() => {
                     setStyleSelections([]);
                     handleCustomGuideChange([]);
+                    setSelectedCustomGuidesV2([]);
                   }}
                   style={{
                     background: 'none',
@@ -5770,29 +5771,11 @@ const PlaybookPage = ({
               onChange={setStyleSelections}
               selectedCustomGuides={selectedCustomGuides}
               onCustomGuideChange={handleCustomGuideChange}
+              selectedCustomGuidesV2={selectedCustomGuidesV2}
+              onCustomGuideV2Change={setSelectedCustomGuidesV2}
               brandId={profile?.id}
             />
           </div>
-        )}
-      </PbSection>
-
-      <PbSection title="Custom Visual Guides V2">
-        <div style={{ marginBottom: 8, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
-          Advanced style transfer using reference images directly with GPT-4o Vision. Upload visual style references and
-          they'll be used alongside your prompts during image generation for better style consistency.
-        </div>
-        {!editing ? (
-          p?.selected_custom_guides_v2 && p.selected_custom_guides_v2.length > 0 ? (
-            <div style={{ fontSize: 13, color: '#111' }}>{p.selected_custom_guides_v2.length} V2 guide(s) selected</div>
-          ) : (
-            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
-          )
-        ) : (
-          <CustomGuidesV2Gallery
-            selectedGuideIds={selectedCustomGuidesV2}
-            onSelectionChange={setSelectedCustomGuidesV2}
-            brandId={profile?.id}
-          />
         )}
       </PbSection>
 
