@@ -30,6 +30,7 @@ import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
+import CustomGuidesV2Gallery from '@/src/components/app/social-media/CustomGuidesV2Gallery';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
 import AgencyDashboard from '@/src/components/app/agency/AgencyDashboard';
 import { AgencyService, BrandAccount, getActiveBrandId, setActiveBrandId } from '@/src/api/AgencyService';
@@ -4448,6 +4449,7 @@ const PlaybookPage = ({
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
   const [selectedCustomGuides, setSelectedCustomGuides] = useState<string[]>([]);
+  const [selectedCustomGuidesV2, setSelectedCustomGuidesV2] = useState<string[]>([]);
   const [fontStyle, setFontStyle] = useState<string>('');
   const [customFontEnabled, setCustomFontEnabled] = useState(false);
   const [customFontFiles, setCustomFontFiles] = useState<{ url: string; filename: string }[]>([]);
@@ -4521,6 +4523,7 @@ const PlaybookPage = ({
     setLogoError('');
     setStyleSelections([...(profile.style_selections ?? [])]);
     setSelectedCustomGuides(profile.selected_custom_guides ?? []);
+    setSelectedCustomGuidesV2(profile.selected_custom_guides_v2 ?? []);
     setFontStyle(profile.font_style ?? '');
     setCustomFontEnabled(profile.custom_font_enabled ?? false);
     setCustomFontFiles(profile.custom_font_files ?? []);
@@ -4575,6 +4578,7 @@ const PlaybookPage = ({
         style_selections: styleSelections,
         style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
         selected_custom_guides: selectedCustomGuides,
+        selected_custom_guides_v2: selectedCustomGuidesV2,
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
         custom_font_enabled: customFontEnabled,
@@ -5769,6 +5773,26 @@ const PlaybookPage = ({
               brandId={profile?.id}
             />
           </div>
+        )}
+      </PbSection>
+
+      <PbSection title="Custom Visual Guides V2">
+        <div style={{ marginBottom: 8, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
+          Advanced style transfer using reference images directly with GPT-4o Vision. Upload visual style references and
+          they'll be used alongside your prompts during image generation for better style consistency.
+        </div>
+        {!editing ? (
+          p?.selected_custom_guides_v2 && p.selected_custom_guides_v2.length > 0 ? (
+            <div style={{ fontSize: 13, color: '#111' }}>{p.selected_custom_guides_v2.length} V2 guide(s) selected</div>
+          ) : (
+            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+          )
+        ) : (
+          <CustomGuidesV2Gallery
+            selectedGuideIds={selectedCustomGuidesV2}
+            onSelectionChange={setSelectedCustomGuidesV2}
+            brandId={profile?.id}
+          />
         )}
       </PbSection>
 

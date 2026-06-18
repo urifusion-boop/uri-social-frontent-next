@@ -74,6 +74,7 @@ export interface BrandProfileData {
   style_prompt_fragments?: string[];
   style_rotation_index?: number;
   selected_custom_guides?: string[];
+  selected_custom_guides_v2?: string[];
   font_style?: string;
   font_style_prompt?: string;
   custom_font_enabled?: boolean;
