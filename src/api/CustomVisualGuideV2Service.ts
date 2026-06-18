@@ -150,7 +150,7 @@ export class CustomVisualGuideV2Service {
    */
   static async getUserGuidesV2(
     status: 'active' | 'archived' = 'active'
-  ): Promise<UriResponse<{ guides: CustomVisualGuideV2[] }>> {
+  ): Promise<UriResponse<CustomVisualGuideV2[]>> {
     const res: AxiosResponse<UriResponse<CustomVisualGuideV2[]>> = await UriHttpClient.getClient().get(BASE, {
       params: { status },
     });
