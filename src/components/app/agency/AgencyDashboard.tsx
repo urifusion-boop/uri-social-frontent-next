@@ -51,7 +51,6 @@ export default function AgencyDashboard() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <EditableAgencyName agency={agency} onChange={setAgency} />
-        <WalletBadge agency={agency} onChange={setAgency} />
       </div>
 
       {/* Section tabs */}
