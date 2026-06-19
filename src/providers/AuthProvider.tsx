@@ -147,6 +147,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logoutUser = useCallback(() => {
     localStorage.removeItem(STORE_KEYS.USER_DETAILS);
     localStorage.removeItem(STORE_KEYS.USER_TOKENS);
+    // Clear active brand so a different user logging in on the same browser
+    // doesn't inherit the previous user's brand context (causes 403 → false redirects).
+    localStorage.removeItem('@URI@ACTIVE_BRAND_ID');
     setUserDetails(null);
     setTokenDetails(null);
     setIsAuthenticated(false);
@@ -155,7 +158,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Listen for unauthorized events from HTTP interceptor (401/403 errors)
   useEffect(() => {
+    let loggingOut = false;
     const handleUnauthorized = () => {
+      if (loggingOut) return;
+      loggingOut = true;
       console.warn('[Auth] Unauthorized event detected - logging out user');
       logoutUser();
     };

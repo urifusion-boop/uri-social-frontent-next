@@ -36,6 +36,11 @@ class UriHttpClient {
         } else {
           console.warn(`⚠️ [HTTP] No access token found for ${config.url}`);
         }
+        // Agency Accounts: scope every Jane request to the active brand.
+        const activeBrandId = this.getActiveBrandId();
+        if (activeBrandId) {
+          config.headers['X-Brand-Id'] = activeBrandId;
+        }
         return config;
       },
       (error) => {
@@ -72,6 +77,16 @@ class UriHttpClient {
     }
   }
 
+  static readonly ACTIVE_BRAND_KEY = '@URI@ACTIVE_BRAND_ID';
+
+  private static getActiveBrandId(): string | null {
+    try {
+      return localStorage.getItem(this.ACTIVE_BRAND_KEY);
+    } catch {
+      return null;
+    }
+  }
+
   private static async handleErrorResponse(error: AxiosError) {
     if (error.response) {
       switch (error.response.status) {
@@ -87,10 +102,14 @@ class UriHttpClient {
           // Don't clear on brand-profile 403 as user might not have completed onboarding
           // Don't clear on connect endpoints as these might have other authorization issues
           // Don't clear on notification endpoints as expired tokens are handled by polling
+          // Don't clear on custom-guides 403 as it might be plan limit
+          // Don't clear on billing endpoints — auth errors here are secondary; auth endpoints are authoritative
           const isBrandProfile = error.config?.url?.includes('/brand-profile');
           const isConnectEndpoint = error.config?.url?.includes('/connect');
           const isNotificationEndpoint = error.config?.url?.includes('/notifications');
-          if (!isBrandProfile && !isConnectEndpoint && !isNotificationEndpoint) {
+          const isCustomGuides = error.config?.url?.includes('/custom-guides');
+          const isBillingEndpoint = error.config?.url?.includes('/billing');
+          if (!isBrandProfile && !isConnectEndpoint && !isNotificationEndpoint && !isCustomGuides && !isBillingEndpoint) {
             this.clearUserData();
             window.dispatchEvent(new CustomEvent('unauthorized'));
           }

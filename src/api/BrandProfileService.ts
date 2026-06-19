@@ -36,6 +36,7 @@ export interface CustomFontAnalysis {
 }
 
 export interface BrandProfileData {
+  id?: string;
   brand_name?: string;
   industry?: string;
   website?: string;
@@ -72,12 +73,16 @@ export interface BrandProfileData {
   style_selections?: string[];
   style_prompt_fragments?: string[];
   style_rotation_index?: number;
+  selected_custom_guides?: string[];
+  selected_custom_guides_v2?: string[];
   font_style?: string;
   font_style_prompt?: string;
   custom_font_enabled?: boolean;
   custom_font_files?: { url: string; filename: string }[];
   custom_font_analysis?: CustomFontAnalysis;
   custom_font_directive?: string;
+  use_v3_prompts?: boolean; // V3 enhanced prompt system toggle
+  canvas_editor_enabled?: boolean; // Canvas Editor feature flag
   onboarding_completed?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -90,7 +95,14 @@ export class BrandProfileService {
   }
 
   static async save(data: BrandProfileData): Promise<UriResponse<BrandProfileData>> {
+    console.log('🎨 BrandProfileService.save() called with data:', {
+      canvas_editor_enabled: data.canvas_editor_enabled,
+      use_v3_prompts: data.use_v3_prompts,
+      keys: Object.keys(data),
+      fullData: data,
+    });
     const res: AxiosResponse<UriResponse<BrandProfileData>> = await UriHttpClient.getClient().post(BASE, data);
+    console.log('🎨 BrandProfileService.save() response:', res.data);
     return res.data;
   }
 

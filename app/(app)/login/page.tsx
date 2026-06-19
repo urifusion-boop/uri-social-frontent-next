@@ -126,7 +126,10 @@ function LoginContent() {
           firstName: fName,
           lastName: lName,
           trial,
+          is_new_user: isNewUser,
         } = res.responseData as unknown as Record<string, unknown>;
+        // Reset any active brand from a previous session/user on this browser
+        localStorage.removeItem('@URI@ACTIVE_BRAND_ID');
         saveUserTokens({ accessToken: accessToken as string, refreshToken: '' });
         const userDto: Record<string, unknown> = { userId, email: userEmail, firstName: fName, lastName: lName };
         if (trial && typeof trial === 'object') {
@@ -140,7 +143,8 @@ function LoginContent() {
         saveUserDetails(userDto as unknown as Parameters<typeof saveUserDetails>[0]);
         setSuccess('Signed in with Google! Redirecting...');
         posthog.identify(String(userId), { email: userEmail as string, name: `${fName} ${lName}`.trim() });
-        posthog.capture('login_completed', { method: 'google' });
+        // New Google users fire signup; returning users fire login (mirrors the email flow)
+        posthog.capture(isNewUser ? 'signup_completed' : 'login_completed', { method: 'google' });
         const onboardingDone = await BrandProfileService.isOnboardingDone();
         setTimeout(() => router.push(onboardingDone ? '/workspace' : '/social-media/brand-setup'), 1000);
       })
@@ -150,11 +154,16 @@ function LoginContent() {
   }, []);
 
   const handleGoogleSignIn = () => {
+    // Prevent double-click on Google button
+    if (googleLoading) return;
+
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) {
       setError('Google sign-in is not configured yet.');
       return;
     }
+
+    setGoogleLoading(true);
     const redirectUri = encodeURIComponent(window.location.origin + '/login');
     const scope = encodeURIComponent('openid email profile');
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&access_type=offline&prompt=select_account`;
@@ -190,6 +199,9 @@ function LoginContent() {
   };
 
   const handleSubmit = async () => {
+    // Prevent double submission
+    if (loading) return;
+
     setError('');
     setSuccess('');
 
@@ -235,6 +247,8 @@ function LoginContent() {
         trial,
         emailVerified,
       } = res.responseData as unknown as Record<string, unknown>;
+      // Reset any active brand from a previous session/user on this browser
+      localStorage.removeItem('@URI@ACTIVE_BRAND_ID');
       saveUserTokens({ accessToken: accessToken as string, refreshToken: '' });
       const userDto: Record<string, unknown> = {
         userId,

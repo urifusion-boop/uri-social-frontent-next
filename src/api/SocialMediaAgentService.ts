@@ -1,7 +1,7 @@
 import { UriHttpClient } from '@/src/configs/http.config';
 import { socialMediaAgentRoutes } from '@/src/constants/routes/socialMediaAgentRoutes';
 import { UriResponse } from '@/src/models/responses/UriResponse';
-import { AxiosResponse } from 'axios';
+import { AxiosProgressEvent, AxiosResponse } from 'axios';
 
 export interface BrandContext {
   brand_name?: string;
@@ -94,6 +94,57 @@ export interface VideoDraft {
   platforms: string[];
   status: string;
   created_at: string;
+}
+
+export interface VideoEditJob {
+  job_id: string;
+  status: 'processing' | 'complete' | 'failed';
+  progress?: number;
+  edited_video_url?: string;
+  draft?: ContentDraft;
+  edits_applied?: string[];
+  error?: string;
+}
+
+export interface VideoPolishClip {
+  clip_url: string;
+  captioned_clip_url?: string;
+  duration: number;
+  caption_text: string; // Reap social media caption
+  transcript?: string; // actual spoken words from transcription
+  title?: string;
+  topic?: string;
+  hook?: string;
+  virality_score?: number;
+  start_time?: number;
+  end_time?: number;
+}
+
+export interface VideoPolishJob {
+  job_id: string;
+  user_id: string;
+  style_preset: string;
+  language_setting: string;
+  status: 'ingesting' | 'processing' | 'ready' | 'failed';
+  status_message: string;
+  progress: number;
+  source_video_url: string;
+  source_duration_seconds: number;
+  source_quality_flags: { dark?: boolean; noisy?: boolean; short?: boolean };
+  output_clips: VideoPolishClip[];
+  credits_charged: number;
+  user_action: 'pending' | 'approved' | 'restyled' | 'skipped';
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface VideoPolishStyle {
+  name: string;
+  display_name: string;
+  description: string;
+  best_for: string;
+  energy_level: number;
+  good_for_intents: string[];
 }
 
 export interface VideoPublishJob {
@@ -196,10 +247,11 @@ export interface ContentDraft {
   has_image?: boolean;
   image_failed?: boolean;
   image_retry_count?: number; // PRD 4.2: Track image retry count for credit deduction
+  video_url?: string;
   created_at?: string;
   scheduled_datetime?: string;
   auto_generated?: boolean;
-  post_type?: 'feed' | 'carousel' | 'story';
+  post_type?: 'feed' | 'carousel' | 'story' | 'reel';
   slides?: CarouselSlide[];
   image_specs?: { width: number; height: number };
   error_message?: string;
@@ -552,6 +604,114 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async submitVideoEdit(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string }>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.editVideo,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 }
+    );
+    return response.data;
+  }
+
+  static async getVideoEditJob(jobId: string): Promise<UriResponse<VideoEditJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoEditJob>>> = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.editVideoJob}/${jobId}`
+    );
+    return response.data;
+  }
+
+  static async getVideoPolishStyles(): Promise<UriResponse<VideoPolishStyle[]>> {
+    const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.videoPolishStyles);
+    return response.data;
+  }
+
+  static async getVideoCaptionPresets(): Promise<UriResponse<{ id: string; name: string; source: string }[]>> {
+    const response = await UriHttpClient.getClient().get('/video-polish-caption-presets');
+    return response.data;
+  }
+
+  static async submitVideoPolish(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.polishVideo, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+    return response.data;
+  }
+
+  static async getVideoPolishJob(jobId: string): Promise<UriResponse<VideoPolishJob>> {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.polishVideoJob}/${jobId}`);
+    return response.data;
+  }
+
+  static async restyleVideoPolish(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.polishVideoRestyle, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    });
+    return response.data;
+  }
+
+  static async clipAction(
+    jobId: string,
+    clipIdx: number,
+    action: 'reframe' | 'dub',
+    params: { orientation?: string; source_language?: string; target_language?: string }
+  ): Promise<UriResponse<{ action_job_id: string; status: string }>> {
+    const fd = new FormData();
+    fd.append('job_id', jobId);
+    fd.append('clip_idx', String(clipIdx));
+    fd.append('action', action);
+    if (params.orientation) fd.append('orientation', params.orientation);
+    if (params.source_language) fd.append('source_language', params.source_language);
+    if (params.target_language) fd.append('target_language', params.target_language);
+    const response = await UriHttpClient.getClient().post('/polish-video-clip-action', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  static async getClipActionResult(
+    actionJobId: string
+  ): Promise<UriResponse<{ status: string; clip_url?: string; error?: string }>> {
+    const response = await UriHttpClient.getClient().get(`/polish-video-clip-action/${actionJobId}`);
+    return response.data;
+  }
+
+  // ── Video Production ──────────────────────────────────────────────────────
+
+  static async submitVideoProduction(
+    formData: FormData,
+    onUploadProgress?: (percent: number) => void
+  ): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.produceVideo, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 0, // no timeout — upload duration depends on file size + connection speed
+      onUploadProgress: onUploadProgress
+        ? (e: AxiosProgressEvent) => {
+            if (e.total) onUploadProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        : undefined,
+    });
+    return response.data;
+  }
+
+  static async getVideoProductionJob(jobId: string): Promise<
+    UriResponse<{
+      job_id: string;
+      status: 'processing' | 'ready' | 'failed';
+      status_message: string;
+      progress: number;
+      output_url: string | null;
+      video_type: string;
+      pacing_note: string;
+      cuts: { remove_start: number; remove_end: number; reason: string }[];
+      zooms: { at: number; type: string; intensity: string; reason: string }[];
+    }>
+  > {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.produceVideoJob}/${jobId}`);
+    return response.data;
+  }
+
   static async generateStoryboardFrames(
     scenes: StoryboardScene[],
     brandImages: string[] = []
@@ -763,6 +923,77 @@ export class SocialMediaAgentService {
     })();
 
     return { abort: () => controller.abort() };
+  }
+
+  // ── Writing DNA Blog Generator ────────────────────────────────────────────
+
+  static async submitWritingDNAQuiz(data: WritingDNARequest): Promise<UriResponse<WritingDNAData>> {
+    const response: Awaited<AxiosResponse<UriResponse<WritingDNAData>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.writingDnaQuiz,
+      data
+    );
+    return response.data;
+  }
+
+  static async getWritingDNA(): Promise<UriResponse<WritingDNAData>> {
+    const response: Awaited<AxiosResponse<UriResponse<WritingDNAData>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.writingDna
+    );
+    return response.data;
+  }
+
+  static async generateBlogPost(data: BlogPostGenerateRequest): Promise<UriResponse<BlogPostGenerateResult>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogPostGenerateResult>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateBlogPost,
+      data
+    );
+    return response.data;
+  }
+
+  static async listBlogPosts(): Promise<UriResponse<BlogPostData[]>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogPostData[]>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.blogPosts
+    );
+    return response.data;
+  }
+
+  static async getBlogPostById(blogId: string): Promise<UriResponse<BlogPostData>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogPostData>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.blogPostById.replace('{blog_id}', blogId)
+    );
+    return response.data;
+  }
+
+  static async updateBlogPost(blogId: string, content: string, title?: string): Promise<UriResponse<BlogPostData>> {
+    const response: Awaited<AxiosResponse<UriResponse<BlogPostData>>> = await UriHttpClient.getClient().patch(
+      socialMediaAgentRoutes.blogPostById.replace('{blog_id}', blogId),
+      { content, ...(title ? { title } : {}) }
+    );
+    return response.data;
+  }
+
+  static async recordBlogPostFeedback(
+    blogId: string,
+    rating: 'up' | 'down',
+    issues?: string[]
+  ): Promise<UriResponse<{ blog_id: string; rating: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ blog_id: string; rating: string }>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.blogPostFeedback.replace('{blog_id}', blogId), {
+        rating,
+        issues,
+      });
+    return response.data;
+  }
+
+  static async publishBlogPost(
+    blogId: string,
+    publishedUrl?: string
+  ): Promise<UriResponse<{ blog_id: string; status: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ blog_id: string; status: string }>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.blogPostPublish.replace('{blog_id}', blogId), {
+        published_url: publishedUrl,
+      });
+    return response.data;
   }
 }
 
@@ -986,6 +1217,81 @@ export interface BlogDraft {
   keywords: string[];
   tone: string;
   generated_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Writing DNA Blog Generator types ─────────────────────────────────────
+
+export interface WritingDNAAnswers {
+  q1: string;
+  q2: string;
+  q3: string;
+  q4: string;
+  q5: string;
+  q6: string;
+  q7: string;
+  q8: string;
+  q9: string;
+  q10: string;
+  q11: string;
+  q12: string;
+  q13: string;
+  q14: string;
+  q15: string;
+  q16: string;
+}
+
+export interface WritingDNARequest {
+  quiz_answers: WritingDNAAnswers;
+  writing_sample?: string;
+}
+
+export interface WritingDNAData {
+  user_id: string;
+  quiz_answers: WritingDNAAnswers;
+  sample_text?: string;
+  writing_dna_prompt: string;
+  aspirational_writers: string[];
+  dna_keys: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BlogPostGenerateRequest {
+  topic: string;
+  primary_keyword: string;
+  secondary_keywords?: string[];
+  word_count?: number;
+}
+
+export interface BlogPostGenerateResult {
+  blog_id: string;
+  title: string;
+  meta: string;
+  content: string;
+  word_count: number;
+  has_writing_dna: boolean;
+  status: string;
+  created_at: string;
+}
+
+export interface BlogPostData {
+  id: string;
+  user_id: string;
+  topic: string;
+  primary_keyword: string;
+  secondary_keywords: string[];
+  target_word_count: number;
+  generated_content: string;
+  generated_title: string;
+  generated_meta: string;
+  current_content: string;
+  current_title: string;
+  status: 'draft' | 'review' | 'published';
+  has_writing_dna: boolean;
+  feedback: { rating?: string; issues?: string[] };
+  published_url?: string;
   created_at: string;
   updated_at: string;
 }

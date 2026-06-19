@@ -43,7 +43,34 @@ type ISocialMediaAgentApi =
   | 'agentChatHistory'
   | 'clearAgentChat'
   | 'agentChatStream'
-  | 'agentChatUpload';
+  | 'agentChatUpload'
+  | 'editVideo'
+  | 'editVideoJob'
+  | 'polishVideo'
+  | 'polishVideoJob'
+  | 'polishVideoRestyle'
+  | 'videoPolishStyles'
+  | 'writingDnaQuiz'
+  | 'writingDna'
+  | 'generateBlogPost'
+  | 'blogPosts'
+  | 'blogPostById'
+  | 'blogPostFeedback'
+  | 'blogPostPublish'
+  | 'agency'
+  | 'agencyRoster'
+  | 'agencyBrands'
+  | 'agencyBrandsDuplicate'
+  | 'agencyBrandById'
+  | 'agencyMembers'
+  | 'agencyMemberById'
+  | 'agencyMemberBrand'
+  | 'agencyWalletTopup'
+  | 'agencySettings'
+  | 'agencyReportPortfolio'
+  | 'agencyReportBrand'
+  | 'produceVideo'
+  | 'produceVideoJob';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -86,6 +113,35 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   clearAgentChat: '/agent/chat/history',
   agentChatStream: '/agent/chat/stream',
   agentChatUpload: '/agent/chat/upload',
+  editVideo: '/edit-video',
+  editVideoJob: '/edit-video-job',
+  polishVideo: '/polish-video',
+  polishVideoJob: '/polish-video-job',
+  polishVideoRestyle: '/polish-video-restyle',
+  videoPolishStyles: '/video-polish-styles',
+  // Writing DNA Blog Generator
+  writingDnaQuiz: '/blog/writing-dna/quiz',
+  writingDna: '/blog/writing-dna',
+  generateBlogPost: '/blog/generate',
+  blogPosts: '/blog/posts',
+  blogPostById: '/blog/posts/{blog_id}',
+  blogPostFeedback: '/blog/posts/{blog_id}/feedback',
+  blogPostPublish: '/blog/posts/{blog_id}/publish',
+  // Agency Accounts
+  agency: '/agency',
+  agencyRoster: '/agency/roster',
+  agencyBrands: '/agency/brands',
+  agencyBrandsDuplicate: '/agency/brands/duplicate',
+  agencyBrandById: '/agency/brands/{brand_id}',
+  agencyMembers: '/agency/members',
+  agencyMemberById: '/agency/members/{member_id}',
+  agencyMemberBrand: '/agency/members/{member_id}/brands/{brand_id}',
+  agencyWalletTopup: '/agency/wallet/topup',
+  agencySettings: '/agency/settings',
+  agencyReportPortfolio: '/agency/reports/portfolio',
+  agencyReportBrand: '/agency/reports/brand/{brand_id}',
+  produceVideo: '/produce-video',
+  produceVideoJob: '/produce-video-job',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

@@ -5,6 +5,9 @@ import { useState, useRef } from 'react';
 import { FaUpload, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import { MdCloudUpload } from 'react-icons/md';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { CustomVisualGuideService } from '@/src/api/CustomVisualGuideService';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 interface CustomFontAnalysis {
   font_category: string;

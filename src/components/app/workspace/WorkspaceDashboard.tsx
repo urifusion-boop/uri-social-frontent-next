@@ -3,6 +3,7 @@
 import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandProfileData, BrandProfileService, CustomFontAnalysis } from '@/src/api/BrandProfileService';
+import { V3Service } from '@/src/api/V3Service';
 import {
   AccountMetricItem,
   AccountMetricsData,
@@ -29,12 +30,18 @@ import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
+import CustomGuidesV2Gallery from '@/src/components/app/social-media/CustomGuidesV2Gallery';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
-import BlogDraftsTab from '@/src/components/app/social-media/BlogDraftsTab';
+import AgencyDashboard from '@/src/components/app/agency/AgencyDashboard';
+import { AgencyService, BrandAccount, getActiveBrandId, setActiveBrandId } from '@/src/api/AgencyService';
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
+import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
+import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
+import VideoProductionForm from '@/src/components/app/workspace/VideoProductionForm';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -72,6 +79,14 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       </>
     ),
     chart: <path d="M18 20V10M12 20V4M6 20v-6" />,
+    grid: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </>
+    ),
     globe: (
       <>
         <circle cx="12" cy="12" r="10" />
@@ -813,6 +828,11 @@ const ContentManagerPage = ({
   // draft IDs that failed pre-validation because the platform account is not connected
   const [scheduleUnconnectedIds, setScheduleUnconnectedIds] = useState<Set<string>>(new Set());
   const [syncImageOpen, setSyncImageOpen] = useState(false);
+  const [v3Enabled, setV3Enabled] = useState(false);
+  const [loadingV3Status, setLoadingV3Status] = useState(true);
+  const [hasConnections, setHasConnections] = useState<boolean | null>(null);
+  const [createMode, setCreateMode] = useState<'generate' | 'video'>('generate');
+  const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video' | 'produce_video'>('edit_video');
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1066,6 +1086,48 @@ const ContentManagerPage = ({
     });
   }, [fetchScheduled]);
 
+  // Check V3 status and connections on mount
+  useEffect(() => {
+    const checkV3Status = async () => {
+      console.log('🔍 [V3 Check - Workspace] Starting V3 status check...');
+      try {
+        const response = await V3Service.getStatus();
+        console.log('✅ [V3 Check - Workspace] V3 status response:', response);
+        if (response.status && response.responseData) {
+          const isEnabled = response.responseData.use_v3_prompts;
+          console.log('📊 [V3 Check - Workspace] V3 enabled:', isEnabled);
+          setV3Enabled(isEnabled);
+        } else {
+          console.warn('⚠️ [V3 Check - Workspace] Invalid response format:', response);
+          setV3Enabled(false);
+        }
+      } catch (error) {
+        console.error('❌ [V3 Check - Workspace] Error checking V3 status:', error);
+        setV3Enabled(false);
+      } finally {
+        console.log('✅ [V3 Check - Workspace] Setting loadingV3Status to false');
+        setLoadingV3Status(false);
+      }
+    };
+
+    const checkConnections = async () => {
+      console.log('🔍 [Connection Check - Workspace] Starting connection check...');
+      try {
+        const response = await SocialConnectionService.getConnectionStatus();
+        console.log('✅ [Connection Check - Workspace] Connection status response:', response);
+        const hasAny = !!(response.facebook?.linked || response.instagram?.linked || response.linkedin?.linked);
+        console.log('📊 [Connection Check - Workspace] Has any connections:', hasAny);
+        setHasConnections(hasAny);
+      } catch (error) {
+        console.error('❌ [Connection Check - Workspace] Error checking connections:', error);
+        setHasConnections(false);
+      }
+    };
+
+    checkV3Status();
+    checkConnections();
+  }, []);
+
   const handleGenerated = () => {
     setActiveTab('drafts');
     fetchDrafts();
@@ -1073,6 +1135,10 @@ const ContentManagerPage = ({
   const handleRefreshDrafts = useCallback(() => {
     if (activeTabRef.current === 'drafts') fetchDrafts();
   }, [fetchDrafts]);
+
+  const handleConnectAccounts = () => {
+    router.push('/workspace?tab=connections');
+  };
 
   const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
     { key: 'create', label: 'Create', tooltip: 'Generate new AI-powered posts for your social platforms' },
@@ -1099,6 +1165,11 @@ const ContentManagerPage = ({
       key: 'auto',
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
+    },
+    {
+      key: 'video',
+      label: '🎬 Video',
+      tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
     },
   ];
 
@@ -1243,7 +1314,169 @@ const ContentManagerPage = ({
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '20px 24px' }}>
         {activeTab === 'create' && (
-          <ContentGeneratorForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+          <>
+            {console.log(
+              '🎨 [Render - Workspace] Create tab rendering. loadingV3Status:',
+              loadingV3Status,
+              'v3Enabled:',
+              v3Enabled,
+              'hasConnections:',
+              hasConnections
+            )}
+            {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
+
+            {/* Create mode switcher */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(
+                  [
+                    { key: 'generate', label: '✨ Generate Content' },
+                    { key: 'video', label: '🎬 Video' },
+                  ] as { key: 'generate' | 'video'; label: string }[]
+                ).map((mode) => (
+                  <button
+                    key={mode.key}
+                    onClick={() => setCreateMode(mode.key)}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: 10,
+                      border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
+                      background:
+                        createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                      color: createMode === mode.key ? '#fff' : '#6B7280',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Video sub-mode selector */}
+              {createMode === 'video' && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingLeft: 4 }}>
+                  {(
+                    [
+                      { key: 'edit_video', label: 'Edit My Video' },
+                      { key: 'polish_video', label: 'Polish My Video' },
+                      { key: 'produce_video', label: '✨ Produce My Video' },
+                    ] as { key: 'edit_video' | 'polish_video' | 'produce_video'; label: string }[]
+                  ).map((sub) => (
+                    <button
+                      key={sub.key}
+                      onClick={() => setVideoSubMode(sub.key)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 8,
+                        border: videoSubMode === sub.key ? '2px solid #CD1B78' : '1.5px solid #E5E7EB',
+                        background: videoSubMode === sub.key ? '#FDF2F8' : '#fff',
+                        color: videoSubMode === sub.key ? '#CD1B78' : '#6B7280',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {sub.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {createMode === 'generate' && (
+              <>
+                {!loadingV3Status && (
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      padding: 12,
+                      borderRadius: 8,
+                      background: v3Enabled
+                        ? 'linear-gradient(135deg, rgba(194, 24, 91, 0.1), rgba(142, 21, 69, 0.05))'
+                        : 'rgba(229, 231, 235, 0.5)',
+                      border: v3Enabled ? '1px solid rgba(194, 24, 91, 0.2)' : '1px solid #e5e7eb',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <div
+                        style={{
+                          background: v3Enabled ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#9ca3af',
+                          color: '#fff',
+                          borderRadius: 6,
+                          padding: '6px 12px',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        {v3Enabled ? '✨ V3 Enabled' : 'V2 Standard'}
+                      </div>
+                      <span style={{ fontSize: 13, color: '#666' }}>
+                        {v3Enabled
+                          ? 'Using enhanced 10-block prompts with expanded vocabulary'
+                          : 'Using standard 6-section prompt system'}
+                      </span>
+                    </div>
+                    <a
+                      href="/workspace?tab=playbook"
+                      style={{
+                        fontSize: 12,
+                        color: '#C2185B',
+                        textDecoration: 'none',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                    >
+                      {v3Enabled ? 'Manage' : 'Enable V3'}
+                    </a>
+                  </div>
+                )}
+                <ContentGeneratorForm
+                  onGenerated={handleGenerated}
+                  requireEmailVerification={requireEmailVerification}
+                />
+              </>
+            )}
+
+            {createMode === 'video' && videoSubMode === 'edit_video' && (
+              <VideoEditForm
+                onEditComplete={() => {
+                  handleGenerated();
+                  setCreateMode('generate');
+                }}
+              />
+            )}
+
+            {createMode === 'video' && videoSubMode === 'polish_video' && (
+              <VideoPolishForm
+                onPolishComplete={() => {
+                  handleGenerated();
+                  setCreateMode('generate');
+                }}
+              />
+            )}
+
+            {createMode === 'video' && videoSubMode === 'produce_video' && (
+              <VideoProductionForm
+                onComplete={() => {
+                  handleGenerated();
+                }}
+              />
+            )}
+          </>
         )}
 
         {activeTab === 'video' && <VideoStoryboardGenerator />}
@@ -2165,10 +2398,27 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           ToastService.showToast('Could not load accounts. Please try again.', ToastTypeEnum.Error);
           setPhase('idle');
         });
+    } else if (connected === 'true') {
+      const platform = searchParams.get('platform') ?? '';
+      const username = searchParams.get('username') ? decodeURIComponent(searchParams.get('username')!) : platform;
+      router.replace('/workspace?tab=connections');
+      if (platform) {
+        ToastService.showToast(`${username} connected successfully!`, ToastTypeEnum.Success);
+        posthog.capture('social_account_connected', { platform, username });
+        try {
+          sessionStorage.removeItem('social_connections_cache');
+        } catch {
+          /* noop */
+        }
+        loadStatuses();
+      }
+      // If this page is running inside a popup, close it so the opener's polling timer fires
+      if (typeof window !== 'undefined' && window.opener) window.close();
     } else if (connected === 'false') {
       const err = searchParams.get('error');
       ToastService.showToast(err ?? 'Connection failed. Please try again.', ToastTypeEnum.Error);
       router.replace('/workspace?tab=connections');
+      if (typeof window !== 'undefined' && window.opener) window.close();
     }
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3094,7 +3344,7 @@ const CalPerfSection = ({ data }: { data: CalendarPerformanceData }) => {
 };
 
 const PerformancePage = ({ onJane }: { onJane: () => void }) => {
-  const [view, setView] = useState<'posts' | 'accounts'>('posts');
+  const [view, setView] = useState<'posts' | 'accounts' | 'intel'>('posts');
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -3178,7 +3428,9 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
       desc={
         view === 'posts'
           ? 'Real-time insights from your published posts'
-          : 'Account-level metrics for your connected social profiles'
+          : view === 'accounts'
+            ? 'Account-level metrics for your connected social profiles'
+            : 'Industry keyword trends powered by Google'
       }
       onJane={onJane}
     >
@@ -3192,7 +3444,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
           marginBottom: 14,
         }}
       >
-        {(['posts', 'accounts'] as const).map((v) => (
+        {(['posts', 'accounts', 'intel'] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -3211,34 +3463,39 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
               textTransform: 'capitalize',
             }}
           >
-            {v === 'posts' ? 'Posts' : 'Accounts'}
+            {v === 'posts' ? 'Posts' : v === 'accounts' ? 'Accounts' : 'Market Intel'}
           </button>
         ))}
       </div>
 
-      {/* Range selector */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-        {[7, 30, 90].map((d) => (
-          <button
-            key={d}
-            onClick={() => setDays(d)}
-            style={{
-              padding: '5px 14px',
-              borderRadius: 20,
-              border: `1.5px solid ${days === d ? '#C2185B' : '#e5e3df'}`,
-              background: days === d ? '#fdf0f6' : '#fff',
-              color: days === d ? '#C2185B' : '#666',
-              fontSize: 12.5,
-              fontWeight: days === d ? 700 : 500,
-              cursor: 'pointer',
-              fontFamily: 'var(--wf)',
-            }}
-          >
-            {d}d
-          </button>
-        ))}
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb', alignSelf: 'center' }}>Last {days} days</span>
-      </div>
+      {/* Range selector (not shown for Market Intel) */}
+      {view !== 'intel' && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          {[7, 30, 90].map((d) => (
+            <button
+              key={d}
+              onClick={() => setDays(d)}
+              style={{
+                padding: '5px 14px',
+                borderRadius: 20,
+                border: `1.5px solid ${days === d ? '#C2185B' : '#e5e3df'}`,
+                background: days === d ? '#fdf0f6' : '#fff',
+                color: days === d ? '#C2185B' : '#666',
+                fontSize: 12.5,
+                fontWeight: days === d ? 700 : 500,
+                cursor: 'pointer',
+                fontFamily: 'var(--wf)',
+              }}
+            >
+              {d}d
+            </button>
+          ))}
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#bbb', alignSelf: 'center' }}>Last {days} days</span>
+        </div>
+      )}
+
+      {/* ── MARKET INTEL VIEW ── */}
+      {view === 'intel' && <IntelPage onJane={onJane} embedded />}
 
       {/* ── POSTS VIEW ── */}
       {view === 'posts' && (
@@ -3765,7 +4022,7 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
   );
 };
 
-const IntelPage = ({ onJane }: { onJane: () => void }) => {
+const IntelPage = ({ onJane, embedded }: { onJane: () => void; embedded?: boolean }) => {
   const [trends, setTrends] = useState<TrendsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -3815,17 +4072,8 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
     return null;
   };
 
-  return (
-    <SubPage
-      title="Market Intel"
-      icon="globe"
-      desc={
-        trends
-          ? `Trending in ${trends.industry.charAt(0).toUpperCase() + trends.industry.slice(1)}`
-          : 'Industry keyword trends powered by Google'
-      }
-      onJane={onJane}
-    >
+  const content = (
+    <>
       {loading && (
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 40 }}>
           <div
@@ -3961,6 +4209,23 @@ const IntelPage = ({ onJane }: { onJane: () => void }) => {
           ))}
         </div>
       )}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <SubPage
+      title="Market Intel"
+      icon="globe"
+      desc={
+        trends
+          ? `Trending in ${trends.industry.charAt(0).toUpperCase() + trends.industry.slice(1)}`
+          : 'Industry keyword trends powered by Google'
+      }
+      onJane={onJane}
+    >
+      {content}
     </SubPage>
   );
 };
@@ -4187,6 +4452,8 @@ const PlaybookPage = ({
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
+  const [selectedCustomGuides, setSelectedCustomGuides] = useState<string[]>([]);
+  const [selectedCustomGuidesV2, setSelectedCustomGuidesV2] = useState<string[]>([]);
   const [fontStyle, setFontStyle] = useState<string>('');
   const [customFontEnabled, setCustomFontEnabled] = useState(false);
   const [customFontFiles, setCustomFontFiles] = useState<{ url: string; filename: string }[]>([]);
@@ -4199,6 +4466,31 @@ const PlaybookPage = ({
       setLogoPosition(profile.logo_position);
     }
   }, [profile?.logo_position]);
+
+  // Auto-save custom guide selections
+  const handleCustomGuideChange = async (guideIds: string[]) => {
+    setSelectedCustomGuides(guideIds);
+
+    // Auto-save to backend
+    if (profile) {
+      try {
+        const updatedProfile = {
+          ...profile,
+          selected_custom_guides: guideIds,
+          style_rotation_index: 0, // Reset rotation when guides change
+        };
+        const response = await BrandProfileService.save(updatedProfile);
+        if (response.status) {
+          onProfileUpdate({ ...profile, selected_custom_guides: guideIds, style_rotation_index: 0 });
+          console.log('🎨 Custom guides auto-saved:', guideIds);
+        } else {
+          console.error('🎨 Auto-save failed:', response);
+        }
+      } catch (error) {
+        console.error('🎨 Error auto-saving custom guides:', error);
+      }
+    }
+  };
 
   const startEdit = () => {
     if (!profile) return;
@@ -4234,6 +4526,8 @@ const PlaybookPage = ({
     setLogoPosition(profile.logo_position ?? 'bottom_right');
     setLogoError('');
     setStyleSelections([...(profile.style_selections ?? [])]);
+    setSelectedCustomGuides(profile.selected_custom_guides ?? []);
+    setSelectedCustomGuidesV2(profile.selected_custom_guides_v2 ?? []);
     setFontStyle(profile.font_style ?? '');
     setCustomFontEnabled(profile.custom_font_enabled ?? false);
     setCustomFontFiles(profile.custom_font_files ?? []);
@@ -4287,6 +4581,8 @@ const PlaybookPage = ({
         logo_position: logoPosition,
         style_selections: styleSelections,
         style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+        selected_custom_guides: selectedCustomGuides,
+        selected_custom_guides_v2: selectedCustomGuidesV2,
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
         custom_font_enabled: customFontEnabled,
@@ -5442,19 +5738,29 @@ const PlaybookPage = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span
                 style={{
-                  background: styleSelections.length > 0 ? '#C2185B' : '#e5e7eb',
-                  color: styleSelections.length > 0 ? '#fff' : '#6b7280',
+                  background:
+                    styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
+                      ? '#C2185B'
+                      : '#e5e7eb',
+                  color:
+                    styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
+                      ? '#fff'
+                      : '#6b7280',
                   borderRadius: 99,
                   padding: '2px 10px',
                   fontSize: 11.5,
                   fontWeight: 600,
                 }}
               >
-                {styleSelections.length}/3 selected
+                {styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length}/3 selected
               </span>
-              {styleSelections.length > 0 && (
+              {(styleSelections.length > 0 || selectedCustomGuides.length > 0 || selectedCustomGuidesV2.length > 0) && (
                 <button
-                  onClick={() => setStyleSelections([])}
+                  onClick={() => {
+                    setStyleSelections([]);
+                    handleCustomGuideChange([]);
+                    setSelectedCustomGuidesV2([]);
+                  }}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -5473,6 +5779,11 @@ const PlaybookPage = ({
               industry={industry || p?.industry || 'general_other'}
               selected={styleSelections}
               onChange={setStyleSelections}
+              selectedCustomGuides={selectedCustomGuides}
+              onCustomGuideChange={handleCustomGuideChange}
+              selectedCustomGuidesV2={selectedCustomGuidesV2}
+              onCustomGuideV2Change={setSelectedCustomGuidesV2}
+              brandId={profile?.id}
             />
           </div>
         )}
@@ -5570,7 +5881,395 @@ const PlaybookPage = ({
           </div>
         )}
       </PbSection>
+
+      {/* V3 Enhanced Prompts */}
+      <PbSection title="Enhanced Image Prompts (V3)">
+        <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
+          Our new 10-block prompt system for richer, more detailed images. Includes expanded aesthetic vocabulary,
+          better African representation, enhanced product preservation, and 100+ safety rules.
+        </div>
+        {!editing ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div
+              style={{
+                background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                color: p?.use_v3_prompts ? '#fff' : '#6b7280',
+                borderRadius: 8,
+                padding: '8px 16px',
+                fontSize: 12.5,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              {p?.use_v3_prompts ? (
+                <>
+                  <span>✨</span>
+                  <span>V3 Enabled</span>
+                </>
+              ) : (
+                <>
+                  <span>V2 Standard</span>
+                </>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: '#666' }}>
+              {p?.use_v3_prompts
+                ? 'Using V3 10-block architecture with enhanced vocabulary'
+                : 'Using V2 6-section prompt system'}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <button
+              onClick={async () => {
+                const newValue = !(p?.use_v3_prompts ?? false);
+                try {
+                  const response = await V3Service.toggleV3(newValue);
+                  if (response.status && response.responseData) {
+                    if (onProfileUpdate && p) {
+                      onProfileUpdate({ ...p, use_v3_prompts: newValue });
+                    }
+                    ToastService.showToast(
+                      newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
+                      ToastTypeEnum.Success
+                    );
+                    posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'playbook' });
+                  } else {
+                    throw new Error(response.responseMessage || 'Failed to toggle V3');
+                  }
+                } catch (error) {
+                  console.error('[Playbook] V3 toggle failed:', error);
+                  ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
+                }
+              }}
+              style={{
+                background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                color: p?.use_v3_prompts ? '#fff' : '#111',
+                border: 'none',
+                borderRadius: 8,
+                padding: '12px 20px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                transition: 'all 0.2s',
+                alignSelf: 'flex-start',
+              }}
+            >
+              {p?.use_v3_prompts ? (
+                <>
+                  <span>✨</span>
+                  <span>V3 Enabled</span>
+                  <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                </>
+              ) : (
+                <>
+                  <span>Enable V3</span>
+                  <span style={{ fontSize: 11, opacity: 0.7 }}>(Recommended)</span>
+                </>
+              )}
+            </button>
+            <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+              {p?.use_v3_prompts
+                ? 'V3 is active. All future image generations will use the enhanced 10-block prompt system.'
+                : 'Enable V3 for richer prompts with better quality, cultural sensitivity, and product preservation.'}
+            </div>
+          </div>
+        )}
+        {p?.use_v3_prompts && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              background: '#F7F7FD',
+              border: '1px solid #E0DEF7',
+              borderRadius: 8,
+              fontSize: 11.5,
+              color: '#555',
+              lineHeight: 1.6,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Enhancements Active:</div>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              <li>10-block prompt architecture (vs. 6-section)</li>
+              <li>400+ aesthetic vocabulary terms (vs. ~150)</li>
+              <li>11-dimensional style system with parametric control</li>
+              <li>100+ context-aware safety & exclusion rules</li>
+              <li>Enhanced African realism vocabulary for authentic representation</li>
+              <li>Improved product preservation with forensic analysis</li>
+            </ul>
+          </div>
+        )}
+      </PbSection>
+
+      {/* Canvas Editor Toggle */}
+      <PbSection title="Canvas Editor (Beta)">
+        <p style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6, marginBottom: 16 }}>
+          Enable advanced post editing with drag-drop layers, text editing, and multi-format export
+        </p>
+        {p && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div
+                style={{
+                  background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                  color: p?.canvas_editor_enabled ? '#fff' : '#6b7280',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                {p?.canvas_editor_enabled ? (
+                  <>
+                    <span>✨</span>
+                    <span>Canvas Enabled</span>
+                  </>
+                ) : (
+                  <span>Disabled</span>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={async () => {
+                const newValue = !(p?.canvas_editor_enabled ?? false);
+                console.log('🎨 Canvas Editor Toggle:', {
+                  currentValue: p?.canvas_editor_enabled,
+                  newValue,
+                  profileData: p,
+                });
+                try {
+                  const updatedProfile = { ...p, canvas_editor_enabled: newValue };
+                  console.log('🎨 Saving profile:', updatedProfile);
+                  const response = await BrandProfileService.save(updatedProfile);
+                  console.log('🎨 Save response:', response);
+                  if (response.status) {
+                    onProfileUpdate({ ...p, canvas_editor_enabled: newValue });
+                    ToastService.showToast(
+                      newValue ? '✨ Canvas Editor Enabled!' : 'Canvas Editor Disabled',
+                      ToastTypeEnum.Success
+                    );
+                    posthog.capture('canvas_editor_toggle', { enabled: newValue });
+                  } else {
+                    console.error('🎨 Save failed - response.status is false:', response);
+                    ToastService.showToast(
+                      'Failed to save: ' + (response.responseMessage || 'Unknown error'),
+                      ToastTypeEnum.Error
+                    );
+                  }
+                } catch (error) {
+                  console.error('🎨 Canvas Editor save error:', error);
+                  ToastService.showToast('Failed to update Canvas Editor setting', ToastTypeEnum.Error);
+                }
+              }}
+              style={{
+                background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                color: p?.canvas_editor_enabled ? '#fff' : '#111',
+                border: 'none',
+                borderRadius: 8,
+                padding: '12px 20px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                transition: 'all 0.2s',
+                alignSelf: 'flex-start',
+              }}
+            >
+              {p?.canvas_editor_enabled ? (
+                <>
+                  <span>✨</span>
+                  <span>Canvas Enabled</span>
+                  <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                </>
+              ) : (
+                <>
+                  <span>Enable Canvas Editor</span>
+                  <span style={{ fontSize: 11, opacity: 0.7 }}>(Beta)</span>
+                </>
+              )}
+            </button>
+            <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+              {p?.canvas_editor_enabled
+                ? 'Canvas Editor is active. Generated posts will have editable layers for text, logo, and background.'
+                : 'Enable Canvas Editor to edit posts with drag-drop layers and export to multiple aspect ratios.'}
+            </div>
+          </div>
+        )}
+        {p?.canvas_editor_enabled && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              background: '#FFF7ED',
+              border: '1px solid #FED7AA',
+              borderRadius: 8,
+              fontSize: 11.5,
+              color: '#555',
+              lineHeight: 1.6,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 6, color: '#EA580C' }}>✨ Canvas Editor Features:</div>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              <li>Edit text content, fonts, colors, and positions</li>
+              <li>Drag & drop repositioning for all layers</li>
+              <li>Undo/redo support (50 operations)</li>
+              <li>Export to multiple formats (1:1, 9:16, 4:5, 16:9)</li>
+              <li>Layer management (show/hide, delete, reorder)</li>
+              <li>Visual editing without regenerating (saves credits)</li>
+            </ul>
+          </div>
+        )}
+      </PbSection>
     </SubPage>
+  );
+};
+
+/* ── V3 Toggle Button Component ────────────────────────────────────────── */
+const V3ToggleButton = () => {
+  const [v3Enabled, setV3Enabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState(false);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const response = await V3Service.getStatus();
+        if (response.status && response.responseData) {
+          setV3Enabled(response.responseData.use_v3_prompts);
+        }
+      } catch (error) {
+        console.error('[V3Toggle] Failed to fetch status:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStatus();
+  }, []);
+
+  const handleToggle = async () => {
+    setToggling(true);
+    const newValue = !v3Enabled;
+    try {
+      const response = await V3Service.toggleV3(newValue);
+      if (response.status && response.responseData) {
+        setV3Enabled(newValue);
+        ToastService.showToast(
+          newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
+          ToastTypeEnum.Success
+        );
+        posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'settings' });
+      } else {
+        throw new Error(response.responseMessage || 'Failed to toggle V3');
+      }
+    } catch (error) {
+      console.error('[V3Toggle] Toggle failed:', error);
+      ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ fontSize: 13, color: '#999' }}>Loading...</div>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            background: v3Enabled ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+            color: v3Enabled ? '#fff' : '#6b7280',
+            borderRadius: 8,
+            padding: '8px 16px',
+            fontSize: 12.5,
+            fontWeight: 600,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          {v3Enabled ? (
+            <>
+              <span>✨</span>
+              <span>V3 Enabled</span>
+            </>
+          ) : (
+            <>
+              <span>V2 Standard</span>
+            </>
+          )}
+        </div>
+        <div style={{ fontSize: 12, color: '#666' }}>
+          {v3Enabled ? 'Using V3 10-block architecture' : 'Using V2 6-section prompts'}
+        </div>
+      </div>
+
+      <button
+        onClick={handleToggle}
+        disabled={toggling}
+        style={{
+          padding: '11px 18px',
+          borderRadius: 9,
+          border: '1px solid #e5e3df',
+          background: toggling ? '#f3f4f6' : '#fff',
+          cursor: toggling ? 'not-allowed' : 'pointer',
+          fontFamily: 'var(--wf)',
+          fontSize: 13,
+          fontWeight: 600,
+          color: v3Enabled ? '#C2185B' : '#111',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          transition: 'all 0.2s',
+        }}
+      >
+        {toggling ? (
+          'Updating...'
+        ) : v3Enabled ? (
+          <>
+            <span>Disable V3</span>
+            <span style={{ fontSize: 11, color: '#999' }}>(Switch to V2)</span>
+          </>
+        ) : (
+          <>
+            <span>✨ Enable V3</span>
+            <span style={{ fontSize: 11, color: '#999' }}>(Recommended)</span>
+          </>
+        )}
+      </button>
+
+      {v3Enabled && (
+        <div
+          style={{
+            padding: 12,
+            background: '#F7F7FD',
+            border: '1px solid #E0DEF7',
+            borderRadius: 8,
+            fontSize: 11.5,
+            color: '#555',
+            lineHeight: 1.6,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Active</div>
+          <div>
+            Your next images will use the enhanced 10-block prompt system with better quality and cultural sensitivity.
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -5889,6 +6588,19 @@ const SettingsPage = ({
         </div>
       </div>
 
+      {/* V3 Enhanced Prompts */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>✨</span>
+          Enhanced Image Prompts (V3)
+        </h3>
+        <div style={{ fontSize: 12.5, color: '#666', lineHeight: 1.6, marginBottom: 14 }}>
+          Enable our new 10-block prompt system for richer, more detailed images with better quality and cultural
+          sensitivity.
+        </div>
+        <V3ToggleButton />
+      </div>
+
       {/* Subscription Info */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -5901,6 +6613,41 @@ const SettingsPage = ({
             {userDetails?.subscriptionTier || 'Free'}
           </div>
         </div>
+      </div>
+
+      {/* Agency */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <I n="grid" s={16} c="#C2185B" />
+          Agency
+        </h3>
+        <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>
+          Manage multiple brands, your team, shared credit pool, and reporting.
+        </p>
+        <button
+          onClick={() => onNavChange('agency')}
+          style={{
+            width: '100%',
+            padding: '12px 14px',
+            borderRadius: 9,
+            border: '1px solid #e5e3df',
+            background: '#fff',
+            cursor: 'pointer',
+            fontFamily: 'var(--wf)',
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#333',
+            textAlign: 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>Open Agency Dashboard</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M6 12L10 8L6 4" stroke="#999" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
 
       {/* Quick Actions */}
@@ -6090,37 +6837,19 @@ const NAV = [
     id: 'performance',
     icon: 'chart',
     label: 'Performance',
-    tooltip: 'Track engagement, reach, and post performance across all connected platforms',
+    tooltip: 'Posts, accounts, and market intel — all your insights in one place',
   },
   {
-    id: 'intel',
-    icon: 'globe',
-    label: 'Market Intel',
-    tooltip: 'Discover trending topics and keywords relevant to your industry',
+    id: 'blog',
+    icon: 'book',
+    label: 'Blog',
+    tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
   },
-  // {
-  //   id: 'blog',
-  //   icon: 'book',
-  //   label: 'Blog Generator',
-  //   tooltip: 'Generate SEO-optimized blog posts with AI (Beta)',
-  // },
-  // {
-  //   id: 'blog-drafts',
-  //   icon: 'file',
-  //   label: 'Blog Drafts',
-  //   tooltip: 'View and manage your AI-generated blog posts',
-  // },
   {
     id: 'playbook',
     icon: 'book',
     label: 'Brand Playbook',
     tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
-  },
-  {
-    id: 'notifications',
-    icon: 'bell',
-    label: 'Notifications',
-    tooltip: 'View recent activity, scheduled post updates, and system alerts',
   },
   {
     id: 'settings',
@@ -6145,8 +6874,6 @@ const MOBILE_TABS = [
 ];
 
 const MORE_NAV = [
-  { id: 'intel', icon: 'globe', label: 'Market Intel' },
-  { id: 'notifications', icon: 'bell', label: 'Notifications' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
 ];
@@ -6182,8 +6909,16 @@ export default function WorkspaceDashboard() {
     uploading: boolean;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Revoke blob URL when attachment changes or unmounts to prevent stale-blob errors
+  useEffect(() => {
+    return () => {
+      if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    };
+  }, [attachment?.previewUrl]);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [switcherBrands, setSwitcherBrands] = useState<BrandAccount[] | null>(null);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [trialExpiredOpen, setTrialExpiredOpen] = useState(false);
   const [trialEndingDismissed, setTrialEndingDismissed] = useState(false);
@@ -6204,6 +6939,12 @@ export default function WorkspaceDashboard() {
     ck();
     window.addEventListener('resize', ck);
     return () => window.removeEventListener('resize', ck);
+  }, []);
+
+  useEffect(() => {
+    AgencyService.listBrands()
+      .then((res) => setSwitcherBrands(res.status ? (res.responseData ?? []) : []))
+      .catch(() => setSwitcherBrands([]));
   }, []);
 
   // Keep nav in sync with the ?tab= URL param so that router.push('/workspace?tab=connections')
@@ -6385,18 +7126,25 @@ export default function WorkspaceDashboard() {
         id: 'u' + Date.now(),
         type: 'user',
         time: now,
-        content: previewUrl ? (
-          <div>
-            <img
-              src={previewUrl}
-              alt="attachment"
-              style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, display: 'block', marginBottom: txt ? 8 : 0 }}
-            />
-            {txt && <span>{txt}</span>}
-          </div>
-        ) : (
-          txt
-        ),
+        content:
+          imageUrl || previewUrl ? (
+            <div>
+              <img
+                src={imageUrl ?? previewUrl}
+                alt="attachment"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: 200,
+                  borderRadius: 8,
+                  display: 'block',
+                  marginBottom: txt ? 8 : 0,
+                }}
+              />
+              {txt && <span>{txt}</span>}
+            </div>
+          ) : (
+            txt
+          ),
       },
     ]);
     setTyping(true);
@@ -6502,8 +7250,8 @@ export default function WorkspaceDashboard() {
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
-    // blog: <BlogGeneratorTab />,
-    // 'blog-drafts': <BlogDraftsTab />,
+    agency: <AgencyDashboard />,
+    blog: <BlogGeneratorTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
     settings: (
       <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
@@ -6656,6 +7404,7 @@ export default function WorkspaceDashboard() {
             </div>
             <div
               style={{
+                position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -6664,7 +7413,21 @@ export default function WorkspaceDashboard() {
                 borderTop: '1px solid rgba(255,255,255,.05)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              {switcherOpen && switcherBrands && switcherBrands.length > 1 && (
+                <div onClick={() => setSwitcherOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+              )}
+              <div
+                onClick={() => {
+                  if (switcherBrands && switcherBrands.length > 1) setSwitcherOpen((o) => !o);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 9,
+                  cursor: switcherBrands && switcherBrands.length > 1 ? 'pointer' : 'default',
+                  position: 'relative',
+                }}
+              >
                 {profile?.logo_url ? (
                   <img
                     src={profile.logo_url}
@@ -6692,6 +7455,69 @@ export default function WorkspaceDashboard() {
                     {userDetails?.subscriptionTier || 'Free'} Plan
                   </div>
                 </div>
+                {switcherOpen && switcherBrands && switcherBrands.length > 1 && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      marginBottom: 10,
+                      width: 220,
+                      background: '#231227',
+                      border: '1px solid rgba(255,255,255,.08)',
+                      borderRadius: 10,
+                      boxShadow: '0 8px 24px rgba(0,0,0,.4)',
+                      overflow: 'hidden',
+                      zIndex: 999,
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: 'rgba(255,255,255,.3)',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Switch brand
+                    </div>
+                    {switcherBrands.map((b) => {
+                      const active = b.brand_id === getActiveBrandId();
+                      return (
+                        <button
+                          key={b.brand_id}
+                          onClick={() => {
+                            setSwitcherOpen(false);
+                            if (active) return;
+                            setActiveBrandId(b.brand_id);
+                            window.location.assign('/workspace');
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            width: '100%',
+                            padding: '9px 12px',
+                            background: active ? 'rgba(233,30,99,.12)' : 'transparent',
+                            border: 'none',
+                            color: active ? '#fce4ec' : 'rgba(255,255,255,.65)',
+                            fontSize: 13,
+                            fontWeight: active ? 600 : 400,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {b.name}
+                          </span>
+                          {active && <I n="check" s={13} c="#E91E63" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <button
                 onClick={logoutUser}

@@ -11,6 +11,7 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import posthog from 'posthog-js';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
+import { UriHttpClient } from '@/src/configs/http.config';
 import { useRouter } from 'next/navigation';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
@@ -47,6 +48,7 @@ import {
   MdAutorenew,
 } from 'react-icons/md';
 import DraftEditor from './DraftEditor';
+import CanvasEditor from './canvas-editor/CanvasEditor';
 
 interface DraftCardProps {
   draft: ContentDraft;
@@ -117,6 +119,9 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [creditWarningData, setCreditWarningData] = useState<{ message?: string; credits_required?: number } | null>(
     null
   );
+
+  // Canvas Editor state
+  const [canvasEditorOpen, setCanvasEditorOpen] = useState(false);
 
   // Sync draft data from parent on any relevant field change.
   // Always reset image load state to ensure images reload properly when navigating between tabs.
@@ -209,6 +214,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const slides = draft.slides ?? [];
   const isCarousel = postType === 'carousel' && slides.length > 0;
   const isStory = postType === 'story';
+  const isReel = postType === 'reel' || !!draft.video_url;
   const totalSlides = slides.length;
   const currentSlide = isCarousel ? slides[slideIndex] : null;
 
@@ -851,6 +857,50 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         </Box>
       )}
 
+      {/* ── Reel video (9:16) ── */}
+      {!editing && isReel && draft.video_url && (
+        <Box
+          mb={1.5}
+          sx={{
+            borderRadius: '8px',
+            overflow: 'hidden',
+            border: '1px solid #E5E7EB',
+            aspectRatio: '9 / 16',
+            width: '50%',
+            background: '#000',
+            position: 'relative',
+          }}
+        >
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              background: 'rgba(0,0,0,0.6)',
+              borderRadius: '6px',
+              px: 0.75,
+              py: 0.25,
+              zIndex: 2,
+            }}
+          >
+            <Typography fontSize="10px" fontWeight={700} color="#fff" letterSpacing={0.5}>
+              REEL
+            </Typography>
+          </Box>
+          <video
+            src={resolveUrl(draft.video_url)}
+            controls
+            playsInline
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              display: 'block',
+            }}
+          />
+        </Box>
+      )}
+
       {/* ── Story image (9:16) ── */}
       {!editing && isStory && draft.image_url && (
         <Box
@@ -978,6 +1028,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       {!editing &&
         !isCarousel &&
         !isStory &&
+        !isReel &&
         draft.image_url &&
         (() => {
           const specs = draft.image_specs;
@@ -1088,7 +1139,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             </Box>
           );
         })()}
-      {!editing && !isCarousel && !draft.image_url && (draft.has_image || draft.auto_generated) && (
+      {!editing && !isCarousel && !isReel && !draft.image_url && (draft.has_image || draft.auto_generated) && (
         <Box
           mb={1.5}
           sx={{
@@ -1129,7 +1180,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       )}
 
       {/* Image Edit Panel */}
-      {!editing && draft.image_url && (
+      {!editing && !isReel && draft.image_url && (
         <Box
           sx={{
             mt: 1.5,
@@ -1322,6 +1373,46 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             >
               Background
             </Button>
+
+            {/* Canvas Editor Button - Only show if draft has layered document */}
+            {(() => {
+              console.log('🔍 Canvas Editor Debug:', {
+                draftId: draft.id || draft.draft_id,
+                hasDocumentKey: 'document' in draft,
+                documentValue: 'document' in draft ? (draft as Record<string, unknown>).document : undefined,
+                draftKeys: Object.keys(draft),
+              });
+              return 'document' in draft && draft.document;
+            })() ? (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<MdEdit size={16} />}
+                onClick={() => setCanvasEditorOpen(true)}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  py: 1.5,
+                  px: 2,
+                  borderRadius: '10px',
+                  borderColor: '#FED7AA',
+                  color: '#EA580C',
+                  background: '#FFFBF7',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&:hover': {
+                    borderColor: '#FB923C',
+                    background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)',
+                    color: '#EA580C',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 8px 16px rgba(234, 88, 12, 0.15)',
+                  },
+                }}
+              >
+                Canvas ✨
+              </Button>
+            ) : null}
+
             <Button
               size="small"
               variant="outlined"
@@ -1939,6 +2030,30 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           </Box>
         </Box>
       )}
+
+      {/* Canvas Editor Modal */}
+      {canvasEditorOpen && 'document' in draft && draft.document ? (
+        <CanvasEditor
+          draftId={draft.id || draft.draft_id || ''}
+          onClose={() => setCanvasEditorOpen(false)}
+          onSave={async (imageUrl: string) => {
+            try {
+              // Update draft with new rendered image
+              const draftId = draft.id || draft.draft_id || '';
+              await UriHttpClient.getClient().patch(`/social-media/drafts/${draftId}`, {
+                image_url: imageUrl,
+              });
+
+              ToastService.showToast('✅ Canvas edits saved to draft!', ToastTypeEnum.Success);
+              setCanvasEditorOpen(false);
+              onRefresh(); // Refresh to show updated image
+            } catch (error) {
+              console.error('Failed to save canvas image to draft:', error);
+              ToastService.showToast('Failed to save image', ToastTypeEnum.Error);
+            }
+          }}
+        />
+      ) : null}
     </Box>
   );
 };
