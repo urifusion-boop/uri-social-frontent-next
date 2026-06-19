@@ -1166,11 +1166,12 @@ const ContentManagerPage = ({
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
     },
-    {
-      key: 'video',
-      label: '🎬 Video',
-      tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
-    },
+    // HIDDEN: Video production feature
+    // {
+    //   key: 'video',
+    //   label: '🎬 Video',
+    //   tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
+    // },
   ];
 
   return (
@@ -6839,12 +6840,13 @@ const NAV = [
     label: 'Performance',
     tooltip: 'Posts, accounts, and market intel — all your insights in one place',
   },
-  {
-    id: 'blog',
-    icon: 'book',
-    label: 'Blog',
-    tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
-  },
+  // HIDDEN: Blog Generator feature
+  // {
+  //   id: 'blog',
+  //   icon: 'book',
+  //   label: 'Blog',
+  //   tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
+  // },
   {
     id: 'playbook',
     icon: 'book',
