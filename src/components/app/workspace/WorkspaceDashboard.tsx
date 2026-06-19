@@ -1328,7 +1328,8 @@ const ContentManagerPage = ({
 
             {/* Create mode switcher */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
+              {/* HIDDEN: Generate Content / Video mode selector - keeping only generate mode active */}
+              {/* <div style={{ display: 'flex', gap: 8 }}>
                 {(
                   [
                     { key: 'generate', label: '✨ Generate Content' },
@@ -1354,7 +1355,7 @@ const ContentManagerPage = ({
                     {mode.label}
                   </button>
                 ))}
-              </div>
+              </div> */}
 
               {/* Video sub-mode selector */}
               {createMode === 'video' && (
@@ -1390,7 +1391,8 @@ const ContentManagerPage = ({
 
             {createMode === 'generate' && (
               <>
-                {!loadingV3Status && (
+                {/* HIDDEN: V2/V3 version banner */}
+                {/* {!loadingV3Status && (
                   <div
                     style={{
                       marginBottom: 16,
@@ -1444,7 +1446,7 @@ const ContentManagerPage = ({
                       {v3Enabled ? 'Manage' : 'Enable V3'}
                     </a>
                   </div>
-                )}
+                )} */}
                 <ContentGeneratorForm
                   onGenerated={handleGenerated}
                   requireEmailVerification={requireEmailVerification}
