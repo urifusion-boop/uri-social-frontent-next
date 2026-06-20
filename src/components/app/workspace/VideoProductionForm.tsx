@@ -40,6 +40,7 @@ interface AiDecisions {
   hook_text: string;
   music_mood: string;
   pacing_note: string;
+  caption_cues?: { start: number; end: number; type: 'emphasis' | 'cta' | 'metric' }[];
 }
 
 interface Props {
@@ -479,20 +480,48 @@ export default function VideoProductionForm({ onComplete }: Props) {
         )}
 
         {/* Music */}
-        <div
-          style={{
-            padding: '10px 14px',
-            background: '#f9fafb',
-            border: '1px solid #e5e7eb',
-            borderRadius: 10,
-            fontSize: 12,
-            color: '#555',
-            marginBottom: 20,
-          }}
-        >
-          🎵 Background music:{' '}
-          <span style={{ fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>{aiDecisions.music_mood}</span>{' '}
-          mood (CC0)
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              flex: 1,
+              minWidth: 180,
+              padding: '10px 14px',
+              background: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: 10,
+              fontSize: 12,
+              color: '#555',
+            }}
+          >
+            🎵 Music:{' '}
+            <span style={{ fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>
+              {aiDecisions.music_mood}
+            </span>{' '}
+            mood (CC0)
+          </div>
+          {(aiDecisions.caption_cues?.length ?? 0) > 0 && (
+            <div
+              style={{
+                flex: 1,
+                minWidth: 180,
+                padding: '10px 14px',
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                fontSize: 12,
+                color: '#555',
+              }}
+            >
+              🎨 Styled captions:{' '}
+              {[
+                ...(aiDecisions.caption_cues!.filter((c) => c.type === 'emphasis').length > 0
+                  ? [`${aiDecisions.caption_cues!.filter((c) => c.type === 'emphasis').length} emphasis`]
+                  : []),
+                ...(aiDecisions.caption_cues!.filter((c) => c.type === 'cta').length > 0 ? ['CTA'] : []),
+              ].join(' · ')}{' '}
+              + metrics auto-detected
+            </div>
+          )}
         </div>
 
         {/* Actions */}

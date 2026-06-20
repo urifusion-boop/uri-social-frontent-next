@@ -714,6 +714,7 @@ export class SocialMediaAgentService {
         hook_text: string;
         music_mood: string;
         pacing_note: string;
+        caption_cues?: { start: number; end: number; type: 'emphasis' | 'cta' | 'metric' }[];
       };
     }>
   > {
