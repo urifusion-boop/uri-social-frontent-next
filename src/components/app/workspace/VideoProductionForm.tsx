@@ -41,6 +41,7 @@ interface AiDecisions {
   music_mood: string;
   pacing_note: string;
   caption_cues?: { start: number; end: number; type: 'emphasis' | 'cta' | 'metric' }[];
+  topic_changes?: { at: number; confidence: number }[];
 }
 
 interface Props {
@@ -520,6 +521,27 @@ export default function VideoProductionForm({ onComplete }: Props) {
                 ...(aiDecisions.caption_cues!.filter((c) => c.type === 'cta').length > 0 ? ['CTA'] : []),
               ].join(' · ')}{' '}
               + metrics auto-detected
+            </div>
+          )}
+          {(aiDecisions.topic_changes?.length ?? 0) > 0 && (
+            <div
+              style={{
+                flex: 1,
+                minWidth: 180,
+                padding: '10px 14px',
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                fontSize: 12,
+                color: '#555',
+              }}
+            >
+              ✨ Transitions:{' '}
+              <span style={{ fontWeight: 700, color: '#111' }}>
+                {aiDecisions.topic_changes!.length} topic shift
+                {aiDecisions.topic_changes!.length !== 1 ? 's' : ''}
+              </span>{' '}
+              (flash / swipe)
             </div>
           )}
         </div>
