@@ -42,6 +42,7 @@ interface AiDecisions {
   pacing_note: string;
   caption_cues?: { start: number; end: number; type: 'emphasis' | 'cta' | 'metric' }[];
   topic_changes?: { at: number; confidence: number }[];
+  icon_overlays?: { at: number; duration: number; category: string }[];
 }
 
 interface Props {
@@ -542,6 +543,24 @@ export default function VideoProductionForm({ onComplete }: Props) {
                 {aiDecisions.topic_changes!.length !== 1 ? 's' : ''}
               </span>{' '}
               (flash / swipe)
+            </div>
+          )}
+          {(aiDecisions.icon_overlays?.length ?? 0) > 0 && (
+            <div
+              style={{
+                flex: 1,
+                minWidth: 180,
+                padding: '10px 14px',
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                fontSize: 12,
+                color: '#555',
+              }}
+            >
+              🎯 Icon overlays:{' '}
+              <span style={{ fontWeight: 700, color: '#111' }}>{aiDecisions.icon_overlays!.length}</span>{' '}
+              {[...new Set(aiDecisions.icon_overlays!.map((o) => o.category))].join(', ')}
             </div>
           )}
         </div>
