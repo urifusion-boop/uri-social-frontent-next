@@ -30,7 +30,17 @@ const VIDEO_TYPES = [
 ] as const;
 
 type VideoType = 'tiktok' | 'product' | 'founder';
-type Phase = 'pick' | 'uploading' | 'processing' | 'ready' | 'failed';
+type Phase = 'pick' | 'uploading' | 'processing' | 'awaiting_review' | 'ready' | 'failed';
+
+interface AiDecisions {
+  cuts: { remove_start: number; remove_end: number; reason: string; confidence?: number }[];
+  zooms: { at: number; type: string; intensity: string; reason: string }[];
+  sound_effects: { at: number; type: string; reason: string }[];
+  broll: { at: number; end: number; description: string; concept: string }[];
+  hook_text: string;
+  music_mood: string;
+  pacing_note: string;
+}
 
 interface Props {
   onComplete: () => void;
@@ -49,11 +59,20 @@ export default function VideoProductionForm({ onComplete }: Props) {
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
 
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [pacingNote, setPacingNote] = useState('');
   const [cuts, setCuts] = useState<{ remove_start: number; remove_end: number; reason: string }[]>([]);
   const [zooms, setZooms] = useState<{ at: number; type: string; intensity: string; reason: string }[]>([]);
   const [soundEffects, setSoundEffects] = useState<{ at: number; type: string; reason: string }[]>([]);
+
+  // Review phase
+  const [aiDecisions, setAiDecisions] = useState<AiDecisions | null>(null);
+  const [enabledCuts, setEnabledCuts] = useState<boolean[]>([]);
+  const [enabledZooms, setEnabledZooms] = useState<boolean[]>([]);
+  const [enabledSfx, setEnabledSfx] = useState<boolean[]>([]);
+  const [editedHookText, setEditedHookText] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -91,7 +110,17 @@ export default function VideoProductionForm({ onComplete }: Props) {
         if (!j) return;
         setProgress(j.progress ?? 0);
         setStatusMessage(j.status_message ?? '');
-        if (j.status === 'ready' && j.output_url) {
+
+        if (j.status === 'awaiting_review' && j.ai_decisions) {
+          clearInterval(pollRef.current!);
+          const d = j.ai_decisions;
+          setAiDecisions(d);
+          setEnabledCuts(d.cuts.map(() => true));
+          setEnabledZooms(d.zooms.map(() => true));
+          setEnabledSfx(d.sound_effects.map(() => true));
+          setEditedHookText(d.hook_text ?? '');
+          setPhase('awaiting_review');
+        } else if (j.status === 'ready' && j.output_url) {
           clearInterval(pollRef.current!);
           setOutputUrl(j.output_url);
           setPacingNote(j.pacing_note ?? '');
@@ -131,9 +160,11 @@ export default function VideoProductionForm({ onComplete }: Props) {
       });
       if (!res?.responseData?.job_id) throw new Error('No job ID returned');
 
+      const jid = res.responseData.job_id;
+      setCurrentJobId(jid);
       setPhase('processing');
       setStatusMessage('Starting pipeline…');
-      startPolling(res.responseData.job_id);
+      startPolling(jid);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status?: number }; code?: string; message?: string };
       const status = axiosErr?.response?.status;
@@ -165,6 +196,32 @@ export default function VideoProductionForm({ onComplete }: Props) {
     setCuts([]);
     setZooms([]);
     setSoundEffects([]);
+    setAiDecisions(null);
+    setCurrentJobId(null);
+  };
+
+  const handleApproveRender = async () => {
+    if (!currentJobId || !aiDecisions) return;
+    setSubmittingReview(true);
+    try {
+      const approvedDecisions = {
+        cuts: aiDecisions.cuts.filter((_, i) => enabledCuts[i]),
+        zooms: aiDecisions.zooms.filter((_, i) => enabledZooms[i]),
+        sound_effects: aiDecisions.sound_effects.filter((_, i) => enabledSfx[i]),
+        broll: aiDecisions.broll,
+        hook_text: editedHookText,
+        music_mood: aiDecisions.music_mood,
+      };
+      await SocialMediaAgentService.startVideoRender(currentJobId, approvedDecisions);
+      setPhase('processing');
+      setProgress(56);
+      setStatusMessage('Rendering…');
+      startPolling(currentJobId);
+    } catch {
+      ToastService.showToast('Failed to start render. Please try again.', ToastTypeEnum.Error);
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -284,6 +341,200 @@ export default function VideoProductionForm({ onComplete }: Props) {
     );
   }
 
+  if (phase === 'awaiting_review' && aiDecisions) {
+    const totalRemoved = aiDecisions.cuts
+      .filter((_, i) => enabledCuts[i])
+      .reduce((s, c) => s + (c.remove_end - c.remove_start), 0);
+
+    return (
+      <div style={{ padding: '20px 0', maxWidth: 560 }}>
+        {/* Header */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, color: '#111', marginBottom: 4 }}>Review AI Decisions</div>
+          <div style={{ fontSize: 13, color: '#888' }}>
+            Toggle what you want to keep. Jane will render only approved edits.
+          </div>
+          {aiDecisions.pacing_note && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '8px 12px',
+                background: '#f0f9ff',
+                border: '1px solid #bae6fd',
+                borderRadius: 8,
+                fontSize: 12,
+                color: '#0369a1',
+              }}
+            >
+              {aiDecisions.pacing_note}
+            </div>
+          )}
+        </div>
+
+        {/* Hook text */}
+        <ReviewSection icon="🪝" title="Hook Text" subtitle="Shown as overlay in the first 2.5s">
+          <input
+            value={editedHookText}
+            onChange={(e) => setEditedHookText(e.target.value)}
+            placeholder="Leave blank to skip hook overlay"
+            maxLength={80}
+            style={{
+              width: '100%',
+              border: '1.5px solid #e5e7eb',
+              borderRadius: 8,
+              padding: '9px 12px',
+              fontSize: 13,
+              color: '#111',
+              fontFamily: 'inherit',
+              outline: 'none',
+              boxSizing: 'border-box',
+              background: '#fff',
+            }}
+          />
+        </ReviewSection>
+
+        {/* Cuts */}
+        {aiDecisions.cuts.length > 0 && (
+          <ReviewSection
+            icon="✂️"
+            title={`Cuts (${enabledCuts.filter(Boolean).length}/${aiDecisions.cuts.length} enabled)`}
+            subtitle={`Removing ${totalRemoved.toFixed(1)}s of dead air / filler`}
+            accentColor="#C2185B"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {aiDecisions.cuts.map((cut, i) => (
+                <DecisionRow
+                  key={i}
+                  enabled={enabledCuts[i]}
+                  onToggle={() => setEnabledCuts((prev) => prev.map((v, idx) => (idx === i ? !v : v)))}
+                  label={`${cut.remove_start.toFixed(1)}s – ${cut.remove_end.toFixed(1)}s`}
+                  sublabel={cut.reason}
+                  color="#C2185B"
+                />
+              ))}
+            </div>
+          </ReviewSection>
+        )}
+
+        {/* Zooms */}
+        {aiDecisions.zooms.length > 0 && (
+          <ReviewSection
+            icon="🔍"
+            title={`Zooms (${enabledZooms.filter(Boolean).length}/${aiDecisions.zooms.length} enabled)`}
+            subtitle="Camera emphasis on key moments"
+            accentColor="#1976D2"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {aiDecisions.zooms.map((z, i) => (
+                <DecisionRow
+                  key={i}
+                  enabled={enabledZooms[i]}
+                  onToggle={() => setEnabledZooms((prev) => prev.map((v, idx) => (idx === i ? !v : v)))}
+                  label={`${z.at.toFixed(1)}s — ${z.type} (${z.intensity})`}
+                  sublabel={z.reason}
+                  color="#1976D2"
+                />
+              ))}
+            </div>
+          </ReviewSection>
+        )}
+
+        {/* Sound effects */}
+        {aiDecisions.sound_effects.length > 0 && (
+          <ReviewSection
+            icon="🔊"
+            title={`Sound Effects (${enabledSfx.filter(Boolean).length}/${aiDecisions.sound_effects.length} enabled)`}
+            subtitle="Impact sounds at key transitions"
+            accentColor="#7B1FA2"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {aiDecisions.sound_effects.map((sfx, i) => (
+                <DecisionRow
+                  key={i}
+                  enabled={enabledSfx[i]}
+                  onToggle={() => setEnabledSfx((prev) => prev.map((v, idx) => (idx === i ? !v : v)))}
+                  label={`${sfx.at.toFixed(1)}s — ${sfx.type}`}
+                  sublabel={sfx.reason}
+                  color="#7B1FA2"
+                />
+              ))}
+            </div>
+          </ReviewSection>
+        )}
+
+        {/* B-roll info (display only) */}
+        {aiDecisions.broll.length > 0 && (
+          <ReviewSection icon="🎬" title={`B-Roll (${aiDecisions.broll.length})`} subtitle="Inserted automatically">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {aiDecisions.broll.map((br, i) => (
+                <div key={i} style={{ fontSize: 12, color: '#555', padding: '4px 0' }}>
+                  <span style={{ color: '#888' }}>
+                    {br.at.toFixed(1)}s–{br.end.toFixed(1)}s
+                  </span>{' '}
+                  {br.description}
+                </div>
+              ))}
+            </div>
+          </ReviewSection>
+        )}
+
+        {/* Music */}
+        <div
+          style={{
+            padding: '10px 14px',
+            background: '#f9fafb',
+            border: '1px solid #e5e7eb',
+            borderRadius: 10,
+            fontSize: 12,
+            color: '#555',
+            marginBottom: 20,
+          }}
+        >
+          🎵 Background music:{' '}
+          <span style={{ fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>{aiDecisions.music_mood}</span>{' '}
+          mood (CC0)
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={handleApproveRender}
+            disabled={submittingReview}
+            style={{
+              flex: 1,
+              padding: '13px 0',
+              borderRadius: 10,
+              border: 'none',
+              cursor: submittingReview ? 'not-allowed' : 'pointer',
+              background: submittingReview ? '#e5e7eb' : 'linear-gradient(135deg,#C2185B,#8E1545)',
+              color: submittingReview ? '#9ca3af' : '#fff',
+              fontWeight: 700,
+              fontSize: 15,
+              transition: 'all 0.15s',
+            }}
+          >
+            {submittingReview ? 'Starting render…' : 'Approve & Render ✅'}
+          </button>
+          <button
+            onClick={handleReset}
+            style={{
+              padding: '13px 18px',
+              borderRadius: 10,
+              border: '1.5px solid #e0dcd9',
+              background: '#fff',
+              color: '#555',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (phase === 'processing' || phase === 'uploading') {
     return (
       <div style={{ padding: '32px 0', maxWidth: 440 }}>
@@ -310,8 +561,9 @@ export default function VideoProductionForm({ onComplete }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
             { label: 'Upload + transcription', threshold: 40 },
-            { label: 'GPT-4o edit decisions', threshold: 58 },
-            { label: 'Shotstack render', threshold: 65 },
+            { label: 'AI content analysis', threshold: 55 },
+            { label: 'Review approved', threshold: 60 },
+            { label: 'Building render timeline', threshold: 68 },
             { label: 'Final render', threshold: 98 },
           ].map((stage) => {
             const done = progress > stage.threshold;
@@ -501,8 +753,8 @@ export default function VideoProductionForm({ onComplete }: Props) {
           lineHeight: 1.5,
         }}
       >
-        <strong>What happens:</strong> Reap transcribes your audio → GPT-4o removes dead space and adds zooms →
-        Shotstack renders the final video with animated captions. Takes 3–8 minutes.
+        <strong>What happens:</strong> Reap transcribes your audio → GPT-5 analyses content and suggests edits → you
+        review and approve → Shotstack renders the final video. Takes 3–8 minutes.
       </div>
 
       {/* Submit */}
@@ -524,6 +776,123 @@ export default function VideoProductionForm({ onComplete }: Props) {
       >
         Produce Video
       </button>
+    </div>
+  );
+}
+
+function ReviewSection({
+  icon,
+  title,
+  subtitle,
+  accentColor,
+  children,
+}: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  accentColor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        marginBottom: 16,
+        border: '1.5px solid #e5e7eb',
+        borderRadius: 10,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 14px',
+          background: '#f9fafb',
+          borderBottom: '1px solid #e5e7eb',
+        }}
+      >
+        <span style={{ fontSize: 15 }}>{icon}</span>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: accentColor ?? '#111' }}>{title}</div>
+          <div style={{ fontSize: 11, color: '#9ca3af' }}>{subtitle}</div>
+        </div>
+      </div>
+      <div style={{ padding: '10px 14px' }}>{children}</div>
+    </div>
+  );
+}
+
+function DecisionRow({
+  enabled,
+  onToggle,
+  label,
+  sublabel,
+  color,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+  label: string;
+  sublabel: string;
+  color: string;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '6px 8px',
+        borderRadius: 7,
+        background: enabled ? '#fafafa' : '#f3f4f6',
+        opacity: enabled ? 1 : 0.55,
+        cursor: 'pointer',
+        userSelect: 'none',
+        transition: 'all 0.15s',
+      }}
+      onClick={onToggle}
+    >
+      {/* Toggle pill */}
+      <div
+        style={{
+          width: 34,
+          height: 20,
+          borderRadius: 99,
+          background: enabled ? color : '#d1d5db',
+          position: 'relative',
+          flexShrink: 0,
+          transition: 'background 0.2s',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: 3,
+            left: enabled ? 17 : 3,
+            width: 14,
+            height: 14,
+            borderRadius: 99,
+            background: '#fff',
+            transition: 'left 0.2s',
+          }}
+        />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: enabled ? '#111' : '#9ca3af' }}>{label}</div>
+        {sublabel && (
+          <div
+            style={{
+              fontSize: 11,
+              color: '#9ca3af',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {sublabel}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
