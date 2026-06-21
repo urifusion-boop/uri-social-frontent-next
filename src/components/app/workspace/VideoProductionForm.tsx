@@ -36,7 +36,7 @@ interface AiDecisions {
   cuts: { remove_start: number; remove_end: number; reason: string; confidence?: number }[];
   zooms: { at: number; type: string; intensity: string; reason: string }[];
   sound_effects: { at: number; type: string; reason: string }[];
-  broll: { at: number; end: number; description: string; concept: string }[];
+  broll: { at: number; duration: number; description: string; concept: string }[];
   hook_text: string;
   music_mood: string;
   pacing_note: string;
@@ -472,7 +472,7 @@ export default function VideoProductionForm({ onComplete }: Props) {
               {aiDecisions.broll.map((br, i) => (
                 <div key={i} style={{ fontSize: 12, color: '#555', padding: '4px 0' }}>
                   <span style={{ color: '#888' }}>
-                    {br.at.toFixed(1)}s–{br.end.toFixed(1)}s
+                    {br.at.toFixed(1)}s–{(br.at + (br.duration ?? 3)).toFixed(1)}s
                   </span>{' '}
                   {br.description}
                 </div>
