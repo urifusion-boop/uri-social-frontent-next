@@ -57,6 +57,9 @@ export default function VideoProductionForm({ onComplete }: Props) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [videoType, setVideoType] = useState<VideoType>('founder');
+  const [enableMusic, setEnableMusic] = useState(true);
+  const [enableWhoosh, setEnableWhoosh] = useState(true);
+  const [transitionStyle, setTransitionStyle] = useState('auto');
 
   const [phase, setPhase] = useState<Phase>('pick');
   const [progress, setProgress] = useState(0);
@@ -156,6 +159,9 @@ export default function VideoProductionForm({ onComplete }: Props) {
       const formData = new FormData();
       formData.append('video', videoFile);
       formData.append('video_type', videoType);
+      formData.append('enable_music', String(enableMusic));
+      formData.append('enable_sfx', String(enableWhoosh));
+      formData.append('transition_style', transitionStyle);
 
       const res = await SocialMediaAgentService.submitVideoProduction(formData, (pct) => {
         setProgress(pct);
@@ -751,6 +757,115 @@ export default function VideoProductionForm({ onComplete }: Props) {
                 <div style={{ fontSize: 18, marginBottom: 4 }}>{vt.icon}</div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: active ? '#C2185B' : '#111' }}>{vt.label}</div>
                 <div style={{ fontSize: 11, color: '#888', marginTop: 2, lineHeight: 1.3 }}>{vt.desc}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Production options */}
+      <div style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#555',
+            marginBottom: 10,
+            textTransform: 'uppercase',
+            letterSpacing: 1,
+          }}
+        >
+          Production options
+        </div>
+
+        {/* Toggles row */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+          {[
+            { label: '🎵 Background music', value: enableMusic, set: setEnableMusic },
+            { label: '💨 Whoosh sounds', value: enableWhoosh, set: setEnableWhoosh },
+          ].map(({ label, value, set }) => (
+            <button
+              key={label}
+              onClick={() => set(!value)}
+              style={{
+                flex: 1,
+                padding: '9px 12px',
+                borderRadius: 10,
+                border: value ? '2px solid #C2185B' : '1.5px solid #e5e7eb',
+                background: value ? '#FDF2F8' : '#f9fafb',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                color: value ? '#C2185B' : '#888',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                transition: 'all 0.15s',
+              }}
+            >
+              {label}
+              <span
+                style={{
+                  width: 32,
+                  height: 18,
+                  borderRadius: 9,
+                  background: value ? '#C2185B' : '#d1d5db',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '0 2px',
+                  transition: 'background 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: '#fff',
+                    transform: value ? 'translateX(14px)' : 'translateX(0)',
+                    transition: 'transform 0.15s',
+                    display: 'block',
+                  }}
+                />
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Transition picker */}
+        <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 600 }}>Transition style</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {(
+            [
+              { key: 'auto', label: 'Auto', desc: 'Best for your video type' },
+              { key: 'circle_wipe', label: 'Circle Wipe', desc: 'Circle from center' },
+              { key: 'diagonal_wipe', label: 'Diagonal', desc: 'Diagonal sweep' },
+              { key: 'flash', label: 'Flash', desc: 'Quick white flash' },
+              { key: 'swipe', label: 'Swipe', desc: 'Slide between clips' },
+              { key: 'hard_cut', label: 'Hard Cut', desc: 'No effect' },
+              { key: 'none', label: 'None', desc: 'No transitions at all' },
+            ] as const
+          ).map((t) => {
+            const active = transitionStyle === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTransitionStyle(t.key)}
+                title={t.desc}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  border: active ? '2px solid #C2185B' : '1.5px solid #e5e7eb',
+                  background: active ? '#FDF2F8' : '#fff',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  fontWeight: active ? 700 : 500,
+                  color: active ? '#C2185B' : '#555',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {t.label}
               </button>
             );
           })}
