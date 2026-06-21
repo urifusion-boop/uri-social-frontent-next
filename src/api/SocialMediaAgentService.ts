@@ -710,11 +710,13 @@ export class SocialMediaAgentService {
         cuts: { remove_start: number; remove_end: number; reason: string; confidence?: number }[];
         zooms: { at: number; type: string; intensity: string; reason: string }[];
         sound_effects: { at: number; type: string; reason: string }[];
-        broll: { at: number; end: number; description: string; concept: string }[];
+        broll: { at: number; duration: number; description: string; concept: string }[];
         hook_text: string;
         music_mood: string;
         pacing_note: string;
         caption_cues?: { start: number; end: number; type: 'emphasis' | 'cta' | 'metric' }[];
+        topic_changes?: { at: number; confidence: number }[];
+        icon_overlays?: { at: number; duration: number; category: string }[];
       };
     }>
   > {
@@ -728,7 +730,7 @@ export class SocialMediaAgentService {
       cuts: { remove_start: number; remove_end: number; reason: string }[];
       zooms: { at: number; type: string; intensity: string; reason: string }[];
       sound_effects: { at: number; type: string; reason: string }[];
-      broll: { at: number; end: number; description: string; concept: string }[];
+      broll: { at: number; duration: number; description: string; concept: string }[];
       hook_text: string;
       music_mood: string;
     }
