@@ -30,7 +30,15 @@ const VIDEO_TYPES = [
 ] as const;
 
 type VideoType = 'tiktok' | 'product' | 'founder';
-type Phase = 'pick' | 'uploading' | 'processing' | 'ready' | 'failed';
+type Phase = 'pick' | 'uploading' | 'processing' | 'review' | 'rendering' | 'ready' | 'failed';
+
+interface BrollDecision {
+  at: number;
+  duration: number;
+  description: string;
+  concept: string;
+  reason: string;
+}
 
 interface Props {
   onComplete: () => void;
@@ -54,6 +62,15 @@ export default function VideoProductionForm({ onComplete }: Props) {
   const [cuts, setCuts] = useState<{ remove_start: number; remove_end: number; reason: string }[]>([]);
   const [zooms, setZooms] = useState<{ at: number; type: string; intensity: string; reason: string }[]>([]);
   const [soundEffects, setSoundEffects] = useState<{ at: number; type: string; reason: string }[]>([]);
+
+  // Review phase state
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [brollDecisions, setBrollDecisions] = useState<BrollDecision[]>([]);
+  const [removedBrollIdx, setRemovedBrollIdx] = useState<Set<number>>(new Set());
+  const [hookText, setHookText] = useState('');
+  const [musicMood, setMusicMood] = useState('upbeat');
+  const [reviewCuts, setReviewCuts] = useState<{ remove_start: number; remove_end: number; reason: string }[]>([]);
+  const [isStartingRender, setIsStartingRender] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -82,16 +99,25 @@ export default function VideoProductionForm({ onComplete }: Props) {
     if (file) acceptFile(file);
   };
 
-  const startPolling = (jobId: string) => {
+  const startPolling = (id: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
-        const res = await SocialMediaAgentService.getVideoProductionJob(jobId);
+        const res = await SocialMediaAgentService.getVideoProductionJob(id);
         const j = res?.responseData;
         if (!j) return;
         setProgress(j.progress ?? 0);
         setStatusMessage(j.status_message ?? '');
-        if (j.status === 'ready' && j.output_url) {
+        if (j.status === 'awaiting_review') {
+          clearInterval(pollRef.current!);
+          const d = j.ai_decisions;
+          setBrollDecisions(d?.broll ?? []);
+          setRemovedBrollIdx(new Set());
+          setHookText(d?.hook_text ?? '');
+          setMusicMood(d?.music_mood ?? 'upbeat');
+          setReviewCuts(d?.cuts ?? j.cuts ?? []);
+          setPhase('review');
+        } else if (j.status === 'ready' && j.output_url) {
           clearInterval(pollRef.current!);
           setOutputUrl(j.output_url);
           setPacingNote(j.pacing_note ?? '');
@@ -109,6 +135,28 @@ export default function VideoProductionForm({ onComplete }: Props) {
         // transient — keep polling
       }
     }, 5000);
+  };
+
+  const handleStartRender = async () => {
+    if (!jobId) return;
+    setIsStartingRender(true);
+    try {
+      const approvedBroll = brollDecisions.filter((_, i) => !removedBrollIdx.has(i));
+      await SocialMediaAgentService.startVideoProductionRender(jobId, {
+        broll: approvedBroll,
+        hook_text: hookText,
+        music_mood: musicMood,
+        cuts: reviewCuts,
+      });
+      setPhase('rendering');
+      setProgress(56);
+      setStatusMessage('Rendering your video…');
+      startPolling(jobId);
+    } catch {
+      ToastService.showToast('Failed to start render. Please try again.', ToastTypeEnum.Error);
+    } finally {
+      setIsStartingRender(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -131,6 +179,7 @@ export default function VideoProductionForm({ onComplete }: Props) {
       });
       if (!res?.responseData?.job_id) throw new Error('No job ID returned');
 
+      setJobId(res.responseData.job_id);
       setPhase('processing');
       setStatusMessage('Starting pipeline…');
       startPolling(res.responseData.job_id);
@@ -158,6 +207,7 @@ export default function VideoProductionForm({ onComplete }: Props) {
     if (pollRef.current) clearInterval(pollRef.current);
     setVideoFile(null);
     setVideoPreviewUrl(null);
+    setJobId(null);
     setPhase('pick');
     setProgress(0);
     setStatusMessage('');
@@ -165,9 +215,162 @@ export default function VideoProductionForm({ onComplete }: Props) {
     setCuts([]);
     setZooms([]);
     setSoundEffects([]);
+    setBrollDecisions([]);
+    setRemovedBrollIdx(new Set());
+    setHookText('');
+    setMusicMood('upbeat');
+    setReviewCuts([]);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  if (phase === 'review') {
+    const activeBroll = brollDecisions.filter((_, i) => !removedBrollIdx.has(i));
+    return (
+      <div style={{ padding: '20px 0', maxWidth: 560 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <div style={{ fontWeight: 800, fontSize: 17, color: '#111' }}>Review AI Decisions</div>
+        </div>
+        <div style={{ fontSize: 13, color: '#888', marginBottom: 20 }}>
+          {reviewCuts.length} cut{reviewCuts.length !== 1 ? 's' : ''} · {activeBroll.length} b-roll clip{activeBroll.length !== 1 ? 's' : ''} · {musicMood} music
+          {hookText && <span> · hook: "{hookText}"</span>}
+        </div>
+
+        {/* B-roll section */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 10 }}>
+            🎬 B-roll Clips
+          </div>
+          {brollDecisions.length === 0 ? (
+            <div style={{ fontSize: 13, color: '#aaa', fontStyle: 'italic' }}>No b-roll planned for this video.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {brollDecisions.map((br, i) => {
+                const removed = removedBrollIdx.has(i);
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      padding: '10px 12px',
+                      borderRadius: 10,
+                      border: `1.5px solid ${removed ? '#e8e5e3' : '#C2185B33'}`,
+                      background: removed ? '#fafafa' : '#fff8fb',
+                      opacity: removed ? 0.5 : 1,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 2 }}>
+                        {br.concept || br.description}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#888' }}>
+                        at {br.at.toFixed(1)}s · {br.duration}s · {br.reason}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRemovedBrollIdx(prev => {
+                          const next = new Set(prev);
+                          if (next.has(i)) next.delete(i); else next.add(i);
+                          return next;
+                        });
+                      }}
+                      style={{
+                        flexShrink: 0,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: `1px solid ${removed ? '#C2185B' : '#ddd'}`,
+                        background: removed ? '#fff' : '#f5f4f0',
+                        color: removed ? '#C2185B' : '#888',
+                        fontWeight: 600,
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {removed ? '+ Restore' : '✕ Remove'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Cuts summary */}
+        {reviewCuts.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 8 }}>✂️ Cuts ({reviewCuts.length})</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {reviewCuts.slice(0, 4).map((c, i) => (
+                <div key={i} style={{ fontSize: 12, color: '#666', background: '#f8f7f5', borderRadius: 6, padding: '5px 8px' }}>
+                  {c.remove_start.toFixed(1)}s – {c.remove_end.toFixed(1)}s — {c.reason}
+                </div>
+              ))}
+              {reviewCuts.length > 4 && (
+                <div style={{ fontSize: 11, color: '#aaa' }}>+{reviewCuts.length - 4} more cuts</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            type="button"
+            onClick={handleStartRender}
+            disabled={isStartingRender}
+            style={{
+              flex: 1,
+              padding: '12px 0',
+              borderRadius: 10,
+              border: 'none',
+              background: isStartingRender ? '#e0dcd9' : 'linear-gradient(135deg,#C2185B,#8E1545)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: isStartingRender ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isStartingRender ? 'Starting…' : `🎬 Render Video${activeBroll.length > 0 ? ` with ${activeBroll.length} B-roll` : ''}`}
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            style={{
+              padding: '12px 16px',
+              borderRadius: 10,
+              border: '1.5px solid #e0dcd9',
+              background: '#fff',
+              color: '#555',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'rendering') {
+    return (
+      <div style={{ padding: '20px 0', maxWidth: 560 }}>
+        <div style={{ fontWeight: 800, fontSize: 17, color: '#111', marginBottom: 4 }}>Rendering…</div>
+        <div style={{ fontSize: 13, color: '#888', marginBottom: 20 }}>{statusMessage}</div>
+        <div style={{ background: '#f0eded', borderRadius: 8, height: 8, overflow: 'hidden', marginBottom: 8 }}>
+          <div style={{ height: '100%', borderRadius: 8, background: 'linear-gradient(90deg,#C2185B,#8E1545)', width: `${progress}%`, transition: 'width 0.4s ease' }} />
+        </div>
+        <div style={{ fontSize: 12, color: '#aaa', textAlign: 'right' }}>{progress}%</div>
+      </div>
+    );
+  }
 
   if (phase === 'ready' && outputUrl) {
     return (

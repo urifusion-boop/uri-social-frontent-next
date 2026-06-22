@@ -698,7 +698,7 @@ export class SocialMediaAgentService {
   static async getVideoProductionJob(jobId: string): Promise<
     UriResponse<{
       job_id: string;
-      status: 'processing' | 'ready' | 'failed';
+      status: 'processing' | 'awaiting_review' | 'ready' | 'failed';
       status_message: string;
       progress: number;
       output_url: string | null;
@@ -706,9 +706,29 @@ export class SocialMediaAgentService {
       pacing_note: string;
       cuts: { remove_start: number; remove_end: number; reason: string }[];
       zooms: { at: number; type: string; intensity: string; reason: string }[];
+      ai_decisions?: {
+        cuts: { remove_start: number; remove_end: number; reason: string }[];
+        zooms: { at: number; type: string; intensity: string; reason: string }[];
+        sound_effects: { at: number; type: string; reason: string }[];
+        broll: { at: number; duration: number; description: string; concept: string; reason: string }[];
+        hook_text: string;
+        music_mood: string;
+        pacing_note: string;
+      };
     }>
   > {
     const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.produceVideoJob}/${jobId}`);
+    return response.data;
+  }
+
+  static async startVideoProductionRender(
+    jobId: string,
+    decisions?: object
+  ): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/start-render`,
+      decisions ? { decisions } : {}
+    );
     return response.data;
   }
 
