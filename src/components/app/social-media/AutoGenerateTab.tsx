@@ -226,7 +226,7 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
 
         {/* Include images */}
         <Tooltip
-          title="Each auto-generated draft will include an AI-created image. Uses one extra credit per post."
+          title="Each auto-generated draft will include an AI-created image. Text-only posts use 1 credit. Carousels charge 1 credit per image (2-5 images)."
           arrow
           placement="right"
           enterTouchDelay={0}

@@ -106,7 +106,7 @@ export default function PricingPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl mb-4">Choose Your Plan</h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
-            1 Credit = 1 Complete Content Campaign with AI-generated images and multi-platform formatting
+            Text-only posts: 1 credit • Carousels: 1 credit per image (2-5 images)
           </p>
           <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border border-yellow-300 px-4 py-1.5">
             ⚡ First retry FREE • Second retry = 1 credit
@@ -217,7 +217,7 @@ export default function PricingPage() {
                 <ul className="space-y-2 ml-8">
                   <li className="flex items-start gap-2 text-gray-700">
                     <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
-                    <span>1 credit = 1 complete content campaign (image + caption + multi-platform formatting)</span>
+                    <span>Text-only posts: 1 credit • Carousels: 1 credit per image (2-5 images)</span>
                   </li>
                   <li className="flex items-start gap-2 text-gray-700">
                     <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
@@ -269,8 +269,8 @@ export default function PricingPage() {
                     <span>Credits reset every billing cycle (monthly)</span>
                   </li>
                   <li className="flex items-start gap-2 text-gray-700">
-                    <Check className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                    <span>Unused credits do NOT rollover (subscription plans only)</span>
+                    <Check className="h-5 w-5 text-[#CD1B78] flex-shrink-0 mt-0.5" />
+                    <span>Unused subscription credits roll over to next billing cycle</span>
                   </li>
                   <li className="flex items-start gap-2 text-gray-700">
                     <Check className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
