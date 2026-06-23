@@ -42,7 +42,7 @@ const TrialExpiredModal = ({ open, onClose }: TrialExpiredModalProps) => {
           Your free trial has ended
         </Typography>
         <Typography fontSize="14px" color="#6B7280" lineHeight={1.7}>
-          Your 3-day trial is over, but don't worry — choose a plan to continue creating amazing content with URI Agent.
+          Your 7-day trial is over, but don't worry — choose a plan to continue creating amazing content with URI Agent.
         </Typography>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, gap: 1, justifyContent: 'center' }}>

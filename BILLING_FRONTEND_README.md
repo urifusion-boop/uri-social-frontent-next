@@ -457,6 +457,27 @@ const handleRegenerateConfirmed = async () => {
 
 ---
 
+## ⚡ Credit System Updates (2025)
+
+**IMPORTANT CHANGES:**
+
+1. **Trial Period Extended**: 3 days → **7 days** (10 credits total)
+2. **Carousel Dynamic Pricing**: Carousels now charge **1 credit per image** (2-5 images)
+   - Text-only posts: 1 credit
+   - Carousel with 3 images: 3 credits
+   - Carousel with 5 images: 5 credits
+3. **Credit Rollover**: Unused subscription credits now **roll over** to next billing cycle
+   - Previously: subscription credits expired monthly
+   - Now: unused subscription credits are preserved and added to next allocation
+
+**Frontend Impact:**
+
+- Trial messaging updated in modals and FAQ
+- Backend handles carousel pricing automatically
+- Credit balance displays show rolled-over credits
+
+---
+
 ## ✅ PRD Compliance Checklist
 
 | PRD Requirement                                 | Frontend Implementation                    | Status |
@@ -471,6 +492,9 @@ const handleRegenerateConfirmed = async () => {
 | **PRD 7.3**: Low credit warning (≤3)            | Yellow badge + warning icon                | ✅     |
 | **PRD 8**: Block when credits = 0               | Red badge + upgrade modal                  | ✅     |
 | **PRD 11**: Show transaction history            | BillingPage credit history tab             | ✅     |
+| **Trial Period**: 7-day trial                   | Updated in modals and FAQ                  | ✅     |
+| **Carousel Pricing**: 1 credit per image        | Backend handles automatically              | ✅     |
+| **Credit Rollover**: Preserved on renewal       | Backend handles automatically              | ✅     |
 
 ---
 
