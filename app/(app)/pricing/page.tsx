@@ -23,6 +23,7 @@ export default function PricingPage() {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
 
   useEffect(() => {
     fetchTiers();
@@ -51,9 +52,9 @@ export default function PricingPage() {
 
     try {
       // PRD 6.3: Initialize SQUAD payment
-      const paymentData = await BillingService.initializePayment(tierId);
+      const paymentData = await BillingService.initializePayment(tierId, 'monthly', undefined, undefined, currency);
 
-      posthog.capture('checkout_started', { tier_id: tierId });
+      posthog.capture('checkout_started', { tier_id: tierId, currency });
       // Redirect to SQUAD checkout page
       window.location.href = paymentData.payment_url;
     } catch (error: unknown) {
@@ -88,6 +89,31 @@ export default function PricingPage() {
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
             1 Credit = 1 Complete Content Campaign with AI-generated images and multi-platform formatting
           </p>
+
+          {/* Currency Selector */}
+          <div className="flex justify-center gap-3 mb-6">
+            <button
+              onClick={() => setCurrency('NGN')}
+              className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                currency === 'NGN'
+                  ? 'bg-[#CD1B78] text-white shadow-md'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              ₦ NGN (Naira)
+            </button>
+            <button
+              onClick={() => setCurrency('USD')}
+              className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                currency === 'USD'
+                  ? 'bg-[#CD1B78] text-white shadow-md'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              $ USD (US Dollar)
+            </button>
+          </div>
+
           <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border border-yellow-300 px-4 py-1.5">
             ⚡ First retry FREE • Second retry = 1 credit
           </Badge>
@@ -100,7 +126,7 @@ export default function PricingPage() {
             .map((tier) => {
               const current = isCurrentPlan(tier.tier_id);
               const popular = isPopular(tier.tier_id);
-              const pricePerCredit = (tier.price_ngn / tier.credits).toFixed(0);
+              const price = BillingService.getPriceForCycle(tier, 'monthly', currency);
 
               return (
                 <Card
@@ -137,7 +163,7 @@ export default function PricingPage() {
                     <div className="mb-6 min-h-[60px]">
                       <div className="flex items-baseline gap-1">
                         <span className="text-4xl font-extrabold text-[#CD1B78]">
-                          {BillingService.formatNGN(tier.price_ngn)}
+                          {BillingService.formatCurrency(price, currency)}
                         </span>
                         <span className="text-gray-500 text-sm font-medium">/month</span>
                       </div>
