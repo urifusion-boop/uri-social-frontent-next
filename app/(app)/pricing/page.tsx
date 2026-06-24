@@ -23,10 +23,12 @@ export default function PricingPage() {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
 
   useEffect(() => {
     fetchTiers();
     posthog.capture('pricing_viewed');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchTiers = async () => {
@@ -52,13 +54,13 @@ export default function PricingPage() {
     }
 
     setSubscribing(tierId);
-    posthog.capture('plan_selected', { tier_id: tierId });
+    posthog.capture('plan_selected', { tier_id: tierId, currency });
 
     try {
-      // PRD 6.3: Initialize SQUAD payment
-      const paymentData = await BillingService.initializePayment(tierId);
+      // PRD 6.3: Initialize SQUAD payment with currency
+      const paymentData = await BillingService.initializePayment(tierId, 'monthly', undefined, undefined, currency);
 
-      posthog.capture('checkout_started', { tier_id: tierId });
+      posthog.capture('checkout_started', { tier_id: tierId, currency });
       // Redirect to SQUAD checkout page
       window.location.href = paymentData.payment_url;
     } catch (error: unknown) {
@@ -108,9 +110,31 @@ export default function PricingPage() {
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
             Text-only posts: 1 credit • Carousels: 1 credit per image (2-5 images)
           </p>
-          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border border-yellow-300 px-4 py-1.5">
-            ⚡ First retry FREE • Second retry = 1 credit
-          </Badge>
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border border-yellow-300 px-4 py-1.5">
+              ⚡ First retry FREE • Second retry = 1 credit
+            </Badge>
+
+            {/* Currency Selector */}
+            <div className="inline-flex items-center rounded-lg border border-gray-300 bg-white p-1">
+              <button
+                onClick={() => setCurrency('NGN')}
+                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${
+                  currency === 'NGN' ? 'bg-[#CD1B78] text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                ₦ NGN
+              </button>
+              <button
+                onClick={() => setCurrency('USD')}
+                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${
+                  currency === 'USD' ? 'bg-[#CD1B78] text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                $ USD
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Pricing Cards Grid */}
@@ -120,7 +144,7 @@ export default function PricingPage() {
             .map((tier) => {
               const current = isCurrentPlan(tier.tier_id);
               const popular = isPopular(tier.tier_id);
-              const pricePerCredit = (tier.price_ngn / tier.credits).toFixed(0);
+              const price = currency === 'USD' ? tier.price_usd_monthly || tier.price_ngn : tier.price_ngn;
 
               return (
                 <Card
@@ -157,7 +181,7 @@ export default function PricingPage() {
                     <div className="mb-6 min-h-[60px]">
                       <div className="flex items-baseline gap-1">
                         <span className="text-4xl font-extrabold text-[#CD1B78]">
-                          {BillingService.formatNGN(tier.price_ngn)}
+                          {BillingService.formatCurrency(price, currency)}
                         </span>
                         <span className="text-gray-500 text-sm font-medium">/month</span>
                       </div>

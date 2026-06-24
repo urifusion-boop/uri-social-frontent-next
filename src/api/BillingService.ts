@@ -47,11 +47,18 @@ export interface SubscriptionTier {
   tier_id: string;
   name: string;
 
-  // Multi-duration pricing (PRD Section 6 & 7: Multi-Duration with 5% Bulk Discount)
+  // Multi-duration pricing - NGN (PRD Section 6 & 7: Multi-Duration with 5% Bulk Discount)
   price_ngn_monthly?: number;
   price_ngn_3months?: number;
   price_ngn_6months?: number;
   price_ngn_12months?: number;
+
+  // Multi-duration pricing - USD (Multi-currency support)
+  price_usd_monthly?: number;
+  price_usd_3months?: number;
+  price_usd_6months?: number;
+  price_usd_12months?: number;
+
   credits_monthly?: number;
 
   // Legacy fields for backward compatibility
@@ -67,6 +74,8 @@ export interface SubscriptionResponse {
   tier_id: string;
   name: string;
   price_ngn: number;
+  price_usd?: number; // Multi-currency support
+  currency?: 'NGN' | 'USD'; // Currency used for subscription
   credits: number;
   credits_remaining: number;
   next_renewal: string | null;
@@ -212,21 +221,23 @@ export class BillingService {
   }
 
   /**
-   * Initialize SQUAD payment checkout with billing cycle support
+   * Initialize SQUAD payment checkout with billing cycle and currency support
    * PRD: Subscription Plan Upgrade (Multi-Duration with 5% Bulk Discount)
-   * Sections 6.3 & 8.1: Payment Flow + Billing Cycle Selection
+   * Sections 6.3 & 8.1: Payment Flow + Billing Cycle Selection + Multi-currency
    */
   static async initializePayment(
     tierId: string,
     billingCycle: BillingCycle = 'monthly',
     testAmount?: number,
-    testCredits?: number
+    testCredits?: number,
+    currency: 'NGN' | 'USD' = 'NGN'
   ): Promise<InitializePaymentResponse> {
     const response: AxiosResponse<InitializePaymentResponse> = await UriHttpClient.getClient().post(
       '/social-media/billing/initialize-payment',
       {
         tier_id: tierId,
         billing_cycle: billingCycle, // PRD 8.1: Pass billing cycle to backend
+        currency: currency, // Multi-currency support (NGN or USD)
         test_amount: testAmount,
         test_credits: testCredits,
       }
@@ -391,6 +402,25 @@ export class BillingService {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  }
+
+  /**
+   * Format US Dollar currency
+   */
+  static formatUSD(amount: number): string {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }
+
+  /**
+   * Format currency based on currency code
+   */
+  static formatCurrency(amount: number, currency: 'NGN' | 'USD' = 'NGN'): string {
+    return currency === 'USD' ? this.formatUSD(amount) : this.formatNGN(amount);
   }
 
   /**

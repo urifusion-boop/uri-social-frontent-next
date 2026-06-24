@@ -200,7 +200,11 @@ export default function BillingPage() {
                   {subscription.name}
                 </h2>
                 <p className="text-gray-600 font-medium">
-                  {BillingService.formatNGN(subscription.price_ngn)}/month • {subscription.credits} credits
+                  {BillingService.formatCurrency(
+                    subscription.currency === 'USD' ? subscription.price_usd || 0 : subscription.price_ngn,
+                    subscription.currency || 'NGN'
+                  )}
+                  /month • {subscription.credits} credits
                 </p>
               </div>
               <button
@@ -349,7 +353,9 @@ export default function BillingPage() {
                       <p className="text-xs text-gray-600">{payment.transaction_ref}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-black">{BillingService.formatNGN(payment.amount)}</p>
+                      <p className="text-xl font-black">
+                        {BillingService.formatCurrency(payment.amount, payment.currency as 'NGN' | 'USD')}
+                      </p>
                       <span
                         className={`inline-block px-2 py-1 rounded-full text-xs font-bold uppercase ${getStatusBadge(payment.status)}`}
                       >
