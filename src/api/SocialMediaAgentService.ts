@@ -567,7 +567,7 @@ export class SocialMediaAgentService {
     const response: Awaited<AxiosResponse<UriResponse<VideoJob>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.generateVideoFromStoryboard,
       payload,
-      { timeout: 30000 }
+      { timeout: 180000 }
     );
     return response.data;
   }
