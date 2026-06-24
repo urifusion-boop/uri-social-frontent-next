@@ -283,6 +283,9 @@ export default function MultiClipComposer() {
 
   // Result
   const [caption, setCaption] = useState('');
+  const [captionGenerating, setCaptionGenerating] = useState(false);
+  const [captionPlatform, setCaptionPlatform] = useState('instagram');
+  const captionGeneratedRef = useRef(false);
 
   // ── Session persistence ─────────────────────────────────────────────────────
 
@@ -360,6 +363,15 @@ export default function MultiClipComposer() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.job_id, job?.status]);
+
+  // Auto-generate caption when render completes
+  useEffect(() => {
+    if (job?.status === 'ready' && job.output_url && !captionGeneratedRef.current && !caption) {
+      captionGeneratedRef.current = true;
+      generateCaption(job, captionPlatform);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.status]);
 
   // ── File handling ───────────────────────────────────────────────────────────
 
@@ -467,6 +479,32 @@ export default function MultiClipComposer() {
     }
   };
 
+  // ── Caption generation ──────────────────────────────────────────────────────
+
+  const generateCaption = async (j: MultiClipJob, plt: string) => {
+    setCaptionGenerating(true);
+    try {
+      const storyboardLike = {
+        story_type: j.story_type,
+        clips: [...j.clips]
+          .filter((c) => !c.dropped)
+          .sort((a, b) => a.order_index - b.order_index)
+          .map((c) => ({ transcript: c.transcript, duration_seconds: c.duration_seconds })),
+      };
+      const res = await SocialMediaAgentService.generateVideoCaption({
+        storyboard: storyboardLike as unknown as Record<string, unknown>,
+        platform: plt,
+      });
+      if (res.status && res.responseData?.caption) {
+        setCaption(res.responseData.caption);
+      }
+    } catch {
+      /* silently fail */
+    } finally {
+      setCaptionGenerating(false);
+    }
+  };
+
   // ── Reset ───────────────────────────────────────────────────────────────────
 
   const handleReset = () => {
@@ -478,6 +516,7 @@ export default function MultiClipComposer() {
     setOrderedClipIds([]);
     setCaption('');
     setStitching(false);
+    captionGeneratedRef.current = false;
   };
 
   // ── Derived ─────────────────────────────────────────────────────────────────
@@ -915,13 +954,63 @@ export default function MultiClipComposer() {
 
         {/* Caption */}
         <div style={sectionStyle}>
-          <p style={{ margin: '0 0 10px', fontSize: 13.5, fontWeight: 700, color: DARK }}>Caption</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: DARK }}>Caption</p>
+            <button
+              onClick={() => {
+                captionGeneratedRef.current = true;
+                generateCaption(job, captionPlatform);
+              }}
+              disabled={captionGenerating}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 7,
+                border: `1.5px solid ${PRIMARY}`,
+                background: 'transparent',
+                color: PRIMARY,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: captionGenerating ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                opacity: captionGenerating ? 0.6 : 1,
+              }}
+            >
+              {captionGenerating ? 'Generating…' : 'Regenerate'}
+            </button>
+          </div>
+
+          {/* Platform picker */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {(['instagram', 'facebook', 'tiktok', 'linkedin'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setCaptionPlatform(p)}
+                style={{
+                  flex: 1,
+                  padding: '6px 4px',
+                  borderRadius: 8,
+                  border: `1.5px solid ${captionPlatform === p ? PRIMARY : BORDER}`,
+                  background: captionPlatform === p ? '#FFF0F8' : '#fff',
+                  color: captionPlatform === p ? PRIMARY : GREY,
+                  fontSize: 11.5,
+                  fontWeight: captionPlatform === p ? 700 : 500,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  textTransform: 'capitalize',
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+
           <textarea
-            value={caption}
+            value={captionGenerating ? '' : caption}
             onChange={(e) => setCaption(e.target.value)}
-            placeholder="Write a caption for this video…"
+            placeholder={captionGenerating ? 'Generating caption…' : 'Write a caption for this video…'}
             rows={4}
             maxLength={2200}
+            disabled={captionGenerating}
             style={{
               width: '100%',
               border: `1.5px solid ${BORDER}`,
@@ -933,6 +1022,7 @@ export default function MultiClipComposer() {
               fontFamily: 'inherit',
               outline: 'none',
               boxSizing: 'border-box',
+              background: captionGenerating ? LIGHT : '#fff',
             }}
           />
         </div>
