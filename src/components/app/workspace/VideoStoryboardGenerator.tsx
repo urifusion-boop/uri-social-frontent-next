@@ -91,7 +91,7 @@ export default function VideoStoryboardGenerator() {
   const SESSION_KEY = 'uri:vsg:session';
 
   const saveSession = (job: VideoJob | null, sb: Storyboard | null, plt: string) => {
-    if (!job || !sb) return;
+    if (!sb) return;
     try {
       localStorage.setItem(SESSION_KEY, JSON.stringify({ job, storyboard: sb, platform: plt }));
     } catch {
@@ -117,30 +117,35 @@ export default function VideoStoryboardGenerator() {
         storyboard: sb,
         platform: plt,
       } = JSON.parse(raw) as {
-        job: VideoJob;
+        job: VideoJob | null;
         storyboard: Storyboard;
         platform: string;
       };
-      if (!job?.job_id || job.status === 'complete' || job.status === 'failed') {
+      if (!sb) {
         clearSession();
         return;
       }
-      setVideoJob(job);
+
+      // Always restore storyboard + platform
       setStoryboard(sb);
       setPlatform(plt);
-      // Fetch latest state immediately so we don't show stale progress
-      SocialMediaAgentService.getVideoJob(job.job_id)
-        .then((res) => {
-          if (res.status && res.responseData) {
-            setVideoJob(res.responseData);
-            if (res.responseData.status === 'complete' || res.responseData.status === 'failed') {
-              clearSession();
-            } else {
-              saveSession(res.responseData, sb, plt);
+
+      // Only resume job polling if there's an active job
+      if (job?.job_id && job.status !== 'complete' && job.status !== 'failed') {
+        setVideoJob(job);
+        SocialMediaAgentService.getVideoJob(job.job_id)
+          .then((res) => {
+            if (res.status && res.responseData) {
+              setVideoJob(res.responseData);
+              if (res.responseData.status === 'complete' || res.responseData.status === 'failed') {
+                saveSession(null, sb, plt);
+              } else {
+                saveSession(res.responseData, sb, plt);
+              }
             }
-          }
-        })
-        .catch(() => {});
+          })
+          .catch(() => {});
+      }
     } catch {
       /* corrupted storage — ignore */
     }
@@ -376,6 +381,7 @@ export default function VideoStoryboardGenerator() {
       });
       if (res.status && res.responseData) {
         setStoryboard(res.responseData);
+        saveSession(null, res.responseData, platform);
         // Fire frame image generation in the background
         SocialMediaAgentService.generateStoryboardFrames(
           res.responseData.scenes,
