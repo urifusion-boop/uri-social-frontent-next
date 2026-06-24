@@ -1015,6 +1015,18 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async generateVideoCaption(payload: {
+    storyboard: Record<string, unknown>;
+    platform?: string;
+  }): Promise<UriResponse<{ caption: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ caption: string }>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateVideoCaption,
+      payload,
+      { timeout: 60000 }
+    );
+    return response.data;
+  }
+
   static async publishBlogPost(
     blogId: string,
     publishedUrl?: string

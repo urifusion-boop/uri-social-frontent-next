@@ -71,7 +71,8 @@ type ISocialMediaAgentApi =
   | 'agencyReportBrand'
   | 'produceVideo'
   | 'produceVideoJob'
-  | 'produceVideoStartRender';
+  | 'produceVideoStartRender'
+  | 'generateVideoCaption';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -144,6 +145,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   produceVideo: '/produce-video',
   produceVideoJob: '/produce-video-job',
   produceVideoStartRender: '/produce-video-job',
+  generateVideoCaption: '/generate-video-caption',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

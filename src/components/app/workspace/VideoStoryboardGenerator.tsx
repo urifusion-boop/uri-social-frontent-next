@@ -73,6 +73,7 @@ export default function VideoStoryboardGenerator() {
   const [mergedUrl, setMergedUrl] = useState('');
   const [mergeError, setMergeError] = useState('');
   const [draftCaption, setDraftCaption] = useState('');
+  const [captionGenerating, setCaptionGenerating] = useState(false);
   const [draftPlatforms, setDraftPlatforms] = useState<string[]>(['instagram_reels']);
   const [savingDraft, setSavingDraft] = useState(false);
   const [savedDraft, setSavedDraft] = useState<VideoDraft | null>(null);
@@ -130,6 +131,33 @@ export default function VideoStoryboardGenerator() {
       .catch(() => setConnectedPlatforms([]));
   }, []);
 
+  const generateCaption = async () => {
+    if (!storyboard) return;
+    setCaptionGenerating(true);
+    try {
+      const mappedPlatform = platform.startsWith('instagram')
+        ? 'instagram'
+        : platform.startsWith('facebook')
+          ? 'facebook'
+          : platform.startsWith('tiktok')
+            ? 'tiktok'
+            : platform.startsWith('linkedin')
+              ? 'linkedin'
+              : 'instagram';
+      const res = await SocialMediaAgentService.generateVideoCaption({
+        storyboard: storyboard as unknown as Record<string, unknown>,
+        platform: mappedPlatform,
+      });
+      if (res.status && res.responseData?.caption) {
+        setDraftCaption(res.responseData.caption);
+      }
+    } catch {
+      /* silently fail — user can write caption manually */
+    } finally {
+      setCaptionGenerating(false);
+    }
+  };
+
   const handleMerge = async () => {
     if (!videoJob) return;
     setMerging(true);
@@ -140,6 +168,7 @@ export default function VideoStoryboardGenerator() {
       const res = await SocialMediaAgentService.mergeVideoJob(videoJob.job_id);
       if (res.status && res.responseData) {
         setMergedUrl(res.responseData.merged_video_url);
+        generateCaption();
       } else {
         setMergeError(res.responseMessage || 'Merge failed. Please try again.');
       }
@@ -913,17 +942,43 @@ export default function VideoStoryboardGenerator() {
                           Save as Draft
                         </p>
 
-                        <label
-                          style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 6 }}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: 6,
+                          }}
                         >
-                          Caption
-                        </label>
+                          <label style={{ fontSize: 12, fontWeight: 600, color: GREY }}>Caption</label>
+                          <button
+                            onClick={generateCaption}
+                            disabled={captionGenerating || !storyboard}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              border: `1.5px solid ${PRIMARY}`,
+                              background: 'transparent',
+                              color: captionGenerating ? GREY : PRIMARY,
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              cursor: captionGenerating || !storyboard ? 'not-allowed' : 'pointer',
+                              fontFamily: 'inherit',
+                              opacity: captionGenerating || !storyboard ? 0.5 : 1,
+                            }}
+                          >
+                            {captionGenerating ? 'Generating…' : '✦ Regenerate'}
+                          </button>
+                        </div>
                         <textarea
-                          value={draftCaption}
+                          value={captionGenerating ? '' : draftCaption}
                           onChange={(e) => setDraftCaption(e.target.value)}
-                          placeholder="Write a caption for this video…"
-                          rows={3}
+                          placeholder={
+                            captionGenerating ? 'Generating caption with AI…' : 'Write a caption for this video…'
+                          }
+                          rows={4}
                           maxLength={2200}
+                          disabled={captionGenerating}
                           style={{
                             width: '100%',
                             border: `1.5px solid ${BORDER}`,
@@ -936,6 +991,7 @@ export default function VideoStoryboardGenerator() {
                             outline: 'none',
                             boxSizing: 'border-box',
                             marginBottom: 14,
+                            background: captionGenerating ? '#F9FAFB' : '#fff',
                           }}
                         />
 
