@@ -160,13 +160,17 @@ export interface MultiClipClip {
   drop_reason: string | null;
   transcript: string;
   dropped?: boolean;
+  // Product Story fields
+  vision_description?: string;
+  shot_type?: string;
+  vision_role?: string;
 }
 
 export interface MultiClipJob {
   job_id: string;
   user_id: string;
   story_type: 'founder' | 'product';
-  status: 'analyzing' | 'awaiting_order' | 'stitching' | 'ready' | 'failed';
+  status: 'analyzing' | 'awaiting_script' | 'awaiting_order' | 'stitching' | 'ready' | 'failed';
   status_message: string;
   progress: number;
   clips: MultiClipClip[];
@@ -178,6 +182,12 @@ export interface MultiClipJob {
   output_url: string | null;
   created_at: string;
   completed_at: string | null;
+  // Product Story script fields
+  story_description?: string;
+  script_draft?: string;
+  script_lines_draft?: string[];
+  script?: string;
+  script_lines?: string[];
 }
 
 export interface VideoPublishJob {
@@ -1090,6 +1100,30 @@ export class SocialMediaAgentService {
   static async stitchMultiClipJob(jobId: string): Promise<UriResponse<{ job_id: string; status: string }>> {
     const response: Awaited<AxiosResponse<UriResponse<{ job_id: string; status: string }>>> =
       await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipStitch}/${jobId}/stitch`, {});
+    return response.data;
+  }
+
+  static async draftProductScript(
+    jobId: string,
+    description: string
+  ): Promise<UriResponse<{ draft: string; lines: string[] }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ draft: string; lines: string[] }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipDraftScript}/${jobId}/draft-script`, {
+        description,
+      });
+    return response.data;
+  }
+
+  static async approveProductScript(
+    jobId: string,
+    script: string,
+    lines: string[]
+  ): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string; status: string }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipApproveScript}/${jobId}/approve-script`, {
+        script,
+        lines,
+      });
     return response.data;
   }
 

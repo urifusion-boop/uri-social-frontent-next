@@ -23,10 +23,24 @@ const DURATIONS = [
   { value: 60, label: '60s', sub: 'Detailed' },
 ];
 
+const STORY_TYPES = [
+  { value: 'founder', label: 'Founder Story', sub: 'You talking · transcript captions' },
+  { value: 'product', label: 'Product Story', sub: 'Silent product clips · script captions' },
+];
+
 const CLIP_TYPE_LABEL: Record<string, string> = {
   speech: 'Speech',
   silent: 'Silent',
   still: 'Still image',
+};
+
+const SHOT_TYPE_LABEL: Record<string, string> = {
+  attention_shot: 'Hero shot',
+  detail_closeup: 'Close-up',
+  benefit_context: 'In use',
+  packaging: 'Packaging',
+  cta_shot: 'CTA shot',
+  general: 'General',
 };
 
 const QUALITY_FLAG_LABEL: Record<string, string> = {
@@ -87,6 +101,7 @@ function ClipCard({
   clip,
   rank,
   total,
+  storyType = 'founder',
   onMoveUp,
   onMoveDown,
   onDrop,
@@ -94,6 +109,7 @@ function ClipCard({
   clip: MultiClipClip;
   rank: number;
   total: number;
+  storyType?: 'founder' | 'product';
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDrop: (dropped: boolean) => void;
@@ -152,10 +168,14 @@ function ClipCard({
         </div>
 
         {/* Type chip */}
-        <Chip
-          label={CLIP_TYPE_LABEL[clip.clip_type] || clip.clip_type}
-          color={clip.clip_type === 'speech' ? '#16a34a' : clip.clip_type === 'still' ? '#7c3aed' : GREY}
-        />
+        {storyType === 'product' && clip.shot_type ? (
+          <Chip label={SHOT_TYPE_LABEL[clip.shot_type] || clip.shot_type} color="#7c3aed" />
+        ) : (
+          <Chip
+            label={CLIP_TYPE_LABEL[clip.clip_type] || clip.clip_type}
+            color={clip.clip_type === 'speech' ? '#16a34a' : clip.clip_type === 'still' ? '#7c3aed' : GREY}
+          />
+        )}
 
         {/* Move buttons */}
         {!dropped && (
@@ -175,8 +195,8 @@ function ClipCard({
         )}
       </div>
 
-      {/* Transcript preview */}
-      {clip.transcript && !dropped && (
+      {/* Transcript / vision preview */}
+      {!dropped && (storyType === 'product' ? clip.vision_description : clip.transcript) && (
         <p
           style={{
             margin: '0 0 8px',
@@ -189,7 +209,7 @@ function ClipCard({
             WebkitBoxOrient: 'vertical',
           }}
         >
-          &ldquo;{clip.transcript}&rdquo;
+          {storyType === 'product' ? clip.vision_description : `“${clip.transcript}”`}
         </p>
       )}
 
@@ -262,9 +282,17 @@ function arrowBtn(disabled: boolean): React.CSSProperties {
 
 export default function MultiClipComposer() {
   // Config
+  const [storyType, setStoryType] = useState<'founder' | 'product'>('founder');
   const [orientation, setOrientation] = useState<'9:16' | '1:1' | '16:9'>('9:16');
   const [targetDuration, setTargetDuration] = useState(30);
   const [enableMusic, setEnableMusic] = useState(true);
+
+  // Product Story script
+  const [scriptDescription, setScriptDescription] = useState('');
+  const [scriptDraft, setScriptDraft] = useState('');
+  const [scriptLines, setScriptLines] = useState<string[]>([]);
+  const [scriptDrafting, setScriptDrafting] = useState(false);
+  const [scriptApproving, setScriptApproving] = useState(false);
 
   // Upload
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -401,7 +429,7 @@ export default function MultiClipComposer() {
     clearSession();
     const fd = new FormData();
     selectedFiles.forEach((f) => fd.append('clips', f));
-    fd.append('story_type', 'founder');
+    fd.append('story_type', storyType);
     fd.append('target_duration', String(targetDuration));
     fd.append('orientation', orientation);
     fd.append('enable_music', enableMusic ? 'true' : 'false');
@@ -479,6 +507,49 @@ export default function MultiClipComposer() {
     }
   };
 
+  // ── Product Story: script handlers ─────────────────────────────────────────
+
+  const handleDraftScript = async () => {
+    if (!job || !scriptDescription.trim()) return;
+    setScriptDrafting(true);
+    try {
+      const res = await SocialMediaAgentService.draftProductScript(job.job_id, scriptDescription.trim());
+      if (res.status && res.responseData) {
+        setScriptDraft(res.responseData.draft);
+        setScriptLines(res.responseData.lines);
+      }
+    } catch {
+      /* silently fail */
+    } finally {
+      setScriptDrafting(false);
+    }
+  };
+
+  const handleApproveScript = async () => {
+    if (!job) return;
+    const finalScript = scriptDraft || job.script_draft || '';
+    const finalLines =
+      scriptLines.length > 0
+        ? scriptLines
+        : (job.script_lines_draft ?? finalScript.split('\n').filter((l) => l.trim()));
+    if (!finalScript.trim()) return;
+    setScriptApproving(true);
+    try {
+      const res = await SocialMediaAgentService.approveProductScript(job.job_id, finalScript, finalLines);
+      if (res.status) {
+        setJob((prev) =>
+          prev
+            ? { ...prev, status: 'analyzing', progress: 60, status_message: 'Describing clips with AI vision…' }
+            : prev
+        );
+      }
+    } catch {
+      /* silently fail */
+    } finally {
+      setScriptApproving(false);
+    }
+  };
+
   // ── Caption generation ──────────────────────────────────────────────────────
 
   const generateCaption = async (j: MultiClipJob, plt: string) => {
@@ -517,6 +588,11 @@ export default function MultiClipComposer() {
     setCaption('');
     setStitching(false);
     captionGeneratedRef.current = false;
+    setScriptDescription('');
+    setScriptDraft('');
+    setScriptLines([]);
+    setScriptDrafting(false);
+    setScriptApproving(false);
   };
 
   // ── Derived ─────────────────────────────────────────────────────────────────
@@ -544,6 +620,49 @@ export default function MultiClipComposer() {
         <p style={{ fontSize: 13.5, color: GREY, margin: '0 0 24px' }}>
           Upload 2–10 video clips. Jane will transcribe each, suggest the best order, then stitch them into one video.
         </p>
+
+        {/* Story type */}
+        <div style={sectionStyle}>
+          <p
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: GREY,
+              margin: '0 0 10px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}
+          >
+            Story Type
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {STORY_TYPES.map((s) => {
+              const active = storyType === s.value;
+              return (
+                <button
+                  key={s.value}
+                  onClick={() => setStoryType(s.value as typeof storyType)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 8px',
+                    borderRadius: 10,
+                    border: `1.5px solid ${active ? PRIMARY : BORDER}`,
+                    background: active ? '#FFF0F8' : '#fff',
+                    color: active ? PRIMARY : DARK,
+                    fontWeight: active ? 700 : 500,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div style={{ fontWeight: 700 }}>{s.label}</div>
+                  <div style={{ fontSize: 11, color: GREY, marginTop: 2 }}>{s.sub}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Orientation */}
         <div style={sectionStyle}>
@@ -810,6 +929,131 @@ export default function MultiClipComposer() {
     );
   }
 
+  // Step 2b — Script editor (Product Story awaiting_script)
+  if (job.status === 'awaiting_script') {
+    const displayDraft = scriptDraft || job.script_draft || '';
+    const canDraft = scriptDescription.trim().length > 0;
+    const canApprove = displayDraft.trim().length > 0;
+    return (
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '8px 0 40px' }}>
+        <JobHeader job={job} onReset={handleReset} />
+
+        <div style={sectionStyle}>
+          <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800, color: DARK }}>Write your script</p>
+          <p style={{ margin: '0 0 14px', fontSize: 13, color: GREY }}>
+            {job.clips.length} clip{job.clips.length !== 1 ? 's' : ''} ready. Describe what this video is about — Jane
+            will draft a script that becomes the on-screen captions.
+          </p>
+          <textarea
+            value={scriptDescription}
+            onChange={(e) => setScriptDescription(e.target.value)}
+            placeholder="e.g. new Ankara collection, ₦15k, available now — for modern Nigerian women"
+            rows={3}
+            style={{
+              width: '100%',
+              border: `1.5px solid ${BORDER}`,
+              borderRadius: 8,
+              padding: '10px 12px',
+              fontSize: 13.5,
+              color: DARK,
+              resize: 'vertical',
+              fontFamily: 'inherit',
+              outline: 'none',
+              boxSizing: 'border-box',
+              marginBottom: 12,
+            }}
+          />
+          <button
+            onClick={handleDraftScript}
+            disabled={scriptDrafting || !canDraft}
+            style={{
+              width: '100%',
+              padding: '11px 0',
+              borderRadius: 10,
+              background: scriptDrafting || !canDraft ? '#E5E7EB' : PRIMARY,
+              color: scriptDrafting || !canDraft ? '#9CA3AF' : '#fff',
+              border: 'none',
+              fontSize: 13.5,
+              fontWeight: 700,
+              cursor: scriptDrafting || !canDraft ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            {scriptDrafting ? 'Drafting…' : 'Draft script with AI'}
+          </button>
+        </div>
+
+        {displayDraft && (
+          <div style={sectionStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: DARK }}>Script</p>
+              <button
+                onClick={handleDraftScript}
+                disabled={scriptDrafting || !canDraft}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: 7,
+                  border: `1.5px solid ${GREY}`,
+                  background: 'transparent',
+                  color: GREY,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: scriptDrafting || !canDraft ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  opacity: scriptDrafting || !canDraft ? 0.5 : 1,
+                }}
+              >
+                {scriptDrafting ? 'Redrafting…' : 'Redraft'}
+              </button>
+            </div>
+            <p style={{ margin: '0 0 8px', fontSize: 12, color: GREY }}>
+              Edit freely — each line becomes a caption for one clip.
+            </p>
+            <textarea
+              value={displayDraft}
+              onChange={(e) => {
+                setScriptDraft(e.target.value);
+                setScriptLines(e.target.value.split('\n').filter((l) => l.trim()));
+              }}
+              rows={Math.max(4, displayDraft.split('\n').length + 1)}
+              style={{
+                width: '100%',
+                border: `1.5px solid ${BORDER}`,
+                borderRadius: 8,
+                padding: '10px 12px',
+                fontSize: 13.5,
+                color: DARK,
+                resize: 'vertical',
+                fontFamily: 'inherit',
+                outline: 'none',
+                boxSizing: 'border-box',
+                marginBottom: 12,
+              }}
+            />
+            <button
+              onClick={handleApproveScript}
+              disabled={scriptApproving || !canApprove}
+              style={{
+                width: '100%',
+                padding: '11px 0',
+                borderRadius: 10,
+                background: scriptApproving || !canApprove ? '#E5E7EB' : PRIMARY,
+                color: scriptApproving || !canApprove ? '#9CA3AF' : '#fff',
+                border: 'none',
+                fontSize: 13.5,
+                fontWeight: 700,
+                cursor: scriptApproving || !canApprove ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {scriptApproving ? 'Applying…' : 'Approve script →'}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // Step 3 — Review & reorder (awaiting_order)
   if (job.status === 'awaiting_order') {
     return (
@@ -854,6 +1098,7 @@ export default function MultiClipComposer() {
                     clip={clip}
                     rank={visibleRank}
                     total={activeClips.filter((c) => !c.dropped).length}
+                    storyType={job.story_type}
                     onMoveUp={() => moveClip(trueIdx, trueIdx - 1)}
                     onMoveDown={() => moveClip(trueIdx, trueIdx + 1)}
                     onDrop={(dropped) => handleDrop2(clip.clip_id, dropped)}
@@ -875,6 +1120,7 @@ export default function MultiClipComposer() {
                       clip={clip}
                       rank={i}
                       total={droppedCount}
+                      storyType={job.story_type}
                       onMoveUp={() => {}}
                       onMoveDown={() => {}}
                       onDrop={(dropped) => handleDrop2(clip.clip_id, dropped)}
