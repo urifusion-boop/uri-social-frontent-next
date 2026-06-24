@@ -72,7 +72,12 @@ type ISocialMediaAgentApi =
   | 'produceVideo'
   | 'produceVideoJob'
   | 'produceVideoStartRender'
-  | 'generateVideoCaption';
+  | 'generateVideoCaption'
+  | 'multiClipStart'
+  | 'multiClipJob'
+  | 'multiClipReorder'
+  | 'multiClipDropClip'
+  | 'multiClipStitch';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -146,6 +151,11 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   produceVideoJob: '/produce-video-job',
   produceVideoStartRender: '/produce-video-job',
   generateVideoCaption: '/generate-video-caption',
+  multiClipStart: '/multi-clip/start',
+  multiClipJob: '/multi-clip/job',
+  multiClipReorder: '/multi-clip/job',
+  multiClipDropClip: '/multi-clip/job',
+  multiClipStitch: '/multi-clip/job',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

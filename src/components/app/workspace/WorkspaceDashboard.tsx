@@ -39,6 +39,7 @@ import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import MultiClipComposer from '@/src/components/app/workspace/MultiClipComposer';
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
 import VideoProductionForm from '@/src/components/app/workspace/VideoProductionForm';
@@ -772,7 +773,7 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video' | 'compose';
 
 const ContentManagerPage = ({
   onJane,
@@ -1171,6 +1172,11 @@ const ContentManagerPage = ({
       label: '🎬 Video',
       tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
     },
+    {
+      key: 'compose',
+      label: '🎞 Compose',
+      tooltip: 'Upload your own clips and stitch them into a polished video with AI ordering and captions',
+    },
   ];
 
   return (
@@ -1262,6 +1268,7 @@ const ContentManagerPage = ({
               calendar: 'calendar',
               auto: 'sparkle',
               video: 'video',
+              compose: 'film',
             };
             return (
               <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
@@ -1480,6 +1487,8 @@ const ContentManagerPage = ({
         )}
 
         {activeTab === 'video' && <VideoStoryboardGenerator />}
+
+        {activeTab === 'compose' && <MultiClipComposer />}
 
         {activeTab === 'drafts' && (
           <>
@@ -2405,7 +2414,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       if (platform) {
         ToastService.showToast(`${username} connected successfully!`, ToastTypeEnum.Success);
         posthog.capture('social_account_connected', { platform, username });
-        try { sessionStorage.removeItem('social_connections_cache'); } catch { /* noop */ }
+        try {
+          sessionStorage.removeItem('social_connections_cache');
+        } catch {
+          /* noop */
+        }
         loadStatuses();
       }
       // If this page is running inside a popup, close it so the opener's polling timer fires
@@ -5734,8 +5747,14 @@ const PlaybookPage = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span
                 style={{
-                  background: styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0 ? '#C2185B' : '#e5e7eb',
-                  color: styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0 ? '#fff' : '#6b7280',
+                  background:
+                    styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
+                      ? '#C2185B'
+                      : '#e5e7eb',
+                  color:
+                    styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
+                      ? '#fff'
+                      : '#6b7280',
                   borderRadius: 99,
                   padding: '2px 10px',
                   fontSize: 11.5,
@@ -6904,7 +6923,6 @@ export default function WorkspaceDashboard() {
     return () => {
       if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachment?.previewUrl]);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -6934,7 +6952,7 @@ export default function WorkspaceDashboard() {
 
   useEffect(() => {
     AgencyService.listBrands()
-      .then((res) => setSwitcherBrands(res.status ? res.responseData ?? [] : []))
+      .then((res) => setSwitcherBrands(res.status ? (res.responseData ?? []) : []))
       .catch(() => setSwitcherBrands([]));
   }, []);
 
@@ -7117,18 +7135,25 @@ export default function WorkspaceDashboard() {
         id: 'u' + Date.now(),
         type: 'user',
         time: now,
-        content: (imageUrl || previewUrl) ? (
-          <div>
-            <img
-              src={imageUrl ?? previewUrl}
-              alt="attachment"
-              style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, display: 'block', marginBottom: txt ? 8 : 0 }}
-            />
-            {txt && <span>{txt}</span>}
-          </div>
-        ) : (
-          txt
-        ),
+        content:
+          imageUrl || previewUrl ? (
+            <div>
+              <img
+                src={imageUrl ?? previewUrl}
+                alt="attachment"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: 200,
+                  borderRadius: 8,
+                  display: 'block',
+                  marginBottom: txt ? 8 : 0,
+                }}
+              />
+              {txt && <span>{txt}</span>}
+            </div>
+          ) : (
+            txt
+          ),
       },
     ]);
     setTyping(true);
@@ -7398,10 +7423,7 @@ export default function WorkspaceDashboard() {
               }}
             >
               {switcherOpen && switcherBrands && switcherBrands.length > 1 && (
-                <div
-                  onClick={() => setSwitcherOpen(false)}
-                  style={{ position: 'fixed', inset: 0, zIndex: 998 }}
-                />
+                <div onClick={() => setSwitcherOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
               )}
               <div
                 onClick={() => {
@@ -7459,7 +7481,15 @@ export default function WorkspaceDashboard() {
                       zIndex: 999,
                     }}
                   >
-                    <div style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase' }}>
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: 'rgba(255,255,255,.3)',
+                        textTransform: 'uppercase',
+                      }}
+                    >
                       Switch brand
                     </div>
                     {switcherBrands.map((b) => {
@@ -7488,7 +7518,9 @@ export default function WorkspaceDashboard() {
                             textAlign: 'left',
                           }}
                         >
-                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</span>
+                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {b.name}
+                          </span>
                           {active && <I n="check" s={13} c="#E91E63" />}
                         </button>
                       );

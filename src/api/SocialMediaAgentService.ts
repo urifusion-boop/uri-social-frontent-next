@@ -147,6 +147,39 @@ export interface VideoPolishStyle {
   good_for_intents: string[];
 }
 
+export interface MultiClipClip {
+  clip_id: string;
+  filename: string;
+  cloudinary_url: string;
+  order_index: number;
+  duration_seconds: number;
+  clip_type: 'speech' | 'silent' | 'still';
+  has_face: boolean;
+  quality_flags: string[];
+  recommended_drop: boolean;
+  drop_reason: string | null;
+  transcript: string;
+  dropped?: boolean;
+}
+
+export interface MultiClipJob {
+  job_id: string;
+  user_id: string;
+  story_type: 'founder' | 'product';
+  status: 'analyzing' | 'awaiting_order' | 'stitching' | 'ready' | 'failed';
+  status_message: string;
+  progress: number;
+  clips: MultiClipClip[];
+  suggested_order: string[];
+  target_duration_seconds: number;
+  orientation: '9:16' | '1:1' | '16:9';
+  enable_music: boolean;
+  music_mood: string;
+  output_url: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
 export interface VideoPublishJob {
   job_id: string;
   draft_id: string;
@@ -1012,6 +1045,51 @@ export class SocialMediaAgentService {
         rating,
         issues,
       });
+    return response.data;
+  }
+
+  // ── Multi-Clip Composition ────────────────────────────────────────────────
+
+  static async startMultiClipJob(formData: FormData): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string; status: string }>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.multiClipStart, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 0,
+      });
+    return response.data;
+  }
+
+  static async getMultiClipJob(jobId: string): Promise<UriResponse<MultiClipJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<MultiClipJob>>> = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.multiClipJob}/${jobId}`
+    );
+    return response.data;
+  }
+
+  static async reorderMultiClipJob(jobId: string, clipIds: string[]): Promise<UriResponse<{ accepted: boolean }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ accepted: boolean }>>> = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.multiClipReorder}/${jobId}/reorder`,
+      { clip_ids: clipIds }
+    );
+    return response.data;
+  }
+
+  static async dropMultiClip(
+    jobId: string,
+    clipId: string,
+    dropped: boolean
+  ): Promise<UriResponse<{ clip_id: string; dropped: boolean }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ clip_id: string; dropped: boolean }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipDropClip}/${jobId}/drop-clip`, {
+        clip_id: clipId,
+        dropped,
+      });
+    return response.data;
+  }
+
+  static async stitchMultiClipJob(jobId: string): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string; status: string }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipStitch}/${jobId}/stitch`, {});
     return response.data;
   }
 
