@@ -88,6 +88,64 @@ export default function VideoStoryboardGenerator() {
   const [publishJobs, setPublishJobs] = useState<Record<string, VideoPublishJob>>({});
   const publishPollRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
+  const SESSION_KEY = 'uri:vsg:session';
+
+  const saveSession = (job: VideoJob | null, sb: Storyboard | null, plt: string) => {
+    if (!job || !sb) return;
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ job, storyboard: sb, platform: plt }));
+    } catch {
+      /* quota exceeded — ignore */
+    }
+  };
+
+  const clearSession = () => {
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Restore in-progress session on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      const {
+        job,
+        storyboard: sb,
+        platform: plt,
+      } = JSON.parse(raw) as {
+        job: VideoJob;
+        storyboard: Storyboard;
+        platform: string;
+      };
+      if (!job?.job_id || job.status === 'complete' || job.status === 'failed') {
+        clearSession();
+        return;
+      }
+      setVideoJob(job);
+      setStoryboard(sb);
+      setPlatform(plt);
+      // Fetch latest state immediately so we don't show stale progress
+      SocialMediaAgentService.getVideoJob(job.job_id)
+        .then((res) => {
+          if (res.status && res.responseData) {
+            setVideoJob(res.responseData);
+            if (res.responseData.status === 'complete' || res.responseData.status === 'failed') {
+              clearSession();
+            } else {
+              saveSession(res.responseData, sb, plt);
+            }
+          }
+        })
+        .catch(() => {});
+    } catch {
+      /* corrupted storage — ignore */
+    }
+  }, []);
+
   // Poll for job status while generating
   useEffect(() => {
     if (!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') {
@@ -101,6 +159,9 @@ export default function VideoStoryboardGenerator() {
           setVideoJob(res.responseData);
           if (res.responseData.status === 'complete' || res.responseData.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current);
+            clearSession();
+          } else {
+            saveSession(res.responseData, storyboard, platform);
           }
         }
       } catch {
@@ -168,6 +229,7 @@ export default function VideoStoryboardGenerator() {
       const res = await SocialMediaAgentService.mergeVideoJob(videoJob.job_id);
       if (res.status && res.responseData) {
         setMergedUrl(res.responseData.merged_video_url);
+        clearSession();
         generateCaption();
       } else {
         setMergeError(res.responseMessage || 'Merge failed. Please try again.');
@@ -302,6 +364,7 @@ export default function VideoStoryboardGenerator() {
     setVideoJob(null);
     setVideoError('');
     setFrameMap({});
+    clearSession();
     if (framePollRef.current) clearInterval(framePollRef.current);
     try {
       const res = await SocialMediaAgentService.generateStoryboard({
@@ -358,6 +421,7 @@ export default function VideoStoryboardGenerator() {
       });
       if (res.status && res.responseData) {
         setVideoJob(res.responseData);
+        saveSession(res.responseData, storyboard, platform);
       } else {
         setVideoError(res.responseMessage || 'Could not start video generation.');
       }
