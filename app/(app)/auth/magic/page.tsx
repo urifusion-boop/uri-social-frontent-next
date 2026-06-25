@@ -16,6 +16,7 @@ function MagicLinkContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Authenticating...');
   const [redirectUrl, setRedirectUrl] = useState('/dashboard');
+  const [hasVerified, setHasVerified] = useState(false);
 
   useEffect(() => {
     const token = searchParams.get('token');
@@ -25,6 +26,12 @@ function MagicLinkContent() {
       setMessage('Invalid magic link. No authentication token provided.');
       return;
     }
+
+    // Prevent duplicate verification requests
+    if (hasVerified) {
+      return;
+    }
+    setHasVerified(true);
 
     // Verify magic link
     AuthService.verifyMagicLink(token)
@@ -88,7 +95,8 @@ function MagicLinkContent() {
           error: errorMessage,
         });
       });
-  }, [searchParams, saveUserDetails, saveUserTokens, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   return (
     <Box
