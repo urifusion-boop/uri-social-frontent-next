@@ -829,7 +829,7 @@ export default function MultiClipComposer() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="video/*"
+              accept="video/*,image/*"
               multiple
               style={{ display: 'none' }}
               onChange={(e) => addFiles(e.target.files)}
@@ -937,6 +937,24 @@ export default function MultiClipComposer() {
     return (
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '8px 0 40px' }}>
         <JobHeader job={job} onReset={handleReset} />
+
+        {job.mismatch_info && (
+          <div
+            style={{
+              background: '#FFF7ED',
+              border: '1.5px solid #F97316',
+              borderRadius: 10,
+              padding: '10px 14px',
+              marginBottom: 16,
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+            }}
+          >
+            <span style={{ fontSize: 18, lineHeight: 1.2 }}>⚠️</span>
+            <p style={{ margin: 0, fontSize: 13, color: '#7C2D12', lineHeight: 1.5 }}>{job.mismatch_info.message}</p>
+          </div>
+        )}
 
         <div style={sectionStyle}>
           <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800, color: DARK }}>Write your script</p>
@@ -1061,20 +1079,39 @@ export default function MultiClipComposer() {
         <JobHeader job={job} onReset={handleReset} />
 
         {/* Mismatch / info banner */}
-        {job.clips.some((c) => c.clip_type === 'silent') && job.clips.some((c) => c.clip_type === 'speech') && (
+        {job.mismatch_info ? (
           <div
             style={{
-              background: '#EFF6FF',
-              border: '1.5px solid #BFDBFE',
-              borderRadius: 12,
-              padding: '12px 16px',
-              marginBottom: 14,
-              fontSize: 13,
-              color: '#1E40AF',
+              background: '#FFF7ED',
+              border: '1.5px solid #F97316',
+              borderRadius: 10,
+              padding: '10px 14px',
+              marginBottom: 16,
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
             }}
           >
-            Some clips have no speech detected — they&apos;ll be included as visual context between talking clips.
+            <span style={{ fontSize: 18, lineHeight: 1.2 }}>⚠️</span>
+            <p style={{ margin: 0, fontSize: 13, color: '#7C2D12', lineHeight: 1.5 }}>{job.mismatch_info.message}</p>
           </div>
+        ) : (
+          job.clips.some((c) => c.clip_type === 'silent') &&
+          job.clips.some((c) => c.clip_type === 'speech') && (
+            <div
+              style={{
+                background: '#EFF6FF',
+                border: '1.5px solid #BFDBFE',
+                borderRadius: 12,
+                padding: '12px 16px',
+                marginBottom: 14,
+                fontSize: 13,
+                color: '#1E40AF',
+              }}
+            >
+              Some clips have no speech detected — they&apos;ll be included as visual context between talking clips.
+            </div>
+          )
         )}
 
         <div style={{ ...sectionStyle }}>

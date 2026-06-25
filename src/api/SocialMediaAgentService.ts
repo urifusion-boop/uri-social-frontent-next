@@ -188,6 +188,8 @@ export interface MultiClipJob {
   script_lines_draft?: string[];
   script?: string;
   script_lines?: string[];
+  // Phase 3: mismatch detection
+  mismatch_info?: { type: string; message: string } | null;
 }
 
 export interface VideoPublishJob {
