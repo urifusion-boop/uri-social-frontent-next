@@ -222,6 +222,25 @@ function ClipCard({
         </div>
       )}
 
+      {/* Pre-edited warning */}
+      {!dropped && clip.quality_flags.includes('pre_edited') && (
+        <div
+          style={{
+            background: '#EFF6FF',
+            border: '1px solid #93C5FD',
+            borderRadius: 8,
+            padding: '8px 12px',
+            marginBottom: 8,
+            fontSize: 12,
+            color: '#1E40AF',
+            lineHeight: 1.5,
+          }}
+        >
+          This clip already has captions or music baked in — our captions may double up. For best results, upload raw
+          footage.
+        </div>
+      )}
+
       {/* Recommended drop banner */}
       {clip.recommended_drop && !dropped && (
         <div

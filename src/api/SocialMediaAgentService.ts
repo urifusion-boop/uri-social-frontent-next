@@ -160,6 +160,10 @@ export interface MultiClipClip {
   drop_reason: string | null;
   transcript: string;
   dropped?: boolean;
+  // Audio leveling
+  volume_boost?: number;
+  // Subject-aware crop
+  subject_position?: 'left' | 'center' | 'right';
   // Product Story fields
   vision_description?: string;
   shot_type?: string;
