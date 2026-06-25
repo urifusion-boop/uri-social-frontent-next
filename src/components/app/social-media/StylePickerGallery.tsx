@@ -205,6 +205,236 @@ export default function StylePickerGallery({
   const bySlug = Object.fromEntries(STYLES.map((s) => [s.slug, s]));
   const selectedStyles = selected.map((slug) => bySlug[slug]).filter(Boolean);
 
+  // Create "View All" categories by grouping all styles into general categories
+  const allStylesCategories = [
+    {
+      id: 'all_editorial',
+      name: 'Editorial & High-Fashion',
+      description: 'Magazine-quality, editorial, dramatic visuals',
+      icon: '📸',
+      styles: regularStyles.filter((s) =>
+        [
+          'street_editorial',
+          'vintage_film',
+          'high_contrast_drama',
+          'editorial_beauty',
+          'neo_luxury_street',
+          'afro_cinematic_fashion',
+          'romantic_noir_fashion',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_luxury',
+      name: 'Luxury & Premium',
+      description: 'Clean, sophisticated, high-end aesthetics',
+      icon: '💎',
+      styles: regularStyles.filter((s) =>
+        [
+          'clean_luxe',
+          'afro_glam',
+          'minimal_studio',
+          'hyper_minimal_fashion',
+          'vintage_luxury_revival',
+          'quiet_luxury_saas',
+          'atmospheric_luxury_suspension',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_bold',
+      name: 'Bold & Energetic',
+      description: 'Vibrant, attention-grabbing, high-impact',
+      icon: '⚡',
+      styles: regularStyles.filter((s) =>
+        [
+          'neon_pop',
+          'bold_loud',
+          'bold_statement',
+          'vibrant_tropical',
+          'bold_glam',
+          'hyper_commercial_fashion',
+          'kinetic_startup_energy',
+          'raw_youth_culture',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_food',
+      name: 'Food & Culinary',
+      description: 'All food photography styles',
+      icon: '🍽️',
+      styles: regularStyles.filter((s) =>
+        [
+          'overhead_feast',
+          'dark_moody_food',
+          'bright_fresh',
+          'street_food_energy',
+          'menu_board',
+          'rustic_warmth',
+          'minimalist_plating',
+          'elemental_explosion_realism',
+          'monumental_product_worship',
+          'ingredient_world_immersion',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_product',
+      name: 'Product Photography',
+      description: 'Clean product shots, e-commerce ready',
+      icon: '📦',
+      styles: regularStyles.filter(
+        (s) =>
+          s.slug.startsWith('prod_') ||
+          ['minimal_studio', 'catalogue_clean', 'premium_utility_minimalism'].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_lifestyle',
+      name: 'Lifestyle & Natural',
+      description: 'Authentic, human-centered, real-life context',
+      icon: '🌿',
+      styles: regularStyles.filter((s) =>
+        [
+          'lifestyle_natural',
+          'rustic_warmth',
+          'natural_organic',
+          'coastal_luxury_escape',
+          'founder_documentary',
+          'cinematic_narrative_product_scene',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_tech',
+      name: 'Tech & SaaS',
+      description: 'Modern, digital, startup-focused',
+      icon: '💻',
+      styles: regularStyles.filter(
+        (s) =>
+          s.slug.startsWith('saas_') ||
+          [
+            'corporate_gradient',
+            'data_visual',
+            'trust_builder',
+            'minimal_tech',
+            'dark_mode_pro',
+            'isometric_3d',
+            'clean_startup',
+            'neo_brutalist_startup',
+            'futuristic_enterprise_glow',
+            'intelligent_interface_surrealism',
+          ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_beauty',
+      name: 'Beauty & Wellness',
+      description: 'Cosmetics, skincare, wellness visuals',
+      icon: '✨',
+      styles: regularStyles.filter((s) =>
+        [
+          'glow_up',
+          'soft_pastel',
+          'bold_glam',
+          'clean_clinical',
+          'natural_organic',
+          'editorial_beauty',
+          'before_after',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_perfume',
+      name: 'Perfume & Fragrance',
+      description: 'Elegant, sensory, luxurious scent visuals',
+      icon: '🌸',
+      styles: regularStyles.filter((s) => s.slug.startsWith('perf_')),
+    },
+    {
+      id: 'all_art',
+      name: 'Art-Piece Posters',
+      description: '9:16 artistic poster styles',
+      icon: '🎨',
+      styles: regularStyles.filter((s) => s.slug.startsWith('art_')),
+    },
+    {
+      id: 'all_other',
+      name: 'Other Styles',
+      description: 'Additional visual styles',
+      icon: '📐',
+      styles: regularStyles.filter((s) => {
+        const coveredSlugs = new Set([
+          'street_editorial',
+          'vintage_film',
+          'high_contrast_drama',
+          'editorial_beauty',
+          'neo_luxury_street',
+          'afro_cinematic_fashion',
+          'romantic_noir_fashion',
+          'clean_luxe',
+          'afro_glam',
+          'minimal_studio',
+          'hyper_minimal_fashion',
+          'vintage_luxury_revival',
+          'quiet_luxury_saas',
+          'atmospheric_luxury_suspension',
+          'neon_pop',
+          'bold_loud',
+          'bold_statement',
+          'vibrant_tropical',
+          'bold_glam',
+          'hyper_commercial_fashion',
+          'kinetic_startup_energy',
+          'raw_youth_culture',
+          'overhead_feast',
+          'dark_moody_food',
+          'bright_fresh',
+          'street_food_energy',
+          'menu_board',
+          'rustic_warmth',
+          'minimalist_plating',
+          'elemental_explosion_realism',
+          'monumental_product_worship',
+          'ingredient_world_immersion',
+          'catalogue_clean',
+          'premium_utility_minimalism',
+          'lifestyle_natural',
+          'rustic_warmth',
+          'natural_organic',
+          'coastal_luxury_escape',
+          'founder_documentary',
+          'cinematic_narrative_product_scene',
+          'corporate_gradient',
+          'data_visual',
+          'trust_builder',
+          'minimal_tech',
+          'dark_mode_pro',
+          'isometric_3d',
+          'clean_startup',
+          'neo_brutalist_startup',
+          'futuristic_enterprise_glow',
+          'intelligent_interface_surrealism',
+          'glow_up',
+          'soft_pastel',
+          'bold_glam',
+          'clean_clinical',
+          'natural_organic',
+          'editorial_beauty',
+          'before_after',
+        ]);
+        return (
+          !s.slug.startsWith('prod_') &&
+          !s.slug.startsWith('saas_') &&
+          !s.slug.startsWith('perf_') &&
+          !s.slug.startsWith('art_') &&
+          !coveredSlugs.has(s.slug)
+        );
+      }),
+    },
+  ].filter((cat) => cat.styles.length > 0);
+
   const toggle = (slug: string) => {
     if (selected.includes(slug)) {
       onChange(selected.filter((s) => s !== slug));
@@ -566,7 +796,7 @@ export default function StylePickerGallery({
         </Box>
       </Box>
 
-      {/* Categorized Visual Styles */}
+      {/* Categorized Visual Styles - Industry View */}
       {!viewAll &&
         categories.map((category) => {
           const categoryStyles = category.styles
@@ -611,26 +841,45 @@ export default function StylePickerGallery({
           );
         })}
 
-      {/* Flat Grid for "View All" mode */}
-      {viewAll && (
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
-            gap: 1.5,
-          }}
-        >
-          {styles.map((style) => (
-            <StyleCard
-              key={style.slug}
-              style={style}
-              isSelected={selected.includes(style.slug)}
-              onToggle={() => toggle(style.slug)}
-              primary={primary}
-            />
-          ))}
-        </Box>
-      )}
+      {/* Categorized Visual Styles - All Styles View */}
+      {viewAll &&
+        allStylesCategories.map((category) => {
+          if (category.styles.length === 0) return null;
+
+          return (
+            <Box key={category.id} sx={{ mb: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                <Typography sx={{ fontSize: 24 }}>{category.icon}</Typography>
+                <Box>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f', lineHeight: 1.3 }}>
+                    {category.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: '#6B7280', lineHeight: 1.3 }}>
+                    {category.description}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+                  gap: 1.5,
+                }}
+              >
+                {category.styles.map((style) => (
+                  <StyleCard
+                    key={style.slug}
+                    style={style}
+                    isSelected={selected.includes(style.slug)}
+                    onToggle={() => toggle(style.slug)}
+                    primary={primary}
+                  />
+                ))}
+              </Box>
+            </Box>
+          );
+        })}
 
       {/* AI Marketing Templates Section */}
       {marketingTemplates.length > 0 && (
