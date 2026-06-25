@@ -221,6 +221,7 @@ export default function StylePickerGallery({
           'neo_luxury_street',
           'afro_cinematic_fashion',
           'romantic_noir_fashion',
+          'authority_editorial',
         ].includes(s.slug)
       ),
     },
@@ -238,6 +239,7 @@ export default function StylePickerGallery({
           'vintage_luxury_revival',
           'quiet_luxury_saas',
           'atmospheric_luxury_suspension',
+          'luxury_listing',
         ].includes(s.slug)
       ),
     },
@@ -256,6 +258,9 @@ export default function StylePickerGallery({
           'hyper_commercial_fashion',
           'kinetic_startup_energy',
           'raw_youth_culture',
+          'festival_energy',
+          'hyperpop_perspective',
+          'internet_culture_maximalism',
         ].includes(s.slug)
       ),
     },
@@ -276,6 +281,8 @@ export default function StylePickerGallery({
           'elemental_explosion_realism',
           'monumental_product_worship',
           'ingredient_world_immersion',
+          'drink_splash',
+          'food_trust_builder',
         ].includes(s.slug)
       ),
     },
@@ -303,6 +310,8 @@ export default function StylePickerGallery({
           'coastal_luxury_escape',
           'founder_documentary',
           'cinematic_narrative_product_scene',
+          'neighbourhood_life',
+          'optimistic_human_future',
         ].includes(s.slug)
       ),
     },
@@ -325,6 +334,10 @@ export default function StylePickerGallery({
             'neo_brutalist_startup',
             'futuristic_enterprise_glow',
             'intelligent_interface_surrealism',
+            'strategic_collage_editorial',
+            'cinematic_startup_realism',
+            'afro_futurist_enterprise',
+            'tactical_workspace_realism',
           ].includes(s.slug)
       ),
     },
@@ -346,6 +359,40 @@ export default function StylePickerGallery({
       ),
     },
     {
+      id: 'all_fitness',
+      name: 'Fitness & Sports',
+      description: 'Energy, movement, transformation, athletic',
+      icon: '💪',
+      styles: regularStyles.filter((s) =>
+        [
+          'energy_motion',
+          'dark_grit',
+          'transformation',
+          'motivational_type',
+          'clean_athletic',
+          'performance_futurism',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_real_estate',
+      name: 'Real Estate & Property',
+      description: 'Property showcase, architecture, spaces',
+      icon: '🏠',
+      styles: regularStyles.filter((s) =>
+        ['property_showcase', 'luxury_listing', 'neighbourhood_life', 'blueprint_modern', 'aerial_clean'].includes(
+          s.slug
+        )
+      ),
+    },
+    {
+      id: 'all_professional',
+      name: 'Professional Services',
+      description: 'Consulting, coaching, B2B services',
+      icon: '💼',
+      styles: regularStyles.filter((s) => s.slug.startsWith('svc_') || ['warm_professional'].includes(s.slug)),
+    },
+    {
       id: 'all_perfume',
       name: 'Perfume & Fragrance',
       description: 'Elegant, sensory, luxurious scent visuals',
@@ -360,78 +407,13 @@ export default function StylePickerGallery({
       styles: regularStyles.filter((s) => s.slug.startsWith('art_')),
     },
     {
-      id: 'all_other',
-      name: 'Other Styles',
-      description: 'Additional visual styles',
-      icon: '📐',
-      styles: regularStyles.filter((s) => {
-        const coveredSlugs = new Set([
-          'street_editorial',
-          'vintage_film',
-          'high_contrast_drama',
-          'editorial_beauty',
-          'neo_luxury_street',
-          'afro_cinematic_fashion',
-          'romantic_noir_fashion',
-          'clean_luxe',
-          'afro_glam',
-          'minimal_studio',
-          'hyper_minimal_fashion',
-          'vintage_luxury_revival',
-          'quiet_luxury_saas',
-          'atmospheric_luxury_suspension',
-          'neon_pop',
-          'bold_loud',
-          'bold_statement',
-          'vibrant_tropical',
-          'bold_glam',
-          'hyper_commercial_fashion',
-          'kinetic_startup_energy',
-          'raw_youth_culture',
-          'overhead_feast',
-          'dark_moody_food',
-          'bright_fresh',
-          'street_food_energy',
-          'menu_board',
-          'rustic_warmth',
-          'minimalist_plating',
-          'elemental_explosion_realism',
-          'monumental_product_worship',
-          'ingredient_world_immersion',
-          'catalogue_clean',
-          'premium_utility_minimalism',
-          'lifestyle_natural',
-          'rustic_warmth',
-          'natural_organic',
-          'coastal_luxury_escape',
-          'founder_documentary',
-          'cinematic_narrative_product_scene',
-          'corporate_gradient',
-          'data_visual',
-          'trust_builder',
-          'minimal_tech',
-          'dark_mode_pro',
-          'isometric_3d',
-          'clean_startup',
-          'neo_brutalist_startup',
-          'futuristic_enterprise_glow',
-          'intelligent_interface_surrealism',
-          'glow_up',
-          'soft_pastel',
-          'bold_glam',
-          'clean_clinical',
-          'natural_organic',
-          'editorial_beauty',
-          'before_after',
-        ]);
-        return (
-          !s.slug.startsWith('prod_') &&
-          !s.slug.startsWith('saas_') &&
-          !s.slug.startsWith('perf_') &&
-          !s.slug.startsWith('art_') &&
-          !coveredSlugs.has(s.slug)
-        );
-      }),
+      id: 'all_creative',
+      name: 'Creative & Surreal',
+      description: 'Experimental, artistic, boundary-pushing',
+      icon: '🌀',
+      styles: regularStyles.filter((s) =>
+        ['dreamlike_fashion_surrealism', 'modern_doodle_collage', 'minimalist_editorial'].includes(s.slug)
+      ),
     },
   ].filter((cat) => cat.styles.length > 0);
 
