@@ -1137,6 +1137,12 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async resetMultiClipJob(jobId: string): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string; status: string }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipReset}/${jobId}/reset`);
+    return response.data;
+  }
+
   static async generateVideoCaption(payload: {
     storyboard: Record<string, unknown>;
     platform?: string;

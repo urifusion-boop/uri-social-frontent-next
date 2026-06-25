@@ -286,6 +286,7 @@ export default function MultiClipComposer() {
   const [orientation, setOrientation] = useState<'9:16' | '1:1' | '16:9'>('9:16');
   const [targetDuration, setTargetDuration] = useState(30);
   const [enableMusic, setEnableMusic] = useState(true);
+  const [musicVolume, setMusicVolume] = useState(0.12); // Shotstack track volume
 
   // Product Story script
   const [scriptDescription, setScriptDescription] = useState('');
@@ -434,6 +435,7 @@ export default function MultiClipComposer() {
     fd.append('orientation', orientation);
     fd.append('enable_music', enableMusic ? 'true' : 'false');
     fd.append('music_mood', 'chill');
+    fd.append('music_volume', String(enableMusic ? musicVolume : 0));
     try {
       const res = await SocialMediaAgentService.startMultiClipJob(fd);
       if (res.status && res.responseData) {
@@ -573,6 +575,27 @@ export default function MultiClipComposer() {
       /* silently fail */
     } finally {
       setCaptionGenerating(false);
+    }
+  };
+
+  // ── Re-stitch (reset ready job back to awaiting_order) ──────────────────────
+
+  const [reStitching, setReStitching] = useState(false);
+
+  const handleReStitch = async () => {
+    if (!job) return;
+    setReStitching(true);
+    try {
+      await SocialMediaAgentService.resetMultiClipJob(job.job_id);
+      captionGeneratedRef.current = false;
+      setCaption('');
+      setJob((prev) =>
+        prev ? { ...prev, status: 'awaiting_order', output_url: null, render_id: null, completed_at: null } : prev
+      );
+    } catch {
+      /* keep current state */
+    } finally {
+      setReStitching(false);
     }
   };
 
@@ -751,39 +774,78 @@ export default function MultiClipComposer() {
         </div>
 
         {/* Music toggle */}
-        <div style={{ ...sectionStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: DARK }}>Background Music</p>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: GREY }}>Soft music ducked under speech</p>
-          </div>
-          <button
-            onClick={() => setEnableMusic((v) => !v)}
+        <div style={{ ...sectionStyle }}>
+          <div
             style={{
-              width: 44,
-              height: 24,
-              borderRadius: 12,
-              border: 'none',
-              background: enableMusic ? PRIMARY : '#D1D5DB',
-              cursor: 'pointer',
-              position: 'relative',
-              transition: 'background 0.2s',
-              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: enableMusic ? 12 : 0,
             }}
           >
-            <span
+            <div>
+              <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: DARK }}>Background Music</p>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: GREY }}>Soft music under your video</p>
+            </div>
+            <button
+              onClick={() => setEnableMusic((v) => !v)}
               style={{
-                position: 'absolute',
-                top: 2,
-                left: enableMusic ? 22 : 2,
-                width: 20,
-                height: 20,
-                borderRadius: '50%',
-                background: '#fff',
-                transition: 'left 0.2s',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                width: 44,
+                height: 24,
+                borderRadius: 12,
+                border: 'none',
+                background: enableMusic ? PRIMARY : '#D1D5DB',
+                cursor: 'pointer',
+                position: 'relative',
+                transition: 'background 0.2s',
+                flexShrink: 0,
               }}
-            />
-          </button>
+            >
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  left: enableMusic ? 22 : 2,
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: '#fff',
+                  transition: 'left 0.2s',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                }}
+              />
+            </button>
+          </div>
+          {enableMusic && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(
+                [
+                  { label: 'Quiet', vol: 0.06 },
+                  { label: 'Medium', vol: 0.12 },
+                  { label: 'Loud', vol: 0.25 },
+                ] as const
+              ).map(({ label, vol }) => (
+                <button
+                  key={label}
+                  onClick={() => setMusicVolume(vol)}
+                  style={{
+                    flex: 1,
+                    padding: '6px 4px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${musicVolume === vol ? PRIMARY : BORDER}`,
+                    background: musicVolume === vol ? '#FFF0F8' : '#fff',
+                    color: musicVolume === vol ? PRIMARY : GREY,
+                    fontSize: 12,
+                    fontWeight: musicVolume === vol ? 700 : 500,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Upload zone */}
@@ -1345,23 +1407,64 @@ export default function MultiClipComposer() {
           />
         </div>
 
-        <button
-          onClick={handleReset}
-          style={{
-            width: '100%',
-            padding: '12px 0',
-            borderRadius: 12,
-            background: LIGHT,
-            color: DARK,
-            border: `1.5px solid ${BORDER}`,
-            fontSize: 13.5,
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          Start a new composition
-        </button>
+        {/* Voiceover guide — Product Story only */}
+        {job.story_type === 'product' && job.script_lines && job.script_lines.length > 0 && (
+          <div style={{ ...sectionStyle, background: '#F0FDF4', borderColor: '#86EFAC' }}>
+            <p style={{ margin: '0 0 8px', fontSize: 13.5, fontWeight: 700, color: '#14532D' }}>
+              Record your voiceover
+            </p>
+            <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#166534', lineHeight: 1.5 }}>
+              Read this script aloud while recording on your phone — it matches the captions in your video exactly.
+            </p>
+            <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {job.script_lines.map((line, i) => (
+                <li key={i} style={{ fontSize: 13, color: '#14532D', lineHeight: 1.5 }}>
+                  {line}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        {/* Re-stitch / actions */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={handleReStitch}
+            disabled={reStitching}
+            style={{
+              flex: 1,
+              padding: '12px 0',
+              borderRadius: 12,
+              background: LIGHT,
+              color: DARK,
+              border: `1.5px solid ${BORDER}`,
+              fontSize: 13.5,
+              fontWeight: 700,
+              cursor: reStitching ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              opacity: reStitching ? 0.6 : 1,
+            }}
+          >
+            {reStitching ? 'Resetting…' : 'Edit & Re-stitch'}
+          </button>
+          <button
+            onClick={handleReset}
+            style={{
+              flex: 1,
+              padding: '12px 0',
+              borderRadius: 12,
+              background: LIGHT,
+              color: GREY,
+              border: `1.5px solid ${BORDER}`,
+              fontSize: 13.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            New composition
+          </button>
+        </div>
       </div>
     );
   }
