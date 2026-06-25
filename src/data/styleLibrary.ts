@@ -3361,3 +3361,371 @@ export function getStylesForIndustry(industry: string): StyleTemplate[] {
 export function getStyle(slug: string): StyleTemplate | undefined {
   return STYLES.find((s) => s.slug === slug);
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VISUAL STYLE CATEGORIES
+// Organizes styles into browsable categories for better UX
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface StyleCategory {
+  id: string;
+  name: string;
+  description: string;
+  icon: string; // emoji
+  styles: string[]; // array of style slugs
+}
+
+export const STYLE_CATEGORIES_BY_INDUSTRY: Record<string, StyleCategory[]> = {
+  food_beverage: [
+    {
+      id: 'food_craving',
+      name: 'Craving & Appetite',
+      description: 'Close-ups, steam, texture — make people hungry instantly',
+      icon: '🤤',
+      styles: ['overhead_feast', 'dark_moody_food', 'minimalist_plating'],
+    },
+    {
+      id: 'food_street',
+      name: 'Street & Authentic',
+      description: 'Real environment, hands, movement, local energy',
+      icon: '🌮',
+      styles: ['street_food_energy', 'rustic_warmth'],
+    },
+    {
+      id: 'food_fresh',
+      name: 'Fresh & Healthy',
+      description: 'Bright, clean, wellness-oriented food visuals',
+      icon: '🥗',
+      styles: ['bright_fresh', 'natural_organic'],
+    },
+    {
+      id: 'food_premium',
+      name: 'Premium & Luxe',
+      description: 'High-end plating, editorial quality, sophisticated',
+      icon: '✨',
+      styles: ['minimalist_plating', 'dark_moody_food'],
+    },
+    {
+      id: 'food_vibrant',
+      name: 'Bold & Vibrant',
+      description: 'Loud colors, tropical energy, fun and playful',
+      icon: '🎨',
+      styles: ['vibrant_tropical', 'bold_loud'],
+    },
+    {
+      id: 'food_general',
+      name: 'Versatile Styles',
+      description: 'Works for multiple food types and occasions',
+      icon: '🍽️',
+      styles: ['minimal_studio', 'catalogue_clean', 'lifestyle_natural', 'vintage_film', 'menu_board'],
+    },
+  ],
+
+  fashion_ecommerce: [
+    {
+      id: 'fashion_editorial',
+      name: 'Editorial & Magazine',
+      description: 'High-fashion, editorial quality, bold statements',
+      icon: '📸',
+      styles: ['street_editorial', 'vintage_film', 'high_contrast_drama'],
+    },
+    {
+      id: 'fashion_luxury',
+      name: 'Luxury & Premium',
+      description: 'Clean, sophisticated, high-end brand aesthetics',
+      icon: '💎',
+      styles: ['clean_luxe', 'afro_glam'],
+    },
+    {
+      id: 'fashion_bold',
+      name: 'Bold & Energetic',
+      description: 'Vibrant, youthful, attention-grabbing',
+      icon: '⚡',
+      styles: ['neon_pop', 'bold_loud'],
+    },
+    {
+      id: 'fashion_ecommerce_clean',
+      name: 'E-commerce Ready',
+      description: 'Clean product shots, catalog-ready, structured',
+      icon: '🛍️',
+      styles: ['minimal_studio', 'catalogue_clean', 'lifestyle_natural', 'clean_athletic'],
+    },
+  ],
+
+  fintech_saas_tech: [
+    {
+      id: 'saas_professional',
+      name: 'Professional & Enterprise',
+      description: 'Clean, trustworthy, B2B-ready',
+      icon: '💼',
+      styles: ['corporate_gradient', 'minimal_tech', 'clean_startup', 'trust_builder'],
+    },
+    {
+      id: 'saas_data',
+      name: 'Data & Analytics',
+      description: 'Charts, metrics, infographics, insights',
+      icon: '📊',
+      styles: ['data_visual', 'saas_metric_spotlight', 'saas_comparison_grid'],
+    },
+    {
+      id: 'saas_modern',
+      name: 'Modern & Tech-Forward',
+      description: 'Dark mode, futuristic, innovative',
+      icon: '🚀',
+      styles: ['dark_mode_pro', 'isometric_3d', 'saas_dashboard_hero'],
+    },
+    {
+      id: 'saas_bold',
+      name: 'Bold & Disruptive',
+      description: 'Strong statements, founder-led, attention-grabbing',
+      icon: '💥',
+      styles: ['bold_statement'],
+    },
+  ],
+
+  beauty_wellness: [
+    {
+      id: 'beauty_glam',
+      name: 'Glam & Bold',
+      description: 'High-impact, colorful, makeup-forward',
+      icon: '💄',
+      styles: ['glow_up', 'bold_glam'],
+    },
+    {
+      id: 'beauty_soft',
+      name: 'Soft & Elegant',
+      description: 'Pastel, gentle, premium beauty',
+      icon: '🌸',
+      styles: ['soft_pastel', 'editorial_beauty'],
+    },
+    {
+      id: 'beauty_natural',
+      name: 'Natural & Organic',
+      description: 'Clean, wellness-focused, authentic',
+      icon: '🌿',
+      styles: ['natural_organic', 'clean_clinical'],
+    },
+    {
+      id: 'beauty_proof',
+      name: 'Results & Transformation',
+      description: 'Before/after, proof-driven, clinical',
+      icon: '✨',
+      styles: ['before_after', 'transformation'],
+    },
+    {
+      id: 'beauty_luxury',
+      name: 'Luxury & Editorial',
+      description: 'High-end, magazine-quality, sophisticated',
+      icon: '👑',
+      styles: ['clean_luxe', 'afro_glam', 'editorial_beauty'],
+    },
+  ],
+
+  fitness_gym: [
+    {
+      id: 'fitness_energy',
+      name: 'Energy & Motion',
+      description: 'Dynamic, action-packed, high-intensity',
+      icon: '💪',
+      styles: ['energy_motion', 'bold_loud'],
+    },
+    {
+      id: 'fitness_grit',
+      name: 'Grit & Intensity',
+      description: 'Dark, dramatic, hardcore fitness',
+      icon: '🔥',
+      styles: ['dark_grit', 'neon_pop'],
+    },
+    {
+      id: 'fitness_transformation',
+      name: 'Transformation & Results',
+      description: 'Before/after, progress-focused',
+      icon: '📈',
+      styles: ['transformation', 'before_after'],
+    },
+    {
+      id: 'fitness_motivation',
+      name: 'Motivational & Inspiring',
+      description: 'Text-heavy, inspirational quotes, push energy',
+      icon: '🎯',
+      styles: ['motivational_type', 'bold_statement'],
+    },
+    {
+      id: 'fitness_clean',
+      name: 'Clean & Athletic',
+      description: 'Professional, sporty, brand-ready',
+      icon: '🏃',
+      styles: ['clean_athletic', 'lifestyle_natural'],
+    },
+  ],
+
+  real_estate: [
+    {
+      id: 'real_estate_showcase',
+      name: 'Property Showcase',
+      description: 'Hero shots, interior/exterior highlights',
+      icon: '🏠',
+      styles: ['property_showcase', 'aerial_clean'],
+    },
+    {
+      id: 'real_estate_luxury',
+      name: 'Luxury Listings',
+      description: 'High-end, premium properties, sophisticated',
+      icon: '🏰',
+      styles: ['luxury_listing', 'clean_luxe'],
+    },
+    {
+      id: 'real_estate_lifestyle',
+      name: 'Lifestyle & Community',
+      description: 'Neighbourhood feel, lifestyle-oriented',
+      icon: '🌳',
+      styles: ['neighbourhood_life'],
+    },
+    {
+      id: 'real_estate_modern',
+      name: 'Modern & Architectural',
+      description: 'Clean lines, blueprint style, contemporary',
+      icon: '📐',
+      styles: ['blueprint_modern', 'trust_builder'],
+    },
+  ],
+
+  education_consulting: [
+    {
+      id: 'edu_professional',
+      name: 'Professional & Warm',
+      description: 'Approachable, trustworthy, human-centered',
+      icon: '🎓',
+      styles: ['warm_professional', 'trust_builder'],
+    },
+    {
+      id: 'edu_authority',
+      name: 'Authority & Expertise',
+      description: 'Editorial, thought-leadership, credibility',
+      icon: '📚',
+      styles: ['authority_editorial', 'corporate_gradient'],
+    },
+    {
+      id: 'edu_data',
+      name: 'Data & Insights',
+      description: 'Visual data, infographics, educational charts',
+      icon: '📊',
+      styles: ['data_visual', 'saas_metric_spotlight'],
+    },
+    {
+      id: 'edu_modern',
+      name: 'Modern & Tech-Savvy',
+      description: 'Clean, contemporary, digital-first',
+      icon: '💻',
+      styles: ['minimal_tech', 'clean_startup', 'isometric_3d'],
+    },
+    {
+      id: 'edu_motivational',
+      name: 'Motivational & Inspiring',
+      description: 'Text-driven, inspirational, coach energy',
+      icon: '✨',
+      styles: ['motivational_type', 'bold_statement'],
+    },
+  ],
+
+  events_entertainment: [
+    {
+      id: 'events_festival',
+      name: 'Festival & Party Energy',
+      description: 'High-energy, vibrant, crowd excitement',
+      icon: '🎉',
+      styles: ['festival_energy', 'vibrant_tropical'],
+    },
+    {
+      id: 'events_bold',
+      name: 'Bold & Loud',
+      description: 'Attention-grabbing, promotional, hype',
+      icon: '🎪',
+      styles: ['bold_loud', 'neon_pop'],
+    },
+    {
+      id: 'events_editorial',
+      name: 'Editorial & Sophisticated',
+      description: 'High-end events, gala, premium gatherings',
+      icon: '🎭',
+      styles: ['street_editorial', 'afro_glam', 'high_contrast_drama'],
+    },
+    {
+      id: 'events_street',
+      name: 'Street & Cultural',
+      description: 'Authentic, local events, community vibes',
+      icon: '🌍',
+      styles: ['street_food_energy'],
+    },
+  ],
+
+  perfume_fragrance: [
+    {
+      id: 'perfume_luxury',
+      name: 'Luxury & Premium',
+      description: 'Sophisticated, high-end, elegant',
+      icon: '✨',
+      styles: ['clean_luxe', 'afro_glam'],
+    },
+    {
+      id: 'perfume_editorial',
+      name: 'Editorial & Artistic',
+      description: 'Magazine-quality, creative, bold',
+      icon: '🎨',
+      styles: ['editorial_beauty', 'soft_pastel'],
+    },
+    {
+      id: 'perfume_bold',
+      name: 'Bold & Dramatic',
+      description: 'Strong visuals, night-time, seductive',
+      icon: '🌙',
+      styles: ['neon_pop', 'bold_glam'],
+    },
+  ],
+
+  general_other: [
+    {
+      id: 'general_clean',
+      name: 'Clean & Minimal',
+      description: 'Versatile, professional, works for most brands',
+      icon: '✨',
+      styles: ['minimal_studio', 'clean_luxe', 'catalogue_clean'],
+    },
+    {
+      id: 'general_bold',
+      name: 'Bold & Energetic',
+      description: 'Attention-grabbing, high-impact, colorful',
+      icon: '⚡',
+      styles: ['bold_loud', 'neon_pop', 'vibrant_tropical'],
+    },
+    {
+      id: 'general_lifestyle',
+      name: 'Lifestyle & Natural',
+      description: 'Authentic, human-centered, relatable',
+      icon: '🌿',
+      styles: ['lifestyle_natural', 'rustic_warmth', 'natural_organic'],
+    },
+    {
+      id: 'general_professional',
+      name: 'Professional & Corporate',
+      description: 'Business-ready, trustworthy, polished',
+      icon: '💼',
+      styles: ['corporate_gradient', 'trust_builder', 'warm_professional'],
+    },
+    {
+      id: 'general_creative',
+      name: 'Creative & Artistic',
+      description: 'Unique, editorial, standout visuals',
+      icon: '🎨',
+      styles: ['street_editorial', 'vintage_film', 'afro_glam'],
+    },
+  ],
+};
+
+/**
+ * Get categorized styles for a specific industry
+ */
+export function getCategorizedStylesForIndustry(industry: string): StyleCategory[] {
+  const canonical = _canonicalIndustry(industry);
+  return STYLE_CATEGORIES_BY_INDUSTRY[canonical] || STYLE_CATEGORIES_BY_INDUSTRY['general_other'];
+}
