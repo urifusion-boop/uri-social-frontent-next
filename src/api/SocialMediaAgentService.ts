@@ -1147,6 +1147,19 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async updateClipPosition(
+    jobId: string,
+    clipId: string,
+    position: 'left' | 'center' | 'right'
+  ): Promise<UriResponse<{ clip_id: string; subject_position: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ clip_id: string; subject_position: string }>>> =
+      await UriHttpClient.getClient().patch(
+        `${socialMediaAgentRoutes.multiClipUpdateClip}/${jobId}/clip/${clipId}/position`,
+        { subject_position: position }
+      );
+    return response.data;
+  }
+
   static async generateVideoCaption(payload: {
     storyboard: Record<string, unknown>;
     platform?: string;

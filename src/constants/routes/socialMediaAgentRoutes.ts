@@ -80,7 +80,8 @@ type ISocialMediaAgentApi =
   | 'multiClipStitch'
   | 'multiClipDraftScript'
   | 'multiClipApproveScript'
-  | 'multiClipReset';
+  | 'multiClipReset'
+  | 'multiClipUpdateClip';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -162,6 +163,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   multiClipDraftScript: '/multi-clip/job',
   multiClipApproveScript: '/multi-clip/job',
   multiClipReset: '/multi-clip/job',
+  multiClipUpdateClip: '/multi-clip/job',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

@@ -105,6 +105,7 @@ function ClipCard({
   onMoveUp,
   onMoveDown,
   onDrop,
+  onPositionChange,
 }: {
   clip: MultiClipClip;
   rank: number;
@@ -113,6 +114,7 @@ function ClipCard({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDrop: (dropped: boolean) => void;
+  onPositionChange?: (pos: 'left' | 'center' | 'right') => void;
 }) {
   const dropped = !!clip.dropped;
   const hasWarning = clip.quality_flags.length > 0 || clip.recommended_drop;
@@ -255,6 +257,36 @@ function ClipCard({
           }}
         >
           {clip.drop_reason || 'This clip may affect overall quality.'}
+        </div>
+      )}
+
+      {/* Crop position nudge */}
+      {!dropped && onPositionChange && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <span style={{ fontSize: 11, color: GREY, flexShrink: 0 }}>Crop focus:</span>
+          {(['left', 'center', 'right'] as const).map((pos) => {
+            const active = (clip.subject_position ?? 'center') === pos;
+            return (
+              <button
+                key={pos}
+                onClick={() => onPositionChange(pos)}
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: 6,
+                  border: `1.5px solid ${active ? PRIMARY : BORDER}`,
+                  background: active ? PRIMARY : 'transparent',
+                  color: active ? '#fff' : GREY,
+                  fontSize: 11,
+                  fontWeight: active ? 700 : 500,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  textTransform: 'capitalize',
+                }}
+              >
+                {pos}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -615,6 +647,31 @@ export default function MultiClipComposer() {
       /* keep current state */
     } finally {
       setReStitching(false);
+    }
+  };
+
+  // ── Crop position nudge ─────────────────────────────────────────────────────
+
+  const handlePositionChange = async (clipId: string, position: 'left' | 'center' | 'right') => {
+    if (!job) return;
+    // Optimistic update
+    setJob((prev) =>
+      prev
+        ? { ...prev, clips: prev.clips.map((c) => (c.clip_id === clipId ? { ...c, subject_position: position } : c)) }
+        : prev
+    );
+    try {
+      await SocialMediaAgentService.updateClipPosition(job.job_id, clipId, position);
+    } catch {
+      // revert on failure
+      setJob((prev) =>
+        prev
+          ? {
+              ...prev,
+              clips: prev.clips.map((c) => (c.clip_id === clipId ? { ...c, subject_position: c.subject_position } : c)),
+            }
+          : prev
+      );
     }
   };
 
@@ -1255,6 +1312,7 @@ export default function MultiClipComposer() {
                     onMoveUp={() => moveClip(trueIdx, trueIdx - 1)}
                     onMoveDown={() => moveClip(trueIdx, trueIdx + 1)}
                     onDrop={(dropped) => handleDrop2(clip.clip_id, dropped)}
+                    onPositionChange={(pos) => handlePositionChange(clip.clip_id, pos)}
                   />
                 );
               })}
