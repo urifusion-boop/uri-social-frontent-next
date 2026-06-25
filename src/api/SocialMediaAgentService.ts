@@ -190,6 +190,14 @@ export interface MultiClipJob {
   script_lines?: string[];
   // Phase 3: mismatch detection
   mismatch_info?: { type: string; message: string } | null;
+  // Phase 4: length budget
+  length_budget_info?: {
+    total_footage_seconds: number;
+    target_seconds: number;
+    ratio: number;
+    recommendation: 'ok' | 'trim_light' | 'trim_heavy' | 'short';
+    message: string;
+  } | null;
 }
 
 export interface VideoPublishJob {

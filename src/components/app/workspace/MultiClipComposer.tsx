@@ -929,6 +929,37 @@ export default function MultiClipComposer() {
     );
   }
 
+  // Shared budget banner (shown in both awaiting_script and awaiting_order)
+  const BudgetBanner =
+    job.length_budget_info && job.length_budget_info.recommendation !== 'ok' ? (
+      <div
+        style={{
+          background: job.length_budget_info.recommendation === 'short' ? '#EFF6FF' : '#FFF7ED',
+          border: `1.5px solid ${job.length_budget_info.recommendation === 'short' ? '#93C5FD' : '#F97316'}`,
+          borderRadius: 10,
+          padding: '10px 14px',
+          marginBottom: 16,
+          display: 'flex',
+          gap: 10,
+          alignItems: 'flex-start',
+        }}
+      >
+        <span style={{ fontSize: 17, lineHeight: 1.3 }}>
+          {job.length_budget_info.recommendation === 'short' ? 'ℹ️' : '✂️'}
+        </span>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 13,
+            color: job.length_budget_info.recommendation === 'short' ? '#1E40AF' : '#7C2D12',
+            lineHeight: 1.5,
+          }}
+        >
+          {job.length_budget_info.message}
+        </p>
+      </div>
+    ) : null;
+
   // Step 2b — Script editor (Product Story awaiting_script)
   if (job.status === 'awaiting_script') {
     const displayDraft = scriptDraft || job.script_draft || '';
@@ -955,6 +986,8 @@ export default function MultiClipComposer() {
             <p style={{ margin: 0, fontSize: 13, color: '#7C2D12', lineHeight: 1.5 }}>{job.mismatch_info.message}</p>
           </div>
         )}
+
+        {BudgetBanner}
 
         <div style={sectionStyle}>
           <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800, color: DARK }}>Write your script</p>
@@ -1113,6 +1146,8 @@ export default function MultiClipComposer() {
             </div>
           )
         )}
+
+        {BudgetBanner}
 
         <div style={{ ...sectionStyle }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
