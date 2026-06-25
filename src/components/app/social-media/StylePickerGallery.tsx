@@ -1,6 +1,6 @@
 'use client';
 
-import { getStylesForIndustry, StyleTemplate, STYLES } from '@/src/data/styleLibrary';
+import { getStylesForIndustry, StyleTemplate, STYLES, getCategorizedStylesForIndustry } from '@/src/data/styleLibrary';
 import { Box, Button, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { FaCheckCircle, FaPlus, FaTimes } from 'react-icons/fa';
@@ -197,6 +197,13 @@ export default function StylePickerGallery({
   const regularStyles = allStyles.filter((s) => !s.styleType || s.styleType !== 'marketing_template');
 
   const styles = viewAll ? regularStyles : industryStyles;
+
+  // Get categorized styles for organized browsing
+  const categories = getCategorizedStylesForIndustry(industry || 'general_other');
+
+  // Build selected styles list (from library only, excluding marketing templates)
+  const bySlug = Object.fromEntries(STYLES.map((s) => [s.slug, s]));
+  const selectedStyles = selected.map((slug) => bySlug[slug]).filter(Boolean);
 
   const toggle = (slug: string) => {
     if (selected.includes(slug)) {
@@ -473,8 +480,65 @@ export default function StylePickerGallery({
         </Box>
       )} */}
 
-      {/* View All Toggle */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+      {/* Currently Selected Styles Section */}
+      {selectedStyles.length > 0 && (
+        <Box sx={{ mb: 4 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              mb: 2,
+              pb: 1.5,
+              borderBottom: `2px solid ${primary}22`,
+            }}
+          >
+            <Box
+              sx={{
+                background: `linear-gradient(135deg, ${primary}, #9B1460)`,
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                px: 1.5,
+                py: 0.5,
+                borderRadius: '6px',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}
+            >
+              Selected
+            </Box>
+            <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f' }}>
+              Currently Selected ({selectedStyles.length})
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: '#6B7280', fontStyle: 'italic' }}>Click to deselect</Typography>
+          </Box>
+
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+              gap: 1.5,
+            }}
+          >
+            {selectedStyles.map((style) => (
+              <StyleCard
+                key={style.slug}
+                style={style}
+                isSelected={true}
+                onToggle={() => toggle(style.slug)}
+                primary={primary}
+              />
+            ))}
+          </Box>
+        </Box>
+      )}
+
+      {/* View Mode Toggle */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f' }}>
+          {viewAll ? 'All Visual Styles' : 'Styles for Your Industry'}
+        </Typography>
         <Box
           component="button"
           onClick={() => setViewAll(!viewAll)}
@@ -497,31 +561,76 @@ export default function StylePickerGallery({
             },
           }}
         >
-          <span>
-            {viewAll ? `Showing all ${allStyles.length} styles` : `Showing ${industryStyles.length} for your industry`}
-          </span>
+          <span>{viewAll ? 'View All Styles' : 'View Industry Styles'}</span>
           <span style={{ fontSize: 10 }}>{viewAll ? '✓' : '◦'}</span>
         </Box>
       </Box>
 
-      {/* Regular Visual Styles */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
-          gap: 1.5,
-        }}
-      >
-        {styles.map((style) => (
-          <StyleCard
-            key={style.slug}
-            style={style}
-            isSelected={selected.includes(style.slug)}
-            onToggle={() => toggle(style.slug)}
-            primary={primary}
-          />
-        ))}
-      </Box>
+      {/* Categorized Visual Styles */}
+      {!viewAll &&
+        categories.map((category) => {
+          const categoryStyles = category.styles
+            .map((slug) => bySlug[slug])
+            .filter(Boolean)
+            .filter((s) => !s.styleType || s.styleType !== 'marketing_template');
+
+          if (categoryStyles.length === 0) return null;
+
+          return (
+            <Box key={category.id} sx={{ mb: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                <Typography sx={{ fontSize: 24 }}>{category.icon}</Typography>
+                <Box>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f', lineHeight: 1.3 }}>
+                    {category.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: '#6B7280', lineHeight: 1.3 }}>
+                    {category.description}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+                  gap: 1.5,
+                }}
+              >
+                {categoryStyles.map((style) => (
+                  <StyleCard
+                    key={style.slug}
+                    style={style}
+                    isSelected={selected.includes(style.slug)}
+                    onToggle={() => toggle(style.slug)}
+                    primary={primary}
+                  />
+                ))}
+              </Box>
+            </Box>
+          );
+        })}
+
+      {/* Flat Grid for "View All" mode */}
+      {viewAll && (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+            gap: 1.5,
+          }}
+        >
+          {styles.map((style) => (
+            <StyleCard
+              key={style.slug}
+              style={style}
+              isSelected={selected.includes(style.slug)}
+              onToggle={() => toggle(style.slug)}
+              primary={primary}
+            />
+          ))}
+        </Box>
+      )}
 
       {/* AI Marketing Templates Section */}
       {marketingTemplates.length > 0 && (
