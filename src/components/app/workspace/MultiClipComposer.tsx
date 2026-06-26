@@ -331,7 +331,7 @@ function arrowBtn(disabled: boolean): React.CSSProperties {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function MultiClipComposer() {
+export default function MultiClipComposer({ onSendToProduce }: { onSendToProduce?: (url: string) => void } = {}) {
   // Config
   const [storyType, setStoryType] = useState<'founder' | 'product'>('founder');
   const [orientation, setOrientation] = useState<'9:16' | '1:1' | '16:9'>('9:16');
@@ -1526,6 +1526,28 @@ export default function MultiClipComposer() {
               ))}
             </ol>
           </div>
+        )}
+
+        {/* Send to Produce My Video */}
+        {onSendToProduce && job.output_url && (
+          <button
+            onClick={() => onSendToProduce(job.output_url!)}
+            style={{
+              width: '100%',
+              padding: '13px 0',
+              borderRadius: 12,
+              background: PRIMARY,
+              color: '#fff',
+              border: 'none',
+              fontSize: 14,
+              fontWeight: 800,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              marginBottom: 10,
+            }}
+          >
+            ✨ Produce My Video
+          </button>
         )}
 
         {/* Re-stitch / actions */}

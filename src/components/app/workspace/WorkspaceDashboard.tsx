@@ -834,6 +834,7 @@ const ContentManagerPage = ({
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'video'>('generate');
   const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video' | 'produce_video'>('edit_video');
+  const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1478,7 +1479,9 @@ const ContentManagerPage = ({
 
             {createMode === 'video' && videoSubMode === 'produce_video' && (
               <VideoProductionForm
+                sourceUrl={pendingProduceUrl}
                 onComplete={() => {
+                  setPendingProduceUrl(null);
                   handleGenerated();
                 }}
               />
@@ -1488,7 +1491,16 @@ const ContentManagerPage = ({
 
         {activeTab === 'video' && <VideoStoryboardGenerator />}
 
-        {activeTab === 'compose' && <MultiClipComposer />}
+        {activeTab === 'compose' && (
+          <MultiClipComposer
+            onSendToProduce={(url) => {
+              setPendingProduceUrl(url);
+              setActiveTab('create');
+              setCreateMode('video');
+              setVideoSubMode('produce_video');
+            }}
+          />
+        )}
 
         {activeTab === 'drafts' && (
           <>

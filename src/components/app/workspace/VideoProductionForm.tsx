@@ -47,9 +47,10 @@ interface AiDecisions {
 
 interface Props {
   onComplete: () => void;
+  sourceUrl?: string | null;
 }
 
-export default function VideoProductionForm({ onComplete }: Props) {
+export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -61,7 +62,8 @@ export default function VideoProductionForm({ onComplete }: Props) {
   const [enableWhoosh, setEnableWhoosh] = useState(true);
   const [transitionStyle, setTransitionStyle] = useState('auto');
 
-  const [phase, setPhase] = useState<Phase>('pick');
+  // When sourceUrl is provided (transferred from Multi-Clip Composer), skip the pick phase
+  const [phase, setPhase] = useState<Phase>(sourceUrl ? 'pick' : 'pick');
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
 
@@ -147,17 +149,21 @@ export default function VideoProductionForm({ onComplete }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (!videoFile) {
+    if (!videoFile && !sourceUrl) {
       ToastService.showToast('Please select a video first.', ToastTypeEnum.Error);
       return;
     }
     setPhase('uploading');
     setProgress(0);
-    setStatusMessage('Uploading your video…');
+    setStatusMessage(sourceUrl ? 'Sending composition to producer…' : 'Uploading your video…');
 
     try {
       const formData = new FormData();
-      formData.append('video', videoFile);
+      if (videoFile) {
+        formData.append('video', videoFile);
+      } else if (sourceUrl) {
+        formData.append('source_url', sourceUrl);
+      }
       formData.append('video_type', videoType);
       formData.append('enable_music', String(enableMusic));
       formData.append('enable_sfx', String(enableWhoosh));
@@ -872,58 +878,105 @@ export default function VideoProductionForm({ onComplete }: Props) {
         </div>
       </div>
 
-      {/* Drop zone */}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        style={{
-          border: isDragging ? '2.5px dashed #C2185B' : videoFile ? '2px solid #C2185B' : '2px dashed #d0ccc8',
-          borderRadius: 12,
-          background: isDragging ? '#FDF2F8' : videoFile ? '#fdf2f8' : '#fafaf9',
-          padding: '24px 20px',
-          textAlign: 'center',
-          cursor: 'pointer',
-          transition: 'all 0.15s',
-          marginBottom: 16,
-        }}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="video/mp4,video/quicktime,video/webm"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) acceptFile(f);
+      {/* Source — either a transferred composition URL or a file drop zone */}
+      {sourceUrl && !videoFile ? (
+        <div
+          style={{
+            border: '2px solid #C2185B',
+            borderRadius: 12,
+            background: '#fdf2f8',
+            padding: '16px 20px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
           }}
-        />
-        {videoFile ? (
-          <div>
-            {videoPreviewUrl && (
-              <video
-                src={videoPreviewUrl}
-                muted
-                style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 8, marginBottom: 10, objectFit: 'contain' }}
-              />
-            )}
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{videoFile.name}</div>
-            <div style={{ fontSize: 12, color: '#888' }}>
-              {(videoFile.size / 1024 / 1024).toFixed(1)} MB — click to change
+        >
+          <div style={{ fontSize: 28, flexShrink: 0 }}>🎬</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 2 }}>Multi-Clip Composition</div>
+            <div style={{ fontSize: 12, color: '#888' }}>Transferred from Compose — ready to produce</div>
+          </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              fontSize: 11,
+              color: '#C2185B',
+              background: 'transparent',
+              border: '1px solid #C2185B',
+              borderRadius: 6,
+              padding: '3px 10px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              flexShrink: 0,
+            }}
+          >
+            Replace
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) acceptFile(f);
+            }}
+          />
+        </div>
+      ) : (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            border: isDragging ? '2.5px dashed #C2185B' : videoFile ? '2px solid #C2185B' : '2px dashed #d0ccc8',
+            borderRadius: 12,
+            background: isDragging ? '#FDF2F8' : videoFile ? '#fdf2f8' : '#fafaf9',
+            padding: '24px 20px',
+            textAlign: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            marginBottom: 16,
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) acceptFile(f);
+            }}
+          />
+          {videoFile ? (
+            <div>
+              {videoPreviewUrl && (
+                <video
+                  src={videoPreviewUrl}
+                  muted
+                  style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 8, marginBottom: 10, objectFit: 'contain' }}
+                />
+              )}
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{videoFile.name}</div>
+              <div style={{ fontSize: 12, color: '#888' }}>
+                {(videoFile.size / 1024 / 1024).toFixed(1)} MB — click to change
+              </div>
             </div>
-          </div>
-        ) : (
-          <div>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>🎬</div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: '#444', marginBottom: 4 }}>Drop your video here</div>
-            <div style={{ fontSize: 12, color: '#aaa' }}>MP4, MOV, WebM · Up to 500MB</div>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>🎬</div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#444', marginBottom: 4 }}>Drop your video here</div>
+              <div style={{ fontSize: 12, color: '#aaa' }}>MP4, MOV, WebM · Up to 500MB</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Info note */}
       <div
@@ -945,15 +998,15 @@ export default function VideoProductionForm({ onComplete }: Props) {
       {/* Submit */}
       <button
         onClick={handleSubmit}
-        disabled={!videoFile}
+        disabled={!videoFile && !sourceUrl}
         style={{
           width: '100%',
           padding: '13px',
           borderRadius: 10,
           border: 'none',
-          cursor: videoFile ? 'pointer' : 'not-allowed',
-          background: videoFile ? 'linear-gradient(135deg,#C2185B,#8E1545)' : '#e5e7eb',
-          color: videoFile ? '#fff' : '#9ca3af',
+          cursor: videoFile || sourceUrl ? 'pointer' : 'not-allowed',
+          background: videoFile || sourceUrl ? 'linear-gradient(135deg,#C2185B,#8E1545)' : '#e5e7eb',
+          color: videoFile || sourceUrl ? '#fff' : '#9ca3af',
           fontWeight: 700,
           fontSize: 15,
           transition: 'all 0.15s',
