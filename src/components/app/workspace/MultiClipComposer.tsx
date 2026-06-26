@@ -355,6 +355,7 @@ export default function MultiClipComposer() {
   const [job, setJob] = useState<MultiClipJob | null>(null);
   const [jobError, setJobError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Local clip ordering (mirrors job.clips sorted by order_index)
@@ -477,6 +478,7 @@ export default function MultiClipComposer() {
   const handleStart = async () => {
     if (selectedFiles.length < 1) return;
     setSubmitting(true);
+    setUploadPct(0);
     setJobError('');
     clearSession();
     const fd = new FormData();
@@ -488,9 +490,8 @@ export default function MultiClipComposer() {
     fd.append('music_mood', 'chill');
     fd.append('music_volume', String(enableMusic ? musicVolume : 0));
     try {
-      const res = await SocialMediaAgentService.startMultiClipJob(fd);
+      const res = await SocialMediaAgentService.startMultiClipJob(fd, setUploadPct);
       if (res.status && res.responseData) {
-        // Fetch full job immediately
         const jobRes = await SocialMediaAgentService.getMultiClipJob(res.responseData.job_id);
         if (jobRes.status && jobRes.responseData) {
           setJob(jobRes.responseData);
@@ -1031,24 +1032,48 @@ export default function MultiClipComposer() {
 
         {jobError && <p style={{ fontSize: 13, color: '#EF4444', margin: '0 0 12px' }}>{jobError}</p>}
 
-        <button
-          onClick={handleStart}
-          disabled={submitting || selectedFiles.length < 1}
-          style={{
-            width: '100%',
-            padding: '13px 0',
-            borderRadius: 12,
-            background: submitting || selectedFiles.length < 1 ? '#E5E7EB' : PRIMARY,
-            color: submitting || selectedFiles.length < 1 ? '#9CA3AF' : '#fff',
-            border: 'none',
-            fontSize: 14.5,
-            fontWeight: 800,
-            cursor: submitting || selectedFiles.length < 1 ? 'not-allowed' : 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          {submitting ? 'Starting…' : `Analyse ${selectedFiles.length} Clip${selectedFiles.length !== 1 ? 's' : ''}`}
-        </button>
+        {submitting ? (
+          <div
+            style={{
+              background: LIGHT,
+              border: `1.5px solid ${BORDER}`,
+              borderRadius: 12,
+              padding: '18px 20px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: DARK }}>
+                {uploadPct < 100 ? 'Uploading clips…' : 'Processing on server…'}
+              </p>
+              {uploadPct < 100 && <span style={{ fontSize: 12, fontWeight: 700, color: PRIMARY }}>{uploadPct}%</span>}
+            </div>
+            <ProgressBar value={uploadPct < 100 ? uploadPct : 100} />
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: GREY }}>
+              {uploadPct < 100
+                ? `Sending ${selectedFiles.length} file${selectedFiles.length !== 1 ? 's' : ''} — stay on this page`
+                : 'Files received — analysing audio, detecting subjects…'}
+            </p>
+          </div>
+        ) : (
+          <button
+            onClick={handleStart}
+            disabled={selectedFiles.length < 1}
+            style={{
+              width: '100%',
+              padding: '13px 0',
+              borderRadius: 12,
+              background: selectedFiles.length < 1 ? '#E5E7EB' : PRIMARY,
+              color: selectedFiles.length < 1 ? '#9CA3AF' : '#fff',
+              border: 'none',
+              fontSize: 14.5,
+              fontWeight: 800,
+              cursor: selectedFiles.length < 1 ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            {`Analyse ${selectedFiles.length} Clip${selectedFiles.length !== 1 ? 's' : ''}`}
+          </button>
+        )}
       </div>
     );
   }

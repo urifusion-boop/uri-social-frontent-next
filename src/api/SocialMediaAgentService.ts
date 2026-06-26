@@ -1074,11 +1074,20 @@ export class SocialMediaAgentService {
 
   // ── Multi-Clip Composition ────────────────────────────────────────────────
 
-  static async startMultiClipJob(formData: FormData): Promise<UriResponse<{ job_id: string; status: string }>> {
+  static async startMultiClipJob(
+    formData: FormData,
+    onUploadProgress?: (pct: number) => void
+  ): Promise<UriResponse<{ job_id: string; status: string }>> {
     const response: Awaited<AxiosResponse<UriResponse<{ job_id: string; status: string }>>> =
       await UriHttpClient.getClient().post(socialMediaAgentRoutes.multiClipStart, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 0,
+        onUploadProgress: onUploadProgress
+          ? (e: AxiosProgressEvent) => {
+              const pct = e.total ? Math.round((e.loaded / e.total) * 100) : 0;
+              onUploadProgress(pct);
+            }
+          : undefined,
       });
     return response.data;
   }
