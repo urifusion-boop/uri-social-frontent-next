@@ -124,7 +124,7 @@ export default function PricingPage() {
             .map((tier) => {
               const current = isCurrentPlan(tier.tier_id);
               const popular = isPopular(tier.tier_id);
-              const price = currency === 'USD' ? tier.price_usd_monthly || tier.price_ngn : tier.price_ngn;
+              const price = tier.price_ngn; // Always use NGN pricing
 
               return (
                 <Card
