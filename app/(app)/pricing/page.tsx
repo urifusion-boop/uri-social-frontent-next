@@ -23,7 +23,7 @@ export default function PricingPage() {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
-  const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
+  const currency = 'NGN'; // Fixed to NGN only - USD option hidden
 
   useEffect(() => {
     fetchTiers();
@@ -114,26 +114,6 @@ export default function PricingPage() {
             <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border border-yellow-300 px-4 py-1.5">
               ⚡ First retry FREE • Second retry = 1 credit
             </Badge>
-
-            {/* Currency Selector */}
-            <div className="inline-flex items-center rounded-lg border border-gray-300 bg-white p-1">
-              <button
-                onClick={() => setCurrency('NGN')}
-                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${
-                  currency === 'NGN' ? 'bg-[#CD1B78] text-white' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                ₦ NGN
-              </button>
-              <button
-                onClick={() => setCurrency('USD')}
-                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${
-                  currency === 'USD' ? 'bg-[#CD1B78] text-white' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                $ USD
-              </button>
-            </div>
           </div>
         </div>
 
