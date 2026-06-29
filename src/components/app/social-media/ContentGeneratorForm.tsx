@@ -668,40 +668,77 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
 
       {/* Custom CTA for this generation only */}
       {includeImages && (
-        <Box sx={{ mt: 2, p: 2, borderRadius: '8px', border: '1px solid #E5E7EB', background: '#F9FAFB' }}>
+        <Box
+          sx={{
+            mt: 2,
+            mb: 2,
+            p: 2.5,
+            borderRadius: '12px',
+            border: '1px solid #E9D5FF',
+            background: 'linear-gradient(135deg, #FEFCFF 0%, #FAF5FF 100%)',
+            boxShadow: '0 1px 3px rgba(124, 58, 237, 0.08)',
+          }}
+        >
           <FormControlLabel
             control={
               <Checkbox
                 checked={useCustomCta}
                 onChange={(e) => setUseCustomCta(e.target.checked)}
-                sx={{ color: '#CD1B78', '&.Mui-checked': { color: '#CD1B78' } }}
+                sx={{
+                  color: '#CD1B78',
+                  '&.Mui-checked': { color: '#CD1B78' },
+                  padding: '4px',
+                }}
               />
             }
             label={
               <Box display="flex" alignItems="center" gap={0.5}>
-                <Typography fontSize="13px" fontWeight={500}>
+                <Typography fontSize="14px" fontWeight={600} color="#4B5563">
                   Use custom CTA for this generation only
                 </Typography>
                 <Tooltip
                   title="This CTA will be used only for this image generation and won't be saved to your brand playbook"
                   arrow
+                  placement="top"
                 >
                   <Box component="span" sx={{ display: 'flex', alignItems: 'center', cursor: 'help' }}>
-                    <MdInfoOutline size={14} color="#6B7280" />
+                    <MdInfoOutline size={16} color="#9CA3AF" />
                   </Box>
                 </Tooltip>
               </Box>
             }
+            sx={{ mb: useCustomCta ? 1.5 : 0 }}
           />
           {useCustomCta && (
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="e.g., Flash Sale - 50% Off Today!"
-              value={customCta}
-              onChange={(e) => setCustomCta(e.target.value)}
-              sx={{ mt: 1 }}
-            />
+            <Box sx={{ pl: 4 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="e.g., Flash Sale - 50% Off Today!"
+                value={customCta}
+                onChange={(e) => setCustomCta(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    '& fieldset': {
+                      borderColor: '#E5E7EB',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#CD1B78',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#CD1B78',
+                      borderWidth: '2px',
+                    },
+                  },
+                  '& .MuiInputBase-input': {
+                    padding: '10px 14px',
+                  },
+                }}
+              />
+            </Box>
           )}
         </Box>
       )}
