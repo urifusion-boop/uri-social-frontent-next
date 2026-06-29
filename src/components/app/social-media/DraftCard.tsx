@@ -102,6 +102,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const imageRetryRef = useRef(0);
   // Track the last image URL we reset state for — avoids re-shimmer on unrelated re-renders
   const trackedImageUrlRef = useRef<string | undefined>(undefined); // Start as undefined to trigger cache check on mount
+  const [slideIndex, setSlideIndex] = useState(0);
 
   // Debug: Log whenever imageLoaded state changes
   useEffect(() => {
@@ -218,7 +219,6 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [imageEditOpen, setImageEditOpen] = useState(false);
   const [imageFeedback, setImageFeedback] = useState('');
   const [imageRegenerating, setImageRegenerating] = useState(false);
-  const [slideIndex, setSlideIndex] = useState(0);
 
   const postType = draft.post_type ?? 'feed';
   const slides = draft.slides ?? [];
