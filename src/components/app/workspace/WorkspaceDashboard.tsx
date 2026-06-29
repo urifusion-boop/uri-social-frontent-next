@@ -4260,11 +4260,13 @@ const PbInput = ({
   onChange,
   placeholder,
   textarea,
+  onKeyDown,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   textarea?: boolean;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
 }) => {
   const base: React.CSSProperties = {
     width: '100%',
@@ -4285,9 +4287,16 @@ const PbInput = ({
       placeholder={placeholder}
       rows={3}
       style={base}
+      onKeyDown={onKeyDown}
     />
   ) : (
-    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={base} />
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={base}
+      onKeyDown={onKeyDown}
+    />
   );
 };
 
@@ -5673,11 +5682,11 @@ const PlaybookPage = ({
                       marginBottom: 6,
                     }}
                   >
-                    Selected CTAs
+                    Selected CTAs (click to remove)
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {ctaStyles.map((c) => (
-                      <PbChip key={c} label={c} active={true} onDelete={() => removeCtaPlaybook(c)} />
+                      <PbChip key={c} label={c} active={true} onClick={() => removeCtaPlaybook(c)} />
                     ))}
                   </div>
                 </div>

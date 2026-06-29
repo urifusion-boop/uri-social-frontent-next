@@ -160,17 +160,20 @@ const UriInput = ({
   onChange,
   placeholder,
   type = 'text',
+  onKeyDown,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }) => (
   <Box
     component="input"
     type={type}
     value={value}
     onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
+    onKeyDown={onKeyDown}
     placeholder={placeholder}
     sx={{
       width: '100%',
@@ -2457,10 +2460,10 @@ function BrandSetupPageContent() {
               {/* Display selected CTAs (including custom ones) */}
               {ctaStyle.length > 0 && (
                 <Box mb={1.5}>
-                  <FieldLabel sub="(selected CTAs)">Your CTAs</FieldLabel>
+                  <FieldLabel sub="(click to remove)">Selected CTAs</FieldLabel>
                   <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                     {ctaStyle.map((c) => (
-                      <Chip key={c} label={c} active={true} onDelete={() => removeCta(c)} primary={primary} />
+                      <Chip key={c} label={c} active={true} onClick={() => removeCta(c)} primary={primary} />
                     ))}
                   </Box>
                 </Box>
