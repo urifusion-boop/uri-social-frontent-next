@@ -39,6 +39,7 @@ import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import MultiClipComposer from '@/src/components/app/workspace/MultiClipComposer';
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
 import VideoProductionForm from '@/src/components/app/workspace/VideoProductionForm';
@@ -52,8 +53,6 @@ import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
-import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
-import { AdminService } from '@/src/api/AdminService';
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
 import TrialEndingBanner from '@/src/components/app/atoms/TrialEndingBanner';
 import TrialExpiredModal from '@/src/components/app/atoms/TrialExpiredModal';
@@ -251,14 +250,6 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
         <path d="M3 21l9-9" />
         <path d="M12.22 6.22L16 2l6 6-3.78 3.78a3 3 0 01-4.24 0l-1.76-1.76a3 3 0 010-4.24z" />
         <path d="M11 13H3l1.5 7h5L11 13z" />
-      </>
-    ),
-    users: (
-      <>
-        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 00-3-3.87" />
-        <path d="M16 3.13a4 4 0 010 7.75" />
       </>
     ),
   };
@@ -782,7 +773,7 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video' | 'compose';
 
 const ContentManagerPage = ({
   onJane,
@@ -843,6 +834,7 @@ const ContentManagerPage = ({
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'video'>('generate');
   const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video' | 'produce_video'>('edit_video');
+  const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1176,12 +1168,16 @@ const ContentManagerPage = ({
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
     },
-    // HIDDEN: Video production feature
-    // {
-    //   key: 'video',
-    //   label: '🎬 Video',
-    //   tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
-    // },
+    {
+      key: 'video',
+      label: '🎬 Video',
+      tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
+    },
+    {
+      key: 'compose',
+      label: '🎞 Compose',
+      tooltip: 'Upload your own clips and stitch them into a polished video with AI ordering and captions',
+    },
   ];
 
   return (
@@ -1273,6 +1269,7 @@ const ContentManagerPage = ({
               calendar: 'calendar',
               auto: 'sparkle',
               video: 'video',
+              compose: 'film',
             };
             return (
               <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
@@ -1338,8 +1335,7 @@ const ContentManagerPage = ({
 
             {/* Create mode switcher */}
             <div style={{ marginBottom: 20 }}>
-              {/* HIDDEN: Generate Content / Video mode selector - keeping only generate mode active */}
-              {/* <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
                 {(
                   [
                     { key: 'generate', label: '✨ Generate Content' },
@@ -1365,7 +1361,7 @@ const ContentManagerPage = ({
                     {mode.label}
                   </button>
                 ))}
-              </div> */}
+              </div>
 
               {/* Video sub-mode selector */}
               {createMode === 'video' && (
@@ -1401,8 +1397,7 @@ const ContentManagerPage = ({
 
             {createMode === 'generate' && (
               <>
-                {/* HIDDEN: V2/V3 version banner */}
-                {/* {!loadingV3Status && (
+                {!loadingV3Status && (
                   <div
                     style={{
                       marginBottom: 16,
@@ -1456,7 +1451,7 @@ const ContentManagerPage = ({
                       {v3Enabled ? 'Manage' : 'Enable V3'}
                     </a>
                   </div>
-                )} */}
+                )}
                 <ContentGeneratorForm
                   onGenerated={handleGenerated}
                   requireEmailVerification={requireEmailVerification}
@@ -1484,7 +1479,9 @@ const ContentManagerPage = ({
 
             {createMode === 'video' && videoSubMode === 'produce_video' && (
               <VideoProductionForm
+                sourceUrl={pendingProduceUrl}
                 onComplete={() => {
+                  setPendingProduceUrl(null);
                   handleGenerated();
                 }}
               />
@@ -1493,6 +1490,17 @@ const ContentManagerPage = ({
         )}
 
         {activeTab === 'video' && <VideoStoryboardGenerator />}
+
+        {activeTab === 'compose' && (
+          <MultiClipComposer
+            onSendToProduce={(url) => {
+              setPendingProduceUrl(url);
+              setActiveTab('create');
+              setCreateMode('video');
+              setVideoSubMode('produce_video');
+            }}
+          />
+        )}
 
         {activeTab === 'drafts' && (
           <>
@@ -4252,11 +4260,13 @@ const PbInput = ({
   onChange,
   placeholder,
   textarea,
+  onKeyDown,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   textarea?: boolean;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
 }) => {
   const base: React.CSSProperties = {
     width: '100%',
@@ -4277,9 +4287,16 @@ const PbInput = ({
       placeholder={placeholder}
       rows={3}
       style={base}
+      onKeyDown={onKeyDown}
     />
   ) : (
-    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={base} />
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={base}
+      onKeyDown={onKeyDown}
+    />
   );
 };
 
@@ -4448,6 +4465,7 @@ const PlaybookPage = ({
   const [compliance, setCompliance] = useState('');
   const [ctaStyles, setCtaStyles] = useState<string[]>([]);
   const [defaultLink, setDefaultLink] = useState('');
+  const [customCta, setCustomCta] = useState('');
   const [audienceAge, setAudienceAge] = useState<string[]>([]);
   const [primaryGoal, setPrimaryGoal] = useState('');
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
@@ -4647,6 +4665,18 @@ const PlaybookPage = ({
     'Visit our website',
     'Use code...',
   ];
+
+  const addCustomCtaPlaybook = () => {
+    const trimmed = customCta.trim();
+    if (trimmed && !ctaStyles.includes(trimmed)) {
+      setCtaStyles([...ctaStyles, trimmed]);
+      setCustomCta('');
+    }
+  };
+
+  const removeCtaPlaybook = (cta: string) => {
+    setCtaStyles(ctaStyles.filter((c) => c !== cta));
+  };
   const ALL_AGES = ['Gen Z (18-24)', 'Millennials (25-40)', 'Gen X (41-56)', 'Boomers (57+)', 'Everyone'];
   const ALL_GOALS = [
     'Brand Awareness',
@@ -5627,15 +5657,85 @@ const PlaybookPage = ({
               {(p?.cta_styles ?? []).join(', ') || '—'}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_CTA.map((c) => (
-                <PbChip
-                  key={c}
-                  label={c}
-                  active={ctaStyles.includes(c)}
-                  onClick={() => pbTgl(ctaStyles, setCtaStyles, c)}
-                />
-              ))}
+            <div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {ALL_CTA.map((c) => (
+                  <PbChip
+                    key={c}
+                    label={c}
+                    active={ctaStyles.includes(c)}
+                    onClick={() => pbTgl(ctaStyles, setCtaStyles, c)}
+                  />
+                ))}
+              </div>
+
+              {/* Display selected CTAs (including custom ones) */}
+              {ctaStyles.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: '#666',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Selected CTAs (click to remove)
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {ctaStyles.map((c) => (
+                      <PbChip key={c} label={c} active={true} onClick={() => removeCtaPlaybook(c)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add custom CTA input */}
+              <div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: '#666',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    marginBottom: 6,
+                  }}
+                >
+                  Add custom CTA
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <PbInput
+                    value={customCta}
+                    onChange={setCustomCta}
+                    placeholder="e.g., Get 20% off today"
+                    onKeyDown={(e: React.KeyboardEvent) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomCtaPlaybook();
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={addCustomCtaPlaybook}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#CD1B78',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -6826,72 +6926,57 @@ const STATUS_MSGS = [
   'Generating content ideas...',
 ];
 
-const getNav = (userEmail?: string | null) => {
-  const baseNav = [
-    {
-      id: 'workspace',
-      icon: 'home',
-      label: 'Workspace',
-      tooltip: "Your AI command centre — chat with URI Agent and see today's briefing",
-    },
-    // { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
-    {
-      id: 'schedule',
-      icon: 'calendar',
-      label: 'Create Content',
-      tooltip: 'Generate, review, and schedule social media posts across all your platforms',
-    },
-    {
-      id: 'connections',
-      icon: 'share',
-      label: 'Connected Accounts',
-      tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly',
-    },
-    {
-      id: 'performance',
-      icon: 'chart',
-      label: 'Performance',
-      tooltip: 'Posts, accounts, and market intel — all your insights in one place',
-    },
-    // HIDDEN: Blog Generator feature
-    // {
-    //   id: 'blog',
-    //   icon: 'book',
-    //   label: 'Blog',
-    //   tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
-    // },
-    {
-      id: 'playbook',
-      icon: 'book',
-      label: 'Brand Playbook',
-      tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
-    },
-    {
-      id: 'settings',
-      icon: 'settings',
-      label: 'Settings',
-      tooltip: 'Manage your profile, preferences, and account integrations',
-    },
-    {
-      id: 'billing',
-      icon: 'trending',
-      label: 'Billing',
-      tooltip: 'View your plan, content credits, and billing history',
-    },
-  ];
-
-  // Add admin tab only for admin user
-  if (AdminService.isAdmin(userEmail)) {
-    baseNav.push({
-      id: 'admin',
-      icon: 'users',
-      label: 'Manage Users',
-      tooltip: 'Admin dashboard for user management and platform analytics',
-    });
-  }
-
-  return baseNav;
-};
+const NAV = [
+  {
+    id: 'workspace',
+    icon: 'home',
+    label: 'Workspace',
+    tooltip: "Your AI command centre — chat with URI Agent and see today's briefing",
+  },
+  // { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
+  {
+    id: 'schedule',
+    icon: 'calendar',
+    label: 'Create Content',
+    tooltip: 'Generate, review, and schedule social media posts across all your platforms',
+  },
+  {
+    id: 'connections',
+    icon: 'share',
+    label: 'Connected Accounts',
+    tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly',
+  },
+  {
+    id: 'performance',
+    icon: 'chart',
+    label: 'Performance',
+    tooltip: 'Posts, accounts, and market intel — all your insights in one place',
+  },
+  {
+    id: 'blog',
+    icon: 'book',
+    label: 'Blog',
+    tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
+  },
+  {
+    id: 'playbook',
+    icon: 'book',
+    label: 'Brand Playbook',
+    tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
+  },
+  {
+    id: 'settings',
+    icon: 'settings',
+    label: 'Settings',
+    tooltip: 'Manage your profile, preferences, and account integrations',
+  },
+  {
+    id: 'billing',
+    icon: 'trending',
+    label: 'Billing',
+    tooltip: 'View your plan, content credits, and billing history',
+  },
+];
 
 const MOBILE_TABS = [
   { id: 'workspace', icon: 'home', label: 'Jane' },
@@ -6901,19 +6986,10 @@ const MOBILE_TABS = [
   { id: 'more', icon: 'settings', label: 'More' },
 ];
 
-const getMoreNav = (userEmail?: string | null) => {
-  const baseNav = [
-    { id: 'settings', icon: 'settings', label: 'Settings' },
-    { id: 'billing', icon: 'trending', label: 'Billing' },
-  ];
-
-  // Add admin tab only for admin user
-  if (AdminService.isAdmin(userEmail)) {
-    baseNav.push({ id: 'admin', icon: 'users', label: 'Admin' });
-  }
-
-  return baseNav;
-};
+const MORE_NAV = [
+  { id: 'settings', icon: 'settings', label: 'Settings' },
+  { id: 'billing', icon: 'trending', label: 'Billing' },
+];
 
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN DASHBOARD
@@ -7295,7 +7371,6 @@ export default function WorkspaceDashboard() {
     ),
     billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
     notifications: <NotificationsPanel />,
-    admin: <AdminUsersPage onBack={goWorkspace} />,
   };
 
   return (
@@ -7395,7 +7470,7 @@ export default function WorkspaceDashboard() {
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', paddingLeft: 37 }}>Active & ready</div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {getNav(userDetails?.email).map((n) => {
+              {NAV.map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
                 return (
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
@@ -8261,7 +8336,7 @@ export default function WorkspaceDashboard() {
                 </div>
               </div>
               {/* More nav items */}
-              {getMoreNav(userDetails?.email).map((n) => {
+              {MORE_NAV.map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : undefined;
                 return (
                   <button

@@ -36,6 +36,7 @@ import posthog from 'posthog-js';
 // ─── Step order ──────────────────────────────────────────────────────────────
 const STEPS = [
   'welcome',
+  'connectAccounts',
   'basics',
   'identity',
   'personality',
@@ -159,17 +160,20 @@ const UriInput = ({
   onChange,
   placeholder,
   type = 'text',
+  onKeyDown,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }) => (
   <Box
     component="input"
     type={type}
     value={value}
     onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
+    onKeyDown={onKeyDown}
     placeholder={placeholder}
     sx={{
       width: '100%',
@@ -708,6 +712,7 @@ function BrandSetupPageContent() {
   // ── CTA ───────────────────────────────────────────────────────
   const [ctaStyle, setCtaStyle] = useState<string[]>([]);
   const [defaultLink, setDefaultLink] = useState('');
+  const [customCta, setCustomCta] = useState('');
   const allCtas = [
     'Link in bio',
     'Shop now',
@@ -719,6 +724,18 @@ function BrandSetupPageContent() {
     'Visit our website',
     'Use code...',
   ];
+
+  const addCustomCta = () => {
+    const trimmed = customCta.trim();
+    if (trimmed && !ctaStyle.includes(trimmed)) {
+      setCtaStyle([...ctaStyle, trimmed]);
+      setCustomCta('');
+    }
+  };
+
+  const removeCta = (cta: string) => {
+    setCtaStyle(ctaStyle.filter((c) => c !== cta));
+  };
 
   // ── Audience ──────────────────────────────────────────────────
   const [audienceAge, setAudienceAge] = useState<string[]>([]);
@@ -794,9 +811,26 @@ function BrandSetupPageContent() {
         router.replace(`/settings/social-accounts?sessionToken=${encodeURIComponent(sessionToken)}&connected=pending`);
         return;
       }
-      // Onboarding OAuth callback — redirect to settings page for account connection
-      localStorage.removeItem('outstand_connect_source');
-      router.replace(`/settings/social-accounts?sessionToken=${encodeURIComponent(sessionToken)}&connected=pending`);
+      // Onboarding OAuth callback — navigate to connectAccounts step and load pending pages
+      setCheckingExisting(false);
+      setStep(STEPS.indexOf('connectAccounts'));
+      setConnectSessionToken(sessionToken);
+      setConnectPhase('connecting');
+      SocialAccountService.getPendingConnection(sessionToken)
+        .then((res) => {
+          if (res.status && res.responseData?.available_pages) {
+            const pages: AvailablePage[] = res.responseData.available_pages;
+            setAvailablePages(pages);
+            setConnectNetworkName(res.responseData.network || 'Facebook');
+            const selectableIds = pages.filter((p) => !p.auto_connect).map((p) => p.id);
+            setSelectedPageIds(selectableIds);
+            setConnectPhase('pending');
+          } else {
+            setConnectPhase('selecting');
+          }
+        })
+        .catch(() => setConnectPhase('selecting'));
+      router.replace('/social-media/brand-setup');
       return;
     }
 
@@ -958,6 +992,520 @@ function BrandSetupPageContent() {
         );
 
       // ══ CONNECT ACCOUNTS ═════════════════════════════════════════
+      case 'connectAccounts': {
+        const LIVE_PLATFORMS = [
+          {
+            id: 'facebook',
+            name: 'Facebook',
+            icon: FaFacebook,
+            color: '#1877F2',
+            bg: '#E7F0FD',
+            description: 'Pages you manage',
+            flow: 'outstand',
+          },
+          {
+            id: 'instagram',
+            name: 'Instagram',
+            icon: FaInstagram,
+            color: '#E4405F',
+            bg: '#FDE7EC',
+            description: 'Business & creator accounts',
+            flow: 'instagram_direct',
+          },
+          {
+            id: 'linkedin',
+            name: 'LinkedIn',
+            icon: FaLinkedin,
+            color: '#0A66C2',
+            bg: '#E8F1FB',
+            description: 'Professional profile & company pages',
+            flow: 'popup',
+          },
+          {
+            id: 'x',
+            name: 'X (Twitter)',
+            icon: FaXTwitter,
+            color: '#000000',
+            bg: '#F0F0F0',
+            description: 'Post tweets and threads',
+            flow: 'popup',
+            comingSoon: true,
+          },
+          {
+            id: 'whatsapp',
+            name: 'WhatsApp',
+            icon: FaWhatsapp,
+            color: '#25D366',
+            bg: '#E8F9EF',
+            description: 'Receive AI drafts via WhatsApp',
+            flow: 'phone',
+          },
+        ];
+
+        const handleInitiateConnect = async () => {
+          if (!selectedConnectPlatform) return;
+          const platform = LIVE_PLATFORMS.find((p) => p.id === selectedConnectPlatform);
+          if (!platform) return;
+
+          if (platform.flow === 'phone') {
+            // WhatsApp — handled inline, no redirect needed
+            if (!whatsappPhone.trim()) return;
+            setConnectPhase('connecting');
+            try {
+              const res = await SocialConnectionService.whatsappConnect(whatsappPhone.trim());
+              if (res.status) {
+                setConnectedAccountNames((prev) => [...prev, whatsappPhone.trim()]);
+                setConnectPhase('success');
+              } else {
+                setConnectPhase('selecting');
+              }
+            } catch {
+              setConnectPhase('selecting');
+            }
+            return;
+          }
+
+          if (platform.flow === 'popup') {
+            setConnectPhase('connecting');
+            try {
+              const res =
+                platform.id === 'linkedin'
+                  ? await SocialConnectionService.linkedinConnect()
+                  : await SocialConnectionService.xConnect();
+              if (res.status && res.responseData?.auth_url) {
+                const authUrl = res.responseData.auth_url;
+                // Try popup first; fall back to full-page redirect if blocked
+                const popup = window.open(authUrl, 'uri-oauth', 'width=620,height=700,left=200,top=80');
+                if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+                  // Popup blocked — full-page redirect
+                  window.location.href = authUrl;
+                  return;
+                }
+                // Popup opened — poll for close then check query params on return
+                const timer = setInterval(() => {
+                  if (popup.closed) {
+                    clearInterval(timer);
+                    setConnectPhase('selecting');
+                    // Re-check URL params in case the page was redirected back by backend
+                    const params = new URLSearchParams(window.location.search);
+                    const cbConnected = params.get('connected');
+                    const cbPlatform = params.get('platform');
+                    const cbUsername = params.get('username');
+                    if (cbConnected === 'true' && cbPlatform) {
+                      const displayName = cbUsername ? decodeURIComponent(cbUsername) : cbPlatform;
+                      setConnectedAccountNames((prev) => [...prev, displayName]);
+                      setConnectPhase('success');
+                      router.replace('/social-media/brand-setup');
+                    } else if (cbConnected === 'false' && cbPlatform) {
+                      setConnectPhase('selecting');
+                      router.replace('/social-media/brand-setup');
+                    }
+                  }
+                }, 800);
+                return;
+              }
+            } catch {
+              /* fall through */
+            }
+            setConnectPhase('selecting');
+            return;
+          }
+
+          // Instagram direct — Meta/Facebook Login flow
+          if (platform.flow === 'instagram_direct') {
+            setConnectPhase('connecting');
+            const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+            window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=onboarding`;
+            return;
+          }
+
+          // Outstand flow (Facebook and other platforms)
+          setConnectPhase('connecting');
+          try {
+            const res = await SocialAccountService.initiateConnection([selectedConnectPlatform]);
+            if (res.status && res.responseData?.auth_urls) {
+              const url = res.responseData.auth_urls[selectedConnectPlatform];
+              if (url) {
+                window.location.href = url;
+                return;
+              }
+            }
+            setConnectPhase('selecting');
+          } catch {
+            setConnectPhase('selecting');
+          }
+        };
+
+        const handleFinalize = async () => {
+          if (!connectSessionToken || selectedPageIds.length === 0) return;
+          setConnectPhase('finalizing');
+          try {
+            const res = await SocialAccountService.finalizeConnection(connectSessionToken, selectedPageIds);
+            if (res.status && res.responseData) {
+              setConnectedAccountNames(
+                (res.responseData.accounts_connected ?? []).map((a) => a.account_name || a.username)
+              );
+              setConnectPhase('success');
+            } else {
+              setConnectPhase('pending');
+            }
+          } catch {
+            setConnectPhase('pending');
+          }
+        };
+
+        const handlePageToggle = (id: string) =>
+          setSelectedPageIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+        if (connectPhase === 'connecting' || connectPhase === 'finalizing') {
+          return (
+            <Box textAlign="center" py={4}>
+              <CircularProgress size={48} sx={{ color: primary, mb: 2 }} />
+              <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>
+                {connectPhase === 'finalizing' ? 'Connecting your accounts...' : 'Loading your accounts...'}
+              </Typography>
+            </Box>
+          );
+        }
+
+        if (connectPhase === 'pending') {
+          return (
+            <Box>
+              <AgentBubble primary={primary}>
+                Great! Choose which {connectNetworkName} accounts you want to manage through Uri Creative.
+              </AgentBubble>
+              <Box mt={1.5} display="flex" flexDirection="column" gap={1.25} mb={2.5}>
+                {availablePages.length === 0 ? (
+                  <Typography sx={{ fontSize: 13, color: '#6C727F', py: 2, textAlign: 'center' }}>
+                    No accounts found. Make sure you have admin access to at least one page.
+                  </Typography>
+                ) : (
+                  availablePages.map((page) => {
+                    const isInstagram = page.type === 'instagram_business_account' || page.network === 'instagram';
+                    const isAutoConnect = !!page.auto_connect;
+                    const isSelected = selectedPageIds.includes(page.id);
+                    return (
+                      <Box
+                        key={page.id}
+                        onClick={() => !isAutoConnect && handlePageToggle(page.id)}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          p: 2,
+                          borderRadius: '12px',
+                          border: '2px solid',
+                          borderColor: isAutoConnect ? '#D1FAE5' : isSelected ? primary : '#E0DEF7',
+                          background: isAutoConnect ? '#F0FDF4' : isSelected ? `${primary}0D` : '#fff',
+                          cursor: isAutoConnect ? 'default' : 'pointer',
+                          transition: 'all 0.18s',
+                          '&:hover': { borderColor: isAutoConnect ? '#D1FAE5' : primary },
+                          opacity: isAutoConnect ? 0.9 : 1,
+                        }}
+                      >
+                        {page.profilePictureUrl ? (
+                          <img
+                            src={page.profilePictureUrl}
+                            alt={page.name}
+                            style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <Box
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: '50%',
+                              bgcolor: isInstagram ? '#FDE7EC' : '#E0DEF7',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 20,
+                            }}
+                          >
+                            {isInstagram ? '📸' : '📘'}
+                          </Box>
+                        )}
+                        <Box flex={1}>
+                          <Box display="flex" alignItems="center" gap={0.75} flexWrap="wrap">
+                            <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: '#374151' }}>
+                              {page.name}
+                            </Typography>
+                            {isInstagram && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: '#E4405F',
+                                  background: '#FDE7EC',
+                                  padding: '1px 7px',
+                                  borderRadius: 20,
+                                }}
+                              >
+                                Instagram
+                              </span>
+                            )}
+                            {isAutoConnect && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: '#16a34a',
+                                  background: '#dcfce7',
+                                  padding: '1px 7px',
+                                  borderRadius: 20,
+                                }}
+                              >
+                                Auto
+                              </span>
+                            )}
+                          </Box>
+                          {page.username && (
+                            <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>@{page.username}</Typography>
+                          )}
+                          {isAutoConnect && (
+                            <Typography sx={{ fontSize: 11, color: '#9CA3AF' }}>
+                              Connected automatically via Facebook
+                            </Typography>
+                          )}
+                        </Box>
+                        {!isAutoConnect && (
+                          <Checkbox
+                            checked={isSelected}
+                            onChange={() => handlePageToggle(page.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            sx={{ p: 0, color: '#E0DEF7', '&.Mui-checked': { color: primary } }}
+                          />
+                        )}
+                      </Box>
+                    );
+                  })
+                )}
+              </Box>
+              {/* Instagram-not-detected notice */}
+              {(() => {
+                const fbPages = availablePages.filter(
+                  (p) => p.type !== 'instagram_business_account' && p.network !== 'instagram'
+                );
+                const igLinkedIds = new Set(
+                  availablePages
+                    .filter((p) => p.type === 'instagram_business_account' || p.network === 'instagram')
+                    .map((p) => p.linked_page_id)
+                );
+                const pagesWithoutIg = fbPages.filter((p) => !igLinkedIds.has(p.id));
+                if (pagesWithoutIg.length === 0 || availablePages.length === 0) return null;
+                return (
+                  <Box
+                    sx={{
+                      mb: 2,
+                      p: 1.5,
+                      borderRadius: '10px',
+                      background: '#FEF9C3',
+                      border: '1px solid #FDE68A',
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#92400E', mb: 0.5 }}>
+                      Instagram not auto-detected for: {pagesWithoutIg.map((p) => p.name).join(', ')}
+                    </Typography>
+                    <Typography sx={{ fontSize: 11, color: '#78350F', lineHeight: 1.6 }}>
+                      Connect Instagram separately — go back and select <strong>Instagram</strong> as its own platform.
+                      This gives Instagram its own direct connection with full publishing access.
+                    </Typography>
+                  </Box>
+                );
+              })()}
+              <Box display="flex" gap={1.5} alignItems="center">
+                <CustomButton
+                  mode="primary"
+                  onClick={handleFinalize}
+                  disabled={selectedPageIds.length === 0}
+                  style={{ padding: '10px 24px', opacity: selectedPageIds.length > 0 ? 1 : 0.5 }}
+                >
+                  Connect{' '}
+                  {selectedPageIds.length > 0
+                    ? `${selectedPageIds.length} account${selectedPageIds.length !== 1 ? 's' : ''}`
+                    : 'accounts'}
+                </CustomButton>
+                <Typography
+                  component="button"
+                  onClick={next}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
+                >
+                  Skip for now
+                </Typography>
+              </Box>
+            </Box>
+          );
+        }
+
+        if (connectPhase === 'success') {
+          return (
+            <Box textAlign="center" py={2}>
+              <FaCheckCircle size={48} color="#4CAF50" style={{ marginBottom: 12 }} />
+              <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#374151', mb: 0.75 }}>
+                Accounts connected!
+              </Typography>
+              <Typography sx={{ fontSize: 13, color: '#9CA3AF', mb: 2.5 }}>
+                {connectedAccountNames.join(', ')} {connectedAccountNames.length === 1 ? 'is' : 'are'} ready to publish
+                to.
+              </Typography>
+              <Box display="flex" gap={1.5} justifyContent="center" alignItems="center">
+                <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
+                  Continue →
+                </CustomButton>
+                <Typography
+                  component="button"
+                  onClick={() => {
+                    setConnectPhase('selecting');
+                    setSelectedConnectPlatform(null);
+                  }}
+                  sx={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#9CA3AF',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    p: 0,
+                  }}
+                >
+                  Connect another
+                </Typography>
+              </Box>
+            </Box>
+          );
+        }
+
+        // Default: selecting phase
+        const selectedPlatformDef = LIVE_PLATFORMS.find((p) => p.id === selectedConnectPlatform);
+        return (
+          <Box>
+            <AgentBubble primary={primary}>
+              To publish content, connect a social account. You can add more platforms anytime.
+            </AgentBubble>
+            <Box mt={1.5} display="flex" flexDirection="column" gap={1.5} mb={2.5}>
+              {LIVE_PLATFORMS.map((platform) => {
+                const IconComponent = platform.icon;
+                const isSelected = selectedConnectPlatform === platform.id;
+                const isComingSoon = (platform as { comingSoon?: boolean }).comingSoon;
+                return (
+                  <Box key={platform.id}>
+                    <Box
+                      onClick={() => !isComingSoon && setSelectedConnectPlatform(platform.id)}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        p: 2,
+                        borderRadius: '12px',
+                        border: '2px solid',
+                        borderColor: isSelected ? primary : '#E0DEF7',
+                        background: isComingSoon ? '#FAFAFA' : isSelected ? `${primary}0D` : '#fff',
+                        cursor: isComingSoon ? 'default' : 'pointer',
+                        opacity: isComingSoon ? 0.65 : 1,
+                        transition: 'all 0.18s',
+                        '&:hover': { borderColor: isComingSoon ? '#E0DEF7' : primary },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '10px',
+                          bgcolor: platform.bg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <IconComponent size={24} color={isComingSoon ? '#aaa' : platform.color} />
+                      </Box>
+                      <Box flex={1}>
+                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: isComingSoon ? '#9CA3AF' : '#374151' }}>
+                          {platform.name}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>{platform.description}</Typography>
+                      </Box>
+                      {isComingSoon ? (
+                        <Box
+                          sx={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: '#6B7280',
+                            background: '#F3F4F6',
+                            border: '1px solid #E5E7EB',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: '20px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Coming Soon
+                        </Box>
+                      ) : isSelected ? (
+                        <FaCheckCircle size={18} color={primary} />
+                      ) : null}
+                    </Box>
+                    {isSelected && platform.flow === 'phone' && (
+                      <Box sx={{ mt: 1, px: 0.5 }}>
+                        <UriInput
+                          type="tel"
+                          value={whatsappPhone}
+                          onChange={setWhatsappPhone}
+                          placeholder="+1 234 567 8900"
+                        />
+                        <Hint>Enter phone in E.164 format (e.g. +1 234 567 8900)</Hint>
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
+            <Box display="flex" gap={1.5} alignItems="center">
+              <CustomButton
+                mode="primary"
+                onClick={handleInitiateConnect}
+                disabled={!selectedConnectPlatform || (selectedPlatformDef?.flow === 'phone' && !whatsappPhone.trim())}
+                style={{
+                  padding: '10px 24px',
+                  opacity:
+                    !selectedConnectPlatform || (selectedPlatformDef?.flow === 'phone' && !whatsappPhone.trim())
+                      ? 0.5
+                      : 1,
+                }}
+              >
+                Connect {selectedPlatformDef?.name ?? 'account'} →
+              </CustomButton>
+              <Typography
+                component="button"
+                onClick={next}
+                sx={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#9CA3AF',
+                  fontSize: 12.5,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 3,
+                  p: 0,
+                }}
+              >
+                I'll do this later
+              </Typography>
+            </Box>
+          </Box>
+        );
+      }
 
       // ══ BASICS ═══════════════════════════════════════════════════
       case 'basics':
@@ -1896,8 +2444,8 @@ function BrandSetupPageContent() {
               to?
             </AgentBubble>
             <Box mt={1.5}>
-              <FieldLabel sub="(select all that fit)">Preferred CTAs</FieldLabel>
-              <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75} mb={2.5}>
+              <FieldLabel sub="(select from presets or add your own)">Preferred CTAs</FieldLabel>
+              <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75} mb={1.5}>
                 {allCtas.map((c) => (
                   <Chip
                     key={c}
@@ -1908,6 +2456,44 @@ function BrandSetupPageContent() {
                   />
                 ))}
               </Box>
+
+              {/* Display selected CTAs (including custom ones) */}
+              {ctaStyle.length > 0 && (
+                <Box mb={1.5}>
+                  <FieldLabel sub="(click to remove)">Selected CTAs</FieldLabel>
+                  <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
+                    {ctaStyle.map((c) => (
+                      <Chip key={c} label={c} active={true} onClick={() => removeCta(c)} primary={primary} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Add custom CTA input */}
+              <Box mb={2.5}>
+                <FieldLabel sub="(press Enter or click Add)">Add custom CTA</FieldLabel>
+                <Box display="flex" gap={1} mt={0.75}>
+                  <UriInput
+                    value={customCta}
+                    onChange={setCustomCta}
+                    placeholder="e.g., Get 20% off today"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomCta();
+                      }
+                    }}
+                  />
+                  <CustomButton
+                    mode="secondary"
+                    onClick={addCustomCta}
+                    style={{ padding: '10px 20px', whiteSpace: 'nowrap' }}
+                  >
+                    Add
+                  </CustomButton>
+                </Box>
+              </Box>
+
               <FieldLabel sub="(optional)">Default link</FieldLabel>
               <Box mt={0.75} mb={2}>
                 <UriInput value={defaultLink} onChange={setDefaultLink} placeholder="https://yourbrand.com/shop" />
@@ -2873,6 +3459,7 @@ function BrandSetupPageContent() {
                   >
                     {{
                       welcome: '',
+                      connectAccounts: '🔗 Connect Accounts',
                       basics: '🏢 Brand Basics',
                       identity: '🎨 Visual Identity',
                       personality: '🗣️ Brand Personality',
