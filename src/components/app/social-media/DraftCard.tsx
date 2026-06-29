@@ -1375,15 +1375,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             </Button>
 
             {/* Canvas Editor Button - Only show if draft has layered document */}
-            {(() => {
-              console.log('🔍 Canvas Editor Debug:', {
-                draftId: draft.id || draft.draft_id,
-                hasDocumentKey: 'document' in draft,
-                documentValue: 'document' in draft ? (draft as Record<string, unknown>).document : undefined,
-                draftKeys: Object.keys(draft),
-              });
-              return 'document' in draft && draft.document;
-            })() ? (
+            {'document' in draft && draft.document ? (
               <Button
                 size="small"
                 variant="outlined"
