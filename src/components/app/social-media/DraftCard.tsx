@@ -128,24 +128,34 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   // This fixes the issue where images show "Loading..." forever after switching tabs.
   useEffect(() => {
     if (!editing) {
+      // For carousel, check current slide's image URL; for others, check draft.image_url
+      const isCarouselPost = (initialDraft.post_type ?? 'feed') === 'carousel';
+      const slides = initialDraft.slides ?? [];
+      const currentSlideUrl = isCarouselPost && slides[slideIndex] ? slides[slideIndex].image_url : undefined;
+      const relevantImageUrl = isCarouselPost ? currentSlideUrl : initialDraft.image_url;
+
       console.log(`[DraftCard ${initialDraft.id}] useEffect triggered`, {
+        post_type: initialDraft.post_type,
+        is_carousel: isCarouselPost,
+        slide_index: slideIndex,
+        current_slide_url: currentSlideUrl?.substring(0, 80),
         image_url: initialDraft.image_url?.substring(0, 80),
-        has_image: initialDraft.has_image,
+        relevant_url: relevantImageUrl?.substring(0, 80),
         tracked_url: trackedImageUrlRef.current?.substring(0, 80),
       });
 
       setDraft(initialDraft);
 
       // Only reset image state if the URL actually changed
-      if (initialDraft.image_url !== trackedImageUrlRef.current) {
+      if (relevantImageUrl !== trackedImageUrlRef.current) {
         console.log(
-          `[DraftCard ${initialDraft.id}] Image URL changed from ${trackedImageUrlRef.current?.substring(0, 60)} to ${initialDraft.image_url?.substring(0, 60)}`
+          `[DraftCard ${initialDraft.id}] Image URL changed from ${trackedImageUrlRef.current?.substring(0, 60)} to ${relevantImageUrl?.substring(0, 60)}`
         );
 
         // Check browser cache BEFORE resetting imageLoaded to avoid flickering
-        if (initialDraft.image_url) {
+        if (relevantImageUrl) {
           const img = new Image();
-          const resolvedUrl = resolveUrl(initialDraft.image_url);
+          const resolvedUrl = resolveUrl(relevantImageUrl);
           console.log(`[DraftCard ${initialDraft.id}] Checking cache for new URL:`, resolvedUrl.substring(0, 80));
           img.src = resolvedUrl;
 
@@ -159,7 +169,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             console.log(
               `[DraftCard ${initialDraft.id}] ✅ New image already cached, keeping imageLoaded=true (no flicker)`
             );
-            trackedImageUrlRef.current = initialDraft.image_url;
+            trackedImageUrlRef.current = relevantImageUrl;
             setImageLoaded(true); // Ensure it's true
             // Don't reset imageError or retry count since image is working
           } else {
@@ -168,12 +178,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             setImageLoaded(false);
             setImageError(false);
             imageRetryRef.current = 0;
-            trackedImageUrlRef.current = initialDraft.image_url;
+            trackedImageUrlRef.current = relevantImageUrl;
 
             // Listen for load event
             img.onload = () => {
               console.log(`[DraftCard ${initialDraft.id}] 🎉 img.onload fired for new URL!`);
-              if (trackedImageUrlRef.current === initialDraft.image_url) {
+              if (trackedImageUrlRef.current === relevantImageUrl) {
                 console.log(`[DraftCard ${initialDraft.id}] ✅ URL matches, setting imageLoaded=true`);
                 setImageLoaded(true);
               } else {
@@ -189,7 +199,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           setImageLoaded(false);
           setImageError(false);
           imageRetryRef.current = 0;
-          trackedImageUrlRef.current = initialDraft.image_url;
+          trackedImageUrlRef.current = relevantImageUrl;
         }
       } else {
         console.log(
@@ -200,7 +210,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides]);
+  }, [initialDraft.image_url, initialDraft.status, initialDraft.approval_status, initialDraft.slides, slideIndex]);
   // Track which slide URLs have already loaded so navigating back doesn't re-shimmer
   const loadedSlideUrls = useState<Set<string>>(() => new Set())[0];
   const [imageHovered, setImageHovered] = useState(false);
@@ -1711,13 +1721,17 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         <DialogContent
           sx={{ p: 2, pt: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000' }}
         >
-          {draft.image_url && (
-            <img
-              src={draft.image_url.startsWith('/') ? resolveUrl(draft.image_url) : draft.image_url}
-              alt={`AI-generated image for ${draft.platform}`}
-              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }}
-            />
-          )}
+          {(() => {
+            // For carousel, show current slide; for regular posts, show draft.image_url
+            const imageUrl = isCarousel && currentSlide?.image_url ? currentSlide.image_url : draft.image_url;
+            return imageUrl ? (
+              <img
+                src={imageUrl.startsWith('/') ? resolveUrl(imageUrl) : imageUrl}
+                alt={`AI-generated image for ${draft.platform}`}
+                style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }}
+              />
+            ) : null;
+          })()}
         </DialogContent>
       </Dialog>
 
