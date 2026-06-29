@@ -80,6 +80,8 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
   const [postType, setPostType] = useState<'feed' | 'carousel' | 'story'>('feed');
   const [numSlides, setNumSlides] = useState(3);
   const [isDragging, setIsDragging] = useState(false);
+  const [useCustomCta, setUseCustomCta] = useState(false);
+  const [customCta, setCustomCta] = useState('');
 
   // Billing modals
   const [outOfCreditsOpen, setOutOfCreditsOpen] = useState(false);
@@ -232,6 +234,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
         post_type: postType,
         ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
         acknowledged_incomplete_profile: acknowledgedIncomplete,
+        ...(useCustomCta && customCta.trim() ? { override_cta: customCta.trim() } : {}),
       };
       if (referenceImage) {
         payload.reference_image = referenceImage;
@@ -662,6 +665,46 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
           />
         </Box>
       </Box>
+
+      {/* Custom CTA for this generation only */}
+      {includeImages && (
+        <Box sx={{ mt: 2, p: 2, borderRadius: '8px', border: '1px solid #E5E7EB', background: '#F9FAFB' }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={useCustomCta}
+                onChange={(e) => setUseCustomCta(e.target.checked)}
+                sx={{ color: '#CD1B78', '&.Mui-checked': { color: '#CD1B78' } }}
+              />
+            }
+            label={
+              <Box display="flex" alignItems="center" gap={0.5}>
+                <Typography fontSize="13px" fontWeight={500}>
+                  Use custom CTA for this generation only
+                </Typography>
+                <Tooltip
+                  title="This CTA will be used only for this image generation and won't be saved to your brand playbook"
+                  arrow
+                >
+                  <Box component="span" sx={{ display: 'flex', alignItems: 'center', cursor: 'help' }}>
+                    <MdInfoOutline size={14} color="#6B7280" />
+                  </Box>
+                </Tooltip>
+              </Box>
+            }
+          />
+          {useCustomCta && (
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="e.g., Flash Sale - 50% Off Today!"
+              value={customCta}
+              onChange={(e) => setCustomCta(e.target.value)}
+              sx={{ mt: 1 }}
+            />
+          )}
+        </Box>
+      )}
 
       <Tooltip
         title={

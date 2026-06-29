@@ -30,6 +30,7 @@ export interface GenerateContentPayload {
   post_type?: 'feed' | 'carousel' | 'story';
   num_slides?: number;
   acknowledged_incomplete_profile?: boolean; // OPTION 1: User acknowledged incomplete profile warning
+  override_cta?: string; // One-time CTA for this generation only (not saved to brand playbook)
 }
 
 export interface StoryboardScene {
