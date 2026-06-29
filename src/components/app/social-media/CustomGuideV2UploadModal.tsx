@@ -36,12 +36,7 @@ interface CustomGuideV2UploadModalProps {
   brandId?: string;
 }
 
-export default function CustomGuideV2UploadModal({
-  open,
-  onClose,
-  onSuccess,
-  brandId,
-}: CustomGuideV2UploadModalProps) {
+export default function CustomGuideV2UploadModal({ open, onClose, onSuccess, brandId }: CustomGuideV2UploadModalProps) {
   const [uploadingImages, setUploadingImages] = useState<UploadingImage[]>([]);
   const [guideName, setGuideName] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -194,7 +189,22 @@ export default function CustomGuideV2UploadModal({
     onClose();
   };
 
-  const removeUpload = (preview: string) => {
+  const removeUpload = async (preview: string) => {
+    const upload = uploadingImages.find((u) => u.preview === preview);
+
+    // If the upload completed and has a guide ID, delete it from the backend
+    if (upload?.status === 'complete' && upload.result?._id) {
+      try {
+        await CustomVisualGuideV2Service.archiveGuideV2(upload.result._id);
+        ToastService.success('Style guide deleted successfully');
+      } catch (error) {
+        console.error('Failed to delete guide:', error);
+        ToastService.error('Failed to delete style guide');
+        return; // Don't remove from UI if backend deletion failed
+      }
+    }
+
+    // Remove from upload list and clean up preview URL
     setUploadingImages((prev) => {
       const upload = prev.find((u) => u.preview === preview);
       if (upload) {
@@ -339,7 +349,11 @@ export default function CustomGuideV2UploadModal({
                           flexShrink: 0,
                         }}
                       >
-                        <img src={upload.preview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img
+                          src={upload.preview}
+                          alt="Preview"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
                       </Box>
 
                       <Box sx={{ flex: 1 }}>
@@ -472,7 +486,8 @@ export default function CustomGuideV2UploadModal({
                   '&:hover': { opacity: 0.9 },
                 }}
               >
-                Done ({uploadingImages.filter((u) => u.status === 'complete').length} style guide{uploadingImages.filter((u) => u.status === 'complete').length > 1 ? 's' : ''} created)
+                Done ({uploadingImages.filter((u) => u.status === 'complete').length} style guide
+                {uploadingImages.filter((u) => u.status === 'complete').length > 1 ? 's' : ''} created)
               </Button>
             </Box>
           )}
