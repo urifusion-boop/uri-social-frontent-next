@@ -4456,6 +4456,7 @@ const PlaybookPage = ({
   const [compliance, setCompliance] = useState('');
   const [ctaStyles, setCtaStyles] = useState<string[]>([]);
   const [defaultLink, setDefaultLink] = useState('');
+  const [customCta, setCustomCta] = useState('');
   const [audienceAge, setAudienceAge] = useState<string[]>([]);
   const [primaryGoal, setPrimaryGoal] = useState('');
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
@@ -4655,6 +4656,18 @@ const PlaybookPage = ({
     'Visit our website',
     'Use code...',
   ];
+
+  const addCustomCtaPlaybook = () => {
+    const trimmed = customCta.trim();
+    if (trimmed && !ctaStyles.includes(trimmed)) {
+      setCtaStyles([...ctaStyles, trimmed]);
+      setCustomCta('');
+    }
+  };
+
+  const removeCtaPlaybook = (cta: string) => {
+    setCtaStyles(ctaStyles.filter((c) => c !== cta));
+  };
   const ALL_AGES = ['Gen Z (18-24)', 'Millennials (25-40)', 'Gen X (41-56)', 'Boomers (57+)', 'Everyone'];
   const ALL_GOALS = [
     'Brand Awareness',
@@ -5635,15 +5648,85 @@ const PlaybookPage = ({
               {(p?.cta_styles ?? []).join(', ') || '—'}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_CTA.map((c) => (
-                <PbChip
-                  key={c}
-                  label={c}
-                  active={ctaStyles.includes(c)}
-                  onClick={() => pbTgl(ctaStyles, setCtaStyles, c)}
-                />
-              ))}
+            <div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {ALL_CTA.map((c) => (
+                  <PbChip
+                    key={c}
+                    label={c}
+                    active={ctaStyles.includes(c)}
+                    onClick={() => pbTgl(ctaStyles, setCtaStyles, c)}
+                  />
+                ))}
+              </div>
+
+              {/* Display selected CTAs (including custom ones) */}
+              {ctaStyles.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: '#666',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Selected CTAs
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {ctaStyles.map((c) => (
+                      <PbChip key={c} label={c} active={true} onDelete={() => removeCtaPlaybook(c)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add custom CTA input */}
+              <div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: '#666',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    marginBottom: 6,
+                  }}
+                >
+                  Add custom CTA
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <PbInput
+                    value={customCta}
+                    onChange={setCustomCta}
+                    placeholder="e.g., Get 20% off today"
+                    onKeyDown={(e: React.KeyboardEvent) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomCtaPlaybook();
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={addCustomCtaPlaybook}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#CD1B78',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

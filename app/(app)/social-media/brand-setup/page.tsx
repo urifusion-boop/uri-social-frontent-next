@@ -709,6 +709,7 @@ function BrandSetupPageContent() {
   // ── CTA ───────────────────────────────────────────────────────
   const [ctaStyle, setCtaStyle] = useState<string[]>([]);
   const [defaultLink, setDefaultLink] = useState('');
+  const [customCta, setCustomCta] = useState('');
   const allCtas = [
     'Link in bio',
     'Shop now',
@@ -720,6 +721,18 @@ function BrandSetupPageContent() {
     'Visit our website',
     'Use code...',
   ];
+
+  const addCustomCta = () => {
+    const trimmed = customCta.trim();
+    if (trimmed && !ctaStyle.includes(trimmed)) {
+      setCtaStyle([...ctaStyle, trimmed]);
+      setCustomCta('');
+    }
+  };
+
+  const removeCta = (cta: string) => {
+    setCtaStyle(ctaStyle.filter((c) => c !== cta));
+  };
 
   // ── Audience ──────────────────────────────────────────────────
   const [audienceAge, setAudienceAge] = useState<string[]>([]);
@@ -2428,8 +2441,8 @@ function BrandSetupPageContent() {
               to?
             </AgentBubble>
             <Box mt={1.5}>
-              <FieldLabel sub="(select all that fit)">Preferred CTAs</FieldLabel>
-              <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75} mb={2.5}>
+              <FieldLabel sub="(select from presets or add your own)">Preferred CTAs</FieldLabel>
+              <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75} mb={1.5}>
                 {allCtas.map((c) => (
                   <Chip
                     key={c}
@@ -2440,6 +2453,44 @@ function BrandSetupPageContent() {
                   />
                 ))}
               </Box>
+
+              {/* Display selected CTAs (including custom ones) */}
+              {ctaStyle.length > 0 && (
+                <Box mb={1.5}>
+                  <FieldLabel sub="(selected CTAs)">Your CTAs</FieldLabel>
+                  <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
+                    {ctaStyle.map((c) => (
+                      <Chip key={c} label={c} active={true} onDelete={() => removeCta(c)} primary={primary} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Add custom CTA input */}
+              <Box mb={2.5}>
+                <FieldLabel sub="(press Enter or click Add)">Add custom CTA</FieldLabel>
+                <Box display="flex" gap={1} mt={0.75}>
+                  <UriInput
+                    value={customCta}
+                    onChange={setCustomCta}
+                    placeholder="e.g., Get 20% off today"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomCta();
+                      }
+                    }}
+                  />
+                  <CustomButton
+                    mode="secondary"
+                    onClick={addCustomCta}
+                    style={{ padding: '10px 20px', whiteSpace: 'nowrap' }}
+                  >
+                    Add
+                  </CustomButton>
+                </Box>
+              </Box>
+
               <FieldLabel sub="(optional)">Default link</FieldLabel>
               <Box mt={0.75} mb={2}>
                 <UriInput value={defaultLink} onChange={setDefaultLink} placeholder="https://yourbrand.com/shop" />
