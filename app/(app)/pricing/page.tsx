@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { BillingService, SubscriptionTier } from '@/src/api/BillingService';
+import { BillingService, SubscriptionTier, BillingCycle } from '@/src/api/BillingService';
 import posthog from 'posthog-js';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,26 +23,21 @@ export default function PricingPage() {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
-  const currency = 'NGN'; // Fixed to NGN only - USD option hidden
+  const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('monthly');
 
   useEffect(() => {
     fetchTiers();
     posthog.capture('pricing_viewed');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchTiers = async () => {
     try {
-      console.log('🔍 Fetching subscription tiers...');
       const data = await BillingService.getSubscriptionTiers();
-      console.log('✅ Tiers fetched:', data);
-      console.log('📊 Number of tiers:', data?.length);
       setTiers(data);
     } catch (error) {
-      console.error('❌ Failed to fetch tiers:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+      console.error('Failed to fetch tiers:', error);
     } finally {
-      console.log('⏹️ Loading complete, tiers count:', tiers.length);
       setLoading(false);
     }
   };
@@ -54,13 +49,19 @@ export default function PricingPage() {
     }
 
     setSubscribing(tierId);
-    posthog.capture('plan_selected', { tier_id: tierId, currency });
+    posthog.capture('plan_selected', { tier_id: tierId });
 
     try {
-      // PRD 6.3: Initialize SQUAD payment with currency
-      const paymentData = await BillingService.initializePayment(tierId, 'monthly', undefined, undefined, currency);
+      // PRD 6.3: Initialize SQUAD payment
+      const paymentData = await BillingService.initializePayment(
+        tierId,
+        selectedBillingCycle,
+        undefined,
+        undefined,
+        currency
+      );
 
-      posthog.capture('checkout_started', { tier_id: tierId, currency });
+      posthog.capture('checkout_started', { tier_id: tierId, currency, billing_cycle: selectedBillingCycle });
       // Redirect to SQUAD checkout page
       window.location.href = paymentData.payment_url;
     } catch (error: unknown) {
@@ -86,21 +87,6 @@ export default function PricingPage() {
     );
   }
 
-  // Debug: Show if no tiers loaded
-  if (!loading && tiers.length === 0) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center p-8">
-          <p className="text-lg text-gray-600 mb-4">No pricing plans available</p>
-          <p className="text-sm text-gray-500">Please check console for errors</p>
-          <Button onClick={() => fetchTiers()} className="mt-4 bg-[#CD1B78] hover:bg-[#A01560]">
-            Retry
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 py-20 px-4 sm:px-6 lg:px-24">
       <div className="max-w-7xl mx-auto">
@@ -108,13 +94,63 @@ export default function PricingPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl mb-4">Choose Your Plan</h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
-            Text-only posts: 1 credit • Carousels: 1 credit per image (2-5 images)
+            1 Credit = 1 Complete Content Campaign with AI-generated images and multi-platform formatting
           </p>
-          <div className="flex items-center justify-center gap-4 mb-6">
-            <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border border-yellow-300 px-4 py-1.5">
-              ⚡ First retry FREE • Second retry = 1 credit
-            </Badge>
+
+          {/* Currency Selector */}
+          <div className="flex justify-center gap-3 mb-6">
+            <button
+              onClick={() => setCurrency('NGN')}
+              className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                currency === 'NGN'
+                  ? 'bg-[#CD1B78] text-white shadow-md'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              ₦ NGN (Naira)
+            </button>
+            <button
+              onClick={() => setCurrency('USD')}
+              className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                currency === 'USD'
+                  ? 'bg-[#CD1B78] text-white shadow-md'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              $ USD (US Dollar)
+            </button>
           </div>
+
+          {/* Billing Cycle Selector */}
+          <div className="flex justify-center gap-3 mb-6 flex-wrap">
+            {(['monthly', '3_months', '6_months', '12_months'] as BillingCycle[]).map((cycle) => {
+              const isSelected = selectedBillingCycle === cycle;
+              const discount = BillingService.getDiscountPercentage(cycle);
+
+              return (
+                <button
+                  key={cycle}
+                  onClick={() => setSelectedBillingCycle(cycle)}
+                  className={`relative px-5 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                    isSelected
+                      ? 'bg-[#CD1B78] text-white shadow-md'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  {discount > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-green-500 text-white text-xs font-bold px-1.5 py-0.5 rounded">
+                      Save {discount}%
+                    </span>
+                  )}
+                  {BillingService.getBillingCycleLabel(cycle)}
+                </button>
+              );
+            })}
+          </div>
+
+          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border border-yellow-300 px-4 py-1.5">
+            ⚡ First retry FREE • Second retry = 1 credit
+          </Badge>
         </div>
 
         {/* Pricing Cards Grid */}
@@ -124,7 +160,9 @@ export default function PricingPage() {
             .map((tier) => {
               const current = isCurrentPlan(tier.tier_id);
               const popular = isPopular(tier.tier_id);
-              const price = tier.price_ngn; // Always use NGN pricing
+              const price = BillingService.getPriceForCycle(tier, selectedBillingCycle, currency);
+              const credits = BillingService.getCreditsForCycle(tier, selectedBillingCycle);
+              const discount = BillingService.getDiscountPercentage(selectedBillingCycle);
 
               return (
                 <Card
@@ -153,18 +191,46 @@ export default function PricingPage() {
 
                   <CardHeader className="pb-4 min-h-[80px] flex flex-col justify-start">
                     <CardTitle className="text-xl font-bold text-gray-900">{tier.name}</CardTitle>
-                    <CardDescription className="text-sm text-gray-500 mt-1">{tier.credits} campaigns</CardDescription>
+                    <CardDescription className="text-sm text-gray-500 mt-1">
+                      {credits} campaigns
+                      {selectedBillingCycle !== 'monthly' && ` (${tier.credits_monthly || tier.credits}/mo)`}
+                    </CardDescription>
                   </CardHeader>
 
                   <CardContent className="flex-1 pb-6 flex flex-col">
                     {/* Price */}
-                    <div className="mb-6 min-h-[60px]">
+                    <div className="mb-6 min-h-[80px]">
                       <div className="flex items-baseline gap-1">
                         <span className="text-4xl font-extrabold text-[#CD1B78]">
                           {BillingService.formatCurrency(price, currency)}
                         </span>
-                        <span className="text-gray-500 text-sm font-medium">/month</span>
+                        {selectedBillingCycle === 'monthly' && (
+                          <span className="text-gray-500 text-sm font-medium">/month</span>
+                        )}
                       </div>
+                      {selectedBillingCycle !== 'monthly' && (
+                        <div className="mt-2">
+                          <div className="text-sm text-gray-600">
+                            {BillingService.formatCurrency(
+                              Math.round(
+                                price /
+                                  (selectedBillingCycle === '3_months'
+                                    ? 3
+                                    : selectedBillingCycle === '6_months'
+                                      ? 6
+                                      : 12)
+                              ),
+                              currency
+                            )}{' '}
+                            per month
+                          </div>
+                          {discount > 0 && (
+                            <div className="text-xs text-green-600 font-semibold mt-1">
+                              💰 Save {discount}% • {BillingService.getBillingCycleLabel(selectedBillingCycle)}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Features */}

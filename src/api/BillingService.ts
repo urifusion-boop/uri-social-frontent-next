@@ -321,29 +321,38 @@ export class BillingService {
    * Get price for a specific billing cycle
    * PRD Section 6 & 7: Multi-Duration with 5% Bulk Discount
    */
-  static getPriceForCycle(tier: SubscriptionTier, billingCycle: BillingCycle): number {
+  static getPriceForCycle(tier: SubscriptionTier, billingCycle: BillingCycle, currency: 'NGN' | 'USD' = 'NGN'): number {
     // Fallback to old structure if new fields don't exist
-    const monthlyPrice = tier.price_ngn_monthly || tier.price_ngn;
+    const monthlyPrice = currency === 'USD' ? tier.price_usd_monthly || 0 : tier.price_ngn_monthly || tier.price_ngn;
     const discountRate = 0.95;
 
-    console.log(`🔍 [getPriceForCycle] tier=${tier.tier_id}, cycle=${billingCycle}`);
+    console.log(`🔍 [getPriceForCycle] tier=${tier.tier_id}, cycle=${billingCycle}, currency=${currency}`);
     console.log(
-      `🔍 [getPriceForCycle] price_ngn_monthly=${tier.price_ngn_monthly}, price_ngn=${tier.price_ngn}, monthlyPrice=${monthlyPrice}`
+      `🔍 [getPriceForCycle] price_${currency.toLowerCase()}_monthly=${currency === 'USD' ? tier.price_usd_monthly : tier.price_ngn_monthly}, monthlyPrice=${monthlyPrice}`
     );
 
     let price: number;
     switch (billingCycle) {
       case 'monthly':
-        price = tier.price_ngn_monthly || tier.price_ngn;
+        price = currency === 'USD' ? tier.price_usd_monthly || 0 : tier.price_ngn_monthly || tier.price_ngn;
         break;
       case '3_months':
-        price = tier.price_ngn_3months || Math.floor(monthlyPrice * 3 * discountRate);
+        price =
+          currency === 'USD'
+            ? tier.price_usd_3months || Math.floor(monthlyPrice * 3 * discountRate)
+            : tier.price_ngn_3months || Math.floor(monthlyPrice * 3 * discountRate);
         break;
       case '6_months':
-        price = tier.price_ngn_6months || Math.floor(monthlyPrice * 6 * discountRate);
+        price =
+          currency === 'USD'
+            ? tier.price_usd_6months || Math.floor(monthlyPrice * 6 * discountRate)
+            : tier.price_ngn_6months || Math.floor(monthlyPrice * 6 * discountRate);
         break;
       case '12_months':
-        price = tier.price_ngn_12months || Math.floor(monthlyPrice * 12 * discountRate);
+        price =
+          currency === 'USD'
+            ? tier.price_usd_12months || Math.floor(monthlyPrice * 12 * discountRate)
+            : tier.price_ngn_12months || Math.floor(monthlyPrice * 12 * discountRate);
         break;
       default:
         price = monthlyPrice;
@@ -405,22 +414,18 @@ export class BillingService {
   }
 
   /**
-   * Format US Dollar currency
+   * Format currency based on selected currency type
    */
-  static formatUSD(amount: number): string {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  }
-
-  /**
-   * Format currency based on currency code
-   */
-  static formatCurrency(amount: number, currency: 'NGN' | 'USD' = 'NGN'): string {
-    return currency === 'USD' ? this.formatUSD(amount) : this.formatNGN(amount);
+  static formatCurrency(amount: number, currency: 'NGN' | 'USD'): string {
+    if (currency === 'USD') {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(amount);
+    }
+    return this.formatNGN(amount);
   }
 
   /**
