@@ -61,6 +61,8 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [enableMusic, setEnableMusic] = useState(true);
   const [enableWhoosh, setEnableWhoosh] = useState(true);
   const [enableCaptions, setEnableCaptions] = useState(true);
+  const [customMusicFile, setCustomMusicFile] = useState<File | null>(null);
+  const customMusicInputRef = useRef<HTMLInputElement>(null);
 
   // When video type changes, reset captions to its sensible default:
   // product = off (B-roll rarely has meaningful narration), founder/tiktok = on.
@@ -175,6 +177,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
       formData.append('enable_music', String(enableMusic));
       formData.append('enable_sfx', String(enableWhoosh));
       formData.append('enable_captions', String(enableCaptions));
+      if (customMusicFile) formData.append('custom_music', customMusicFile);
       formData.append('transition_style', transitionStyle);
 
       const res = await SocialMediaAgentService.submitVideoProduction(formData, (pct) => {
@@ -221,6 +224,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     setSoundEffects([]);
     setAiDecisions(null);
     setCurrentJobId(null);
+    setCustomMusicFile(null);
   };
 
   const handleApproveRender = async () => {
@@ -846,6 +850,96 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
               </span>
             </button>
           ))}
+        </div>
+
+        {/* Custom soundtrack */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 600 }}>
+            Custom soundtrack <span style={{ fontWeight: 400, color: '#aaa' }}>(MP3 — replaces AI music)</span>
+          </div>
+          {customMusicFile ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 12px',
+                borderRadius: 10,
+                border: '2px solid #C2185B',
+                background: '#FDF2F8',
+              }}
+            >
+              <span style={{ fontSize: 18, flexShrink: 0 }}>🎵</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#111',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {customMusicFile.name}
+                </div>
+                <div style={{ fontSize: 11, color: '#888' }}>{(customMusicFile.size / 1024 / 1024).toFixed(1)} MB</div>
+              </div>
+              <button
+                onClick={() => setCustomMusicFile(null)}
+                style={{
+                  fontSize: 11,
+                  color: '#C2185B',
+                  background: 'transparent',
+                  border: '1px solid #C2185B',
+                  borderRadius: 6,
+                  padding: '3px 10px',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  flexShrink: 0,
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => customMusicInputRef.current?.click()}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: 10,
+                border: '1.5px dashed #d0ccc8',
+                background: '#fafaf9',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#888',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                transition: 'all 0.15s',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>🎵</span>
+              Upload MP3 soundtrack
+            </button>
+          )}
+          <input
+            ref={customMusicInputRef}
+            type="file"
+            accept="audio/mpeg,audio/mp3,.mp3"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              if (f.size > 50 * 1024 * 1024) {
+                alert('MP3 must be under 50 MB');
+                return;
+              }
+              setCustomMusicFile(f);
+            }}
+          />
         </div>
 
         {/* Transition picker */}
