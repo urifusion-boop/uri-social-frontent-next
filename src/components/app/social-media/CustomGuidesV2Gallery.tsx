@@ -64,6 +64,12 @@ export default function CustomGuidesV2Gallery({
       setMenuAnchor(null);
       await CustomVisualGuideV2Service.archiveGuideV2(guideId);
       setGuides((prev) => prev.filter((g) => g.id !== guideId));
+
+      // Remove from parent's selection state if it was selected
+      if (onSelectionChange && selectedGuideIds.includes(guideId)) {
+        onSelectionChange(selectedGuideIds.filter((id) => id !== guideId));
+      }
+
       ToastService.showToast('V2 Style Guide archived successfully', ToastTypeEnum.Success);
     } catch (error: unknown) {
       console.error('[V2Gallery] Error archiving guide:', error);
@@ -156,9 +162,7 @@ export default function CustomGuidesV2Gallery({
           }}
         >
           <MdImage size={48} color="#9CA3AF" style={{ marginBottom: 12 }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#6B7280', mb: 1.5 }}>
-            No V2 guides yet
-          </Typography>
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#6B7280', mb: 1.5 }}>No V2 guides yet</Typography>
           <Typography sx={{ fontSize: 12, color: '#9CA3AF', mb: 2 }}>
             GPT-4o Vision analyzes reference images & applies style while protecting your identity
           </Typography>
@@ -203,18 +207,20 @@ export default function CustomGuidesV2Gallery({
               key={guide.id}
               sx={{
                 position: 'relative',
-                cursor: (selectable || onSelectionChange) ? 'pointer' : 'default',
-                border: (selectable && selectedGuideId === guide.id) || selectedGuideIds.includes(guide.id)
-                  ? `2px solid ${primary}`
-                  : 'none',
+                cursor: selectable || onSelectionChange ? 'pointer' : 'default',
+                border:
+                  (selectable && selectedGuideId === guide.id) || selectedGuideIds.includes(guide.id)
+                    ? `2px solid ${primary}`
+                    : 'none',
                 borderRadius: '12px',
                 transition: 'all 0.2s',
-                '&:hover': (selectable || onSelectionChange)
-                  ? {
-                      transform: 'translateY(-2px)',
-                      boxShadow: `0 8px 16px ${primary}30`,
-                    }
-                  : {},
+                '&:hover':
+                  selectable || onSelectionChange
+                    ? {
+                        transform: 'translateY(-2px)',
+                        boxShadow: `0 8px 16px ${primary}30`,
+                      }
+                    : {},
               }}
               onClick={() => handleGuideClick(guide)}
             >
