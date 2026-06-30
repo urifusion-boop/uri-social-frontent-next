@@ -193,13 +193,13 @@ export default function CustomGuideV2UploadModal({ open, onClose, onSuccess, bra
     const upload = uploadingImages.find((u) => u.preview === preview);
 
     // If the upload completed and has a guide ID, delete it from the backend
-    if (upload?.status === 'complete' && upload.result?._id) {
+    if (upload?.status === 'complete' && upload.result?.id) {
       try {
-        await CustomVisualGuideV2Service.archiveGuideV2(upload.result._id);
-        ToastService.success('Style guide deleted successfully');
+        await CustomVisualGuideV2Service.archiveGuideV2(upload.result.id);
+        ToastService.showToast('Style guide deleted successfully', ToastTypeEnum.Success);
       } catch (error) {
         console.error('Failed to delete guide:', error);
-        ToastService.error('Failed to delete style guide');
+        ToastService.showToast('Failed to delete style guide', ToastTypeEnum.Error);
         return; // Don't remove from UI if backend deletion failed
       }
     }
