@@ -60,6 +60,13 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [videoType, setVideoType] = useState<VideoType>('founder');
   const [enableMusic, setEnableMusic] = useState(true);
   const [enableWhoosh, setEnableWhoosh] = useState(true);
+  const [enableCaptions, setEnableCaptions] = useState(true);
+
+  // When video type changes, reset captions to its sensible default:
+  // product = off (B-roll rarely has meaningful narration), founder/tiktok = on.
+  useEffect(() => {
+    setEnableCaptions(videoType !== 'product');
+  }, [videoType]);
   const [transitionStyle, setTransitionStyle] = useState('auto');
 
   // When sourceUrl is provided (transferred from Multi-Clip Composer), skip the pick phase
@@ -167,6 +174,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
       formData.append('video_type', videoType);
       formData.append('enable_music', String(enableMusic));
       formData.append('enable_sfx', String(enableWhoosh));
+      formData.append('enable_captions', String(enableCaptions));
       formData.append('transition_style', transitionStyle);
 
       const res = await SocialMediaAgentService.submitVideoProduction(formData, (pct) => {
@@ -789,6 +797,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           {[
             { label: '🎵 Background music', value: enableMusic, set: setEnableMusic },
             { label: '💨 Whoosh sounds', value: enableWhoosh, set: setEnableWhoosh },
+            { label: '💬 Captions', value: enableCaptions, set: setEnableCaptions },
           ].map(({ label, value, set }) => (
             <button
               key={label}
