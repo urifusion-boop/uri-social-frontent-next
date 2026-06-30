@@ -2607,9 +2607,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       } else if (id === 'facebook') {
         const s = statuses[id];
         if (s?.connected_via?.startsWith('facebook_direct')) {
-          await SocialMediaAgentService.disconnectFacebookDirect();
+          const res = await SocialMediaAgentService.disconnectFacebookDirect();
+          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
         } else if (s?.outstand_account_id) {
-          await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
+          const res = await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
+          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
         } else {
           ToastService.showToast('Could not disconnect Facebook. Please try again.', ToastTypeEnum.Error);
           return;
