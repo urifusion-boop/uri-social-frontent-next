@@ -39,7 +39,6 @@ interface BrollDecision {
   concept: string;
   reason?: string;
 }
-}
 
 interface Props {
   onComplete: () => void;
