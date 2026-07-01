@@ -52,6 +52,8 @@ import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
+import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
+import { AdminService } from '@/src/api/AdminService';
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
 import TrialEndingBanner from '@/src/components/app/atoms/TrialEndingBanner';
 import TrialExpiredModal from '@/src/components/app/atoms/TrialExpiredModal';
@@ -6877,10 +6879,19 @@ const MOBILE_TABS = [
   { id: 'more', icon: 'settings', label: 'More' },
 ];
 
-const MORE_NAV = [
-  { id: 'settings', icon: 'settings', label: 'Settings' },
-  { id: 'billing', icon: 'trending', label: 'Billing' },
-];
+const getMoreNav = (userEmail?: string | null) => {
+  const baseNav = [
+    { id: 'settings', icon: 'settings', label: 'Settings' },
+    { id: 'billing', icon: 'trending', label: 'Billing' },
+  ];
+
+  // Add admin tab only for admin user
+  if (AdminService.isAdmin(userEmail)) {
+    baseNav.push({ id: 'admin', icon: 'users', label: 'Admin' });
+  }
+
+  return baseNav;
+};
 
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN DASHBOARD
@@ -7262,6 +7273,7 @@ export default function WorkspaceDashboard() {
     ),
     billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
     notifications: <NotificationsPanel />,
+    admin: <AdminUsersPage onBack={goWorkspace} />,
   };
 
   return (
@@ -8227,7 +8239,7 @@ export default function WorkspaceDashboard() {
                 </div>
               </div>
               {/* More nav items */}
-              {MORE_NAV.map((n) => {
+              {getMoreNav(userDetails?.email).map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : undefined;
                 return (
                   <button
