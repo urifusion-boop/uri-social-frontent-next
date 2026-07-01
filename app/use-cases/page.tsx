@@ -215,7 +215,7 @@ const UseCases = () => {
             {/* CTA */}
             <ScrollReveal className="mt-8">
               <Link
-                href="/#pricing"
+                href="/login?tab=signup"
                 className="comic-btn bg-primary text-primary-foreground px-6 py-3 rounded-lg text-sm inline-block"
               >
                 Hire Jane for your {s.title.toLowerCase()} →
