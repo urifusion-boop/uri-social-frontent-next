@@ -70,7 +70,18 @@ type ISocialMediaAgentApi =
   | 'agencyReportPortfolio'
   | 'agencyReportBrand'
   | 'produceVideo'
-  | 'produceVideoJob';
+  | 'produceVideoJob'
+  | 'produceVideoStartRender'
+  | 'generateVideoCaption'
+  | 'multiClipStart'
+  | 'multiClipJob'
+  | 'multiClipReorder'
+  | 'multiClipDropClip'
+  | 'multiClipStitch'
+  | 'multiClipDraftScript'
+  | 'multiClipApproveScript'
+  | 'multiClipReset'
+  | 'multiClipUpdateClip';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -142,6 +153,17 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   agencyReportBrand: '/agency/reports/brand/{brand_id}',
   produceVideo: '/produce-video',
   produceVideoJob: '/produce-video-job',
+  produceVideoStartRender: '/produce-video-job',
+  generateVideoCaption: '/generate-video-caption',
+  multiClipStart: '/multi-clip/start',
+  multiClipJob: '/multi-clip/job',
+  multiClipReorder: '/multi-clip/job',
+  multiClipDropClip: '/multi-clip/job',
+  multiClipStitch: '/multi-clip/job',
+  multiClipDraftScript: '/multi-clip/job',
+  multiClipApproveScript: '/multi-clip/job',
+  multiClipReset: '/multi-clip/job',
+  multiClipUpdateClip: '/multi-clip/job',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

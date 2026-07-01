@@ -150,6 +150,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   const [showTestTier, setShowTestTier] = useState(false);
   const [testAmount, setTestAmount] = useState<string>('100');
   const [testCredits, setTestCredits] = useState<string>('1');
+  const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
   const [paymentModal, setPaymentModal] = useState<{
     show: boolean;
     type: 'success' | 'error' | 'warning';
@@ -281,9 +282,16 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
               confirmTier.tier_id,
               'monthly',
               confirmTier.price_ngn,
-              confirmTier.credits
+              confirmTier.credits,
+              'NGN'
             )
-          : await BillingService.initializePayment(confirmTier.tier_id, selectedBillingCycle); // PRD 8.1: Pass selected billing cycle
+          : await BillingService.initializePayment(
+              confirmTier.tier_id,
+              selectedBillingCycle,
+              undefined,
+              undefined,
+              currency
+            ); // Pass selected currency
 
       // Close confirmation modal
       setConfirmTier(null);
@@ -453,6 +461,45 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
         {/* Tab Content */}
         {activeTab === 'plans' && (
           <div>
+            {/* Currency Selector */}
+            <div style={{ marginBottom: 24 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: '#111' }}>Select Currency</h3>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => setCurrency('NGN')}
+                  style={{
+                    flex: '1 1 140px',
+                    padding: '14px 18px',
+                    borderRadius: 10,
+                    border: currency === 'NGN' ? '2px solid #CD1B78' : '2px solid #e5e3df',
+                    background: currency === 'NGN' ? 'rgba(205,27,120,0.05)' : '#fff',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 700, color: currency === 'NGN' ? '#CD1B78' : '#111' }}>
+                    ₦ NGN (Naira)
+                  </div>
+                </button>
+                <button
+                  onClick={() => setCurrency('USD')}
+                  style={{
+                    flex: '1 1 140px',
+                    padding: '14px 18px',
+                    borderRadius: 10,
+                    border: currency === 'USD' ? '2px solid #CD1B78' : '2px solid #e5e3df',
+                    background: currency === 'USD' ? 'rgba(205,27,120,0.05)' : '#fff',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 700, color: currency === 'USD' ? '#CD1B78' : '#111' }}>
+                    $ USD (US Dollar)
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {/* Billing Cycle Selector - PRD 8.1 */}
             <div style={{ marginBottom: 24 }}>
               <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: '#111' }}>Select Billing Cycle</h3>
@@ -635,7 +682,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   const popular = isPopular(tier.tier_id);
 
                   // PRD Section 6 & 7: Calculate price and credits for selected billing cycle
-                  const price = BillingService.getPriceForCycle(tier, selectedBillingCycle);
+                  const price = BillingService.getPriceForCycle(tier, selectedBillingCycle, currency);
                   const credits = BillingService.getCreditsForCycle(tier, selectedBillingCycle);
                   const discount = BillingService.getDiscountPercentage(selectedBillingCycle);
 
@@ -703,7 +750,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                       <div style={{ marginBottom: 14 }}>
                         <div>
                           <span style={{ fontSize: 32, fontWeight: 900, color: '#CD1B78' }}>
-                            {BillingService.formatNGN(price)}
+                            {BillingService.formatCurrency(price, currency)}
                           </span>
                           {selectedBillingCycle === 'monthly' && (
                             <span style={{ fontSize: 13, fontWeight: 600, color: '#666' }}>/month</span>
@@ -711,7 +758,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                         </div>
                         {selectedBillingCycle !== 'monthly' && (
                           <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
-                            {BillingService.formatNGN(
+                            {BillingService.formatCurrency(
                               Math.round(
                                 price /
                                   (selectedBillingCycle === '3_months'
@@ -719,7 +766,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                                     : selectedBillingCycle === '6_months'
                                       ? 6
                                       : 12)
-                              )
+                              ),
+                              currency
                             )}
                             /month
                           </div>
@@ -1314,18 +1362,22 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                   <span style={{ fontSize: 14, color: '#666' }}>Amount</span>
                   <span style={{ fontSize: 18, fontWeight: 900, color: '#CD1B78' }}>
-                    {BillingService.formatNGN(BillingService.getPriceForCycle(confirmTier, selectedBillingCycle))}
+                    {BillingService.formatCurrency(
+                      BillingService.getPriceForCycle(confirmTier, selectedBillingCycle, currency),
+                      currency
+                    )}
                   </span>
                 </div>
                 {selectedBillingCycle !== 'monthly' && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                     <span style={{ fontSize: 13, color: '#666' }}>Per month</span>
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#666' }}>
-                      {BillingService.formatNGN(
+                      {BillingService.formatCurrency(
                         Math.round(
-                          BillingService.getPriceForCycle(confirmTier, selectedBillingCycle) /
+                          BillingService.getPriceForCycle(confirmTier, selectedBillingCycle, currency) /
                             (selectedBillingCycle === '3_months' ? 3 : selectedBillingCycle === '6_months' ? 6 : 12)
-                        )
+                        ),
+                        currency
                       )}
                     </span>
                   </div>

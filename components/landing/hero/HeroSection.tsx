@@ -4,6 +4,11 @@ import { trackEvent } from '@/lib/analytics';
 import WhatsAppPhoneMockup from './WhatsAppPhoneMockup';
 
 const HeroSection = () => {
+  const handleHireJane = () => {
+    trackEvent('hero_cta_click', { button: 'hire_jane' });
+    window.location.href = '/login?tab=signup';
+  };
+
   return (
     <section
       className="relative min-h-screen flex items-center halftone-bg overflow-hidden pt-16 sm:pt-20 pb-12 sm:pb-16"
@@ -36,7 +41,7 @@ const HeroSection = () => {
                   color: 'white',
                   border: '3px solid black',
                 }}
-                onClick={() => trackEvent('hero_cta_click', { button: 'hire_jane' })}
+                onClick={handleHireJane}
               >
                 HIRE JANE — IT'S FREE
               </button>

@@ -1,6 +1,6 @@
 'use client';
 
-import { getStylesForIndustry, StyleTemplate, STYLES } from '@/src/data/styleLibrary';
+import { getStylesForIndustry, StyleTemplate, STYLES, getCategorizedStylesForIndustry } from '@/src/data/styleLibrary';
 import { Box, Button, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { FaCheckCircle, FaPlus, FaTimes } from 'react-icons/fa';
@@ -198,6 +198,225 @@ export default function StylePickerGallery({
 
   const styles = viewAll ? regularStyles : industryStyles;
 
+  // Get categorized styles for organized browsing
+  const categories = getCategorizedStylesForIndustry(industry || 'general_other');
+
+  // Build selected styles list (from library only, excluding marketing templates)
+  const bySlug = Object.fromEntries(STYLES.map((s) => [s.slug, s]));
+  const selectedStyles = selected.map((slug) => bySlug[slug]).filter(Boolean);
+
+  // Create "View All" categories by grouping all styles into general categories
+  const allStylesCategories = [
+    {
+      id: 'all_editorial',
+      name: 'Editorial & High-Fashion',
+      description: 'Magazine-quality, editorial, dramatic visuals',
+      icon: '📸',
+      styles: regularStyles.filter((s) =>
+        [
+          'street_editorial',
+          'vintage_film',
+          'high_contrast_drama',
+          'editorial_beauty',
+          'neo_luxury_street',
+          'afro_cinematic_fashion',
+          'romantic_noir_fashion',
+          'authority_editorial',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_luxury',
+      name: 'Luxury & Premium',
+      description: 'Clean, sophisticated, high-end aesthetics',
+      icon: '💎',
+      styles: regularStyles.filter((s) =>
+        [
+          'clean_luxe',
+          'afro_glam',
+          'minimal_studio',
+          'hyper_minimal_fashion',
+          'vintage_luxury_revival',
+          'quiet_luxury_saas',
+          'atmospheric_luxury_suspension',
+          'luxury_listing',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_bold',
+      name: 'Bold & Energetic',
+      description: 'Vibrant, attention-grabbing, high-impact',
+      icon: '⚡',
+      styles: regularStyles.filter((s) =>
+        [
+          'neon_pop',
+          'bold_loud',
+          'bold_statement',
+          'vibrant_tropical',
+          'bold_glam',
+          'hyper_commercial_fashion',
+          'kinetic_startup_energy',
+          'raw_youth_culture',
+          'festival_energy',
+          'hyperpop_perspective',
+          'internet_culture_maximalism',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_food',
+      name: 'Food & Culinary',
+      description: 'All food photography styles',
+      icon: '🍽️',
+      styles: regularStyles.filter((s) =>
+        [
+          'overhead_feast',
+          'dark_moody_food',
+          'bright_fresh',
+          'street_food_energy',
+          'menu_board',
+          'rustic_warmth',
+          'minimalist_plating',
+          'elemental_explosion_realism',
+          'monumental_product_worship',
+          'ingredient_world_immersion',
+          'drink_splash',
+          'food_trust_builder',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_product',
+      name: 'Product Photography',
+      description: 'Clean product shots, e-commerce ready',
+      icon: '📦',
+      styles: regularStyles.filter(
+        (s) =>
+          s.slug.startsWith('prod_') ||
+          ['minimal_studio', 'catalogue_clean', 'premium_utility_minimalism'].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_lifestyle',
+      name: 'Lifestyle & Natural',
+      description: 'Authentic, human-centered, real-life context',
+      icon: '🌿',
+      styles: regularStyles.filter((s) =>
+        [
+          'lifestyle_natural',
+          'rustic_warmth',
+          'natural_organic',
+          'coastal_luxury_escape',
+          'founder_documentary',
+          'cinematic_narrative_product_scene',
+          'neighbourhood_life',
+          'optimistic_human_future',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_tech',
+      name: 'Tech & SaaS',
+      description: 'Modern, digital, startup-focused',
+      icon: '💻',
+      styles: regularStyles.filter(
+        (s) =>
+          s.slug.startsWith('saas_') ||
+          [
+            'corporate_gradient',
+            'data_visual',
+            'trust_builder',
+            'minimal_tech',
+            'dark_mode_pro',
+            'isometric_3d',
+            'clean_startup',
+            'neo_brutalist_startup',
+            'futuristic_enterprise_glow',
+            'intelligent_interface_surrealism',
+            'strategic_collage_editorial',
+            'cinematic_startup_realism',
+            'afro_futurist_enterprise',
+            'tactical_workspace_realism',
+          ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_beauty',
+      name: 'Beauty & Wellness',
+      description: 'Cosmetics, skincare, wellness visuals',
+      icon: '✨',
+      styles: regularStyles.filter((s) =>
+        [
+          'glow_up',
+          'soft_pastel',
+          'bold_glam',
+          'clean_clinical',
+          'natural_organic',
+          'editorial_beauty',
+          'before_after',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_fitness',
+      name: 'Fitness & Sports',
+      description: 'Energy, movement, transformation, athletic',
+      icon: '💪',
+      styles: regularStyles.filter((s) =>
+        [
+          'energy_motion',
+          'dark_grit',
+          'transformation',
+          'motivational_type',
+          'clean_athletic',
+          'performance_futurism',
+        ].includes(s.slug)
+      ),
+    },
+    {
+      id: 'all_real_estate',
+      name: 'Real Estate & Property',
+      description: 'Property showcase, architecture, spaces',
+      icon: '🏠',
+      styles: regularStyles.filter((s) =>
+        ['property_showcase', 'luxury_listing', 'neighbourhood_life', 'blueprint_modern', 'aerial_clean'].includes(
+          s.slug
+        )
+      ),
+    },
+    {
+      id: 'all_professional',
+      name: 'Professional Services',
+      description: 'Consulting, coaching, B2B services',
+      icon: '💼',
+      styles: regularStyles.filter((s) => s.slug.startsWith('svc_') || ['warm_professional'].includes(s.slug)),
+    },
+    {
+      id: 'all_perfume',
+      name: 'Perfume & Fragrance',
+      description: 'Elegant, sensory, luxurious scent visuals',
+      icon: '🌸',
+      styles: regularStyles.filter((s) => s.slug.startsWith('perf_')),
+    },
+    {
+      id: 'all_art',
+      name: 'Art-Piece Posters',
+      description: '9:16 artistic poster styles',
+      icon: '🎨',
+      styles: regularStyles.filter((s) => s.slug.startsWith('art_')),
+    },
+    {
+      id: 'all_creative',
+      name: 'Creative & Surreal',
+      description: 'Experimental, artistic, boundary-pushing',
+      icon: '🌀',
+      styles: regularStyles.filter((s) =>
+        ['dreamlike_fashion_surrealism', 'modern_doodle_collage', 'minimalist_editorial'].includes(s.slug)
+      ),
+    },
+  ].filter((cat) => cat.styles.length > 0);
+
   const toggle = (slug: string) => {
     if (selected.includes(slug)) {
       onChange(selected.filter((s) => s !== slug));
@@ -214,8 +433,8 @@ export default function StylePickerGallery({
 
   return (
     <Box>
-      {/* Custom Visual Guides Section */}
-      {(customGuides.length > 0 || !loadingGuides) && onCustomGuideChange && (
+      {/* Custom Visual Guides Section - HIDDEN (V1 deprecated, using V2 only) */}
+      {false && (customGuides.length > 0 || !loadingGuides) && onCustomGuideChange && (
         <Box sx={{ mb: 4 }}>
           {/* Section Header */}
           <Box
@@ -473,8 +692,65 @@ export default function StylePickerGallery({
         </Box>
       )}
 
-      {/* View All Toggle */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+      {/* Currently Selected Styles Section */}
+      {selectedStyles.length > 0 && (
+        <Box sx={{ mb: 4 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              mb: 2,
+              pb: 1.5,
+              borderBottom: `2px solid ${primary}22`,
+            }}
+          >
+            <Box
+              sx={{
+                background: `linear-gradient(135deg, ${primary}, #9B1460)`,
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                px: 1.5,
+                py: 0.5,
+                borderRadius: '6px',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}
+            >
+              Selected
+            </Box>
+            <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f' }}>
+              Currently Selected ({selectedStyles.length})
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: '#6B7280', fontStyle: 'italic' }}>Click to deselect</Typography>
+          </Box>
+
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+              gap: 1.5,
+            }}
+          >
+            {selectedStyles.map((style) => (
+              <StyleCard
+                key={style.slug}
+                style={style}
+                isSelected={true}
+                onToggle={() => toggle(style.slug)}
+                primary={primary}
+              />
+            ))}
+          </Box>
+        </Box>
+      )}
+
+      {/* View Mode Toggle */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f' }}>
+          {viewAll ? 'All Visual Styles' : 'Styles for Your Industry'}
+        </Typography>
         <Box
           component="button"
           onClick={() => setViewAll(!viewAll)}
@@ -497,31 +773,95 @@ export default function StylePickerGallery({
             },
           }}
         >
-          <span>
-            {viewAll ? `Showing all ${allStyles.length} styles` : `Showing ${industryStyles.length} for your industry`}
-          </span>
+          <span>{viewAll ? 'View All Styles' : 'View Industry Styles'}</span>
           <span style={{ fontSize: 10 }}>{viewAll ? '✓' : '◦'}</span>
         </Box>
       </Box>
 
-      {/* Regular Visual Styles */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
-          gap: 1.5,
-        }}
-      >
-        {styles.map((style) => (
-          <StyleCard
-            key={style.slug}
-            style={style}
-            isSelected={selected.includes(style.slug)}
-            onToggle={() => toggle(style.slug)}
-            primary={primary}
-          />
-        ))}
-      </Box>
+      {/* Categorized Visual Styles - Industry View */}
+      {!viewAll &&
+        categories.map((category) => {
+          const categoryStyles = category.styles
+            .map((slug) => bySlug[slug])
+            .filter(Boolean)
+            .filter((s) => !s.styleType || s.styleType !== 'marketing_template');
+
+          if (categoryStyles.length === 0) return null;
+
+          return (
+            <Box key={category.id} sx={{ mb: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                <Typography sx={{ fontSize: 24 }}>{category.icon}</Typography>
+                <Box>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f', lineHeight: 1.3 }}>
+                    {category.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: '#6B7280', lineHeight: 1.3 }}>
+                    {category.description}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+                  gap: 1.5,
+                }}
+              >
+                {categoryStyles.map((style) => (
+                  <StyleCard
+                    key={style.slug}
+                    style={style}
+                    isSelected={selected.includes(style.slug)}
+                    onToggle={() => toggle(style.slug)}
+                    primary={primary}
+                  />
+                ))}
+              </Box>
+            </Box>
+          );
+        })}
+
+      {/* Categorized Visual Styles - All Styles View */}
+      {viewAll &&
+        allStylesCategories.map((category) => {
+          if (category.styles.length === 0) return null;
+
+          return (
+            <Box key={category.id} sx={{ mb: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                <Typography sx={{ fontSize: 24 }}>{category.icon}</Typography>
+                <Box>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f', lineHeight: 1.3 }}>
+                    {category.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: '#6B7280', lineHeight: 1.3 }}>
+                    {category.description}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+                  gap: 1.5,
+                }}
+              >
+                {category.styles.map((style) => (
+                  <StyleCard
+                    key={style.slug}
+                    style={style}
+                    isSelected={selected.includes(style.slug)}
+                    onToggle={() => toggle(style.slug)}
+                    primary={primary}
+                  />
+                ))}
+              </Box>
+            </Box>
+          );
+        })}
 
       {/* AI Marketing Templates Section */}
       {marketingTemplates.length > 0 && (

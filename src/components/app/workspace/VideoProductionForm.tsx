@@ -37,14 +37,16 @@ interface BrollDecision {
   duration: number;
   description: string;
   concept: string;
-  reason: string;
+  reason?: string;
+}
 }
 
 interface Props {
   onComplete: () => void;
+  sourceUrl?: string | null;
 }
 
-export default function VideoProductionForm({ onComplete }: Props) {
+export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -52,11 +54,25 @@ export default function VideoProductionForm({ onComplete }: Props) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [videoType, setVideoType] = useState<VideoType>('founder');
+  const [enableMusic, setEnableMusic] = useState(true);
+  const [enableWhoosh, setEnableWhoosh] = useState(true);
+  const [enableCaptions, setEnableCaptions] = useState(true);
+  const [customMusicFile, setCustomMusicFile] = useState<File | null>(null);
+  const customMusicInputRef = useRef<HTMLInputElement>(null);
 
-  const [phase, setPhase] = useState<Phase>('pick');
+  // When video type changes, reset captions to its sensible default:
+  // product = off (B-roll rarely has meaningful narration), founder/tiktok = on.
+  useEffect(() => {
+    setEnableCaptions(videoType !== 'product');
+  }, [videoType]);
+  const [transitionStyle, setTransitionStyle] = useState('auto');
+
+  // When sourceUrl is provided (transferred from Multi-Clip Composer), skip the pick phase
+  const [phase, setPhase] = useState<Phase>(sourceUrl ? 'pick' : 'pick');
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
 
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [pacingNote, setPacingNote] = useState('');
   const [cuts, setCuts] = useState<{ remove_start: number; remove_end: number; reason: string }[]>([]);
@@ -160,18 +176,27 @@ export default function VideoProductionForm({ onComplete }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (!videoFile) {
+    if (!videoFile && !sourceUrl) {
       ToastService.showToast('Please select a video first.', ToastTypeEnum.Error);
       return;
     }
     setPhase('uploading');
     setProgress(0);
-    setStatusMessage('Uploading your video…');
+    setStatusMessage(sourceUrl ? 'Sending composition to producer…' : 'Uploading your video…');
 
     try {
       const formData = new FormData();
-      formData.append('video', videoFile);
+      if (videoFile) {
+        formData.append('video', videoFile);
+      } else if (sourceUrl) {
+        formData.append('source_url', sourceUrl);
+      }
       formData.append('video_type', videoType);
+      formData.append('enable_music', String(enableMusic));
+      formData.append('enable_sfx', String(enableWhoosh));
+      formData.append('enable_captions', String(enableCaptions));
+      if (customMusicFile) formData.append('custom_music', customMusicFile);
+      formData.append('transition_style', transitionStyle);
 
       const res = await SocialMediaAgentService.submitVideoProduction(formData, (pct) => {
         setProgress(pct);
@@ -179,10 +204,11 @@ export default function VideoProductionForm({ onComplete }: Props) {
       });
       if (!res?.responseData?.job_id) throw new Error('No job ID returned');
 
-      setJobId(res.responseData.job_id);
+      const jid = res.responseData.job_id;
+      setJobId(jid);
       setPhase('processing');
       setStatusMessage('Starting pipeline…');
-      startPolling(res.responseData.job_id);
+      startPolling(jid);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status?: number }; code?: string; message?: string };
       const status = axiosErr?.response?.status;
@@ -487,6 +513,267 @@ export default function VideoProductionForm({ onComplete }: Props) {
     );
   }
 
+  if (phase === 'awaiting_review' && aiDecisions) {
+    const totalRemoved = aiDecisions.cuts
+      .filter((_, i) => enabledCuts[i])
+      .reduce((s, c) => s + (c.remove_end - c.remove_start), 0);
+
+    return (
+      <div style={{ padding: '20px 0', maxWidth: 560 }}>
+        {/* Header */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, color: '#111', marginBottom: 4 }}>Review AI Decisions</div>
+          <div style={{ fontSize: 13, color: '#888' }}>
+            Toggle what you want to keep. Jane will render only approved edits.
+          </div>
+          {aiDecisions.pacing_note && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '8px 12px',
+                background: '#f0f9ff',
+                border: '1px solid #bae6fd',
+                borderRadius: 8,
+                fontSize: 12,
+                color: '#0369a1',
+              }}
+            >
+              {aiDecisions.pacing_note}
+            </div>
+          )}
+        </div>
+
+        {/* Hook text */}
+        <ReviewSection icon="🪝" title="Hook Text" subtitle="Shown as overlay in the first 2.5s">
+          <input
+            value={editedHookText}
+            onChange={(e) => setEditedHookText(e.target.value)}
+            placeholder="Leave blank to skip hook overlay"
+            maxLength={80}
+            style={{
+              width: '100%',
+              border: '1.5px solid #e5e7eb',
+              borderRadius: 8,
+              padding: '9px 12px',
+              fontSize: 13,
+              color: '#111',
+              fontFamily: 'inherit',
+              outline: 'none',
+              boxSizing: 'border-box',
+              background: '#fff',
+            }}
+          />
+        </ReviewSection>
+
+        {/* Cuts */}
+        {aiDecisions.cuts.length > 0 && (
+          <ReviewSection
+            icon="✂️"
+            title={`Cuts (${enabledCuts.filter(Boolean).length}/${aiDecisions.cuts.length} enabled)`}
+            subtitle={`Removing ${totalRemoved.toFixed(1)}s of dead air / filler`}
+            accentColor="#C2185B"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {aiDecisions.cuts.map((cut, i) => (
+                <DecisionRow
+                  key={i}
+                  enabled={enabledCuts[i]}
+                  onToggle={() => setEnabledCuts((prev) => prev.map((v, idx) => (idx === i ? !v : v)))}
+                  label={`${cut.remove_start.toFixed(1)}s – ${cut.remove_end.toFixed(1)}s`}
+                  sublabel={cut.reason}
+                  color="#C2185B"
+                />
+              ))}
+            </div>
+          </ReviewSection>
+        )}
+
+        {/* Zooms */}
+        {aiDecisions.zooms.length > 0 && (
+          <ReviewSection
+            icon="🔍"
+            title={`Zooms (${enabledZooms.filter(Boolean).length}/${aiDecisions.zooms.length} enabled)`}
+            subtitle="Camera emphasis on key moments"
+            accentColor="#1976D2"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {aiDecisions.zooms.map((z, i) => (
+                <DecisionRow
+                  key={i}
+                  enabled={enabledZooms[i]}
+                  onToggle={() => setEnabledZooms((prev) => prev.map((v, idx) => (idx === i ? !v : v)))}
+                  label={`${z.at.toFixed(1)}s — ${z.type} (${z.intensity})`}
+                  sublabel={z.reason}
+                  color="#1976D2"
+                />
+              ))}
+            </div>
+          </ReviewSection>
+        )}
+
+        {/* Sound effects */}
+        {aiDecisions.sound_effects.length > 0 && (
+          <ReviewSection
+            icon="🔊"
+            title={`Sound Effects (${enabledSfx.filter(Boolean).length}/${aiDecisions.sound_effects.length} enabled)`}
+            subtitle="Impact sounds at key transitions"
+            accentColor="#7B1FA2"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {aiDecisions.sound_effects.map((sfx, i) => (
+                <DecisionRow
+                  key={i}
+                  enabled={enabledSfx[i]}
+                  onToggle={() => setEnabledSfx((prev) => prev.map((v, idx) => (idx === i ? !v : v)))}
+                  label={`${sfx.at.toFixed(1)}s — ${sfx.type}`}
+                  sublabel={sfx.reason}
+                  color="#7B1FA2"
+                />
+              ))}
+            </div>
+          </ReviewSection>
+        )}
+
+        {/* B-roll info (display only) */}
+        {aiDecisions.broll.length > 0 && (
+          <ReviewSection icon="🎬" title={`B-Roll (${aiDecisions.broll.length})`} subtitle="Inserted automatically">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {aiDecisions.broll.map((br, i) => (
+                <div key={i} style={{ fontSize: 12, color: '#555', padding: '4px 0' }}>
+                  <span style={{ color: '#888' }}>
+                    {br.at.toFixed(1)}s–{(br.at + (br.duration ?? 3)).toFixed(1)}s
+                  </span>{' '}
+                  {br.description}
+                </div>
+              ))}
+            </div>
+          </ReviewSection>
+        )}
+
+        {/* Music */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              flex: 1,
+              minWidth: 180,
+              padding: '10px 14px',
+              background: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: 10,
+              fontSize: 12,
+              color: '#555',
+            }}
+          >
+            🎵 Music:{' '}
+            <span style={{ fontWeight: 700, color: '#111', textTransform: 'capitalize' }}>
+              {aiDecisions.music_mood}
+            </span>{' '}
+            mood (CC0)
+          </div>
+          {(aiDecisions.caption_cues?.length ?? 0) > 0 && (
+            <div
+              style={{
+                flex: 1,
+                minWidth: 180,
+                padding: '10px 14px',
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                fontSize: 12,
+                color: '#555',
+              }}
+            >
+              🎨 Styled captions:{' '}
+              {[
+                ...(aiDecisions.caption_cues!.filter((c) => c.type === 'emphasis').length > 0
+                  ? [`${aiDecisions.caption_cues!.filter((c) => c.type === 'emphasis').length} emphasis`]
+                  : []),
+                ...(aiDecisions.caption_cues!.filter((c) => c.type === 'cta').length > 0 ? ['CTA'] : []),
+              ].join(' · ')}{' '}
+              + metrics auto-detected
+            </div>
+          )}
+          {(aiDecisions.topic_changes?.length ?? 0) > 0 && (
+            <div
+              style={{
+                flex: 1,
+                minWidth: 180,
+                padding: '10px 14px',
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                fontSize: 12,
+                color: '#555',
+              }}
+            >
+              ✨ Transitions:{' '}
+              <span style={{ fontWeight: 700, color: '#111' }}>
+                {aiDecisions.topic_changes!.length} topic shift
+                {aiDecisions.topic_changes!.length !== 1 ? 's' : ''}
+              </span>{' '}
+              (flash / swipe)
+            </div>
+          )}
+          {(aiDecisions.icon_overlays?.length ?? 0) > 0 && (
+            <div
+              style={{
+                flex: 1,
+                minWidth: 180,
+                padding: '10px 14px',
+                background: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                fontSize: 12,
+                color: '#555',
+              }}
+            >
+              🎯 Icon overlays:{' '}
+              <span style={{ fontWeight: 700, color: '#111' }}>{aiDecisions.icon_overlays!.length}</span>{' '}
+              {[...new Set(aiDecisions.icon_overlays!.map((o) => o.category))].join(', ')}
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={handleApproveRender}
+            disabled={submittingReview}
+            style={{
+              flex: 1,
+              padding: '13px 0',
+              borderRadius: 10,
+              border: 'none',
+              cursor: submittingReview ? 'not-allowed' : 'pointer',
+              background: submittingReview ? '#e5e7eb' : 'linear-gradient(135deg,#C2185B,#8E1545)',
+              color: submittingReview ? '#9ca3af' : '#fff',
+              fontWeight: 700,
+              fontSize: 15,
+              transition: 'all 0.15s',
+            }}
+          >
+            {submittingReview ? 'Starting render…' : 'Approve & Render ✅'}
+          </button>
+          <button
+            onClick={handleReset}
+            style={{
+              padding: '13px 18px',
+              borderRadius: 10,
+              border: '1.5px solid #e0dcd9',
+              background: '#fff',
+              color: '#555',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (phase === 'processing' || phase === 'uploading') {
     return (
       <div style={{ padding: '32px 0', maxWidth: 440 }}>
@@ -513,8 +800,9 @@ export default function VideoProductionForm({ onComplete }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
             { label: 'Upload + transcription', threshold: 40 },
-            { label: 'GPT-4o edit decisions', threshold: 58 },
-            { label: 'Shotstack render', threshold: 65 },
+            { label: 'AI content analysis', threshold: 55 },
+            { label: 'Review approved', threshold: 60 },
+            { label: 'Building render timeline', threshold: 68 },
             { label: 'Final render', threshold: 98 },
           ].map((stage) => {
             const done = progress > stage.threshold;
@@ -638,58 +926,305 @@ export default function VideoProductionForm({ onComplete }: Props) {
         </div>
       </div>
 
-      {/* Drop zone */}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        style={{
-          border: isDragging ? '2.5px dashed #C2185B' : videoFile ? '2px solid #C2185B' : '2px dashed #d0ccc8',
-          borderRadius: 12,
-          background: isDragging ? '#FDF2F8' : videoFile ? '#fdf2f8' : '#fafaf9',
-          padding: '24px 20px',
-          textAlign: 'center',
-          cursor: 'pointer',
-          transition: 'all 0.15s',
-          marginBottom: 16,
-        }}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="video/mp4,video/quicktime,video/webm"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) acceptFile(f);
+      {/* Production options */}
+      <div style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#555',
+            marginBottom: 10,
+            textTransform: 'uppercase',
+            letterSpacing: 1,
           }}
-        />
-        {videoFile ? (
-          <div>
-            {videoPreviewUrl && (
-              <video
-                src={videoPreviewUrl}
-                muted
-                style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 8, marginBottom: 10, objectFit: 'contain' }}
-              />
-            )}
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{videoFile.name}</div>
-            <div style={{ fontSize: 12, color: '#888' }}>
-              {(videoFile.size / 1024 / 1024).toFixed(1)} MB — click to change
+        >
+          Production options
+        </div>
+
+        {/* Toggles row */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+          {[
+            { label: '🎵 Background music', value: enableMusic, set: setEnableMusic },
+            { label: '💨 Whoosh sounds', value: enableWhoosh, set: setEnableWhoosh },
+            { label: '💬 Captions', value: enableCaptions, set: setEnableCaptions },
+          ].map(({ label, value, set }) => (
+            <button
+              key={label}
+              onClick={() => set(!value)}
+              style={{
+                flex: 1,
+                padding: '9px 12px',
+                borderRadius: 10,
+                border: value ? '2px solid #C2185B' : '1.5px solid #e5e7eb',
+                background: value ? '#FDF2F8' : '#f9fafb',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                color: value ? '#C2185B' : '#888',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                transition: 'all 0.15s',
+              }}
+            >
+              {label}
+              <span
+                style={{
+                  width: 32,
+                  height: 18,
+                  borderRadius: 9,
+                  background: value ? '#C2185B' : '#d1d5db',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '0 2px',
+                  transition: 'background 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: '#fff',
+                    transform: value ? 'translateX(14px)' : 'translateX(0)',
+                    transition: 'transform 0.15s',
+                    display: 'block',
+                  }}
+                />
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Custom soundtrack */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 600 }}>
+            Custom soundtrack <span style={{ fontWeight: 400, color: '#aaa' }}>(MP3 — replaces AI music)</span>
+          </div>
+          {customMusicFile ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 12px',
+                borderRadius: 10,
+                border: '2px solid #C2185B',
+                background: '#FDF2F8',
+              }}
+            >
+              <span style={{ fontSize: 18, flexShrink: 0 }}>🎵</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#111',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {customMusicFile.name}
+                </div>
+                <div style={{ fontSize: 11, color: '#888' }}>{(customMusicFile.size / 1024 / 1024).toFixed(1)} MB</div>
+              </div>
+              <button
+                onClick={() => setCustomMusicFile(null)}
+                style={{
+                  fontSize: 11,
+                  color: '#C2185B',
+                  background: 'transparent',
+                  border: '1px solid #C2185B',
+                  borderRadius: 6,
+                  padding: '3px 10px',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  flexShrink: 0,
+                }}
+              >
+                Remove
+              </button>
             </div>
-          </div>
-        ) : (
-          <div>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>🎬</div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: '#444', marginBottom: 4 }}>Drop your video here</div>
-            <div style={{ fontSize: 12, color: '#aaa' }}>MP4, MOV, WebM · Up to 500MB</div>
-          </div>
-        )}
+          ) : (
+            <button
+              onClick={() => customMusicInputRef.current?.click()}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: 10,
+                border: '1.5px dashed #d0ccc8',
+                background: '#fafaf9',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#888',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                transition: 'all 0.15s',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>🎵</span>
+              Upload MP3 soundtrack
+            </button>
+          )}
+          <input
+            ref={customMusicInputRef}
+            type="file"
+            accept="audio/mpeg,audio/mp3,.mp3"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              if (f.size > 50 * 1024 * 1024) {
+                alert('MP3 must be under 50 MB');
+                return;
+              }
+              setCustomMusicFile(f);
+            }}
+          />
+        </div>
+
+        {/* Transition picker */}
+        <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 600 }}>Transition style</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {(
+            [
+              { key: 'auto', label: 'Auto', desc: 'Best for your video type' },
+              { key: 'circle_wipe', label: 'Circle Wipe', desc: 'Circle from center' },
+              { key: 'diagonal_wipe', label: 'Diagonal', desc: 'Diagonal sweep' },
+              { key: 'flash', label: 'Flash', desc: 'Quick white flash' },
+              { key: 'swipe', label: 'Swipe', desc: 'Slide between clips' },
+              { key: 'hard_cut', label: 'Hard Cut', desc: 'No effect' },
+              { key: 'none', label: 'None', desc: 'No transitions at all' },
+            ] as const
+          ).map((t) => {
+            const active = transitionStyle === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTransitionStyle(t.key)}
+                title={t.desc}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  border: active ? '2px solid #C2185B' : '1.5px solid #e5e7eb',
+                  background: active ? '#FDF2F8' : '#fff',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  fontWeight: active ? 700 : 500,
+                  color: active ? '#C2185B' : '#555',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      {/* Source — either a transferred composition URL or a file drop zone */}
+      {sourceUrl && !videoFile ? (
+        <div
+          style={{
+            border: '2px solid #C2185B',
+            borderRadius: 12,
+            background: '#fdf2f8',
+            padding: '16px 20px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <div style={{ fontSize: 28, flexShrink: 0 }}>🎬</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 2 }}>Multi-Clip Composition</div>
+            <div style={{ fontSize: 12, color: '#888' }}>Transferred from Compose — ready to produce</div>
+          </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              fontSize: 11,
+              color: '#C2185B',
+              background: 'transparent',
+              border: '1px solid #C2185B',
+              borderRadius: 6,
+              padding: '3px 10px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              flexShrink: 0,
+            }}
+          >
+            Replace
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) acceptFile(f);
+            }}
+          />
+        </div>
+      ) : (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            border: isDragging ? '2.5px dashed #C2185B' : videoFile ? '2px solid #C2185B' : '2px dashed #d0ccc8',
+            borderRadius: 12,
+            background: isDragging ? '#FDF2F8' : videoFile ? '#fdf2f8' : '#fafaf9',
+            padding: '24px 20px',
+            textAlign: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            marginBottom: 16,
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) acceptFile(f);
+            }}
+          />
+          {videoFile ? (
+            <div>
+              {videoPreviewUrl && (
+                <video
+                  src={videoPreviewUrl}
+                  muted
+                  style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 8, marginBottom: 10, objectFit: 'contain' }}
+                />
+              )}
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{videoFile.name}</div>
+              <div style={{ fontSize: 12, color: '#888' }}>
+                {(videoFile.size / 1024 / 1024).toFixed(1)} MB — click to change
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>🎬</div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#444', marginBottom: 4 }}>Drop your video here</div>
+              <div style={{ fontSize: 12, color: '#aaa' }}>MP4, MOV, WebM · Up to 500MB</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Info note */}
       <div
@@ -704,22 +1239,22 @@ export default function VideoProductionForm({ onComplete }: Props) {
           lineHeight: 1.5,
         }}
       >
-        <strong>What happens:</strong> Reap transcribes your audio → GPT-4o removes dead space and adds zooms →
-        Shotstack renders the final video with animated captions. Takes 3–8 minutes.
+        <strong>What happens:</strong> Reap transcribes your audio → GPT-5 analyses content and suggests edits → you
+        review and approve → Shotstack renders the final video. Takes 3–8 minutes.
       </div>
 
       {/* Submit */}
       <button
         onClick={handleSubmit}
-        disabled={!videoFile}
+        disabled={!videoFile && !sourceUrl}
         style={{
           width: '100%',
           padding: '13px',
           borderRadius: 10,
           border: 'none',
-          cursor: videoFile ? 'pointer' : 'not-allowed',
-          background: videoFile ? 'linear-gradient(135deg,#C2185B,#8E1545)' : '#e5e7eb',
-          color: videoFile ? '#fff' : '#9ca3af',
+          cursor: videoFile || sourceUrl ? 'pointer' : 'not-allowed',
+          background: videoFile || sourceUrl ? 'linear-gradient(135deg,#C2185B,#8E1545)' : '#e5e7eb',
+          color: videoFile || sourceUrl ? '#fff' : '#9ca3af',
           fontWeight: 700,
           fontSize: 15,
           transition: 'all 0.15s',
@@ -727,6 +1262,123 @@ export default function VideoProductionForm({ onComplete }: Props) {
       >
         Produce Video
       </button>
+    </div>
+  );
+}
+
+function ReviewSection({
+  icon,
+  title,
+  subtitle,
+  accentColor,
+  children,
+}: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  accentColor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        marginBottom: 16,
+        border: '1.5px solid #e5e7eb',
+        borderRadius: 10,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 14px',
+          background: '#f9fafb',
+          borderBottom: '1px solid #e5e7eb',
+        }}
+      >
+        <span style={{ fontSize: 15 }}>{icon}</span>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: accentColor ?? '#111' }}>{title}</div>
+          <div style={{ fontSize: 11, color: '#9ca3af' }}>{subtitle}</div>
+        </div>
+      </div>
+      <div style={{ padding: '10px 14px' }}>{children}</div>
+    </div>
+  );
+}
+
+function DecisionRow({
+  enabled,
+  onToggle,
+  label,
+  sublabel,
+  color,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+  label: string;
+  sublabel: string;
+  color: string;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '6px 8px',
+        borderRadius: 7,
+        background: enabled ? '#fafafa' : '#f3f4f6',
+        opacity: enabled ? 1 : 0.55,
+        cursor: 'pointer',
+        userSelect: 'none',
+        transition: 'all 0.15s',
+      }}
+      onClick={onToggle}
+    >
+      {/* Toggle pill */}
+      <div
+        style={{
+          width: 34,
+          height: 20,
+          borderRadius: 99,
+          background: enabled ? color : '#d1d5db',
+          position: 'relative',
+          flexShrink: 0,
+          transition: 'background 0.2s',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: 3,
+            left: enabled ? 17 : 3,
+            width: 14,
+            height: 14,
+            borderRadius: 99,
+            background: '#fff',
+            transition: 'left 0.2s',
+          }}
+        />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: enabled ? '#111' : '#9ca3af' }}>{label}</div>
+        {sublabel && (
+          <div
+            style={{
+              fontSize: 11,
+              color: '#9ca3af',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {sublabel}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

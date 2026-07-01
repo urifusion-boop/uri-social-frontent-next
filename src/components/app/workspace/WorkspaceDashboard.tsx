@@ -39,6 +39,7 @@ import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import MultiClipComposer from '@/src/components/app/workspace/MultiClipComposer';
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
 import VideoProductionForm from '@/src/components/app/workspace/VideoProductionForm';
@@ -772,7 +773,7 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video' | 'compose';
 
 const ContentManagerPage = ({
   onJane,
@@ -833,6 +834,7 @@ const ContentManagerPage = ({
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'video'>('generate');
   const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video' | 'produce_video'>('edit_video');
+  const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1171,6 +1173,11 @@ const ContentManagerPage = ({
       label: '🎬 Video',
       tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
     },
+    {
+      key: 'compose',
+      label: '🎞 Compose',
+      tooltip: 'Upload your own clips and stitch them into a polished video with AI ordering and captions',
+    },
   ];
 
   return (
@@ -1262,6 +1269,7 @@ const ContentManagerPage = ({
               calendar: 'calendar',
               auto: 'sparkle',
               video: 'video',
+              compose: 'film',
             };
             return (
               <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
@@ -1471,7 +1479,9 @@ const ContentManagerPage = ({
 
             {createMode === 'video' && videoSubMode === 'produce_video' && (
               <VideoProductionForm
+                sourceUrl={pendingProduceUrl}
                 onComplete={() => {
+                  setPendingProduceUrl(null);
                   handleGenerated();
                 }}
               />
@@ -1480,6 +1490,17 @@ const ContentManagerPage = ({
         )}
 
         {activeTab === 'video' && <VideoStoryboardGenerator />}
+
+        {activeTab === 'compose' && (
+          <MultiClipComposer
+            onSendToProduce={(url) => {
+              setPendingProduceUrl(url);
+              setActiveTab('create');
+              setCreateMode('video');
+              setVideoSubMode('produce_video');
+            }}
+          />
+        )}
 
         {activeTab === 'drafts' && (
           <>
@@ -2405,7 +2426,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       if (platform) {
         ToastService.showToast(`${username} connected successfully!`, ToastTypeEnum.Success);
         posthog.capture('social_account_connected', { platform, username });
-        try { sessionStorage.removeItem('social_connections_cache'); } catch { /* noop */ }
+        try {
+          sessionStorage.removeItem('social_connections_cache');
+        } catch {
+          /* noop */
+        }
         loadStatuses();
       }
       // If this page is running inside a popup, close it so the opener's polling timer fires
@@ -2582,9 +2607,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       } else if (id === 'facebook') {
         const s = statuses[id];
         if (s?.connected_via?.startsWith('facebook_direct')) {
-          await SocialMediaAgentService.disconnectFacebookDirect();
+          const res = await SocialMediaAgentService.disconnectFacebookDirect();
+          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
         } else if (s?.outstand_account_id) {
-          await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
+          const res = await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
+          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
         } else {
           ToastService.showToast('Could not disconnect Facebook. Please try again.', ToastTypeEnum.Error);
           return;
@@ -4235,11 +4262,13 @@ const PbInput = ({
   onChange,
   placeholder,
   textarea,
+  onKeyDown,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   textarea?: boolean;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
 }) => {
   const base: React.CSSProperties = {
     width: '100%',
@@ -4260,9 +4289,16 @@ const PbInput = ({
       placeholder={placeholder}
       rows={3}
       style={base}
+      onKeyDown={onKeyDown}
     />
   ) : (
-    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={base} />
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={base}
+      onKeyDown={onKeyDown}
+    />
   );
 };
 
@@ -4431,6 +4467,7 @@ const PlaybookPage = ({
   const [compliance, setCompliance] = useState('');
   const [ctaStyles, setCtaStyles] = useState<string[]>([]);
   const [defaultLink, setDefaultLink] = useState('');
+  const [customCta, setCustomCta] = useState('');
   const [audienceAge, setAudienceAge] = useState<string[]>([]);
   const [primaryGoal, setPrimaryGoal] = useState('');
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
@@ -4630,6 +4667,18 @@ const PlaybookPage = ({
     'Visit our website',
     'Use code...',
   ];
+
+  const addCustomCtaPlaybook = () => {
+    const trimmed = customCta.trim();
+    if (trimmed && !ctaStyles.includes(trimmed)) {
+      setCtaStyles([...ctaStyles, trimmed]);
+      setCustomCta('');
+    }
+  };
+
+  const removeCtaPlaybook = (cta: string) => {
+    setCtaStyles(ctaStyles.filter((c) => c !== cta));
+  };
   const ALL_AGES = ['Gen Z (18-24)', 'Millennials (25-40)', 'Gen X (41-56)', 'Boomers (57+)', 'Everyone'];
   const ALL_GOALS = [
     'Brand Awareness',
@@ -5610,15 +5659,85 @@ const PlaybookPage = ({
               {(p?.cta_styles ?? []).join(', ') || '—'}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_CTA.map((c) => (
-                <PbChip
-                  key={c}
-                  label={c}
-                  active={ctaStyles.includes(c)}
-                  onClick={() => pbTgl(ctaStyles, setCtaStyles, c)}
-                />
-              ))}
+            <div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {ALL_CTA.map((c) => (
+                  <PbChip
+                    key={c}
+                    label={c}
+                    active={ctaStyles.includes(c)}
+                    onClick={() => pbTgl(ctaStyles, setCtaStyles, c)}
+                  />
+                ))}
+              </div>
+
+              {/* Display selected CTAs (including custom ones) */}
+              {ctaStyles.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: '#666',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Selected CTAs (click to remove)
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {ctaStyles.map((c) => (
+                      <PbChip key={c} label={c} active={true} onClick={() => removeCtaPlaybook(c)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add custom CTA input */}
+              <div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: '#666',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    marginBottom: 6,
+                  }}
+                >
+                  Add custom CTA
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <PbInput
+                    value={customCta}
+                    onChange={setCustomCta}
+                    placeholder="e.g., Get 20% off today"
+                    onKeyDown={(e: React.KeyboardEvent) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomCtaPlaybook();
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={addCustomCtaPlaybook}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#CD1B78',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -5734,8 +5853,14 @@ const PlaybookPage = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span
                 style={{
-                  background: styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0 ? '#C2185B' : '#e5e7eb',
-                  color: styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0 ? '#fff' : '#6b7280',
+                  background:
+                    styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
+                      ? '#C2185B'
+                      : '#e5e7eb',
+                  color:
+                    styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
+                      ? '#fff'
+                      : '#6b7280',
                   borderRadius: 99,
                   padding: '2px 10px',
                   fontSize: 11.5,
@@ -6904,7 +7029,6 @@ export default function WorkspaceDashboard() {
     return () => {
       if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachment?.previewUrl]);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -6934,7 +7058,7 @@ export default function WorkspaceDashboard() {
 
   useEffect(() => {
     AgencyService.listBrands()
-      .then((res) => setSwitcherBrands(res.status ? res.responseData ?? [] : []))
+      .then((res) => setSwitcherBrands(res.status ? (res.responseData ?? []) : []))
       .catch(() => setSwitcherBrands([]));
   }, []);
 
@@ -7117,18 +7241,25 @@ export default function WorkspaceDashboard() {
         id: 'u' + Date.now(),
         type: 'user',
         time: now,
-        content: (imageUrl || previewUrl) ? (
-          <div>
-            <img
-              src={imageUrl ?? previewUrl}
-              alt="attachment"
-              style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, display: 'block', marginBottom: txt ? 8 : 0 }}
-            />
-            {txt && <span>{txt}</span>}
-          </div>
-        ) : (
-          txt
-        ),
+        content:
+          imageUrl || previewUrl ? (
+            <div>
+              <img
+                src={imageUrl ?? previewUrl}
+                alt="attachment"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: 200,
+                  borderRadius: 8,
+                  display: 'block',
+                  marginBottom: txt ? 8 : 0,
+                }}
+              />
+              {txt && <span>{txt}</span>}
+            </div>
+          ) : (
+            txt
+          ),
       },
     ]);
     setTyping(true);
@@ -7398,10 +7529,7 @@ export default function WorkspaceDashboard() {
               }}
             >
               {switcherOpen && switcherBrands && switcherBrands.length > 1 && (
-                <div
-                  onClick={() => setSwitcherOpen(false)}
-                  style={{ position: 'fixed', inset: 0, zIndex: 998 }}
-                />
+                <div onClick={() => setSwitcherOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
               )}
               <div
                 onClick={() => {
@@ -7459,7 +7587,15 @@ export default function WorkspaceDashboard() {
                       zIndex: 999,
                     }}
                   >
-                    <div style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase' }}>
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: 'rgba(255,255,255,.3)',
+                        textTransform: 'uppercase',
+                      }}
+                    >
                       Switch brand
                     </div>
                     {switcherBrands.map((b) => {
@@ -7488,7 +7624,9 @@ export default function WorkspaceDashboard() {
                             textAlign: 'left',
                           }}
                         >
-                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</span>
+                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {b.name}
+                          </span>
                           {active && <I n="check" s={13} c="#E91E63" />}
                         </button>
                       );
