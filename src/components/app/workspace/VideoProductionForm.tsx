@@ -257,15 +257,14 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           <div style={{ fontWeight: 800, fontSize: 17, color: '#111' }}>Review AI Decisions</div>
         </div>
         <div style={{ fontSize: 13, color: '#888', marginBottom: 20 }}>
-          {reviewCuts.length} cut{reviewCuts.length !== 1 ? 's' : ''} · {activeBroll.length} b-roll clip{activeBroll.length !== 1 ? 's' : ''} · {musicMood} music
+          {reviewCuts.length} cut{reviewCuts.length !== 1 ? 's' : ''} · {activeBroll.length} b-roll clip
+          {activeBroll.length !== 1 ? 's' : ''} · {musicMood} music
           {hookText && <span> · hook: "{hookText}"</span>}
         </div>
 
         {/* B-roll section */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 10 }}>
-            🎬 B-roll Clips
-          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 10 }}>🎬 B-roll Clips</div>
           {brollDecisions.length === 0 ? (
             <div style={{ fontSize: 13, color: '#aaa', fontStyle: 'italic' }}>No b-roll planned for this video.</div>
           ) : (
@@ -298,9 +297,10 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
                     <button
                       type="button"
                       onClick={() => {
-                        setRemovedBrollIdx(prev => {
+                        setRemovedBrollIdx((prev) => {
                           const next = new Set(prev);
-                          if (next.has(i)) next.delete(i); else next.add(i);
+                          if (next.has(i)) next.delete(i);
+                          else next.add(i);
                           return next;
                         });
                       }}
@@ -329,10 +329,15 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
         {/* Cuts summary */}
         {reviewCuts.length > 0 && (
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 8 }}>✂️ Cuts ({reviewCuts.length})</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 8 }}>
+              ✂️ Cuts ({reviewCuts.length})
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {reviewCuts.slice(0, 4).map((c, i) => (
-                <div key={i} style={{ fontSize: 12, color: '#666', background: '#f8f7f5', borderRadius: 6, padding: '5px 8px' }}>
+                <div
+                  key={i}
+                  style={{ fontSize: 12, color: '#666', background: '#f8f7f5', borderRadius: 6, padding: '5px 8px' }}
+                >
                   {c.remove_start.toFixed(1)}s – {c.remove_end.toFixed(1)}s — {c.reason}
                 </div>
               ))}
@@ -361,7 +366,9 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
               cursor: isStartingRender ? 'not-allowed' : 'pointer',
             }}
           >
-            {isStartingRender ? 'Starting…' : `🎬 Render Video${activeBroll.length > 0 ? ` with ${activeBroll.length} B-roll` : ''}`}
+            {isStartingRender
+              ? 'Starting…'
+              : `🎬 Render Video${activeBroll.length > 0 ? ` with ${activeBroll.length} B-roll` : ''}`}
           </button>
           <button
             type="button"
@@ -390,7 +397,15 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
         <div style={{ fontWeight: 800, fontSize: 17, color: '#111', marginBottom: 4 }}>Rendering…</div>
         <div style={{ fontSize: 13, color: '#888', marginBottom: 20 }}>{statusMessage}</div>
         <div style={{ background: '#f0eded', borderRadius: 8, height: 8, overflow: 'hidden', marginBottom: 8 }}>
-          <div style={{ height: '100%', borderRadius: 8, background: 'linear-gradient(90deg,#C2185B,#8E1545)', width: `${progress}%`, transition: 'width 0.4s ease' }} />
+          <div
+            style={{
+              height: '100%',
+              borderRadius: 8,
+              background: 'linear-gradient(90deg,#C2185B,#8E1545)',
+              width: `${progress}%`,
+              transition: 'width 0.4s ease',
+            }}
+          />
         </div>
         <div style={{ fontSize: 12, color: '#aaa', textAlign: 'right' }}>{progress}%</div>
       </div>
@@ -735,10 +750,15 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           ))}
         </div>
 
-        {/* Custom soundtrack */}
-        <div style={{ marginBottom: 14 }}>
+        {/* Custom soundtrack — only shown when background music is enabled */}
+        <div
+          style={{ marginBottom: 14, opacity: enableMusic ? 1 : 0.35, pointerEvents: enableMusic ? 'auto' : 'none' }}
+        >
           <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 600 }}>
-            Custom soundtrack <span style={{ fontWeight: 400, color: '#aaa' }}>(MP3 — replaces AI music)</span>
+            Custom soundtrack{' '}
+            <span style={{ fontWeight: 400, color: '#aaa' }}>
+              {enableMusic ? '(MP3 — replaces AI music)' : '(enable background music to upload)'}
+            </span>
           </div>
           {customMusicFile ? (
             <div
