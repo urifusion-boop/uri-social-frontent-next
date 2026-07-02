@@ -2262,6 +2262,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [networkName, setNetworkName] = useState('');
   // Which platform initiated the Outstand connect (used to filter the page picker)
   const [pendingPlatform, setPendingPlatform] = useState<string>('');
+  // Set when Meta OAuth rejects or returns empty pages — shows platform-specific fix guide
+  const [connectError, setConnectError] = useState<{ platform: string; error: string } | null>(null);
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -2436,8 +2438,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       // If this page is running inside a popup, close it so the opener's polling timer fires
       if (typeof window !== 'undefined' && window.opener) window.close();
     } else if (connected === 'false') {
-      const err = searchParams.get('error');
-      ToastService.showToast(err ?? 'Connection failed. Please try again.', ToastTypeEnum.Error);
+      const err = searchParams.get('error') ?? '';
+      const storedPlatform = localStorage.getItem('outstand_connect_platform') ?? '';
+      localStorage.removeItem('outstand_connect_platform');
+      setConnectError({ platform: storedPlatform, error: err });
       router.replace('/workspace?tab=connections');
       if (typeof window !== 'undefined' && window.opener) window.close();
     }
@@ -2710,8 +2714,89 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
               const autoPages = platformPages.filter((p) => p.auto_connect);
               if (selectablePages.length === 0) {
                 return (
-                  <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>
-                    No accounts found. Make sure you have admin access to at least one page.
+                  <div
+                    style={{
+                      background: '#FFF7ED',
+                      border: '1.5px solid #FDBA74',
+                      borderRadius: 12,
+                      padding: '16px 18px',
+                    }}
+                  >
+                    {pendingPlatform === 'instagram' ? (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 8 }}>
+                          No Instagram Business account found
+                        </div>
+                        <div style={{ fontSize: 12, color: '#78350F', lineHeight: 1.8 }}>
+                          Instagram Personal accounts cannot be connected. You need a{' '}
+                          <strong>Business or Creator account</strong> linked to a Facebook Page.
+                        </div>
+                        <ol
+                          style={{ margin: '10px 0 0 16px', padding: 0, fontSize: 12, color: '#78350F', lineHeight: 2 }}
+                        >
+                          <li>
+                            Open the <strong>Instagram app</strong> → Profile → Menu (☰) → Settings → Account
+                          </li>
+                          <li>
+                            Tap <strong>Switch to Professional Account</strong> → choose <strong>Business</strong> or{' '}
+                            <strong>Creator</strong>
+                          </li>
+                          <li>
+                            Go to Settings → Account → <strong>Linked Accounts</strong> → connect your Facebook Page
+                          </li>
+                          <li>
+                            Close this panel and tap <strong>Connect</strong> on Instagram again
+                          </li>
+                        </ol>
+                      </>
+                    ) : pendingPlatform === 'facebook' ? (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 8 }}>
+                          No Facebook Pages found
+                        </div>
+                        <div style={{ fontSize: 12, color: '#78350F', lineHeight: 1.8 }}>
+                          The Facebook API only connects to <strong>Pages</strong>, not personal profiles. You must be
+                          an <strong>Admin or Editor</strong> of a Page.
+                        </div>
+                        <ol
+                          style={{ margin: '10px 0 0 16px', padding: 0, fontSize: 12, color: '#78350F', lineHeight: 2 }}
+                        >
+                          <li>
+                            Make sure you logged in with the Facebook account that{' '}
+                            <strong>owns or manages your Page</strong>
+                          </li>
+                          <li>
+                            No Page yet?{' '}
+                            <a
+                              href="https://www.facebook.com/pages/create"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#1877F2' }}
+                            >
+                              Create a Facebook Page
+                            </a>{' '}
+                            — it only takes a minute
+                          </li>
+                          <li>
+                            Already have a Page but not admin? Ask the owner to add you as <strong>Admin</strong> in
+                            Page Settings → Page Roles
+                          </li>
+                          <li>
+                            Once sorted, close this panel and tap <strong>Connect</strong> on Facebook again
+                          </li>
+                        </ol>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 6 }}>
+                          No accounts found
+                        </div>
+                        <div style={{ fontSize: 12, color: '#78350F' }}>
+                          Make sure you have admin access to at least one Page and that your account meets the platform
+                          requirements, then try connecting again.
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               }
@@ -2840,6 +2925,117 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           </div>
         </div>
       )}
+      {/* OAuth failure — show platform-specific fix guide */}
+      {connectError && (
+        <div
+          style={{
+            background: '#FFF7ED',
+            border: '1.5px solid #FDBA74',
+            borderRadius: 14,
+            padding: '18px 20px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: '#92400E', marginBottom: 10 }}>
+              {connectError.platform === 'instagram'
+                ? 'Could not connect Instagram'
+                : connectError.platform === 'facebook'
+                  ? 'Could not connect Facebook'
+                  : 'Connection failed'}
+            </div>
+            <button
+              type="button"
+              onClick={() => setConnectError(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#9CA3AF',
+                fontSize: 16,
+                lineHeight: 1,
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+          </div>
+          {connectError.error && (
+            <div
+              style={{
+                fontSize: 11.5,
+                color: '#B45309',
+                marginBottom: 10,
+                fontFamily: 'monospace',
+                background: '#FEF3C7',
+                padding: '4px 8px',
+                borderRadius: 6,
+              }}
+            >
+              {connectError.error}
+            </div>
+          )}
+          {connectError.platform === 'facebook' ? (
+            <div style={{ fontSize: 12.5, color: '#78350F', lineHeight: 1.8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Facebook requires a Page — not a personal profile.</div>
+              <div>
+                To connect, you need to be an <strong>Admin or Editor</strong> of a Facebook Page:
+              </div>
+              <ol style={{ margin: '8px 0 0 16px', padding: 0, lineHeight: 2 }}>
+                <li>
+                  Make sure you're logged in with the Facebook account that <strong>owns or manages the Page</strong>
+                </li>
+                <li>
+                  Don't have a Page yet?{' '}
+                  <a
+                    href="https://www.facebook.com/pages/create"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#1877F2' }}
+                  >
+                    Create a Facebook Page
+                  </a>
+                </li>
+                <li>
+                  Already have a Page but aren't admin? Ask the Page owner to add you as <strong>Admin</strong> in Page
+                  Settings → Page Roles
+                </li>
+                <li>
+                  Once you have admin access, click <strong>Connect</strong> on Facebook below and try again
+                </li>
+              </ol>
+            </div>
+          ) : connectError.platform === 'instagram' ? (
+            <div style={{ fontSize: 12.5, color: '#78350F', lineHeight: 1.8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Instagram Personal accounts cannot be connected.</div>
+              <div>
+                You need an <strong>Instagram Business or Creator account</strong> linked to a Facebook Page:
+              </div>
+              <ol style={{ margin: '8px 0 0 16px', padding: 0, lineHeight: 2 }}>
+                <li>
+                  Open the <strong>Instagram app</strong> → Profile → Menu (☰) → Settings → Account
+                </li>
+                <li>
+                  Tap <strong>Switch to Professional Account</strong> and choose <strong>Business</strong> or{' '}
+                  <strong>Creator</strong>
+                </li>
+                <li>
+                  Go to Settings → Account → <strong>Linked Accounts</strong> and connect your Facebook Page
+                </li>
+                <li>
+                  Come back here and tap <strong>Connect</strong> on Instagram again
+                </li>
+              </ol>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12.5, color: '#78350F' }}>
+              Please try again. If the problem persists, make sure you are authorising with the correct account and have
+              granted all requested permissions.
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 40 }}>
           <div
