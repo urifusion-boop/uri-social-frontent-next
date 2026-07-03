@@ -46,6 +46,8 @@ import VideoProductionForm from '@/src/components/app/workspace/VideoProductionF
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
+import { JaneService, JaneFirstMessageResponse } from '@/src/api/JaneService';
+import JaneWelcomeCard from '@/src/components/app/workspace/JaneWelcomeCard';
 import { hexToColorName } from '@/src/utils/colorNamer';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
 import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
@@ -1142,6 +1144,47 @@ const ContentManagerPage = ({
     router.push('/workspace?tab=connections');
   };
 
+  // PRD Section 8: After the Yes - What Happens Next
+  const handleAcceptJaneMessage = async () => {
+    if (!janeMessage) return;
+
+    setJaneGenerating(true);
+    try {
+      // Accept message and get generation params
+      const accepted = await JaneService.acceptFirstMessage(janeMessage.message_id);
+      if (accepted) {
+        // Generate content using seed and platforms
+        await SocialMediaAgentService.generateContent({
+          seed_content: accepted.seed_content,
+          platforms: accepted.platforms,
+          include_images: true,
+          post_type: 'feed',
+          acknowledged_incomplete_profile: false,
+        });
+
+        // PRD: Navigate to drafts to show generated content
+        setActiveTab('drafts');
+        fetchDrafts();
+        setJaneMessage(null);
+
+        ToastService.showToast('Jane is creating your content! Check your drafts.', ToastTypeEnum.Success);
+      }
+    } catch (error) {
+      console.error('Error accepting Jane message:', error);
+      ToastService.showToast('Failed to generate content. Please try again.', ToastTypeEnum.Error);
+    } finally {
+      setJaneGenerating(false);
+    }
+  };
+
+  // PRD Section 9: If They Don't Say Yes - graceful decline
+  const handleDeclineJaneMessage = async () => {
+    if (!janeMessage) return;
+
+    await JaneService.declineFirstMessage(janeMessage.message_id);
+    setJaneMessage(null);
+  };
+
   const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
     { key: 'create', label: 'Create', tooltip: 'Generate new AI-powered posts for your social platforms' },
     {
@@ -1452,6 +1495,17 @@ const ContentManagerPage = ({
                     </a>
                   </div>
                 )}
+
+                {/* PRD: Jane's First Message - show at top of create tab */}
+                {janeMessage && (
+                  <JaneWelcomeCard
+                    message={janeMessage}
+                    onAccept={handleAcceptJaneMessage}
+                    onDecline={handleDeclineJaneMessage}
+                    isGenerating={janeGenerating}
+                  />
+                )}
+
                 <ContentGeneratorForm
                   onGenerated={handleGenerated}
                   requireEmailVerification={requireEmailVerification}
@@ -7233,6 +7287,8 @@ export default function WorkspaceDashboard() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [trialExpiredOpen, setTrialExpiredOpen] = useState(false);
   const [trialEndingDismissed, setTrialEndingDismissed] = useState(false);
+  const [janeMessage, setJaneMessage] = useState<JaneFirstMessageResponse | null>(null);
+  const [janeGenerating, setJaneGenerating] = useState(false);
   const feedEnd = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -7297,6 +7353,20 @@ export default function WorkspaceDashboard() {
       if (!dismissed) setTrialExpiredOpen(true);
     }
   }, [userDetails?.trialExpired, userDetails?.subscriptionTier]);
+
+  // PRD: Jane's First Message - fetch on workspace load if eligible
+  useEffect(() => {
+    const fetchJaneMessage = async () => {
+      const shouldShow = await JaneService.shouldShowFirstMessage();
+      if (shouldShow) {
+        const message = await JaneService.getFirstMessage();
+        if (message) {
+          setJaneMessage(message);
+        }
+      }
+    };
+    fetchJaneMessage();
+  }, []);
 
   // Load persisted conversation history on mount
   useEffect(() => {
