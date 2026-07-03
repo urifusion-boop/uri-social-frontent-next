@@ -781,10 +781,18 @@ const ContentManagerPage = ({
   onJane,
   isMobile = false,
   requireEmailVerification,
+  janeMessage,
+  janeGenerating,
+  onAcceptJaneMessage,
+  onDeclineJaneMessage,
 }: {
   onJane: () => void;
   isMobile?: boolean;
   requireEmailVerification: (callback?: () => void) => boolean;
+  janeMessage: JaneFirstMessageResponse | null;
+  janeGenerating: boolean;
+  onAcceptJaneMessage: () => void;
+  onDeclineJaneMessage: () => void;
 }) => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
@@ -1144,47 +1152,6 @@ const ContentManagerPage = ({
     router.push('/workspace?tab=connections');
   };
 
-  // PRD Section 8: After the Yes - What Happens Next
-  const handleAcceptJaneMessage = async () => {
-    if (!janeMessage) return;
-
-    setJaneGenerating(true);
-    try {
-      // Accept message and get generation params
-      const accepted = await JaneService.acceptFirstMessage(janeMessage.message_id);
-      if (accepted) {
-        // Generate content using seed and platforms
-        await SocialMediaAgentService.generateContent({
-          seed_content: accepted.seed_content,
-          platforms: accepted.platforms,
-          include_images: true,
-          post_type: 'feed',
-          acknowledged_incomplete_profile: false,
-        });
-
-        // PRD: Navigate to drafts to show generated content
-        setActiveTab('drafts');
-        fetchDrafts();
-        setJaneMessage(null);
-
-        ToastService.showToast('Jane is creating your content! Check your drafts.', ToastTypeEnum.Success);
-      }
-    } catch (error) {
-      console.error('Error accepting Jane message:', error);
-      ToastService.showToast('Failed to generate content. Please try again.', ToastTypeEnum.Error);
-    } finally {
-      setJaneGenerating(false);
-    }
-  };
-
-  // PRD Section 9: If They Don't Say Yes - graceful decline
-  const handleDeclineJaneMessage = async () => {
-    if (!janeMessage) return;
-
-    await JaneService.declineFirstMessage(janeMessage.message_id);
-    setJaneMessage(null);
-  };
-
   const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
     { key: 'create', label: 'Create', tooltip: 'Generate new AI-powered posts for your social platforms' },
     {
@@ -1500,8 +1467,8 @@ const ContentManagerPage = ({
                 {janeMessage && (
                   <JaneWelcomeCard
                     message={janeMessage}
-                    onAccept={handleAcceptJaneMessage}
-                    onDecline={handleDeclineJaneMessage}
+                    onAccept={onAcceptJaneMessage}
+                    onDecline={onDeclineJaneMessage}
                     isGenerating={janeGenerating}
                   />
                 )}
@@ -7368,6 +7335,40 @@ export default function WorkspaceDashboard() {
     fetchJaneMessage();
   }, []);
 
+  // PRD Section 8: After the Yes - What Happens Next
+  const handleAcceptJaneMessage = async () => {
+    if (!janeMessage) return;
+
+    setJaneGenerating(true);
+    try {
+      const accepted = await JaneService.acceptFirstMessage(janeMessage.message_id);
+      if (accepted) {
+        await SocialMediaAgentService.generateContent({
+          seed_content: accepted.seed_content,
+          platforms: accepted.platforms,
+          include_images: true,
+          post_type: 'feed',
+          acknowledged_incomplete_profile: false,
+        });
+
+        setJaneMessage(null);
+        ToastService.showToast('Jane is creating your content! Check your drafts.', ToastTypeEnum.Success);
+      }
+    } catch (error) {
+      console.error('Error accepting Jane message:', error);
+      ToastService.showToast('Failed to generate content. Please try again.', ToastTypeEnum.Error);
+    } finally {
+      setJaneGenerating(false);
+    }
+  };
+
+  // PRD Section 9: If They Don't Say Yes - graceful decline
+  const handleDeclineJaneMessage = async () => {
+    if (!janeMessage) return;
+    await JaneService.declineFirstMessage(janeMessage.message_id);
+    setJaneMessage(null);
+  };
+
   // Load persisted conversation history on mount
   useEffect(() => {
     SocialMediaAgentService.getAgentChatHistory()
@@ -7626,6 +7627,10 @@ export default function WorkspaceDashboard() {
         onJane={goWorkspace}
         isMobile={isMobile}
         requireEmailVerification={requireEmailVerification}
+        janeMessage={janeMessage}
+        janeGenerating={janeGenerating}
+        onAcceptJaneMessage={handleAcceptJaneMessage}
+        onDeclineJaneMessage={handleDeclineJaneMessage}
       />
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,

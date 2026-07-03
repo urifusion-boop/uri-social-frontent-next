@@ -5,7 +5,8 @@
  * Handles communication with Jane's first message endpoints.
  * Goal: Turn passive signups into active users with one contextual offer.
  */
-import { apiRequest } from './core/apiRequest';
+import { UriHttpClient } from '@/src/configs/http.config';
+import { UriResponse } from '@/src/models/responses/UriResponse';
 
 export interface JaneFirstMessageResponse {
   message_id: string;
@@ -28,11 +29,8 @@ export class JaneService {
    */
   static async shouldShowFirstMessage(): Promise<boolean> {
     try {
-      const response = await apiRequest<{ should_show: boolean }>({
-        url: '/social-media/jane/should-show',
-        method: 'GET',
-      });
-      return response.responseData?.should_show ?? false;
+      const response = await UriHttpClient.getClient().get<UriResponse<boolean>>('/social-media/jane/should-show');
+      return response.data.responseData ?? false;
     } catch (error) {
       console.error('Error checking if should show first message:', error);
       return false;
@@ -51,11 +49,10 @@ export class JaneService {
    */
   static async getFirstMessage(): Promise<JaneFirstMessageResponse | null> {
     try {
-      const response = await apiRequest<JaneFirstMessageResponse>({
-        url: '/social-media/jane/first-message',
-        method: 'GET',
-      });
-      return response.responseData || null;
+      const response = await UriHttpClient.getClient().get<UriResponse<JaneFirstMessageResponse>>(
+        '/social-media/jane/first-message'
+      );
+      return response.data.responseData || null;
     } catch (error) {
       console.error('Error fetching Jane first message:', error);
       return null;
@@ -73,15 +70,14 @@ export class JaneService {
    */
   static async acceptFirstMessage(messageId: string, platforms?: string[]): Promise<AcceptMessageResponse | null> {
     try {
-      const response = await apiRequest<AcceptMessageResponse>({
-        url: '/social-media/jane/accept',
-        method: 'POST',
-        data: {
+      const response = await UriHttpClient.getClient().post<UriResponse<AcceptMessageResponse>>(
+        '/social-media/jane/accept',
+        {
           message_id: messageId,
           platforms,
-        },
-      });
-      return response.responseData || null;
+        }
+      );
+      return response.data.responseData || null;
     } catch (error) {
       console.error('Error accepting first message:', error);
       return null;
@@ -94,10 +90,7 @@ export class JaneService {
    */
   static async declineFirstMessage(messageId: string): Promise<boolean> {
     try {
-      await apiRequest({
-        url: `/social-media/jane/decline?message_id=${messageId}`,
-        method: 'POST',
-      });
+      await UriHttpClient.getClient().post(`/social-media/jane/decline?message_id=${messageId}`);
       return true;
     } catch (error) {
       console.error('Error declining first message:', error);
