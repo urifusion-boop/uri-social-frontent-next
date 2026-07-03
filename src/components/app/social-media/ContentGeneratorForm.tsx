@@ -52,7 +52,7 @@ interface ContentGeneratorFormProps {
 }
 
 function _friendlyGenerationError(msg?: string): string {
-  if (!msg) return 'Something went wrong. Please try again.';
+  if (!msg) return 'Something went wrong — if the issue persists, contact support.';
   const lower = msg.toLowerCase();
   if (
     lower.includes('rate limit') ||
@@ -60,13 +60,14 @@ function _friendlyGenerationError(msg?: string): string {
     lower.includes('temporarily unavailable') ||
     lower.includes('unavailable')
   )
-    return 'Our AI service is temporarily at capacity. Please wait a moment and try again.';
+    return 'We are experiencing high demand right now, please try again in a few minutes — if the issue persists, contact support.';
   if (lower.includes('failed for all platforms'))
-    return 'Content generation failed. Please try again — if the issue persists, contact support.';
-  if (lower.includes('timeout') || lower.includes('timed out')) return 'The request took too long. Please try again.';
+    return 'We are experiencing high demand right now, please try again in a few minutes — if the issue persists, contact support.';
+  if (lower.includes('timeout') || lower.includes('timed out'))
+    return 'We are experiencing high demand right now, please try again in a few minutes — if the issue persists, contact support.';
   if (lower.includes('authentication') || lower.includes('configuration error'))
-    return 'A service configuration error occurred. Please contact support.';
-  return 'Content generation failed. Please try again.';
+    return 'Something went wrong — if the issue persists, contact support.';
+  return 'Something went wrong — if the issue persists, contact support.';
 }
 
 const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: ContentGeneratorFormProps) => {
