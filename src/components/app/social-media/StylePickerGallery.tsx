@@ -214,8 +214,8 @@ export default function StylePickerGallery({
 
   return (
     <Box>
-      {/* Custom Visual Guides Section */}
-      {(customGuides.length > 0 || !loadingGuides) && onCustomGuideChange && (
+      {/* Custom Visual Guides Section - HIDDEN (V1 deprecated, using V2 only) */}
+      {false && (customGuides.length > 0 || !loadingGuides) && onCustomGuideChange && (
         <Box sx={{ mb: 4 }}>
           {/* Section Header */}
           <Box
