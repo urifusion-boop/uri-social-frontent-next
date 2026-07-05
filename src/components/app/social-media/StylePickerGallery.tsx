@@ -681,8 +681,8 @@ export default function StylePickerGallery({
         </Box>
       )}
 
-      {/* HIDDEN: Custom Visual Guides V2 Section */}
-      {/* {onCustomGuideV2Change && (
+      {/* Custom Visual Guides V2 Section */}
+      {onCustomGuideV2Change && (
         <Box sx={{ mb: 4 }}>
           <CustomGuidesV2Gallery
             selectedGuideIds={selectedCustomGuidesV2}
@@ -690,7 +690,7 @@ export default function StylePickerGallery({
             brandId={brandId}
           />
         </Box>
-      )} */}
+      )}
 
       {/* Currently Selected Styles Section */}
       {selectedStyles.length > 0 && (
