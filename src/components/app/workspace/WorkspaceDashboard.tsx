@@ -4843,6 +4843,7 @@ const PlaybookPage = ({
         custom_font_analysis: customFontAnalysis,
         custom_font_directive: customFontDirective,
       };
+      console.log('💾 SAVE PLAYBOOK DEBUG:', { logoPosition, logoSize, updated_logo_size: updated.logo_size });
       const saveRes = await BrandProfileService.save(updated);
       if (!saveRes.status) {
         throw new Error(saveRes.responseMessage || 'Save failed');
