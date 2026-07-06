@@ -1166,11 +1166,7 @@ const ContentManagerPage = ({
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
     },
-    {
-      key: 'video',
-      label: '🎬 Video',
-      tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
-    },
+    // Video tab hidden on main branch (develop-only feature)
   ];
 
   return (
@@ -1331,32 +1327,35 @@ const ContentManagerPage = ({
                 {(
                   [
                     { key: 'generate', label: '✨ Generate Content' },
-                    { key: 'video', label: '🎬 Video' },
+                    // Video mode hidden on main branch (develop-only feature)
+                    // { key: 'video', label: '🎬 Video' },
                   ] as { key: 'generate' | 'video'; label: string }[]
-                ).map((mode) => (
-                  <button
-                    key={mode.key}
-                    onClick={() => setCreateMode(mode.key)}
-                    style={{
-                      padding: '8px 18px',
-                      borderRadius: 10,
-                      border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
-                      background:
-                        createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
-                      color: createMode === mode.key ? '#fff' : '#6B7280',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
+                )
+                  .filter((mode) => mode.key !== 'video')
+                  .map((mode) => (
+                    <button
+                      key={mode.key}
+                      onClick={() => setCreateMode(mode.key)}
+                      style={{
+                        padding: '8px 18px',
+                        borderRadius: 10,
+                        border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
+                        background:
+                          createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                        color: createMode === mode.key ? '#fff' : '#6B7280',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
               </div>
 
-              {/* Video sub-mode selector */}
-              {createMode === 'video' && (
+              {/* Video sub-mode selector - Hidden on main branch (develop-only feature) */}
+              {false && createMode === 'video' && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingLeft: 4 }}>
                   {(
                     [
@@ -1451,7 +1450,8 @@ const ContentManagerPage = ({
               </>
             )}
 
-            {createMode === 'video' && videoSubMode === 'edit_video' && (
+            {/* Video forms - Hidden on main branch (develop-only feature) */}
+            {false && createMode === 'video' && videoSubMode === 'edit_video' && (
               <VideoEditForm
                 onEditComplete={() => {
                   handleGenerated();
@@ -1460,7 +1460,7 @@ const ContentManagerPage = ({
               />
             )}
 
-            {createMode === 'video' && videoSubMode === 'polish_video' && (
+            {false && createMode === 'video' && videoSubMode === 'polish_video' && (
               <VideoPolishForm
                 onPolishComplete={() => {
                   handleGenerated();
@@ -1469,7 +1469,7 @@ const ContentManagerPage = ({
               />
             )}
 
-            {createMode === 'video' && videoSubMode === 'produce_video' && (
+            {false && createMode === 'video' && videoSubMode === 'produce_video' && (
               <VideoProductionForm
                 onComplete={() => {
                   handleGenerated();
@@ -1479,7 +1479,8 @@ const ContentManagerPage = ({
           </>
         )}
 
-        {activeTab === 'video' && <VideoStoryboardGenerator />}
+        {/* Video tab content - Hidden on main branch (develop-only feature) */}
+        {false && activeTab === 'video' && <VideoStoryboardGenerator />}
 
         {activeTab === 'drafts' && (
           <>
