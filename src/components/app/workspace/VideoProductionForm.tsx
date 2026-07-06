@@ -56,15 +56,18 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [videoType, setVideoType] = useState<VideoType>('founder');
   const [enableMusic, setEnableMusic] = useState(true);
+  const [muteOriginalAudio, setMuteOriginalAudio] = useState(false);
   const [enableWhoosh, setEnableWhoosh] = useState(true);
   const [enableCaptions, setEnableCaptions] = useState(true);
   const [customMusicFile, setCustomMusicFile] = useState<File | null>(null);
   const customMusicInputRef = useRef<HTMLInputElement>(null);
 
-  // When video type changes, reset captions to its sensible default:
-  // product = off (B-roll rarely has meaningful narration), founder/tiktok = on.
+  // When video type changes, reset captions and mute-original to sensible defaults.
+  // product = captions off, mute original on (b-roll; original audio is ambient noise).
+  // founder/tiktok = captions on, keep original audio (speaker voice is the content).
   useEffect(() => {
     setEnableCaptions(videoType !== 'product');
+    setMuteOriginalAudio(videoType === 'product');
   }, [videoType]);
   const [transitionStyle, setTransitionStyle] = useState('auto');
 
@@ -228,6 +231,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
       }
       formData.append('video_type', videoType);
       formData.append('enable_music', String(enableMusic));
+      formData.append('mute_original_audio', String(enableMusic && muteOriginalAudio));
       formData.append('enable_sfx', String(enableWhoosh));
       formData.append('enable_captions', String(enableCaptions));
       if (customMusicFile) formData.append('custom_music', customMusicFile);
@@ -871,6 +875,63 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
             </button>
           ))}
         </div>
+
+        {/* Mute original audio — only shown when background music is enabled */}
+        {enableMusic && (
+          <button
+            onClick={() => setMuteOriginalAudio(!muteOriginalAudio)}
+            style={{
+              width: '100%',
+              marginBottom: 10,
+              padding: '10px 14px',
+              borderRadius: 10,
+              border: muteOriginalAudio ? '2px solid #C2185B' : '1.5px solid #e5e7eb',
+              background: muteOriginalAudio ? '#FDF2F8' : '#f9fafb',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              transition: 'all 0.15s',
+            }}
+          >
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: muteOriginalAudio ? '#C2185B' : '#555' }}>
+                🔇 Use music only (mute original audio)
+              </div>
+              <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                {muteOriginalAudio
+                  ? 'Only the music plays — original video audio is muted'
+                  : 'Voice plays alongside the music (music is ducked under voice)'}
+              </div>
+            </div>
+            <span
+              style={{
+                width: 32,
+                height: 18,
+                borderRadius: 9,
+                background: muteOriginalAudio ? '#C2185B' : '#d1d5db',
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '0 2px',
+                transition: 'background 0.15s',
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  background: '#fff',
+                  transform: muteOriginalAudio ? 'translateX(14px)' : 'translateX(0)',
+                  transition: 'transform 0.15s',
+                  display: 'block',
+                }}
+              />
+            </span>
+          </button>
+        )}
 
         {/* Custom soundtrack — only shown when background music is enabled */}
         <div
