@@ -6,6 +6,30 @@ import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 const ACCEPTED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
+
+function parseSrt(srt: string): { index: number; text: string }[] {
+  if (!srt.trim()) return [];
+  const blocks = srt.trim().split(/\n\s*\n/);
+  const entries: { index: number; text: string }[] = [];
+  for (const block of blocks) {
+    const lines = block.trim().split('\n');
+    if (lines.length < 3) continue;
+    const idx = parseInt(lines[0], 10);
+    if (isNaN(idx)) continue;
+    const text = lines.slice(2).join(' ').trim();
+    if (text) entries.push({ index: idx, text });
+  }
+  return entries;
+}
+
+const CAPTION_COLOR_PRESETS = [
+  { label: 'White', value: '#FFFFFF' },
+  { label: 'Yellow', value: '#FFD700' },
+  { label: 'Red', value: '#FF3B30' },
+  { label: 'Green', value: '#00C853' },
+  { label: 'Blue', value: '#2196F3' },
+  { label: 'Purple', value: '#9C27B0' },
+];
 const MAX_MB = 500;
 
 const VIDEO_TYPES = [
@@ -96,6 +120,13 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editPromptText, setEditPromptText] = useState('');
 
+  // Clean-up layer state
+  const [srtEntries, setSrtEntries] = useState<{ index: number; text: string }[]>([]);
+  const [captionEdits, setCaptionEdits] = useState<Record<number, string>>({});
+  const [adjustColor, setAdjustColor] = useState<string>('');
+  const [isAdjusting, setIsAdjusting] = useState(false);
+  const [editingCaptionIdx, setEditingCaptionIdx] = useState<number | null>(null);
+
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -150,6 +181,9 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           setSoundEffects(
             (j as { sound_effects?: { at: number; type: string; reason: string }[] }).sound_effects ?? []
           );
+          const parsed = parseSrt((j as { srt?: string }).srt ?? '');
+          setSrtEntries(parsed);
+          setCaptionEdits({});
           setPhase('ready');
         } else if (j.status === 'failed') {
           clearInterval(pollRef.current!);
@@ -285,6 +319,38 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     setHookText('');
     setMusicMood('upbeat');
     setReviewCuts([]);
+    setSrtEntries([]);
+    setCaptionEdits({});
+    setAdjustColor('');
+    setIsAdjusting(false);
+    setEditingCaptionIdx(null);
+  };
+
+  const handleApplyAdjustments = async () => {
+    if (!jobId) return;
+    const hasCaptionEdits = Object.keys(captionEdits).length > 0;
+    const hasColorEdit = !!adjustColor;
+    if (!hasCaptionEdits && !hasColorEdit) return;
+
+    setIsAdjusting(true);
+    try {
+      const edits = Object.entries(captionEdits).map(([idx, text]) => ({
+        index: parseInt(idx, 10),
+        text,
+      }));
+      await SocialMediaAgentService.adjustVideoProduction(jobId, {
+        primaryColor: hasColorEdit ? adjustColor : undefined,
+        captionTextEdits: hasCaptionEdits ? edits : undefined,
+      });
+      setOutputUrl(null);
+      setPhase('rendering');
+      setProgress(60);
+      setStatusMessage('Applying your changes…');
+      startPolling(jobId);
+    } catch {
+      ToastService.showToast('Failed to apply changes. Please try again.', ToastTypeEnum.Error);
+      setIsAdjusting(false);
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -611,6 +677,195 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
             ))}
           </div>
         )}
+
+        {/* ── Clean-up layer ─────────────────────────────────────── */}
+        <div
+          style={{
+            background: '#fafaf9',
+            border: '1.5px solid #e8e5e3',
+            borderRadius: 12,
+            padding: '14px 16px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontWeight: 700, fontSize: 13, color: '#333', marginBottom: 12 }}>Tweak your video</div>
+
+          {/* Caption colour */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Caption colour</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {CAPTION_COLOR_PRESETS.map((preset) => {
+                const selected = adjustColor === preset.value;
+                return (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    title={preset.label}
+                    onClick={() => setAdjustColor(selected ? '' : preset.value)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      border: selected ? '3px solid #C2185B' : '2px solid #ddd',
+                      background: preset.value,
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      boxShadow: selected ? '0 0 0 2px #fff, 0 0 0 4px #C2185B' : 'none',
+                      transition: 'box-shadow 0.15s',
+                    }}
+                  />
+                );
+              })}
+              {adjustColor && (
+                <button
+                  type="button"
+                  onClick={() => setAdjustColor('')}
+                  style={{
+                    fontSize: 11,
+                    color: '#888',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    alignSelf: 'center',
+                    padding: '0 4px',
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Caption text edits */}
+          {srtEntries.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Edit captions</div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  maxHeight: 220,
+                  overflowY: 'auto',
+                  paddingRight: 4,
+                }}
+              >
+                {srtEntries.map((entry) => {
+                  const isEditing = editingCaptionIdx === entry.index;
+                  const currentText = captionEdits[entry.index] ?? entry.text;
+                  const isEdited = captionEdits[entry.index] !== undefined;
+                  return (
+                    <div
+                      key={entry.index}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        background: isEdited ? '#fff8fb' : '#fff',
+                        border: `1px solid ${isEdited ? '#C2185B44' : '#ece9e6'}`,
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                      }}
+                    >
+                      <span style={{ fontSize: 10, color: '#bbb', minWidth: 18, fontWeight: 600 }}>{entry.index}</span>
+                      {isEditing ? (
+                        <input
+                          autoFocus
+                          value={currentText}
+                          onChange={(e) => setCaptionEdits((prev) => ({ ...prev, [entry.index]: e.target.value }))}
+                          onBlur={() => {
+                            if (captionEdits[entry.index] === entry.text) {
+                              setCaptionEdits((prev) => {
+                                const next = { ...prev };
+                                delete next[entry.index];
+                                return next;
+                              });
+                            }
+                            setEditingCaptionIdx(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === 'Escape') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            fontSize: 12,
+                            border: 'none',
+                            outline: '1.5px solid #C2185B',
+                            borderRadius: 4,
+                            padding: '2px 6px',
+                            background: '#fff',
+                            color: '#111',
+                          }}
+                        />
+                      ) : (
+                        <span
+                          onClick={() => setEditingCaptionIdx(entry.index)}
+                          style={{
+                            flex: 1,
+                            fontSize: 12,
+                            color: '#333',
+                            cursor: 'text',
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {currentText}
+                        </span>
+                      )}
+                      {isEdited && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCaptionEdits((prev) => {
+                              const next = { ...prev };
+                              delete next[entry.index];
+                              return next;
+                            })
+                          }
+                          style={{
+                            fontSize: 10,
+                            color: '#aaa',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 0,
+                            flexShrink: 0,
+                          }}
+                        >
+                          ↺
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Apply button */}
+          {(Object.keys(captionEdits).length > 0 || adjustColor) && (
+            <button
+              type="button"
+              onClick={handleApplyAdjustments}
+              disabled={isAdjusting}
+              style={{
+                marginTop: 14,
+                width: '100%',
+                padding: '10px 0',
+                borderRadius: 9,
+                border: 'none',
+                background: isAdjusting ? '#e0dcd9' : 'linear-gradient(135deg,#C2185B,#8E1545)',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: isAdjusting ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isAdjusting ? 'Re-rendering…' : 'Apply Changes'}
+            </button>
+          )}
+        </div>
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 10 }}>

@@ -801,8 +801,6 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  // Regenerate a single b-roll image during the review step.
-  // Omit imagePrompt to reroll the same prompt; pass a new one to change the image.
   static async regenerateBroll(
     jobId: string,
     index: number,
@@ -816,6 +814,20 @@ export class SocialMediaAgentService {
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/broll/${index}/regenerate`,
       imagePrompt ? { image_prompt: imagePrompt } : {}
+    );
+    return response.data;
+  }
+
+  static async adjustVideoProduction(
+    jobId: string,
+    opts: { primaryColor?: string; captionTextEdits?: { index: number; text: string }[] }
+  ): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const formData = new FormData();
+    if (opts.primaryColor) formData.append('primary_color', opts.primaryColor);
+    if (opts.captionTextEdits?.length) formData.append('caption_text_edits', JSON.stringify(opts.captionTextEdits));
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/adjust`,
+      formData
     );
     return response.data;
   }
