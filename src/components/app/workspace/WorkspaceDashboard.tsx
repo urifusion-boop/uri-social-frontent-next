@@ -1388,7 +1388,8 @@ const ContentManagerPage = ({
 
             {createMode === 'generate' && (
               <>
-                {!loadingV3Status && (
+                {/* V3 prompt system toggle - Hidden on main branch (develop-only feature) */}
+                {false && !loadingV3Status && (
                   <div
                     style={{
                       marginBottom: 16,
