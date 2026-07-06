@@ -716,6 +716,7 @@ function BrandSetupPageContent() {
   const [audienceAge, setAudienceAge] = useState<string[]>([]);
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
   const [goal, setGoal] = useState('');
+  const [idealCustomerProfile, setIdealCustomerProfile] = useState('');
 
   // ── Competitors ───────────────────────────────────────────────
   const [competitors, setCompetitors] = useState(['', '', '']);
@@ -812,6 +813,7 @@ function BrandSetupPageContent() {
       audience_age_range: audienceAge.join(', '),
       target_platforms: targetPlatforms,
       primary_goal: goal,
+      ideal_customer_profile: idealCustomerProfile,
       competitor_handles: competitors.filter(Boolean),
       key_dates: keyDates,
       posting_cadence: cadence,
@@ -1980,6 +1982,29 @@ function BrandSetupPageContent() {
                     <Chip key={g} label={g} active={goal === g} onClick={() => setGoal(g)} primary={primary} />
                   ))}
                 </Box>
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(optional)">Ideal Customer Profile</FieldLabel>
+                <Box
+                  component="textarea"
+                  value={idealCustomerProfile}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setIdealCustomerProfile(e.target.value)}
+                  placeholder="e.g. Female entrepreneurs aged 25–40 in Lagos interested in business growth and productivity tools"
+                  sx={{
+                    width: '100%',
+                    minHeight: '100px',
+                    padding: '12px',
+                    fontSize: '13px',
+                    fontFamily: 'inherit',
+                    border: '1.5px solid #e5e7eb',
+                    borderRadius: '8px',
+                    resize: 'vertical',
+                    outline: 'none',
+                    '&:focus': {
+                      borderColor: primary,
+                    },
+                  }}
+                />
               </Grid>
               <Grid item xs={12}>
                 <Box display="flex" gap={1.5} alignItems="center">
