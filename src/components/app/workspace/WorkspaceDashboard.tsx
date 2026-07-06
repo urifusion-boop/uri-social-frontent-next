@@ -6935,12 +6935,13 @@ const NAV = [
     label: 'Performance',
     tooltip: 'Posts, accounts, and market intel — all your insights in one place',
   },
-  {
-    id: 'blog',
-    icon: 'book',
-    label: 'Blog',
-    tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
-  },
+  // Blog tab hidden on main branch (develop-only feature)
+  // {
+  //   id: 'blog',
+  //   icon: 'book',
+  //   label: 'Blog',
+  //   tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
+  // },
   {
     id: 'playbook',
     icon: 'book',
