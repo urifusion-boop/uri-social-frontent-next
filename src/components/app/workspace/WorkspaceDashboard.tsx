@@ -4745,6 +4745,11 @@ const PlaybookPage = ({
 
   const startEdit = () => {
     if (!profile) return;
+    console.log('📖 LOAD PLAYBOOK DEBUG:', {
+      logo_position: profile.logo_position,
+      logo_size: profile.logo_size,
+      profile,
+    });
     setBrandName(profile.brand_name ?? '');
     setIndustry(profile.industry ?? '');
     setWebsite(profile.website ?? '');
