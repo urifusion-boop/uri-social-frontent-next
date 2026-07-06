@@ -5197,10 +5197,14 @@ const PlaybookPage = ({
               {(['small', 'medium', 'large'] as const).map((size) => (
                 <button
                   key={size}
+<<<<<<< HEAD
                   onClick={() => {
                     console.log('🎯 Logo size button clicked:', size);
                     setLogoSize(size);
                   }}
+=======
+                  onClick={() => setLogoSize(size)}
+>>>>>>> b4a5914 (feat: Add logo size control UI to Brand Playbook)
                   style={{
                     padding: '6px 16px',
                     borderRadius: 6,
