@@ -1321,70 +1321,72 @@ const ContentManagerPage = ({
             )}
             {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
-            {/* Create mode switcher */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(
-                  [
-                    { key: 'generate', label: '✨ Generate Content' },
-                    // Video mode hidden on main branch (develop-only feature)
-                    // { key: 'video', label: '🎬 Video' },
-                  ] as { key: 'generate' | 'video'; label: string }[]
-                )
-                  .filter((mode) => mode.key !== 'video')
-                  .map((mode) => (
-                    <button
-                      key={mode.key}
-                      onClick={() => setCreateMode(mode.key)}
-                      style={{
-                        padding: '8px 18px',
-                        borderRadius: 10,
-                        border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
-                        background:
-                          createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
-                        color: createMode === mode.key ? '#fff' : '#6B7280',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-              </div>
-
-              {/* Video sub-mode selector - Hidden on main branch (develop-only feature) */}
-              {false && createMode === 'video' && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingLeft: 4 }}>
+            {/* Create mode switcher - Hidden on main branch since only one mode available */}
+            {false && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
                   {(
                     [
-                      { key: 'edit_video', label: 'Edit My Video' },
-                      { key: 'polish_video', label: 'Polish My Video' },
-                      { key: 'produce_video', label: '✨ Produce My Video' },
-                    ] as { key: 'edit_video' | 'polish_video' | 'produce_video'; label: string }[]
-                  ).map((sub) => (
-                    <button
-                      key={sub.key}
-                      onClick={() => setVideoSubMode(sub.key)}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: 8,
-                        border: videoSubMode === sub.key ? '2px solid #CD1B78' : '1.5px solid #E5E7EB',
-                        background: videoSubMode === sub.key ? '#FDF2F8' : '#fff',
-                        color: videoSubMode === sub.key ? '#CD1B78' : '#6B7280',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {sub.label}
-                    </button>
-                  ))}
+                      { key: 'generate', label: '✨ Generate Content' },
+                      // Video mode hidden on main branch (develop-only feature)
+                      // { key: 'video', label: '🎬 Video' },
+                    ] as { key: 'generate' | 'video'; label: string }[]
+                  )
+                    .filter((mode) => mode.key !== 'video')
+                    .map((mode) => (
+                      <button
+                        key={mode.key}
+                        onClick={() => setCreateMode(mode.key)}
+                        style={{
+                          padding: '8px 18px',
+                          borderRadius: 10,
+                          border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
+                          background:
+                            createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                          color: createMode === mode.key ? '#fff' : '#6B7280',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* Video sub-mode selector - Hidden on main branch (develop-only feature) */}
+            {false && createMode === 'video' && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingLeft: 4 }}>
+                {(
+                  [
+                    { key: 'edit_video', label: 'Edit My Video' },
+                    { key: 'polish_video', label: 'Polish My Video' },
+                    { key: 'produce_video', label: '✨ Produce My Video' },
+                  ] as { key: 'edit_video' | 'polish_video' | 'produce_video'; label: string }[]
+                ).map((sub) => (
+                  <button
+                    key={sub.key}
+                    onClick={() => setVideoSubMode(sub.key)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 8,
+                      border: videoSubMode === sub.key ? '2px solid #CD1B78' : '1.5px solid #E5E7EB',
+                      background: videoSubMode === sub.key ? '#FDF2F8' : '#fff',
+                      color: videoSubMode === sub.key ? '#CD1B78' : '#6B7280',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {sub.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {createMode === 'generate' && (
               <>
