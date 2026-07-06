@@ -38,6 +38,8 @@ interface BrollDecision {
   description: string;
   concept: string;
   reason?: string;
+  url?: string;
+  image_prompt?: string;
 }
 
 interface Props {
@@ -86,6 +88,10 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [musicMood, setMusicMood] = useState('upbeat');
   const [reviewCuts, setReviewCuts] = useState<{ remove_start: number; remove_end: number; reason: string }[]>([]);
   const [isStartingRender, setIsStartingRender] = useState(false);
+  // Per-b-roll regeneration state
+  const [regeneratingIdx, setRegeneratingIdx] = useState<Set<number>>(new Set());
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editPromptText, setEditPromptText] = useState('');
 
   useEffect(() => {
     return () => {
@@ -172,6 +178,36 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     } finally {
       setIsStartingRender(false);
     }
+  };
+
+  const regenerateBroll = async (index: number, newPrompt?: string) => {
+    if (!jobId) return;
+    setRegeneratingIdx(prev => new Set(prev).add(index));
+    try {
+      const res = await SocialMediaAgentService.regenerateBroll(jobId, index, newPrompt);
+      const updated = res?.responseData?.broll;
+      if (updated) {
+        setBrollDecisions(prev =>
+          prev.map((b, i) => (i === index ? { ...b, ...updated } : b))
+        );
+      }
+    } catch {
+      ToastService.showToast('Could not regenerate that b-roll. Try again.', ToastTypeEnum.Error);
+    } finally {
+      setRegeneratingIdx(prev => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
+    }
+  };
+
+  const handleReroll = (index: number) => regenerateBroll(index);
+
+  const handleEditSave = async (index: number) => {
+    const text = editPromptText.trim();
+    setEditingIdx(null);
+    if (text) await regenerateBroll(index, text);
   };
 
   const handleSubmit = async () => {
@@ -268,57 +304,143 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           {brollDecisions.length === 0 ? (
             <div style={{ fontSize: 13, color: '#aaa', fontStyle: 'italic' }}>No b-roll planned for this video.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {brollDecisions.map((br, i) => {
                 const removed = removedBrollIdx.has(i);
+                const regenerating = regeneratingIdx.has(i);
+                const editing = editingIdx === i;
                 return (
                   <div
                     key={i}
                     style={{
                       display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 10,
-                      padding: '10px 12px',
+                      flexDirection: 'column',
+                      gap: 8,
+                      padding: 10,
                       borderRadius: 10,
                       border: `1.5px solid ${removed ? '#e8e5e3' : '#C2185B33'}`,
                       background: removed ? '#fafafa' : '#fff8fb',
-                      opacity: removed ? 0.5 : 1,
+                      opacity: removed ? 0.55 : 1,
                       transition: 'all 0.15s',
                     }}
                   >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 2 }}>
-                        {br.concept || br.description}
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      {/* Thumbnail */}
+                      <div
+                        style={{
+                          position: 'relative',
+                          flexShrink: 0,
+                          width: 64,
+                          height: 96,
+                          borderRadius: 8,
+                          overflow: 'hidden',
+                          background: '#eee',
+                          border: '1px solid #e0dcd9',
+                        }}
+                      >
+                        {br.url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={br.url}
+                            alt={br.description}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🎬</div>
+                        )}
+                        {regenerating && (
+                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#C2185B' }}>
+                            …
+                          </div>
+                        )}
                       </div>
-                      <div style={{ fontSize: 11, color: '#888' }}>
-                        at {br.at.toFixed(1)}s · {br.duration}s · {br.reason}
+
+                      {/* Text + actions */}
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 2 }}>
+                          {br.description || br.concept}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#888', marginBottom: 'auto' }}>
+                          at {br.at.toFixed(1)}s · {br.duration}s
+                        </div>
+                        {!removed && (
+                          <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              disabled={regenerating}
+                              onClick={() => handleReroll(i)}
+                              style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', color: '#555', fontWeight: 600, fontSize: 11, cursor: regenerating ? 'not-allowed' : 'pointer' }}
+                            >
+                              🔄 Reroll
+                            </button>
+                            <button
+                              type="button"
+                              disabled={regenerating}
+                              onClick={() => { setEditingIdx(i); setEditPromptText(br.image_prompt ?? ''); }}
+                              style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', color: '#555', fontWeight: 600, fontSize: 11, cursor: regenerating ? 'not-allowed' : 'pointer' }}
+                            >
+                              ✎ Edit
+                            </button>
+                          </div>
+                        )}
                       </div>
+
+                      {/* Remove / restore */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRemovedBrollIdx(prev => {
+                            const next = new Set(prev);
+                            if (next.has(i)) next.delete(i); else next.add(i);
+                            return next;
+                          });
+                        }}
+                        style={{
+                          alignSelf: 'flex-start',
+                          flexShrink: 0,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          border: `1px solid ${removed ? '#C2185B' : '#ddd'}`,
+                          background: removed ? '#fff' : '#f5f4f0',
+                          color: removed ? '#C2185B' : '#888',
+                          fontWeight: 600,
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {removed ? '+ Restore' : '✕ Remove'}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRemovedBrollIdx((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(i)) next.delete(i);
-                          else next.add(i);
-                          return next;
-                        });
-                      }}
-                      style={{
-                        flexShrink: 0,
-                        padding: '4px 10px',
-                        borderRadius: 6,
-                        border: `1px solid ${removed ? '#C2185B' : '#ddd'}`,
-                        background: removed ? '#fff' : '#f5f4f0',
-                        color: removed ? '#C2185B' : '#888',
-                        fontWeight: 600,
-                        fontSize: 11,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {removed ? '+ Restore' : '✕ Remove'}
-                    </button>
+
+                    {/* Inline edit-prompt editor */}
+                    {editing && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <textarea
+                          value={editPromptText}
+                          onChange={e => setEditPromptText(e.target.value)}
+                          rows={3}
+                          placeholder="Describe the image you want (e.g. a founder relaxing at a tidy desk, bright office)…"
+                          style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: 8, borderRadius: 8, border: '1.5px solid #C2185B55', resize: 'vertical', fontFamily: 'inherit', color: '#111' }}
+                        />
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleEditSave(i)}
+                            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#C2185B,#8E1545)', color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
+                          >
+                            Regenerate
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingIdx(null)}
+                            style={{ padding: '5px 12px', borderRadius: 6, border: '1.5px solid #e0dcd9', background: '#fff', color: '#555', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

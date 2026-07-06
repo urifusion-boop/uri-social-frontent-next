@@ -768,7 +768,15 @@ export class SocialMediaAgentService {
         cuts: { remove_start: number; remove_end: number; reason: string; confidence?: number }[];
         zooms: { at: number; type: string; intensity: string; reason: string }[];
         sound_effects: { at: number; type: string; reason: string }[];
-        broll: { at: number; duration: number; description: string; concept: string; reason?: string }[];
+        broll: {
+          at: number;
+          duration: number;
+          description: string;
+          concept: string;
+          reason?: string;
+          url?: string;
+          image_prompt?: string;
+        }[];
         hook_text: string;
         music_mood: string;
         pacing_note: string;
@@ -789,6 +797,25 @@ export class SocialMediaAgentService {
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/start-render`,
       decisions ? { decisions } : {}
+    );
+    return response.data;
+  }
+
+  // Regenerate a single b-roll image during the review step.
+  // Omit imagePrompt to reroll the same prompt; pass a new one to change the image.
+  static async regenerateBroll(
+    jobId: string,
+    index: number,
+    imagePrompt?: string
+  ): Promise<
+    UriResponse<{
+      index: number;
+      broll: { at: number; duration: number; description: string; url?: string; image_prompt?: string };
+    }>
+  > {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/broll/${index}/regenerate`,
+      imagePrompt ? { image_prompt: imagePrompt } : {}
     );
     return response.data;
   }
