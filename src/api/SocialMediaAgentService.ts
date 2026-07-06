@@ -821,13 +821,13 @@ export class SocialMediaAgentService {
   static async adjustVideoProduction(
     jobId: string,
     opts: {
-      primaryColor?: string;
+      captionColor?: string;
       captionTextEdits?: { index: number; text: string }[];
       captionFont?: string;
     }
   ): Promise<UriResponse<{ job_id: string; status: string }>> {
     const formData = new FormData();
-    if (opts.primaryColor) formData.append('primary_color', opts.primaryColor);
+    if (opts.captionColor) formData.append('caption_color', opts.captionColor);
     if (opts.captionTextEdits?.length) formData.append('caption_text_edits', JSON.stringify(opts.captionTextEdits));
     if (opts.captionFont) formData.append('caption_font', opts.captionFont);
     const response = await UriHttpClient.getClient().post(

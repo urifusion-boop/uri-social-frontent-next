@@ -340,7 +340,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
         text,
       }));
       await SocialMediaAgentService.adjustVideoProduction(jobId, {
-        primaryColor: hasColorEdit ? adjustColor : undefined,
+        captionColor: hasColorEdit ? adjustColor : undefined,
         captionTextEdits: hasCaptionEdits ? edits : undefined,
         captionFont: hasFontEdit ? adjustFont : undefined,
       });
