@@ -39,7 +39,6 @@ import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
-import MultiClipComposer from '@/src/components/app/workspace/MultiClipComposer';
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
 import VideoProductionForm from '@/src/components/app/workspace/VideoProductionForm';
@@ -773,7 +772,7 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video' | 'compose';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
 
 const ContentManagerPage = ({
   onJane,
@@ -834,7 +833,6 @@ const ContentManagerPage = ({
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'video'>('generate');
   const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video' | 'produce_video'>('edit_video');
-  const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1173,11 +1171,6 @@ const ContentManagerPage = ({
       label: '🎬 Video',
       tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
     },
-    {
-      key: 'compose',
-      label: '🎞 Compose',
-      tooltip: 'Upload your own clips and stitch them into a polished video with AI ordering and captions',
-    },
   ];
 
   return (
@@ -1269,7 +1262,6 @@ const ContentManagerPage = ({
               calendar: 'calendar',
               auto: 'sparkle',
               video: 'video',
-              compose: 'film',
             };
             return (
               <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
@@ -1479,9 +1471,7 @@ const ContentManagerPage = ({
 
             {createMode === 'video' && videoSubMode === 'produce_video' && (
               <VideoProductionForm
-                sourceUrl={pendingProduceUrl}
                 onComplete={() => {
-                  setPendingProduceUrl(null);
                   handleGenerated();
                 }}
               />
@@ -1490,17 +1480,6 @@ const ContentManagerPage = ({
         )}
 
         {activeTab === 'video' && <VideoStoryboardGenerator />}
-
-        {activeTab === 'compose' && (
-          <MultiClipComposer
-            onSendToProduce={(url) => {
-              setPendingProduceUrl(url);
-              setActiveTab('create');
-              setCreateMode('video');
-              setVideoSubMode('produce_video');
-            }}
-          />
-        )}
 
         {activeTab === 'drafts' && (
           <>
