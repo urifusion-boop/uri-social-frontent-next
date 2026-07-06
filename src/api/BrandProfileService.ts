@@ -99,6 +99,8 @@ export class BrandProfileService {
     console.log('🎨 BrandProfileService.save() called with data:', {
       canvas_editor_enabled: data.canvas_editor_enabled,
       use_v3_prompts: data.use_v3_prompts,
+      logo_position: data.logo_position,
+      logo_size: data.logo_size,
       keys: Object.keys(data),
       fullData: data,
     });
