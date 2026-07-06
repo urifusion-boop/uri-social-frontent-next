@@ -59,6 +59,7 @@ export interface BrandProfileData {
   audience_age_range?: string | string[];
   target_platforms?: string[];
   primary_goal?: string;
+  ideal_customer_profile?: string;
   competitor_handles?: string[];
   key_dates?: BrandKeyDate[];
   posting_cadence?: string;

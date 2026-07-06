@@ -4688,6 +4688,7 @@ const PlaybookPage = ({
   const [audienceAge, setAudienceAge] = useState<string[]>([]);
   const [primaryGoal, setPrimaryGoal] = useState('');
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
+  const [idealCustomerProfile, setIdealCustomerProfile] = useState('');
   const [competitors, setCompetitors] = useState(['', '', '']);
   const [languages, setLanguages] = useState<string[]>([]);
   const [region, setRegion] = useState<string[]>([]);
@@ -4770,6 +4771,7 @@ const PlaybookPage = ({
     setAudienceAge(Array.isArray(age) ? age : age ? [age] : []);
     setPrimaryGoal(profile.primary_goal ?? '');
     setTargetPlatforms([...(profile.target_platforms ?? [])]);
+    setIdealCustomerProfile(profile.ideal_customer_profile ?? '');
     const comps = profile.competitor_handles ?? [];
     setCompetitors([comps[0] ?? '', comps[1] ?? '', comps[2] ?? '']);
     setLanguages([...(profile.languages ?? [])]);
@@ -4828,6 +4830,7 @@ const PlaybookPage = ({
         audience_age_range: audienceAge.join(', '),
         primary_goal: primaryGoal,
         target_platforms: targetPlatforms,
+        ideal_customer_profile: idealCustomerProfile,
         competitor_handles: competitors.filter(Boolean),
         languages,
         region: region.join(', '),
@@ -5742,6 +5745,48 @@ const PlaybookPage = ({
                 />
               ))}
             </div>
+          )}
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#999',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              marginBottom: 8,
+            }}
+          >
+            Ideal Customer Profile
+          </div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: p?.ideal_customer_profile ? '#111' : '#bbb', whiteSpace: 'pre-wrap' }}>
+              {p?.ideal_customer_profile || '—'}
+            </div>
+          ) : (
+            <textarea
+              value={idealCustomerProfile}
+              onChange={(e) => setIdealCustomerProfile(e.target.value)}
+              placeholder="e.g. Female entrepreneurs aged 25–40 in Lagos interested in business growth and productivity tools"
+              style={{
+                width: '100%',
+                minHeight: 80,
+                padding: 12,
+                fontSize: 13,
+                border: '1.5px solid #e5e7eb',
+                borderRadius: 8,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#C2185B';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#e5e7eb';
+              }}
+            />
           )}
         </div>
         <div>
