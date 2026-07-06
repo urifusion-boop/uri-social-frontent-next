@@ -4698,6 +4698,7 @@ const PlaybookPage = ({
   const templateInputRef = useRef<HTMLInputElement>(null);
   const [logoUrl, setLogoUrl] = useState('');
   const [logoPosition, setLogoPosition] = useState('bottom_right');
+  const [logoSize, setLogoSize] = useState<'small' | 'medium' | 'large'>('small');
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -4774,6 +4775,7 @@ const PlaybookPage = ({
     setTemplateUrls([...(profile.sample_template_urls ?? [])]);
     setLogoUrl(profile.logo_url ?? '');
     setLogoPosition(profile.logo_position ?? 'bottom_right');
+    setLogoSize(profile.logo_size ?? 'small');
     setLogoError('');
     setStyleSelections([...(profile.style_selections ?? [])]);
     setSelectedCustomGuides(profile.selected_custom_guides ?? []);
@@ -4829,6 +4831,7 @@ const PlaybookPage = ({
         sample_template_urls: templateUrls,
         logo_url: logoUrl || undefined,
         logo_position: logoPosition,
+        logo_size: logoSize,
         style_selections: styleSelections,
         style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
         selected_custom_guides: selectedCustomGuides,
@@ -5128,6 +5131,48 @@ const PlaybookPage = ({
             </div>
           )}
         </div>
+
+        {/* Logo Size */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            padding: '10px 0',
+            borderBottom: '1px solid #f3f1ee',
+          }}
+        >
+          <span style={{ fontSize: 12.5, color: '#888', fontWeight: 600, minWidth: 120, paddingTop: 4 }}>
+            Logo Size
+          </span>
+          {!editing ? (
+            <span style={{ fontSize: 13, color: '#555', textTransform: 'capitalize' }}>{logoSize}</span>
+          ) : (
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['small', 'medium', 'large'] as const).map((size) => (
+                <button
+                  key={size}
+                  onClick={() => setLogoSize(size)}
+                  style={{
+                    padding: '6px 16px',
+                    borderRadius: 6,
+                    border: logoSize === size ? '1.5px solid #C2185B' : '1.5px solid #e5e7eb',
+                    background: logoSize === size ? '#FFF5F9' : '#fff',
+                    color: logoSize === size ? '#C2185B' : '#6b7280',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                    fontFamily: 'var(--wf)',
+                  }}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <PbRow
           label="Brand name"
           value={p?.brand_name}
