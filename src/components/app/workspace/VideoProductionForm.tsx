@@ -124,6 +124,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [srtEntries, setSrtEntries] = useState<{ index: number; text: string }[]>([]);
   const [captionEdits, setCaptionEdits] = useState<Record<number, string>>({});
   const [adjustColor, setAdjustColor] = useState<string>('');
+  const [adjustFont, setAdjustFont] = useState<string>('');
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [editingCaptionIdx, setEditingCaptionIdx] = useState<number | null>(null);
 
@@ -219,19 +220,17 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
 
   const regenerateBroll = async (index: number, newPrompt?: string) => {
     if (!jobId) return;
-    setRegeneratingIdx(prev => new Set(prev).add(index));
+    setRegeneratingIdx((prev) => new Set(prev).add(index));
     try {
       const res = await SocialMediaAgentService.regenerateBroll(jobId, index, newPrompt);
       const updated = res?.responseData?.broll;
       if (updated) {
-        setBrollDecisions(prev =>
-          prev.map((b, i) => (i === index ? { ...b, ...updated } : b))
-        );
+        setBrollDecisions((prev) => prev.map((b, i) => (i === index ? { ...b, ...updated } : b)));
       }
     } catch {
       ToastService.showToast('Could not regenerate that b-roll. Try again.', ToastTypeEnum.Error);
     } finally {
-      setRegeneratingIdx(prev => {
+      setRegeneratingIdx((prev) => {
         const next = new Set(prev);
         next.delete(index);
         return next;
@@ -322,6 +321,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     setSrtEntries([]);
     setCaptionEdits({});
     setAdjustColor('');
+    setAdjustFont('');
     setIsAdjusting(false);
     setEditingCaptionIdx(null);
   };
@@ -330,7 +330,8 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     if (!jobId) return;
     const hasCaptionEdits = Object.keys(captionEdits).length > 0;
     const hasColorEdit = !!adjustColor;
-    if (!hasCaptionEdits && !hasColorEdit) return;
+    const hasFontEdit = !!adjustFont;
+    if (!hasCaptionEdits && !hasColorEdit && !hasFontEdit) return;
 
     setIsAdjusting(true);
     try {
@@ -341,6 +342,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
       await SocialMediaAgentService.adjustVideoProduction(jobId, {
         primaryColor: hasColorEdit ? adjustColor : undefined,
         captionTextEdits: hasCaptionEdits ? edits : undefined,
+        captionFont: hasFontEdit ? adjustFont : undefined,
       });
       setOutputUrl(null);
       setPhase('rendering');
@@ -416,10 +418,33 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
                             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                           />
                         ) : (
-                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🎬</div>
+                          <div
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 20,
+                            }}
+                          >
+                            🎬
+                          </div>
                         )}
                         {regenerating && (
-                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#C2185B' }}>
+                          <div
+                            style={{
+                              position: 'absolute',
+                              inset: 0,
+                              background: 'rgba(255,255,255,0.7)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: '#C2185B',
+                            }}
+                          >
                             …
                           </div>
                         )}
@@ -439,15 +464,36 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
                               type="button"
                               disabled={regenerating}
                               onClick={() => handleReroll(i)}
-                              style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', color: '#555', fontWeight: 600, fontSize: 11, cursor: regenerating ? 'not-allowed' : 'pointer' }}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                border: '1px solid #ddd',
+                                background: '#fff',
+                                color: '#555',
+                                fontWeight: 600,
+                                fontSize: 11,
+                                cursor: regenerating ? 'not-allowed' : 'pointer',
+                              }}
                             >
                               🔄 Reroll
                             </button>
                             <button
                               type="button"
                               disabled={regenerating}
-                              onClick={() => { setEditingIdx(i); setEditPromptText(br.image_prompt ?? ''); }}
-                              style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', color: '#555', fontWeight: 600, fontSize: 11, cursor: regenerating ? 'not-allowed' : 'pointer' }}
+                              onClick={() => {
+                                setEditingIdx(i);
+                                setEditPromptText(br.image_prompt ?? '');
+                              }}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                border: '1px solid #ddd',
+                                background: '#fff',
+                                color: '#555',
+                                fontWeight: 600,
+                                fontSize: 11,
+                                cursor: regenerating ? 'not-allowed' : 'pointer',
+                              }}
                             >
                               ✎ Edit
                             </button>
@@ -459,9 +505,10 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
                       <button
                         type="button"
                         onClick={() => {
-                          setRemovedBrollIdx(prev => {
+                          setRemovedBrollIdx((prev) => {
                             const next = new Set(prev);
-                            if (next.has(i)) next.delete(i); else next.add(i);
+                            if (next.has(i)) next.delete(i);
+                            else next.add(i);
                             return next;
                           });
                         }}
@@ -488,23 +535,51 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <textarea
                           value={editPromptText}
-                          onChange={e => setEditPromptText(e.target.value)}
+                          onChange={(e) => setEditPromptText(e.target.value)}
                           rows={3}
                           placeholder="Describe the image you want (e.g. a founder relaxing at a tidy desk, bright office)…"
-                          style={{ width: '100%', boxSizing: 'border-box', fontSize: 12, padding: 8, borderRadius: 8, border: '1.5px solid #C2185B55', resize: 'vertical', fontFamily: 'inherit', color: '#111' }}
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            fontSize: 12,
+                            padding: 8,
+                            borderRadius: 8,
+                            border: '1.5px solid #C2185B55',
+                            resize: 'vertical',
+                            fontFamily: 'inherit',
+                            color: '#111',
+                          }}
                         />
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button
                             type="button"
                             onClick={() => handleEditSave(i)}
-                            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg,#C2185B,#8E1545)', color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 6,
+                              border: 'none',
+                              background: 'linear-gradient(135deg,#C2185B,#8E1545)',
+                              color: '#fff',
+                              fontWeight: 700,
+                              fontSize: 11,
+                              cursor: 'pointer',
+                            }}
                           >
                             Regenerate
                           </button>
                           <button
                             type="button"
                             onClick={() => setEditingIdx(null)}
-                            style={{ padding: '5px 12px', borderRadius: 6, border: '1.5px solid #e0dcd9', background: '#fff', color: '#555', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 6,
+                              border: '1.5px solid #e0dcd9',
+                              background: '#fff',
+                              color: '#555',
+                              fontWeight: 600,
+                              fontSize: 11,
+                              cursor: 'pointer',
+                            }}
                           >
                             Cancel
                           </button>
@@ -736,6 +811,44 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
             </div>
           </div>
 
+          {/* Caption font */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Caption font</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Montserrat', desc: 'Default' },
+                { label: 'Anton', desc: 'Bold' },
+                { label: 'Bebas Neue', desc: 'Condensed' },
+                { label: 'Oswald', desc: 'Strong' },
+                { label: 'Raleway', desc: 'Elegant' },
+                { label: 'Bangers', desc: 'Playful' },
+              ].map((f) => {
+                const selected = adjustFont === f.label;
+                return (
+                  <button
+                    key={f.label}
+                    type="button"
+                    onClick={() => setAdjustFont(selected ? '' : f.label)}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: 20,
+                      border: `1.5px solid ${selected ? '#C2185B' : '#ddd'}`,
+                      background: selected ? '#fff0f5' : '#fff',
+                      color: selected ? '#C2185B' : '#444',
+                      fontWeight: selected ? 700 : 400,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      transition: 'all 0.12s',
+                    }}
+                  >
+                    <span style={{ fontWeight: 700 }}>{f.label}</span>
+                    <span style={{ color: '#aaa', marginLeft: 4, fontSize: 11 }}>{f.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Caption text edits */}
           {srtEntries.length > 0 && (
             <div>
@@ -844,7 +957,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           )}
 
           {/* Apply button */}
-          {(Object.keys(captionEdits).length > 0 || adjustColor) && (
+          {(Object.keys(captionEdits).length > 0 || adjustColor || adjustFont) && (
             <button
               type="button"
               onClick={handleApplyAdjustments}
