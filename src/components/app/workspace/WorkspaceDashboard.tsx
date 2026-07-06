@@ -4775,7 +4775,7 @@ const PlaybookPage = ({
     setTemplateUrls([...(profile.sample_template_urls ?? [])]);
     setLogoUrl(profile.logo_url ?? '');
     setLogoPosition(profile.logo_position ?? 'bottom_right');
-    setLogoSize(profile.logo_size ?? 'small');
+    setLogoSize((profile.logo_size ?? 'small') as 'small' | 'medium' | 'large');
     setLogoError('');
     setStyleSelections([...(profile.style_selections ?? [])]);
     setSelectedCustomGuides(profile.selected_custom_guides ?? []);
