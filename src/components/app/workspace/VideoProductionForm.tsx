@@ -185,6 +185,9 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           const parsed = parseSrt((j as { srt?: string }).srt ?? '');
           setSrtEntries(parsed);
           setCaptionEdits({});
+          setAdjustColor('');
+          setAdjustFont('');
+          setIsAdjusting(false);
           setPhase('ready');
         } else if (j.status === 'failed') {
           clearInterval(pollRef.current!);
