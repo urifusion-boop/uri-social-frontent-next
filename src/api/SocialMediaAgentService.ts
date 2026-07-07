@@ -33,6 +33,13 @@ export interface GenerateContentPayload {
   override_cta?: string; // One-time CTA for this generation only (not saved to brand playbook)
 }
 
+export interface UploadUserContentPayload {
+  uploaded_media: string[]; // Base64 data URLs
+  context_text?: string;
+  platforms: string[];
+  post_type?: 'feed' | 'carousel' | 'story';
+}
+
 export interface StoryboardScene {
   scene_number: number;
   duration_seconds: number;
@@ -313,6 +320,8 @@ export interface ContentDraft {
   slides?: CarouselSlide[];
   image_specs?: { width: number; height: number };
   error_message?: string;
+  content_source?: 'ai_generated' | 'user_uploaded'; // NEW: Distinguish AI vs user content
+  uploaded_media_urls?: string[]; // NEW: User-uploaded media URLs (images/videos)
 }
 
 export interface ContentCalendarResponse {
@@ -394,6 +403,15 @@ export class SocialMediaAgentService {
   static async generateContent(payload: GenerateContentPayload): Promise<UriResponse<ContentDraft[]>> {
     const response: Awaited<AxiosResponse<UriResponse<ContentDraft[]>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.generateContent,
+      payload,
+      { timeout: 300000 }
+    );
+    return response.data;
+  }
+
+  static async uploadUserContent(payload: UploadUserContentPayload): Promise<UriResponse<ContentDraft[]>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentDraft[]>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.uploadUserContent,
       payload,
       { timeout: 300000 }
     );
