@@ -1298,6 +1298,7 @@ export interface PerformanceData {
 export interface CalendarDayItem {
   day_index: number;
   date: string;
+  day_of_week?: string; // Monday, Tuesday, etc.
   content_type: 'educational' | 'relatable' | 'promotional' | 'behind_the_scenes' | 'engagement';
   title: string;
   description: string;
@@ -1313,6 +1314,17 @@ export interface CalendarDayItem {
   format_score?: number;
   final_score?: number;
   reason?: string;
+  // Enhanced PRD fields
+  recommended_cta?: string; // Suggested CTA based on content type + goal
+  caption_angle?: string; // Caption writing guidance
+  upcoming_holidays?: Array<{
+    date: string;
+    name: string;
+    type: string;
+    relevance_score: number;
+    content_angle: string;
+  }>;
+  trending_topics?: string[]; // Top 3 trending topics
 }
 
 export interface ContentCalendarPlan {

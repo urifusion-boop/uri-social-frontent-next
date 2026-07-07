@@ -393,6 +393,166 @@ const DayDetailModal = ({
           {day.description}
         </div>
 
+        {/* Recommended CTA */}
+        {day.recommended_cta && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              💬 Recommended CTA
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: '#C2185B',
+                background: 'rgba(194, 24, 91, 0.05)',
+                borderRadius: 6,
+                padding: '8px 10px',
+                fontWeight: 600,
+              }}
+            >
+              {day.recommended_cta}
+            </div>
+          </div>
+        )}
+
+        {/* Caption Writing Angle */}
+        {day.caption_angle && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              ✍️ Caption Direction
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: '#555',
+                background: '#fafaf8',
+                borderRadius: 6,
+                padding: '8px 10px',
+                lineHeight: 1.6,
+              }}
+            >
+              {day.caption_angle}
+            </div>
+          </div>
+        )}
+
+        {/* Upcoming Holidays */}
+        {day.upcoming_holidays && day.upcoming_holidays.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              🎉 Holiday Opportunity
+            </div>
+            {day.upcoming_holidays.map((holiday, idx) => (
+              <div
+                key={idx}
+                style={{
+                  fontSize: 12,
+                  color: '#111',
+                  background: 'rgba(109, 40, 217, 0.08)',
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  marginBottom: idx < day.upcoming_holidays!.length - 1 ? 6 : 0,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 3 }}>{holiday.name}</div>
+                <div style={{ fontSize: 11, color: '#666' }}>{holiday.content_angle}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Trending Topics */}
+        {day.trending_topics && day.trending_topics.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              🔥 Trending Now
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {day.trending_topics.map((topic, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    fontSize: 11,
+                    color: '#0a66c2',
+                    background: 'rgba(10, 102, 194, 0.08)',
+                    borderRadius: 4,
+                    padding: '4px 8px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {topic}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Why This Content (Enhanced Reason) */}
+        {day.reason && (
+          <div style={{ marginBottom: 20 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              💡 Why This Content
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: '#555',
+                background: 'rgba(22, 163, 74, 0.06)',
+                borderRadius: 6,
+                padding: '10px 12px',
+                lineHeight: 1.65,
+                borderLeft: '3px solid rgba(22, 163, 74, 0.3)',
+              }}
+            >
+              {day.reason}
+            </div>
+          </div>
+        )}
+
         {/* Platforms */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
           <span
@@ -728,7 +888,11 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
                   key={p}
                   type="button"
                   onClick={() => togglePlatform(p)}
-                  title={active ? `Remove ${p.charAt(0).toUpperCase() + p.slice(1)}` : `Add ${p.charAt(0).toUpperCase() + p.slice(1)}`}
+                  title={
+                    active
+                      ? `Remove ${p.charAt(0).toUpperCase() + p.slice(1)}`
+                      : `Add ${p.charAt(0).toUpperCase() + p.slice(1)}`
+                  }
                   style={{
                     padding: '2px 9px',
                     borderRadius: 20,
