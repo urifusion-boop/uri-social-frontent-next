@@ -42,6 +42,7 @@ import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryb
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
 import VideoProductionForm from '@/src/components/app/workspace/VideoProductionForm';
+import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -831,7 +832,7 @@ const ContentManagerPage = ({
   const [v3Enabled, setV3Enabled] = useState(false);
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
-  const [createMode, setCreateMode] = useState<'generate' | 'video'>('generate');
+  const [createMode, setCreateMode] = useState<'generate' | 'upload' | 'video'>('generate');
   const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video' | 'produce_video'>('edit_video');
 
   const toggleDraftSelection = (id: string) => {
@@ -1478,6 +1479,10 @@ const ContentManagerPage = ({
                   handleGenerated();
                 }}
               />
+            )}
+
+            {createMode === 'upload' && (
+              <UploadContentForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
             )}
           </>
         )}

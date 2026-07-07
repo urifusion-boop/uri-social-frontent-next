@@ -739,7 +739,23 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               </Box>
             )}
 
-            {currentSlide?.image_url &&
+            {/* User-uploaded media - show uploaded_media_urls instead of AI-generated image */}
+            {draft.content_source === 'user_uploaded' &&
+            draft.uploaded_media_urls &&
+            draft.uploaded_media_urls.length > 0 ? (
+              <img
+                src={draft.uploaded_media_urls[slideIndex] || draft.uploaded_media_urls[0]}
+                alt="User uploaded content"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  cursor: 'pointer',
+                }}
+                onClick={() => setImageModalOpen(true)}
+              />
+            ) : (
+              currentSlide?.image_url &&
               (() => {
                 const resolvedUrl = resolveUrl(currentSlide.image_url);
                 const alreadyLoaded = loadedSlideUrls.has(resolvedUrl);
@@ -786,7 +802,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                     />
                   </>
                 );
-              })()}
+              })()
+            )}
 
             {/* Prev / Next arrows */}
             {totalSlides > 1 && (
