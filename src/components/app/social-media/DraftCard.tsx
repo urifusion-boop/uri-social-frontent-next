@@ -762,7 +762,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                   objectFit: 'contain',
                   cursor: 'pointer',
                 }}
-                onClick={() => setImageModalOpen(true)}
+                onClick={() => setLightboxOpen(true)}
               />
             ) : (
               currentSlide?.image_url &&
