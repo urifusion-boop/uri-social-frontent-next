@@ -4471,6 +4471,8 @@ const PlaybookPage = ({
   const [selectedCustomGuides, setSelectedCustomGuides] = useState<string[]>([]);
   const [selectedCustomGuidesV2, setSelectedCustomGuidesV2] = useState<string[]>([]);
   const [fontStyle, setFontStyle] = useState<string>('');
+  const [primaryFont, setPrimaryFont] = useState<string>('');
+  const [secondaryFont, setSecondaryFont] = useState<string>('');
   const [customFontEnabled, setCustomFontEnabled] = useState(false);
   const [customFontFiles, setCustomFontFiles] = useState<{ url: string; filename: string }[]>([]);
   const [customFontAnalysis, setCustomFontAnalysis] = useState<CustomFontAnalysis | undefined>(undefined);
@@ -4547,6 +4549,8 @@ const PlaybookPage = ({
     setSelectedCustomGuides(profile.selected_custom_guides ?? []);
     setSelectedCustomGuidesV2(profile.selected_custom_guides_v2 ?? []);
     setFontStyle(profile.font_style ?? '');
+    setPrimaryFont(profile.primary_font ?? '');
+    setSecondaryFont(profile.secondary_font ?? '');
     setCustomFontEnabled(profile.custom_font_enabled ?? false);
     setCustomFontFiles(profile.custom_font_files ?? []);
     setCustomFontAnalysis(profile.custom_font_analysis as CustomFontAnalysis | undefined);
@@ -4605,6 +4609,10 @@ const PlaybookPage = ({
         selected_custom_guides_v2: selectedCustomGuidesV2,
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
+        primary_font: primaryFont,
+        primary_font_prompt: getFont(primaryFont)?.promptFragment ?? '',
+        secondary_font: secondaryFont,
+        secondary_font_prompt: getFont(secondaryFont)?.promptFragment ?? '',
         custom_font_enabled: customFontEnabled,
         custom_font_files: customFontFiles,
         custom_font_analysis: customFontAnalysis,
@@ -5977,93 +5985,197 @@ const PlaybookPage = ({
 
       <PbSection title="Typography">
         <style>{`@import url('${GOOGLE_FONTS_URL}');`}</style>
-        <div style={{ marginBottom: 8, fontSize: 12.5, color: '#888' }}>
-          The typeface direction Uri uses when placing text on your images.
+        <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888' }}>
+          Control the visual hierarchy of text on images.
         </div>
+
         {!editing ? (
-          p?.font_style && getFont(p.font_style) ? (
-            (() => {
-              const f = getFont(p.font_style)!;
-              return (
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
-                    <div
-                      style={{
-                        height: 64,
-                        background: '#f9f9fb',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderBottom: '1px solid #f0eef8',
-                      }}
-                    >
-                      <span style={{ fontFamily: f.fontFamily, fontSize: 20, color: '#0d0e0f' }}>{f.previewText}</span>
-                    </div>
-                    <div style={{ padding: '6px 10px' }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{f.name}</div>
-                      <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
-                        {f.description}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {/* Primary Font Display */}
+            {p?.primary_font && getFont(p.primary_font) && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: '#999',
+                    marginBottom: 4,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  Primary (Headlines)
+                </div>
+                {(() => {
+                  const f = getFont(p.primary_font)!;
+                  return (
+                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
+                      <div
+                        style={{
+                          height: 64,
+                          background: '#f9f9fb',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderBottom: '1px solid #f0eef8',
+                        }}
+                      >
+                        <span style={{ fontFamily: f.fontFamily, fontSize: 20, color: '#0d0e0f' }}>
+                          {f.previewText}
+                        </span>
+                      </div>
+                      <div style={{ padding: '6px 10px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{f.name}</div>
+                        <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                          {f.description}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })()
-          ) : (
-            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
-          )
-        ) : (
-          <div>
-            {fontStyle && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <span
-                  style={{
-                    background: '#C2185B',
-                    color: '#fff',
-                    borderRadius: 99,
-                    padding: '2px 10px',
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                  }}
-                >
-                  {getFont(fontStyle)?.name} selected
-                </span>
-                <button
-                  onClick={() => setFontStyle('')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    fontSize: 11.5,
-                    color: '#9ca3af',
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    padding: 0,
-                  }}
-                >
-                  Clear
-                </button>
+                  );
+                })()}
               </div>
             )}
-            <FontPickerGallery
-              selected={fontStyle}
-              onChange={setFontStyle}
-              customFontEnabled={customFontEnabled}
-              customFontFilename={customFontFiles[0]?.filename}
-              customFontAnalysis={customFontAnalysis}
-              onCustomFontUpload={(data) => {
-                setCustomFontEnabled(true);
-                setCustomFontFiles([
-                  {
-                    url: data.fontUrl,
-                    filename: data.filename,
-                  },
-                ]);
-                setCustomFontAnalysis(data.analysis);
-                setCustomFontDirective(data.promptDirective);
-              }}
-              onUseCustomFont={() => setCustomFontEnabled(true)}
-              onUseLibraryFont={() => setCustomFontEnabled(false)}
-            />
+
+            {/* Secondary Font Display */}
+            {p?.secondary_font && getFont(p.secondary_font) && (
+              <div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: '#999',
+                    marginBottom: 4,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  Secondary (Body)
+                </div>
+                {(() => {
+                  const f = getFont(p.secondary_font)!;
+                  return (
+                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
+                      <div
+                        style={{
+                          height: 64,
+                          background: '#f9f9fb',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderBottom: '1px solid #f0eef8',
+                        }}
+                      >
+                        <span style={{ fontFamily: f.fontFamily, fontSize: 20, color: '#0d0e0f' }}>
+                          {f.previewText}
+                        </span>
+                      </div>
+                      <div style={{ padding: '6px 10px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{f.name}</div>
+                        <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                          {f.description}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {!p?.primary_font && !p?.secondary_font && <div style={{ fontSize: 13, color: '#bbb' }}>—</div>}
+          </div>
+        ) : (
+          <div>
+            {/* Primary Font Selector */}
+            <div style={{ marginBottom: 20 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#999',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  marginBottom: 8,
+                }}
+              >
+                Primary Font (Headlines)
+              </div>
+              {primaryFont && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span
+                    style={{
+                      background: '#C2185B',
+                      color: '#fff',
+                      borderRadius: 99,
+                      padding: '2px 10px',
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {getFont(primaryFont)?.name} selected
+                  </span>
+                  <button
+                    onClick={() => setPrimaryFont('')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: 11.5,
+                      color: '#9ca3af',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      padding: 0,
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+              <FontPickerGallery selected={primaryFont} onChange={setPrimaryFont} customFontEnabled={false} />
+            </div>
+
+            {/* Secondary Font Selector */}
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#999',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  marginBottom: 8,
+                }}
+              >
+                Secondary Font (Body Text)
+              </div>
+              {secondaryFont && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span
+                    style={{
+                      background: '#C2185B',
+                      color: '#fff',
+                      borderRadius: 99,
+                      padding: '2px 10px',
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {getFont(secondaryFont)?.name} selected
+                  </span>
+                  <button
+                    onClick={() => setSecondaryFont('')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: 11.5,
+                      color: '#9ca3af',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      padding: 0,
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+              <FontPickerGallery selected={secondaryFont} onChange={setSecondaryFont} customFontEnabled={false} />
+            </div>
           </div>
         )}
       </PbSection>

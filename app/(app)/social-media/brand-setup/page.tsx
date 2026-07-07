@@ -607,6 +607,8 @@ function BrandSetupPageContent() {
 
   // ── Font Style ────────────────────────────────────────────────
   const [fontStyle, setFontStyle] = useState<string>('');
+  const [primaryFont, setPrimaryFont] = useState<string>('');
+  const [secondaryFont, setSecondaryFont] = useState<string>('');
   const quizData = [
     {
       id: 'formality',
@@ -829,6 +831,10 @@ function BrandSetupPageContent() {
       style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
       font_style: fontStyle,
       font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
+      primary_font: primaryFont,
+      primary_font_prompt: getFont(primaryFont)?.promptFragment ?? '',
+      secondary_font: secondaryFont,
+      secondary_font_prompt: getFont(secondaryFont)?.promptFragment ?? '',
       onboarding_completed: true,
     };
     try {
@@ -1336,11 +1342,14 @@ function BrandSetupPageContent() {
         return (
           <Box>
             <AgentBubble primary={primary}>
-              Pick a typography direction for your brand. I'll use this when placing text on your images — keeping your
-              visual identity consistent across every post.
+              Choose fonts for your brand's visual hierarchy. I'll use the primary font for headlines and the secondary
+              font for body text when creating images.
             </AgentBubble>
-            <Box mt={1} mb={2}>
-              {fontStyle && (
+
+            {/* Primary Font */}
+            <Box mt={2} mb={2.5}>
+              <FieldLabel sub="(optional)">Primary Font (Headlines)</FieldLabel>
+              {primaryFont && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                   <Box
                     sx={{
@@ -1353,11 +1362,11 @@ function BrandSetupPageContent() {
                       color: '#fff',
                     }}
                   >
-                    {getFont(fontStyle)?.name} selected
+                    {getFont(primaryFont)?.name} selected
                   </Box>
                   <Typography
                     component="button"
-                    onClick={() => setFontStyle('')}
+                    onClick={() => setPrimaryFont('')}
                     sx={{
                       background: 'none',
                       border: 'none',
@@ -1372,7 +1381,45 @@ function BrandSetupPageContent() {
                   </Typography>
                 </Box>
               )}
-              <FontPickerGallery selected={fontStyle} onChange={setFontStyle} />
+              <FontPickerGallery selected={primaryFont} onChange={setPrimaryFont} customFontEnabled={false} />
+            </Box>
+
+            {/* Secondary Font */}
+            <Box mb={2}>
+              <FieldLabel sub="(optional)">Secondary Font (Body Text)</FieldLabel>
+              {secondaryFont && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <Box
+                    sx={{
+                      background: primary,
+                      borderRadius: 99,
+                      px: 1.5,
+                      py: 0.375,
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: '#fff',
+                    }}
+                  >
+                    {getFont(secondaryFont)?.name} selected
+                  </Box>
+                  <Typography
+                    component="button"
+                    onClick={() => setSecondaryFont('')}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: 11.5,
+                      color: '#9CA3AF',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      p: 0,
+                    }}
+                  >
+                    Clear
+                  </Typography>
+                </Box>
+              )}
+              <FontPickerGallery selected={secondaryFont} onChange={setSecondaryFont} customFontEnabled={false} />
             </Box>
             <Box display="flex" gap={1.5} alignItems="center">
               <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
