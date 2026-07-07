@@ -4948,8 +4948,22 @@ const PlaybookPage = ({
 
   return (
     <SubPage title="Brand Playbook" icon="book" desc="Everything URI Agent knows about your brand" onJane={onJane}>
-      {/* Action bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      {/* Action bar - Sticky */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 16,
+          paddingTop: 12,
+          paddingBottom: 12,
+          backgroundColor: '#fff',
+          borderBottom: editing ? '1px solid #f0f0f0' : 'none',
+        }}
+      >
         {saved && !editing && (
           <span style={{ fontSize: 12.5, color: '#16a34a', fontWeight: 600 }}>✓ Changes saved</span>
         )}

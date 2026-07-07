@@ -595,6 +595,7 @@ function BrandSetupPageContent() {
   // ── Identity ──────────────────────────────────────────────────
   const [logoUrl, setLogoUrl] = useState('');
   const [logoPosition, setLogoPosition] = useState('bottom_right');
+  const [logoSize, setLogoSize] = useState<'small' | 'medium' | 'large'>('small');
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const [colors, setColors] = useState<string[]>([]);
@@ -794,6 +795,7 @@ function BrandSetupPageContent() {
       product_description: productDesc,
       logo_url: logoUrl || undefined,
       logo_position: logoPosition,
+      logo_size: logoSize,
       brand_colors: colors,
       personality_quiz: quiz,
       derived_voice: deriveVoice(),
@@ -1156,6 +1158,25 @@ function BrandSetupPageContent() {
                   })()}
                   <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mt: 0.75 }}>
                     Selected: <strong style={{ color: primary }}>{logoPosition.replace(/_/g, ' ')}</strong>
+                  </Typography>
+                </Box>
+
+                {/* Logo size picker */}
+                <Box mt={2}>
+                  <FieldLabel sub="(how large should your logo be?)">Logo Size</FieldLabel>
+                  <Box display="flex" gap={0.75} mt={0.75}>
+                    {(['small', 'medium', 'large'] as const).map((size) => (
+                      <Chip
+                        key={size}
+                        label={size}
+                        active={logoSize === size}
+                        onClick={() => setLogoSize(size)}
+                        primary={primary}
+                      />
+                    ))}
+                  </Box>
+                  <Typography sx={{ fontSize: 11.5, color: '#9CA3AF', mt: 0.75 }}>
+                    Selected: <strong style={{ color: primary }}>{logoSize}</strong>
                   </Typography>
                 </Box>
               </Grid>
