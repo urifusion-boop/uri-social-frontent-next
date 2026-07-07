@@ -4721,6 +4721,13 @@ const PlaybookPage = ({
     }
   }, [profile?.logo_position]);
 
+  // Sync logo size when profile changes (e.g., after save/refresh)
+  useEffect(() => {
+    if (profile?.logo_size) {
+      setLogoSize(profile.logo_size as 'small' | 'medium' | 'large');
+    }
+  }, [profile?.logo_size]);
+
   // Auto-save custom guide selections
   const handleCustomGuideChange = async (guideIds: string[]) => {
     setSelectedCustomGuides(guideIds);
