@@ -121,12 +121,10 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [editPromptText, setEditPromptText] = useState('');
 
   // Clean-up layer state
-  const [srtEntries, setSrtEntries] = useState<{ index: number; text: string }[]>([]);
-  const [captionEdits, setCaptionEdits] = useState<Record<number, string>>({});
   const [adjustColor, setAdjustColor] = useState<string>('');
   const [adjustFont, setAdjustFont] = useState<string>('');
+  const [hookTextEdit, setHookTextEdit] = useState<string>('');
   const [isAdjusting, setIsAdjusting] = useState(false);
-  const [editingCaptionIdx, setEditingCaptionIdx] = useState<number | null>(null);
 
   useEffect(() => {
     return () => {
@@ -182,9 +180,9 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           setSoundEffects(
             (j as { sound_effects?: { at: number; type: string; reason: string }[] }).sound_effects ?? []
           );
-          const parsed = parseSrt((j as { srt?: string }).srt ?? '');
-          setSrtEntries(parsed);
-          setCaptionEdits({});
+          const newHookText = (j as { ai_decisions?: { hook_text?: string } }).ai_decisions?.hook_text ?? hookText;
+          setHookText(newHookText);
+          setHookTextEdit(newHookText);
           setAdjustColor('');
           setAdjustFont('');
           setIsAdjusting(false);
@@ -321,31 +319,25 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     setHookText('');
     setMusicMood('upbeat');
     setReviewCuts([]);
-    setSrtEntries([]);
-    setCaptionEdits({});
     setAdjustColor('');
     setAdjustFont('');
+    setHookTextEdit('');
     setIsAdjusting(false);
-    setEditingCaptionIdx(null);
   };
 
   const handleApplyAdjustments = async () => {
     if (!jobId) return;
-    const hasCaptionEdits = Object.keys(captionEdits).length > 0;
     const hasColorEdit = !!adjustColor;
     const hasFontEdit = !!adjustFont;
-    if (!hasCaptionEdits && !hasColorEdit && !hasFontEdit) return;
+    const hasHookEdit = hookTextEdit.trim().toUpperCase() !== hookText.trim().toUpperCase();
+    if (!hasColorEdit && !hasFontEdit && !hasHookEdit) return;
 
     setIsAdjusting(true);
     try {
-      const edits = Object.entries(captionEdits).map(([idx, text]) => ({
-        index: parseInt(idx, 10),
-        text,
-      }));
       await SocialMediaAgentService.adjustVideoProduction(jobId, {
         captionColor: hasColorEdit ? adjustColor : undefined,
-        captionTextEdits: hasCaptionEdits ? edits : undefined,
         captionFont: hasFontEdit ? adjustFont : undefined,
+        hookText: hasHookEdit ? hookTextEdit.trim().toUpperCase() : undefined,
       });
       setOutputUrl(null);
       setPhase('rendering');
@@ -853,114 +845,33 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           </div>
 
           {/* Caption text edits */}
-          {srtEntries.length > 0 && (
-            <div>
-              <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Edit captions</div>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6,
-                  maxHeight: 220,
-                  overflowY: 'auto',
-                  paddingRight: 4,
-                }}
-              >
-                {srtEntries.map((entry) => {
-                  const isEditing = editingCaptionIdx === entry.index;
-                  const currentText = captionEdits[entry.index] ?? entry.text;
-                  const isEdited = captionEdits[entry.index] !== undefined;
-                  return (
-                    <div
-                      key={entry.index}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        background: isEdited ? '#fff8fb' : '#fff',
-                        border: `1px solid ${isEdited ? '#C2185B44' : '#ece9e6'}`,
-                        borderRadius: 8,
-                        padding: '6px 10px',
-                      }}
-                    >
-                      <span style={{ fontSize: 10, color: '#bbb', minWidth: 18, fontWeight: 600 }}>{entry.index}</span>
-                      {isEditing ? (
-                        <input
-                          autoFocus
-                          value={currentText}
-                          onChange={(e) => setCaptionEdits((prev) => ({ ...prev, [entry.index]: e.target.value }))}
-                          onBlur={() => {
-                            if (captionEdits[entry.index] === entry.text) {
-                              setCaptionEdits((prev) => {
-                                const next = { ...prev };
-                                delete next[entry.index];
-                                return next;
-                              });
-                            }
-                            setEditingCaptionIdx(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === 'Escape') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          style={{
-                            flex: 1,
-                            fontSize: 12,
-                            border: 'none',
-                            outline: '1.5px solid #C2185B',
-                            borderRadius: 4,
-                            padding: '2px 6px',
-                            background: '#fff',
-                            color: '#111',
-                          }}
-                        />
-                      ) : (
-                        <span
-                          onClick={() => setEditingCaptionIdx(entry.index)}
-                          style={{
-                            flex: 1,
-                            fontSize: 12,
-                            color: '#333',
-                            cursor: 'text',
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {currentText}
-                        </span>
-                      )}
-                      {isEdited && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setCaptionEdits((prev) => {
-                              const next = { ...prev };
-                              delete next[entry.index];
-                              return next;
-                            })
-                          }
-                          style={{
-                            fontSize: 10,
-                            color: '#aaa',
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: 0,
-                            flexShrink: 0,
-                          }}
-                        >
-                          ↺
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Hook text edit */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Edit hook text</div>
+            <input
+              type="text"
+              value={hookTextEdit}
+              onChange={(e) => setHookTextEdit(e.target.value.toUpperCase())}
+              style={{
+                width: '100%',
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: '0.03em',
+                padding: '8px 10px',
+                border: '1.5px solid #ddd',
+                borderRadius: 8,
+                background: '#fff',
+                color: '#111',
+                boxSizing: 'border-box',
+                outline: 'none',
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = '#C2185B')}
+              onBlur={(e) => (e.currentTarget.style.borderColor = '#ddd')}
+            />
+          </div>
 
           {/* Apply button */}
-          {(Object.keys(captionEdits).length > 0 || adjustColor || adjustFont) && (
+          {(adjustColor || adjustFont || hookTextEdit.trim().toUpperCase() !== hookText.trim().toUpperCase()) && (
             <button
               type="button"
               onClick={handleApplyAdjustments}

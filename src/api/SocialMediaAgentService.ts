@@ -842,12 +842,14 @@ export class SocialMediaAgentService {
       captionColor?: string;
       captionTextEdits?: { index: number; text: string }[];
       captionFont?: string;
+      hookText?: string;
     }
   ): Promise<UriResponse<{ job_id: string; status: string }>> {
     const body: Record<string, unknown> = {};
     if (opts.captionColor) body.caption_color = opts.captionColor;
     if (opts.captionTextEdits?.length) body.caption_text_edits = opts.captionTextEdits;
     if (opts.captionFont) body.caption_font = opts.captionFont;
+    if (opts.hookText) body.hook_text = opts.hookText;
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/adjust`,
       body
