@@ -258,7 +258,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
     console.log('Selected platforms:', selectedPlatforms);
 
     // Check email verification first
-    if (requireEmailVerification()) {
+    if (!requireEmailVerification()) {
       console.log('❌ Email verification required');
       return;
     }
