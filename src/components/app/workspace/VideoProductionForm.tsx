@@ -124,7 +124,12 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [adjustColor, setAdjustColor] = useState<string>('');
   const [adjustFont, setAdjustFont] = useState<string>('');
   const [hookTextEdit, setHookTextEdit] = useState<string>('');
+  const [srtEntries, setSrtEntries] = useState<{ index: number; text: string }[]>([]);
+  const [captionEdits, setCaptionEdits] = useState<Record<number, string>>({});
+  const [editingCaptionIdx, setEditingCaptionIdx] = useState<number | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [isAdjusting, setIsAdjusting] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     return () => {
@@ -183,6 +188,9 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           const newHookText = (j as { ai_decisions?: { hook_text?: string } }).ai_decisions?.hook_text ?? hookText;
           setHookText(newHookText);
           setHookTextEdit(newHookText);
+          setSrtEntries(parseSrt((j as { srt?: string }).srt ?? ''));
+          setCaptionEdits({});
+          setEditingCaptionIdx(null);
           setAdjustColor('');
           setAdjustFont('');
           setIsAdjusting(false);
@@ -322,7 +330,31 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     setAdjustColor('');
     setAdjustFont('');
     setHookTextEdit('');
+    setSrtEntries([]);
+    setCaptionEdits({});
+    setEditingCaptionIdx(null);
+    setThumbnailUrl(null);
     setIsAdjusting(false);
+  };
+
+  const captureFrame = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    setThumbnailUrl(canvas.toDataURL('image/jpeg', 0.85));
+  };
+
+  const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setThumbnailUrl(ev.target?.result as string);
+    reader.readAsDataURL(file);
   };
 
   const handleApplyAdjustments = async () => {
@@ -330,14 +362,20 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     const hasColorEdit = !!adjustColor;
     const hasFontEdit = !!adjustFont;
     const hasHookEdit = hookTextEdit.trim().toUpperCase() !== hookText.trim().toUpperCase();
-    if (!hasColorEdit && !hasFontEdit && !hasHookEdit) return;
+    const hasCaptionEdits = Object.keys(captionEdits).length > 0;
+    if (!hasColorEdit && !hasFontEdit && !hasHookEdit && !hasCaptionEdits) return;
 
     setIsAdjusting(true);
     try {
+      const edits = Object.entries(captionEdits).map(([idx, text]) => ({
+        index: parseInt(idx, 10),
+        text,
+      }));
       await SocialMediaAgentService.adjustVideoProduction(jobId, {
         captionColor: hasColorEdit ? adjustColor : undefined,
         captionFont: hasFontEdit ? adjustFont : undefined,
         hookText: hasHookEdit ? hookTextEdit.trim().toUpperCase() : undefined,
+        captionTextEdits: hasCaptionEdits ? edits : undefined,
       });
       setOutputUrl(null);
       setPhase('rendering');
@@ -704,9 +742,11 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           style={{ borderRadius: 12, overflow: 'hidden', background: '#000', marginBottom: 16, position: 'relative' }}
         >
           <video
+            ref={videoRef}
             src={outputUrl}
             controls
             playsInline
+            poster={thumbnailUrl ?? undefined}
             style={{ width: '100%', maxHeight: 480, display: 'block', objectFit: 'contain' }}
           />
         </div>
@@ -844,7 +884,6 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
             </div>
           </div>
 
-          {/* Caption text edits */}
           {/* Hook text edit */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Edit hook text</div>
@@ -870,8 +909,174 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
             />
           </div>
 
+          {/* Caption text edits */}
+          {srtEntries.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Edit captions</div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                  paddingRight: 4,
+                }}
+              >
+                {srtEntries.map((entry) => {
+                  const isEditing = editingCaptionIdx === entry.index;
+                  const currentText = captionEdits[entry.index] ?? entry.text;
+                  const isEdited = captionEdits[entry.index] !== undefined;
+                  return (
+                    <div
+                      key={entry.index}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        background: isEdited ? '#fff8fb' : '#fff',
+                        border: `1px solid ${isEdited ? '#C2185B44' : '#ece9e6'}`,
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                      }}
+                    >
+                      <span style={{ fontSize: 10, color: '#bbb', minWidth: 18, fontWeight: 600 }}>{entry.index}</span>
+                      {isEditing ? (
+                        <input
+                          autoFocus
+                          value={currentText}
+                          onChange={(e) => setCaptionEdits((prev) => ({ ...prev, [entry.index]: e.target.value }))}
+                          onBlur={() => {
+                            if (captionEdits[entry.index] === entry.text) {
+                              setCaptionEdits((prev) => {
+                                const n = { ...prev };
+                                delete n[entry.index];
+                                return n;
+                              });
+                            }
+                            setEditingCaptionIdx(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur();
+                          }}
+                          style={{
+                            flex: 1,
+                            fontSize: 12,
+                            border: 'none',
+                            outline: '1.5px solid #C2185B',
+                            borderRadius: 4,
+                            padding: '2px 6px',
+                            background: '#fff',
+                            color: '#111',
+                          }}
+                        />
+                      ) : (
+                        <span
+                          onClick={() => setEditingCaptionIdx(entry.index)}
+                          style={{ flex: 1, fontSize: 12, color: '#333', cursor: 'text', lineHeight: 1.4 }}
+                        >
+                          {currentText}
+                        </span>
+                      )}
+                      {isEdited && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCaptionEdits((prev) => {
+                              const n = { ...prev };
+                              delete n[entry.index];
+                              return n;
+                            })
+                          }
+                          style={{
+                            fontSize: 10,
+                            color: '#aaa',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 0,
+                            flexShrink: 0,
+                          }}
+                        >
+                          ↺
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Thumbnail / cover image */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Cover image</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={captureFrame}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 20,
+                  border: '1.5px solid #ddd',
+                  background: '#fff',
+                  color: '#444',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                Capture current frame
+              </button>
+              <label
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 20,
+                  border: '1.5px solid #ddd',
+                  background: '#fff',
+                  color: '#444',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                Upload image
+                <input type="file" accept="image/*" onChange={handleThumbnailUpload} style={{ display: 'none' }} />
+              </label>
+              {thumbnailUrl && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <img
+                    src={thumbnailUrl}
+                    alt="Cover"
+                    style={{ height: 40, borderRadius: 6, border: '1.5px solid #ddd', objectFit: 'cover' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setThumbnailUrl(null)}
+                    style={{
+                      fontSize: 11,
+                      color: '#aaa',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
+            {!thumbnailUrl && (
+              <div style={{ fontSize: 11, color: '#bbb', marginTop: 6 }}>
+                Seek the video above to your desired frame, then capture.
+              </div>
+            )}
+          </div>
+
           {/* Apply button */}
-          {(adjustColor || adjustFont || hookTextEdit.trim().toUpperCase() !== hookText.trim().toUpperCase()) && (
+          {(adjustColor ||
+            adjustFont ||
+            hookTextEdit.trim().toUpperCase() !== hookText.trim().toUpperCase() ||
+            Object.keys(captionEdits).length > 0) && (
             <button
               type="button"
               onClick={handleApplyAdjustments}
