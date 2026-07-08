@@ -850,7 +850,8 @@ export class SocialMediaAgentService {
     if (opts.captionFont) formData.append('caption_font', opts.captionFont);
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/adjust`,
-      formData
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
     );
     return response.data;
   }
