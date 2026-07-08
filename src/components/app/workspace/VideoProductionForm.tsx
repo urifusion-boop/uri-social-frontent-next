@@ -9,16 +9,22 @@ const ACCEPTED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m
 
 function parseSrt(srt: string): { index: number; text: string }[] {
   if (!srt.trim()) return [];
-  const blocks = srt.trim().split(/\n\s*\n/);
+  const normalized = srt.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const entries: { index: number; text: string }[] = [];
-  for (const block of blocks) {
-    const lines = block.trim().split('\n');
-    if (lines.length < 3) continue;
+  // Find every block start: a line containing only digits, followed by a timestamp line.
+  // This works regardless of whether blocks are separated by blank lines.
+  const re = /^\d+\n\d{2}:\d{2}:\d{2}[,.]\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}[,.]\d{3}/gm;
+  const starts: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(normalized)) !== null) starts.push(m.index);
+  starts.forEach((start, i) => {
+    const end = i + 1 < starts.length ? starts[i + 1] : normalized.length;
+    const block = normalized.slice(start, end).trim();
+    const lines = block.split('\n');
     const idx = parseInt(lines[0], 10);
-    if (isNaN(idx)) continue;
     const text = lines.slice(2).join(' ').trim();
-    if (text) entries.push({ index: idx, text });
-  }
+    if (!isNaN(idx) && text) entries.push({ index: idx, text });
+  });
   return entries;
 }
 
