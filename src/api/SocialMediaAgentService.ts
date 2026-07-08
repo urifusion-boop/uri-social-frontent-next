@@ -844,14 +844,13 @@ export class SocialMediaAgentService {
       captionFont?: string;
     }
   ): Promise<UriResponse<{ job_id: string; status: string }>> {
-    const formData = new FormData();
-    if (opts.captionColor) formData.append('caption_color', opts.captionColor);
-    if (opts.captionTextEdits?.length) formData.append('caption_text_edits', JSON.stringify(opts.captionTextEdits));
-    if (opts.captionFont) formData.append('caption_font', opts.captionFont);
+    const body: Record<string, unknown> = {};
+    if (opts.captionColor) body.caption_color = opts.captionColor;
+    if (opts.captionTextEdits?.length) body.caption_text_edits = opts.captionTextEdits;
+    if (opts.captionFont) body.caption_font = opts.captionFont;
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/adjust`,
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      body
     );
     return response.data;
   }
