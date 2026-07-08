@@ -4873,6 +4873,7 @@ const PlaybookPage = ({
         custom_font_directive: customFontDirective,
       };
       console.log('💾 SAVE PLAYBOOK DEBUG:', { logoPosition, logoSize, updated_logo_size: updated.logo_size });
+      console.log('💾 FULL PAYLOAD BEING SENT:', JSON.stringify(updated, null, 2));
       const saveRes = await BrandProfileService.save(updated);
       if (!saveRes.status) {
         throw new Error(saveRes.responseMessage || 'Save failed');
@@ -5196,7 +5197,10 @@ const PlaybookPage = ({
               {(['small', 'medium', 'large'] as const).map((size) => (
                 <button
                   key={size}
-                  onClick={() => setLogoSize(size)}
+                  onClick={() => {
+                    console.log('🎯 Logo size button clicked:', size);
+                    setLogoSize(size);
+                  }}
                   style={{
                     padding: '6px 16px',
                     borderRadius: 6,
