@@ -812,11 +812,11 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {[
                 { label: 'Montserrat', desc: 'Default' },
-                { label: 'Anton', desc: 'Bold' },
-                { label: 'Bebas Neue', desc: 'Condensed' },
-                { label: 'Oswald', desc: 'Strong' },
-                { label: 'Raleway', desc: 'Elegant' },
-                { label: 'Bangers', desc: 'Playful' },
+                { label: 'Anton', desc: 'Heavy' },
+                { label: 'Bangers', desc: 'Comic' },
+                { label: 'Pacifico', desc: 'Script' },
+                { label: 'Permanent Marker', desc: 'Handwritten' },
+                { label: 'Press Start 2P', desc: 'Retro' },
               ].map((f) => {
                 const selected = adjustFont === f.label;
                 return (
