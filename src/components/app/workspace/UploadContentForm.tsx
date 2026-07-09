@@ -70,6 +70,11 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   const [postType, setPostType] = useState<'feed' | 'carousel' | 'story'>('feed');
   const [isDragging, setIsDragging] = useState(false);
 
+  // Overlay options
+  const [addLogo, setAddLogo] = useState(false);
+  const [addCTA, setAddCTA] = useState(false);
+  const [customCTA, setCustomCTA] = useState('');
+
   // Billing modals
   const [outOfCreditsOpen, setOutOfCreditsOpen] = useState(false);
   const [lowCreditWarningOpen, setLowCreditWarningOpen] = useState(false);
@@ -205,6 +210,9 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
         context_text: contextText.trim(),
         platforms: selectedPlatforms,
         post_type: postType,
+        add_logo: addLogo,
+        add_cta: addCTA,
+        custom_cta: customCTA.trim(),
       };
 
       const response = await SocialMediaAgentService.uploadUserContent(payload);
@@ -409,6 +417,89 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
           }}
         />
       </Box>
+
+      {/* Overlay Options */}
+      {!hasVideo && uploadedFiles.length > 0 && (
+        <Box sx={{ marginBottom: 2 }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#111', marginBottom: 1 }}>
+            Overlay Options (Optional)
+          </Typography>
+          <Box
+            sx={{
+              padding: 2,
+              backgroundColor: '#F9FAFB',
+              borderRadius: 2,
+              border: '1px solid #E5E7EB',
+            }}
+          >
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={addLogo}
+                  onChange={(e) => setAddLogo(e.target.checked)}
+                  sx={{
+                    color: '#CD1B78',
+                    '&.Mui-checked': { color: '#CD1B78' },
+                  }}
+                />
+              }
+              label={
+                <Box>
+                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Add my brand logo</Typography>
+                  <Typography sx={{ fontSize: 11, color: '#6B7280' }}>
+                    Place your logo on the image (uses your brand settings)
+                  </Typography>
+                </Box>
+              }
+            />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={addCTA}
+                  onChange={(e) => setAddCTA(e.target.checked)}
+                  sx={{
+                    color: '#CD1B78',
+                    '&.Mui-checked': { color: '#CD1B78' },
+                  }}
+                />
+              }
+              label={
+                <Box>
+                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Add CTA overlay</Typography>
+                  <Typography sx={{ fontSize: 11, color: '#6B7280' }}>
+                    Add a call-to-action text to your image
+                  </Typography>
+                </Box>
+              }
+            />
+
+            {addCTA && (
+              <Box sx={{ marginTop: 1.5, marginLeft: 4 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  value={customCTA}
+                  onChange={(e) => setCustomCTA(e.target.value)}
+                  placeholder="Custom CTA (or leave blank for default)"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: 13,
+                      backgroundColor: '#fff',
+                      '& fieldset': { borderColor: '#E5E7EB' },
+                      '&:hover fieldset': { borderColor: '#CD1B78' },
+                      '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
+                    },
+                  }}
+                />
+                <Typography sx={{ fontSize: 11, color: '#9CA3AF', marginTop: 0.5 }}>
+                  Leave blank to use your default CTA from brand profile
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      )}
 
       {/* Platform Selection */}
       <Box sx={{ marginBottom: 2 }}>
