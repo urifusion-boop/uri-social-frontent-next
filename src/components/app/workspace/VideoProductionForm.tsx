@@ -343,16 +343,21 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     setIsAdjusting(false);
   };
 
-  const captureFrame = () => {
+  const [isCapturingFrame, setIsCapturingFrame] = useState(false);
+
+  const captureFrame = async () => {
+    if (!jobId) return;
     const video = videoRef.current;
-    if (!video) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
-    setThumbnailUrl(canvas.toDataURL('image/jpeg', 0.85));
+    const seconds = video ? Math.floor(video.currentTime) : 0;
+    setIsCapturingFrame(true);
+    try {
+      const url = await SocialMediaAgentService.captureVideoFrame(jobId, seconds);
+      setThumbnailUrl(url);
+    } catch {
+      ToastService.showToast('Could not capture frame — try uploading a custom image instead.', ToastTypeEnum.Error);
+    } finally {
+      setIsCapturingFrame(false);
+    }
   };
 
   const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1021,17 +1026,18 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
               <button
                 type="button"
                 onClick={captureFrame}
+                disabled={isCapturingFrame}
                 style={{
                   padding: '5px 12px',
                   borderRadius: 20,
                   border: '1.5px solid #ddd',
                   background: '#fff',
-                  color: '#444',
+                  color: isCapturingFrame ? '#aaa' : '#444',
                   fontSize: 12,
-                  cursor: 'pointer',
+                  cursor: isCapturingFrame ? 'not-allowed' : 'pointer',
                 }}
               >
-                Capture current frame
+                {isCapturingFrame ? 'Capturing…' : 'Capture current frame'}
               </button>
               <label
                 style={{

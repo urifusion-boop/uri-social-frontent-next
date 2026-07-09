@@ -857,6 +857,14 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async captureVideoFrame(jobId: string, seconds: number): Promise<string> {
+    const response = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/capture-frame?t=${seconds}`,
+      { responseType: 'blob' }
+    );
+    return URL.createObjectURL(response.data);
+  }
+
   static async generateStoryboardFrames(
     scenes: StoryboardScene[],
     brandImages: string[] = []
