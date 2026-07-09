@@ -843,6 +843,8 @@ export class SocialMediaAgentService {
       captionTextEdits?: { index: number; text: string }[];
       captionFont?: string;
       hookText?: string;
+      hookTextColor?: string;
+      hookTextSize?: number;
     }
   ): Promise<UriResponse<{ job_id: string; status: string }>> {
     const body: Record<string, unknown> = {};
@@ -850,6 +852,8 @@ export class SocialMediaAgentService {
     if (opts.captionTextEdits?.length) body.caption_text_edits = opts.captionTextEdits;
     if (opts.captionFont) body.caption_font = opts.captionFont;
     if (opts.hookText) body.hook_text = opts.hookText;
+    if (opts.hookTextColor) body.hook_text_color = opts.hookTextColor;
+    if (opts.hookTextSize) body.hook_text_size = opts.hookTextSize;
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/adjust`,
       body

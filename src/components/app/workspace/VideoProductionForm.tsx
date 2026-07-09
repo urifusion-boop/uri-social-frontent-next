@@ -130,6 +130,8 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [adjustColor, setAdjustColor] = useState<string>('');
   const [adjustFont, setAdjustFont] = useState<string>('');
   const [hookTextEdit, setHookTextEdit] = useState<string>('');
+  const [adjustHookColor, setAdjustHookColor] = useState<string>('');
+  const [adjustHookSize, setAdjustHookSize] = useState<number | null>(null);
   const [srtEntries, setSrtEntries] = useState<{ index: number; text: string }[]>([]);
   const [captionEdits, setCaptionEdits] = useState<Record<number, string>>({});
   const [editingCaptionIdx, setEditingCaptionIdx] = useState<number | null>(null);
@@ -199,6 +201,8 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
           setEditingCaptionIdx(null);
           setAdjustColor('');
           setAdjustFont('');
+          setAdjustHookColor('');
+          setAdjustHookSize(null);
           setIsAdjusting(false);
           setPhase('ready');
         } else if (j.status === 'failed') {
@@ -335,6 +339,8 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     setReviewCuts([]);
     setAdjustColor('');
     setAdjustFont('');
+    setAdjustHookColor('');
+    setAdjustHookSize(null);
     setHookTextEdit('');
     setSrtEntries([]);
     setCaptionEdits({});
@@ -374,7 +380,10 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     const hasFontEdit = !!adjustFont;
     const hasHookEdit = hookTextEdit.trim().toUpperCase() !== hookText.trim().toUpperCase();
     const hasCaptionEdits = Object.keys(captionEdits).length > 0;
-    if (!hasColorEdit && !hasFontEdit && !hasHookEdit && !hasCaptionEdits) return;
+    const hasHookColorEdit = !!adjustHookColor;
+    const hasHookSizeEdit = adjustHookSize !== null;
+    if (!hasColorEdit && !hasFontEdit && !hasHookEdit && !hasCaptionEdits && !hasHookColorEdit && !hasHookSizeEdit)
+      return;
 
     setIsAdjusting(true);
     try {
@@ -387,6 +396,8 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
         captionFont: hasFontEdit ? adjustFont : undefined,
         hookText: hasHookEdit ? hookTextEdit.trim().toUpperCase() : undefined,
         captionTextEdits: hasCaptionEdits ? edits : undefined,
+        hookTextColor: hasHookColorEdit ? adjustHookColor : undefined,
+        hookTextSize: hasHookSizeEdit ? adjustHookSize! : undefined,
       });
       setOutputUrl(null);
       setPhase('rendering');
@@ -918,6 +929,86 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
               onFocus={(e) => (e.currentTarget.style.borderColor = '#C2185B')}
               onBlur={(e) => (e.currentTarget.style.borderColor = '#ddd')}
             />
+
+            {/* Hook text color */}
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 11, color: '#999', marginBottom: 6, fontWeight: 600 }}>Hook text color</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {[
+                  { label: 'White', value: '#ffffff' },
+                  { label: 'Black', value: '#000000' },
+                  { label: 'Yellow', value: '#FFD700' },
+                  { label: 'Red', value: '#FF3B3B' },
+                  { label: 'Sky', value: '#38BDF8' },
+                ].map((c) => {
+                  const selected = adjustHookColor === c.value;
+                  return (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() => setAdjustHookColor(selected ? '' : c.value)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '4px 10px',
+                        borderRadius: 20,
+                        border: selected ? '2px solid #C2185B' : '1.5px solid #ddd',
+                        background: selected ? '#fce4ec' : '#fff',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          background: c.value,
+                          border: '1px solid #ccc',
+                          display: 'inline-block',
+                        }}
+                      />
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Hook text size */}
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 11, color: '#999', marginBottom: 6, fontWeight: 600 }}>Hook text size</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[
+                  { label: 'S', value: 36 },
+                  { label: 'M', value: 52 },
+                  { label: 'L', value: 68 },
+                  { label: 'XL', value: 84 },
+                ].map((s) => {
+                  const selected = adjustHookSize === s.value;
+                  return (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => setAdjustHookSize(selected ? null : s.value)}
+                      style={{
+                        padding: '4px 14px',
+                        borderRadius: 20,
+                        border: selected ? '2px solid #C2185B' : '1.5px solid #ddd',
+                        background: selected ? '#fce4ec' : '#fff',
+                        color: selected ? '#C2185B' : '#444',
+                        fontWeight: selected ? 700 : 400,
+                        fontSize: 12,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Caption text edits */}
