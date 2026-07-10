@@ -38,28 +38,38 @@ const CAPTION_COLOR_PRESETS = [
 ];
 const MAX_MB = 500;
 
-const VIDEO_TYPES = [
+const VIDEO_STYLE_TEMPLATES = [
   {
-    key: 'tiktok',
-    label: 'TikTok / Hype',
-    desc: 'Fast cuts, punchy zooms, hook in first second',
-    icon: '⚡',
-  },
-  {
-    key: 'product',
-    label: 'Product Showcase',
-    desc: 'Snappy, product-focused, moderate effects',
+    id: 'product_showcase',
+    name: 'Product Showcase',
+    feel: 'Clean, bright, aspirational',
+    hints: ['Medium pace', 'Soft transitions', 'Clean captions'],
     icon: '📦',
   },
   {
-    key: 'founder',
-    label: 'Founder / Story',
-    desc: 'Gentle pacing, natural rhythm, minimal cuts',
-    icon: '🎙️',
+    id: 'fast_founder',
+    name: 'Fast Founder',
+    feel: 'Punchy, direct, high-energy',
+    hints: ['Jump cuts', 'Bold captions', 'Driving music'],
+    icon: '🔥',
+  },
+  {
+    id: 'customer_testimonial',
+    name: 'Customer Testimonial',
+    feel: 'Warm, authentic, trustworthy',
+    hints: ['Natural pace', 'Gentle transitions', 'Soft music'],
+    icon: '⭐',
+  },
+  {
+    id: 'tiktok_energy',
+    name: 'TikTok Energy',
+    feel: 'Fast, loud, hyper-engaging',
+    hints: ['Rapid cuts', 'Big captions', 'High-energy music'],
+    icon: '⚡',
   },
 ] as const;
 
-type VideoType = 'tiktok' | 'product' | 'founder';
+type TemplateId = 'product_showcase' | 'fast_founder' | 'customer_testimonial' | 'tiktok_energy';
 type Phase = 'pick' | 'uploading' | 'processing' | 'review' | 'rendering' | 'ready' | 'failed';
 
 interface BrollDecision {
@@ -84,7 +94,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [isDragging, setIsDragging] = useState(false);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
-  const [videoType, setVideoType] = useState<VideoType>('founder');
+  const [templateId, setTemplateId] = useState<TemplateId>('fast_founder');
   const [enableMusic, setEnableMusic] = useState(true);
   const [muteOriginalAudio, setMuteOriginalAudio] = useState(false);
   const [enableWhoosh, setEnableWhoosh] = useState(true);
@@ -92,13 +102,6 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [customMusicFile, setCustomMusicFile] = useState<File | null>(null);
   const customMusicInputRef = useRef<HTMLInputElement>(null);
 
-  // When video type changes, reset captions and mute-original to sensible defaults.
-  // product = captions off, mute original on (b-roll; original audio is ambient noise).
-  // founder/tiktok = captions on, keep original audio (speaker voice is the content).
-  useEffect(() => {
-    setEnableCaptions(videoType !== 'product');
-    setMuteOriginalAudio(videoType === 'product');
-  }, [videoType]);
   const [transitionStyle, setTransitionStyle] = useState('auto');
 
   // When sourceUrl is provided (transferred from Multi-Clip Composer), skip the pick phase
@@ -281,7 +284,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
       } else if (sourceUrl) {
         formData.append('source_url', sourceUrl);
       }
-      formData.append('video_type', videoType);
+      formData.append('template_id', templateId);
       formData.append('enable_music', String(enableMusic));
       formData.append('mute_original_audio', String(enableMusic && muteOriginalAudio));
       formData.append('enable_sfx', String(enableWhoosh));
@@ -1354,7 +1357,7 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
         </div>
       </div>
 
-      {/* Video type picker */}
+      {/* Style template picker */}
       <div style={{ marginBottom: 18 }}>
         <div
           style={{
@@ -1366,18 +1369,17 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
             letterSpacing: '0.05em',
           }}
         >
-          What kind of video?
+          Choose a style
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {VIDEO_TYPES.map((vt) => {
-            const active = videoType === vt.key;
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {VIDEO_STYLE_TEMPLATES.map((tmpl) => {
+            const active = templateId === tmpl.id;
             return (
               <button
-                key={vt.key}
-                onClick={() => setVideoType(vt.key)}
+                key={tmpl.id}
+                onClick={() => setTemplateId(tmpl.id as TemplateId)}
                 style={{
-                  flex: 1,
-                  padding: '10px 8px',
+                  padding: '10px 12px',
                   borderRadius: 10,
                   cursor: 'pointer',
                   textAlign: 'left',
@@ -1386,9 +1388,30 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
                   transition: 'all 0.15s',
                 }}
               >
-                <div style={{ fontSize: 18, marginBottom: 4 }}>{vt.icon}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: active ? '#C2185B' : '#111' }}>{vt.label}</div>
-                <div style={{ fontSize: 11, color: '#888', marginTop: 2, lineHeight: 1.3 }}>{vt.desc}</div>
+                <div style={{ fontSize: 20, marginBottom: 4 }}>{tmpl.icon}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: active ? '#C2185B' : '#111', marginBottom: 2 }}>
+                  {tmpl.name}
+                </div>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 6, lineHeight: 1.3, fontStyle: 'italic' }}>
+                  {tmpl.feel}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {tmpl.hints.map((hint) => (
+                    <span
+                      key={hint}
+                      style={{
+                        fontSize: 10,
+                        padding: '2px 6px',
+                        borderRadius: 10,
+                        background: active ? '#fce4ec' : '#f3f4f6',
+                        color: active ? '#C2185B' : '#555',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {hint}
+                    </span>
+                  ))}
+                </div>
               </button>
             );
           })}
