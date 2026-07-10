@@ -74,6 +74,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   const [addLogo, setAddLogo] = useState(false);
   const [addCTA, setAddCTA] = useState(false);
   const [customCTA, setCustomCTA] = useState('');
+  const [logoPositionOverride, setLogoPositionOverride] = useState('');
 
   // Billing modals
   const [outOfCreditsOpen, setOutOfCreditsOpen] = useState(false);
@@ -213,6 +214,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
         add_logo: addLogo,
         add_cta: addCTA,
         custom_cta: customCTA.trim(),
+        logo_position_override: logoPositionOverride,
       };
 
       const response = await SocialMediaAgentService.uploadUserContent(payload);
@@ -439,11 +441,43 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
                 <Box>
                   <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Add my brand logo</Typography>
                   <Typography sx={{ fontSize: 11, color: '#6B7280' }}>
-                    Place your logo on the image (uses your brand settings)
+                    AI will find the best position to avoid covering content
                   </Typography>
                 </Box>
               }
             />
+
+            {addLogo && (
+              <Box sx={{ marginTop: 1.5, marginLeft: 4 }}>
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#111', marginBottom: 0.5 }}>
+                  Logo Position (Optional)
+                </Typography>
+                <select
+                  value={logoPositionOverride}
+                  onChange={(e) => setLogoPositionOverride(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: '13px',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '6px',
+                    backgroundColor: '#fff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="">Auto (AI will choose best position)</option>
+                  <option value="top_left">Top Left</option>
+                  <option value="top_center">Top Center</option>
+                  <option value="top_right">Top Right</option>
+                  <option value="bottom_left">Bottom Left</option>
+                  <option value="bottom_center">Bottom Center</option>
+                  <option value="bottom_right">Bottom Right</option>
+                </select>
+                <Typography sx={{ fontSize: 11, color: '#9CA3AF', marginTop: 0.5 }}>
+                  Leave as "Auto" to let AI choose the position that won't cover important content
+                </Typography>
+              </Box>
+            )}
 
             <FormControlLabel
               control={
@@ -460,7 +494,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
                 <Box>
                   <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Add CTA overlay</Typography>
                   <Typography sx={{ fontSize: 11, color: '#6B7280' }}>
-                    Add a call-to-action text to your image
+                    AI will add CTA text in the best position without covering content
                   </Typography>
                 </Box>
               }
