@@ -479,49 +479,54 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
               </Box>
             )}
 
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={addCTA}
-                  onChange={(e) => setAddCTA(e.target.checked)}
-                  sx={{
-                    color: '#CD1B78',
-                    '&.Mui-checked': { color: '#CD1B78' },
-                  }}
+            {/* CTA overlay temporarily hidden - quality issues with text rendering */}
+            {false && (
+              <>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={addCTA}
+                      onChange={(e) => setAddCTA(e.target.checked)}
+                      sx={{
+                        color: '#CD1B78',
+                        '&.Mui-checked': { color: '#CD1B78' },
+                      }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Add CTA overlay</Typography>
+                      <Typography sx={{ fontSize: 11, color: '#6B7280' }}>
+                        AI will add CTA text in the best position without covering content
+                      </Typography>
+                    </Box>
+                  }
                 />
-              }
-              label={
-                <Box>
-                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Add CTA overlay</Typography>
-                  <Typography sx={{ fontSize: 11, color: '#6B7280' }}>
-                    AI will add CTA text in the best position without covering content
-                  </Typography>
-                </Box>
-              }
-            />
 
-            {addCTA && (
-              <Box sx={{ marginTop: 1.5, marginLeft: 4 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  value={customCTA}
-                  onChange={(e) => setCustomCTA(e.target.value)}
-                  placeholder="Custom CTA (or leave blank for default)"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      fontSize: 13,
-                      backgroundColor: '#fff',
-                      '& fieldset': { borderColor: '#E5E7EB' },
-                      '&:hover fieldset': { borderColor: '#CD1B78' },
-                      '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
-                    },
-                  }}
-                />
-                <Typography sx={{ fontSize: 11, color: '#9CA3AF', marginTop: 0.5 }}>
-                  Leave blank to use your default CTA from brand profile
-                </Typography>
-              </Box>
+                {addCTA && (
+                  <Box sx={{ marginTop: 1.5, marginLeft: 4 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={customCTA}
+                      onChange={(e) => setCustomCTA(e.target.value)}
+                      placeholder="Custom CTA (or leave blank for default)"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          fontSize: 13,
+                          backgroundColor: '#fff',
+                          '& fieldset': { borderColor: '#E5E7EB' },
+                          '&:hover fieldset': { borderColor: '#CD1B78' },
+                          '&.Mui-focused fieldset': { borderColor: '#CD1B78' },
+                        },
+                      }}
+                    />
+                    <Typography sx={{ fontSize: 11, color: '#9CA3AF', marginTop: 0.5 }}>
+                      Leave blank to use your default CTA from brand profile
+                    </Typography>
+                  </Box>
+                )}
+              </>
             )}
           </Box>
         </Box>
