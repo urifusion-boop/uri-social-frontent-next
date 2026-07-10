@@ -43,6 +43,7 @@ export interface BrandProfileData {
   product_description?: string;
   logo_url?: string;
   logo_position?: string;
+  logo_size?: string;
   brand_colors?: string[];
   personality_quiz?: Record<string, string>;
   derived_voice?: string;
