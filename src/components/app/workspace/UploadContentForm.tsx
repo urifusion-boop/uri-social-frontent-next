@@ -263,21 +263,29 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   };
 
   const handleGenerate = async () => {
+    console.log('🔍 Upload Content - handleGenerate called');
+    console.log('📁 Uploaded files:', uploadedFiles.length);
+    console.log('🎯 Selected platforms:', selectedPlatforms);
+
     // Check email verification first
     if (requireEmailVerification()) {
+      console.log('⚠️ Email verification required - stopping');
       return;
     }
 
     if (uploadedFiles.length === 0) {
+      console.log('⚠️ No files uploaded');
       ToastService.showToast('Please upload at least one image or video', ToastTypeEnum.Error);
       return;
     }
 
     if (selectedPlatforms.length === 0) {
+      console.log('⚠️ No platforms selected');
       ToastService.showToast('Please select at least one platform', ToastTypeEnum.Error);
       return;
     }
 
+    console.log('✅ All checks passed - calling doGenerate');
     await doGenerate();
   };
 
