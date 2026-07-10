@@ -1322,9 +1322,26 @@ const ContentManagerPage = ({
             )}
             {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
-            {/* Upload Content button only */}
+            {/* Create mode toggle: Generate vs Upload */}
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setCreateMode('generate')}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 10,
+                    border: createMode === 'generate' ? 'none' : '1.5px solid #E5E7EB',
+                    background:
+                      createMode === 'generate' ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                    color: createMode === 'generate' ? '#fff' : '#6B7280',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  ✨ Generate Content
+                </button>
                 <button
                   onClick={() => setCreateMode('upload')}
                   style={{
