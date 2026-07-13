@@ -14,6 +14,8 @@ import {
   FormControlLabel,
   FormGroup,
   IconButton,
+  Menu,
+  MenuItem,
   Switch,
   TextField,
   Tooltip,
@@ -21,7 +23,7 @@ import {
 } from '@mui/material';
 import { useRef, useState, useEffect } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
-import { MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
+import { MdAdd, MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import LowCreditWarning from '../atoms/LowCreditWarning';
 import ConfirmDialog from '../workspace/ConfirmDialog';
@@ -45,6 +47,12 @@ const POST_TYPES: Array<{
 ];
 
 const NUM_SLIDES_OPTIONS = [2, 3, 4, 5];
+const MAX_REFERENCE_IMAGES = 10;
+
+interface ReferenceImage {
+  dataUrl: string;
+  name: string;
+}
 
 interface ContentGeneratorFormProps {
   onGenerated: () => void;
@@ -75,12 +83,15 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
   const [includeImages, setIncludeImages] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [referenceImage, setReferenceImage] = useState<string | null>(null);
-  const [referenceImageName, setReferenceImageName] = useState<string>('');
+  const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [postType, setPostType] = useState<'feed' | 'carousel' | 'story'>('feed');
   const [numSlides, setNumSlides] = useState(3);
   const [isDragging, setIsDragging] = useState(false);
+  // Carousel slide -> reference image assignment. Empty map = auto-cycle (image 1 -> slide 1, etc.)
+  const [manualSlideAssignment, setManualSlideAssignment] = useState(false);
+  const [slideImageOverrides, setSlideImageOverrides] = useState<Record<number, number | null>>({});
+  const [assignMenu, setAssignMenu] = useState<{ anchorEl: HTMLElement; slideIndex: number } | null>(null);
   const [useCustomCta, setUseCustomCta] = useState(false);
   const [customCta, setCustomCta] = useState('');
 
@@ -111,6 +122,22 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     }
   }, [showPostTypeSelector, postType]);
 
+  // Which reference image (index) a given carousel slide will use: manual override
+  // if one was set, otherwise the default 1:1 cycle (image 1 -> slide 1, image 2 ->
+  // slide 2, wrapping around if there are fewer images than slides).
+  const slideImageIndex = (slideIndex: number): number | null => {
+    if (referenceImages.length === 0) return null;
+    if (slideIndex in slideImageOverrides) return slideImageOverrides[slideIndex];
+    return slideIndex % referenceImages.length;
+  };
+
+  const toggleManualSlideAssignment = () => {
+    setManualSlideAssignment((prev) => {
+      if (prev) setSlideImageOverrides({}); // turning off -> revert to plain auto-cycle
+      return !prev;
+    });
+  };
+
   const togglePlatform = (key: string) =>
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
 
@@ -123,10 +150,13 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
       ToastService.showToast('Image must be under 10MB', ToastTypeEnum.Error);
       return false;
     }
+    if (referenceImages.length >= MAX_REFERENCE_IMAGES) {
+      ToastService.showToast(`You can attach up to ${MAX_REFERENCE_IMAGES} reference images`, ToastTypeEnum.Error);
+      return false;
+    }
     const reader = new FileReader();
     reader.onload = () => {
-      setReferenceImage(reader.result as string);
-      setReferenceImageName(file.name);
+      setReferenceImages((prev) => [...prev, { dataUrl: reader.result as string, name: file.name }]);
       if (showSuccessToast) {
         ToastService.showToast('Image uploaded successfully', ToastTypeEnum.Success);
       }
@@ -135,11 +165,26 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     return true;
   };
 
+  const processImageFiles = (files: File[]) => {
+    const room = MAX_REFERENCE_IMAGES - referenceImages.length;
+    if (room <= 0) {
+      ToastService.showToast(`You can attach up to ${MAX_REFERENCE_IMAGES} reference images`, ToastTypeEnum.Error);
+      return;
+    }
+    files.slice(0, room).forEach((file) => processImageFile(file));
+    if (files.length > room) {
+      ToastService.showToast(
+        `Only the first ${room} image(s) were added (max ${MAX_REFERENCE_IMAGES})`,
+        ToastTypeEnum.Warning
+      );
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    processImageFile(file);
-    // Reset so same file can be re-uploaded
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    processImageFiles(files);
+    // Reset so the same file(s) can be re-uploaded
     e.target.value = '';
   };
 
@@ -167,21 +212,23 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
 
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      processImageFile(files[0]);
+      processImageFiles(files);
     }
   };
 
-  const removeReferenceImage = () => {
-    setReferenceImage(null);
-    setReferenceImageName('');
+  const removeReferenceImageAt = (index: number) => {
+    setReferenceImages((prev) => prev.filter((_, i) => i !== index));
+    // Index shifts on removal — simplest safe behaviour is to fall back to
+    // auto-cycle assignment rather than risk a stale/incorrect slide mapping.
+    setSlideImageOverrides({});
   };
 
   // Add paste event listener
   useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
-      // Only handle paste if the reference image upload area is visible and no image is selected
+      // Only handle paste if focus isn't in a text field, so we don't hijack normal text paste
       if (
-        !referenceImage &&
+        referenceImages.length < MAX_REFERENCE_IMAGES &&
         document.activeElement?.tagName !== 'TEXTAREA' &&
         document.activeElement?.tagName !== 'INPUT'
       ) {
@@ -205,7 +252,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
 
     window.addEventListener('paste', handleGlobalPaste);
     return () => window.removeEventListener('paste', handleGlobalPaste);
-  }, [referenceImage]);
+  }, [referenceImages]);
 
   // Check credits before generation
   useEffect(() => {
@@ -237,8 +284,11 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
         acknowledged_incomplete_profile: acknowledgedIncomplete,
         ...(useCustomCta && customCta.trim() ? { override_cta: customCta.trim() } : {}),
       };
-      if (referenceImage) {
-        payload.reference_image = referenceImage;
+      if (referenceImages.length > 0) {
+        payload.reference_images = referenceImages.map((img) => img.dataUrl);
+        if (postType === 'carousel') {
+          payload.slide_image_map = Array.from({ length: numSlides }, (_, i) => slideImageIndex(i));
+        }
       }
       const response = await SocialMediaAgentService.generateContent(payload);
 
@@ -248,7 +298,8 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
           platforms: selectedPlatforms,
           post_type: postType,
           include_images: includeImages,
-          has_reference_image: !!referenceImage,
+          reference_image_count: referenceImages.length,
+          manual_slide_assignment: postType === 'carousel' ? manualSlideAssignment : undefined,
           ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
         });
         onGenerated();
@@ -364,49 +415,108 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
 
       {/* Reference image upload */}
       <Typography fontSize="14px" color="#374151" mb={1} fontWeight={500}>
-        Reference image{' '}
+        Reference images{' '}
         <Typography component="span" fontSize="12px" color="#9CA3AF" fontWeight={400}>
           (optional)
         </Typography>
       </Typography>
       <Typography fontSize="12px" color="#6B7280" mb={1.5}>
-        Upload, drag & drop, or paste (Ctrl+V) a photo to give the AI visual context — e.g. a product shot, event image,
-        or reference photo.
+        Upload, drag & drop, or paste (Ctrl+V) up to {MAX_REFERENCE_IMAGES} photos to give the AI visual context — e.g.
+        product shots, event images, or reference photos.
+        {postType === 'carousel' && ' For carousels, each image is used on its own slide.'}
       </Typography>
 
-      {referenceImage ? (
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            border: '1px solid #CD1B78',
-            borderRadius: '10px',
-            px: 2,
-            py: 1.5,
-            mb: 3,
-            background: '#FDF2F8',
-          }}
-        >
-          <Box
-            component="img"
-            src={referenceImage}
-            alt="Reference"
-            sx={{ width: 56, height: 56, objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }}
-          />
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography fontSize="13px" fontWeight={600} color="#111827" noWrap>
-              {referenceImageName}
-            </Typography>
-            <Typography fontSize="12px" color="#6B7280">
-              The AI will use this image as visual context
-            </Typography>
-          </Box>
-          <IconButton size="small" onClick={removeReferenceImage} sx={{ flexShrink: 0 }}>
-            <MdClose size={18} color="#6B7280" />
-          </IconButton>
+      {referenceImages.length > 0 && (
+        <Box display="flex" flexWrap="wrap" gap={1.25} mb={1.5}>
+          {referenceImages.map((img, index) => (
+            <Box
+              key={index}
+              sx={{
+                position: 'relative',
+                width: 72,
+                height: 72,
+                flexShrink: 0,
+              }}
+            >
+              <Box
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  border: '1px solid #E5E7EB',
+                }}
+              >
+                <Box
+                  component="img"
+                  src={img.dataUrl}
+                  alt={img.name}
+                  sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 2,
+                    left: 2,
+                    background: 'rgba(17,24,39,0.65)',
+                    color: '#fff',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    borderRadius: '4px',
+                    px: 0.5,
+                    lineHeight: '16px',
+                  }}
+                >
+                  {index + 1}
+                </Box>
+              </Box>
+              <IconButton
+                size="small"
+                onClick={() => removeReferenceImageAt(index)}
+                sx={{
+                  position: 'absolute',
+                  top: -6,
+                  right: -6,
+                  background: '#fff',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                  width: 20,
+                  height: 20,
+                  '&:hover': { background: '#FDF2F8' },
+                }}
+              >
+                <MdClose size={13} color="#6B7280" />
+              </IconButton>
+            </Box>
+          ))}
+          {referenceImages.length < MAX_REFERENCE_IMAGES && (
+            <Box
+              onClick={() => fileInputRef.current?.click()}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              sx={{
+                width: 72,
+                height: 72,
+                borderRadius: '8px',
+                border: isDragging ? '1.5px solid #CD1B78' : '1.5px dashed #E5E7EB',
+                background: isDragging ? '#FDF2F8' : '#FAFAFA',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+                transition: 'all 0.15s',
+                '&:hover': { borderColor: '#CD1B78', background: '#FDF2F8' },
+              }}
+            >
+              <MdAdd size={22} color={isDragging ? '#CD1B78' : '#9CA3AF'} />
+            </Box>
+          )}
         </Box>
-      ) : (
+      )}
+
+      {referenceImages.length === 0 && (
         <Box
           onClick={() => fileInputRef.current?.click()}
           onDragEnter={handleDragEnter}
@@ -445,16 +555,24 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
           </Box>
           <Box>
             <Typography fontSize="13px" fontWeight={600} color="#374151">
-              {isDragging ? 'Drop image here' : 'Click, drag, or paste image'}
+              {isDragging ? 'Drop images here' : 'Click, drag, or paste image(s)'}
             </Typography>
             <Typography fontSize="12px" color="#9CA3AF">
-              JPG, PNG, WEBP up to 10MB
+              JPG, PNG, WEBP up to 10MB each
             </Typography>
           </Box>
         </Box>
       )}
+      {referenceImages.length > 0 && <Box mb={3} />}
 
-      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
 
       <Box display="flex" alignItems="center" gap={0.75} mb={1}>
         <Typography fontSize="14px" color="#374151" fontWeight={500}>
@@ -591,8 +709,121 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
               ))}
             </Box>
           )}
+
+          {/* Slide <-> reference image assignment */}
+          {postType === 'carousel' && referenceImages.length > 0 && (
+            <Box
+              mt={1.5}
+              sx={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', px: 1.5, py: 1.25 }}
+            >
+              <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                <Typography fontSize="12px" color="#4B5563">
+                  {manualSlideAssignment
+                    ? 'Click a slide below to choose which reference image it uses.'
+                    : `By default, your images cycle across slides: ${Array.from(
+                        { length: numSlides },
+                        (_, i) => `Slide ${i + 1} → Image ${(slideImageIndex(i) ?? 0) + 1}`
+                      ).join(', ')}.`}
+                </Typography>
+                <Button
+                  size="small"
+                  onClick={toggleManualSlideAssignment}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#CD1B78',
+                    minWidth: 0,
+                    px: 1,
+                  }}
+                >
+                  {manualSlideAssignment ? 'Use default (auto)' : 'Customize per slide'}
+                </Button>
+              </Box>
+
+              {manualSlideAssignment && (
+                <Box display="flex" flexWrap="wrap" gap={1} mt={1}>
+                  {Array.from({ length: numSlides }, (_, slideIndex) => {
+                    const imgIdx = slideImageIndex(slideIndex);
+                    const img = imgIdx !== null ? referenceImages[imgIdx] : null;
+                    return (
+                      <Box
+                        key={slideIndex}
+                        onClick={(e) => setAssignMenu({ anchorEl: e.currentTarget, slideIndex })}
+                        sx={{
+                          width: 76,
+                          cursor: 'pointer',
+                          borderRadius: '8px',
+                          border: '1px solid #E5E7EB',
+                          background: '#fff',
+                          overflow: 'hidden',
+                          flexShrink: 0,
+                          '&:hover': { borderColor: '#CD1B78' },
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: '100%',
+                            height: 56,
+                            background: img ? 'transparent' : '#F3F4F6',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {img ? (
+                            <Box
+                              component="img"
+                              src={img.dataUrl}
+                              alt={img.name}
+                              sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                            />
+                          ) : (
+                            <MdClose size={16} color="#9CA3AF" />
+                          )}
+                        </Box>
+                        <Typography fontSize="10px" fontWeight={600} color="#374151" textAlign="center" py={0.5}>
+                          Slide {slideIndex + 1}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
+            </Box>
+          )}
         </Box>
       )}
+
+      {/* Per-slide reference image picker */}
+      <Menu anchorEl={assignMenu?.anchorEl} open={!!assignMenu} onClose={() => setAssignMenu(null)}>
+        <MenuItem
+          onClick={() => {
+            if (assignMenu) setSlideImageOverrides((prev) => ({ ...prev, [assignMenu.slideIndex]: null }));
+            setAssignMenu(null);
+          }}
+        >
+          No image for this slide
+        </MenuItem>
+        {referenceImages.map((img, index) => (
+          <MenuItem
+            key={index}
+            onClick={() => {
+              if (assignMenu) setSlideImageOverrides((prev) => ({ ...prev, [assignMenu.slideIndex]: index }));
+              setAssignMenu(null);
+            }}
+            sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+          >
+            <Box
+              component="img"
+              src={img.dataUrl}
+              alt={img.name}
+              sx={{ width: 28, height: 28, objectFit: 'cover', borderRadius: '4px' }}
+            />
+            <Typography fontSize="13px">Image {index + 1}</Typography>
+          </MenuItem>
+        ))}
+      </Menu>
 
       <Box
         sx={{
@@ -636,7 +867,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
                 ? 'Generate an image for each carousel slide'
                 : postType === 'story'
                   ? 'Generate a vertical 9:16 image for the story'
-                  : referenceImage
+                  : referenceImages.length > 0
                     ? 'Generate an image inspired by your reference photo'
                     : 'Generate a relevant image alongside the post copy'}
             </Typography>

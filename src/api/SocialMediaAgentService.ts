@@ -26,7 +26,11 @@ export interface GenerateContentPayload {
   include_images?: boolean;
   image_model?: string;
   brand_context?: BrandContext;
+  /** @deprecated use reference_images */
   reference_image?: string;
+  reference_images?: string[];
+  /** Carousel only: per-slide index into reference_images (or null for no image). Omit to cycle images across slides (image 1 -> slide 1, image 2 -> slide 2, ...). */
+  slide_image_map?: (number | null)[];
   post_type?: 'feed' | 'carousel' | 'story';
   num_slides?: number;
   acknowledged_incomplete_profile?: boolean; // OPTION 1: User acknowledged incomplete profile warning
