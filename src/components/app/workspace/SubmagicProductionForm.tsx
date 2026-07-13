@@ -58,6 +58,10 @@ export default function SubmagicProductionForm({ onSaveToDrafts }: Props) {
   const [cleanAudio, setCleanAudio] = useState(false);
   const [removeBadTakes, setRemoveBadTakes] = useState(false);
 
+  const [enableMusic, setEnableMusic] = useState(false);
+  const [customMusicFile, setCustomMusicFile] = useState<File | null>(null);
+  const customMusicInputRef = useRef<HTMLInputElement>(null);
+
   const [phase, setPhase] = useState<Phase>('pick');
   const [submagicStatus, setSubmagicStatus] = useState('processing');
   const [jobId, setJobId] = useState<string | null>(null);
@@ -127,6 +131,8 @@ export default function SubmagicProductionForm({ onSaveToDrafts }: Props) {
     formData.append('magic_brolls', String(magicBrolls));
     formData.append('clean_audio', String(cleanAudio));
     formData.append('remove_bad_takes', String(removeBadTakes));
+    formData.append('enable_music', String(enableMusic));
+    if (enableMusic && customMusicFile) formData.append('custom_music', customMusicFile);
 
     try {
       const res = await SocialMediaAgentService.produceWithSubmagic(formData);
@@ -154,6 +160,8 @@ export default function SubmagicProductionForm({ onSaveToDrafts }: Props) {
     setPhase('pick');
     setPublishPlatforms([]);
     setPublishCaption('');
+    setEnableMusic(false);
+    setCustomMusicFile(null);
   };
 
   const handleSaveToDrafts = async () => {
@@ -709,6 +717,138 @@ export default function SubmagicProductionForm({ onSaveToDrafts }: Props) {
             </div>
           </div>
         ))}
+
+        {/* Background music toggle */}
+        <div
+          onClick={() => setEnableMusic(!enableMusic)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 0',
+            borderTop: '1px solid #f0eeed',
+            cursor: 'pointer',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#222' }}>🎵 Background Music</div>
+            <div style={{ fontSize: 11, color: '#999' }}>Upload an MP3 to mix into the final video</div>
+          </div>
+          <div
+            style={{
+              width: 40,
+              height: 22,
+              borderRadius: 11,
+              background: enableMusic ? '#C2185B' : '#d1cdc9',
+              position: 'relative',
+              flexShrink: 0,
+              transition: 'background 0.2s',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: 3,
+                left: enableMusic ? 21 : 3,
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                background: '#fff',
+                transition: 'left 0.2s',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Music file uploader */}
+        <div
+          style={{
+            marginTop: 4,
+            opacity: enableMusic ? 1 : 0.35,
+            pointerEvents: enableMusic ? 'auto' : 'none',
+          }}
+        >
+          <div style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>
+            {enableMusic ? 'MP3 — mixed at 30% volume over the video' : '(enable background music to upload)'}
+          </div>
+          {customMusicFile ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1.5px solid #C2185B',
+                background: '#FDF2F8',
+              }}
+            >
+              <span style={{ fontSize: 18 }}>🎵</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#C2185B',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {customMusicFile.name}
+                </div>
+                <div style={{ fontSize: 11, color: '#888' }}>{(customMusicFile.size / 1024 / 1024).toFixed(1)} MB</div>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCustomMusicFile(null);
+                  if (customMusicInputRef.current) customMusicInputRef.current.value = '';
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#C2185B',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  padding: 0,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => customMusicInputRef.current?.click()}
+              style={{
+                width: '100%',
+                padding: '10px 0',
+                borderRadius: 8,
+                border: '1.5px dashed #d1cdc9',
+                background: '#fafaf9',
+                color: '#888',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              + Upload MP3
+            </button>
+          )}
+          <input
+            ref={customMusicInputRef}
+            type="file"
+            accept="audio/mpeg,audio/mp3,.mp3"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) setCustomMusicFile(f);
+            }}
+          />
+        </div>
       </div>
 
       {/* Submit */}
