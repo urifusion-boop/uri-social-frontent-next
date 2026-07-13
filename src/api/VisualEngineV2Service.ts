@@ -127,6 +127,21 @@ export interface ReviewQueueItem {
   priority: number;
 }
 
+export type SupportedPlatform = 'instagram' | 'facebook' | 'x' | 'linkedin';
+
+export interface ConnectedPlatformsResult {
+  success: boolean;
+  connected_platforms: SupportedPlatform[];
+  supported_platforms: SupportedPlatform[];
+}
+
+export interface PublishResult {
+  success: boolean;
+  draft_id: string;
+  platform: SupportedPlatform;
+  result: Record<string, unknown>;
+}
+
 export class VisualEngineV2Service {
   static async generateContentPlan(payload: ContentPlanPayload): Promise<ContentPlanResult> {
     const res: AxiosResponse<ContentPlanResult> = await UriHttpClient.getClient().post(`${BASE}/content-plan`, payload);
@@ -194,6 +209,26 @@ export class VisualEngineV2Service {
   static async sweepExpiredReviews(): Promise<{ success: boolean; checked: number; auto_approved: number }> {
     const res: AxiosResponse<{ success: boolean; checked: number; auto_approved: number }> =
       await UriHttpClient.getClient().post(`${BASE}/review-queue/sweep-expired`);
+    return res.data;
+  }
+
+  /** Which platforms does the active brand actually have connected right now — reuses the real posting pipeline's own check. */
+  static async getConnectedPlatforms(): Promise<ConnectedPlatformsResult> {
+    const res: AxiosResponse<ConnectedPlatformsResult> = await UriHttpClient.getClient().get(`${BASE}/connections`);
+    return res.data;
+  }
+
+  /** Bridges a completed render into the real content_drafts + posting pipeline. Omit scheduledAt to publish immediately. */
+  static async publishRender(
+    renderId: string,
+    platform: SupportedPlatform,
+    scheduledAt?: string
+  ): Promise<PublishResult> {
+    const res: AxiosResponse<PublishResult> = await UriHttpClient.getClient().post(
+      `${BASE}/render/${renderId}/publish`,
+      null,
+      { params: { platform, ...(scheduledAt ? { scheduled_datetime: scheduledAt } : {}) } }
+    );
     return res.data;
   }
 }

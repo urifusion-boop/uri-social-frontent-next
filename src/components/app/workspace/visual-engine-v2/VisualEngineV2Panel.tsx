@@ -12,13 +12,14 @@
 
 import { useEffect, useState } from 'react';
 import { CircularProgress } from '@mui/material';
-import { Sparkles, Image as ImageIcon, Layers, ClipboardCheck, AlertTriangle } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, Layers, ClipboardCheck, AlertTriangle, Send } from 'lucide-react';
 import {
   AspectFormat,
   ImageResult,
   LayerData,
   QualityGateResult,
   ReviewQueueItem,
+  SupportedPlatform,
   VisualEngineV2Service,
 } from '@/src/api/VisualEngineV2Service';
 
@@ -159,12 +160,21 @@ export default function VisualEngineV2Panel() {
   const [selectedFormats, setSelectedFormats] = useState<AspectFormat[]>(['1:1']);
   const [carouselCount, setCarouselCount] = useState(1);
   const [rendering, setRendering] = useState(false);
+  const [renderId, setRenderId] = useState<string | null>(null);
   const [formatOutputs, setFormatOutputs] = useState<Record<string, string[]>>({});
   const [activeOutputFormat, setActiveOutputFormat] = useState<AspectFormat>('1:1');
   const [qualityGate, setQualityGate] = useState<QualityGateResult | null>(null);
   const [renderCost, setRenderCost] = useState(0);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [styleFamily, setStyleFamily] = useState<string | null>(null);
+
+  // Step 4: publish — bridges into the real posting pipeline
+  const [connectedPlatforms, setConnectedPlatforms] = useState<SupportedPlatform[]>([]);
+  const [loadingConnections, setLoadingConnections] = useState(true);
+  const [publishPlatform, setPublishPlatform] = useState<SupportedPlatform | ''>('');
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [publishing, setPublishing] = useState(false);
+  const [publishResult, setPublishResult] = useState<string | null>(null);
 
   // Review queue
   const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([]);
@@ -175,6 +185,13 @@ export default function VisualEngineV2Panel() {
 
   useEffect(() => {
     refreshReviewQueue();
+    VisualEngineV2Service.getConnectedPlatforms()
+      .then((res) => {
+        setConnectedPlatforms(res.connected_platforms || []);
+        setPublishPlatform(res.connected_platforms?.[0] || '');
+      })
+      .catch(() => setConnectedPlatforms([]))
+      .finally(() => setLoadingConnections(false));
   }, []);
 
   const refreshReviewQueue = () => {
@@ -249,6 +266,7 @@ export default function VisualEngineV2Panel() {
     if (!contentLayer || !imageryLayer) return;
     setError(null);
     setRendering(true);
+    setPublishResult(null);
     try {
       const basePayload = {
         content_layer: contentLayer,
@@ -257,6 +275,7 @@ export default function VisualEngineV2Panel() {
       };
       if (carouselCount > 1) {
         const result = await VisualEngineV2Service.renderCarousel({ ...basePayload, carousel_count: carouselCount });
+        setRenderId(result.render_id);
         setFormatOutputs(result.format_outputs);
         setTemplateId(result.template_id);
         setStyleFamily(result.style_family);
@@ -264,6 +283,7 @@ export default function VisualEngineV2Panel() {
         setRenderCost(result.total_cost);
       } else {
         const result = await VisualEngineV2Service.render(basePayload);
+        setRenderId(result.render_id);
         setFormatOutputs(result.format_outputs);
         setTemplateId(result.template_id);
         setStyleFamily(result.style_family);
@@ -286,6 +306,25 @@ export default function VisualEngineV2Panel() {
       refreshReviewQueue();
     } finally {
       setSweeping(false);
+    }
+  };
+
+  const handlePublish = async (immediate: boolean) => {
+    if (!renderId || !publishPlatform) return;
+    setError(null);
+    setPublishing(true);
+    try {
+      const iso = !immediate && scheduleAt ? new Date(scheduleAt).toISOString() : undefined;
+      const result = await VisualEngineV2Service.publishRender(renderId, publishPlatform, iso);
+      setPublishResult(
+        immediate
+          ? `Published to ${result.platform} (draft ${result.draft_id})`
+          : `Scheduled on ${result.platform} for ${scheduleAt} (draft ${result.draft_id})`
+      );
+    } catch (e) {
+      setError(getErrorMessage(e, 'Publish failed'));
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -545,6 +584,81 @@ export default function VisualEngineV2Panel() {
                 ))}
               </div>
             </div>
+          )}
+        </SectionCard>
+
+        {/* Step 4: Publish — bridges into the real posting pipeline */}
+        <SectionCard
+          step={4}
+          icon={<Send className="w-4 h-4" />}
+          title="Publish"
+          subtitle="Bridges into the existing content_drafts + posting pipeline — no separate posting logic here."
+          disabled={!renderId}
+        >
+          {loadingConnections ? (
+            <div className="flex justify-center py-4">
+              <CircularProgress size={18} style={{ color: PRIMARY }} />
+            </div>
+          ) : connectedPlatforms.length === 0 ? (
+            <p className="text-xs text-gray-500">
+              No connected social accounts found for this brand. Connect one under Connected Accounts first.
+            </p>
+          ) : (
+            <>
+              {qualityGate?.requires_review && (
+                <div
+                  className="mb-3 px-3.5 py-2.5 rounded-lg text-xs flex items-start gap-2"
+                  style={{ background: '#FFFBEB', color: '#92400E' }}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span>This render needs approval in the review queue below before it can be published.</span>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-end gap-2.5 mb-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1.5">Platform</label>
+                  <select
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none"
+                    value={publishPlatform}
+                    onChange={(e) => setPublishPlatform(e.target.value as SupportedPlatform)}
+                  >
+                    {connectedPlatforms.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <PrimaryButton onClick={() => handlePublish(true)} disabled={!renderId} loading={publishing}>
+                  {publishing ? 'Publishing…' : 'Publish now'}
+                </PrimaryButton>
+              </div>
+
+              <div className="flex flex-wrap items-end gap-2.5">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1.5">Or schedule for</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduleAt}
+                    onChange={(e) => setScheduleAt(e.target.value)}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none"
+                  />
+                </div>
+                <SecondaryButton onClick={() => handlePublish(false)} disabled={!renderId || !scheduleAt || publishing}>
+                  Schedule
+                </SecondaryButton>
+              </div>
+
+              {publishResult && (
+                <div
+                  className="mt-3 px-3.5 py-2.5 rounded-lg text-xs"
+                  style={{ background: '#ECFDF5', color: '#166534' }}
+                >
+                  {publishResult}
+                </div>
+              )}
+            </>
           )}
         </SectionCard>
 
