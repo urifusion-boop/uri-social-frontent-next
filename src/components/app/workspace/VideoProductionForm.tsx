@@ -84,10 +84,11 @@ interface BrollDecision {
 
 interface Props {
   onComplete: () => void;
+  onSaveToDrafts?: () => void;
   sourceUrl?: string | null;
 }
 
-export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
+export default function VideoProductionForm({ onComplete, onSaveToDrafts, sourceUrl }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -141,6 +142,11 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [isAdjusting, setIsAdjusting] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Save-to-drafts state
+  const [publishPlatforms, setPublishPlatforms] = useState<string[]>([]);
+  const [publishCaption, setPublishCaption] = useState('');
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -350,6 +356,26 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
     setEditingCaptionIdx(null);
     setThumbnailUrl(null);
     setIsAdjusting(false);
+    setPublishPlatforms([]);
+    setPublishCaption('');
+  };
+
+  const handleSaveToDrafts = async () => {
+    if (!outputUrl || publishPlatforms.length === 0) return;
+    setIsSavingDraft(true);
+    try {
+      await SocialMediaAgentService.saveVideoDraft({
+        merged_video_url: outputUrl,
+        caption: publishCaption,
+        platforms: publishPlatforms,
+      });
+      ToastService.showToast('Video saved to drafts!', ToastTypeEnum.Success);
+      onSaveToDrafts?.();
+    } catch {
+      ToastService.showToast('Could not save draft — try again.', ToastTypeEnum.Error);
+    } finally {
+      setIsSavingDraft(false);
+    }
   };
 
   const [isCapturingFrame, setIsCapturingFrame] = useState(false);
@@ -1203,6 +1229,98 @@ export default function VideoProductionForm({ onComplete, sourceUrl }: Props) {
               {isAdjusting ? 'Re-rendering…' : 'Apply Changes'}
             </button>
           )}
+        </div>
+
+        {/* Save to Drafts */}
+        <div
+          style={{
+            background: '#fafaf9',
+            border: '1.5px solid #e8e5e3',
+            borderRadius: 12,
+            padding: '14px 16px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontWeight: 700, fontSize: 13, color: '#333', marginBottom: 12 }}>Save to Drafts</div>
+
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Select platforms</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(
+                [
+                  { key: 'instagram', label: 'Instagram' },
+                  { key: 'tiktok', label: 'TikTok' },
+                  { key: 'facebook', label: 'Facebook' },
+                  { key: 'youtube', label: 'YouTube Shorts' },
+                ] as { key: string; label: string }[]
+              ).map((p) => {
+                const selected = publishPlatforms.includes(p.key);
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() =>
+                      setPublishPlatforms((prev) => (selected ? prev.filter((x) => x !== p.key) : [...prev, p.key]))
+                    }
+                    style={{
+                      padding: '5px 14px',
+                      borderRadius: 20,
+                      border: selected ? '1.5px solid #C2185B' : '1.5px solid #E5E7EB',
+                      background: selected ? '#FDF2F8' : '#fff',
+                      color: selected ? '#C2185B' : '#6B7280',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Caption</div>
+            <textarea
+              value={publishCaption}
+              onChange={(e) => setPublishCaption(e.target.value)}
+              placeholder="Write a caption for your post…"
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1.5px solid #E5E7EB',
+                fontSize: 13,
+                color: '#111',
+                resize: 'vertical',
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSaveToDrafts}
+            disabled={isSavingDraft || publishPlatforms.length === 0}
+            style={{
+              width: '100%',
+              padding: '10px 0',
+              borderRadius: 9,
+              border: 'none',
+              background: publishPlatforms.length === 0 ? '#e0dcd9' : 'linear-gradient(135deg,#C2185B,#8E1545)',
+              color: publishPlatforms.length === 0 ? '#aaa' : '#fff',
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: publishPlatforms.length === 0 || isSavingDraft ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isSavingDraft ? 'Saving…' : 'Save to Drafts'}
+          </button>
         </div>
 
         {/* Actions */}

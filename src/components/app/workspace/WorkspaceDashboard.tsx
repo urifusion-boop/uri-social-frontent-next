@@ -1488,6 +1488,10 @@ const ContentManagerPage = ({
                   setPendingProduceUrl(null);
                   setVideoTab('generate');
                 }}
+                onSaveToDrafts={() => {
+                  setPendingProduceUrl(null);
+                  setActiveTab('drafts');
+                }}
               />
             )}
             {videoTab === 'compose' && (
