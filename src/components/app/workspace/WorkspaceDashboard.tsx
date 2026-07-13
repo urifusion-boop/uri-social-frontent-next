@@ -39,6 +39,7 @@ import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import VisualEngineV2Panel from '@/src/components/app/workspace/visual-engine-v2/VisualEngineV2Panel';
 import MultiClipComposer from '@/src/components/app/workspace/MultiClipComposer';
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
@@ -5197,14 +5198,10 @@ const PlaybookPage = ({
               {(['small', 'medium', 'large'] as const).map((size) => (
                 <button
                   key={size}
-<<<<<<< HEAD
                   onClick={() => {
                     console.log('🎯 Logo size button clicked:', size);
                     setLogoSize(size);
                   }}
-=======
-                  onClick={() => setLogoSize(size)}
->>>>>>> b4a5914 (feat: Add logo size control UI to Brand Playbook)
                   style={{
                     padding: '6px 16px',
                     borderRadius: 6,
@@ -7438,6 +7435,13 @@ const NAV = [
     label: 'Billing',
     tooltip: 'View your plan, content credits, and billing history',
   },
+  {
+    id: 'visual-engine-v2',
+    icon: 'grid',
+    label: '🧪 Visual Engine V2',
+    tooltip:
+      'Beta: isolated 4-layer compositing engine (content + imagery + brand + template-fill), not yet wired into the main Create Content flow',
+  },
 ];
 
 const MOBILE_TABS = [
@@ -7887,6 +7891,7 @@ export default function WorkspaceDashboard() {
     ),
     billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
     notifications: <NotificationsPanel />,
+    'visual-engine-v2': <VisualEngineV2Panel />,
   };
 
   return (
