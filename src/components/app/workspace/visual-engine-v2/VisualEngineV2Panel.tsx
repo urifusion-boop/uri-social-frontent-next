@@ -13,7 +13,6 @@
 import { useEffect, useState } from 'react';
 import { CircularProgress } from '@mui/material';
 import { Sparkles, Image as ImageIcon, Layers, ClipboardCheck, AlertTriangle } from 'lucide-react';
-import { BrandProfileService } from '@/src/api/BrandProfileService';
 import {
   AspectFormat,
   ImageResult,
@@ -143,10 +142,6 @@ function Badge({ children, bg, fg }: { children: React.ReactNode; bg: string; fg
 }
 
 export default function VisualEngineV2Panel() {
-  // Brand profile resolution
-  const [brandProfileId, setBrandProfileId] = useState<string | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-
   // Step 1: content plan
   const [seedContent, setSeedContent] = useState('');
   const [platform, setPlatform] = useState('instagram');
@@ -179,12 +174,6 @@ export default function VisualEngineV2Panel() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    BrandProfileService.get()
-      .then((res) => {
-        setBrandProfileId(res.responseData?.id || null);
-        setLoadingProfile(false);
-      })
-      .catch(() => setLoadingProfile(false));
     refreshReviewQueue();
   }, []);
 
@@ -203,7 +192,7 @@ export default function VisualEngineV2Panel() {
   };
 
   const handleGenerateContent = async () => {
-    if (!brandProfileId || !seedContent.trim()) return;
+    if (!seedContent.trim()) return;
     setError(null);
     setGeneratingContent(true);
     try {
@@ -211,7 +200,6 @@ export default function VisualEngineV2Panel() {
         seed_content: seedContent.trim(),
         platforms: [platform],
         post_intent: postIntent,
-        brand_profile_id: brandProfileId,
       });
       setContentLayer(result.content_layer);
     } catch (e) {
@@ -222,12 +210,11 @@ export default function VisualEngineV2Panel() {
   };
 
   const handleGenerateImageA = async () => {
-    if (!brandProfileId || !contentLayer) return;
+    if (!contentLayer) return;
     setError(null);
     setGeneratingImage(true);
     try {
       const result: ImageResult = await VisualEngineV2Service.generateImagePathA({
-        brand_profile_id: brandProfileId,
         content_plan: `${contentLayer.data.headline} ${contentLayer.data.subtext}`.trim(),
         format: imageFormat,
       });
@@ -241,12 +228,10 @@ export default function VisualEngineV2Panel() {
   };
 
   const handleUploadImageB = async (file: File) => {
-    if (!brandProfileId) return;
     setError(null);
     setGeneratingImage(true);
     try {
       const result: ImageResult = await VisualEngineV2Service.uploadImagePathB({
-        brandProfileId,
         file,
         format: imageFormat,
         removeBackground: true,
@@ -261,12 +246,11 @@ export default function VisualEngineV2Panel() {
   };
 
   const handleRender = async () => {
-    if (!brandProfileId || !contentLayer || !imageryLayer) return;
+    if (!contentLayer || !imageryLayer) return;
     setError(null);
     setRendering(true);
     try {
       const basePayload = {
-        brand_profile_id: brandProfileId,
         content_layer: contentLayer,
         imagery_layer: imageryLayer,
         formats: selectedFormats,
@@ -306,29 +290,6 @@ export default function VisualEngineV2Panel() {
   };
 
   const tier = qualityGate ? tierStyle[qualityGate.review_tier] : null;
-
-  if (loadingProfile) {
-    return (
-      <div className="flex justify-center py-16">
-        <CircularProgress style={{ color: PRIMARY }} />
-      </div>
-    );
-  }
-
-  if (!brandProfileId) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto bg-white rounded-xl border border-gray-200 p-8 text-center">
-          <AlertTriangle className="w-8 h-8 mx-auto mb-3" style={{ color: PRIMARY }} />
-          <p className="text-sm font-semibold text-gray-900 mb-1">Complete your brand profile first</p>
-          <p className="text-sm text-gray-500">
-            Visual Engine V2 pulls exact colors, logo, and font values from a brand profile — set yours up in Brand
-            Playbook before testing this.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">

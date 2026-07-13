@@ -40,7 +40,6 @@ export interface ContentPlanPayload {
   seed_content: string;
   platforms: string[];
   post_intent: 'sale' | 'product' | 'announcement' | 'testimonial' | 'educational' | 'carousel';
-  brand_profile_id: string;
   carousel_slides?: number;
 }
 
@@ -51,7 +50,6 @@ export interface ContentPlanResult {
 }
 
 export interface GenerateImagePayload {
-  brand_profile_id: string;
   content_plan: string;
   format?: AspectFormat;
   negative_space?: string;
@@ -65,7 +63,6 @@ export interface ImageResult {
 }
 
 export interface RenderPayload {
-  brand_profile_id: string;
   content_layer: LayerData;
   imagery_layer: LayerData;
   format?: AspectFormat;
@@ -142,13 +139,11 @@ export class VisualEngineV2Service {
   }
 
   static async uploadImagePathB(params: {
-    brandProfileId: string;
     file: File;
     format?: AspectFormat;
     removeBackground?: boolean;
   }): Promise<ImageResult> {
     const form = new FormData();
-    form.append('brand_profile_id', params.brandProfileId);
     form.append('format', params.format || '1:1');
     form.append('remove_background', String(!!params.removeBackground));
     form.append('image_file', params.file);
