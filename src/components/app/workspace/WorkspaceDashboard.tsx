@@ -777,7 +777,7 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video' | 'compose';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
 
 const ContentManagerPage = ({
   onJane,
@@ -844,8 +844,8 @@ const ContentManagerPage = ({
   const [v3Enabled, setV3Enabled] = useState(false);
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
-  const [createMode, setCreateMode] = useState<'generate' | 'upload' | 'video'>('generate');
-  const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video' | 'produce_video'>('edit_video');
+  const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
+  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'compose'>('generate');
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
 
   const toggleDraftSelection = (id: string) => {
@@ -1185,11 +1185,6 @@ const ContentManagerPage = ({
       label: '🎬 Video',
       tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
     },
-    {
-      key: 'compose',
-      label: '🎞 Compose',
-      tooltip: 'Upload your own clips and stitch them into a polished video with AI ordering and captions',
-    },
   ];
 
   return (
@@ -1281,7 +1276,6 @@ const ContentManagerPage = ({
               calendar: 'calendar',
               auto: 'sparkle',
               video: 'video',
-              compose: 'film',
             };
             return (
               <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
@@ -1352,8 +1346,7 @@ const ContentManagerPage = ({
                   [
                     { key: 'generate', label: '✨ Generate Content' },
                     { key: 'upload', label: '📤 Upload Content' },
-                    { key: 'video', label: '🎬 Video' },
-                  ] as { key: 'generate' | 'upload' | 'video'; label: string }[]
+                  ] as { key: 'generate' | 'upload'; label: string }[]
                 ).map((mode) => (
                   <button
                     key={mode.key}
@@ -1375,37 +1368,6 @@ const ContentManagerPage = ({
                   </button>
                 ))}
               </div>
-
-              {/* Video sub-mode selector */}
-              {createMode === 'video' && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingLeft: 4 }}>
-                  {(
-                    [
-                      { key: 'edit_video', label: 'Edit My Video' },
-                      { key: 'polish_video', label: 'Polish My Video' },
-                      { key: 'produce_video', label: '✨ Produce My Video' },
-                    ] as { key: 'edit_video' | 'polish_video' | 'produce_video'; label: string }[]
-                  ).map((sub) => (
-                    <button
-                      key={sub.key}
-                      onClick={() => setVideoSubMode(sub.key)}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: 8,
-                        border: videoSubMode === sub.key ? '2px solid #CD1B78' : '1.5px solid #E5E7EB',
-                        background: videoSubMode === sub.key ? '#FDF2F8' : '#fff',
-                        color: videoSubMode === sub.key ? '#CD1B78' : '#6B7280',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {sub.label}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             {createMode === 'generate' && (
@@ -1483,51 +1445,60 @@ const ContentManagerPage = ({
               </>
             )}
 
-            {createMode === 'video' && videoSubMode === 'edit_video' && (
-              <VideoEditForm
-                onEditComplete={() => {
-                  handleGenerated();
-                  setCreateMode('generate');
-                }}
-              />
-            )}
-
-            {createMode === 'video' && videoSubMode === 'polish_video' && (
-              <VideoPolishForm
-                onPolishComplete={() => {
-                  handleGenerated();
-                  setCreateMode('generate');
-                }}
-              />
-            )}
-
-            {createMode === 'video' && videoSubMode === 'produce_video' && (
-              <VideoProductionForm
-                sourceUrl={pendingProduceUrl}
-                onComplete={() => {
-                  setPendingProduceUrl(null);
-                  handleGenerated();
-                }}
-              />
-            )}
-
             {createMode === 'upload' && (
               <UploadContentForm onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
             )}
           </>
         )}
 
-        {activeTab === 'video' && <VideoStoryboardGenerator />}
-
-        {activeTab === 'compose' && (
-          <MultiClipComposer
-            onSendToProduce={(url) => {
-              setPendingProduceUrl(url);
-              setActiveTab('create');
-              setCreateMode('video');
-              setVideoSubMode('produce_video');
-            }}
-          />
+        {activeTab === 'video' && (
+          <>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              {(
+                [
+                  { key: 'generate', label: '🎬 Generate' },
+                  { key: 'produce', label: '✨ Produce' },
+                  { key: 'compose', label: '🎞 Compose' },
+                ] as { key: 'generate' | 'produce' | 'compose'; label: string }[]
+              ).map((vt) => (
+                <button
+                  key={vt.key}
+                  onClick={() => setVideoTab(vt.key)}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 10,
+                    border: videoTab === vt.key ? 'none' : '1.5px solid #E5E7EB',
+                    background: videoTab === vt.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                    color: videoTab === vt.key ? '#fff' : '#6B7280',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {vt.label}
+                </button>
+              ))}
+            </div>
+            {videoTab === 'generate' && <VideoStoryboardGenerator />}
+            {videoTab === 'produce' && (
+              <VideoProductionForm
+                sourceUrl={pendingProduceUrl}
+                onComplete={() => {
+                  setPendingProduceUrl(null);
+                  setVideoTab('generate');
+                }}
+              />
+            )}
+            {videoTab === 'compose' && (
+              <MultiClipComposer
+                onSendToProduce={(url) => {
+                  setPendingProduceUrl(url);
+                  setVideoTab('produce');
+                }}
+              />
+            )}
+          </>
         )}
 
         {activeTab === 'drafts' && (
