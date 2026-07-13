@@ -861,6 +861,25 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async produceWithSubmagic(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.submagicProduce, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000,
+    });
+    return response.data;
+  }
+
+  static async getSubmagicJob(jobId: string): Promise<
+    UriResponse<{
+      status: string;
+      output_url: string | null;
+      failure_reason: string | null;
+    }>
+  > {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.submagicJob}/${jobId}`);
+    return response.data;
+  }
+
   static async captureVideoFrame(jobId: string, seconds: number): Promise<string> {
     const response = await UriHttpClient.getClient().get(
       `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/capture-frame?t=${seconds}`,
