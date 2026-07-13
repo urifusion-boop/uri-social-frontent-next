@@ -144,12 +144,20 @@ export interface PublishResult {
 
 export class VisualEngineV2Service {
   static async generateContentPlan(payload: ContentPlanPayload): Promise<ContentPlanResult> {
-    const res: AxiosResponse<ContentPlanResult> = await UriHttpClient.getClient().post(`${BASE}/content-plan`, payload);
+    const res: AxiosResponse<ContentPlanResult> = await UriHttpClient.getClient().post(
+      `${BASE}/content-plan`,
+      payload,
+      {
+        timeout: 300000,
+      }
+    );
     return res.data;
   }
 
   static async generateImagePathA(payload: GenerateImagePayload): Promise<ImageResult> {
-    const res: AxiosResponse<ImageResult> = await UriHttpClient.getClient().post(`${BASE}/generate-image`, payload);
+    const res: AxiosResponse<ImageResult> = await UriHttpClient.getClient().post(`${BASE}/generate-image`, payload, {
+      timeout: 300000,
+    });
     return res.data;
   }
 
@@ -165,19 +173,23 @@ export class VisualEngineV2Service {
 
     const res: AxiosResponse<ImageResult> = await UriHttpClient.getClient().post(`${BASE}/upload-image`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000,
     });
     return res.data;
   }
 
   static async render(payload: RenderPayload): Promise<RenderResult> {
-    const res: AxiosResponse<RenderResult> = await UriHttpClient.getClient().post(`${BASE}/render`, payload);
+    const res: AxiosResponse<RenderResult> = await UriHttpClient.getClient().post(`${BASE}/render`, payload, {
+      timeout: 300000,
+    });
     return res.data;
   }
 
   static async renderCarousel(payload: CarouselRenderPayload): Promise<CarouselRenderResult> {
     const res: AxiosResponse<CarouselRenderResult> = await UriHttpClient.getClient().post(
       `${BASE}/render-carousel`,
-      payload
+      payload,
+      { timeout: 300000 }
     );
     return res.data;
   }
