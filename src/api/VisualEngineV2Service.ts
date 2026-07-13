@@ -142,8 +142,50 @@ export interface PublishResult {
   result: Record<string, unknown>;
 }
 
+interface JobStartResult {
+  success: boolean;
+  job_id: string;
+  status: 'pending';
+}
+
+interface JobStatusResult<T> {
+  success: boolean;
+  job_id: string;
+  status: 'pending' | 'completed' | 'failed';
+  result: T | null;
+  error: string | null;
+}
+
 export class VisualEngineV2Service {
+  /**
+   * generate-image/upload-image/render/render-carousel all return a job_id
+   * immediately and do the actual (potentially 30-90s+) work in a backend
+   * background task — mirrors the production /generate-content endpoint's
+   * own pattern, since holding one HTTP connection open for the full
+   * duration of a GPT Image 2 or Orshot call is fragile against any
+   * intermediate proxy timeout, independent of the client's own timeout.
+   * Polls GET /v2/jobs/{job_id} every 3s until it's done.
+   */
+  private static async _pollJob<T>(jobId: string, intervalMs = 3000, maxAttempts = 100): Promise<T> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const res: AxiosResponse<JobStatusResult<T>> = await UriHttpClient.getClient().get(`${BASE}/jobs/${jobId}`, {
+        timeout: 15000,
+      });
+      const { status, result, error } = res.data;
+      if (status === 'completed') {
+        if (!result) throw new Error('Job completed with no result');
+        return result;
+      }
+      if (status === 'failed') {
+        throw new Error(error || 'Job failed');
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    throw new Error('Timed out waiting for job to complete');
+  }
+
   static async generateContentPlan(payload: ContentPlanPayload): Promise<ContentPlanResult> {
+    // A single GPT-4o text call is fast enough to stay synchronous.
     const res: AxiosResponse<ContentPlanResult> = await UriHttpClient.getClient().post(
       `${BASE}/content-plan`,
       payload,
@@ -155,10 +197,12 @@ export class VisualEngineV2Service {
   }
 
   static async generateImagePathA(payload: GenerateImagePayload): Promise<ImageResult> {
-    const res: AxiosResponse<ImageResult> = await UriHttpClient.getClient().post(`${BASE}/generate-image`, payload, {
-      timeout: 300000,
-    });
-    return res.data;
+    const start: AxiosResponse<JobStartResult> = await UriHttpClient.getClient().post(
+      `${BASE}/generate-image`,
+      payload,
+      { timeout: 30000 }
+    );
+    return VisualEngineV2Service._pollJob<ImageResult>(start.data.job_id);
   }
 
   static async uploadImagePathB(params: {
@@ -171,27 +215,27 @@ export class VisualEngineV2Service {
     form.append('remove_background', String(!!params.removeBackground));
     form.append('image_file', params.file);
 
-    const res: AxiosResponse<ImageResult> = await UriHttpClient.getClient().post(`${BASE}/upload-image`, form, {
+    const start: AxiosResponse<JobStartResult> = await UriHttpClient.getClient().post(`${BASE}/upload-image`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000,
+      timeout: 60000,
     });
-    return res.data;
+    return VisualEngineV2Service._pollJob<ImageResult>(start.data.job_id);
   }
 
   static async render(payload: RenderPayload): Promise<RenderResult> {
-    const res: AxiosResponse<RenderResult> = await UriHttpClient.getClient().post(`${BASE}/render`, payload, {
-      timeout: 300000,
+    const start: AxiosResponse<JobStartResult> = await UriHttpClient.getClient().post(`${BASE}/render`, payload, {
+      timeout: 30000,
     });
-    return res.data;
+    return VisualEngineV2Service._pollJob<RenderResult>(start.data.job_id);
   }
 
   static async renderCarousel(payload: CarouselRenderPayload): Promise<CarouselRenderResult> {
-    const res: AxiosResponse<CarouselRenderResult> = await UriHttpClient.getClient().post(
+    const start: AxiosResponse<JobStartResult> = await UriHttpClient.getClient().post(
       `${BASE}/render-carousel`,
       payload,
-      { timeout: 300000 }
+      { timeout: 30000 }
     );
-    return res.data;
+    return VisualEngineV2Service._pollJob<CarouselRenderResult>(start.data.job_id);
   }
 
   static async getReviewQueue(): Promise<UriResponse<{ pending_reviews: ReviewQueueItem[]; count: number }>> {
