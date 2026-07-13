@@ -12,7 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { CircularProgress } from '@mui/material';
-import { Sparkles, Image as ImageIcon, Layers, ClipboardCheck, AlertTriangle, Send } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, Layers, ClipboardCheck, AlertTriangle, Send, X, ZoomIn } from 'lucide-react';
 import {
   AspectFormat,
   ImageResult,
@@ -142,6 +142,56 @@ function Badge({ children, bg, fg }: { children: React.ReactNode; bg: string; fg
   );
 }
 
+/** Thumbnail that opens `onPreview(src)` in an enlarged lightbox on click. */
+function PreviewableImage({
+  src,
+  alt,
+  className,
+  onPreview,
+}: {
+  src: string;
+  alt: string;
+  className: string;
+  onPreview: (url: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onPreview(src)}
+      className="group relative block"
+      aria-label={`View enlarged: ${alt}`}
+    >
+      <img src={src} alt={alt} className={className} />
+      <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 rounded-lg transition-colors">
+        <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+      </span>
+    </button>
+  );
+}
+
+/** Fullscreen enlarged preview — click backdrop or the X to close. */
+function Lightbox({ url, onClose }: { url: string | null; onClose: () => void }) {
+  if (!url) return null;
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-6" onClick={onClose}>
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-5 right-5 text-white/80 hover:text-white transition-colors"
+        aria-label="Close preview"
+      >
+        <X className="w-7 h-7" />
+      </button>
+      <img
+        src={url}
+        alt="Enlarged preview"
+        className="max-w-full max-h-full rounded-lg shadow-2xl object-contain"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
 export default function VisualEngineV2Panel() {
   // Step 1: content plan
   const [seedContent, setSeedContent] = useState('');
@@ -182,6 +232,7 @@ export default function VisualEngineV2Panel() {
   const [sweeping, setSweeping] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     refreshReviewQueue();
@@ -476,10 +527,11 @@ export default function VisualEngineV2Panel() {
           )}
 
           {imageryLayer && (
-            <img
-              src={imageryLayer.data.imagery_url}
+            <PreviewableImage
+              src={imageryLayer.data.imagery_url as string}
               alt="Generated imagery"
               className="max-w-[200px] rounded-lg border border-gray-200"
+              onPreview={setPreviewUrl}
             />
           )}
         </SectionCard>
@@ -580,7 +632,13 @@ export default function VisualEngineV2Panel() {
               )}
               <div className="flex gap-2 flex-wrap">
                 {(formatOutputs[activeOutputFormat] || []).map((url, i) => (
-                  <img key={i} src={url} alt={`Render ${i + 1}`} className="w-36 rounded-lg border border-gray-200" />
+                  <PreviewableImage
+                    key={i}
+                    src={url}
+                    alt={`Render ${i + 1}`}
+                    className="w-36 rounded-lg border border-gray-200"
+                    onPreview={setPreviewUrl}
+                  />
                 ))}
               </div>
             </div>
@@ -736,6 +794,8 @@ export default function VisualEngineV2Panel() {
           )}
         </div>
       </div>
+
+      <Lightbox url={previewUrl} onClose={() => setPreviewUrl(null)} />
     </div>
   );
 }
