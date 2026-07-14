@@ -379,9 +379,10 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
                       position: 'relative',
                       width: 110,
                       height: 110,
-                      borderRadius: 2,
+                      borderRadius: canReorder ? '10px 10px 0 0' : '10px',
                       overflow: 'hidden',
-                      border: '2px solid #E5E7EB',
+                      border: '1.5px solid #E5E7EB',
+                      borderBottom: canReorder ? 'none' : '1.5px solid #E5E7EB',
                     }}
                   >
                     {isVideo ? (
@@ -424,19 +425,18 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
                     </IconButton>
                   </Box>
                   {/* Reorder controls live BELOW the thumbnail, not on top of it — always
-                      legible regardless of what's in the photo. */}
+                      legible regardless of what's in the photo. Fused to the thumbnail
+                      as one card, styled with the brand colour instead of neutral grey. */}
                   {canReorder && (
                     <Box
                       sx={{
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 0.5,
-                        marginTop: 0.5,
-                        padding: '4px 6px',
-                        borderRadius: 1.5,
-                        backgroundColor: '#F3F4F6',
-                        border: '1px solid #E5E7EB',
+                        alignItems: 'stretch',
+                        backgroundColor: '#FDF2F8',
+                        border: '1.5px solid #E5E7EB',
+                        borderTop: '1px solid #F3D4E4',
+                        borderRadius: '0 0 10px 10px',
+                        overflow: 'hidden',
                       }}
                     >
                       <IconButton
@@ -444,27 +444,31 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
                         disabled={idx === 0}
                         size="small"
                         sx={{
-                          color: '#374151',
-                          padding: '2px',
-                          '&:hover': { backgroundColor: '#E5E7EB' },
-                          '&.Mui-disabled': { color: '#D1D5DB' },
+                          flex: 1,
+                          borderRadius: 0,
+                          color: '#CD1B78',
+                          padding: '3px 0',
+                          '&:hover': { backgroundColor: 'rgba(205, 27, 120, 0.12)' },
+                          '&.Mui-disabled': { color: '#D8B4C8' },
                         }}
                       >
-                        <MdChevronLeft size={20} />
+                        <MdChevronLeft size={18} />
                       </IconButton>
-                      <Typography sx={{ fontSize: 11, color: '#6B7280', fontWeight: 500 }}>Move</Typography>
+                      <Box sx={{ width: '1px', my: 0.5, backgroundColor: '#F3D4E4' }} />
                       <IconButton
                         onClick={() => moveFile(idx, 1)}
                         disabled={idx === uploadedFiles.length - 1}
                         size="small"
                         sx={{
-                          color: '#374151',
-                          padding: '2px',
-                          '&:hover': { backgroundColor: '#E5E7EB' },
-                          '&.Mui-disabled': { color: '#D1D5DB' },
+                          flex: 1,
+                          borderRadius: 0,
+                          color: '#CD1B78',
+                          padding: '3px 0',
+                          '&:hover': { backgroundColor: 'rgba(205, 27, 120, 0.12)' },
+                          '&.Mui-disabled': { color: '#D8B4C8' },
                         }}
                       >
-                        <MdChevronRight size={20} />
+                        <MdChevronRight size={18} />
                       </IconButton>
                     </Box>
                   )}
