@@ -84,7 +84,9 @@ type ISocialMediaAgentApi =
   | 'multiClipReset'
   | 'multiClipUpdateClip'
   | 'submagicProduce'
-  | 'submagicJob';
+  | 'submagicJob'
+  | 'zapcapProduce'
+  | 'zapcapJob';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -170,6 +172,8 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   multiClipUpdateClip: '/multi-clip/job',
   submagicProduce: '/submagic-produce',
   submagicJob: '/submagic-job',
+  zapcapProduce: '/zapcap-produce',
+  zapcapJob: '/zapcap-job',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

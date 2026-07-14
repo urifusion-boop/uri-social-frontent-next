@@ -45,6 +45,7 @@ import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
 import VideoProductionForm from '@/src/components/app/workspace/VideoProductionForm';
 import SubmagicProductionForm from '@/src/components/app/workspace/SubmagicProductionForm';
+import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductionForm';
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
@@ -846,7 +847,7 @@ const ContentManagerPage = ({
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
-  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'compose'>('generate');
+  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose'>('generate');
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
 
   const toggleDraftSelection = (id: string) => {
@@ -1460,8 +1461,9 @@ const ContentManagerPage = ({
                   { key: 'generate', label: '🎬 Generate' },
                   { key: 'produce', label: '✨ Produce' },
                   { key: 'submagic', label: '🪄 Submagic' },
+                  { key: 'zapcap', label: '⚡ ZapCap' },
                   { key: 'compose', label: '🎞 Compose' },
-                ] as { key: 'generate' | 'produce' | 'submagic' | 'compose'; label: string }[]
+                ] as { key: 'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose'; label: string }[]
               ).map((vt) => (
                 <button
                   key={vt.key}
@@ -1497,6 +1499,7 @@ const ContentManagerPage = ({
               />
             )}
             {videoTab === 'submagic' && <SubmagicProductionForm onSaveToDrafts={() => setActiveTab('drafts')} />}
+            {videoTab === 'zapcap' && <ZapCapProductionForm onSaveToDrafts={() => setActiveTab('drafts')} />}
             {videoTab === 'compose' && (
               <MultiClipComposer
                 onSendToProduce={(url) => {
