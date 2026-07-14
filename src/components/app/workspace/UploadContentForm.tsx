@@ -19,7 +19,7 @@ import {
 } from '@mui/material';
 import { useRef, useState, useEffect } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
-import { MdClose, MdImage, MdInfoOutline, MdUpload, MdVideocam } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdClose, MdImage, MdInfoOutline, MdUpload, MdVideocam } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import LowCreditWarning from '../atoms/LowCreditWarning';
 
@@ -184,6 +184,19 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
     setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Carousel slide order = upload order, sent to the backend 1:1 (each image
+  // becomes exactly one slide). This lets the user fix that order directly
+  // instead of having to remove and re-add images to resequence them.
+  const moveFile = (index: number, direction: -1 | 1) => {
+    setUploadedFiles((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
   // Check credits before generation
   useEffect(() => {
     const checkCredits = async () => {
@@ -335,58 +348,107 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
 
       {/* Uploaded Files Preview */}
       {uploadedFiles.length > 0 && (
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', marginBottom: 2 }}>
-          {uploadedFiles.map((uf, idx) => (
-            <Box
-              key={idx}
-              sx={{
-                position: 'relative',
-                width: 100,
-                height: 100,
-                borderRadius: 2,
-                overflow: 'hidden',
-                border: '2px solid #E5E7EB',
-              }}
-            >
-              {uf.file.type.startsWith('video/') ? (
-                <video src={uf.preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <img
-                  src={uf.preview}
-                  alt={`Upload ${idx + 1}`}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              )}
-              <IconButton
-                onClick={() => removeFile(idx)}
-                sx={{
-                  position: 'absolute',
-                  top: 4,
-                  right: 4,
-                  backgroundColor: 'rgba(0,0,0,0.6)',
-                  color: '#fff',
-                  padding: '4px',
-                  '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' },
-                }}
-              >
-                <MdClose size={16} />
-              </IconButton>
-              <Typography
-                sx={{
-                  position: 'absolute',
-                  bottom: 4,
-                  left: 4,
-                  backgroundColor: 'rgba(0,0,0,0.6)',
-                  color: '#fff',
-                  fontSize: 10,
-                  padding: '2px 6px',
-                  borderRadius: 1,
-                }}
-              >
-                {idx + 1} of {uploadedFiles.length}
-              </Typography>
-            </Box>
-          ))}
+        <Box sx={{ marginBottom: 2 }}>
+          {postType === 'carousel' && uploadedFiles.length > 1 && (
+            <Typography sx={{ fontSize: 12, color: '#6B7280', marginBottom: 1 }}>
+              This is the slide order for your carousel. Use the arrows to rearrange.
+            </Typography>
+          )}
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+            {uploadedFiles.map((uf, idx) => {
+              const isVideo = uf.file.type.startsWith('video/');
+              const canReorder = !isVideo && uploadedFiles.length > 1;
+              return (
+                <Box
+                  key={idx}
+                  sx={{
+                    position: 'relative',
+                    width: 100,
+                    height: 100,
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    border: '2px solid #E5E7EB',
+                  }}
+                >
+                  {isVideo ? (
+                    <video src={uf.preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <img
+                      src={uf.preview}
+                      alt={`Upload ${idx + 1}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  )}
+                  <IconButton
+                    onClick={() => removeFile(idx)}
+                    sx={{
+                      position: 'absolute',
+                      top: 4,
+                      right: 4,
+                      backgroundColor: 'rgba(0,0,0,0.6)',
+                      color: '#fff',
+                      padding: '4px',
+                      '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' },
+                    }}
+                  >
+                    <MdClose size={16} />
+                  </IconButton>
+                  <Typography
+                    sx={{
+                      position: 'absolute',
+                      bottom: 4,
+                      left: 4,
+                      backgroundColor: 'rgba(0,0,0,0.6)',
+                      color: '#fff',
+                      fontSize: 10,
+                      padding: '2px 6px',
+                      borderRadius: 1,
+                    }}
+                  >
+                    {postType === 'carousel' ? `Slide ${idx + 1}` : `${idx + 1} of ${uploadedFiles.length}`}
+                  </Typography>
+                  {canReorder && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        bottom: 4,
+                        right: 4,
+                        display: 'flex',
+                        gap: 0.25,
+                      }}
+                    >
+                      <IconButton
+                        onClick={() => moveFile(idx, -1)}
+                        disabled={idx === 0}
+                        sx={{
+                          backgroundColor: 'rgba(0,0,0,0.6)',
+                          color: '#fff',
+                          padding: '2px',
+                          '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' },
+                          '&.Mui-disabled': { backgroundColor: 'rgba(0,0,0,0.25)', color: 'rgba(255,255,255,0.4)' },
+                        }}
+                      >
+                        <MdChevronLeft size={16} />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => moveFile(idx, 1)}
+                        disabled={idx === uploadedFiles.length - 1}
+                        sx={{
+                          backgroundColor: 'rgba(0,0,0,0.6)',
+                          color: '#fff',
+                          padding: '2px',
+                          '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' },
+                          '&.Mui-disabled': { backgroundColor: 'rgba(0,0,0,0.25)', color: 'rgba(255,255,255,0.4)' },
+                        }}
+                      >
+                        <MdChevronRight size={16} />
+                      </IconButton>
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
         </Box>
       )}
 
