@@ -8,14 +8,11 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 const ACCEPTED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 const MAX_MB = 500;
 
-const ZAPCAP_TEMPLATES = [
-  { id: 'beast', name: 'Beast', feel: 'Viral, high-energy', icon: '⚡' },
-  { id: 'hormozi', name: 'Hormozi', feel: 'Punchy authority', icon: '💪' },
-  { id: 'tracy', name: 'Tracy', feel: 'Clean, modern', icon: '✨' },
-  { id: 'devin', name: 'Devin', feel: 'Bold, impactful', icon: '🔥' },
-  { id: 'karaoke', name: 'Karaoke', feel: 'Word-by-word highlight', icon: '🎤' },
-  { id: 'minimal', name: 'Minimal', feel: 'Subtle, professional', icon: '⭐' },
-] as const;
+interface ZapCapTemplate {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}
 
 type OutputMode = 'composited' | 'transparent' | 'greenScreen';
 type Quality = 'standard' | 'quadHD' | 'ultraHD';
@@ -28,6 +25,7 @@ interface Props {
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Waiting in queue…',
   transcribing: 'Transcribing audio…',
+  transcriptionCompleted: 'Transcription done, preparing render…',
   rendering: 'Rendering captions…',
   completed: 'Done!',
   failed: 'Something went wrong',
@@ -36,7 +34,8 @@ const STATUS_LABEL: Record<string, string> = {
 const STATUS_PROGRESS: Record<string, number> = {
   pending: 10,
   transcribing: 40,
-  rendering: 75,
+  transcriptionCompleted: 60,
+  rendering: 80,
   completed: 100,
 };
 
@@ -45,6 +44,9 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const musicInputRef = useRef<HTMLInputElement>(null);
+
+  const [templates, setTemplates] = useState<ZapCapTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
 
   const [isDragging, setIsDragging] = useState(false);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -67,6 +69,17 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
   const [publishPlatforms, setPublishPlatforms] = useState<string[]>([]);
   const [publishCaption, setPublishCaption] = useState('');
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  useEffect(() => {
+    SocialMediaAgentService.getZapCapTemplates()
+      .then((res) => {
+        const list = res?.responseData?.templates ?? [];
+        setTemplates(list);
+        if (list.length > 0) setTemplateId(list[0].id);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingTemplates(false));
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -197,7 +210,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
           <div>
             <div style={{ fontWeight: 800, fontSize: 15, color: '#111' }}>ZapCap video ready</div>
             <div style={{ fontSize: 12, color: '#888' }}>
-              Template: {ZAPCAP_TEMPLATES.find((t) => t.id === templateId)?.name ?? templateId} · {outputMode}
+              Template: {templates.find((t) => t.id === templateId)?.name ?? templateId} · {outputMode}
             </div>
           </div>
         </div>
@@ -563,31 +576,37 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
           Caption Style
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-          {ZAPCAP_TEMPLATES.map((t) => {
-            const selected = templateId === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTemplateId(t.id)}
-                style={{
-                  padding: '12px 8px',
-                  borderRadius: 10,
-                  border: selected ? '2px solid #C2185B' : '1.5px solid #E5E7EB',
-                  background: selected ? '#FDF2F8' : '#fff',
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ fontSize: 20, marginBottom: 4 }}>{t.icon}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: selected ? '#C2185B' : '#222', marginBottom: 2 }}>
-                  {t.name}
-                </div>
-                <div style={{ fontSize: 10, color: '#999', lineHeight: 1.3 }}>{t.feel}</div>
-              </button>
-            );
-          })}
+          {loadingTemplates ? (
+            <div style={{ gridColumn: '1/-1', fontSize: 12, color: '#999', padding: '12px 0' }}>Loading templates…</div>
+          ) : templates.length === 0 ? (
+            <div style={{ gridColumn: '1/-1', fontSize: 12, color: '#999', padding: '12px 0' }}>
+              No templates found — check your ZapCap API key.
+            </div>
+          ) : (
+            templates.map((t) => {
+              const selected = templateId === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTemplateId(t.id)}
+                  style={{
+                    padding: '12px 8px',
+                    borderRadius: 10,
+                    border: selected ? '2px solid #C2185B' : '1.5px solid #E5E7EB',
+                    background: selected ? '#FDF2F8' : '#fff',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, color: selected ? '#C2185B' : '#222' }}>
+                    {String(t.name ?? t.id)}
+                  </div>
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
 

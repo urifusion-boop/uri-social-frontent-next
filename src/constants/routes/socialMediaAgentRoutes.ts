@@ -86,7 +86,8 @@ type ISocialMediaAgentApi =
   | 'submagicProduce'
   | 'submagicJob'
   | 'zapcapProduce'
-  | 'zapcapJob';
+  | 'zapcapJob'
+  | 'zapcapTemplates';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -174,6 +175,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   submagicJob: '/submagic-job',
   zapcapProduce: '/zapcap-produce',
   zapcapJob: '/zapcap-job',
+  zapcapTemplates: '/zapcap-templates',
 };
 
 export const socialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = RouteHelper.createRoutes(

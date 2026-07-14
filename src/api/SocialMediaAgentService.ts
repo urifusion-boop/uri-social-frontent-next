@@ -884,6 +884,11 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async getZapCapTemplates(): Promise<UriResponse<{ templates: { id: string; name: string }[] }>> {
+    const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.zapcapTemplates);
+    return response.data;
+  }
+
   static async produceWithZapCap(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
     const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.zapcapProduce, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
