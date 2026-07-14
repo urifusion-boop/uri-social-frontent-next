@@ -350,98 +350,121 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
       {uploadedFiles.length > 0 && (
         <Box sx={{ marginBottom: 2 }}>
           {postType === 'carousel' && uploadedFiles.length > 1 && (
-            <Typography sx={{ fontSize: 12, color: '#6B7280', marginBottom: 1 }}>
-              This is the slide order for your carousel. Use the arrows to rearrange.
-            </Typography>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
+                marginBottom: 1.5,
+                padding: '8px 12px',
+                borderRadius: 1.5,
+                backgroundColor: 'rgba(205, 27, 120, 0.06)',
+                border: '1px solid rgba(205, 27, 120, 0.2)',
+              }}
+            >
+              <MdInfoOutline size={16} color="#CD1B78" />
+              <Typography sx={{ fontSize: 12.5, color: '#111', fontWeight: 500 }}>
+                This is your carousel's slide order — use the ‹ › buttons below each photo to rearrange them.
+              </Typography>
+            </Box>
           )}
-          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             {uploadedFiles.map((uf, idx) => {
               const isVideo = uf.file.type.startsWith('video/');
               const canReorder = !isVideo && uploadedFiles.length > 1;
               return (
-                <Box
-                  key={idx}
-                  sx={{
-                    position: 'relative',
-                    width: 100,
-                    height: 100,
-                    borderRadius: 2,
-                    overflow: 'hidden',
-                    border: '2px solid #E5E7EB',
-                  }}
-                >
-                  {isVideo ? (
-                    <video src={uf.preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <img
-                      src={uf.preview}
-                      alt={`Upload ${idx + 1}`}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  )}
-                  <IconButton
-                    onClick={() => removeFile(idx)}
+                <Box key={idx} sx={{ width: 110 }}>
+                  <Box
                     sx={{
-                      position: 'absolute',
-                      top: 4,
-                      right: 4,
-                      backgroundColor: 'rgba(0,0,0,0.6)',
-                      color: '#fff',
-                      padding: '4px',
-                      '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' },
+                      position: 'relative',
+                      width: 110,
+                      height: 110,
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      border: '2px solid #E5E7EB',
                     }}
                   >
-                    <MdClose size={16} />
-                  </IconButton>
-                  <Typography
-                    sx={{
-                      position: 'absolute',
-                      bottom: 4,
-                      left: 4,
-                      backgroundColor: 'rgba(0,0,0,0.6)',
-                      color: '#fff',
-                      fontSize: 10,
-                      padding: '2px 6px',
-                      borderRadius: 1,
-                    }}
-                  >
-                    {postType === 'carousel' ? `Slide ${idx + 1}` : `${idx + 1} of ${uploadedFiles.length}`}
-                  </Typography>
+                    {isVideo ? (
+                      <video src={uf.preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <img
+                        src={uf.preview}
+                        alt={`Upload ${idx + 1}`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    )}
+                    <Typography
+                      sx={{
+                        position: 'absolute',
+                        top: 6,
+                        left: 6,
+                        backgroundColor: '#CD1B78',
+                        color: '#fff',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 1,
+                      }}
+                    >
+                      {postType === 'carousel' ? `Slide ${idx + 1}` : `${idx + 1} of ${uploadedFiles.length}`}
+                    </Typography>
+                    <IconButton
+                      onClick={() => removeFile(idx)}
+                      sx={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                        color: '#fff',
+                        padding: '4px',
+                        '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' },
+                      }}
+                    >
+                      <MdClose size={16} />
+                    </IconButton>
+                  </Box>
+                  {/* Reorder controls live BELOW the thumbnail, not on top of it — always
+                      legible regardless of what's in the photo. */}
                   {canReorder && (
                     <Box
                       sx={{
-                        position: 'absolute',
-                        bottom: 4,
-                        right: 4,
                         display: 'flex',
-                        gap: 0.25,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 0.5,
+                        marginTop: 0.5,
+                        padding: '4px 6px',
+                        borderRadius: 1.5,
+                        backgroundColor: '#F3F4F6',
+                        border: '1px solid #E5E7EB',
                       }}
                     >
                       <IconButton
                         onClick={() => moveFile(idx, -1)}
                         disabled={idx === 0}
+                        size="small"
                         sx={{
-                          backgroundColor: 'rgba(0,0,0,0.6)',
-                          color: '#fff',
+                          color: '#374151',
                           padding: '2px',
-                          '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' },
-                          '&.Mui-disabled': { backgroundColor: 'rgba(0,0,0,0.25)', color: 'rgba(255,255,255,0.4)' },
+                          '&:hover': { backgroundColor: '#E5E7EB' },
+                          '&.Mui-disabled': { color: '#D1D5DB' },
                         }}
                       >
-                        <MdChevronLeft size={16} />
+                        <MdChevronLeft size={20} />
                       </IconButton>
+                      <Typography sx={{ fontSize: 11, color: '#6B7280', fontWeight: 500 }}>Move</Typography>
                       <IconButton
                         onClick={() => moveFile(idx, 1)}
                         disabled={idx === uploadedFiles.length - 1}
+                        size="small"
                         sx={{
-                          backgroundColor: 'rgba(0,0,0,0.6)',
-                          color: '#fff',
+                          color: '#374151',
                           padding: '2px',
-                          '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' },
-                          '&.Mui-disabled': { backgroundColor: 'rgba(0,0,0,0.25)', color: 'rgba(255,255,255,0.4)' },
+                          '&:hover': { backgroundColor: '#E5E7EB' },
+                          '&.Mui-disabled': { color: '#D1D5DB' },
                         }}
                       >
-                        <MdChevronRight size={16} />
+                        <MdChevronRight size={20} />
                       </IconButton>
                     </Box>
                   )}
