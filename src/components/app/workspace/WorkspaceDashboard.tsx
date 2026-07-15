@@ -138,6 +138,13 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
         <path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
       </>
     ),
+    more: (
+      <>
+        <circle cx="12" cy="5" r="1.6" fill={c} stroke="none" />
+        <circle cx="12" cy="12" r="1.6" fill={c} stroke="none" />
+        <circle cx="12" cy="19" r="1.6" fill={c} stroke="none" />
+      </>
+    ),
     mic: (
       <>
         <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
@@ -7436,6 +7443,8 @@ const MOBILE_TABS = [
 const MORE_NAV = [
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
+  { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts' },
+  { id: 'brand-setup', icon: 'edit', label: 'Edit Brand Setup', href: '/social-media/brand-setup' },
 ];
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -8156,11 +8165,13 @@ export default function WorkspaceDashboard() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              rowGap: 6,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 7 : 9 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 7 : 9, minWidth: 0, flexShrink: 1 }}>
               {isMobile && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginRight: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginRight: 4, flexShrink: 0 }}>
                   <div
                     style={{
                       width: 24,
@@ -8175,7 +8186,7 @@ export default function WorkspaceDashboard() {
                   >
                     <span style={{ color: '#fff', fontWeight: 900, fontSize: 11 }}>U</span>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111', whiteSpace: 'nowrap' }}>
                     URI <span style={{ fontWeight: 400, color: '#999' }}>Social</span>
                   </span>
                 </div>
@@ -8188,73 +8199,88 @@ export default function WorkspaceDashboard() {
                     borderRadius: '50%',
                     background: '#4caf50',
                     boxShadow: '0 0 7px rgba(76,175,80,.4)',
+                    flexShrink: 0,
                   }}
                 />
               )}
-              <span
-                style={{
-                  fontSize: isMobile ? 11 : 12.5,
-                  color: '#666',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  maxWidth: isMobile ? 160 : 'none',
-                }}
-              >
-                {!isMobile && (
-                  <>
-                    <strong style={{ color: '#C2185B' }}>URI Agent</strong> is active:{' '}
-                  </>
-                )}
-                <span key={sIdx} style={{ animation: 'wStatusFade 5s linear', display: 'inline-block' }}>
-                  {isMobile ? STATUS_MSGS[sIdx].slice(0, 28) + '…' : STATUS_MSGS[sIdx]}
+              {/* Rotating status line is decorative flavour text — dropped on
+                  mobile entirely so the functional controls on the right
+                  (credits, notifications, profile) always have room and are
+                  never the thing that silently overflows off-screen. */}
+              {!isMobile && (
+                <span
+                  style={{
+                    fontSize: 12.5,
+                    color: '#666',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <strong style={{ color: '#C2185B' }}>URI Agent</strong> is active:{' '}
+                  <span key={sIdx} style={{ animation: 'wStatusFade 5s linear', display: 'inline-block' }}>
+                    {STATUS_MSGS[sIdx]}
+                  </span>
                 </span>
-              </span>
+              )}
             </div>
-            <div id="tour-notification-area" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <button
-                onClick={() => router.push('/settings/social-accounts')}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 7,
-                  border: '1px solid #e5e3df',
-                  background: '#fff',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title="Social Accounts"
-              >
-                <I n="settings" s={14} c="#666" />
-              </button>
-              <button
-                onClick={() => router.push('/social-media/brand-setup')}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 7,
-                  border: '1px solid #e5e3df',
-                  background: '#fff',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title="Edit Brand Setup"
-              >
-                <I n="edit" s={14} c="#666" />
-              </button>
+            <div
+              id="tour-notification-area"
+              style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, flexWrap: 'wrap' }}
+            >
+              {/* Settings / Edit Brand Setup — desktop only on the top bar (icon-only
+                  buttons with hover-only tooltips are hard to interpret on touch
+                  devices, and crowd the bar on narrow screens). Reachable on mobile
+                  via the "More" bottom-sheet drawer instead, with visible labels. */}
+              {!isMobile && (
+                <>
+                  <button
+                    onClick={() => router.push('/settings/social-accounts')}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 7,
+                      border: '1px solid #e5e3df',
+                      background: '#fff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title="Social Accounts"
+                  >
+                    <I n="settings" s={14} c="#666" />
+                  </button>
+                  <button
+                    onClick={() => router.push('/social-media/brand-setup')}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 7,
+                      border: '1px solid #e5e3df',
+                      background: '#fff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title="Edit Brand Setup"
+                  >
+                    <I n="edit" s={14} c="#666" />
+                  </button>
+                </>
+              )}
 
-              {/* Clear conversation — workspace only */}
+              {/* Clear conversation — workspace only. Visible label on mobile
+                  since there's no hover to reveal the title tooltip there. */}
               {nav === 'workspace' && (
                 <button
                   onClick={() => setClearConfirmOpen(true)}
                   title="Clear conversation"
                   style={{
-                    width: 32,
                     height: 32,
+                    padding: isMobile ? '0 10px' : 0,
+                    width: isMobile ? 'auto' : 32,
                     borderRadius: 7,
                     border: '1px solid #e5e3df',
                     background: '#fff',
@@ -8262,26 +8288,33 @@ export default function WorkspaceDashboard() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    gap: 5,
+                    flexShrink: 0,
                   }}
                 >
                   <I n="broom" s={14} c="#666" />
+                  {isMobile && <span style={{ fontSize: 11.5, fontWeight: 600, color: '#666' }}>Clear</span>}
                 </button>
               )}
 
               {/* Notification Bell */}
               <NotificationBell isMobile={isMobile} onViewAll={() => goTo('notifications')} />
 
-              {/* Trial Badge */}
-              {!isMobile && userDetails?.trialActive && (
+              {/* Trial Badge — kept visible (compact) on mobile too. Hiding this
+                  entirely used to mean there was no way to see remaining
+                  credits on mobile short of opening Billing, including for
+                  Jane herself when asked "how many credits do I have left". */}
+              {userDetails?.trialActive && (
                 <TrialBanner
                   daysRemaining={userDetails.trialDaysRemaining ?? 0}
                   creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
                   onClick={() => goTo('billing')}
+                  compact={isMobile}
                 />
               )}
 
-              {/* Credit Balance Badge */}
-              {!isMobile && !userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => goTo('billing')} />}
+              {/* Credit Balance Badge — already compact enough for mobile as-is */}
+              {!userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => goTo('billing')} />}
 
               {/* Profile Dropdown */}
               <WorkspaceProfileDropdown onNavigate={goTo} onLogout={logoutUser} />
@@ -8844,7 +8877,11 @@ export default function WorkspaceDashboard() {
                   <button
                     key={n.id}
                     onClick={() => {
-                      goTo(n.id);
+                      if ('href' in n && n.href) {
+                        router.push(n.href);
+                      } else {
+                        goTo(n.id);
+                      }
                       setMoreOpen(false);
                     }}
                     style={{
