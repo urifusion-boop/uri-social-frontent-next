@@ -94,11 +94,16 @@ class UriHttpClient {
     if (error.response) {
       switch (error.response.status) {
         case 401:
-          // Only clear on auth endpoints, not on resource not found
-          if (error.config?.url?.includes('/auth/')) {
-            this.clearUserData();
-            window.dispatchEvent(new CustomEvent('unauthorized'));
-          }
+          // A 401 on a JWT-protected endpoint always means the token is
+          // missing/invalid/expired — that's true regardless of which
+          // endpoint returned it. Scoping this to /auth/ URLs only meant an
+          // expired token surfacing on any other endpoint (brand-profile,
+          // drafts, etc. — i.e. almost every real-world case, since a stale
+          // token is normally discovered on whatever the user does next, not
+          // by hitting /auth/ directly) was silently ignored, leaving the
+          // user stuck on a dead session instead of being logged out.
+          this.clearUserData();
+          window.dispatchEvent(new CustomEvent('unauthorized'));
           return Promise.reject(error.response);
         case 403:
           // Only clear tokens if it's an authentication issue, not authorization

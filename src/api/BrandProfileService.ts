@@ -140,12 +140,21 @@ export class BrandProfileService {
     return BrandProfileService.save({ ...data, onboarding_completed: true });
   }
 
-  static async isOnboardingDone(): Promise<boolean> {
+  /**
+   * Returns true/false when onboarding status is actually known, or null when
+   * it couldn't be determined (auth failure, network error, etc.) — null is
+   * deliberately distinct from false so callers don't mistake "we couldn't
+   * check" for "onboarding is genuinely incomplete" and redirect somewhere
+   * wrong. An expired token is already handled globally by the 401
+   * interceptor (which logs the user out); this just has to avoid actively
+   * fighting that with its own bad redirect.
+   */
+  static async isOnboardingDone(): Promise<boolean | null> {
     try {
       const res = await BrandProfileService.get();
       return !!(res.status && res.responseData?.onboarding_completed);
     } catch {
-      return false;
+      return null;
     }
   }
 }

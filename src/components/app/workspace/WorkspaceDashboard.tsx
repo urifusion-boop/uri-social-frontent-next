@@ -7509,7 +7509,11 @@ export default function WorkspaceDashboard() {
 
   useEffect(() => {
     BrandProfileService.isOnboardingDone().then((done) => {
-      if (!done) router.replace('/social-media/brand-setup');
+      // Only redirect on a confirmed "not done" — null means the check
+      // failed (expired token, network error, etc.), and the global 401
+      // handler already logs the user out to /login in the auth case, so
+      // this must not race it with a wrong redirect to brand-setup.
+      if (done === false) router.replace('/social-media/brand-setup');
     });
     BrandProfileService.get().then((res) => {
       if (res.status && res.responseData) setProfile(res.responseData);
