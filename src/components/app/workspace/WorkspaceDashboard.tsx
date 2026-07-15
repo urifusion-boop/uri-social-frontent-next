@@ -1004,9 +1004,10 @@ const ContentManagerPage = ({
           return true;
         });
 
-        // Merge video drafts (separate collection) as ContentDraft-shaped cards
-        const videoDrafts: ContentDraft[] = (videoRes.responseData ?? [])
-          .filter((vd: VideoDraft) => !EXCLUDE.has(vd.status))
+        // Add video drafts not already present in the calendar (dedup by id)
+        const calendarIds = new Set(filtered.map((d: ContentDraft) => d.id ?? d.draft_id).filter(Boolean));
+        const extraVideoDrafts: ContentDraft[] = (videoRes.responseData ?? [])
+          .filter((vd: VideoDraft) => !EXCLUDE.has(vd.status) && !calendarIds.has(vd.id))
           .map((vd: VideoDraft) => ({
             id: vd.id,
             draft_id: vd.id,
@@ -1019,7 +1020,7 @@ const ContentManagerPage = ({
             has_image: false,
           }));
 
-        const merged = [...filtered, ...videoDrafts].sort((a, b) => {
+        const merged = [...filtered, ...extraVideoDrafts].sort((a, b) => {
           const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
           const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
           return tb - ta;
