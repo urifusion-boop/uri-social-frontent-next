@@ -999,6 +999,17 @@ const ContentManagerPage = ({
           if (a) return a === 'pending';
           return true;
         });
+        const reels = filtered.filter((d: ContentDraft) => d.post_type === 'reel' || !!d.video_url);
+        console.log(
+          `[fetchDrafts] total=${allDrafts.length} filtered=${filtered.length} reels=${reels.length}`,
+          reels.map((d: ContentDraft) => ({
+            id: d.id,
+            platform: d.platform,
+            post_type: d.post_type,
+            video_url: d.video_url?.substring(0, 60),
+            status: d.status,
+          }))
+        );
         setDrafts(filtered);
         const stillPending = filtered.some(hasPendingImage);
         if (stillPending && activeTabRef.current === 'drafts' && pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
