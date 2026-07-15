@@ -15,6 +15,7 @@ import {
   SocialMediaAgentService,
   TrendKeyword,
   TrendsData,
+  VideoDraft,
 } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -988,9 +989,12 @@ const ContentManagerPage = ({
     if (!silent) setLoadingDrafts(true);
     setDraftsError(false);
     try {
-      const response = await SocialMediaAgentService.getContentCalendar();
-      if (response.status && response.responseData) {
-        const allDrafts = response.responseData.drafts ?? [];
+      const [calendarRes, videoRes] = await Promise.all([
+        SocialMediaAgentService.getContentCalendar(),
+        SocialMediaAgentService.listVideoDrafts(),
+      ]);
+      if (calendarRes.status && calendarRes.responseData) {
+        const allDrafts = calendarRes.responseData.drafts ?? [];
         const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'denied', 'replaced']);
         const filtered = allDrafts.filter((d: ContentDraft) => {
           const s = d.status;
@@ -999,18 +1003,29 @@ const ContentManagerPage = ({
           if (a) return a === 'pending';
           return true;
         });
-        const reels = filtered.filter((d: ContentDraft) => d.post_type === 'reel' || !!d.video_url);
-        console.log(
-          `[fetchDrafts] total=${allDrafts.length} filtered=${filtered.length} reels=${reels.length}`,
-          reels.map((d: ContentDraft) => ({
-            id: d.id,
-            platform: d.platform,
-            post_type: d.post_type,
-            video_url: d.video_url?.substring(0, 60),
-            status: d.status,
-          }))
-        );
-        setDrafts(filtered);
+
+        // Merge video drafts (separate collection) as ContentDraft-shaped cards
+        const videoDrafts: ContentDraft[] = (videoRes.responseData ?? [])
+          .filter((vd: VideoDraft) => !EXCLUDE.has(vd.status))
+          .map((vd: VideoDraft) => ({
+            id: vd.id,
+            draft_id: vd.id,
+            platform: (vd.platforms ?? [])[0] ?? 'instagram',
+            content: vd.content,
+            video_url: vd.video_url,
+            post_type: 'reel' as const,
+            status: vd.status as ContentDraft['status'],
+            created_at: vd.created_at,
+            has_image: false,
+          }));
+
+        const merged = [...filtered, ...videoDrafts].sort((a, b) => {
+          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return tb - ta;
+        });
+
+        setDrafts(merged);
         const stillPending = filtered.some(hasPendingImage);
         if (stillPending && activeTabRef.current === 'drafts' && pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
           const attempt = pollAttemptsRef.current;
