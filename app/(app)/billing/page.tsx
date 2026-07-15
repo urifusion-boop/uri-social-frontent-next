@@ -117,16 +117,16 @@ export default function BillingPage() {
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-pink-50 to-purple-50 pt-24 pb-16 px-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-4xl md:text-5xl font-black mb-2" style={{ color: 'black' }}>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-2" style={{ color: 'black' }}>
               Billing & Credits
             </h1>
             <p className="text-gray-600 font-medium">Manage your subscription and view credit usage</p>
           </div>
           <button
             onClick={handleRefresh}
-            className="px-4 py-2 rounded-xl border-3 border-black bg-white font-bold hover:bg-gray-50 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-2"
+            className="self-start sm:self-auto px-4 py-2 rounded-xl border-3 border-black bg-white font-bold hover:bg-gray-50 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -193,8 +193,8 @@ export default function BillingPage() {
 
         {/* Subscription Info */}
         {subscription && (
-          <div className="bg-white rounded-2xl border-4 border-black p-6 mb-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-2xl border-4 border-black p-4 sm:p-6 mb-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
               <div>
                 <h2 className="text-2xl font-black capitalize" style={{ color: 'black' }}>
                   {subscription.name}
@@ -205,7 +205,7 @@ export default function BillingPage() {
               </div>
               <button
                 onClick={() => router.push('/pricing')}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold hover:scale-105 active:scale-95 transition-all shadow-lg"
+                className="self-start sm:self-auto px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold hover:scale-105 active:scale-95 transition-all shadow-lg"
               >
                 Change Plan
               </button>
@@ -235,10 +235,10 @@ export default function BillingPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-6">
+        <div className="flex gap-3 sm:gap-4 mb-6 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-6 py-3 rounded-xl font-bold transition-all ${
+            className={`shrink-0 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold transition-all whitespace-nowrap ${
               activeTab === 'overview'
                 ? 'bg-black text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)]'
                 : 'bg-white border-3 border-black hover:bg-gray-50'
@@ -248,7 +248,7 @@ export default function BillingPage() {
           </button>
           <button
             onClick={() => setActiveTab('credits')}
-            className={`px-6 py-3 rounded-xl font-bold transition-all ${
+            className={`shrink-0 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold transition-all whitespace-nowrap ${
               activeTab === 'credits'
                 ? 'bg-black text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)]'
                 : 'bg-white border-3 border-black hover:bg-gray-50'
@@ -258,7 +258,7 @@ export default function BillingPage() {
           </button>
           <button
             onClick={() => setActiveTab('payments')}
-            className={`px-6 py-3 rounded-xl font-bold transition-all ${
+            className={`shrink-0 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold transition-all whitespace-nowrap ${
               activeTab === 'payments'
                 ? 'bg-black text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)]'
                 : 'bg-white border-3 border-black hover:bg-gray-50'
@@ -270,21 +270,24 @@ export default function BillingPage() {
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
-          <div className="bg-white rounded-2xl border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <div className="bg-white rounded-2xl border-4 border-black p-4 sm:p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <h2 className="text-2xl font-black mb-6" style={{ color: 'black' }}>
               Recent Activity
             </h2>
             <div className="space-y-4">
               {creditTransactions.slice(0, 5).map((txn) => (
-                <div key={txn._id} className="flex items-center justify-between p-4 rounded-xl bg-gray-50">
-                  <div className="flex items-center gap-4">
-                    {getTransactionIcon(txn.type)}
-                    <div>
-                      <p className="font-bold text-sm capitalize">{txn.reason.replace('_', ' ')}</p>
+                <div
+                  key={txn._id}
+                  className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-gray-50"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="shrink-0">{getTransactionIcon(txn.type)}</div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm capitalize truncate">{txn.reason.replace('_', ' ')}</p>
                       <p className="text-xs text-gray-600">{new Date(txn.created_at).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <p className={`font-bold ${txn.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {txn.amount > 0 ? '+' : ''}
                       {txn.amount} credits
@@ -299,7 +302,7 @@ export default function BillingPage() {
         )}
 
         {activeTab === 'credits' && (
-          <div className="bg-white rounded-2xl border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <div className="bg-white rounded-2xl border-4 border-black p-4 sm:p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <h2 className="text-2xl font-black mb-6" style={{ color: 'black' }}>
               Credit Transaction History
             </h2>
@@ -307,17 +310,17 @@ export default function BillingPage() {
               {creditTransactions.map((txn) => (
                 <div
                   key={txn._id}
-                  className={`flex items-center justify-between p-4 rounded-xl ${getTransactionColor(txn.type)}`}
+                  className={`flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl ${getTransactionColor(txn.type)}`}
                 >
-                  <div className="flex items-center gap-4">
-                    {getTransactionIcon(txn.type)}
-                    <div>
-                      <p className="font-bold text-sm capitalize">{txn.type}</p>
-                      <p className="text-xs opacity-75 capitalize">{txn.reason.replace('_', ' ')}</p>
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="shrink-0">{getTransactionIcon(txn.type)}</div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm capitalize truncate">{txn.type}</p>
+                      <p className="text-xs opacity-75 capitalize truncate">{txn.reason.replace('_', ' ')}</p>
                       <p className="text-xs opacity-60 mt-1">{new Date(txn.created_at).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <p className={`font-black text-lg ${txn.amount > 0 ? 'text-green-700' : 'text-red-700'}`}>
                       {txn.amount > 0 ? '+' : ''}
                       {txn.amount}
@@ -336,19 +339,19 @@ export default function BillingPage() {
         )}
 
         {activeTab === 'payments' && (
-          <div className="bg-white rounded-2xl border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <div className="bg-white rounded-2xl border-4 border-black p-4 sm:p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <h2 className="text-2xl font-black mb-6" style={{ color: 'black' }}>
               Payment History
             </h2>
             <div className="space-y-4">
               {paymentHistory.map((payment) => (
                 <div key={payment._id} className="border-2 border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <p className="font-bold capitalize">{payment.subscription_tier} Plan</p>
-                      <p className="text-xs text-gray-600">{payment.transaction_ref}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <p className="font-bold capitalize truncate">{payment.subscription_tier} Plan</p>
+                      <p className="text-xs text-gray-600 truncate">{payment.transaction_ref}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       <p className="text-xl font-black">{BillingService.formatNGN(payment.amount)}</p>
                       <span
                         className={`inline-block px-2 py-1 rounded-full text-xs font-bold uppercase ${getStatusBadge(payment.status)}`}
@@ -357,7 +360,7 @@ export default function BillingPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-gray-600">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600">
                     <span>{new Date(payment.created_at).toLocaleString()}</span>
                     <span className="font-semibold capitalize">{payment.payment_method || 'N/A'}</span>
                   </div>

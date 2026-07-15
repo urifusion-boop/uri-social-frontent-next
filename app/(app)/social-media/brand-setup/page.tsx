@@ -1164,7 +1164,7 @@ function BrandSetupPageContent() {
                 {/* Logo size picker */}
                 <Box mt={2}>
                   <FieldLabel sub="(how large should your logo be?)">Logo Size</FieldLabel>
-                  <Box display="flex" gap={0.75} mt={0.75}>
+                  <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                     {(['small', 'medium', 'large'] as const).map((size) => (
                       <Chip
                         key={size}
@@ -1184,11 +1184,18 @@ function BrandSetupPageContent() {
                 <FieldLabel>Brand Colors</FieldLabel>
                 <ColorPicker colors={colors} onChange={setColors} primary={primary} />
                 {colors.length > 0 && (
-                  <Box display="flex" gap={1} alignItems="center" mt={1.5}>
+                  <Box display="flex" gap={1} alignItems="center" flexWrap="wrap" mt={1.5}>
                     {colors.map((c) => (
                       <Box
                         key={c}
-                        sx={{ width: 26, height: 26, borderRadius: '6px', background: c, border: '1px solid #E0DEF7' }}
+                        sx={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: '6px',
+                          background: c,
+                          border: '1px solid #E0DEF7',
+                          flexShrink: 0,
+                        }}
                       />
                     ))}
                     <Typography sx={{ fontSize: 11.5, color: '#9CA3AF' }}>Your brand palette</Typography>
@@ -1843,7 +1850,7 @@ function BrandSetupPageContent() {
               </Grid>
               <Grid item xs={12}>
                 <FieldLabel>Emoji usage</FieldLabel>
-                <Box display="flex" gap={0.75} mt={0.75}>
+                <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                   {[
                     { l: 'Yes, love them 🎉', v: 'yes' },
                     { l: 'Sparingly', v: 'some' },
@@ -1861,7 +1868,7 @@ function BrandSetupPageContent() {
               </Grid>
               <Grid item xs={12}>
                 <FieldLabel>Max hashtags per post</FieldLabel>
-                <Box display="flex" gap={0.75} mt={0.75}>
+                <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                   {['3', '5', '10', '15', 'No limit'].map((n) => (
                     <Chip key={n} label={n} active={maxHash === n} onClick={() => setMaxHash(n)} primary={primary} />
                   ))}
@@ -2160,14 +2167,15 @@ function BrandSetupPageContent() {
             </AgentBubble>
             <Box mt={1.5}>
               <FieldLabel>Key dates</FieldLabel>
-              <Box display="flex" gap={1} mt={0.75} mb={1.5}>
+              <Box display="flex" flexWrap="wrap" gap={1} mt={0.75} mb={1.5}>
                 <Box
                   component="input"
                   type="date"
                   value={newDate}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewDate(e.target.value)}
                   sx={{
-                    flex: '0 0 150px',
+                    flex: { xs: '1 1 140px', sm: '0 0 150px' },
+                    minWidth: 0,
                     height: 40,
                     px: 1.5,
                     borderRadius: '10px',
@@ -2185,7 +2193,8 @@ function BrandSetupPageContent() {
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewDateLabel(e.target.value)}
                   placeholder="e.g. Summer Sale Launch"
                   sx={{
-                    flex: 1,
+                    flex: '1 1 160px',
+                    minWidth: 0,
                     height: 40,
                     px: 1.5,
                     borderRadius: '10px',
@@ -2741,6 +2750,7 @@ function BrandSetupPageContent() {
                   <Box
                     display="flex"
                     alignItems="center"
+                    flexWrap="wrap"
                     gap={1}
                     mt={2}
                     pt={1.5}
@@ -2753,6 +2763,7 @@ function BrandSetupPageContent() {
                         fontWeight: 600,
                         textTransform: 'uppercase',
                         letterSpacing: 0.5,
+                        flexShrink: 0,
                       }}
                     >
                       Brand colors
@@ -2760,7 +2771,14 @@ function BrandSetupPageContent() {
                     {colors.map((c) => (
                       <Box
                         key={c}
-                        sx={{ width: 18, height: 18, borderRadius: '5px', background: c, border: '1px solid #E0DEF7' }}
+                        sx={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: '5px',
+                          background: c,
+                          border: '1px solid #E0DEF7',
+                          flexShrink: 0,
+                        }}
                       />
                     ))}
                   </Box>
