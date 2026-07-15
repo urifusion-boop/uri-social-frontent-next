@@ -137,6 +137,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
       console.log(`[DraftCard ${initialDraft.id}] useEffect triggered`, {
         post_type: initialDraft.post_type,
+        video_url: initialDraft.video_url?.substring(0, 80),
+        is_reel: initialDraft.post_type === 'reel' || !!initialDraft.video_url,
         is_carousel: isCarouselPost,
         slide_index: slideIndex,
         current_slide_url: currentSlideUrl?.substring(0, 80),
@@ -645,6 +647,13 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             sx={{ background: '#FEF3C7', color: '#92400E', fontWeight: 700, fontSize: '11px', height: 24 }}
           />
         )}
+        {isReel && (
+          <Chip
+            label="Reel"
+            size="small"
+            sx={{ background: '#FEE2E2', color: '#991B1B', fontWeight: 700, fontSize: '11px', height: 24 }}
+          />
+        )}
       </Box>
 
       {/* Publish failure banner */}
@@ -925,6 +934,26 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               display: 'block',
             }}
           />
+        </Box>
+      )}
+
+      {/* ── Reel video missing ── */}
+      {!editing && isReel && !draft.video_url && (
+        <Box
+          mb={1.5}
+          sx={{
+            borderRadius: '8px',
+            border: '1px dashed #FECACA',
+            background: '#FFF7F7',
+            height: 80,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Typography fontSize="12px" color="#EF5350">
+            ⚠️ Video URL missing — check console for video_url log
+          </Typography>
         </Box>
       )}
 
