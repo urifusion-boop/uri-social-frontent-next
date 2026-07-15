@@ -1158,7 +1158,7 @@ export default function VideoStoryboardGenerator() {
                     )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                       <span style={{ fontSize: 11, fontWeight: 600, color: GREY }}>Saved for:</span>
-                      {d.platforms.map((p) => (
+                      {(d.platforms ?? []).map((p) => (
                         <span
                           key={p}
                           style={{
@@ -1195,72 +1195,74 @@ export default function VideoStoryboardGenerator() {
                       <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 12 }}>
                         <p style={{ fontSize: 12, fontWeight: 600, color: GREY, margin: '0 0 8px' }}>Publish to</p>
                         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
-                          {PUBLISH_PLATFORMS.filter((pp) => d.platforms.includes(pp.value) || !pp.enabled).map((pp) => {
-                            const isConnected =
-                              connectedPlatforms?.map((c) => c.toLowerCase()).includes(pp.connectionKey) ?? false;
-                            const isSelected = selPlatform === pp.value;
-                            const canSelect = pp.enabled && isConnected;
-                            const jobKey = `${d.id}:${pp.value}`;
-                            const job = publishJobs[jobKey];
-                            const isPublishing = job && job.status !== 'published' && job.status !== 'failed';
+                          {PUBLISH_PLATFORMS.filter((pp) => (d.platforms ?? []).includes(pp.value) || !pp.enabled).map(
+                            (pp) => {
+                              const isConnected =
+                                connectedPlatforms?.map((c) => c.toLowerCase()).includes(pp.connectionKey) ?? false;
+                              const isSelected = selPlatform === pp.value;
+                              const canSelect = pp.enabled && isConnected;
+                              const jobKey = `${d.id}:${pp.value}`;
+                              const job = publishJobs[jobKey];
+                              const isPublishing = job && job.status !== 'published' && job.status !== 'failed';
 
-                            return (
-                              <button
-                                key={pp.value}
-                                onClick={() => {
-                                  if (!canSelect) return;
-                                  setSelectedPublishPlatform((prev) => ({ ...prev, [d.id]: pp.value }));
-                                }}
-                                title={
-                                  !pp.enabled
-                                    ? 'Coming soon'
-                                    : !isConnected
-                                      ? `Connect your ${pp.label} account first`
-                                      : ''
-                                }
-                                style={{
-                                  padding: '6px 13px',
-                                  borderRadius: 8,
-                                  border: `1.5px solid ${isSelected ? PRIMARY : BORDER}`,
-                                  background: isSelected ? '#FFF0F8' : '#fff',
-                                  color: !pp.enabled || !isConnected ? '#9CA3AF' : isSelected ? PRIMARY : DARK,
-                                  fontWeight: isSelected ? 700 : 500,
-                                  fontSize: 12,
-                                  cursor: canSelect ? 'pointer' : 'not-allowed',
-                                  fontFamily: 'inherit',
-                                  opacity: !pp.enabled ? 0.5 : 1,
-                                  position: 'relative',
-                                }}
-                              >
-                                {pp.label}
-                                {!pp.enabled && (
-                                  <span style={{ display: 'block', fontSize: 9, color: '#9CA3AF', fontWeight: 400 }}>
-                                    Coming soon
-                                  </span>
-                                )}
-                                {pp.enabled && !isConnected && (
-                                  <span style={{ display: 'block', fontSize: 9, color: '#9CA3AF', fontWeight: 400 }}>
-                                    Not connected
-                                  </span>
-                                )}
-                                {isPublishing && (
-                                  <span style={{ display: 'block', fontSize: 9, color: PRIMARY, fontWeight: 600 }}>
-                                    {job.status}…
-                                  </span>
-                                )}
-                                {job?.status === 'published' && (
-                                  <span style={{ display: 'block', fontSize: 9, color: '#16a34a', fontWeight: 600 }}>
-                                    Published
-                                  </span>
-                                )}
-                                {job?.status === 'failed' && (
-                                  <span style={{ display: 'block', fontSize: 9, color: '#DC2626', fontWeight: 600 }}>
-                                    Failed
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
+                              return (
+                                <button
+                                  key={pp.value}
+                                  onClick={() => {
+                                    if (!canSelect) return;
+                                    setSelectedPublishPlatform((prev) => ({ ...prev, [d.id]: pp.value }));
+                                  }}
+                                  title={
+                                    !pp.enabled
+                                      ? 'Coming soon'
+                                      : !isConnected
+                                        ? `Connect your ${pp.label} account first`
+                                        : ''
+                                  }
+                                  style={{
+                                    padding: '6px 13px',
+                                    borderRadius: 8,
+                                    border: `1.5px solid ${isSelected ? PRIMARY : BORDER}`,
+                                    background: isSelected ? '#FFF0F8' : '#fff',
+                                    color: !pp.enabled || !isConnected ? '#9CA3AF' : isSelected ? PRIMARY : DARK,
+                                    fontWeight: isSelected ? 700 : 500,
+                                    fontSize: 12,
+                                    cursor: canSelect ? 'pointer' : 'not-allowed',
+                                    fontFamily: 'inherit',
+                                    opacity: !pp.enabled ? 0.5 : 1,
+                                    position: 'relative',
+                                  }}
+                                >
+                                  {pp.label}
+                                  {!pp.enabled && (
+                                    <span style={{ display: 'block', fontSize: 9, color: '#9CA3AF', fontWeight: 400 }}>
+                                      Coming soon
+                                    </span>
+                                  )}
+                                  {pp.enabled && !isConnected && (
+                                    <span style={{ display: 'block', fontSize: 9, color: '#9CA3AF', fontWeight: 400 }}>
+                                      Not connected
+                                    </span>
+                                  )}
+                                  {isPublishing && (
+                                    <span style={{ display: 'block', fontSize: 9, color: PRIMARY, fontWeight: 600 }}>
+                                      {job.status}…
+                                    </span>
+                                  )}
+                                  {job?.status === 'published' && (
+                                    <span style={{ display: 'block', fontSize: 9, color: '#16a34a', fontWeight: 600 }}>
+                                      Published
+                                    </span>
+                                  )}
+                                  {job?.status === 'failed' && (
+                                    <span style={{ display: 'block', fontSize: 9, color: '#DC2626', fontWeight: 600 }}>
+                                      Failed
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            }
+                          )}
                         </div>
 
                         {/* Publish job error */}
