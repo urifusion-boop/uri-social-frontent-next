@@ -1388,16 +1388,18 @@ const ContentManagerPage = ({
                     key={mode.key}
                     onClick={() => setCreateMode(mode.key)}
                     style={{
-                      padding: '8px 18px',
+                      flex: isMobile ? 1 : undefined,
+                      padding: isMobile ? '8px 10px' : '8px 18px',
                       borderRadius: 10,
                       border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
                       background:
                         createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
                       color: createMode === mode.key ? '#fff' : '#6B7280',
-                      fontSize: 13,
+                      fontSize: isMobile ? 12.5 : 13,
                       fontWeight: 600,
                       cursor: 'pointer',
                       transition: 'all 0.15s',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     {mode.label}
@@ -1489,7 +1491,24 @@ const ContentManagerPage = ({
 
         {activeTab === 'video' && (
           <>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            {/* 5 sub-tabs — horizontal scroll on mobile instead of wrapping,
+                same pattern as the main Content Manager tab bar above. */}
+            <div
+              className={isMobile ? 'tab-scroll' : undefined}
+              style={{
+                display: 'flex',
+                gap: 8,
+                marginBottom: 20,
+                ...(isMobile
+                  ? ({
+                      overflowX: 'auto',
+                      WebkitOverflowScrolling: 'touch',
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none',
+                    } as React.CSSProperties)
+                  : { flexWrap: 'wrap' }),
+              }}
+            >
               {(
                 [
                   { key: 'generate', label: '🎬 Generate' },
@@ -1503,7 +1522,8 @@ const ContentManagerPage = ({
                   key={vt.key}
                   onClick={() => setVideoTab(vt.key)}
                   style={{
-                    padding: '8px 18px',
+                    flexShrink: 0,
+                    padding: isMobile ? '8px 14px' : '8px 18px',
                     borderRadius: 10,
                     border: videoTab === vt.key ? 'none' : '1.5px solid #E5E7EB',
                     background: videoTab === vt.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
@@ -1512,6 +1532,7 @@ const ContentManagerPage = ({
                     fontWeight: 600,
                     cursor: 'pointer',
                     transition: 'all 0.15s',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {vt.label}
@@ -7461,7 +7482,7 @@ const NAV = [
 
 const MOBILE_TABS = [
   { id: 'workspace', icon: 'home', label: 'Jane' },
-  { id: 'schedule', icon: 'calendar', label: 'Schedule' },
+  { id: 'schedule', icon: 'calendar', label: 'Create' },
   { id: 'performance', icon: 'chart', label: 'Analytics' },
   { id: 'playbook', icon: 'book', label: 'Playbook' },
   { id: 'more', icon: 'settings', label: 'More' },
