@@ -1107,7 +1107,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
           transition: 'all 0.15s',
         }}
       >
-        {videoFile ? 'Produce with ZapCap' : 'Upload a video to continue'}
+        {videoFile ? 'Produce' : 'Upload a video to continue'}
       </button>
     </div>
   );
