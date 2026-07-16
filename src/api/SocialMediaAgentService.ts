@@ -910,7 +910,7 @@ export class SocialMediaAgentService {
 
   static async getZapCapTranscript(
     jobId: string
-  ): Promise<UriResponse<{ words: { id: string; text: string; startMs: number; endMs: number }[]; raw: unknown }>> {
+  ): Promise<UriResponse<{ words: { id: string; text: string; start_time: number; end_time: number }[] }>> {
     const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.zapcapJob}/${jobId}/transcript`);
     return response.data;
   }

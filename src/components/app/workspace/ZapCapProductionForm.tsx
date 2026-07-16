@@ -70,7 +70,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
   const [publishCaption, setPublishCaption] = useState('');
   const [isSavingDraft, setIsSavingDraft] = useState(false);
 
-  type CaptionWord = { id: string; text: string; startMs: number; endMs: number };
+  type CaptionWord = { id: string; text: string; start_time: number; end_time: number };
   const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
   const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({});
   const [editingWordId, setEditingWordId] = useState<string | null>(null);
