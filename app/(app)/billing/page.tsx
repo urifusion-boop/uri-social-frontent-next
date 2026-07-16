@@ -283,7 +283,7 @@ export default function BillingPage() {
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="shrink-0">{getTransactionIcon(txn.type)}</div>
                     <div className="min-w-0">
-                      <p className="font-bold text-sm capitalize truncate">{txn.reason.replace('_', ' ')}</p>
+                      <p className="font-bold text-sm capitalize truncate">{txn.reason.replace(/_/g, ' ')}</p>
                       <p className="text-xs text-gray-600">{new Date(txn.created_at).toLocaleString()}</p>
                     </div>
                   </div>
@@ -316,7 +316,7 @@ export default function BillingPage() {
                     <div className="shrink-0">{getTransactionIcon(txn.type)}</div>
                     <div className="min-w-0">
                       <p className="font-bold text-sm capitalize truncate">{txn.type}</p>
-                      <p className="text-xs opacity-75 capitalize truncate">{txn.reason.replace('_', ' ')}</p>
+                      <p className="text-xs opacity-75 capitalize truncate">{txn.reason.replace(/_/g, ' ')}</p>
                       <p className="text-xs opacity-60 mt-1">{new Date(txn.created_at).toLocaleString()}</p>
                     </div>
                   </div>

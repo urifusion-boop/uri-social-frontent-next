@@ -10,12 +10,19 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { BillingService, SubscriptionTier, BillingCycle } from '@/src/api/BillingService';
+import {
+  BillingService,
+  SubscriptionTier,
+  BillingCycle,
+  CUSTOM_CREDIT_PRICE_NGN,
+  CUSTOM_CREDIT_MIN_QUANTITY,
+  CUSTOM_CREDIT_MAX_QUANTITY,
+} from '@/src/api/BillingService';
 import posthog from 'posthog-js';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Plus, Minus } from 'lucide-react';
 
 export default function PricingPage() {
   const router = useRouter();
@@ -25,6 +32,8 @@ export default function PricingPage() {
   const [subscribing, setSubscribing] = useState<string | null>(null);
   const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('monthly');
+  const [customQty, setCustomQty] = useState(10);
+  const [buyingCustomCredits, setBuyingCustomCredits] = useState(false);
 
   useEffect(() => {
     fetchTiers();
@@ -68,6 +77,27 @@ export default function PricingPage() {
       console.error('Payment initialization failed:', error);
       alert(error instanceof Error ? error.message : 'Failed to initialize payment. Please try again.');
       setSubscribing(null);
+    }
+  };
+
+  const handleBuyCustomCredits = async () => {
+    if (!isAuthenticated) {
+      router.push('/login?redirect=/pricing');
+      return;
+    }
+    if (customQty < CUSTOM_CREDIT_MIN_QUANTITY || buyingCustomCredits) return;
+
+    setBuyingCustomCredits(true);
+    posthog.capture('custom_credits_selected', { quantity: customQty });
+
+    try {
+      const paymentData = await BillingService.purchaseCustomCredits(customQty);
+      posthog.capture('checkout_started', { purchase_type: 'custom_credits', quantity: customQty });
+      window.location.href = paymentData.payment_url;
+    } catch (error: unknown) {
+      console.error('Custom credit purchase failed:', error);
+      alert(error instanceof Error ? error.message : 'Failed to initialize payment. Please try again.');
+      setBuyingCustomCredits(false);
     }
   };
 
@@ -269,6 +299,83 @@ export default function PricingPage() {
                 </Card>
               );
             })}
+        </div>
+
+        {/* Custom Credit Purchase — buy an exact quantity at a fixed
+            per-credit price, no subscription, never expires. */}
+        <div className="max-w-4xl mx-auto mb-16">
+          <Card className="border-2 border-[#CD1B78]/20 bg-gradient-to-br from-pink-50/60 to-white">
+            <CardContent className="p-6 sm:p-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#CD1B78] to-[#A01560] flex items-center justify-center flex-shrink-0">
+                      <Plus className="w-4 h-4 text-white" strokeWidth={3} />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900">Buy Custom Credits</h3>
+                  </div>
+                  <p className="text-sm text-gray-600 max-w-md">
+                    Need a specific amount? Top up any quantity — no subscription, and they never expire.{' '}
+                    <span className="font-bold text-[#CD1B78]">
+                      {BillingService.formatNGN(CUSTOM_CREDIT_PRICE_NGN)}
+                    </span>{' '}
+                    per credit.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center border border-gray-300 rounded-lg bg-white overflow-hidden">
+                    <button
+                      onClick={() => setCustomQty((q) => Math.max(CUSTOM_CREDIT_MIN_QUANTITY, q - 1))}
+                      disabled={buyingCustomCredits || customQty <= CUSTOM_CREDIT_MIN_QUANTITY}
+                      className="w-9 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={CUSTOM_CREDIT_MIN_QUANTITY}
+                      max={CUSTOM_CREDIT_MAX_QUANTITY}
+                      value={customQty}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        setCustomQty(
+                          Number.isFinite(v)
+                            ? Math.min(CUSTOM_CREDIT_MAX_QUANTITY, Math.max(CUSTOM_CREDIT_MIN_QUANTITY, v))
+                            : CUSTOM_CREDIT_MIN_QUANTITY
+                        );
+                      }}
+                      disabled={buyingCustomCredits}
+                      className="w-14 h-10 border-x border-gray-300 text-center text-sm font-bold text-gray-900 outline-none"
+                    />
+                    <button
+                      onClick={() => setCustomQty((q) => Math.min(CUSTOM_CREDIT_MAX_QUANTITY, q + 1))}
+                      disabled={buyingCustomCredits || customQty >= CUSTOM_CREDIT_MAX_QUANTITY}
+                      className="w-9 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <Button
+                    onClick={handleBuyCustomCredits}
+                    disabled={buyingCustomCredits || customQty < CUSTOM_CREDIT_MIN_QUANTITY}
+                    className="bg-[#CD1B78] hover:bg-[#A01560] text-white font-semibold whitespace-nowrap"
+                  >
+                    {buyingCustomCredits ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      `Buy for ${BillingService.formatNGN(customQty * CUSTOM_CREDIT_PRICE_NGN)}`
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* How It Works Section */}

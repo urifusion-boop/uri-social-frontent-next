@@ -16,6 +16,9 @@ import {
   PaymentTransaction,
   SubscriptionResponse,
   SubscriptionTier,
+  CUSTOM_CREDIT_PRICE_NGN,
+  CUSTOM_CREDIT_MIN_QUANTITY,
+  CUSTOM_CREDIT_MAX_QUANTITY,
 } from '@/src/api/BillingService';
 import Script from 'next/script';
 
@@ -151,6 +154,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   const [testAmount, setTestAmount] = useState<string>('100');
   const [testCredits, setTestCredits] = useState<string>('1');
   const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
+  const [customQty, setCustomQty] = useState(10);
+  const [buyingCustomCredits, setBuyingCustomCredits] = useState(false);
   const [paymentModal, setPaymentModal] = useState<{
     show: boolean;
     type: 'success' | 'error' | 'warning';
@@ -331,6 +336,42 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
       alert(error instanceof Error ? error.message : 'Failed to initialize payment. Please try again.');
       setSubscribing(null);
       setConfirmTier(null);
+    }
+  };
+
+  const handleBuyCustomCredits = async () => {
+    if (customQty < CUSTOM_CREDIT_MIN_QUANTITY || buyingCustomCredits) return;
+
+    setBuyingCustomCredits(true);
+
+    try {
+      const paymentData = await BillingService.purchaseCustomCredits(customQty);
+
+      // Same inline-modal-with-redirect-fallback pattern as confirmSubscription
+      if (typeof window !== 'undefined' && window.squadPay) {
+        window.squadPay({
+          key: paymentData.public_key,
+          email: paymentData.email,
+          amount: paymentData.amount * 100, // kobo
+          currency: paymentData.currency || 'NGN',
+          transaction_ref: paymentData.transaction_ref,
+          onClose: () => {
+            setBuyingCustomCredits(false);
+          },
+          onLoad: () => {},
+          onSuccess: async (data: SquadPaymentData) => {
+            setBuyingCustomCredits(false);
+            await verifyPaymentCallback(data.transaction_ref);
+          },
+        });
+      } else {
+        console.warn('Squad SDK not loaded, redirecting to payment page');
+        window.location.href = paymentData.payment_url;
+      }
+    } catch (error: unknown) {
+      console.error('Custom credit purchase failed:', error);
+      alert(error instanceof Error ? error.message : 'Failed to start checkout. Please try again.');
+      setBuyingCustomCredits(false);
     }
   };
 
@@ -841,6 +882,157 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   );
                 })}
             </div>
+
+            {/* Custom Credit Purchase — buy an exact quantity at a fixed
+                per-credit price, no subscription commitment, never expires
+                (added as bonus_credits). */}
+            <div
+              style={{
+                marginTop: 28,
+                background: 'linear-gradient(135deg, rgba(205,27,120,.03) 0%, rgba(160,21,96,.03) 100%)',
+                border: '1px solid rgba(205,27,120,.15)',
+                borderRadius: 14,
+                padding: '22px 22px 20px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 20,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ flex: '1 1 260px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <div
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 8,
+                        background: 'linear-gradient(135deg,#C2185B,#E91E63)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span style={{ color: '#fff', fontSize: 16, fontWeight: 900, lineHeight: 1 }}>+</span>
+                    </div>
+                    <h3 style={{ fontSize: 16, fontWeight: 900, color: '#111', margin: 0 }}>Buy Custom Credits</h3>
+                  </div>
+                  <p style={{ fontSize: 12.5, color: '#666', margin: 0, lineHeight: 1.5, maxWidth: 380 }}>
+                    Need a specific amount? Top up any quantity — no subscription, and they never expire.{' '}
+                    <strong style={{ color: '#C2185B' }}>₦{CUSTOM_CREDIT_PRICE_NGN.toLocaleString()}</strong> per
+                    credit.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                  {/* Quantity stepper */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      border: '1px solid #e5e3df',
+                      borderRadius: 10,
+                      background: '#fff',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <button
+                      onClick={() => setCustomQty((q) => Math.max(CUSTOM_CREDIT_MIN_QUANTITY, q - 1))}
+                      disabled={buyingCustomCredits || customQty <= CUSTOM_CREDIT_MIN_QUANTITY}
+                      style={{
+                        width: 34,
+                        height: 38,
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: buyingCustomCredits ? 'default' : 'pointer',
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: '#666',
+                      }}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={CUSTOM_CREDIT_MIN_QUANTITY}
+                      max={CUSTOM_CREDIT_MAX_QUANTITY}
+                      value={customQty}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        setCustomQty(
+                          Number.isFinite(v)
+                            ? Math.min(CUSTOM_CREDIT_MAX_QUANTITY, Math.max(CUSTOM_CREDIT_MIN_QUANTITY, v))
+                            : CUSTOM_CREDIT_MIN_QUANTITY
+                        );
+                      }}
+                      disabled={buyingCustomCredits}
+                      style={{
+                        width: 56,
+                        height: 38,
+                        border: 'none',
+                        borderLeft: '1px solid #e5e3df',
+                        borderRight: '1px solid #e5e3df',
+                        textAlign: 'center',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#111',
+                        outline: 'none',
+                      }}
+                    />
+                    <button
+                      onClick={() => setCustomQty((q) => Math.min(CUSTOM_CREDIT_MAX_QUANTITY, q + 1))}
+                      disabled={buyingCustomCredits || customQty >= CUSTOM_CREDIT_MAX_QUANTITY}
+                      style={{
+                        width: 34,
+                        height: 38,
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: buyingCustomCredits ? 'default' : 'pointer',
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: '#666',
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleBuyCustomCredits}
+                    disabled={buyingCustomCredits || customQty < CUSTOM_CREDIT_MIN_QUANTITY}
+                    style={{
+                      padding: '11px 22px',
+                      borderRadius: 10,
+                      border: 'none',
+                      background: buyingCustomCredits ? '#999' : 'linear-gradient(135deg, #C2185B, #E91E63)',
+                      color: '#fff',
+                      fontWeight: 800,
+                      fontSize: 13.5,
+                      cursor: buyingCustomCredits ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {buyingCustomCredits ? (
+                      <>
+                        <I n="loader" s={14} c="#fff" />
+                        Processing...
+                      </>
+                    ) : (
+                      `Buy for ₦${(customQty * CUSTOM_CREDIT_PRICE_NGN).toLocaleString()}`
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1079,6 +1271,49 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   <div style={{ fontSize: 11, color: '#666' }}>Available for use</div>
                 )}
               </div>
+
+              {/* Buy More Credits — quick access into the custom-credit
+                  purchase flow on the Plans tab */}
+              <div
+                onClick={() => setActiveTab('plans')}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(205,27,120,.04), rgba(160,21,96,.04))',
+                  borderRadius: 12,
+                  border: '1px dashed rgba(205,27,120,.3)',
+                  padding: 18,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  textAlign: 'center',
+                  transition: 'background .15s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(205,27,120,.08)')}
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background =
+                    'linear-gradient(135deg, rgba(205,27,120,.04), rgba(160,21,96,.04))')
+                }
+              >
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    background: 'rgba(205,27,120,.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 8,
+                  }}
+                >
+                  <span style={{ color: '#C2185B', fontSize: 18, fontWeight: 900, lineHeight: 1 }}>+</span>
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#C2185B' }}>Buy More Credits</div>
+                <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>
+                  ₦{CUSTOM_CREDIT_PRICE_NGN.toLocaleString()}/credit, any amount
+                </div>
+              </div>
             </div>
 
             {/* Subscription Info */}
@@ -1182,7 +1417,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   >
                     <div>
                       <div style={{ fontSize: 12.5, fontWeight: 600, textTransform: 'capitalize' }}>
-                        {txn.reason.replace('_', ' ')}
+                        {txn.reason.replace(/_/g, ' ')}
                       </div>
                       <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
                         {new Date(txn.created_at).toLocaleString()}
@@ -1227,7 +1462,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                       {txn.type}
                     </Bd>
                     <div style={{ fontSize: 12, color: '#666', marginTop: 6, textTransform: 'capitalize' }}>
-                      {txn.reason.replace('_', ' ')}
+                      {txn.reason.replace(/_/g, ' ')}
                     </div>
                     <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
                       {new Date(txn.created_at).toLocaleString()}
@@ -1260,7 +1495,9 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   <div style={{ display: 'flex', justifyContent: 'between', marginBottom: 8 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>
-                        {payment.subscription_tier} Plan
+                        {payment.purchase_type === 'custom_credits'
+                          ? `${payment.credit_quantity ?? Math.round(payment.amount / CUSTOM_CREDIT_PRICE_NGN)} Custom Credits`
+                          : `${payment.subscription_tier} Plan`}
                       </div>
                       <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{payment.transaction_ref}</div>
                     </div>
