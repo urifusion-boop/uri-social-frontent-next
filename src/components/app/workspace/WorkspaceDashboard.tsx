@@ -8259,74 +8259,85 @@ export default function WorkspaceDashboard() {
               id="tour-notification-area"
               style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, flexWrap: 'wrap' }}
             >
-              {/* Settings / Edit Brand Setup — desktop only on the top bar (icon-only
-                  buttons with hover-only tooltips are hard to interpret on touch
-                  devices, and crowd the bar on narrow screens). Reachable on mobile
-                  via the "More" bottom-sheet drawer instead, with visible labels. */}
-              {!isMobile && (
-                <>
-                  <button
-                    onClick={() => router.push('/settings/social-accounts')}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 7,
-                      border: '1px solid #e5e3df',
-                      background: '#fff',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    title="Social Accounts"
-                  >
-                    <I n="settings" s={14} c="#666" />
-                  </button>
-                  <button
-                    onClick={() => router.push('/social-media/brand-setup')}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 7,
-                      border: '1px solid #e5e3df',
-                      background: '#fff',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    title="Edit Brand Setup"
-                  >
-                    <I n="edit" s={14} c="#666" />
-                  </button>
-                </>
-              )}
-
-              {/* Clear conversation — workspace only. Visible label on mobile
-                  since there's no hover to reveal the title tooltip there. */}
-              {nav === 'workspace' && (
+              {/* Utility toolbar — Settings, Edit Brand Setup, Clear conversation.
+                  A single segmented pill instead of loose bordered squares reads
+                  as one cohesive control rather than three separate buttons, and
+                  it's shown on mobile too now (icon-only, same as desktop) rather
+                  than being dropped entirely — the "More" drawer still offers the
+                  labeled versions for anyone who prefers text over icons. */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'stretch',
+                  border: '1px solid #e5e3df',
+                  borderRadius: 9,
+                  overflow: 'hidden',
+                  background: '#fff',
+                  flexShrink: 0,
+                }}
+              >
                 <button
-                  onClick={() => setClearConfirmOpen(true)}
-                  title="Clear conversation"
+                  onClick={() => router.push('/settings/social-accounts')}
+                  title="Social Accounts"
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   style={{
-                    height: 32,
-                    padding: isMobile ? '0 10px' : 0,
-                    width: isMobile ? 'auto' : 32,
-                    borderRadius: 7,
-                    border: '1px solid #e5e3df',
-                    background: '#fff',
+                    width: isMobile ? 34 : 32,
+                    height: isMobile ? 34 : 32,
+                    border: 'none',
+                    borderRight: '1px solid #edecea',
+                    background: 'transparent',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 5,
-                    flexShrink: 0,
+                    transition: 'background .15s',
                   }}
                 >
-                  <I n="broom" s={14} c="#666" />
-                  {isMobile && <span style={{ fontSize: 11.5, fontWeight: 600, color: '#666' }}>Clear</span>}
+                  <I n="settings" s={14} c="#666" />
                 </button>
-              )}
+                <button
+                  onClick={() => router.push('/social-media/brand-setup')}
+                  title="Edit Brand Setup"
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  style={{
+                    width: isMobile ? 34 : 32,
+                    height: isMobile ? 34 : 32,
+                    border: 'none',
+                    borderRight: nav === 'workspace' ? '1px solid #edecea' : 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background .15s',
+                  }}
+                >
+                  <I n="edit" s={14} c="#666" />
+                </button>
+                {nav === 'workspace' && (
+                  <button
+                    onClick={() => setClearConfirmOpen(true)}
+                    title="Clear conversation"
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    style={{
+                      width: isMobile ? 34 : 32,
+                      height: isMobile ? 34 : 32,
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background .15s',
+                    }}
+                  >
+                    <I n="broom" s={14} c="#666" />
+                  </button>
+                )}
+              </div>
 
               {/* Notification Bell */}
               <NotificationBell isMobile={isMobile} onViewAll={() => goTo('notifications')} />
