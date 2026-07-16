@@ -62,13 +62,20 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
 
   const [phase, setPhase] = useState<Phase>('pick');
   const [zapcapStatus, setZapcapStatus] = useState('pending');
-  const [, setJobId] = useState<string | null>(null);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [failureReason, setFailureReason] = useState<string | null>(null);
 
   const [publishPlatforms, setPublishPlatforms] = useState<string[]>([]);
   const [publishCaption, setPublishCaption] = useState('');
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  type CaptionWord = { id: string; text: string; startMs: number; endMs: number };
+  const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
+  const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({});
+  const [editingWordId, setEditingWordId] = useState<string | null>(null);
+  const [loadingTranscript, setLoadingTranscript] = useState(false);
+  const [isRerendering, setIsRerendering] = useState(false);
 
   useEffect(() => {
     SocialMediaAgentService.getZapCapTemplates()
@@ -87,6 +94,18 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
       if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     };
   }, [videoPreviewUrl]);
+
+  useEffect(() => {
+    if (phase !== 'ready' || !currentJobId) return;
+    setLoadingTranscript(true);
+    SocialMediaAgentService.getZapCapTranscript(currentJobId)
+      .then((res) => {
+        const words = res?.responseData?.words ?? [];
+        setCaptionWords(words);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingTranscript(false));
+  }, [phase, currentJobId]);
 
   const acceptFile = (file: File) => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -144,7 +163,9 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
       const res = await SocialMediaAgentService.produceWithZapCap(formData);
       const id = res?.responseData?.job_id;
       if (!id) throw new Error('No job ID returned');
-      setJobId(id);
+      setCurrentJobId(id);
+      setCaptionWords([]);
+      setCaptionEdits({});
       setPhase('processing');
       setZapcapStatus('pending');
       startPolling(id);
@@ -159,7 +180,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
     if (pollRef.current) clearInterval(pollRef.current);
     setVideoFile(null);
     setVideoPreviewUrl(null);
-    setJobId(null);
+    setCurrentJobId(null);
     setOutputUrl(null);
     setFailureReason(null);
     setZapcapStatus('pending');
@@ -168,6 +189,34 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
     setPublishCaption('');
     setEnableMusic(false);
     setMusicFile(null);
+    setCaptionWords([]);
+    setCaptionEdits({});
+    setEditingWordId(null);
+  };
+
+  const handleRerender = async () => {
+    if (!currentJobId) return;
+    setIsRerendering(true);
+    try {
+      const edits = Object.entries(captionEdits).map(([id, text]) => ({ id, text }));
+      const res = await SocialMediaAgentService.rerenderZapCapJob(currentJobId, {
+        word_edits: edits,
+        template_id: templateId,
+      });
+      const newId = res?.responseData?.job_id;
+      if (!newId) throw new Error('No job ID returned');
+      setCurrentJobId(newId);
+      setCaptionWords([]);
+      setCaptionEdits({});
+      setOutputUrl(null);
+      setPhase('processing');
+      setZapcapStatus('pending');
+      startPolling(newId);
+    } catch {
+      ToastService.showToast('Re-render failed — try again.', ToastTypeEnum.Error);
+    } finally {
+      setIsRerendering(false);
+    }
   };
 
   const handleSaveToDrafts = async () => {
@@ -237,8 +286,10 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
             }}
           >
             <div style={{ fontWeight: 700, fontSize: 13, color: '#333', marginBottom: 12 }}>Tweak your video</div>
+
+            {/* Caption style */}
             <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Caption style</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
               {templates.map((t) => {
                 const selected = templateId === t.id;
                 return (
@@ -263,22 +314,128 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
                 );
               })}
             </div>
+
+            {/* Inline caption editor */}
+            {loadingTranscript && (
+              <div style={{ fontSize: 12, color: '#aaa', marginBottom: 12 }}>Loading transcript…</div>
+            )}
+            {!loadingTranscript && captionWords.length > 0 && (
+              <>
+                <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>
+                  Edit captions <span style={{ fontWeight: 400, color: '#bbb' }}>— click any word to edit</span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 4,
+                    marginBottom: 12,
+                    padding: '10px 12px',
+                    background: '#fff',
+                    border: '1.5px solid #e8e5e3',
+                    borderRadius: 8,
+                    maxHeight: 200,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {captionWords.map((w) => {
+                    const isEditing = editingWordId === w.id;
+                    const edited = captionEdits[w.id];
+                    const display = edited ?? w.text;
+                    return (
+                      <span key={w.id} style={{ display: 'inline-block' }}>
+                        {isEditing ? (
+                          <input
+                            autoFocus
+                            defaultValue={display}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val && val !== w.text) {
+                                setCaptionEdits((prev) => ({ ...prev, [w.id]: val }));
+                              } else if (!val || val === w.text) {
+                                setCaptionEdits((prev) => {
+                                  const n = { ...prev };
+                                  delete n[w.id];
+                                  return n;
+                                });
+                              }
+                              setEditingWordId(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur();
+                            }}
+                            style={{
+                              fontSize: 12,
+                              border: 'none',
+                              outline: '1.5px solid #C2185B',
+                              borderRadius: 4,
+                              padding: '1px 4px',
+                              background: '#fff0f5',
+                              color: '#C2185B',
+                              width: `${Math.max(display.length, 3) + 1}ch`,
+                            }}
+                          />
+                        ) : (
+                          <span
+                            onClick={() => setEditingWordId(w.id)}
+                            style={{
+                              fontSize: 12,
+                              padding: '2px 4px',
+                              borderRadius: 4,
+                              cursor: 'text',
+                              color: edited ? '#C2185B' : '#333',
+                              background: edited ? '#fff0f5' : 'transparent',
+                              fontWeight: edited ? 600 : 400,
+                            }}
+                          >
+                            {display}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+                {Object.keys(captionEdits).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCaptionEdits({})}
+                    style={{
+                      fontSize: 11,
+                      color: '#aaa',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      marginBottom: 10,
+                      padding: 0,
+                    }}
+                  >
+                    ↺ Reset all edits ({Object.keys(captionEdits).length} changed)
+                  </button>
+                )}
+              </>
+            )}
+
             <button
               type="button"
-              onClick={handleSubmit}
+              onClick={Object.keys(captionEdits).length > 0 ? handleRerender : handleSubmit}
+              disabled={isRerendering}
               style={{
                 width: '100%',
                 padding: '9px 0',
                 borderRadius: 9,
                 border: 'none',
-                background: 'linear-gradient(135deg,#7C3AED,#5B21B6)',
+                background: isRerendering ? '#c4b5fd' : 'linear-gradient(135deg,#7C3AED,#5B21B6)',
                 color: '#fff',
                 fontWeight: 700,
                 fontSize: 13,
-                cursor: 'pointer',
+                cursor: isRerendering ? 'not-allowed' : 'pointer',
               }}
             >
-              Re-render with this style
+              {isRerendering
+                ? 'Re-rendering…'
+                : Object.keys(captionEdits).length > 0
+                  ? `Re-render with ${Object.keys(captionEdits).length} caption edit${Object.keys(captionEdits).length !== 1 ? 's' : ''}`
+                  : 'Re-render with this style'}
             </button>
           </div>
         )}

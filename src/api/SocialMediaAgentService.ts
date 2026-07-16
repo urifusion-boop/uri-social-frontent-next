@@ -908,6 +908,24 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async getZapCapTranscript(
+    jobId: string
+  ): Promise<UriResponse<{ words: { id: string; text: string; startMs: number; endMs: number }[]; raw: unknown }>> {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.zapcapJob}/${jobId}/transcript`);
+    return response.data;
+  }
+
+  static async rerenderZapCapJob(
+    jobId: string,
+    payload: { word_edits: { id: string; text: string }[]; template_id?: string }
+  ): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.zapcapJob}/${jobId}/rerender`,
+      payload
+    );
+    return response.data;
+  }
+
   static async captureVideoFrame(jobId: string, seconds: number): Promise<string> {
     const response = await UriHttpClient.getClient().get(
       `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/capture-frame?t=${seconds}`,
