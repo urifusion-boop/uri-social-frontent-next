@@ -62,7 +62,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
 
   const [phase, setPhase] = useState<Phase>('pick');
   const [zapcapStatus, setZapcapStatus] = useState('pending');
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [, setJobId] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [failureReason, setFailureReason] = useState<string | null>(null);
 
@@ -208,7 +208,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
             ✓
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: '#111' }}>ZapCap video ready</div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: '#111' }}>Video ready</div>
             <div style={{ fontSize: 12, color: '#888' }}>
               Template: {templates.find((t) => t.id === templateId)?.name ?? templateId} · {outputMode}
             </div>
@@ -224,6 +224,64 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
             style={{ width: '100%', maxHeight: 480, display: 'block', objectFit: 'contain' }}
           />
         </div>
+
+        {/* Tweak your video */}
+        {videoFile && (
+          <div
+            style={{
+              background: '#fafaf9',
+              border: '1.5px solid #e8e5e3',
+              borderRadius: 12,
+              padding: '14px 16px',
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#333', marginBottom: 12 }}>Tweak your video</div>
+            <div style={{ fontSize: 12, color: '#777', marginBottom: 8, fontWeight: 600 }}>Caption style</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+              {templates.map((t) => {
+                const selected = templateId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTemplateId(t.id)}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: 20,
+                      border: `1.5px solid ${selected ? '#C2185B' : '#ddd'}`,
+                      background: selected ? '#fff0f5' : '#fff',
+                      color: selected ? '#C2185B' : '#444',
+                      fontWeight: selected ? 700 : 400,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      transition: 'all 0.12s',
+                    }}
+                  >
+                    {t.name}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              style={{
+                width: '100%',
+                padding: '9px 0',
+                borderRadius: 9,
+                border: 'none',
+                background: 'linear-gradient(135deg,#7C3AED,#5B21B6)',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              Re-render with this style
+            </button>
+          </div>
+        )}
 
         {/* Save to Drafts */}
         <div
@@ -316,7 +374,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
         <div style={{ display: 'flex', gap: 10 }}>
           <a
             href={outputUrl}
-            download="zapcap-video.mp4"
+            download="produced-video.mp4"
             target="_blank"
             rel="noreferrer"
             style={{
@@ -385,7 +443,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
 
     return (
       <div style={{ padding: '32px 0', maxWidth: 440 }}>
-        <div style={{ marginBottom: 20, fontWeight: 700, fontSize: 15, color: '#111' }}>Producing with ZapCap</div>
+        <div style={{ marginBottom: 20, fontWeight: 700, fontSize: 15, color: '#111' }}>Producing your video…</div>
         <div style={{ background: '#f0eeec', borderRadius: 8, height: 8, marginBottom: 10 }}>
           <div
             style={{
@@ -453,7 +511,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
             color: '#888',
           }}
         >
-          ZapCap typically takes 1–3 minutes. This page will update automatically.
+          Captioning typically takes 1–3 minutes. This page will update automatically.
         </div>
       </div>
     );
@@ -465,10 +523,8 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
   return (
     <div style={{ padding: '20px 0', maxWidth: 620 }}>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontWeight: 800, fontSize: 16, color: '#111', marginBottom: 4 }}>Produce with ZapCap</div>
-        <div style={{ fontSize: 13, color: '#888' }}>
-          Animated captions, auto b-roll, transparent overlays — powered by ZapCap.
-        </div>
+        <div style={{ fontWeight: 800, fontSize: 16, color: '#111', marginBottom: 4 }}>Produce 2.0</div>
+        <div style={{ fontSize: 13, color: '#888' }}>Animated captions, auto b-roll, transparent overlays.</div>
       </div>
 
       {/* Upload */}
