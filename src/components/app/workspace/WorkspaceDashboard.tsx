@@ -4818,16 +4818,36 @@ const PlaybookPage = ({
     setCompliance(profile.guardrails?.compliance_notes ?? '');
     setCtaStyles([...(profile.cta_styles ?? [])]);
     setDefaultLink(profile.default_link ?? '');
-    const age = profile.audience_age_range;
-    setAudienceAge(Array.isArray(age) ? age : age ? [age] : []);
+    // audience_age_range/region are saved as a single comma-joined string
+    // (e.g. "Gen Z (18-24), Millennials (25-40)"), not an array — wrapping the
+    // whole string as one array element (the old `[age]`) meant none of the
+    // individual chips ever matched via .includes() on re-entering edit mode,
+    // so nothing showed as selected, and re-clicking chips appended fresh
+    // selections onto the untouched blob instead of toggling them, compounding
+    // duplicates on every edit/save cycle. Split back into individual values
+    // and de-dupe so profiles already corrupted by the old bug self-heal on
+    // the next edit rather than needing every chip manually toggled off/on.
+    const splitList = (v?: string | string[]): string[] =>
+      Array.from(
+        new Set(
+          Array.isArray(v)
+            ? v
+            : v
+              ? v
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              : []
+        )
+      );
+    setAudienceAge(splitList(profile.audience_age_range));
     setPrimaryGoal(profile.primary_goal ?? '');
     setTargetPlatforms([...(profile.target_platforms ?? [])]);
     setIdealCustomerProfile(profile.ideal_customer_profile ?? '');
     const comps = profile.competitor_handles ?? [];
     setCompetitors([comps[0] ?? '', comps[1] ?? '', comps[2] ?? '']);
     setLanguages([...(profile.languages ?? [])]);
-    const reg = profile.region;
-    setRegion(Array.isArray(reg) ? reg : reg ? [reg] : []);
+    setRegion(splitList(profile.region));
     setCadence(profile.posting_cadence ?? '');
     setApproval(profile.approval_workflow ?? '');
     setTemplateUrls([...(profile.sample_template_urls ?? [])]);
