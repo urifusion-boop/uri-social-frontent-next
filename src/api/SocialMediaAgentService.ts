@@ -35,6 +35,8 @@ export interface GenerateContentPayload {
   num_slides?: number;
   acknowledged_incomplete_profile?: boolean; // OPTION 1: User acknowledged incomplete profile warning
   override_cta?: string; // One-time CTA for this generation only (not saved to brand playbook)
+  /** One-time visual style slug(s) for this generation only (not saved to brand playbook). Carousel: cycles per slide. Single post: uses the first slug. */
+  style_override?: string[];
 }
 
 export interface UploadUserContentPayload {

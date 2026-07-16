@@ -2,6 +2,8 @@
 
 import { GenerateContentPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { BillingService } from '@/src/api/BillingService';
+import { BrandProfileService } from '@/src/api/BrandProfileService';
+import { getStyle } from '@/src/data/styleLibrary';
 import posthog from 'posthog-js';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
@@ -94,6 +96,13 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
   const [assignMenu, setAssignMenu] = useState<{ anchorEl: HTMLElement; slideIndex: number } | null>(null);
   const [useCustomCta, setUseCustomCta] = useState(false);
   const [customCta, setCustomCta] = useState('');
+
+  // One-time visual style override, picked from the brand's saved profile
+  // styles. Carousel: cycles per slide in the order selected here. Single
+  // post: uses the first one picked. Not saved back to the brand playbook.
+  const [profileStyles, setProfileStyles] = useState<string[]>([]);
+  const [useStyleOverride, setUseStyleOverride] = useState(false);
+  const [selectedOverrideStyles, setSelectedOverrideStyles] = useState<string[]>([]);
 
   // Billing modals
   const [outOfCreditsOpen, setOutOfCreditsOpen] = useState(false);
@@ -225,6 +234,12 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
 
   // Add paste event listener
   useEffect(() => {
+    BrandProfileService.get()
+      .then((res) => setProfileStyles(res.responseData?.style_selections ?? []))
+      .catch(() => setProfileStyles([]));
+  }, []);
+
+  useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
       // Only handle paste if focus isn't in a text field, so we don't hijack normal text paste
       if (
@@ -283,6 +298,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
         ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
         acknowledged_incomplete_profile: acknowledgedIncomplete,
         ...(useCustomCta && customCta.trim() ? { override_cta: customCta.trim() } : {}),
+        ...(useStyleOverride && selectedOverrideStyles.length > 0 ? { style_override: selectedOverrideStyles } : {}),
       };
       if (referenceImages.length > 0) {
         payload.reference_images = referenceImages.map((img) => img.dataUrl);
@@ -970,6 +986,145 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
                   },
                 }}
               />
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* Visual style override for this generation only */}
+      {includeImages && profileStyles.length > 0 && (
+        <Box
+          sx={{
+            mt: 2,
+            mb: 2,
+            p: 2.5,
+            borderRadius: '12px',
+            border: '1px solid #E9D5FF',
+            background: 'linear-gradient(135deg, #FEFCFF 0%, #FAF5FF 100%)',
+            boxShadow: '0 1px 3px rgba(124, 58, 237, 0.08)',
+          }}
+        >
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={useStyleOverride}
+                onChange={(e) => {
+                  setUseStyleOverride(e.target.checked);
+                  if (!e.target.checked) setSelectedOverrideStyles([]);
+                }}
+                sx={{
+                  color: '#CD1B78',
+                  '&.Mui-checked': { color: '#CD1B78' },
+                  padding: '4px',
+                }}
+              />
+            }
+            label={
+              <Box display="flex" alignItems="center" gap={0.5}>
+                <Typography fontSize="14px" fontWeight={600} color="#4B5563">
+                  Use specific styles for this generation only
+                </Typography>
+                <Tooltip
+                  title={
+                    postType === 'carousel'
+                      ? "Pick which of your brand's visual styles to use. Each slide cycles through your picks in the order selected — this generation only, won't change your brand playbook."
+                      : "Pick which of your brand's visual styles to use for this image — this generation only, won't change your brand playbook."
+                  }
+                  arrow
+                  placement="top"
+                >
+                  <Box component="span" sx={{ display: 'flex', alignItems: 'center', cursor: 'help' }}>
+                    <MdInfoOutline size={16} color="#9CA3AF" />
+                  </Box>
+                </Tooltip>
+              </Box>
+            }
+            sx={{ mb: useStyleOverride ? 1.5 : 0 }}
+          />
+          {useStyleOverride && (
+            <Box sx={{ pl: 4 }}>
+              <Box display="flex" flexWrap="wrap" gap={1.25}>
+                {profileStyles.map((slug) => {
+                  const style = getStyle(slug);
+                  const pickOrder = selectedOverrideStyles.indexOf(slug);
+                  const active = pickOrder !== -1;
+                  return (
+                    <Box
+                      key={slug}
+                      onClick={() =>
+                        setSelectedOverrideStyles((prev) =>
+                          prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
+                        )
+                      }
+                      sx={{
+                        position: 'relative',
+                        width: 84,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 84,
+                          height: 56,
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          border: active ? '2px solid #CD1B78' : '1px solid #E5E7EB',
+                          position: 'relative',
+                          background: style
+                            ? `linear-gradient(135deg, ${style.gradient[0]}, ${style.gradient[1]})`
+                            : '#F3F4F6',
+                        }}
+                      >
+                        {style?.image && (
+                          <Box
+                            component="img"
+                            src={style.image}
+                            alt={style.name}
+                            sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          />
+                        )}
+                        {active && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              top: 2,
+                              left: 2,
+                              background: 'rgba(205,27,120,0.9)',
+                              color: '#fff',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              borderRadius: '4px',
+                              px: 0.5,
+                              lineHeight: '16px',
+                            }}
+                          >
+                            {pickOrder + 1}
+                          </Box>
+                        )}
+                      </Box>
+                      <Typography
+                        fontSize="11px"
+                        fontWeight={active ? 700 : 500}
+                        color={active ? '#CD1B78' : '#6B7280'}
+                        sx={{
+                          mt: 0.5,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {style?.name ?? slug}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+              {postType === 'carousel' && selectedOverrideStyles.length > 0 && (
+                <Typography fontSize="11.5px" color="#9CA3AF" sx={{ mt: 1 }}>
+                  Slides will cycle through these {selectedOverrideStyles.length} style
+                  {selectedOverrideStyles.length !== 1 ? 's' : ''} in the order picked (numbered above).
+                </Typography>
+              )}
             </Box>
           )}
         </Box>
