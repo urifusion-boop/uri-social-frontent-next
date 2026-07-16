@@ -1513,8 +1513,7 @@ const ContentManagerPage = ({
                 [
                   { key: 'generate', label: '🎬 Generate' },
                   { key: 'produce', label: '✨ Produce' },
-                  { key: 'submagic', label: '🪄 Submagic' },
-                  { key: 'zapcap', label: '⚡ ZapCap' },
+                  { key: 'zapcap', label: '⚡ Produce 2.0' },
                   { key: 'compose', label: '🎞 Compose' },
                 ] as { key: 'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose'; label: string }[]
               ).map((vt) => (
