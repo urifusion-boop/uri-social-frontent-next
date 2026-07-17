@@ -1293,6 +1293,22 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async analyzeMultiClipJob(jobId: string): Promise<
+    UriResponse<{
+      cuts: { at: number; end: number; reason: string }[];
+      zooms: { at: number; duration: number; reason: string }[];
+      transition_style: string;
+      summary: string;
+    }>
+  > {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.multiClipAnalyze}/${jobId}/analyze`,
+      {},
+      { timeout: 30000 }
+    );
+    return response.data;
+  }
+
   static async updateClipPosition(
     jobId: string,
     clipId: string,

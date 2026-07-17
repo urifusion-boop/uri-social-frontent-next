@@ -83,12 +83,20 @@ interface BrollDecision {
 }
 
 interface Props {
-  onComplete: () => void;
+  onComplete?: () => void;
   onSaveToDrafts?: () => void;
   sourceUrl?: string | null;
+  onStartProcessing?: () => void;
+  onReset?: () => void;
 }
 
-export default function VideoProductionForm({ onComplete, onSaveToDrafts, sourceUrl }: Props) {
+export default function VideoProductionForm({
+  onComplete,
+  onSaveToDrafts,
+  sourceUrl,
+  onStartProcessing,
+  onReset,
+}: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -306,6 +314,7 @@ export default function VideoProductionForm({ onComplete, onSaveToDrafts, source
 
       const jid = res.responseData.job_id;
       setJobId(jid);
+      onStartProcessing?.();
       setPhase('processing');
       setStatusMessage('Starting pipeline…');
       startPolling(jid);
@@ -330,6 +339,7 @@ export default function VideoProductionForm({ onComplete, onSaveToDrafts, source
   };
 
   const handleReset = () => {
+    onReset?.();
     if (pollRef.current) clearInterval(pollRef.current);
     setVideoFile(null);
     setVideoPreviewUrl(null);

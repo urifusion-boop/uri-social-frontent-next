@@ -1553,12 +1553,21 @@ const ContentManagerPage = ({
               />
             )}
             {videoTab === 'submagic' && <SubmagicProductionForm onSaveToDrafts={() => setActiveTab('drafts')} />}
-            {videoTab === 'zapcap' && <ZapCapProductionForm onSaveToDrafts={() => setActiveTab('drafts')} />}
+            {videoTab === 'zapcap' && (
+              <ZapCapProductionForm
+                sourceUrl={pendingProduceUrl}
+                onSaveToDrafts={() => {
+                  setPendingProduceUrl(null);
+                  setActiveTab('drafts');
+                }}
+              />
+            )}
             {videoTab === 'compose' && (
               <MultiClipComposer
+                onSaveToDrafts={() => setActiveTab('drafts')}
                 onSendToProduce={(url) => {
                   setPendingProduceUrl(url);
-                  setVideoTab('produce');
+                  setVideoTab('zapcap');
                 }}
               />
             )}

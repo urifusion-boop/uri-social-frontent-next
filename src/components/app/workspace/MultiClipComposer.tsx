@@ -331,7 +331,13 @@ function arrowBtn(disabled: boolean): React.CSSProperties {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function MultiClipComposer({ onSendToProduce }: { onSendToProduce?: (url: string) => void } = {}) {
+export default function MultiClipComposer({
+  onSaveToDrafts,
+  onSendToProduce,
+}: {
+  onSaveToDrafts?: () => void;
+  onSendToProduce?: (url: string) => void;
+} = {}) {
   // Config
   const [storyType, setStoryType] = useState<'founder' | 'product'>('founder');
   const [orientation, setOrientation] = useState<'9:16' | '1:1' | '16:9'>('9:16');
@@ -367,6 +373,16 @@ export default function MultiClipComposer({ onSendToProduce }: { onSendToProduce
   const [captionGenerating, setCaptionGenerating] = useState(false);
   const [captionPlatform, setCaptionPlatform] = useState('instagram');
   const captionGeneratedRef = useRef(false);
+
+  // AI editing decisions
+  const [aiDecisions, setAiDecisions] = useState<{
+    cuts: { at: number; end: number; reason: string }[];
+    zooms: { at: number; duration: number; reason: string }[];
+    transition_style: string;
+    summary: string;
+  } | null>(null);
+  const [analyzingDecisions, setAnalyzingDecisions] = useState(false);
+  const decisionsRequestedRef = useRef(false);
 
   // ── Session persistence ─────────────────────────────────────────────────────
 
@@ -450,6 +466,21 @@ export default function MultiClipComposer({ onSendToProduce }: { onSendToProduce
     if (job?.status === 'ready' && job.output_url && !captionGeneratedRef.current && !caption) {
       captionGeneratedRef.current = true;
       generateCaption(job, captionPlatform);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.status]);
+
+  // Auto-run AI decisions analysis when video is ready
+  useEffect(() => {
+    if (job?.status === 'ready' && job.job_id && !decisionsRequestedRef.current) {
+      decisionsRequestedRef.current = true;
+      setAnalyzingDecisions(true);
+      SocialMediaAgentService.analyzeMultiClipJob(job.job_id)
+        .then((res) => {
+          if (res.status && res.responseData) setAiDecisions(res.responseData);
+        })
+        .catch(() => {})
+        .finally(() => setAnalyzingDecisions(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.status]);
@@ -679,6 +710,9 @@ export default function MultiClipComposer({ onSendToProduce }: { onSendToProduce
   // ── Reset ───────────────────────────────────────────────────────────────────
 
   const handleReset = () => {
+    setAiDecisions(null);
+    setAnalyzingDecisions(false);
+    decisionsRequestedRef.current = false;
     if (pollRef.current) clearInterval(pollRef.current);
     clearSession();
     setJob(null);
@@ -1411,6 +1445,7 @@ export default function MultiClipComposer({ onSendToProduce }: { onSendToProduce
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '8px 0 40px' }}>
         <JobHeader job={job} onReset={handleReset} />
 
+        {/* Video preview */}
         <div style={sectionStyle}>
           <p style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 800, color: DARK }}>Your composed video</p>
           <video
@@ -1460,8 +1495,6 @@ export default function MultiClipComposer({ onSendToProduce }: { onSendToProduce
               {captionGenerating ? 'Generating…' : 'Regenerate'}
             </button>
           </div>
-
-          {/* Platform picker */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             {(['instagram', 'facebook', 'tiktok', 'linkedin'] as const).map((p) => (
               <button
@@ -1485,7 +1518,6 @@ export default function MultiClipComposer({ onSendToProduce }: { onSendToProduce
               </button>
             ))}
           </div>
-
           <textarea
             value={captionGenerating ? '' : caption}
             onChange={(e) => setCaption(e.target.value)}
@@ -1516,7 +1548,7 @@ export default function MultiClipComposer({ onSendToProduce }: { onSendToProduce
               Record your voiceover
             </p>
             <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#166534', lineHeight: 1.5 }}>
-              Read this script aloud while recording on your phone — it matches the captions in your video exactly.
+              Read this script aloud while recording on your phone — it matches the captions exactly.
             </p>
             <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {job.script_lines.map((line, i) => (
@@ -1528,29 +1560,141 @@ export default function MultiClipComposer({ onSendToProduce }: { onSendToProduce
           </div>
         )}
 
-        {/* Send to Produce My Video */}
-        {onSendToProduce && job.output_url && (
-          <button
-            onClick={() => onSendToProduce(job.output_url!)}
-            style={{
-              width: '100%',
-              padding: '13px 0',
-              borderRadius: 12,
-              background: PRIMARY,
-              color: '#fff',
-              border: 'none',
-              fontSize: 14,
-              fontWeight: 800,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              marginBottom: 10,
-            }}
-          >
-            ✨ Produce My Video
-          </button>
-        )}
+        {/* AI editing decisions */}
+        <div style={{ ...sectionStyle, background: '#F5F3FF', borderColor: '#C4B5FD' }}>
+          <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800, color: '#4C1D95' }}>AI Editing Decisions</p>
+          {analyzingDecisions ? (
+            <p style={{ margin: '8px 0 0', fontSize: 13, color: '#6D28D9' }}>
+              Analysing your clips for cuts, zooms &amp; transitions…
+            </p>
+          ) : aiDecisions ? (
+            <>
+              {aiDecisions.summary && (
+                <p style={{ margin: '4px 0 12px', fontSize: 12.5, color: '#5B21B6', fontStyle: 'italic' }}>
+                  {aiDecisions.summary}
+                </p>
+              )}
 
-        {/* Re-stitch / actions */}
+              {/* Transition style */}
+              <div style={{ marginBottom: 12 }}>
+                <p
+                  style={{
+                    margin: '0 0 4px',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: '#7C3AED',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  Transition Style
+                </p>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    padding: '3px 12px',
+                    borderRadius: 20,
+                    background: '#EDE9FE',
+                    color: '#6D28D9',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {aiDecisions.transition_style}
+                </span>
+              </div>
+
+              {/* Cuts */}
+              {aiDecisions.cuts.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <p
+                    style={{
+                      margin: '0 0 6px',
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      color: '#7C3AED',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    Suggested Cuts ({aiDecisions.cuts.length})
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {aiDecisions.cuts.map((c, i) => (
+                      <div
+                        key={i}
+                        style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, color: '#4C1D95' }}
+                      >
+                        <span style={{ fontWeight: 700, flexShrink: 0, color: '#7C3AED' }}>
+                          {c.at.toFixed(1)}s–{c.end.toFixed(1)}s
+                        </span>
+                        <span style={{ color: '#5B21B6' }}>{c.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Zooms */}
+              {aiDecisions.zooms.length > 0 && (
+                <div>
+                  <p
+                    style={{
+                      margin: '0 0 6px',
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      color: '#7C3AED',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    Zoom Moments ({aiDecisions.zooms.length})
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {aiDecisions.zooms.map((z, i) => (
+                      <div
+                        key={i}
+                        style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, color: '#4C1D95' }}
+                      >
+                        <span style={{ fontWeight: 700, flexShrink: 0, color: '#7C3AED' }}>
+                          {z.at.toFixed(1)}s ({z.duration.toFixed(1)}s)
+                        </span>
+                        <span style={{ color: '#5B21B6' }}>{z.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <p style={{ margin: '8px 0 0', fontSize: 13, color: '#7C3AED' }}>
+              AI analysis unavailable — you can still continue to production.
+            </p>
+          )}
+        </div>
+
+        {/* Continue to Produce My Video */}
+        <button
+          onClick={() => onSendToProduce?.(job.output_url!)}
+          style={{
+            width: '100%',
+            padding: '14px 0',
+            borderRadius: 12,
+            background: 'linear-gradient(135deg, #7C3AED 0%, #CD1B78 100%)',
+            color: '#fff',
+            border: 'none',
+            fontSize: 15,
+            fontWeight: 800,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            marginBottom: 12,
+            boxShadow: '0 4px 16px rgba(124,58,237,0.3)',
+          }}
+        >
+          ⚡ Continue to Produce My Video
+        </button>
+
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={handleReStitch}

@@ -20,6 +20,7 @@ type Phase = 'pick' | 'uploading' | 'processing' | 'ready' | 'failed';
 
 interface Props {
   onSaveToDrafts?: () => void;
+  sourceUrl?: string | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -39,7 +40,7 @@ const STATUS_PROGRESS: Record<string, number> = {
   completed: 100,
 };
 
-export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
+export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -69,6 +70,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
   const [publishPlatforms, setPublishPlatforms] = useState<string[]>([]);
   const [publishCaption, setPublishCaption] = useState('');
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [videoWasSubmitted, setVideoWasSubmitted] = useState(false);
 
   type CaptionWord = { id: string; text: string; start_time: number; end_time: number };
   const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
@@ -146,11 +148,15 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (!videoFile) return;
+    if (!videoFile && !sourceUrl) return;
     setPhase('uploading');
 
     const formData = new FormData();
-    formData.append('video', videoFile);
+    if (videoFile) {
+      formData.append('video', videoFile);
+    } else if (sourceUrl) {
+      formData.append('source_url', sourceUrl);
+    }
     formData.append('template_id', templateId);
     formData.append('language', language);
     formData.append('output_mode', outputMode);
@@ -166,6 +172,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
       setCurrentJobId(id);
       setCaptionWords([]);
       setCaptionEdits({});
+      setVideoWasSubmitted(true);
       setPhase('processing');
       setZapcapStatus('pending');
       startPolling(id);
@@ -192,6 +199,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
     setCaptionWords([]);
     setCaptionEdits({});
     setEditingWordId(null);
+    setVideoWasSubmitted(false);
   };
 
   const handleRerender = async () => {
@@ -275,7 +283,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
         </div>
 
         {/* Tweak your video */}
-        {videoFile && (
+        {videoWasSubmitted && (
           <div
             style={{
               background: '#fafaf9',
@@ -675,7 +683,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
   }
 
   // ── Pick ───────────────────────────────────────────────────────────────────
-  const canSubmit = !!videoFile;
+  const canSubmit = !!videoFile || !!sourceUrl;
 
   return (
     <div style={{ padding: '20px 0', maxWidth: 620 }}>
@@ -696,9 +704,55 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
             letterSpacing: '0.05em',
           }}
         >
-          Upload Video
+          Video Source
         </div>
-        {videoFile ? (
+        {sourceUrl && !videoFile ? (
+          <div
+            style={{
+              border: '2px solid #C2185B',
+              borderRadius: 12,
+              background: '#fdf2f8',
+              padding: '16px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <div style={{ fontSize: 28, flexShrink: 0 }}>🎞</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 2 }}>
+                Multi-Clip Composition
+              </div>
+              <div style={{ fontSize: 12, color: '#888' }}>Transferred from Compose — ready to produce</div>
+            </div>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                fontSize: 11,
+                color: '#C2185B',
+                background: 'transparent',
+                border: '1px solid #C2185B',
+                borderRadius: 6,
+                padding: '3px 10px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                flexShrink: 0,
+              }}
+            >
+              Replace
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/mp4,video/quicktime,video/webm"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) acceptFile(f);
+              }}
+            />
+          </div>
+        ) : videoFile ? (
           <div
             style={{ borderRadius: 12, overflow: 'hidden', background: '#000', marginBottom: 10, position: 'relative' }}
           >
@@ -734,44 +788,46 @@ export default function ZapCapProductionForm({ onSaveToDrafts }: Props) {
             </button>
           </div>
         ) : (
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              const f = e.dataTransfer.files[0];
-              if (f) acceptFile(f);
-            }}
-            style={{
-              border: `2px dashed ${isDragging ? '#C2185B' : '#d1cdc9'}`,
-              borderRadius: 12,
-              padding: '32px 20px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              background: isDragging ? '#fdf2f8' : '#fafaf9',
-              transition: 'all 0.15s',
-            }}
-          >
-            <div style={{ fontSize: 28, marginBottom: 8 }}>🎬</div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: '#333', marginBottom: 4 }}>Drop your video here</div>
-            <div style={{ fontSize: 12, color: '#999' }}>MP4 or MOV · max 500 MB</div>
-          </div>
+          <>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const f = e.dataTransfer.files[0];
+                if (f) acceptFile(f);
+              }}
+              style={{
+                border: `2px dashed ${isDragging ? '#C2185B' : '#d1cdc9'}`,
+                borderRadius: 12,
+                padding: '32px 20px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: isDragging ? '#fdf2f8' : '#fafaf9',
+                transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontSize: 28, marginBottom: 8 }}>🎬</div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#333', marginBottom: 4 }}>Drop your video here</div>
+              <div style={{ fontSize: 12, color: '#999' }}>MP4 or MOV · max 500 MB</div>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/mp4,video/quicktime,video/webm"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) acceptFile(f);
+              }}
+            />
+          </>
         )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="video/mp4,video/quicktime,video/webm"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) acceptFile(f);
-          }}
-        />
       </div>
 
       {/* Caption Template */}
