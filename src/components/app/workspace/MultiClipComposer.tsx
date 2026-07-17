@@ -1401,6 +1401,81 @@ export default function MultiClipComposer({
           )}
         </div>
 
+        {/* Music toggle — last chance before stitching */}
+        <div style={{ ...sectionStyle }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: enableMusic ? 12 : 0,
+            }}
+          >
+            <div>
+              <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: DARK }}>Background Music</p>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: GREY }}>Soft music mixed into your video</p>
+            </div>
+            <button
+              onClick={() => setEnableMusic((v) => !v)}
+              style={{
+                width: 44,
+                height: 24,
+                borderRadius: 12,
+                border: 'none',
+                background: enableMusic ? PRIMARY : '#D1D5DB',
+                cursor: 'pointer',
+                position: 'relative',
+                transition: 'background 0.2s',
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  left: enableMusic ? 22 : 2,
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: '#fff',
+                  transition: 'left 0.2s',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                }}
+              />
+            </button>
+          </div>
+          {enableMusic && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(
+                [
+                  { label: 'Quiet', vol: 0.06 },
+                  { label: 'Medium', vol: 0.12 },
+                  { label: 'Loud', vol: 0.25 },
+                ] as const
+              ).map(({ label, vol }) => (
+                <button
+                  key={label}
+                  onClick={() => setMusicVolume(vol)}
+                  style={{
+                    flex: 1,
+                    padding: '6px 4px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${musicVolume === vol ? PRIMARY : BORDER}`,
+                    background: musicVolume === vol ? '#FFF0F8' : '#fff',
+                    color: musicVolume === vol ? PRIMARY : GREY,
+                    fontSize: 12,
+                    fontWeight: musicVolume === vol ? 700 : 500,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {jobError && <p style={{ fontSize: 13, color: '#EF4444', margin: '0 0 12px' }}>{jobError}</p>}
 
         <button
