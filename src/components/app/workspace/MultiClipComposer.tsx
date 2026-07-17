@@ -18,6 +18,7 @@ const ORIENTATIONS = [
 ];
 
 const DURATIONS = [
+  { value: 0, label: 'Auto', sub: 'No limit' },
   { value: 15, label: '15s', sub: 'Punchy' },
   { value: 30, label: '30s', sub: 'Standard' },
   { value: 60, label: '60s', sub: 'Detailed' },
@@ -332,16 +333,14 @@ function arrowBtn(disabled: boolean): React.CSSProperties {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function MultiClipComposer({
-  onSaveToDrafts,
   onSendToProduce,
 }: {
-  onSaveToDrafts?: () => void;
   onSendToProduce?: (url: string) => void;
 } = {}) {
   // Config
   const [storyType, setStoryType] = useState<'founder' | 'product'>('founder');
   const [orientation, setOrientation] = useState<'9:16' | '1:1' | '16:9'>('9:16');
-  const [targetDuration, setTargetDuration] = useState(30);
+  const [targetDuration, setTargetDuration] = useState(0);
   const [enableMusic, setEnableMusic] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.12); // Shotstack track volume
 
