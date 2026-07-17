@@ -12,14 +12,33 @@
 
 import { useEffect, useState } from 'react';
 import { CircularProgress } from '@mui/material';
-import { Sparkles, Image as ImageIcon, Layers, ClipboardCheck, AlertTriangle, Send, X, ZoomIn } from 'lucide-react';
+import {
+  Sparkles,
+  Image as ImageIcon,
+  Layers,
+  ClipboardCheck,
+  AlertTriangle,
+  Send,
+  X,
+  ZoomIn,
+  Settings,
+  Info,
+} from 'lucide-react';
 import {
   AspectFormat,
+  BrandPrefsResult,
+  CarouselSlideContent,
+  CleanupLevel,
   ImageResult,
   LayerData,
+  LogoControlMode,
+  LogoPosition,
+  NegativeSpace,
   QualityGateResult,
   ReviewQueueItem,
+  StyleFamily,
   SupportedPlatform,
+  VisualEngineMetrics,
   VisualEngineV2Service,
 } from '@/src/api/VisualEngineV2Service';
 
@@ -29,6 +48,44 @@ const PRIMARY_DARK = '#C2185B';
 const POST_INTENTS = ['sale', 'product', 'announcement', 'testimonial', 'educational'] as const;
 const FORMATS: AspectFormat[] = ['1:1', '4:5', '9:16'];
 const PLATFORMS = ['instagram', 'facebook', 'twitter', 'linkedin'];
+const NEGATIVE_SPACE_OPTIONS: { value: NegativeSpace; label: string }[] = [
+  { value: 'left_third', label: 'Left third' },
+  { value: 'right_third', label: 'Right third' },
+  { value: 'top_third', label: 'Top third' },
+  { value: 'bottom_third', label: 'Bottom third' },
+];
+const CLEANUP_LEVELS: { value: CleanupLevel; label: string; hint: string }[] = [
+  { value: 'none', label: 'None', hint: 'Use the photo as-is (still resized to fit)' },
+  {
+    value: 'background_removal',
+    label: 'Background removal',
+    hint: 'Strip the background onto the brand background — recommended',
+  },
+  { value: 'reframe', label: 'Reframe', hint: 'Smart-crop only, keep the original background' },
+  {
+    value: 'ai_recomposite',
+    label: 'AI re-composite',
+    hint: 'Preserve the product exactly, generate a new scene around it — premium, single-post only',
+  },
+];
+const LOGO_POSITIONS: LogoPosition[] = [
+  'top_left',
+  'top_center',
+  'top_right',
+  'bottom_left',
+  'bottom_center',
+  'bottom_right',
+  'center',
+];
+const STYLE_FAMILIES: StyleFamily[] = [
+  'bold_modern',
+  'minimal_clean',
+  'modern_professional',
+  'educational',
+  'testimonial_social_proof',
+  'playful_colorful',
+  'elegant_luxury',
+];
 
 const tierStyle: Record<string, { bg: string; fg: string; label: string }> = {
   auto: { bg: '#ECFDF5', fg: '#16A34A', label: 'Auto-publish' },
@@ -44,7 +101,7 @@ function SectionCard({
   disabled,
   children,
 }: {
-  step: number;
+  step: number | string;
   icon: React.ReactNode;
   title: string;
   subtitle: string;
@@ -66,7 +123,7 @@ function SectionCard({
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: PRIMARY }}>
-              Step {step}
+              {typeof step === 'number' ? `Step ${step}` : step}
             </span>
             <h3 className="text-sm font-bold text-gray-900">{title}</h3>
           </div>
@@ -193,18 +250,33 @@ function Lightbox({ url, onClose }: { url: string | null; onClose: () => void })
 }
 
 export default function VisualEngineV2Panel() {
+  // Brand preferences — V2-only (style_family override, logo control mode)
+  const [brandPrefs, setBrandPrefs] = useState<BrandPrefsResult | null>(null);
+  const [loadingPrefs, setLoadingPrefs] = useState(true);
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [pendingLogoMode, setPendingLogoMode] = useState<LogoControlMode | null>(null);
+  const [logoPositionDraft, setLogoPositionDraft] = useState<LogoPosition>('bottom_right');
+
   // Step 1: content plan
   const [seedContent, setSeedContent] = useState('');
   const [platform, setPlatform] = useState('instagram');
   const [postIntent, setPostIntent] = useState<(typeof POST_INTENTS)[number]>('announcement');
   const [contentLayer, setContentLayer] = useState<LayerData | null>(null);
+  const [carouselSlides, setCarouselSlides] = useState<CarouselSlideContent[] | null>(null);
   const [generatingContent, setGeneratingContent] = useState(false);
 
   // Step 2: imagery
   const [imageFormat, setImageFormat] = useState<AspectFormat>('1:1');
+  const [negativeSpace, setNegativeSpace] = useState<NegativeSpace>('left_third');
+  const [cleanupLevel, setCleanupLevel] = useState<CleanupLevel>('background_removal');
+  const [recompositeScene, setRecompositeScene] = useState('');
   const [imageryLayer, setImageryLayer] = useState<LayerData | null>(null);
+  const [imageryLayers, setImageryLayers] = useState<LayerData[] | null>(null);
   const [generatingImage, setGeneratingImage] = useState(false);
   const [imageryNeedsAttention, setImageryNeedsAttention] = useState(false);
+
+  // Success metrics (PRD Section 16)
+  const [metrics, setMetrics] = useState<VisualEngineMetrics | null>(null);
 
   // Step 3: render
   const [selectedFormats, setSelectedFormats] = useState<AspectFormat[]>(['1:1']);
@@ -234,6 +306,8 @@ export default function VisualEngineV2Panel() {
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  const isCarousel = carouselCount > 1;
+
   useEffect(() => {
     refreshReviewQueue();
     VisualEngineV2Service.getConnectedPlatforms()
@@ -243,6 +317,16 @@ export default function VisualEngineV2Panel() {
       })
       .catch(() => setConnectedPlatforms([]))
       .finally(() => setLoadingConnections(false));
+    VisualEngineV2Service.getBrandPrefs()
+      .then((res) => {
+        setBrandPrefs(res);
+        if (res.logo_manual_position) setLogoPositionDraft(res.logo_manual_position);
+      })
+      .catch(() => setBrandPrefs(null))
+      .finally(() => setLoadingPrefs(false));
+    VisualEngineV2Service.getMetrics()
+      .then(setMetrics)
+      .catch(() => setMetrics(null));
   }, []);
 
   const refreshReviewQueue = () => {
@@ -259,17 +343,83 @@ export default function VisualEngineV2Panel() {
     );
   };
 
+  // Resets downstream state whenever the carousel slide count crosses the
+  // single-post/carousel boundary, since the two flows use different content
+  // + imagery shapes (flat vs per-slide) that can't carry over.
+  const handleCarouselCountChange = (next: number) => {
+    const clamped = Math.max(1, Math.min(10, next || 1));
+    if (clamped > 1 !== isCarousel) {
+      setContentLayer(null);
+      setCarouselSlides(null);
+      setImageryLayer(null);
+      setImageryLayers(null);
+    }
+    setCarouselCount(clamped);
+  };
+
+  const handleLogoModeSelect = (mode: LogoControlMode) => {
+    if (mode === 'user' && brandPrefs?.logo_control_mode !== 'user') {
+      // Show the tradeoff warning before committing — PRD-driven UX from the
+      // earlier logo-toggle design: user control means Orshot renders WITHOUT
+      // a logo and we composite it afterward, so template-fit guarantees drop.
+      setPendingLogoMode('user');
+      return;
+    }
+    void saveLogoMode(mode, mode === 'user' ? logoPositionDraft : undefined);
+  };
+
+  const saveLogoMode = async (mode: LogoControlMode, position?: LogoPosition) => {
+    setSavingPrefs(true);
+    setError(null);
+    try {
+      const updated = await VisualEngineV2Service.updateBrandPrefs({
+        logo_control_mode: mode,
+        ...(position ? { logo_manual_position: position } : {}),
+      });
+      setBrandPrefs(updated);
+      setPendingLogoMode(null);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Failed to update logo preference'));
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
+
+  const handleStyleFamilyOverride = async (family: StyleFamily) => {
+    setSavingPrefs(true);
+    setError(null);
+    try {
+      const updated = await VisualEngineV2Service.updateBrandPrefs({ style_family: family });
+      setBrandPrefs(updated);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Failed to update style family'));
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
+
   const handleGenerateContent = async () => {
     if (!seedContent.trim()) return;
     setError(null);
     setGeneratingContent(true);
     try {
-      const result = await VisualEngineV2Service.generateContentPlan({
-        seed_content: seedContent.trim(),
-        platforms: [platform],
-        post_intent: postIntent,
-      });
-      setContentLayer(result.content_layer);
+      if (isCarousel) {
+        const result = await VisualEngineV2Service.generateCarouselContentPlan({
+          seed_content: seedContent.trim(),
+          platforms: [platform],
+          post_intent: postIntent,
+          carousel_count: carouselCount,
+        });
+        setContentLayer(result.content_layer);
+        setCarouselSlides((result.content_layer.data.slides as CarouselSlideContent[]) || []);
+      } else {
+        const result = await VisualEngineV2Service.generateContentPlan({
+          seed_content: seedContent.trim(),
+          platforms: [platform],
+          post_intent: postIntent,
+        });
+        setContentLayer(result.content_layer);
+      }
     } catch (e) {
       setError(getErrorMessage(e, 'Content plan generation failed'));
     } finally {
@@ -282,12 +432,23 @@ export default function VisualEngineV2Panel() {
     setError(null);
     setGeneratingImage(true);
     try {
-      const result: ImageResult = await VisualEngineV2Service.generateImagePathA({
-        content_plan: `${contentLayer.data.headline} ${contentLayer.data.subtext}`.trim(),
-        format: imageFormat,
-      });
-      setImageryLayer(result.imagery_layer);
-      setImageryNeedsAttention(!!result.needs_attention);
+      if (isCarousel && carouselSlides) {
+        const result = await VisualEngineV2Service.carouselGenerateImagesPathA({
+          image_briefs: carouselSlides.map((s) => s.image_brief),
+          format: imageFormat,
+          negative_space: negativeSpace,
+        });
+        setImageryLayers(result.imagery_layers);
+        setImageryNeedsAttention(result.imagery_layers.some((l) => !!l.metadata?.needs_attention));
+      } else {
+        const result: ImageResult = await VisualEngineV2Service.generateImagePathA({
+          content_plan: `${contentLayer.data.headline} ${contentLayer.data.subtext}`.trim(),
+          format: imageFormat,
+          negative_space: negativeSpace,
+        });
+        setImageryLayer(result.imagery_layer);
+        setImageryNeedsAttention(!!result.needs_attention);
+      }
     } catch (e) {
       setError(getErrorMessage(e, 'Path A image generation failed'));
     } finally {
@@ -295,17 +456,40 @@ export default function VisualEngineV2Panel() {
     }
   };
 
-  const handleUploadImageB = async (file: File) => {
+  const handleUploadImageB = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (isCarousel && cleanupLevel === 'ai_recomposite') {
+      setError(
+        "AI re-compositing isn't available for carousel uploads yet — use it on a single-post upload, or pick a different cleanup level for this carousel."
+      );
+      return;
+    }
+    if (!isCarousel && cleanupLevel === 'ai_recomposite' && !recompositeScene.trim()) {
+      setError('Describe the new scene to generate around the product before uploading with AI re-composite.');
+      return;
+    }
     setError(null);
     setGeneratingImage(true);
     try {
-      const result: ImageResult = await VisualEngineV2Service.uploadImagePathB({
-        file,
-        format: imageFormat,
-        removeBackground: true,
-      });
-      setImageryLayer(result.imagery_layer);
-      setImageryNeedsAttention(!!result.needs_attention);
+      if (isCarousel) {
+        const result = await VisualEngineV2Service.carouselUploadImagesPathB({
+          files: Array.from(files),
+          carouselCount,
+          format: imageFormat,
+          cleanupLevel,
+        });
+        setImageryLayers(result.imagery_layers);
+        setImageryNeedsAttention(false);
+      } else {
+        const result: ImageResult = await VisualEngineV2Service.uploadImagePathB({
+          file: files[0],
+          format: imageFormat,
+          cleanupLevel,
+          contentPlan: cleanupLevel === 'ai_recomposite' ? recompositeScene.trim() : undefined,
+        });
+        setImageryLayer(result.imagery_layer);
+        setImageryNeedsAttention(!!result.needs_attention);
+      }
     } catch (e) {
       setError(getErrorMessage(e, 'Path B upload failed'));
     } finally {
@@ -314,18 +498,18 @@ export default function VisualEngineV2Panel() {
   };
 
   const handleRender = async () => {
-    if (!contentLayer || !imageryLayer) return;
     setError(null);
     setRendering(true);
     setPublishResult(null);
     try {
-      const basePayload = {
-        content_layer: contentLayer,
-        imagery_layer: imageryLayer,
-        formats: selectedFormats,
-      };
-      if (carouselCount > 1) {
-        const result = await VisualEngineV2Service.renderCarousel({ ...basePayload, carousel_count: carouselCount });
+      if (isCarousel) {
+        if (!contentLayer || !imageryLayers) return;
+        const result = await VisualEngineV2Service.renderCarousel({
+          content_layer: contentLayer,
+          imagery_layers: imageryLayers,
+          formats: selectedFormats,
+          carousel_count: carouselCount,
+        });
         setRenderId(result.render_id);
         setFormatOutputs(result.format_outputs);
         setTemplateId(result.template_id);
@@ -333,7 +517,12 @@ export default function VisualEngineV2Panel() {
         setQualityGate(result.quality_gate);
         setRenderCost(result.total_cost);
       } else {
-        const result = await VisualEngineV2Service.render(basePayload);
+        if (!contentLayer || !imageryLayer) return;
+        const result = await VisualEngineV2Service.render({
+          content_layer: contentLayer,
+          imagery_layer: imageryLayer,
+          formats: selectedFormats,
+        });
         setRenderId(result.render_id);
         setFormatOutputs(result.format_outputs);
         setTemplateId(result.template_id);
@@ -380,6 +569,8 @@ export default function VisualEngineV2Panel() {
   };
 
   const tier = qualityGate ? tierStyle[qualityGate.review_tier] : null;
+  const canRender = isCarousel ? !!(contentLayer && imageryLayers?.length) : !!(contentLayer && imageryLayer);
+  const imageryReadyCount = isCarousel ? imageryLayers?.length || 0 : imageryLayer ? 1 : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
@@ -397,6 +588,33 @@ export default function VisualEngineV2Panel() {
             Content → Imagery → Brand → Typesetting, per the Visual Content Engine PRD. Not wired into the main Create
             Content flow yet.
           </p>
+          {metrics && metrics.total_renders > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              <Badge bg="#F3F4F6" fg="#4B5563">
+                {metrics.total_renders} renders
+              </Badge>
+              {metrics.render_success_rate !== null && (
+                <Badge bg="#F3F4F6" fg="#4B5563">
+                  {Math.round(metrics.render_success_rate * 100)}% render success
+                </Badge>
+              )}
+              {metrics.auto_publish_rate !== null && (
+                <Badge bg="#F3F4F6" fg="#4B5563">
+                  {Math.round(metrics.auto_publish_rate * 100)}% auto-publish
+                </Badge>
+              )}
+              {metrics.avg_cost_per_post_usd !== null && (
+                <Badge bg="#F3F4F6" fg="#4B5563">
+                  avg ${metrics.avg_cost_per_post_usd.toFixed(3)}/post
+                </Badge>
+              )}
+              {metrics.avg_cost_per_carousel_usd !== null && (
+                <Badge bg="#F3F4F6" fg="#4B5563">
+                  avg ${metrics.avg_cost_per_carousel_usd.toFixed(3)}/carousel
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
 
         {error && (
@@ -409,12 +627,141 @@ export default function VisualEngineV2Panel() {
           </div>
         )}
 
+        {/* Brand preferences — V2-only style_family + logo control */}
+        <SectionCard
+          step="Brand"
+          icon={<Settings className="w-4 h-4" />}
+          title="Brand preferences for this brand"
+          subtitle="Stored separately from the shared brand profile — logo control and template style family for Visual Engine V2 only."
+        >
+          {loadingPrefs ? (
+            <div className="flex justify-center py-3">
+              <CircularProgress size={16} style={{ color: PRIMARY }} />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">Template style family</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {STYLE_FAMILIES.map((fam) => {
+                    const active = brandPrefs?.style_family === fam;
+                    return (
+                      <button
+                        key={fam}
+                        onClick={() => handleStyleFamilyOverride(fam)}
+                        disabled={savingPrefs}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50"
+                        style={{
+                          borderColor: active ? PRIMARY : '#E5E7EB',
+                          background: active ? 'rgba(205,27,120,0.08)' : '#fff',
+                          color: active ? PRIMARY : '#6B7280',
+                        }}
+                      >
+                        {fam.replace(/_/g, ' ')}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1.5">
+                  {brandPrefs?.style_family_override
+                    ? 'Manually overridden.'
+                    : "Auto-derived from this brand's chosen visual styles."}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">Logo positioning</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleLogoModeSelect('agent')}
+                    disabled={savingPrefs}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50"
+                    style={{
+                      borderColor: brandPrefs?.logo_control_mode === 'agent' ? PRIMARY : '#E5E7EB',
+                      background: brandPrefs?.logo_control_mode === 'agent' ? 'rgba(205,27,120,0.08)' : '#fff',
+                      color: brandPrefs?.logo_control_mode === 'agent' ? PRIMARY : '#6B7280',
+                    }}
+                  >
+                    Let the agent handle it
+                  </button>
+                  <button
+                    onClick={() => handleLogoModeSelect('user')}
+                    disabled={savingPrefs}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50"
+                    style={{
+                      borderColor: brandPrefs?.logo_control_mode === 'user' ? PRIMARY : '#E5E7EB',
+                      background: brandPrefs?.logo_control_mode === 'user' ? 'rgba(205,27,120,0.08)' : '#fff',
+                      color: brandPrefs?.logo_control_mode === 'user' ? PRIMARY : '#6B7280',
+                    }}
+                  >
+                    I'll choose the position
+                  </button>
+                </div>
+
+                {pendingLogoMode === 'user' && (
+                  <div
+                    className="mt-3 px-3.5 py-3 rounded-lg text-xs"
+                    style={{ background: '#FFFBEB', color: '#92400E' }}
+                  >
+                    <div className="flex items-start gap-2 mb-2.5">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <span>
+                        Choosing your own logo position means the template renders <b>without</b> a logo, and we stamp
+                        it on afterward at your exact position. This loses the template's guaranteed logo-fit — the logo
+                        may sit less precisely than a template built with a logo slot.
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none"
+                        value={logoPositionDraft}
+                        onChange={(e) => setLogoPositionDraft(e.target.value as LogoPosition)}
+                      >
+                        {LOGO_POSITIONS.map((p) => (
+                          <option key={p} value={p}>
+                            {p.replace(/_/g, ' ')}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="text-xs font-semibold px-3 py-1.5 rounded-md transition-opacity hover:opacity-90"
+                        style={{ background: PRIMARY_DARK, color: '#fff' }}
+                        onClick={() => saveLogoMode('user', logoPositionDraft)}
+                        disabled={savingPrefs}
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        className="text-xs font-semibold px-3 py-1.5 rounded-md border transition-colors hover:bg-gray-50"
+                        style={{ borderColor: '#E5E7EB', color: '#6B7280' }}
+                        onClick={() => setPendingLogoMode(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {brandPrefs?.logo_control_mode === 'user' && brandPrefs.logo_manual_position && !pendingLogoMode && (
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    Logo stamped at: {brandPrefs.logo_manual_position.replace(/_/g, ' ')}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </SectionCard>
+
         {/* Step 1: Content layer */}
         <SectionCard
           step={1}
           icon={<Sparkles className="w-4 h-4" />}
           title="Content layer"
-          subtitle="AI text only — headline, subhead, promo, CTA. Never pixels."
+          subtitle={
+            isCarousel
+              ? 'One AI call plans the whole carousel narrative arc — hook, body, close.'
+              : 'AI text only — headline, subhead, promo, CTA. Never pixels.'
+          }
         >
           <textarea
             className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 mb-3 resize-none"
@@ -448,12 +795,27 @@ export default function VisualEngineV2Panel() {
                 </option>
               ))}
             </select>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-gray-500">Carousel slides</label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={carouselCount}
+                onChange={(e) => handleCarouselCountChange(Number(e.target.value))}
+                className="w-16 rounded-lg border border-gray-200 px-2.5 py-2 text-sm focus:outline-none"
+              />
+            </div>
           </div>
           <PrimaryButton onClick={handleGenerateContent} disabled={!seedContent.trim()} loading={generatingContent}>
-            {generatingContent ? 'Generating…' : 'Generate content plan'}
+            {generatingContent
+              ? 'Generating…'
+              : isCarousel
+                ? `Plan ${carouselCount}-slide carousel`
+                : 'Generate content plan'}
           </PrimaryButton>
 
-          {contentLayer && (
+          {!isCarousel && contentLayer && (
             <div className="mt-4 p-4 rounded-lg" style={{ background: '#FAFAF8' }}>
               <p className="text-sm font-bold text-gray-900">{contentLayer.data.headline}</p>
               <p className="text-xs text-gray-500 mt-1">{contentLayer.data.subtext}</p>
@@ -469,6 +831,42 @@ export default function VisualEngineV2Panel() {
               </div>
             </div>
           )}
+
+          {isCarousel && carouselSlides && carouselSlides.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {carouselSlides.map((slide, i) => (
+                <div key={i} className="p-3 rounded-lg flex items-start gap-3" style={{ background: '#FAFAF8' }}>
+                  <span
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5"
+                    style={{ background: 'rgba(205,27,120,0.1)', color: PRIMARY }}
+                  >
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-gray-900">
+                      {slide.headline || <span className="text-gray-300">—</span>}
+                    </p>
+                    {slide.subtext && <p className="text-xs text-gray-500 mt-0.5">{slide.subtext}</p>}
+                    <p className="text-[11px] text-gray-400 mt-1 italic truncate">{slide.image_brief}</p>
+                    {(slide.cta || slide.promo) && (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        {slide.promo && (
+                          <Badge bg="#FFFBEB" fg="#B45309">
+                            {slide.promo}
+                          </Badge>
+                        )}
+                        {slide.cta && (
+                          <Badge bg="rgba(205,27,120,0.08)" fg={PRIMARY}>
+                            {slide.cta}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </SectionCard>
 
         {/* Step 2: Imagery layer */}
@@ -476,10 +874,22 @@ export default function VisualEngineV2Panel() {
           step={2}
           icon={<ImageIcon className="w-4 h-4" />}
           title="Imagery layer"
-          subtitle="Path A: generate imagery-only. Path B: your real product photo, cleaned up."
+          subtitle={
+            isCarousel
+              ? 'Path A: one independent image generated per slide brief. Path B: one photo per slide (repeats the last if fewer are uploaded).'
+              : 'Path A: generate imagery-only. Path B: your real product photo, cleaned up.'
+          }
           disabled={!contentLayer}
         >
-          <div className="flex flex-wrap items-center gap-2.5 mb-4">
+          {!loadingPrefs && brandPrefs && !isCarousel && (
+            <p className="text-[11px] text-gray-400 mb-3 flex items-center gap-1">
+              <Info className="w-3 h-3 shrink-0" />
+              {brandPrefs.has_product_images
+                ? 'This brand has product photos on file — Path B is recommended.'
+                : 'No product photos on file for this brand yet — Path A (generate) is recommended until you upload one.'}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2.5 mb-3">
             <select
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none"
               value={imageFormat}
@@ -491,8 +901,27 @@ export default function VisualEngineV2Panel() {
                 </option>
               ))}
             </select>
+            <select
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none"
+              value={negativeSpace}
+              onChange={(e) => setNegativeSpace(e.target.value as NegativeSpace)}
+              title="Where Path A leaves clean space for the template's text/logo"
+            >
+              {NEGATIVE_SPACE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  Text space: {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 mb-4">
             <SecondaryButton onClick={handleGenerateImageA} disabled={!contentLayer || generatingImage}>
-              {generatingImage ? 'Generating…' : 'Path A: Generate'}
+              {generatingImage
+                ? 'Generating…'
+                : isCarousel
+                  ? `Path A: Generate ${carouselCount} slide images`
+                  : 'Path A: Generate'}
             </SecondaryButton>
             <label
               className={`px-4 py-2 rounded-lg border text-sm font-semibold transition-colors hover:border-pink-500 hover:text-pink-600 cursor-pointer ${
@@ -500,17 +929,61 @@ export default function VisualEngineV2Panel() {
               }`}
               style={{ borderColor: '#E5E7EB', color: '#374151' }}
             >
-              Path B: Upload
+              {isCarousel ? `Path B: Upload up to ${carouselCount} photos` : 'Path B: Upload'}
               <input
                 type="file"
                 hidden
                 accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleUploadImageB(file);
-                }}
+                multiple={isCarousel}
+                onChange={(e) => handleUploadImageB(e.target.files)}
               />
             </label>
+          </div>
+
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">Path B cleanup level</p>
+            <div className="flex flex-wrap gap-1.5">
+              {CLEANUP_LEVELS.map((lvl) => {
+                const active = cleanupLevel === lvl.value;
+                return (
+                  <button
+                    key={lvl.value}
+                    onClick={() => setCleanupLevel(lvl.value)}
+                    title={lvl.hint}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+                    style={{
+                      borderColor: active ? PRIMARY : '#E5E7EB',
+                      background: active ? 'rgba(205,27,120,0.08)' : '#fff',
+                      color: active ? PRIMARY : '#6B7280',
+                    }}
+                  >
+                    {lvl.label}
+                  </button>
+                );
+              })}
+            </div>
+            {cleanupLevel === 'ai_recomposite' && isCarousel && (
+              <p className="text-[11px] mt-1.5 flex items-center gap-1" style={{ color: '#B45309' }}>
+                <Info className="w-3 h-3" /> Not available for carousels yet — switch to a single post (1 slide) to use
+                it.
+              </p>
+            )}
+            {cleanupLevel === 'ai_recomposite' && !isCarousel && (
+              <div className="mt-2.5">
+                <p className="text-[11px] mb-1.5 flex items-start gap-1" style={{ color: '#B45309' }}>
+                  <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                  The product is cut out and preserved exactly; only the scene around it is regenerated. Always requires
+                  mandatory review before publishing.
+                </p>
+                <textarea
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs focus:outline-none resize-none"
+                  rows={2}
+                  placeholder="Describe the new scene, e.g. a marble kitchen counter with warm morning light"
+                  value={recompositeScene}
+                  onChange={(e) => setRecompositeScene(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           {imageryNeedsAttention && (
@@ -520,19 +993,34 @@ export default function VisualEngineV2Panel() {
             >
               <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span>
-                Generation failed after a retry — a brand-colored placeholder was used instead. This will be flagged for
-                mandatory review.
+                {isCarousel
+                  ? 'One or more slide images failed after a retry — a brand-colored placeholder was used for that slide. This will be flagged for mandatory review.'
+                  : 'Generation failed after a retry — a brand-colored placeholder was used instead. This will be flagged for mandatory review.'}
               </span>
             </div>
           )}
 
-          {imageryLayer && (
+          {!isCarousel && imageryLayer && (
             <PreviewableImage
               src={imageryLayer.data.imagery_url as string}
               alt="Generated imagery"
               className="max-w-[200px] rounded-lg border border-gray-200"
               onPreview={setPreviewUrl}
             />
+          )}
+
+          {isCarousel && imageryLayers && imageryLayers.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {imageryLayers.map((layer, i) => (
+                <PreviewableImage
+                  key={i}
+                  src={layer.data.imagery_url as string}
+                  alt={`Slide ${i + 1} imagery`}
+                  className="w-28 rounded-lg border border-gray-200"
+                  onPreview={setPreviewUrl}
+                />
+              ))}
+            </div>
           )}
         </SectionCard>
 
@@ -542,9 +1030,9 @@ export default function VisualEngineV2Panel() {
           icon={<Layers className="w-4 h-4" />}
           title="Render — brand + typesetting"
           subtitle="Exact brand values injected into a locked template. One plan, every format."
-          disabled={!imageryLayer}
+          disabled={!canRender}
         >
-          <div className="mb-3">
+          <div className="mb-4">
             <p className="text-xs font-semibold text-gray-500 mb-1.5">Formats to render (PRD Section 14)</p>
             <div className="flex gap-2">
               {FORMATS.map((f) => {
@@ -568,22 +1056,14 @@ export default function VisualEngineV2Panel() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 mb-4">
-            <div>
-              <label className="text-xs font-semibold text-gray-500 block mb-1.5">Carousel slides</label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={carouselCount}
-                onChange={(e) => setCarouselCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
-                className="w-20 rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none"
-              />
-            </div>
-            <div className="pt-5">
-              <PrimaryButton onClick={handleRender} disabled={!imageryLayer} loading={rendering}>
-                {rendering ? 'Rendering…' : 'Render'}
-              </PrimaryButton>
-            </div>
+            {isCarousel && (
+              <p className="text-xs text-gray-500">
+                {imageryReadyCount}/{carouselCount} slide images ready
+              </p>
+            )}
+            <PrimaryButton onClick={handleRender} disabled={!canRender} loading={rendering}>
+              {rendering ? 'Rendering…' : isCarousel ? `Render ${carouselCount}-slide carousel` : 'Render'}
+            </PrimaryButton>
           </div>
 
           {qualityGate && tier && (

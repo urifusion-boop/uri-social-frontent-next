@@ -36,6 +36,9 @@ export interface LayerData {
   metadata: Record<string, unknown>;
 }
 
+export type NegativeSpace = 'left_third' | 'right_third' | 'top_third' | 'bottom_third';
+export type CleanupLevel = 'none' | 'background_removal' | 'reframe' | 'ai_recomposite';
+
 export interface ContentPlanPayload {
   seed_content: string;
   platforms: string[];
@@ -49,10 +52,32 @@ export interface ContentPlanResult {
   cost: number;
 }
 
+export interface CarouselSlideContent {
+  headline: string;
+  subtext: string;
+  promo: string;
+  cta: string;
+  image_brief: string;
+}
+
+export interface CarouselContentPlanPayload {
+  seed_content: string;
+  platforms: string[];
+  post_intent: string;
+  carousel_count: number;
+}
+
+export interface CarouselContentPlanResult {
+  success: boolean;
+  /** content_layer.data.slides: CarouselSlideContent[] */
+  content_layer: LayerData;
+  cost: number;
+}
+
 export interface GenerateImagePayload {
   content_plan: string;
   format?: AspectFormat;
-  negative_space?: string;
+  negative_space?: NegativeSpace;
 }
 
 export interface ImageResult {
@@ -60,6 +85,18 @@ export interface ImageResult {
   imagery_layer: LayerData;
   cost: number;
   needs_attention?: boolean;
+}
+
+export interface CarouselGenerateImagesPayload {
+  image_briefs: string[];
+  format?: AspectFormat;
+  negative_space?: NegativeSpace;
+}
+
+export interface CarouselImagesResult {
+  success: boolean;
+  imagery_layers: LayerData[];
+  cost: number;
 }
 
 export interface RenderPayload {
@@ -70,7 +107,13 @@ export interface RenderPayload {
   formats?: AspectFormat[];
 }
 
-export interface CarouselRenderPayload extends RenderPayload {
+export interface CarouselRenderPayload {
+  /** Carousel content plan with data.slides[] (from generateCarouselContentPlan) */
+  content_layer: LayerData;
+  /** One per slide, same order as content_layer.data.slides */
+  imagery_layers: LayerData[];
+  format?: AspectFormat;
+  formats?: AspectFormat[];
   carousel_count: number;
 }
 
@@ -142,6 +185,56 @@ export interface PublishResult {
   result: Record<string, unknown>;
 }
 
+export type LogoControlMode = 'agent' | 'user';
+export type LogoPosition =
+  | 'top_left'
+  | 'top_right'
+  | 'top_center'
+  | 'bottom_left'
+  | 'bottom_right'
+  | 'bottom_center'
+  | 'center';
+export type StyleFamily =
+  | 'bold_modern'
+  | 'minimal_clean'
+  | 'modern_professional'
+  | 'educational'
+  | 'testimonial_social_proof'
+  | 'playful_colorful'
+  | 'elegant_luxury';
+
+export interface BrandPrefsResult {
+  success: boolean;
+  style_family: StyleFamily | null;
+  style_family_override: boolean;
+  logo_control_mode: LogoControlMode;
+  logo_manual_position: LogoPosition | null;
+  /** PRD Section 10.1: whether this brand has any previously-cleaned Path B upload on file. */
+  has_product_images: boolean;
+  /** "B" if the brand has usable product photos on file, "A" otherwise — PRD Section 10.1 fallback. */
+  recommended_image_path: 'A' | 'B';
+}
+
+export interface BrandPrefsUpdatePayload {
+  logo_control_mode?: LogoControlMode;
+  logo_manual_position?: LogoPosition;
+  style_family?: StyleFamily;
+}
+
+export interface VisualEngineMetrics {
+  success: boolean;
+  total_renders: number;
+  text_correctness_rate: number;
+  brand_accuracy: number;
+  auto_publish_rate: number | null;
+  render_success_rate: number | null;
+  avg_cost_per_post_usd: number | null;
+  avg_cost_per_carousel_usd: number | null;
+  single_post_count: number;
+  carousel_count: number;
+  customer_visible_quality: string;
+}
+
 interface JobStartResult {
   success: boolean;
   job_id: string;
@@ -208,11 +301,14 @@ export class VisualEngineV2Service {
   static async uploadImagePathB(params: {
     file: File;
     format?: AspectFormat;
-    removeBackground?: boolean;
+    cleanupLevel?: CleanupLevel;
+    /** Required when cleanupLevel === 'ai_recomposite' — describes the new scene to generate around the product. */
+    contentPlan?: string;
   }): Promise<ImageResult> {
     const form = new FormData();
     form.append('format', params.format || '1:1');
-    form.append('remove_background', String(!!params.removeBackground));
+    form.append('cleanup_level', params.cleanupLevel || 'background_removal');
+    if (params.contentPlan) form.append('content_plan', params.contentPlan);
     form.append('image_file', params.file);
 
     const start: AxiosResponse<JobStartResult> = await UriHttpClient.getClient().post(`${BASE}/upload-image`, form, {
@@ -220,6 +316,47 @@ export class VisualEngineV2Service {
       timeout: 60000,
     });
     return VisualEngineV2Service._pollJob<ImageResult>(start.data.job_id);
+  }
+
+  /** PRD Section 9.1: one AI call plans the whole carousel's narrative arc — one entry per slide in content_layer.data.slides. */
+  static async generateCarouselContentPlan(payload: CarouselContentPlanPayload): Promise<CarouselContentPlanResult> {
+    const res: AxiosResponse<CarouselContentPlanResult> = await UriHttpClient.getClient().post(
+      `${BASE}/carousel-content-plan`,
+      payload,
+      { timeout: 300000 }
+    );
+    return res.data;
+  }
+
+  /** Path A carousel: one independent GPT Image 2 generation per slide brief, run concurrently server-side. */
+  static async carouselGenerateImagesPathA(payload: CarouselGenerateImagesPayload): Promise<CarouselImagesResult> {
+    const start: AxiosResponse<JobStartResult> = await UriHttpClient.getClient().post(
+      `${BASE}/carousel-generate-images`,
+      payload,
+      { timeout: 30000 }
+    );
+    return VisualEngineV2Service._pollJob<CarouselImagesResult>(start.data.job_id, 3000, 150);
+  }
+
+  /** Path B carousel: one uploaded photo per slide (fewer uploads than slides repeats the last one). */
+  static async carouselUploadImagesPathB(params: {
+    files: File[];
+    carouselCount: number;
+    format?: AspectFormat;
+    cleanupLevel?: CleanupLevel;
+  }): Promise<CarouselImagesResult> {
+    const form = new FormData();
+    form.append('carousel_count', String(params.carouselCount));
+    form.append('format', params.format || '1:1');
+    form.append('cleanup_level', params.cleanupLevel || 'background_removal');
+    params.files.forEach((file) => form.append('image_files', file));
+
+    const start: AxiosResponse<JobStartResult> = await UriHttpClient.getClient().post(
+      `${BASE}/carousel-upload-images`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 }
+    );
+    return VisualEngineV2Service._pollJob<CarouselImagesResult>(start.data.job_id);
   }
 
   static async render(payload: RenderPayload): Promise<RenderResult> {
@@ -236,6 +373,23 @@ export class VisualEngineV2Service {
       { timeout: 30000 }
     );
     return VisualEngineV2Service._pollJob<CarouselRenderResult>(start.data.job_id);
+  }
+
+  /** This brand's V2-only preferences: auto-derived (or overridden) style_family, and logo control mode. */
+  static async getBrandPrefs(): Promise<BrandPrefsResult> {
+    const res: AxiosResponse<BrandPrefsResult> = await UriHttpClient.getClient().get(`${BASE}/brand-prefs`);
+    return res.data;
+  }
+
+  static async updateBrandPrefs(payload: BrandPrefsUpdatePayload): Promise<BrandPrefsResult> {
+    const res: AxiosResponse<BrandPrefsResult> = await UriHttpClient.getClient().put(`${BASE}/brand-prefs`, payload);
+    return res.data;
+  }
+
+  /** PRD Section 16 success metrics, computed from this user's stored V2 renders. */
+  static async getMetrics(): Promise<VisualEngineMetrics> {
+    const res: AxiosResponse<VisualEngineMetrics> = await UriHttpClient.getClient().get(`${BASE}/metrics`);
+    return res.data;
   }
 
   static async getReviewQueue(): Promise<UriResponse<{ pending_reviews: ReviewQueueItem[]; count: number }>> {
