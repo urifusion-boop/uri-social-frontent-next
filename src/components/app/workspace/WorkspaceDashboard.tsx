@@ -1564,7 +1564,6 @@ const ContentManagerPage = ({
             )}
             {videoTab === 'compose' && (
               <MultiClipComposer
-                onSaveToDrafts={() => setActiveTab('drafts')}
                 onSendToProduce={(url) => {
                   setPendingProduceUrl(url);
                   setVideoTab('zapcap');
