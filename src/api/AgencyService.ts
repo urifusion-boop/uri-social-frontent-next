@@ -164,6 +164,17 @@ export class AgencyService {
     return res.data;
   }
 
+  /** IRREVERSIBLE — removes the brand and all its data. The backend requires
+   * the brand to already be archived (see archiveBrand) before this succeeds. */
+  static async deleteBrandPermanently(
+    brandId: string
+  ): Promise<UriResponse<{ brand_id: string; permanently_deleted: boolean; deleted_counts: Record<string, number> }>> {
+    const res = await UriHttpClient.getClient().delete(
+      R.agencyBrandDeletePermanent.replace('{brand_id}', brandId)
+    );
+    return res.data;
+  }
+
   static async listMembers(): Promise<UriResponse<AgencyMember[]>> {
     const res: AxiosResponse<UriResponse<AgencyMember[]>> = await UriHttpClient.getClient().get(R.agencyMembers);
     return res.data;

@@ -63,6 +63,7 @@ type ISocialMediaAgentApi =
   | 'agencyBrands'
   | 'agencyBrandsDuplicate'
   | 'agencyBrandById'
+  | 'agencyBrandDeletePermanent'
   | 'agencyMembers'
   | 'agencyMemberById'
   | 'agencyMemberBrand'
@@ -135,6 +136,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   agencyBrands: '/agency/brands',
   agencyBrandsDuplicate: '/agency/brands/duplicate',
   agencyBrandById: '/agency/brands/{brand_id}',
+  agencyBrandDeletePermanent: '/agency/brands/{brand_id}/permanent',
   agencyMembers: '/agency/members',
   agencyMemberById: '/agency/members/{member_id}',
   agencyMemberBrand: '/agency/members/{member_id}/brands/{brand_id}',
