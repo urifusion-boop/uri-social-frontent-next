@@ -6,7 +6,7 @@ import { useAuth } from '@/src/providers/AuthProvider';
 import posthog from 'posthog-js';
 import { Box, Button, CircularProgress, TextField, Typography, Alert, Fade, Collapse } from '@mui/material';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState } from 'react';
 import { MdOutlineCampaign, MdCheckCircle, MdError, MdEmail } from 'react-icons/md';
 
 function VerifyEmailContent() {
@@ -20,7 +20,6 @@ function VerifyEmailContent() {
   const [success, setSuccess] = useState('');
   const [resendSuccess, setResendSuccess] = useState('');
   const [codeError, setCodeError] = useState('');
-  const [autoSent, setAutoSent] = useState(false);
 
   // Get email from URL params or logged-in user
   const email = searchParams.get('email') || userDetails?.email || '';
@@ -148,23 +147,6 @@ function VerifyEmailContent() {
       setResendLoading(false);
     }
   };
-
-  // Auto-send verification code when page loads
-  useEffect(() => {
-    if (email && !autoSent) {
-      setAutoSent(true);
-      // Send verification code automatically
-      AuthService.resendVerification({ email })
-        .then((res) => {
-          if (res.status) {
-            setResendSuccess('Verification code sent to your email!');
-          }
-        })
-        .catch(() => {
-          // Silently fail, user can still click resend
-        });
-    }
-  }, [email, autoSent]);
 
   return (
     <Box
