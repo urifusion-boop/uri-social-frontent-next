@@ -314,6 +314,9 @@ const DayDetailModal = ({
           padding: '24px 24px 20px',
           maxWidth: 460,
           width: '100%',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
           boxShadow: '0 20px 60px rgba(0,0,0,.18)',
         }}
       >
