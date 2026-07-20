@@ -314,6 +314,9 @@ const DayDetailModal = ({
           padding: '24px 24px 20px',
           maxWidth: 460,
           width: '100%',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
           boxShadow: '0 20px 60px rgba(0,0,0,.18)',
         }}
       >
@@ -728,7 +731,11 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
                   key={p}
                   type="button"
                   onClick={() => togglePlatform(p)}
-                  title={active ? `Remove ${p.charAt(0).toUpperCase() + p.slice(1)}` : `Add ${p.charAt(0).toUpperCase() + p.slice(1)}`}
+                  title={
+                    active
+                      ? `Remove ${p.charAt(0).toUpperCase() + p.slice(1)}`
+                      : `Add ${p.charAt(0).toUpperCase() + p.slice(1)}`
+                  }
                   style={{
                     padding: '2px 9px',
                     borderRadius: 20,

@@ -31,6 +31,10 @@ import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
 import CustomGuidesV2Gallery from '@/src/components/app/social-media/CustomGuidesV2Gallery';
+import CustomGuidePreviewCard from '@/src/components/app/social-media/CustomGuidePreviewCard';
+import CustomGuideV2PreviewCard from '@/src/components/app/social-media/CustomGuideV2PreviewCard';
+import { CustomVisualGuide, CustomVisualGuideService } from '@/src/api/CustomVisualGuideService';
+import { CustomVisualGuideV2, CustomVisualGuideV2Service } from '@/src/api/CustomVisualGuideV2Service';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
 import AgencyDashboard from '@/src/components/app/agency/AgencyDashboard';
 import { AgencyService, BrandAccount, getActiveBrandId, setActiveBrandId } from '@/src/api/AgencyService';
@@ -4486,6 +4490,43 @@ const PlaybookPage = ({
   const [customFontAnalysis, setCustomFontAnalysis] = useState<CustomFontAnalysis | undefined>(undefined);
   const [customFontDirective, setCustomFontDirective] = useState('');
 
+  // Read-only preview of whichever custom guides (V1/V2) are currently saved on
+  // the profile — the profile only stores guide IDs, so the full guide objects
+  // (name, thumbnail, style summary) need a separate fetch to actually render.
+  const [previewGuidesV1, setPreviewGuidesV1] = useState<CustomVisualGuide[]>([]);
+  const [previewGuidesV2, setPreviewGuidesV2] = useState<CustomVisualGuideV2[]>([]);
+
+  useEffect(() => {
+    const v1Ids = profile?.selected_custom_guides ?? [];
+    if (v1Ids.length === 0) {
+      setPreviewGuidesV1([]);
+      return;
+    }
+    CustomVisualGuideService.getUserGuides('active')
+      .then((res) => {
+        if (res.status && res.responseData) {
+          setPreviewGuidesV1(res.responseData.guides.filter((g) => v1Ids.includes(g.id)));
+        }
+      })
+      .catch(() => setPreviewGuidesV1([]));
+  }, [profile?.selected_custom_guides]);
+
+  useEffect(() => {
+    const v2Ids = profile?.selected_custom_guides_v2 ?? [];
+    if (v2Ids.length === 0) {
+      setPreviewGuidesV2([]);
+      return;
+    }
+    CustomVisualGuideV2Service.getUserGuidesV2('active')
+      .then((res) => {
+        if (res.status && res.responseData) {
+          const list = Array.isArray(res.responseData) ? res.responseData : [];
+          setPreviewGuidesV2(list.filter((g) => v2Ids.includes(g.id)));
+        }
+      })
+      .catch(() => setPreviewGuidesV2([]));
+  }, [profile?.selected_custom_guides_v2]);
+
   // Sync logo position when profile changes (e.g., after save/refresh)
   useEffect(() => {
     if (profile?.logo_position) {
@@ -4514,6 +4555,32 @@ const PlaybookPage = ({
         }
       } catch (error) {
         console.error('🎨 Error auto-saving custom guides:', error);
+      }
+    }
+  };
+
+  // Auto-save V2 custom guide selections — mirrors handleCustomGuideChange (V1)
+  // above so both versions behave consistently instead of V2 silently only
+  // updating local state until the separate main Save button is clicked.
+  const handleCustomGuideV2Change = async (guideIds: string[]) => {
+    setSelectedCustomGuidesV2(guideIds);
+
+    if (profile) {
+      try {
+        const updatedProfile = {
+          ...profile,
+          selected_custom_guides_v2: guideIds,
+          style_rotation_index: 0,
+        };
+        const response = await BrandProfileService.save(updatedProfile);
+        if (response.status) {
+          onProfileUpdate({ ...profile, selected_custom_guides_v2: guideIds, style_rotation_index: 0 });
+          console.log('🎨 V2 custom guides auto-saved:', guideIds);
+        } else {
+          console.error('🎨 V2 auto-save failed:', response);
+        }
+      } catch (error) {
+        console.error('🎨 Error auto-saving V2 custom guides:', error);
       }
     }
   };
@@ -5937,7 +6004,20 @@ const PlaybookPage = ({
           Up to 3 styles — Uri rotates through them when generating images.
         </div>
         {!editing ? (
-          p?.style_selections && p.style_selections.length > 0 ? (
+          // Custom guides (V1 or V2) take priority over library styles at
+          // generation time — if either is selected, the library styles below
+          // are never actually used, so show the guides here instead, not the
+          // stale library-style cards from before a guide was selected.
+          (p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {previewGuidesV2.map((g) => (
+                <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
+              ))}
+              {previewGuidesV1.map((g) => (
+                <CustomGuidePreviewCard key={g.id} guide={g} compact />
+              ))}
+            </div>
+          ) : p?.style_selections && p.style_selections.length > 0 ? (
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {p.style_selections.map((slug) => {
                 const s = getStyle(slug);
@@ -5975,7 +6055,7 @@ const PlaybookPage = ({
                   onClick={() => {
                     setStyleSelections([]);
                     handleCustomGuideChange([]);
-                    setSelectedCustomGuidesV2([]);
+                    handleCustomGuideV2Change([]);
                   }}
                   style={{
                     background: 'none',
@@ -5998,7 +6078,7 @@ const PlaybookPage = ({
               selectedCustomGuides={selectedCustomGuides}
               onCustomGuideChange={handleCustomGuideChange}
               selectedCustomGuidesV2={selectedCustomGuidesV2}
-              onCustomGuideV2Change={setSelectedCustomGuidesV2}
+              onCustomGuideV2Change={handleCustomGuideV2Change}
               brandId={profile?.id}
             />
           </div>
