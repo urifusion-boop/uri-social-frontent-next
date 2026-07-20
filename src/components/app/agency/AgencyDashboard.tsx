@@ -13,7 +13,18 @@ import {
 } from '@/src/api/AgencyService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { FiPlus, FiUsers, FiGrid, FiBarChart2, FiCreditCard, FiCopy, FiX, FiEdit2, FiCheck } from 'react-icons/fi';
+import {
+  FiPlus,
+  FiUsers,
+  FiGrid,
+  FiBarChart2,
+  FiCreditCard,
+  FiCopy,
+  FiX,
+  FiEdit2,
+  FiCheck,
+  FiTrash2,
+} from 'react-icons/fi';
 
 const URI_PINK = '#CD1B78';
 
@@ -334,6 +345,7 @@ function RosterSection({
   const [brands, setBrands] = useState<RosterBrand[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RosterBrand | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -372,8 +384,31 @@ function RosterSection({
                 borderRadius: 12,
                 padding: 18,
                 boxShadow: activeBrand === b.brand_id ? `0 0 0 3px ${URI_PINK}20` : 'none',
+                position: 'relative',
               }}
             >
+              {/* Solo/personal brands (agency_id === null) can't be deleted from here. */}
+              {b.agency_id && (
+                <button
+                  onClick={() => setDeleteTarget(b)}
+                  title={`Delete ${b.name}`}
+                  style={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 12,
+                    background: 'none',
+                    border: 'none',
+                    color: '#d1d5db',
+                    cursor: 'pointer',
+                    padding: 4,
+                    display: 'flex',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = '#DC2626')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = '#d1d5db')}
+                >
+                  <FiTrash2 size={15} />
+                </button>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <div
                   style={{
@@ -399,6 +434,7 @@ function RosterSection({
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
+                      paddingRight: b.agency_id ? 20 : 0,
                     }}
                   >
                     {b.name}
@@ -432,7 +468,93 @@ function RosterSection({
           }}
         />
       )}
+      {deleteTarget && (
+        <DeleteBrandModal
+          brand={deleteTarget}
+          wasActive={activeBrand === deleteTarget.brand_id}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => {
+            setDeleteTarget(null);
+            load();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function DeleteBrandModal({
+  brand,
+  wasActive,
+  onClose,
+  onDeleted,
+}: {
+  brand: RosterBrand;
+  wasActive: boolean;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [confirmText, setConfirmText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const canDelete = confirmText.trim() === brand.name.trim();
+
+  const submit = async () => {
+    if (!canDelete) return;
+    setBusy(true);
+    try {
+      // Backend requires archive-then-permanent-delete as a two-step safety gate;
+      // from the user's side this is one "Delete" action.
+      const archiveRes = await AgencyService.archiveBrand(brand.brand_id);
+      if (!archiveRes.status) {
+        ToastService.showToast(archiveRes.responseMessage || 'Failed to delete brand', ToastTypeEnum.Error);
+        return;
+      }
+      const deleteRes = await AgencyService.deleteBrandPermanently(brand.brand_id);
+      if (!deleteRes.status) {
+        ToastService.showToast(deleteRes.responseMessage || 'Failed to delete brand', ToastTypeEnum.Error);
+        return;
+      }
+      if (wasActive) setActiveBrandId(null);
+      ToastService.showToast(`${brand.name} deleted`, ToastTypeEnum.Success);
+      onDeleted();
+    } catch {
+      ToastService.showToast('Failed to delete brand', ToastTypeEnum.Error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={`Delete ${brand.name}`} onClose={onClose}>
+      <p style={{ fontSize: 14, color: '#374151', marginTop: 0, lineHeight: 1.5 }}>
+        This permanently deletes <strong>{brand.name}</strong> and everything attached to it —
+        brand playbook, connected social accounts, and member access. This cannot be undone.
+      </p>
+      <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 6 }}>
+        Type <strong>{brand.name}</strong> to confirm
+      </label>
+      <input
+        value={confirmText}
+        onChange={(e) => setConfirmText(e.target.value)}
+        placeholder={brand.name}
+        style={input}
+        autoFocus
+      />
+      <button
+        style={{
+          ...primary,
+          width: '100%',
+          justifyContent: 'center',
+          background: canDelete ? '#DC2626' : '#e5e7eb',
+          color: canDelete ? '#fff' : '#9ca3af',
+          cursor: canDelete && !busy ? 'pointer' : 'not-allowed',
+        }}
+        disabled={!canDelete || busy}
+        onClick={submit}
+      >
+        {busy ? 'Deleting…' : 'Permanently Delete'}
+      </button>
+    </Modal>
   );
 }
 
