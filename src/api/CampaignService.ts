@@ -118,7 +118,10 @@ export class CampaignService {
     is_video?: boolean;
     draft_id?: string;
   }): Promise<LaunchFromMessageResult> {
-    const res = await UriHttpClient.getClient().post('/jane-ads/meta/launch-from-message', payload);
+    // NL parse + geo lookup + creative generation + the real Meta API calls have been
+    // observed taking 90-130s end to end — past the client's global 120s default,
+    // which was cutting off successful requests mid-flight. Give this one call room.
+    const res = await UriHttpClient.getClient().post('/jane-ads/meta/launch-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
   }
 
