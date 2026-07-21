@@ -148,9 +148,7 @@ export class CustomVisualGuideV2Service {
   /**
    * Get all V2 guides for current user
    */
-  static async getUserGuidesV2(
-    status: 'active' | 'archived' = 'active'
-  ): Promise<UriResponse<CustomVisualGuideV2[]>> {
+  static async getUserGuidesV2(status: 'active' | 'archived' = 'active'): Promise<UriResponse<CustomVisualGuideV2[]>> {
     const res: AxiosResponse<UriResponse<CustomVisualGuideV2[]>> = await UriHttpClient.getClient().get(BASE, {
       params: { status },
     });
@@ -172,6 +170,21 @@ export class CustomVisualGuideV2Service {
    */
   static async archiveGuideV2(guideId: string): Promise<UriResponse<null>> {
     const res: AxiosResponse<UriResponse<null>> = await UriHttpClient.getClient().delete(`${BASE}/${guideId}`);
+    return res.data;
+  }
+
+  /**
+   * Re-run style extraction on an existing guide's reference image, replacing
+   * its stored style profile in place. Re-uploading the same file won't do
+   * this — duplicate detection restores the old guide without re-analyzing.
+   * Use this to pick up an extraction-prompt improvement, or to retry a
+   * guide whose style was misclassified.
+   */
+  static async reanalyzeGuideV2(
+    guideId: string
+  ): Promise<UriResponse<{ id: string; name: string; style_summary: StyleSummary }>> {
+    const res: AxiosResponse<UriResponse<{ id: string; name: string; style_summary: StyleSummary }>> =
+      await UriHttpClient.getClient().post(`${BASE}/${guideId}/reanalyze`, null, { timeout: 60000 });
     return res.data;
   }
 
