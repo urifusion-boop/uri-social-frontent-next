@@ -517,6 +517,7 @@ function AdjustPanel({
 export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const composePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const [stage, setStage] = useState<Stage>('upload');
@@ -529,11 +530,11 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const [classification, setClassification] = useState<Classification>('talking_head');
   const [plan, setPlan] = useState<VideoPlan | null>(null);
 
-  const [jobId, setJobId] = useState<string | null>(null);
   const [renderStatus, setRenderStatus] = useState('pending');
   const [renderProgress, setRenderProgress] = useState(0);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [isSilenceCutting, setIsSilenceCutting] = useState(false);
 
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<{ id: string; name: string }[]>([]);
@@ -548,6 +549,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
       .catch(() => {});
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (composePollRef.current) clearInterval(composePollRef.current);
       if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -663,6 +665,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     if (!videoFile || !plan) return;
     addMsg('user', 'Looks good, make it');
     addMsg('jane', 'On it — this should take about two minutes.');
+    setIsSilenceCutting(false);
     setStage('render');
     setRenderProgress(5);
     setRenderStatus('pending');
@@ -681,12 +684,99 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
       const res = await SocialMediaAgentService.produceWithZapCap(fd);
       const id = res?.responseData?.job_id;
       if (!id) throw new Error('No job ID returned');
-      setJobId(id);
       startPolling(id);
     } catch (err) {
       setRenderError(err instanceof Error ? err.message : 'Upload failed');
       setStage('preview');
     }
+  };
+
+  // ── Cut silences (compose pipeline) ───────────────────────────────────────
+
+  const handleCutSilences = async () => {
+    if (!videoFile) return;
+    addMsg('user', 'Cut silences & long pauses');
+    addMsg(
+      'jane',
+      "On it — I'll analyse the audio and cut every section where you're not speaking. Takes about two minutes."
+    );
+    setIsSilenceCutting(true);
+    setOutputUrl(null);
+    setRenderError(null);
+    setRenderProgress(5);
+    setRenderStatus('analyzing');
+    setStage('render');
+
+    // Step 1: start the multi-clip job (single clip, founder mode → runs silencedetect at ingest)
+    const fd = new FormData();
+    fd.append('clips', videoFile);
+    fd.append('story_type', 'founder');
+    fd.append('target_duration', '0');
+    fd.append('orientation', plan?.aspectRatio ?? '9:16');
+    fd.append('enable_music', 'false');
+    fd.append('music_mood', 'chill');
+    fd.append('music_volume', '0');
+
+    let composeJobId: string;
+    try {
+      const res = await SocialMediaAgentService.startMultiClipJob(fd);
+      composeJobId = res?.responseData?.job_id ?? '';
+      if (!composeJobId) throw new Error('No job ID returned');
+    } catch (err) {
+      setRenderError(err instanceof Error ? err.message : 'Upload failed');
+      setStage('preview');
+      return;
+    }
+
+    // Step 2: poll until ingest finishes (awaiting_order), then auto-stitch
+    if (composePollRef.current) clearInterval(composePollRef.current);
+
+    const COMPOSE_STATUS_LABEL: Record<string, string> = {
+      analyzing: 'Analysing audio…',
+      awaiting_order: 'Audio analysed — cutting silences…',
+      stitching: 'Stitching edited video…',
+      ready: 'Done!',
+      failed: 'Something went wrong',
+    };
+    const COMPOSE_PROGRESS: Record<string, number> = {
+      analyzing: 30,
+      awaiting_order: 60,
+      stitching: 80,
+      ready: 100,
+      failed: 0,
+    };
+
+    let hasStitched = false;
+
+    composePollRef.current = setInterval(async () => {
+      try {
+        const res = await SocialMediaAgentService.getMultiClipJob(composeJobId);
+        const job = res?.responseData;
+        if (!job) return;
+
+        setRenderStatus(COMPOSE_STATUS_LABEL[job.status] ?? job.status_message);
+        setRenderProgress(COMPOSE_PROGRESS[job.status] ?? 50);
+
+        if (job.status === 'awaiting_order' && !hasStitched) {
+          // Ingest complete — auto-stitch immediately (single clip, no reordering needed)
+          hasStitched = true;
+          await SocialMediaAgentService.stitchMultiClipJob(composeJobId);
+        }
+
+        if (job.status === 'ready' && job.output_url) {
+          clearInterval(composePollRef.current!);
+          setOutputUrl(job.output_url);
+          addMsg('jane', "Done. Here's the version with silences cut 👇");
+          setStage('preview');
+        } else if (job.status === 'failed') {
+          clearInterval(composePollRef.current!);
+          setRenderError('Silence cutting failed — try again.');
+          setStage('preview');
+        }
+      } catch {
+        // keep polling on blip
+      }
+    }, 6000);
   };
 
   // ── Save to drafts ─────────────────────────────────────────────────────────
@@ -718,16 +808,17 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
 
   const reset = () => {
     if (pollRef.current) clearInterval(pollRef.current);
+    if (composePollRef.current) clearInterval(composePollRef.current);
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     setStage('upload');
     setVideoFile(null);
     setVideoPreviewUrl(null);
     setPlan(null);
-    setJobId(null);
     setOutputUrl(null);
     setRenderError(null);
     setRenderProgress(0);
     setRenderStatus('pending');
+    setIsSilenceCutting(false);
     setHistory([]);
     setClassification('talking_head');
     setAdjustField(null);
@@ -972,7 +1063,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 10 }}>
-              {STATUS_LABEL[renderStatus] ?? 'Working on it…'}
+              {isSilenceCutting ? renderStatus : (STATUS_LABEL[renderStatus] ?? 'Working on it…')}
             </div>
             <div
               style={{
@@ -1118,6 +1209,11 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
           <JaneBubble text="What would you like to fix? I can adjust within what we already made — no re-render for most of these." />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
             {[
+              {
+                label: 'Cut silences & long pauses',
+                desc: 'Audio analysis removes every section where you stop talking',
+                fn: handleCutSilences,
+              },
               {
                 label: 'Caption text',
                 desc: 'Edit specific words or lines',
