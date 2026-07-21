@@ -25,6 +25,19 @@ interface SelectedMedia {
 const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
 const uid = () => Math.random().toString(36).slice(2);
 
+// Backend errors (FastAPI HTTPException) arrive as { response: { data: { detail } } }
+// on the axios error — prefer that real message (e.g. a rate-limit notice) over a
+// generic fallback, since it tells the user something actionable ("wait a few
+// minutes") instead of just "something went wrong".
+function extractErrorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'response' in e) {
+    const detail = (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+    if (typeof detail === 'string' && detail) return detail;
+  }
+  if (e instanceof Error && e.message) return e.message;
+  return fallback;
+}
+
 /**
  * Campaign section: chat with Jane to create a campaign in plain language, and manage
  * existing campaigns with their reach/conversation metrics. No platform jargon — the
@@ -107,7 +120,7 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
         setBriefSoFar(combinedMessage);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
+      const msg = extractErrorMessage(e, 'Something went wrong. Please try again.');
       setMessages((m) => [...m, { id: uid(), role: 'jane', kind: 'text', text: `Sorry, ${msg}` }]);
     } finally {
       setBusy(false);
@@ -557,8 +570,8 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
     try {
       await CampaignService.setCampaignStatus(c.campaign_id, !isActive);
       onChanged();
-    } catch {
-      setError('Could not update the campaign, please try again.');
+    } catch (e) {
+      setError(extractErrorMessage(e, 'Could not update the campaign, please try again.'));
     } finally {
       setWorking(false);
     }
@@ -573,8 +586,8 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
     try {
       await CampaignService.deleteCampaign(c.campaign_id);
       onChanged();
-    } catch {
-      setError('Could not delete the campaign, please try again.');
+    } catch (e) {
+      setError(extractErrorMessage(e, 'Could not delete the campaign, please try again.'));
       setDeleting(false);
     }
   };
