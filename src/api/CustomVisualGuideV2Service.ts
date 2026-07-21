@@ -174,21 +174,6 @@ export class CustomVisualGuideV2Service {
   }
 
   /**
-   * Re-run style extraction on an existing guide's reference image, replacing
-   * its stored style profile in place. Re-uploading the same file won't do
-   * this — duplicate detection restores the old guide without re-analyzing.
-   * Use this to pick up an extraction-prompt improvement, or to retry a
-   * guide whose style was misclassified.
-   */
-  static async reanalyzeGuideV2(
-    guideId: string
-  ): Promise<UriResponse<{ id: string; name: string; style_summary: StyleSummary }>> {
-    const res: AxiosResponse<UriResponse<{ id: string; name: string; style_summary: StyleSummary }>> =
-      await UriHttpClient.getClient().post(`${BASE}/${guideId}/reanalyze`, null, { timeout: 60000 });
-    return res.data;
-  }
-
-  /**
    * Generate image using V2 guide with meta-prompt
    */
   static async generateWithV2Guide(

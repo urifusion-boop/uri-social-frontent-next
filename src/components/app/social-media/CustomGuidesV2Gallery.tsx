@@ -5,7 +5,7 @@ import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { Box, Button, CircularProgress, IconButton, Menu, MenuItem, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
-import { FaEllipsisV, FaPlus, FaSyncAlt, FaTrash } from 'react-icons/fa';
+import { FaEllipsisV, FaPlus, FaTrash } from 'react-icons/fa';
 import { MdImage } from 'react-icons/md';
 import CustomGuideV2PreviewCard from './CustomGuideV2PreviewCard';
 import CustomGuideV2UploadModal from './CustomGuideV2UploadModal';
@@ -31,7 +31,6 @@ export default function CustomGuidesV2Gallery({
   const [loading, setLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<{ element: HTMLElement; guideId: string } | null>(null);
-  const [reanalyzingId, setReanalyzingId] = useState<string | null>(null);
 
   const primary = '#CD1B78'; // Brand pink
 
@@ -69,26 +68,6 @@ export default function CustomGuidesV2Gallery({
     } catch (error: unknown) {
       console.error('[V2Gallery] Error archiving guide:', error);
       ToastService.showToast('Failed to archive V2 guide', ToastTypeEnum.Error);
-    }
-  };
-
-  const handleReanalyze = async (guideId: string) => {
-    try {
-      setMenuAnchor(null);
-      setReanalyzingId(guideId);
-      const response = await CustomVisualGuideV2Service.reanalyzeGuideV2(guideId);
-      if (response.status && response.responseData) {
-        const { style_summary } = response.responseData;
-        setGuides((prev) => prev.map((g) => (g.id === guideId ? { ...g, style_summary } : g)));
-        ToastService.showToast('Style re-analyzed successfully', ToastTypeEnum.Success);
-      } else {
-        throw new Error(response.responseMessage || 'Re-analysis failed');
-      }
-    } catch (error: unknown) {
-      console.error('[V2Gallery] Error re-analyzing guide:', error);
-      ToastService.showToast('Failed to re-analyze style', ToastTypeEnum.Error);
-    } finally {
-      setReanalyzingId(null);
     }
   };
 
@@ -223,7 +202,6 @@ export default function CustomGuidesV2Gallery({
               sx={{
                 position: 'relative',
                 cursor: selectable || onSelectionChange ? 'pointer' : 'default',
-                opacity: reanalyzingId === guide.id ? 0.6 : 1,
                 border:
                   (selectable && selectedGuideId === guide.id) || selectedGuideIds.includes(guide.id)
                     ? `2px solid ${primary}`
@@ -240,22 +218,6 @@ export default function CustomGuidesV2Gallery({
               }}
               onClick={() => handleGuideClick(guide)}
             >
-              {reanalyzingId === guide.id && (
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    zIndex: 4,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'rgba(255,255,255,0.5)',
-                    borderRadius: '12px',
-                  }}
-                >
-                  <CircularProgress size={22} sx={{ color: primary }} />
-                </Box>
-              )}
               {/* Menu button */}
               <IconButton
                 onClick={(e) => {
@@ -297,23 +259,6 @@ export default function CustomGuidesV2Gallery({
           },
         }}
       >
-        <MenuItem
-          onClick={() => {
-            if (menuAnchor) handleReanalyze(menuAnchor.guideId);
-          }}
-          disabled={reanalyzingId === menuAnchor?.guideId}
-          sx={{
-            fontSize: 14,
-            py: 1.25,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            color: primary,
-          }}
-        >
-          <FaSyncAlt size={13} />
-          Re-analyze style
-        </MenuItem>
         <MenuItem
           onClick={() => {
             if (menuAnchor) handleArchive(menuAnchor.guideId);
