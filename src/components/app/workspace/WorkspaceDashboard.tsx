@@ -63,6 +63,7 @@ import DraftCard from '@/src/components/app/social-media/DraftCard';
 import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
+import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
@@ -92,6 +93,7 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       </>
     ),
     chart: <path d="M18 20V10M12 20V4M6 20v-6" />,
+    megaphone: <path d="M3 11l14-6v14L3 13v-2zM3 11H2a1 1 0 00-1 1v0a1 1 0 001 1h1M7 18l1 3" />,
     grid: (
       <>
         <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -7560,6 +7562,12 @@ const NAV = [
     tooltip: 'Posts, accounts, and market intel — all your insights in one place',
   },
   {
+    id: 'campaigns',
+    icon: 'megaphone',
+    label: 'Campaigns',
+    tooltip: 'Tell Jane what to promote — she plans, designs, and runs it for you',
+  },
+  {
     id: 'blog',
     icon: 'book',
     label: 'Blog',
@@ -8036,6 +8044,7 @@ export default function WorkspaceDashboard() {
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
+    campaigns: <CampaignsPage onJane={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
