@@ -46,6 +46,7 @@ import AccountConnectionBanner from '@/src/components/app/social-media/AccountCo
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
 import VisualEngineV2Panel from '@/src/components/app/workspace/visual-engine-v2/VisualEngineV2Panel';
 import MultiClipComposer from '@/src/components/app/workspace/MultiClipComposer';
+import JaneVideoChat from '@/src/components/app/workspace/JaneVideoChat';
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
 import VideoProductionForm from '@/src/components/app/workspace/VideoProductionForm';
@@ -859,7 +860,9 @@ const ContentManagerPage = ({
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
-  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose'>('generate');
+  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>(
+    'generate'
+  );
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
 
   const toggleDraftSelection = (id: string) => {
@@ -1515,11 +1518,12 @@ const ContentManagerPage = ({
             >
               {(
                 [
+                  { key: 'chat', label: '✦ Ask Jane' },
                   { key: 'generate', label: '🎬 Generate' },
                   { key: 'produce', label: '✨ Produce' },
                   { key: 'zapcap', label: '⚡ Produce my video' },
                   { key: 'compose', label: '🎞 Compose' },
-                ] as { key: 'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose'; label: string }[]
+                ] as { key: 'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'; label: string }[]
               ).map((vt) => (
                 <button
                   key={vt.key}
@@ -1542,6 +1546,7 @@ const ContentManagerPage = ({
                 </button>
               ))}
             </div>
+            {videoTab === 'chat' && <JaneVideoChat onSaveToDrafts={() => setActiveTab('drafts')} />}
             {videoTab === 'generate' && <VideoStoryboardGenerator />}
             {videoTab === 'produce' && (
               <VideoProductionForm
