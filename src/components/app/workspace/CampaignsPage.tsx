@@ -40,15 +40,18 @@ const GOAL_STARTER_CHIPS = [
 
 const BUDGET_REPLY_CHIPS = ['₦5,000 budget', '₦10,000 budget', '₦20,000 budget', '20 customers'];
 
-// Backend errors (FastAPI HTTPException) arrive as { response: { data: { detail } } }
-// on the axios error — prefer that real message (e.g. a rate-limit notice) over a
-// generic fallback, since it tells the user something actionable ("wait a few
-// minutes") instead of just "something went wrong".
+// Surface the backend's real FastAPI HTTPException `detail` (e.g. "Budget is too
+// low…", a rate-limit notice) instead of a generic fallback, so the user gets an
+// actionable message. The value reaching here can be shaped two ways and we must
+// handle both: a raw axios error (`e.response.data.detail`) OR — because
+// UriHttpClient's interceptor rejects with `error.response` directly — the already
+// unwrapped response (`e.data.detail`). The earlier code only checked the first
+// shape, so every jane-ads error (which comes through the interceptor) silently
+// fell back to the generic text.
 function extractErrorMessage(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'response' in e) {
-    const detail = (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
-    if (typeof detail === 'string' && detail) return detail;
-  }
+  const obj = e as { response?: { data?: { detail?: unknown } }; data?: { detail?: unknown } } | null;
+  const detail = obj?.response?.data?.detail ?? obj?.data?.detail;
+  if (typeof detail === 'string' && detail) return detail;
   if (e instanceof Error && e.message) return e.message;
   return fallback;
 }
