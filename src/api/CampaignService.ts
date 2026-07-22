@@ -46,7 +46,13 @@ export interface LaunchFromMessageResult {
     cta: string;
     is_video?: boolean;
   };
-  wallet?: { balance_ngn: number; budget_ngn: number; sufficient: boolean };
+  wallet?: {
+    balance_ngn: number;
+    budget_ngn: number;              // the ad spend that goes to Meta
+    service_fee_ngn?: number;        // URI's markup
+    total_due_ngn?: number;          // budget + fee — what the wallet must cover
+    sufficient: boolean;
+  };
   launch?: {
     campaign_id: string;
     status: string;
