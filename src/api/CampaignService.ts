@@ -96,6 +96,23 @@ export interface DraftSummary {
 
 export type CreativeSource = 'generate' | 'upload' | 'draft';
 
+export interface BillingRow {
+  business_id: string;
+  label?: string;              // owning account email, best-effort
+  campaigns: number;
+  charges: number;
+  real_spend_ngn: number;      // what Meta actually charged us
+  billed_ngn: number;          // what we charged the customer's wallet
+  margin_ngn: number;          // our service fee earned
+}
+
+export interface BillingSummary {
+  from_date: string | null;
+  to_date: string | null;
+  per_user: BillingRow[];
+  totals: { real_spend_ngn: number; billed_ngn: number; margin_ngn: number; charges: number; users: number };
+}
+
 export interface WalletTransaction {
   transaction_id: string;
   type: 'topup' | 'ad_spend' | 'conversation_charge' | 'refund' | 'adjustment';
@@ -225,5 +242,43 @@ export class CampaignService {
   static async verifyTopup(reference: string): Promise<{ status: string; balance_ngn?: number }> {
     const res = await UriHttpClient.getClient().get(`/jane-ads/wallet/topup/${reference}/verify`);
     return res.data as { status: string; balance_ngn?: number };
+  }
+
+  /** Whether the logged-in user may see the admin billing report. */
+  static async billingAccess(): Promise<boolean> {
+    try {
+      const res = await UriHttpClient.getClient().get('/jane-ads/admin/access');
+      return !!(res.data as { allowed?: boolean }).allowed;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Admin: per-customer ad spend / billed / margin, plus grand totals. */
+  static async billingSummary(fromDate?: string, toDate?: string): Promise<BillingSummary> {
+    const params: Record<string, string> = {};
+    if (fromDate) params.from_date = fromDate;
+    if (toDate) params.to_date = toDate;
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/billing-summary', { params });
+    return res.data as BillingSummary;
+  }
+
+  /** Admin: download the billing report as a CSV file (triggers a browser download). */
+  static async downloadBillingCsv(fromDate?: string, toDate?: string): Promise<void> {
+    const params: Record<string, string> = { format: 'csv' };
+    if (fromDate) params.from_date = fromDate;
+    if (toDate) params.to_date = toDate;
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/billing-summary', {
+      params,
+      responseType: 'blob',
+    });
+    const url = window.URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'jane-ads-billing.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
   }
 }
