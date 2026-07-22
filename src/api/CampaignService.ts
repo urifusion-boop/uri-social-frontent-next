@@ -24,7 +24,8 @@ export interface CampaignPlatform {
 }
 
 export interface LaunchFromMessageResult {
-  stage: 'need_more' | 'advise' | 'launched';
+  stage: 'need_more' | 'advise' | 'planned' | 'launched';
+  plan_id?: string;                     // present when stage === 'planned' — pass to launchPlan()
   understood?: UnderstoodFields;
   question?: string;
   advice?: { reason: string; suggested_min_ngn?: number };
@@ -45,6 +46,7 @@ export interface LaunchFromMessageResult {
     cta: string;
     is_video?: boolean;
   };
+  wallet?: { balance_ngn: number; budget_ngn: number; sufficient: boolean };
   launch?: {
     campaign_id: string;
     status: string;
@@ -108,7 +110,9 @@ export class CampaignService {
     };
   }
 
-  /** The full one-shot: message -> plan -> creative (generated, uploaded, or drafted) -> real (PAUSED) campaign. */
+  /** The full one-shot: message -> plan -> creative (generated, uploaded, or drafted) -> real (PAUSED) campaign,
+   * all in a single call. Superseded by planFromMessage()+launchPlan() below for the chat UI (plan-then-launch,
+   * reviewable before anything touches Meta) — kept for any caller that genuinely wants one-shot behavior. */
   static async launchFromMessage(payload: {
     message: string;
     business_name?: string;
@@ -122,6 +126,29 @@ export class CampaignService {
     // observed taking 90-130s end to end — past the client's global 120s default,
     // which was cutting off successful requests mid-flight. Give this one call room.
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/launch-from-message', payload, { timeout: 240000 });
+    return res.data as LaunchFromMessageResult;
+  }
+
+  /** Plan-before-launch, step 1: Jane understands the message, decides the platform,
+   * and generates the creative — nothing touches Meta yet. Returns a reviewable plan
+   * (plan_id) that can be launched later via launchPlan(), or just left alone —
+   * nothing is lost if the user never confirms it. */
+  static async planFromMessage(payload: {
+    message: string;
+    business_name?: string;
+    category?: string;
+    creative_source?: CreativeSource;
+    reference_image_url?: string;
+    is_video?: boolean;
+    draft_id?: string;
+  }): Promise<LaunchFromMessageResult> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
+    return res.data as LaunchFromMessageResult;
+  }
+
+  /** Plan-before-launch, step 2 — the only call that actually creates a real (paused) Meta campaign. */
+  static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
+    const res = await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/launch`, {}, { timeout: 120000 });
     return res.data as LaunchFromMessageResult;
   }
 
