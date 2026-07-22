@@ -17,7 +17,25 @@ type Stage =
   | 'preview'
   | 'cleanup'
   | 'caption_edit'
+  | 'broll_edit'
   | 'publish';
+
+type BrollMode = 'auto' | 'custom' | 'none';
+type BrollConvStep = 'choose' | 'upload' | 'place' | 'confirm';
+type BrollClipTag = 'product' | 'lifestyle' | 'talking' | 'other';
+
+interface BrollClipEntry {
+  file: File;
+  tag: BrollClipTag;
+  previewUrl: string;
+}
+
+interface BrollPlacement {
+  clipIndex: number;
+  startTime: number;
+  duration: number;
+  segmentText: string;
+}
 type CaptionWord = { id: string; text: string; start_time: number; end_time: number };
 type Classification = 'talking_head' | 'product' | 'mixed';
 type Purpose = 'sell' | 'teach' | 'announce' | 'general';
@@ -556,6 +574,13 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const [loadingTranscript, setLoadingTranscript] = useState(false);
   const [isRerendering, setIsRerendering] = useState(false);
 
+  const [brollMode, setBrollMode] = useState<BrollMode | null>(null);
+  const [brollConvStep, setBrollConvStep] = useState<BrollConvStep>('choose');
+  const [brollClips, setBrollClips] = useState<BrollClipEntry[]>([]);
+  const [brollPlacements, setBrollPlacements] = useState<BrollPlacement[]>([]);
+  const [isApplyingBroll, setIsApplyingBroll] = useState(false);
+  const brollInputRef = useRef<HTMLInputElement>(null);
+
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<{ id: string; name: string }[]>([]);
 
@@ -933,6 +958,101 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     }
   };
 
+  // ── B-roll fix-up helpers ─────────────────────────────────────────────────
+
+  const handleBrollAuto = async () => {
+    if (!zapCapJobId) return;
+    addMsg('user', 'Jane picks the clips (auto)');
+    addMsg('jane', 'Re-rendering with auto b-roll — ZapCap will pick stock footage that matches your content.');
+    setOutputUrl(null);
+    setRenderProgress(5);
+    setRenderStatus('pending');
+    setIsSilenceCutting(false);
+    setStage('render');
+    try {
+      const res = await SocialMediaAgentService.rerenderZapCapJob(zapCapJobId, {
+        word_edits: [],
+        template_id: zapCapTemplates.length > 0 ? zapCapTemplates[0].id : 'beast',
+        enable_broll: true,
+      });
+      const newId = res?.responseData?.job_id;
+      if (!newId) throw new Error('No job ID');
+      setZapCapJobId(newId);
+      setCaptionWords([]);
+      setCaptionEdits({});
+      startPolling(newId);
+    } catch {
+      ToastService.showToast('B-roll re-render failed — try again.', ToastTypeEnum.Error);
+      setStage('preview');
+    }
+  };
+
+  const handleBrollNone = async () => {
+    if (!zapCapJobId) return;
+    addMsg('user', 'Remove b-roll');
+    addMsg('jane', 'Re-rendering without b-roll — clean talking head.');
+    setOutputUrl(null);
+    setRenderProgress(5);
+    setRenderStatus('pending');
+    setIsSilenceCutting(false);
+    setStage('render');
+    try {
+      const res = await SocialMediaAgentService.rerenderZapCapJob(zapCapJobId, {
+        word_edits: [],
+        template_id: zapCapTemplates.length > 0 ? zapCapTemplates[0].id : 'beast',
+        enable_broll: false,
+      });
+      const newId = res?.responseData?.job_id;
+      if (!newId) throw new Error('No job ID');
+      setZapCapJobId(newId);
+      setCaptionWords([]);
+      setCaptionEdits({});
+      startPolling(newId);
+    } catch {
+      ToastService.showToast('Re-render failed — try again.', ToastTypeEnum.Error);
+      setStage('preview');
+    }
+  };
+
+  const handleCustomBrollApply = async () => {
+    if (!zapCapJobId || brollPlacements.length === 0 || brollClips.length === 0) return;
+    setIsApplyingBroll(true);
+    addMsg('jane', 'Compositing your b-roll clips — this takes about two minutes.');
+    setOutputUrl(null);
+    setRenderProgress(5);
+    setRenderStatus('pending');
+    setIsSilenceCutting(false);
+    setStage('render');
+    try {
+      const fd = new FormData();
+      brollClips.forEach((entry) => fd.append('clips', entry.file));
+      fd.append(
+        'placements',
+        JSON.stringify(
+          brollPlacements.map((p) => ({
+            clip_index: p.clipIndex,
+            start_time: p.startTime,
+            duration: p.duration,
+          }))
+        )
+      );
+      const res = await SocialMediaAgentService.customBrollZapCapJob(zapCapJobId, fd);
+      const newId = res?.responseData?.job_id;
+      if (!newId) throw new Error('No job ID');
+      setZapCapJobId(newId);
+      setCaptionWords([]);
+      setCaptionEdits({});
+      setBrollClips([]);
+      setBrollPlacements([]);
+      startPolling(newId);
+    } catch {
+      ToastService.showToast('Custom b-roll failed — try again.', ToastTypeEnum.Error);
+      setStage('preview');
+    } finally {
+      setIsApplyingBroll(false);
+    }
+  };
+
   // ── Save to drafts ─────────────────────────────────────────────────────────
 
   const handleSaveToDrafts = async () => {
@@ -979,6 +1099,10 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     setCaptionWords([]);
     setCaptionEdits({});
     setEditingWordId(null);
+    setBrollMode(null);
+    setBrollConvStep('choose');
+    setBrollClips([]);
+    setBrollPlacements([]);
     setHistory([]);
     setClassification('talking_head');
     setAdjustField(null);
@@ -1510,6 +1634,18 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                 },
               },
               {
+                label: 'B-roll',
+                desc: 'Add stock footage, upload your own clips, or remove b-roll',
+                fn: () => {
+                  addMsg('user', 'B-roll');
+                  setBrollMode(null);
+                  setBrollConvStep('choose');
+                  setBrollClips([]);
+                  setBrollPlacements([]);
+                  setStage('broll_edit');
+                },
+              },
+              {
                 label: 'Music',
                 desc: 'Change or remove the music track',
                 fn: () => {
@@ -1738,6 +1874,385 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
           </div>
         </div>
       );
+    }
+
+    // ── BROLL EDIT ────────────────────────────────────────────────────────
+    if (stage === 'broll_edit') {
+      // Helper: derive ~5-second transcript segments from captionWords
+      const transcriptSegments = (() => {
+        if (captionWords.length === 0) return [];
+        const segs: { text: string; startTime: number; endTime: number }[] = [];
+        let segStart = captionWords[0].start_time;
+        let segWords: string[] = [];
+        for (const w of captionWords) {
+          segWords.push(w.text);
+          if (w.end_time - segStart >= 5 || w === captionWords[captionWords.length - 1]) {
+            segs.push({ text: segWords.join(' '), startTime: segStart, endTime: w.end_time });
+            segStart = w.end_time;
+            segWords = [];
+          }
+        }
+        return segs;
+      })();
+
+      // ── Step: choose mode ───────────────────────────────────────────────
+      if (brollConvStep === 'choose') {
+        return (
+          <div>
+            <JaneBubble text="How do you want to handle b-roll?" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+              {[
+                {
+                  label: 'Jane picks (auto)',
+                  desc: "I'll add stock footage that matches your content — ~50% b-roll coverage",
+                  onClick: handleBrollAuto,
+                },
+                {
+                  label: 'Upload my own clips',
+                  desc: 'Drop your product or lifestyle footage and tell me where to place it',
+                  onClick: () => {
+                    setBrollMode('custom');
+                    setBrollConvStep('upload');
+                  },
+                },
+                {
+                  label: 'Remove b-roll',
+                  desc: 'Strip all b-roll — back to clean talking head',
+                  onClick: handleBrollNone,
+                },
+              ].map((opt) => (
+                <button
+                  key={opt.label}
+                  onClick={opt.onClick}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    border: `1.5px solid ${BORDER}`,
+                    background: '#fff',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{opt.label}</div>
+                  <div style={{ fontSize: 11, color: GRAY, marginTop: 2 }}>{opt.desc}</div>
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <TapBtn label="← Back" onClick={() => setStage('cleanup')} />
+            </div>
+          </div>
+        );
+      }
+
+      // ── Step: upload custom clips ───────────────────────────────────────
+      if (brollConvStep === 'upload') {
+        const CLIP_TAGS: { value: BrollClipTag; label: string }[] = [
+          { value: 'product', label: 'Product' },
+          { value: 'lifestyle', label: 'Lifestyle' },
+          { value: 'talking', label: 'Close-up' },
+          { value: 'other', label: 'Other' },
+        ];
+
+        const addBrollFiles = (files: File[]) => {
+          const valid = files.filter(
+            (f) => ['video/mp4', 'video/quicktime', 'video/webm'].includes(f.type) || /\.(mp4|mov|webm)$/i.test(f.name)
+          );
+          if (valid.length === 0) return;
+          setBrollClips((prev) => [
+            ...prev,
+            ...valid.map((f) => ({ file: f, tag: 'other' as BrollClipTag, previewUrl: URL.createObjectURL(f) })),
+          ]);
+        };
+
+        return (
+          <div>
+            <JaneBubble text="Upload your b-roll clips. Tag each one so I know what it shows — I'll use that when placing them." />
+
+            {/* Drop zone */}
+            <div
+              onClick={() => brollInputRef.current?.click()}
+              style={{
+                marginTop: 12,
+                border: `2px dashed ${BORDER}`,
+                borderRadius: 12,
+                padding: '20px 16px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: '#FAFAFA',
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                addBrollFiles(Array.from(e.dataTransfer.files));
+              }}
+            >
+              <div style={{ fontSize: 13, color: GRAY }}>Drop clips here or tap to browse</div>
+              <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>MP4 · MOV · WebM</div>
+            </div>
+            <input
+              ref={brollInputRef}
+              type="file"
+              accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => addBrollFiles(Array.from(e.target.files ?? []))}
+            />
+
+            {/* Clip list with type tags */}
+            {brollClips.length > 0 && (
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {brollClips.map((entry, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 10px',
+                      border: `1.5px solid ${BORDER}`,
+                      borderRadius: 10,
+                      background: '#fff',
+                    }}
+                  >
+                    <video
+                      src={entry.previewUrl}
+                      style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                      muted
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: '#111827',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {entry.file.name}
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                        {CLIP_TAGS.map((t) => (
+                          <button
+                            key={t.value}
+                            onClick={() =>
+                              setBrollClips((prev) => prev.map((c, j) => (j === i ? { ...c, tag: t.value } : c)))
+                            }
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              border: `1.5px solid ${entry.tag === t.value ? PINK : BORDER}`,
+                              background: entry.tag === t.value ? LIGHT_PINK : '#fff',
+                              color: entry.tag === t.value ? PINK : GRAY,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setBrollClips((prev) => prev.filter((_, j) => j !== i))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: GRAY, fontSize: 16 }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <TapBtn label="← Back" onClick={() => setBrollConvStep('choose')} />
+              {brollClips.length > 0 && (
+                <button
+                  onClick={() => {
+                    // Pre-populate placements: spread clips evenly across transcript segments
+                    const segs =
+                      transcriptSegments.length > 0
+                        ? transcriptSegments
+                        : [{ text: 'start of video', startTime: 0, endTime: 5 }];
+                    const initial: BrollPlacement[] = brollClips.map((_, i) => {
+                      const seg = segs[Math.floor((i / brollClips.length) * segs.length)];
+                      return {
+                        clipIndex: i,
+                        startTime: seg.startTime,
+                        duration: 4,
+                        segmentText: seg.text,
+                      };
+                    });
+                    setBrollPlacements(initial);
+                    setBrollConvStep('place');
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: PINK,
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    flex: 1,
+                  }}
+                >
+                  Next — place clips →
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // ── Step: place clips against transcript ────────────────────────────
+      if (brollConvStep === 'place') {
+        const segments =
+          transcriptSegments.length > 0 ? transcriptSegments : [{ text: 'start of video', startTime: 0, endTime: 5 }];
+
+        return (
+          <div>
+            <JaneBubble
+              text={
+                captionWords.length > 0
+                  ? 'Pick the moment in your transcript where each clip should appear.'
+                  : 'No transcript available — set start times manually for each clip.'
+              }
+            />
+
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {brollPlacements.map((placement, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '10px 12px',
+                    border: `1.5px solid ${BORDER}`,
+                    borderRadius: 10,
+                    background: '#fff',
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', marginBottom: 6 }}>
+                    Clip {i + 1}:{' '}
+                    <span style={{ color: GRAY, fontWeight: 400 }}>{brollClips[placement.clipIndex]?.file.name}</span>
+                  </div>
+
+                  {captionWords.length > 0 ? (
+                    <>
+                      <div style={{ fontSize: 11, color: GRAY, marginBottom: 4 }}>Place when you say:</div>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {segments.map((seg, si) => (
+                          <button
+                            key={si}
+                            onClick={() =>
+                              setBrollPlacements((prev) =>
+                                prev.map((p, j) =>
+                                  j === i ? { ...p, startTime: seg.startTime, segmentText: seg.text } : p
+                                )
+                              )
+                            }
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              border: `1.5px solid ${placement.startTime === seg.startTime ? PINK : BORDER}`,
+                              background: placement.startTime === seg.startTime ? LIGHT_PINK : '#FAFAFA',
+                              color: placement.startTime === seg.startTime ? PINK : '#374151',
+                              fontSize: 11,
+                              cursor: 'pointer',
+                              maxWidth: 160,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={seg.text}
+                          >
+                            "{seg.text.length > 30 ? seg.text.slice(0, 30) + '…' : seg.text}"
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: GRAY }}>Start at:</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={placement.startTime}
+                        onChange={(e) =>
+                          setBrollPlacements((prev) =>
+                            prev.map((p, j) => (j === i ? { ...p, startTime: parseFloat(e.target.value) || 0 } : p))
+                          )
+                        }
+                        style={{
+                          width: 64,
+                          padding: '3px 6px',
+                          borderRadius: 6,
+                          border: `1.5px solid ${BORDER}`,
+                          fontSize: 12,
+                        }}
+                      />
+                      <span style={{ fontSize: 11, color: GRAY }}>seconds</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: GRAY }}>Duration:</span>
+                    {[3, 4, 5, 6].map((d) => (
+                      <button
+                        key={d}
+                        onClick={() =>
+                          setBrollPlacements((prev) => prev.map((p, j) => (j === i ? { ...p, duration: d } : p)))
+                        }
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          border: `1.5px solid ${placement.duration === d ? PINK : BORDER}`,
+                          background: placement.duration === d ? LIGHT_PINK : '#fff',
+                          color: placement.duration === d ? PINK : GRAY,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {d}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <TapBtn label="← Back" onClick={() => setBrollConvStep('upload')} />
+              <button
+                onClick={handleCustomBrollApply}
+                disabled={isApplyingBroll}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: isApplyingBroll ? GRAY : PINK,
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: isApplyingBroll ? 'not-allowed' : 'pointer',
+                  flex: 1,
+                }}
+              >
+                {isApplyingBroll
+                  ? 'Compositing…'
+                  : `Apply ${brollPlacements.length} clip${brollPlacements.length !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
     }
 
     // ── PUBLISH ────────────────────────────────────────────────────────────

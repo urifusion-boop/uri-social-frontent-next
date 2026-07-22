@@ -919,11 +919,20 @@ export class SocialMediaAgentService {
 
   static async rerenderZapCapJob(
     jobId: string,
-    payload: { word_edits: { id: string; text: string }[]; template_id?: string }
+    payload: { word_edits: { id: string; text: string }[]; template_id?: string; enable_broll?: boolean }
   ): Promise<UriResponse<{ job_id: string }>> {
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.zapcapJob}/${jobId}/rerender`,
       payload
+    );
+    return response.data;
+  }
+
+  static async customBrollZapCapJob(jobId: string, formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.zapcapJob}/${jobId}/custom-broll`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
     );
     return response.data;
   }
