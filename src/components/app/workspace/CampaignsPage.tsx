@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, WalletInfo } from '@/src/api/CampaignService';
+import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, WalletInfo, BillingSummary } from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -63,7 +63,8 @@ function extractErrorMessage(e: unknown, fallback: string): string {
  * it (paused) on their behalf.
  */
 export default function CampaignsPage({ onJane }: CampaignsPageProps) {
-  const [tab, setTab] = useState<'chat' | 'manage' | 'wallet'>('chat');
+  const [tab, setTab] = useState<'chat' | 'manage' | 'wallet' | 'billing'>('chat');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([
     {
       id: uid(),
@@ -121,6 +122,12 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
     if (tab === 'manage') loadCampaigns();
     if (tab === 'wallet') loadWallet();
   }, [tab, loadCampaigns, loadWallet]);
+
+  // Only admins get the Billing tab — the backend decides, so there's no email list
+  // duplicated here. Runs once on mount.
+  useEffect(() => {
+    CampaignService.billingAccess().then(setIsAdmin).catch(() => setIsAdmin(false));
+  }, []);
 
   // Returning from a Squad checkout: the callback lands here with ?reference=<ref>.
   // Verify it (credits the wallet idempotently), tell the user, and jump to the
@@ -243,7 +250,12 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
         )}
         <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1a0a12', margin: 0 }}>Campaigns</h1>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: '#f4f2f0', padding: 3, borderRadius: 10 }}>
-          {(['chat', 'manage', 'wallet'] as const).map((t) => (
+          {([
+            ['chat', 'Create with Jane'],
+            ['manage', 'My Campaigns'],
+            ['wallet', 'Wallet'],
+            ...(isAdmin ? [['billing', 'Revenue'] as const] : []),
+          ] as const).map(([t, label]) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -259,7 +271,7 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
                 boxShadow: tab === t ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
               }}
             >
-              {t === 'chat' ? 'Create with Jane' : t === 'manage' ? 'My Campaigns' : 'Wallet'}
+              {label}
             </button>
           ))}
         </div>
@@ -479,8 +491,10 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
             </div>
           )}
         </div>
-      ) : (
+      ) : tab === 'wallet' ? (
         <WalletTab wallet={wallet} loading={loadingWallet} onFunded={loadWallet} />
+      ) : (
+        <BillingTab />
       )}
     </div>
   );
@@ -856,6 +870,132 @@ function WalletTab({ wallet, loading, onFunded }: { wallet: WalletInfo | null; l
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function BillingTab() {
+  const [data, setData] = useState<BillingSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [downloading, setDownloading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      setData(await CampaignService.billingSummary(from || undefined, to || undefined));
+    } catch (e) {
+      setError(extractErrorMessage(e, 'Could not load the billing report.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [from, to]);
+
+  useEffect(() => {
+    load();
+    // load once on mount; re-runs are driven by the Apply button
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const download = async () => {
+    setDownloading(true);
+    try {
+      await CampaignService.downloadBillingCsv(from || undefined, to || undefined);
+    } catch (e) {
+      setError(extractErrorMessage(e, 'Could not download the CSV.'));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const t = data?.totals;
+  const dateInput: React.CSSProperties = { border: '1.5px solid #e0dcd9', borderRadius: 10, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', color: '#111' };
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+      <p style={{ margin: '0 0 14px', color: '#888', fontSize: 13 }}>
+        What each customer has spent on ads, what we billed them, and our margin. Numbers fill in as campaigns deliver.
+      </p>
+
+      {/* Filters */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end', marginBottom: 18 }}>
+        <label style={{ fontSize: 11.5, color: '#888' }}>
+          From<br /><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={dateInput} />
+        </label>
+        <label style={{ fontSize: 11.5, color: '#888' }}>
+          To<br /><input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={dateInput} />
+        </label>
+        <button
+          onClick={load}
+          disabled={loading}
+          style={{ border: 'none', borderRadius: 10, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', background: `linear-gradient(135deg,${PINK},#8E1545)`, color: '#fff' }}
+        >
+          {loading ? 'Loading…' : 'Apply'}
+        </button>
+        <button
+          onClick={download}
+          disabled={downloading || !data}
+          style={{ border: `1.5px solid ${PINK}`, borderRadius: 10, padding: '9px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', background: '#fff', color: PINK, marginLeft: 'auto' }}
+        >
+          {downloading ? 'Preparing…' : '⤓ Download CSV'}
+        </button>
+      </div>
+
+      {/* Totals */}
+      {t && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
+          <TotalCard label="Customers" value={String(t.users)} />
+          <TotalCard label="Real ad spend" value={naira(t.real_spend_ngn)} />
+          <TotalCard label="Billed" value={naira(t.billed_ngn)} />
+          <TotalCard label="Margin" value={naira(t.margin_ngn)} accent />
+        </div>
+      )}
+
+      {error && <p style={{ fontSize: 12.5, color: '#c62828' }}>{error}</p>}
+
+      {/* Table */}
+      {loading && !data ? (
+        <p style={{ color: '#aaa', fontSize: 13 }}>Loading…</p>
+      ) : !data?.per_user?.length ? (
+        <p style={{ color: '#aaa', fontSize: 13 }}>No ad spend recorded yet for this period.</p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 640, fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: '#888', borderBottom: '1px solid #eee' }}>
+                <th style={{ padding: '8px 10px' }}>Customer</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Campaigns</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Real ad spend</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Billed</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Margin</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.per_user.map((r) => (
+                <tr key={r.business_id} style={{ borderBottom: '1px solid #f4f2f0' }}>
+                  <td style={{ padding: '9px 10px', color: '#333' }}>{r.label || r.business_id}</td>
+                  <td style={{ padding: '9px 10px', textAlign: 'right', color: '#666' }}>{r.campaigns}</td>
+                  <td style={{ padding: '9px 10px', textAlign: 'right', color: '#333' }}>{naira(r.real_spend_ngn)}</td>
+                  <td style={{ padding: '9px 10px', textAlign: 'right', color: '#333' }}>{naira(r.billed_ngn)}</td>
+                  <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700, color: '#1e7e34' }}>{naira(r.margin_ngn)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TotalCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div style={{ border: '1px solid #eee', borderRadius: 12, padding: '12px 16px', minWidth: 130, background: accent ? '#f6fbf6' : '#fff' }}>
+      <div style={{ fontSize: 10.5, color: '#aaa', textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: accent ? '#1e7e34' : '#1a0a12', marginTop: 2 }}>{value}</div>
     </div>
   );
 }
