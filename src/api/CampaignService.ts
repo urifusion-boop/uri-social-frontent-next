@@ -90,6 +90,23 @@ export interface DraftSummary {
 
 export type CreativeSource = 'generate' | 'upload' | 'draft';
 
+export interface WalletTransaction {
+  transaction_id: string;
+  type: 'topup' | 'conversation_charge' | 'refund' | 'adjustment';
+  amount_ngn: number;          // signed: + credit, − debit
+  balance_after_ngn: number;
+  reference: string;
+  campaign_id: string;
+  created_at: string;
+}
+
+export interface WalletInfo {
+  balance_ngn: number;
+  currency: string;
+  min_topup_ngn: number;
+  transactions: WalletTransaction[];
+}
+
 export class CampaignService {
   /** Conversational planning: Jane parses a plain-English message and returns her plan
    * (or asks a follow-up). Does NOT create anything — used for the chat preview. */
@@ -183,5 +200,24 @@ export class CampaignService {
   /** Permanently delete a campaign. */
   static async deleteCampaign(campaignId: string): Promise<void> {
     await UriHttpClient.getClient().delete(`/jane-ads/meta/campaigns/${campaignId}`);
+  }
+
+  /** The active brand's ad-wallet balance + recent ledger (brand-scoped; no id to pass). */
+  static async getWallet(): Promise<WalletInfo> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/wallet');
+    return res.data as WalletInfo;
+  }
+
+  /** Start a Squad checkout to fund the active brand's ad wallet. Returns the checkout
+   * URL to open; nothing is credited until the payment is confirmed on return. */
+  static async fundWallet(amountNgn: number): Promise<{ checkout_url: string; reference: string; amount_ngn: number }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/wallet/fund', { amount_ngn: amountNgn });
+    return res.data as { checkout_url: string; reference: string; amount_ngn: number };
+  }
+
+  /** Verify a top-up on return from Squad and credit the wallet (idempotent). */
+  static async verifyTopup(reference: string): Promise<{ status: string; balance_ngn?: number }> {
+    const res = await UriHttpClient.getClient().get(`/jane-ads/wallet/topup/${reference}/verify`);
+    return res.data as { status: string; balance_ngn?: number };
   }
 }

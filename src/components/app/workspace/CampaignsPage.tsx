@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult } from '@/src/api/CampaignService';
+import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, WalletInfo } from '@/src/api/CampaignService';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 const PINK = '#C2185B';
 
@@ -58,7 +60,7 @@ function extractErrorMessage(e: unknown, fallback: string): string {
  * it (paused) on their behalf.
  */
 export default function CampaignsPage({ onJane }: CampaignsPageProps) {
-  const [tab, setTab] = useState<'chat' | 'manage'>('chat');
+  const [tab, setTab] = useState<'chat' | 'manage' | 'wallet'>('chat');
   const [messages, setMessages] = useState<ChatMsg[]>([
     {
       id: uid(),
@@ -80,6 +82,8 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
   const [draftsOpen, setDraftsOpen] = useState(false);
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [loadingDrafts, setLoadingDrafts] = useState(false);
+  const [wallet, setWallet] = useState<WalletInfo | null>(null);
+  const [loadingWallet, setLoadingWallet] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,9 +103,48 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
     }
   }, []);
 
+  const loadWallet = useCallback(async () => {
+    setLoadingWallet(true);
+    try {
+      setWallet(await CampaignService.getWallet());
+    } catch {
+      setWallet(null);
+    } finally {
+      setLoadingWallet(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (tab === 'manage') loadCampaigns();
-  }, [tab, loadCampaigns]);
+    if (tab === 'wallet') loadWallet();
+  }, [tab, loadCampaigns, loadWallet]);
+
+  // Returning from a Squad checkout: the callback lands here with ?reference=<ref>.
+  // Verify it (credits the wallet idempotently), tell the user, and jump to the
+  // wallet tab so they see the new balance. Runs once on mount.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get('reference');
+    if (!reference) return;
+    // Strip the ref from the URL so a refresh doesn't re-verify.
+    window.history.replaceState({}, document.title, window.location.pathname + '?tab=campaigns');
+    (async () => {
+      try {
+        const res = await CampaignService.verifyTopup(reference);
+        if (res.status === 'completed') {
+          ToastService.showToast('Wallet topped up successfully.', ToastTypeEnum.Success);
+        } else {
+          ToastService.showToast("We couldn't confirm that payment. If you were charged, it'll reflect shortly.", ToastTypeEnum.Error);
+        }
+      } catch {
+        ToastService.showToast("We couldn't confirm that payment. If you were charged, it'll reflect shortly.", ToastTypeEnum.Error);
+      } finally {
+        setTab('wallet');
+        loadWallet();
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const send = async (override?: string) => {
     const text = (override ?? input).trim();
@@ -197,7 +240,7 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
         )}
         <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1a0a12', margin: 0 }}>Campaigns</h1>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: '#f4f2f0', padding: 3, borderRadius: 10 }}>
-          {(['chat', 'manage'] as const).map((t) => (
+          {(['chat', 'manage', 'wallet'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -213,7 +256,7 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
                 boxShadow: tab === t ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
               }}
             >
-              {t === 'chat' ? 'Create with Jane' : 'My Campaigns'}
+              {t === 'chat' ? 'Create with Jane' : t === 'manage' ? 'My Campaigns' : 'Ad Wallet'}
             </button>
           ))}
         </div>
@@ -248,6 +291,7 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
                     onResultChange={(r) => updateResultMessage(m.id, r)}
                     onLaunched={loadCampaigns}
                     onQuickReply={(text) => send(text)}
+                    onTopUp={() => setTab('wallet')}
                   />
                 )}
               </div>
@@ -399,7 +443,7 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
             </div>
           </div>
         </>
-      ) : (
+      ) : tab === 'manage' ? (
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
             <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
@@ -432,6 +476,8 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
             </div>
           )}
         </div>
+      ) : (
+        <WalletTab wallet={wallet} loading={loadingWallet} onFunded={loadWallet} />
       )}
     </div>
   );
@@ -530,11 +576,13 @@ function ResultCard({
   onResultChange,
   onLaunched,
   onQuickReply,
+  onTopUp,
 }: {
   result: LaunchFromMessageResult;
   onResultChange: (result: LaunchFromMessageResult) => void;
   onLaunched: () => void;
   onQuickReply: (text: string) => void;
+  onTopUp: () => void;
 }) {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
@@ -612,10 +660,21 @@ function ResultCard({
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
               {wallet && !wallet.sufficient && (
-                <p style={{ margin: '0 0 8px', fontSize: 12.5, color: '#a15c00' }}>
-                  You&rsquo;ll need {naira(wallet.budget_ngn)} in your ad wallet to run this — you have {naira(wallet.balance_ngn)} now.
-                  Top up, then confirm below.
-                </p>
+                <>
+                  <p style={{ margin: '0 0 8px', fontSize: 12.5, color: '#a15c00' }}>
+                    You&rsquo;ll need {naira(wallet.budget_ngn)} in your ad wallet to run this — you have {naira(wallet.balance_ngn)} now.
+                  </p>
+                  <button
+                    onClick={onTopUp}
+                    style={{
+                      width: '100%', marginBottom: 8, border: `1.5px solid ${PINK}`, borderRadius: 10,
+                      padding: '9px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                      background: '#fff', color: PINK,
+                    }}
+                  >
+                    Top up wallet
+                  </button>
+                </>
               )}
               <button
                 onClick={confirmLaunch}
@@ -639,6 +698,153 @@ function ResultCard({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function walletTxnLabel(t: { type: string; campaign_id: string }): string {
+  switch (t.type) {
+    case 'topup':
+      return 'Wallet top-up';
+    case 'conversation_charge':
+      return 'WhatsApp conversation';
+    case 'refund':
+      return 'Refund';
+    default:
+      return 'Adjustment';
+  }
+}
+
+function fmtTxnDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function WalletTab({ wallet, loading, onFunded }: { wallet: WalletInfo | null; loading: boolean; onFunded: () => void }) {
+  const min = wallet?.min_topup_ngn ?? 5000;
+  const [amount, setAmount] = useState<number>(min);
+  const [funding, setFunding] = useState(false);
+  const [error, setError] = useState('');
+
+  const presets = [5000, 10000, 20000, 50000];
+
+  const topUp = async () => {
+    if (funding) return;
+    if (!amount || amount < min) {
+      setError(`Minimum top-up is ${naira(min)}.`);
+      return;
+    }
+    setError('');
+    setFunding(true);
+    try {
+      const { checkout_url } = await CampaignService.fundWallet(amount);
+      if (checkout_url) {
+        // Hand off to Squad's hosted checkout; on payment it returns to
+        // ?tab=campaigns&reference=… which the page verifies on mount.
+        window.location.href = checkout_url;
+      } else {
+        setError('Could not start the payment. Please try again.');
+        setFunding(false);
+      }
+    } catch (e) {
+      setError(extractErrorMessage(e, 'Could not start the payment. Please try again.'));
+      setFunding(false);
+    }
+  };
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+        <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
+          Your prepaid ad wallet. Campaigns spend from this balance — top up before you launch.
+        </p>
+        <button
+          onClick={onFunded}
+          style={{ marginLeft: 'auto', background: 'none', border: '1px solid #e0dcd9', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', color: '#555' }}
+        >
+          ↻ Refresh
+        </button>
+      </div>
+
+      {/* Balance */}
+      <div style={{ background: `linear-gradient(135deg,${PINK},#8E1545)`, borderRadius: 16, padding: '22px 24px', color: '#fff', marginBottom: 20 }}>
+        <div style={{ fontSize: 12.5, opacity: 0.85, fontWeight: 600, letterSpacing: 0.3 }}>CURRENT BALANCE</div>
+        <div style={{ fontSize: 34, fontWeight: 800, marginTop: 4 }}>
+          {loading && !wallet ? '…' : naira(wallet?.balance_ngn ?? 0)}
+        </div>
+      </div>
+
+      {/* Top up */}
+      <div style={{ border: '1px solid #eee', borderRadius: 14, padding: 18, marginBottom: 20, background: '#fff' }}>
+        <p style={{ margin: '0 0 12px', fontWeight: 700, fontSize: 14, color: '#1a0a12' }}>Add money</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {presets.map((p) => (
+            <button
+              key={p}
+              onClick={() => { setAmount(p); setError(''); }}
+              style={{
+                background: amount === p ? PINK : '#fff',
+                color: amount === p ? '#fff' : PINK,
+                border: `1.5px solid ${PINK}`,
+                borderRadius: 20, padding: '6px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              {naira(p)}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', flex: 1, border: '1.5px solid #e0dcd9', borderRadius: 12, padding: '0 12px' }}>
+            <span style={{ color: '#888', fontSize: 15, fontWeight: 700 }}>₦</span>
+            <input
+              type="number"
+              min={min}
+              value={amount || ''}
+              onChange={(e) => { setAmount(Number(e.target.value)); setError(''); }}
+              style={{ border: 'none', outline: 'none', padding: '11px 8px', fontSize: 15, width: '100%', color: '#111', fontFamily: 'inherit' }}
+            />
+          </div>
+          <button
+            onClick={topUp}
+            disabled={funding}
+            style={{
+              padding: '11px 22px', border: 'none', borderRadius: 12, whiteSpace: 'nowrap',
+              background: funding ? '#ddd' : `linear-gradient(135deg,${PINK},#8E1545)`,
+              color: '#fff', fontWeight: 800, fontSize: 14, cursor: funding ? 'default' : 'pointer',
+            }}
+          >
+            {funding ? 'Starting…' : 'Top up'}
+          </button>
+        </div>
+        <p style={{ margin: '8px 0 0', fontSize: 11.5, color: error ? '#c62828' : '#aaa' }}>
+          {error || `Minimum ${naira(min)}. Secured by Squad — you'll be taken to a payment page.`}
+        </p>
+      </div>
+
+      {/* Ledger */}
+      <p style={{ margin: '0 0 10px', fontWeight: 700, fontSize: 13, color: '#1a0a12' }}>Recent activity</p>
+      {loading && !wallet ? (
+        <p style={{ color: '#aaa', fontSize: 13 }}>Loading…</p>
+      ) : !wallet?.transactions?.length ? (
+        <p style={{ color: '#aaa', fontSize: 13 }}>No activity yet. Top up to get started.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: 1, background: '#eee', border: '1px solid #eee', borderRadius: 12, overflow: 'hidden' }}>
+          {wallet.transactions.map((t) => {
+            const credit = t.amount_ngn >= 0;
+            return (
+              <div key={t.transaction_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: '#fff' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>{walletTxnLabel(t)}</div>
+                  <div style={{ fontSize: 11.5, color: '#aaa' }}>{fmtTxnDate(t.created_at)}</div>
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: credit ? '#1e7e34' : '#c62828', whiteSpace: 'nowrap' }}>
+                  {credit ? '+' : '−'}{naira(Math.abs(t.amount_ngn))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
