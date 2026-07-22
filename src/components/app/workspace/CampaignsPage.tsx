@@ -256,7 +256,7 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
                 boxShadow: tab === t ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
               }}
             >
-              {t === 'chat' ? 'Create with Jane' : t === 'manage' ? 'My Campaigns' : 'Ad Wallet'}
+              {t === 'chat' ? 'Create with Jane' : t === 'manage' ? 'My Campaigns' : 'Wallet'}
             </button>
           ))}
         </div>
@@ -662,7 +662,7 @@ function ResultCard({
               {wallet && !wallet.sufficient && (
                 <>
                   <p style={{ margin: '0 0 8px', fontSize: 12.5, color: '#a15c00' }}>
-                    You&rsquo;ll need {naira(wallet.budget_ngn)} in your ad wallet to run this — you have {naira(wallet.balance_ngn)} now.
+                    You&rsquo;ll need {naira(wallet.budget_ngn)} in your wallet to run this — you have {naira(wallet.balance_ngn)} now.
                   </p>
                   <button
                     onClick={onTopUp}
@@ -756,7 +756,7 @@ function WalletTab({ wallet, loading, onFunded }: { wallet: WalletInfo | null; l
     <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
         <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
-          Your prepaid ad wallet. Campaigns spend from this balance — top up before you launch.
+          Your prepaid wallet. Campaigns spend from this balance — top up before you launch.
         </p>
         <button
           onClick={onFunded}
