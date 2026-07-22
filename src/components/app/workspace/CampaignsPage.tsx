@@ -254,7 +254,7 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
             ['chat', 'Create with Jane'],
             ['manage', 'My Campaigns'],
             ['wallet', 'Wallet'],
-            ...(isAdmin ? [['billing', 'Billing'] as const] : []),
+            ...(isAdmin ? [['billing', 'Revenue'] as const] : []),
           ] as const).map(([t, label]) => (
             <button
               key={t}
