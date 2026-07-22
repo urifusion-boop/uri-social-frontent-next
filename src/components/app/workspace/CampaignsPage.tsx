@@ -25,6 +25,19 @@ interface SelectedMedia {
 const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
 const uid = () => Math.random().toString(36).slice(2);
 
+// Tappable quick replies (Tier 5b) — pure UI sugar to cut down on typing for the
+// two spots where Jane's own conversation flow always lands: picking a starting
+// goal, and answering the budget/customer-count question nl.py always asks when
+// budget_ngn is missing (the only thing that ever triggers stage === 'need_more').
+const GOAL_STARTER_CHIPS = [
+  'Get me more WhatsApp messages',
+  'Get me more bookings',
+  'Get me more sales',
+  'Get me more followers',
+];
+
+const BUDGET_REPLY_CHIPS = ['₦5,000 budget', '₦10,000 budget', '₦20,000 budget', '20 customers'];
+
 // Backend errors (FastAPI HTTPException) arrive as { response: { data: { detail } } }
 // on the axios error — prefer that real message (e.g. a rate-limit notice) over a
 // generic fallback, since it tells the user something actionable ("wait a few
@@ -90,10 +103,10 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
     if (tab === 'manage') loadCampaigns();
   }, [tab, loadCampaigns]);
 
-  const send = async () => {
-    const text = input.trim();
+  const send = async (override?: string) => {
+    const text = (override ?? input).trim();
     if (!text || busy) return;
-    setInput('');
+    if (override == null) setInput('');
     const attachedMedia = media;
     // The backend parses each call fresh, with no memory of earlier turns — so a
     // follow-up like "use this draft" (no budget) would otherwise loop forever
@@ -234,10 +247,19 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
                     result={m.result}
                     onResultChange={(r) => updateResultMessage(m.id, r)}
                     onLaunched={loadCampaigns}
+                    onQuickReply={(text) => send(text)}
                   />
                 )}
               </div>
             ))}
+            {/* Quick-start goal chips — only before the conversation gets going, so a
+                new user doesn't have to think of a phrasing from scratch. */}
+            {messages.length === 1 && !busy && (
+              <QuickReplyChips
+                chips={GOAL_STARTER_CHIPS}
+                onPick={(text) => setInput((prev) => (prev ? prev : text))}
+              />
+            )}
             {busy && <JaneBubble><TypingDots /></JaneBubble>}
           </div>
           <div style={{ padding: '12px 24px 20px', borderTop: '1px solid #eee', background: '#fff', position: 'relative' }}>
@@ -358,7 +380,7 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
                 }}
               />
               <button
-                onClick={send}
+                onClick={() => send()}
                 disabled={busy || !input.trim()}
                 style={{
                   padding: '11px 20px',
@@ -452,6 +474,31 @@ function JaneBubble({ children }: { children: React.ReactNode }) {
   );
 }
 
+function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: string) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginLeft: 40 }}>
+      {chips.map((chip) => (
+        <button
+          key={chip}
+          onClick={() => onPick(chip)}
+          style={{
+            background: '#fff',
+            border: `1.5px solid ${PINK}`,
+            color: PINK,
+            borderRadius: 20,
+            padding: '6px 14px',
+            fontSize: 12.5,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          {chip}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function TypingDots() {
   return (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', height: 13 }}>
@@ -482,16 +529,26 @@ function ResultCard({
   result,
   onResultChange,
   onLaunched,
+  onQuickReply,
 }: {
   result: LaunchFromMessageResult;
   onResultChange: (result: LaunchFromMessageResult) => void;
   onLaunched: () => void;
+  onQuickReply: (text: string) => void;
 }) {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
 
   if (result.stage === 'need_more') {
-    return <JaneBubble>{result.question || 'Could you tell me a bit more, especially your budget?'}</JaneBubble>;
+    // The only thing Jane ever asks for here is a budget or a desired customer
+    // count (nl.py never triggers need_more for anything else) — so both kinds
+    // of quick answer are always relevant, whichever way the user prefers to think.
+    return (
+      <div>
+        <JaneBubble>{result.question || 'Could you tell me a bit more, especially your budget?'}</JaneBubble>
+        <QuickReplyChips chips={BUDGET_REPLY_CHIPS} onPick={onQuickReply} />
+      </div>
+    );
   }
   if (result.stage === 'advise') {
     return <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>;
