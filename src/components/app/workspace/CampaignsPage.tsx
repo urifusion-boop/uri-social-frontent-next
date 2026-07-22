@@ -103,7 +103,7 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
     setMessages((m) => [...m, { id: uid(), role: 'user', text }]);
     setBusy(true);
     try {
-      const result = await CampaignService.launchFromMessage({
+      const result = await CampaignService.planFromMessage({
         message: combinedMessage,
         ...(attachedMedia?.source === 'upload'
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
@@ -112,10 +112,11 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
           : {}),
       });
       setMessages((m) => [...m, { id: uid(), role: 'jane', kind: 'result', result }]);
-      if (result.stage === 'launched') {
+      if (result.stage === 'planned') {
+        // Nothing's been created on Meta yet — that only happens once the user
+        // confirms via the plan card's "Looks good" button (ResultCard below).
         setMedia(null);
         setBriefSoFar('');
-        loadCampaigns();
       } else {
         setBriefSoFar(combinedMessage);
       }
@@ -161,6 +162,12 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
   const pickDraft = (d: DraftSummary) => {
     setMedia({ source: 'draft', url: d.image_url, isVideo: false, draftId: d.draft_id, label: d.content || 'Draft' });
     setDraftsOpen(false);
+  };
+
+  // Lets a plan-review card (still "planned") turn into a launch confirmation
+  // ("launched") in place, once the user confirms and it actually goes live.
+  const updateResultMessage = (id: string, result: LaunchFromMessageResult) => {
+    setMessages((prev) => prev.map((msg) => (msg.id === id && msg.role === 'jane' && msg.kind === 'result' ? { ...msg, result } : msg)));
   };
 
   return (
@@ -223,7 +230,11 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
                 ) : m.kind === 'text' ? (
                   <JaneBubble>{m.text}</JaneBubble>
                 ) : (
-                  <ResultCard result={m.result} />
+                  <ResultCard
+                    result={m.result}
+                    onResultChange={(r) => updateResultMessage(m.id, r)}
+                    onLaunched={loadCampaigns}
+                  />
                 )}
               </div>
             ))}
@@ -467,14 +478,41 @@ function TypingDots() {
   );
 }
 
-function ResultCard({ result }: { result: LaunchFromMessageResult }) {
+function ResultCard({
+  result,
+  onResultChange,
+  onLaunched,
+}: {
+  result: LaunchFromMessageResult;
+  onResultChange: (result: LaunchFromMessageResult) => void;
+  onLaunched: () => void;
+}) {
+  const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState('');
+
   if (result.stage === 'need_more') {
     return <JaneBubble>{result.question || 'Could you tell me a bit more, especially your budget?'}</JaneBubble>;
   }
   if (result.stage === 'advise') {
     return <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>;
   }
-  const { plan, creative, launch } = result;
+
+  const confirmLaunch = async () => {
+    if (launching || !result.plan_id) return;
+    setLaunchError('');
+    setLaunching(true);
+    try {
+      const launched = await CampaignService.launchPlan(result.plan_id);
+      onResultChange(launched);
+      onLaunched();
+    } catch (e) {
+      setLaunchError(extractErrorMessage(e, 'Could not launch this campaign, please try again.'));
+    } finally {
+      setLaunching(false);
+    }
+  };
+
+  const { plan, creative, launch, wallet } = result;
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
       <div
@@ -511,10 +549,34 @@ function ResultCard({ result }: { result: LaunchFromMessageResult }) {
               </span>
             ) : null}
           </div>
-          <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
-            <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>✓ Campaign created, paused, no spend yet</p>
-            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>{launch?.note}</p>
-          </div>
+          {result.stage === 'planned' ? (
+            <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
+              {wallet && !wallet.sufficient && (
+                <p style={{ margin: '0 0 8px', fontSize: 12.5, color: '#a15c00' }}>
+                  You&rsquo;ll need {naira(wallet.budget_ngn)} in your ad wallet to run this — you have {naira(wallet.balance_ngn)} now.
+                  Top up, then confirm below.
+                </p>
+              )}
+              <button
+                onClick={confirmLaunch}
+                disabled={launching}
+                style={{
+                  width: '100%', border: 'none', borderRadius: 10, padding: '10px 14px', fontWeight: 700, fontSize: 13,
+                  cursor: launching ? 'default' : 'pointer',
+                  background: launching ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                  color: launching ? '#999' : '#fff',
+                }}
+              >
+                {launching ? 'Launching…' : '✓ Looks good — launch it'}
+              </button>
+              {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
+            </div>
+          ) : (
+            <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
+              <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>✓ Campaign created, paused, no spend yet</p>
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>{launch?.note}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
