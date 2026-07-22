@@ -662,10 +662,16 @@ function ResultCard({
           </div>
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
+              {wallet && (wallet.service_fee_ngn ?? 0) > 0 && (
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#777' }}>
+                  {naira(wallet.budget_ngn)} ad spend + {naira(wallet.service_fee_ngn)} service fee ={' '}
+                  <strong>{naira(wallet.total_due_ngn ?? wallet.budget_ngn)}</strong> from your wallet
+                </p>
+              )}
               {wallet && !wallet.sufficient && (
                 <>
                   <p style={{ margin: '0 0 8px', fontSize: 12.5, color: '#a15c00' }}>
-                    You&rsquo;ll need {naira(wallet.budget_ngn)} in your wallet to run this — you have {naira(wallet.balance_ngn)} now.
+                    You&rsquo;ll need {naira(wallet.total_due_ngn ?? wallet.budget_ngn)} in your wallet to run this — you have {naira(wallet.balance_ngn)} now.
                   </p>
                   <button
                     onClick={onTopUp}
