@@ -7,7 +7,18 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Stage = 'upload' | 'classify' | 'intent' | 'plan' | 'render' | 'preview' | 'cleanup' | 'publish';
+type Stage =
+  | 'upload'
+  | 'stitch'
+  | 'classify'
+  | 'intent'
+  | 'plan'
+  | 'render'
+  | 'preview'
+  | 'cleanup'
+  | 'caption_edit'
+  | 'publish';
+type CaptionWord = { id: string; text: string; start_time: number; end_time: number };
 type Classification = 'talking_head' | 'product' | 'mixed';
 type Purpose = 'sell' | 'teach' | 'announce' | 'general';
 type AdjustField = 'style' | 'captions' | 'trim' | 'broll' | 'music' | 'length' | 'format';
@@ -524,6 +535,8 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const [adjustField, setAdjustField] = useState<AdjustField | null>(null);
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoFiles, setVideoFiles] = useState<File[]>([]);
+  const [stitchedUrl, setStitchedUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -535,6 +548,13 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isSilenceCutting, setIsSilenceCutting] = useState(false);
+
+  const [zapCapJobId, setZapCapJobId] = useState<string | null>(null);
+  const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
+  const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({});
+  const [editingWordId, setEditingWordId] = useState<string | null>(null);
+  const [loadingTranscript, setLoadingTranscript] = useState(false);
+  const [isRerendering, setIsRerendering] = useState(false);
 
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<{ id: string; name: string }[]>([]);
@@ -565,21 +585,33 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
 
   // ── File accept ────────────────────────────────────────────────────────────
 
-  const acceptFile = useCallback(
-    (file: File) => {
+  const acceptFiles = useCallback(
+    (files: File[]) => {
       const OK = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
-      if (!OK.includes(file.type) && !/\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
-        ToastService.showToast('Please upload an MP4 or MOV video.', ToastTypeEnum.Error);
+      const valid = files.filter((f) => OK.includes(f.type) || /\.(mp4|mov|webm|m4v)$/i.test(f.name));
+      if (valid.length === 0) {
+        ToastService.showToast('Please upload MP4 or MOV videos.', ToastTypeEnum.Error);
         return;
       }
-      if (file.size > 500 * 1024 * 1024) {
-        ToastService.showToast('File too large. Max 500 MB.', ToastTypeEnum.Error);
+      const oversized = valid.find((f) => f.size > 500 * 1024 * 1024);
+      if (oversized) {
+        ToastService.showToast(`"${oversized.name}" is too large. Max 500 MB per clip.`, ToastTypeEnum.Error);
         return;
       }
-      setVideoFile(file);
-      setVideoPreviewUrl(URL.createObjectURL(file));
-      addMsg('user', `"${file.name}"`);
-      setStage('classify');
+
+      if (valid.length === 1) {
+        const f = valid[0];
+        setVideoFile(f);
+        setVideoPreviewUrl(URL.createObjectURL(f));
+        addMsg('user', `"${f.name}"`);
+        setStage('classify');
+      } else {
+        setVideoFiles(valid);
+        // Use first clip as preview thumbnail in classify stage (set after stitch)
+        setVideoPreviewUrl(URL.createObjectURL(valid[0]));
+        addMsg('user', `${valid.length} clips uploaded`);
+        setStage('stitch');
+      }
     },
     [addMsg]
   );
@@ -650,6 +682,12 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
           setOutputUrl(d.output_url);
           addMsg('jane', 'Done. Here it is 👇');
           setStage('preview');
+          // Fetch transcript so caption editor works immediately
+          setLoadingTranscript(true);
+          SocialMediaAgentService.getZapCapTranscript(id)
+            .then((res) => setCaptionWords(res?.responseData?.words ?? []))
+            .catch(() => {})
+            .finally(() => setLoadingTranscript(false));
         } else if (d.status === 'failed') {
           clearInterval(pollRef.current!);
           setRenderError(d.failure_reason ?? 'Render failed');
@@ -671,7 +709,11 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     setRenderStatus('pending');
 
     const fd = new FormData();
-    fd.append('video', videoFile);
+    if (stitchedUrl) {
+      fd.append('source_url', stitchedUrl);
+    } else if (videoFile) {
+      fd.append('video', videoFile);
+    }
     const zapTemplate = zapCapTemplates.length > 0 ? zapCapTemplates[0].id : 'beast';
     fd.append('template_id', zapTemplate);
     fd.append('language', 'en');
@@ -684,6 +726,9 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
       const res = await SocialMediaAgentService.produceWithZapCap(fd);
       const id = res?.responseData?.job_id;
       if (!id) throw new Error('No job ID returned');
+      setZapCapJobId(id);
+      setCaptionWords([]);
+      setCaptionEdits({});
       startPolling(id);
     } catch (err) {
       setRenderError(err instanceof Error ? err.message : 'Upload failed');
@@ -779,6 +824,115 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     }, 6000);
   };
 
+  // ── Stitch multiple clips ─────────────────────────────────────────────────
+
+  const handleStitch = async () => {
+    if (videoFiles.length === 0) return;
+    addMsg('jane', `Stitching ${videoFiles.length} clips together — this takes about a minute.`);
+    setRenderProgress(5);
+    setRenderStatus('Uploading clips…');
+    setStage('stitch');
+
+    const fd = new FormData();
+    videoFiles.forEach((f) => fd.append('clips', f));
+    fd.append('story_type', 'founder');
+    fd.append('target_duration', '0');
+    fd.append('orientation', '9:16');
+    fd.append('enable_music', 'false');
+    fd.append('music_mood', 'chill');
+    fd.append('music_volume', '0');
+
+    let composeJobId: string;
+    try {
+      const res = await SocialMediaAgentService.startMultiClipJob(fd);
+      composeJobId = res?.responseData?.job_id ?? '';
+      if (!composeJobId) throw new Error('No job ID returned');
+    } catch (err) {
+      setRenderError(err instanceof Error ? err.message : 'Upload failed');
+      setRenderStatus('failed');
+      return;
+    }
+
+    if (composePollRef.current) clearInterval(composePollRef.current);
+    let hasStitched = false;
+
+    composePollRef.current = setInterval(async () => {
+      try {
+        const res = await SocialMediaAgentService.getMultiClipJob(composeJobId);
+        const job = res?.responseData;
+        if (!job) return;
+
+        const labelMap: Record<string, string> = {
+          analyzing: 'Analysing clips…',
+          awaiting_order: 'Combining clips…',
+          stitching: 'Stitching…',
+          ready: 'Done!',
+          failed: 'Something went wrong',
+        };
+        const progressMap: Record<string, number> = {
+          analyzing: 30,
+          awaiting_order: 55,
+          stitching: 80,
+          ready: 100,
+          failed: 0,
+        };
+
+        setRenderStatus(labelMap[job.status] ?? job.status_message ?? job.status);
+        setRenderProgress(progressMap[job.status] ?? 50);
+
+        if (job.status === 'awaiting_order' && !hasStitched) {
+          hasStitched = true;
+          await SocialMediaAgentService.stitchMultiClipJob(composeJobId);
+        }
+
+        if (job.status === 'ready' && job.output_url) {
+          clearInterval(composePollRef.current!);
+          setStitchedUrl(job.output_url);
+          setVideoFiles([]);
+          addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
+          setStage('classify');
+        } else if (job.status === 'failed') {
+          clearInterval(composePollRef.current!);
+          setRenderError('Stitch failed — try again.');
+          setRenderStatus('failed');
+        }
+      } catch {
+        // keep polling on blip
+      }
+    }, 6000);
+  };
+
+  // ── Rerender with caption edits ───────────────────────────────────────────
+
+  const handleRerender = async () => {
+    if (!zapCapJobId) return;
+    setIsRerendering(true);
+    addMsg('jane', 'Re-rendering with your caption edits — about two minutes.');
+    setOutputUrl(null);
+    setRenderProgress(5);
+    setRenderStatus('pending');
+    setIsSilenceCutting(false);
+    setStage('render');
+    try {
+      const edits = Object.entries(captionEdits).map(([id, text]) => ({ id, text }));
+      const res = await SocialMediaAgentService.rerenderZapCapJob(zapCapJobId, {
+        word_edits: edits,
+        template_id: zapCapTemplates.length > 0 ? zapCapTemplates[0].id : 'beast',
+      });
+      const newId = res?.responseData?.job_id;
+      if (!newId) throw new Error('No job ID returned');
+      setZapCapJobId(newId);
+      setCaptionWords([]);
+      setCaptionEdits({});
+      startPolling(newId);
+    } catch {
+      ToastService.showToast('Re-render failed — try again.', ToastTypeEnum.Error);
+      setStage('preview');
+    } finally {
+      setIsRerendering(false);
+    }
+  };
+
   // ── Save to drafts ─────────────────────────────────────────────────────────
 
   const handleSaveToDrafts = async () => {
@@ -819,6 +973,12 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     setRenderProgress(0);
     setRenderStatus('pending');
     setIsSilenceCutting(false);
+    setVideoFiles([]);
+    setStitchedUrl(null);
+    setZapCapJobId(null);
+    setCaptionWords([]);
+    setCaptionEdits({});
+    setEditingWordId(null);
     setHistory([]);
     setClassification('talking_head');
     setAdjustField(null);
@@ -868,8 +1028,8 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
             onDrop={(e) => {
               e.preventDefault();
               setIsDragging(false);
-              const f = e.dataTransfer.files[0];
-              if (f) acceptFile(f);
+              const files = Array.from(e.dataTransfer.files);
+              if (files.length > 0) acceptFiles(files);
             }}
             onClick={() => fileInputRef.current?.click()}
             style={{
@@ -885,7 +1045,9 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
           >
             <div style={{ fontSize: 32, marginBottom: 8 }}>🎬</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>Drop your video here</div>
-            <div style={{ fontSize: 12, color: GRAY, marginTop: 4 }}>MP4, MOV, WebM · up to 500 MB</div>
+            <div style={{ fontSize: 12, color: GRAY, marginTop: 4 }}>
+              MP4, MOV, WebM · up to 500 MB · drop multiple clips to stitch
+            </div>
             <div
               style={{
                 marginTop: 14,
@@ -904,14 +1066,139 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.webm,.m4v"
             style={{ display: 'none' }}
             onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) acceptFile(f);
+              const files = Array.from(e.target.files ?? []);
+              if (files.length > 0) acceptFiles(files);
               e.target.value = '';
             }}
           />
+        </div>
+      );
+    }
+
+    // ── STITCH ─────────────────────────────────────────────────────────────
+    if (stage === 'stitch') {
+      // Error state
+      if (renderStatus === 'failed') {
+        return (
+          <div>
+            <JaneBubble text={`Stitch failed: ${renderError ?? 'something went wrong'}. Want to try again?`} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <TapBtn
+                label="Try again"
+                primary
+                onClick={() => {
+                  setRenderStatus('pending');
+                  setRenderProgress(0);
+                  setRenderError(null);
+                  handleStitch();
+                }}
+              />
+              <TapBtn label="Start over" onClick={reset} />
+            </div>
+          </div>
+        );
+      }
+
+      // In progress
+      if (renderProgress > 0) {
+        return (
+          <div>
+            <div
+              style={{
+                background: LIGHT_PINK,
+                border: `1.5px solid ${BORDER_PINK}`,
+                borderRadius: 12,
+                padding: 20,
+                marginTop: 12,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 10 }}>{renderStatus}</div>
+              <div style={{ height: 6, background: '#F3F4F6', borderRadius: 3, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${renderProgress}%`,
+                    background: `linear-gradient(90deg, ${PINK} 0%, #A01560 100%)`,
+                    borderRadius: 3,
+                    transition: 'width 0.8s ease',
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: 11, color: GRAY, marginTop: 8 }}>{renderProgress}%</div>
+            </div>
+          </div>
+        );
+      }
+
+      // Prompt
+      return (
+        <div>
+          <JaneBubble
+            text={`I see ${videoFiles.length} clips. I'll stitch them together in the order you dropped them, then we'll build your video plan.`}
+          />
+          <div
+            style={{
+              background: '#fff',
+              border: `1.5px solid ${BORDER}`,
+              borderRadius: 12,
+              padding: '10px 14px',
+              marginTop: 10,
+              marginBottom: 12,
+            }}
+          >
+            {videoFiles.map((f, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '7px 0',
+                  borderBottom: i < videoFiles.length - 1 ? `1px solid ${BORDER}` : 'none',
+                }}
+              >
+                <div
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    background: '#F3F4F6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: GRAY,
+                    flexShrink: 0,
+                  }}
+                >
+                  {i + 1}
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: '#374151',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {f.name}
+                </div>
+                <div style={{ marginLeft: 'auto', fontSize: 11, color: GRAY, flexShrink: 0 }}>
+                  {(f.size / 1024 / 1024).toFixed(0)} MB
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <TapBtn label="Stitch & continue" primary onClick={handleStitch} />
+            <TapBtn label="Start over" onClick={reset} />
+          </div>
         </div>
       );
     }
@@ -934,14 +1221,14 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               preload="metadata"
             />
           )}
-          <JaneBubble text="Got it — looks like this is you talking to camera. Right?" />
+          <JaneBubble text="Got it! What kind of clip is this?" />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
             <TapBtn
-              label="Yes, that's me talking"
-              onClick={() => handleClassify('talking_head', "Yes, that's me talking")}
+              label="Me talking to camera"
+              onClick={() => handleClassify('talking_head', 'Me talking to camera')}
             />
-            <TapBtn label="No, it's my product" onClick={() => handleClassify('product', "No, it's my product")} />
-            <TapBtn label="Both" onClick={() => handleClassify('mixed', 'Both — speech and product')} />
+            <TapBtn label="My product" onClick={() => handleClassify('product', 'My product')} />
+            <TapBtn label="Both" onClick={() => handleClassify('mixed', 'Both — me and my product')} />
           </div>
         </div>
       );
@@ -1219,10 +1506,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                 desc: 'Edit specific words or lines',
                 fn: () => {
                   addMsg('user', 'Caption text');
-                  addMsg(
-                    'jane',
-                    'Caption editing is available in the "Produce my video" tab where you can click individual words. Head there with your video URL ready.'
-                  );
+                  setStage('caption_edit');
                 },
               },
               {
@@ -1288,6 +1572,169 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
           >
             Not in clean-up: keyframing, layers, transitions, text placement, stickers. Jane changes{' '}
             <em>what she chose</em> — she doesn&apos;t add new elements.
+          </div>
+        </div>
+      );
+    }
+
+    // ── CAPTION EDIT ───────────────────────────────────────────────────────
+    if (stage === 'caption_edit') {
+      const editCount = Object.keys(captionEdits).length;
+
+      if (isSilenceCutting) {
+        return (
+          <div>
+            <JaneBubble text="This version was made by the silence cutter, which doesn't add captions. Tap 'Make it' from the plan to produce a captioned version first." />
+            <div style={{ marginTop: 10 }}>
+              <TapBtn label="Back" onClick={() => setStage('cleanup')} />
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div>
+          <JaneBubble text="Click any word to edit it. When you're happy, I'll re-render with your changes." />
+
+          <div
+            style={{
+              background: '#fff',
+              border: `1.5px solid ${BORDER}`,
+              borderRadius: 12,
+              padding: 16,
+              marginTop: 10,
+            }}
+          >
+            {loadingTranscript && <div style={{ fontSize: 13, color: GRAY }}>Loading transcript…</div>}
+
+            {!loadingTranscript && captionWords.length === 0 && (
+              <div style={{ fontSize: 13, color: GRAY }}>
+                No transcript available for this video. Try re-rendering with captions enabled.
+              </div>
+            )}
+
+            {!loadingTranscript && captionWords.length > 0 && (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 4,
+                    padding: '10px 12px',
+                    background: '#F9FAFB',
+                    border: `1.5px solid ${BORDER}`,
+                    borderRadius: 8,
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    marginBottom: 12,
+                  }}
+                >
+                  {captionWords.map((w) => {
+                    const isEditing = editingWordId === w.id;
+                    const edited = captionEdits[w.id];
+                    const display = edited ?? w.text;
+                    return (
+                      <span key={w.id} style={{ display: 'inline-block' }}>
+                        {isEditing ? (
+                          <input
+                            autoFocus
+                            defaultValue={display}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val && val !== w.text) {
+                                setCaptionEdits((prev) => ({ ...prev, [w.id]: val }));
+                              } else {
+                                setCaptionEdits((prev) => {
+                                  const n = { ...prev };
+                                  delete n[w.id];
+                                  return n;
+                                });
+                              }
+                              setEditingWordId(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur();
+                            }}
+                            style={{
+                              fontSize: 13,
+                              border: 'none',
+                              outline: `1.5px solid ${PINK}`,
+                              borderRadius: 4,
+                              padding: '2px 5px',
+                              background: LIGHT_PINK,
+                              color: PINK,
+                              width: `${Math.max(display.length, 3) + 1}ch`,
+                            }}
+                          />
+                        ) : (
+                          <span
+                            onClick={() => setEditingWordId(w.id)}
+                            style={{
+                              fontSize: 13,
+                              padding: '3px 5px',
+                              borderRadius: 4,
+                              cursor: 'text',
+                              color: edited ? PINK : '#374151',
+                              background: edited ? LIGHT_PINK : 'transparent',
+                              fontWeight: edited ? 600 : 400,
+                            }}
+                          >
+                            {display}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                {editCount > 0 && (
+                  <button
+                    onClick={() => setCaptionEdits({})}
+                    style={{
+                      fontSize: 11,
+                      color: GRAY,
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      marginBottom: 10,
+                      display: 'block',
+                    }}
+                  >
+                    ↺ Reset all edits ({editCount} changed)
+                  </button>
+                )}
+
+                <button
+                  onClick={editCount > 0 ? handleRerender : undefined}
+                  disabled={isRerendering || editCount === 0}
+                  style={{
+                    width: '100%',
+                    padding: '10px 0',
+                    borderRadius: 9,
+                    border: 'none',
+                    background:
+                      isRerendering || editCount === 0
+                        ? '#E5E7EB'
+                        : `linear-gradient(135deg, ${PINK} 0%, #8E1545 100%)`,
+                    color: isRerendering || editCount === 0 ? GRAY : '#fff',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: isRerendering || editCount === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {isRerendering
+                    ? 'Re-rendering…'
+                    : editCount > 0
+                      ? `Re-render with ${editCount} caption edit${editCount !== 1 ? 's' : ''}`
+                      : 'Edit a word above to apply'}
+                </button>
+              </>
+            )}
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <TapBtn label="← Back" onClick={() => setStage('cleanup')} />
           </div>
         </div>
       );
