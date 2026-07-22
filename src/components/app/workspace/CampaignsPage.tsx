@@ -540,13 +540,16 @@ function ResultCard({
   const [launchError, setLaunchError] = useState('');
 
   if (result.stage === 'need_more') {
-    // The only thing Jane ever asks for here is a budget or a desired customer
-    // count (nl.py never triggers need_more for anything else) — so both kinds
-    // of quick answer are always relevant, whichever way the user prefers to think.
+    // need_more now covers two distinct questions (nl.py asks for business identity
+    // FIRST, before ever asking about budget) — the budget/customer-count chips only
+    // make sense for the budget question, so gate on what's actually missing instead
+    // of assuming. Nothing to suggest for "what would you like to promote?" — that
+    // needs free text, not a quick reply.
+    const asksForBudget = result.understood?.missing?.includes('budget_ngn');
     return (
       <div>
         <JaneBubble>{result.question || 'Could you tell me a bit more, especially your budget?'}</JaneBubble>
-        <QuickReplyChips chips={BUDGET_REPLY_CHIPS} onPick={onQuickReply} />
+        {asksForBudget && <QuickReplyChips chips={BUDGET_REPLY_CHIPS} onPick={onQuickReply} />}
       </div>
     );
   }
