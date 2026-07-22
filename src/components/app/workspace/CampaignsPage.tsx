@@ -709,6 +709,8 @@ function walletTxnLabel(t: { type: string; campaign_id: string }): string {
   switch (t.type) {
     case 'topup':
       return 'Wallet top-up';
+    case 'ad_spend':
+      return 'Ad spend';
     case 'conversation_charge':
       return 'WhatsApp conversation';
     case 'refund':

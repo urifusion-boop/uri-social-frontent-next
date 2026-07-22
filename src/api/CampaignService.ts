@@ -92,7 +92,7 @@ export type CreativeSource = 'generate' | 'upload' | 'draft';
 
 export interface WalletTransaction {
   transaction_id: string;
-  type: 'topup' | 'conversation_charge' | 'refund' | 'adjustment';
+  type: 'topup' | 'ad_spend' | 'conversation_charge' | 'refund' | 'adjustment';
   amount_ngn: number;          // signed: + credit, − debit
   balance_after_ngn: number;
   reference: string;
