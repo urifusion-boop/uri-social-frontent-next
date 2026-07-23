@@ -463,8 +463,8 @@ export default function CustomGuideV2UploadModal({ open, onClose, onSuccess, bra
                 <br />
                 • Style is transferred to your brand while excluding original identity elements
                 <br />
-                • Generation is driven entirely by that style description — never the reference photo itself
-                <br />• Your brand's people and products are never copied from the reference — only the style is
+                • Uses art director meta-prompts for intelligent style transfer
+                <br />• Reference image is sent directly to GPT-Image-2 (not just text description)
               </Typography>
             </Box>
           )}
