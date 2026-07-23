@@ -150,7 +150,7 @@ export default function CustomGuidesV2Gallery({
           </Box>
           <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#0d0e0f' }}>Advanced Style Transfer</Typography>
           <Typography sx={{ fontSize: 11, color: '#6B7280', fontStyle: 'italic' }}>
-            GPT-4o Vision • Reference images used directly
+            GPT-4o Vision • Style-matched, never copied
           </Typography>
         </Box>
         <Button
