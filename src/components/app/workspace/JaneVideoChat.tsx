@@ -20,7 +20,6 @@ type Stage =
   | 'broll_edit'
   | 'publish';
 
-type BrollMode = 'auto' | 'custom' | 'none';
 type BrollConvStep = 'choose' | 'upload' | 'place' | 'confirm';
 type BrollClipTag = 'product' | 'lifestyle' | 'talking' | 'other';
 
@@ -574,7 +573,6 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const [loadingTranscript, setLoadingTranscript] = useState(false);
   const [isRerendering, setIsRerendering] = useState(false);
 
-  const [brollMode, setBrollMode] = useState<BrollMode | null>(null);
   const [brollConvStep, setBrollConvStep] = useState<BrollConvStep>('choose');
   const [brollClips, setBrollClips] = useState<BrollClipEntry[]>([]);
   const [brollPlacements, setBrollPlacements] = useState<BrollPlacement[]>([]);
@@ -766,11 +764,16 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const handleCutSilences = async () => {
     if (!videoFile) return;
     addMsg('user', 'Cut silences & long pauses');
+    // When called from Fix Something (zapCapJobId set), we'll re-run ZapCap after
+    // cutting so captions + b-roll are preserved. Warn the user it takes longer.
+    const willRerender = !!zapCapJobId;
     addMsg(
       'jane',
-      "On it — I'll analyse the audio and cut every section where you're not speaking. Takes about two minutes."
+      willRerender
+        ? "On it — I'll cut the silences then re-apply your captions and b-roll. About four minutes total."
+        : "On it — I'll analyse the audio and cut every section where you're not speaking. Takes about two minutes."
     );
-    setIsSilenceCutting(true);
+    setIsSilenceCutting(!willRerender);
     setOutputUrl(null);
     setRenderError(null);
     setRenderProgress(5);
@@ -835,9 +838,41 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
 
         if (job.status === 'ready' && job.output_url) {
           clearInterval(composePollRef.current!);
-          setOutputUrl(job.output_url);
-          addMsg('jane', "Done. Here's the version with silences cut 👇");
-          setStage('preview');
+
+          if (willRerender) {
+            // Fix Something path — pipe the silence-cut URL back through ZapCap
+            // so captions and b-roll are re-applied on the tighter edit.
+            addMsg('jane', 'Silences cut — re-applying captions and b-roll…');
+            setRenderProgress(5);
+            setRenderStatus('pending');
+            const fd2 = new FormData();
+            fd2.append('source_url', job.output_url);
+            fd2.append('template_id', zapCapTemplates.length > 0 ? zapCapTemplates[0].id : 'beast');
+            fd2.append('language', 'en');
+            fd2.append('output_mode', 'composited');
+            fd2.append('quality', 'standard');
+            fd2.append('enable_broll', String(plan?.brollEnabled ?? false));
+            fd2.append('enable_music', 'false');
+            try {
+              const res = await SocialMediaAgentService.produceWithZapCap(fd2);
+              const newId = res?.responseData?.job_id;
+              if (!newId) throw new Error('No job ID');
+              setZapCapJobId(newId);
+              setCaptionWords([]);
+              setCaptionEdits({});
+              startPolling(newId);
+            } catch {
+              // ZapCap failed — fall back to the raw silence-cut video
+              setIsSilenceCutting(true);
+              setOutputUrl(job.output_url);
+              addMsg('jane', "Silences cut, but couldn't re-apply captions — showing the cut version.");
+              setStage('preview');
+            }
+          } else {
+            setOutputUrl(job.output_url);
+            addMsg('jane', "Done. Here's the version with silences cut 👇");
+            setStage('preview');
+          }
         } else if (job.status === 'failed') {
           clearInterval(composePollRef.current!);
           setRenderError('Silence cutting failed — try again.');
@@ -1099,7 +1134,6 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     setCaptionWords([]);
     setCaptionEdits({});
     setEditingWordId(null);
-    setBrollMode(null);
     setBrollConvStep('choose');
     setBrollClips([]);
     setBrollPlacements([]);
@@ -1638,7 +1672,6 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                 desc: 'Add stock footage, upload your own clips, or remove b-roll',
                 fn: () => {
                   addMsg('user', 'B-roll');
-                  setBrollMode(null);
                   setBrollConvStep('choose');
                   setBrollClips([]);
                   setBrollPlacements([]);
@@ -1911,7 +1944,6 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                   label: 'Upload my own clips',
                   desc: 'Drop your product or lifestyle footage and tell me where to place it',
                   onClick: () => {
-                    setBrollMode('custom');
                     setBrollConvStep('upload');
                   },
                 },
