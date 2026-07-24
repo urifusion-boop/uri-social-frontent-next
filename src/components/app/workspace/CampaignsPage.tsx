@@ -97,6 +97,10 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   const [loadingWallet, setLoadingWallet] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // When set, the next successful upload came from the "Upload my own" button on a
+  // choose-creative-source card — so continue the plan with it instead of just
+  // parking it in the toolbar's attached-media slot (Tier B).
+  const uploadForChoiceRef = useRef(false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -226,7 +230,9 @@ export default function CampaignsPage({}: CampaignsPageProps) {
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
           : attachedMedia?.source === 'draft'
           ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
-          : {}),
+          // No media pre-attached via the toolbar → let Jane ASK how to source the
+          // image (upload / past post / generate) instead of silently generating (Tier B).
+          : { creative_source: 'ask' as const }),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
@@ -253,16 +259,54 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     }
   };
 
+  // Continue an in-flight plan once the user has picked how to source the image from a
+  // choose-creative-source card (Tier B). Reuses the accumulated brief as the message —
+  // no new user bubble, just Jane's next reply — and re-runs the plan with a concrete
+  // source, so the image/caption step finally runs.
+  const continueWithSource = async (
+    choice:
+      | { creative_source: 'generate' }
+      | { creative_source: 'upload'; reference_image_url: string; is_video: boolean }
+      | { creative_source: 'draft'; draft_id: string },
+  ) => {
+    if (busy || !briefSoFar) return;
+    setBusy(true);
+    try {
+      const result = await CampaignService.planFromMessage({ message: briefSoFar, ...choice });
+      const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+      setMessages((m) => [...m, resultMsg]);
+      saveMsg(resultMsg);
+      if (result.stage === 'planned') {
+        setMedia(null);
+        setBriefSoFar('');
+      }
+    } catch (e) {
+      const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
+      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
+      setMessages((m) => [...m, errMsg]);
+      saveMsg(errMsg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
+    const forChoice = uploadForChoiceRef.current;
+    uploadForChoiceRef.current = false;
     if (!file) return;
     setUploadError('');
     setUploading(true);
     setDraftsOpen(false);
     try {
       const { url, is_video } = await CampaignService.uploadMedia(file);
-      setMedia({ source: 'upload', url, isVideo: is_video, label: file.name });
+      if (forChoice) {
+        // Came from a choose-creative-source card — go straight on with the plan.
+        await continueWithSource({ creative_source: 'upload', reference_image_url: url, is_video });
+      } else {
+        setMedia({ source: 'upload', url, isVideo: is_video, label: file.name });
+      }
     } catch {
       setUploadError('Upload failed, please try again.');
     } finally {
@@ -361,6 +405,12 @@ export default function CampaignsPage({}: CampaignsPageProps) {
                     onLaunched={loadCampaigns}
                     onQuickReply={(text) => send(text)}
                     onTopUp={() => setTab('wallet')}
+                    onChooseGenerate={() => continueWithSource({ creative_source: 'generate' })}
+                    onChooseUpload={() => {
+                      uploadForChoiceRef.current = true;
+                      fileInputRef.current?.click();
+                    }}
+                    onChooseDraft={(draftId) => continueWithSource({ creative_source: 'draft', draft_id: draftId })}
                   />
                 )}
               </div>
@@ -616,6 +666,62 @@ function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: st
   );
 }
 
+// Tier B — the image-source choice Jane offers before generating anything: upload your
+// own, reuse a past post, or let Jane create one. Rendered inside a Jane bubble so it
+// reads as her asking, not a detached toolbar.
+function ChooseCreativeSource({
+  drafts,
+  onGenerate,
+  onUpload,
+  onPickDraft,
+}: {
+  drafts: DraftSummary[];
+  onGenerate: () => void;
+  onUpload: () => void;
+  onPickDraft: (draftId: string) => void;
+}) {
+  const [showDrafts, setShowDrafts] = useState(false);
+  const optionBtn: React.CSSProperties = {
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+    background: '#fff', border: `1.5px solid ${PINK}`, color: PINK, borderRadius: 12,
+    padding: '10px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'left',
+  };
+  const sub: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#a06', opacity: 0.85 };
+  return (
+    <div>
+      <JaneBubble>Great — how would you like to handle the image for this ad?</JaneBubble>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
+        <button onClick={onGenerate} style={optionBtn}>
+          ✨ Let Jane create one<span style={sub}>I&apos;ll design a visual for you</span>
+        </button>
+        <button onClick={onUpload} style={optionBtn}>
+          📎 Upload my own<span style={sub}>Use your own photo or video</span>
+        </button>
+        {drafts.length > 0 && (
+          <button onClick={() => setShowDrafts((v) => !v)} style={optionBtn}>
+            🖼 Use a past post<span style={sub}>{drafts.length} available</span>
+          </button>
+        )}
+      </div>
+      {showDrafts && drafts.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, marginLeft: 40, maxWidth: 560 }}>
+          {drafts.map((d) => (
+            <button
+              key={d.draft_id}
+              onClick={() => onPickDraft(d.draft_id)}
+              title={d.content}
+              style={{ padding: 0, border: '2px solid #eee', borderRadius: 10, overflow: 'hidden', cursor: 'pointer', background: '#fff', width: 84, height: 84 }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={d.image_url} alt="past post" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TypingDots() {
   return (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', height: 13 }}>
@@ -648,12 +754,18 @@ function ResultCard({
   onLaunched,
   onQuickReply,
   onTopUp,
+  onChooseGenerate,
+  onChooseUpload,
+  onChooseDraft,
 }: {
   result: LaunchFromMessageResult;
   onResultChange: (result: LaunchFromMessageResult) => void;
   onLaunched: () => void;
   onQuickReply: (text: string) => void;
   onTopUp: () => void;
+  onChooseGenerate: () => void;
+  onChooseUpload: () => void;
+  onChooseDraft: (draftId: string) => void;
 }) {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
@@ -676,6 +788,16 @@ function ResultCard({
   }
   if (result.stage === 'advise') {
     return <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>;
+  }
+  if (result.stage === 'choose_creative_source') {
+    return (
+      <ChooseCreativeSource
+        drafts={result.creative_options?.drafts || []}
+        onGenerate={onChooseGenerate}
+        onUpload={onChooseUpload}
+        onPickDraft={onChooseDraft}
+      />
+    );
   }
 
   const confirmLaunch = async () => {

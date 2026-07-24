@@ -25,10 +25,13 @@ export interface CampaignPlatform {
 }
 
 export interface LaunchFromMessageResult {
-  stage: 'need_more' | 'advise' | 'planned' | 'launched';
+  stage: 'need_more' | 'advise' | 'choose_creative_source' | 'planned' | 'launched';
   plan_id?: string;                     // present when stage === 'planned' — pass to launchPlan()
   understood?: UnderstoodFields;
   question?: string;
+  // present when stage === 'choose_creative_source' — the three image-source options
+  // Jane offers before generating anything (upload / pick a past post / let Jane make one)
+  creative_options?: { can_generate: boolean; drafts: DraftSummary[] };
   advice?: { reason: string; suggested_min_ngn?: number };
   jane_recommended_platforms?: string[];
   forced_to_meta?: boolean;
@@ -95,7 +98,7 @@ export interface DraftSummary {
   created_at: string;
 }
 
-export type CreativeSource = 'generate' | 'upload' | 'draft';
+export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask';
 
 export interface BillingRow {
   business_id: string;
