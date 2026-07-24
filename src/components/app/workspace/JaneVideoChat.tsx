@@ -1078,7 +1078,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
           brollPlacements.map((p) => ({
             clip_index: p.clipIndex,
             start_time: p.startTime,
-            duration: p.duration,
+            end_time: p.startTime + p.duration,
           }))
         )
       );
