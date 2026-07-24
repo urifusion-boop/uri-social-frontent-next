@@ -8,6 +8,7 @@ export interface UnderstoodFields {
   business_name?: string;
   category?: string;
   goal?: string;
+  offer_type?: string;
   budget_ngn?: number | null;
   city?: string;
   stated_behaviour?: string | null;

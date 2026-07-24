@@ -40,6 +40,10 @@ const GOAL_STARTER_CHIPS = [
 
 const BUDGET_REPLY_CHIPS = ['₦5,000 budget', '₦10,000 budget', '₦20,000 budget', '20 customers'];
 
+// Objective-first flow: nl.py now asks WHAT's being promoted (offer_type) right after
+// business identity and before budget — these chips answer that question.
+const OBJECTIVE_REPLY_CHIPS = ['Product', 'Service', 'Discount/Promo', 'Event', 'New Launch', 'Just Awareness'];
+
 // Surface the backend's real FastAPI HTTPException `detail` (e.g. "Budget is too
 // low…", a rate-limit notice) instead of a generic fallback, so the user gets an
 // actionable message. The value reaching here can be shaped two ways and we must
@@ -655,15 +659,17 @@ function ResultCard({
   const [launchError, setLaunchError] = useState('');
 
   if (result.stage === 'need_more') {
-    // need_more now covers two distinct questions (nl.py asks for business identity
-    // FIRST, before ever asking about budget) — the budget/customer-count chips only
-    // make sense for the budget question, so gate on what's actually missing instead
-    // of assuming. Nothing to suggest for "what would you like to promote?" — that
-    // needs free text, not a quick reply.
+    // need_more now covers three distinct questions (nl.py asks business identity, THEN
+    // the objective/offer_type, THEN budget — in that order) — chips only make sense for
+    // the objective and budget questions, so gate on what's actually missing instead of
+    // assuming. Nothing to suggest for "what would you like to promote?" — that needs
+    // free text, not a quick reply.
+    const asksForObjective = result.understood?.missing?.includes('offer_type');
     const asksForBudget = result.understood?.missing?.includes('budget_ngn');
     return (
       <div>
         <JaneBubble>{result.question || 'Could you tell me a bit more, especially your budget?'}</JaneBubble>
+        {asksForObjective && <QuickReplyChips chips={OBJECTIVE_REPLY_CHIPS} onPick={onQuickReply} />}
         {asksForBudget && <QuickReplyChips chips={BUDGET_REPLY_CHIPS} onPick={onQuickReply} />}
       </div>
     );
