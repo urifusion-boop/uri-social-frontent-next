@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, WalletInfo, BillingSummary } from '@/src/api/CampaignService';
+import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, WalletInfo, BillingSummary, SavedChatMessage } from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -62,7 +62,10 @@ function extractErrorMessage(e: unknown, fallback: string): string {
  * user just describes what they want; Jane plans it, makes the creative, and launches
  * it (paused) on their behalf.
  */
-export default function CampaignsPage({ onJane }: CampaignsPageProps) {
+// `onJane` in CampaignsPageProps is kept for prop-shape compatibility with the shared
+// pattern every workspace page uses (WorkspaceDashboard passes it to all of them) —
+// this page no longer shows a back link, so nothing here reads it.
+export default function CampaignsPage({}: CampaignsPageProps) {
   const [tab, setTab] = useState<'chat' | 'manage' | 'wallet' | 'billing'>('chat');
   const [isAdmin, setIsAdmin] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([
@@ -129,6 +132,48 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
     CampaignService.billingAccess().then(setIsAdmin).catch(() => setIsAdmin(false));
   }, []);
 
+  // Restore the saved chat transcript on mount, so a reload or revisit doesn't reset
+  // the conversation back to just the greeting. The greeting itself is never saved —
+  // it's re-derived fresh each load — so it always shows first, followed by whatever
+  // was actually said. A save failing (e.g. offline) is silent: the chat still works
+  // for this session, it just won't have persisted.
+  useEffect(() => {
+    CampaignService.getChatHistory()
+      .then((saved) => {
+        if (!saved.length) return;
+        setMessages((m) => [
+          ...m,
+          ...saved.map((s: SavedChatMessage): ChatMsg =>
+            s.kind === 'result'
+              ? { id: s.message_id, role: 'jane', kind: 'result', result: s.result as LaunchFromMessageResult }
+              : s.role === 'user'
+              ? { id: s.message_id, role: 'user', text: s.text }
+              : { id: s.message_id, role: 'jane', kind: 'text', text: s.text }
+          ),
+        ]);
+        // Rebuild briefSoFar exactly the way send() accumulates it: every user turn
+        // since the last plan/launch, joined the same way, so a reply after a reload
+        // still carries the full brief instead of just that one reply.
+        const lastResolvedIdx = saved.map((s) => s.kind === 'result' && (s.result?.stage === 'planned' || s.result?.stage === 'launched')).lastIndexOf(true);
+        const sinceResolved = saved.slice(lastResolvedIdx + 1).filter((s) => s.role === 'user');
+        if (sinceResolved.length) {
+          setBriefSoFar(sinceResolved.map((s) => s.text).join('. '));
+        }
+      })
+      .catch(() => { /* no saved history yet, or couldn't load — start fresh */ });
+  }, []);
+
+  // Fire-and-forget save — the chat must keep working locally even if this fails.
+  const saveMsg = (msg: ChatMsg) => {
+    CampaignService.saveChatMessage(
+      msg.role === 'user'
+        ? { message_id: msg.id, role: 'user', kind: 'text', text: msg.text }
+        : msg.kind === 'result'
+        ? { message_id: msg.id, role: 'jane', kind: 'result', result: msg.result }
+        : { message_id: msg.id, role: 'jane', kind: 'text', text: msg.text }
+    ).catch(() => { /* best-effort */ });
+  };
+
   // Returning from a Squad checkout: the callback lands here with ?reference=<ref>.
   // Verify it (credits the wallet idempotently), tell the user, and jump to the
   // wallet tab so they see the new balance. Runs once on mount.
@@ -166,7 +211,9 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
     // asking for the same thing. Send the whole brief-so-far each time so Jane
     // has the full picture; it resets once a campaign actually launches.
     const combinedMessage = briefSoFar ? `${briefSoFar}. ${text}` : text;
-    setMessages((m) => [...m, { id: uid(), role: 'user', text }]);
+    const userMsg: ChatMsg = { id: uid(), role: 'user', text };
+    setMessages((m) => [...m, userMsg]);
+    saveMsg(userMsg);
     setBusy(true);
     try {
       const result = await CampaignService.planFromMessage({
@@ -177,7 +224,9 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
           ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
           : {}),
       });
-      setMessages((m) => [...m, { id: uid(), role: 'jane', kind: 'result', result }]);
+      const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+      setMessages((m) => [...m, resultMsg]);
+      saveMsg(resultMsg);
       if (result.stage === 'planned') {
         // Nothing's been created on Meta yet — that only happens once the user
         // confirms via the plan card's "Looks good" button (ResultCard below).
@@ -192,7 +241,9 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
       // shown when the AI is unreachable). No "Sorry," prefix, which read awkwardly
       // in front of a complete sentence.
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
-      setMessages((m) => [...m, { id: uid(), role: 'jane', kind: 'text', text: msg }]);
+      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
+      setMessages((m) => [...m, errMsg]);
+      saveMsg(errMsg);
     } finally {
       setBusy(false);
     }
@@ -238,20 +289,15 @@ export default function CampaignsPage({ onJane }: CampaignsPageProps) {
   // ("launched") in place, once the user confirms and it actually goes live.
   const updateResultMessage = (id: string, result: LaunchFromMessageResult) => {
     setMessages((prev) => prev.map((msg) => (msg.id === id && msg.role === 'jane' && msg.kind === 'result' ? { ...msg, result } : msg)));
+    // Same message_id — the backend upserts, so this replaces the saved "planned"
+    // row with "launched" in place rather than creating a second saved message.
+    saveMsg({ id, role: 'jane', kind: 'result', result });
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'var(--wf, Urbanist, sans-serif)' }}>
       {/* Header */}
       <div style={{ padding: '16px 24px 0', display: 'flex', alignItems: 'center', gap: 16 }}>
-        {onJane && (
-          <button
-            onClick={onJane}
-            style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 13 }}
-          >
-            ← Jane
-          </button>
-        )}
         <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1a0a12', margin: 0 }}>Campaigns</h1>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: '#f4f2f0', padding: 3, borderRadius: 10 }}>
           {([

@@ -130,6 +130,16 @@ export interface WalletInfo {
   transactions: WalletTransaction[];
 }
 
+export interface SavedChatMessage {
+  message_id: string;
+  role: 'user' | 'jane';
+  kind: 'text' | 'result';
+  text: string;
+  result: LaunchFromMessageResult | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export class CampaignService {
   /** Conversational planning: Jane parses a plain-English message and returns her plan
    * (or asks a follow-up). Does NOT create anything — used for the chat preview. */
@@ -280,5 +290,23 @@ export class CampaignService {
     a.click();
     a.remove();
     window.URL.revokeObjectURL(url);
+  }
+
+  /** The active brand's saved Campaigns chat transcript, oldest first. */
+  static async getChatHistory(): Promise<SavedChatMessage[]> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/chat/history');
+    return (res.data as { messages: SavedChatMessage[] }).messages || [];
+  }
+
+  /** Save (or update in place, by the same message_id) one chat message. Fire-and-forget
+   * from the caller's side — a save failing shouldn't block the chat itself working. */
+  static async saveChatMessage(msg: {
+    message_id: string;
+    role: 'user' | 'jane';
+    kind: 'text' | 'result';
+    text?: string;
+    result?: LaunchFromMessageResult | null;
+  }): Promise<void> {
+    await UriHttpClient.getClient().put(`/jane-ads/chat/history/${msg.message_id}`, msg);
   }
 }
