@@ -578,7 +578,8 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     [zapCapTemplates]
   );
 
-  // Once real templates load, upgrade plan.style from the placeholder to the first real template
+  // Fallback: if templates finish loading after the intent was already chosen,
+  // upgrade plan.style from the placeholder to the first real template
   useEffect(() => {
     if (styledTemplates.length > 0) {
       setPlan((prev) => {
@@ -658,6 +659,10 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const handleIntent = (purpose: Purpose, label: string) => {
     addMsg('user', label);
     const p = defaultPlan(classification, purpose);
+    // Apply the first real ZapCap template immediately if already loaded
+    if (styledTemplates.length > 0) {
+      p.style = styledTemplates[0];
+    }
     setPlan(p);
 
     // Pushback: captions requested on silent footage
