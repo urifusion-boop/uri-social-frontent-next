@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -75,50 +75,31 @@ interface Props {
 }
 
 // ── Style templates ───────────────────────────────────────────────────────────
+// Visual palette assigned by index to real ZapCap templates fetched at runtime
 
-const STYLE_TEMPLATES: StyleTemplate[] = [
-  {
-    id: 'fast_founder',
-    name: 'Fast Founder',
-    tagline: 'Punchy cuts · bold text · founder energy',
-    bg: 'linear-gradient(135deg, #1A1A2E 0%, #E94560 100%)',
-    accent: '#E94560',
-  },
-  {
-    id: 'product_showcase',
-    name: 'Product Showcase',
-    tagline: 'Clean · product-forward · value first',
-    bg: 'linear-gradient(135deg, #0F3460 0%, #533483 100%)',
-    accent: '#7C5CBF',
-  },
-  {
-    id: 'customer_story',
-    name: 'Customer Story',
-    tagline: 'Warm · authentic · trust-building',
-    bg: 'linear-gradient(135deg, #2C3E50 0%, #E67E22 100%)',
-    accent: '#E67E22',
-  },
-  {
-    id: 'tiktok_energy',
-    name: 'TikTok Energy',
-    tagline: 'Native feel · viral pacing · kinetic',
-    bg: 'linear-gradient(135deg, #010101 0%, #69C9D0 100%)',
-    accent: '#69C9D0',
-  },
+const TEMPLATE_PALETTE: Array<{ bg: string; accent: string }> = [
+  { bg: 'linear-gradient(135deg, #1A1A2E 0%, #E94560 100%)', accent: '#E94560' },
+  { bg: 'linear-gradient(135deg, #0F3460 0%, #533483 100%)', accent: '#7C5CBF' },
+  { bg: 'linear-gradient(135deg, #2C3E50 0%, #E67E22 100%)', accent: '#E67E22' },
+  { bg: 'linear-gradient(135deg, #010101 0%, #69C9D0 100%)', accent: '#69C9D0' },
+  { bg: 'linear-gradient(135deg, #134E4A 0%, #34D399 100%)', accent: '#34D399' },
+  { bg: 'linear-gradient(135deg, #1E1B4B 0%, #818CF8 100%)', accent: '#818CF8' },
 ];
 
+const PLACEHOLDER_STYLE: StyleTemplate = {
+  id: '',
+  name: 'Loading…',
+  tagline: '',
+  bg: TEMPLATE_PALETTE[0].bg,
+  accent: TEMPLATE_PALETTE[0].accent,
+};
+
 function defaultPlan(c: Classification, p: Purpose): VideoPlan {
-  const styleMap: Record<Purpose, StyleTemplate> = {
-    sell: STYLE_TEMPLATES[1],
-    teach: STYLE_TEMPLATES[0],
-    announce: STYLE_TEMPLATES[0],
-    general: STYLE_TEMPLATES[0],
-  };
   const isTalking = c !== 'product';
   return {
     classification: c,
     purpose: p,
-    style: styleMap[p],
+    style: PLACEHOLDER_STYLE,
     captionsEnabled: isTalking,
     captionStyle: 'bold',
     removeSilence: isTalking,
@@ -339,11 +320,13 @@ function AdjustPanel({
   plan,
   onApply,
   onCancel,
+  styleTemplates,
 }: {
   field: AdjustField;
   plan: VideoPlan;
   onApply: (patch: Partial<VideoPlan>) => void;
   onCancel: () => void;
+  styleTemplates: StyleTemplate[];
 }) {
   const section = (title: string, children: React.ReactNode) => (
     <div>
@@ -377,7 +360,7 @@ function AdjustPanel({
       case 'style':
         return section(
           'Choose a style',
-          STYLE_TEMPLATES.map((s) => (
+          styleTemplates.map((s) => (
             <button
               key={s.id}
               onClick={() => onApply({ style: s })}
@@ -582,6 +565,29 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<{ id: string; name: string }[]>([]);
 
+  // Map real ZapCap templates to visual StyleTemplate objects (palette by index)
+  const styledTemplates = useMemo<StyleTemplate[]>(
+    () =>
+      zapCapTemplates.map((t, i) => ({
+        id: t.id,
+        name: t.name,
+        tagline: '',
+        bg: TEMPLATE_PALETTE[i % TEMPLATE_PALETTE.length].bg,
+        accent: TEMPLATE_PALETTE[i % TEMPLATE_PALETTE.length].accent,
+      })),
+    [zapCapTemplates]
+  );
+
+  // Once real templates load, upgrade plan.style from the placeholder to the first real template
+  useEffect(() => {
+    if (styledTemplates.length > 0) {
+      setPlan((prev) => {
+        if (!prev || prev.style.id !== '') return prev;
+        return { ...prev, style: styledTemplates[0] };
+      });
+    }
+  }, [styledTemplates]);
+
   const [publishPlatforms, setPublishPlatforms] = useState<string[]>([]);
   const [publishCaption, setPublishCaption] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -737,7 +743,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     } else if (videoFile) {
       fd.append('video', videoFile);
     }
-    const zapTemplate = zapCapTemplates.length > 0 ? zapCapTemplates[0].id : 'beast';
+    const zapTemplate = plan?.style?.id || zapCapTemplates[0]?.id || 'beast';
     fd.append('template_id', zapTemplate);
     fd.append('language', 'en');
     fd.append('output_mode', 'composited');
@@ -763,7 +769,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
 
   const handleCutSilences = async () => {
     if (!videoFile) return;
-    addMsg('user', 'Cut silences & long pauses');
+    addMsg('user', 'Cut silences, pauses & repetitions');
     // When called from Fix Something (zapCapJobId set), we'll re-run ZapCap after
     // cutting so captions + b-roll are preserved. Warn the user it takes longer.
     const willRerender = !!zapCapJobId;
@@ -847,7 +853,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
             setRenderStatus('pending');
             const fd2 = new FormData();
             fd2.append('source_url', job.output_url);
-            fd2.append('template_id', zapCapTemplates.length > 0 ? zapCapTemplates[0].id : 'beast');
+            fd2.append('template_id', plan?.style?.id || zapCapTemplates[0]?.id || 'beast');
             fd2.append('language', 'en');
             fd2.append('output_mode', 'composited');
             fd2.append('quality', 'standard');
@@ -977,7 +983,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
       const edits = Object.entries(captionEdits).map(([id, text]) => ({ id, text }));
       const res = await SocialMediaAgentService.rerenderZapCapJob(zapCapJobId, {
         word_edits: edits,
-        template_id: zapCapTemplates.length > 0 ? zapCapTemplates[0].id : 'beast',
+        template_id: plan?.style?.id || zapCapTemplates[0]?.id || 'beast',
       });
       const newId = res?.responseData?.job_id;
       if (!newId) throw new Error('No job ID returned');
@@ -1007,7 +1013,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     try {
       const res = await SocialMediaAgentService.rerenderZapCapJob(zapCapJobId, {
         word_edits: [],
-        template_id: zapCapTemplates.length > 0 ? zapCapTemplates[0].id : 'beast',
+        template_id: plan?.style?.id || zapCapTemplates[0]?.id || 'beast',
         enable_broll: true,
       });
       const newId = res?.responseData?.job_id;
@@ -1034,7 +1040,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     try {
       const res = await SocialMediaAgentService.rerenderZapCapJob(zapCapJobId, {
         word_edits: [],
-        template_id: zapCapTemplates.length > 0 ? zapCapTemplates[0].id : 'beast',
+        template_id: plan?.style?.id || zapCapTemplates[0]?.id || 'beast',
         enable_broll: false,
       });
       const newId = res?.responseData?.job_id;
@@ -1414,7 +1420,13 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
         return (
           <div>
             <JaneBubble text="Here's my plan — have a look and change anything you want:" />
-            <AdjustPanel field={adjustField} plan={plan} onApply={applyAdjust} onCancel={() => setAdjustField(null)} />
+            <AdjustPanel
+              field={adjustField}
+              plan={plan}
+              onApply={applyAdjust}
+              onCancel={() => setAdjustField(null)}
+              styleTemplates={styledTemplates}
+            />
           </div>
         );
       }
@@ -1655,8 +1667,8 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
             {[
               {
-                label: 'Cut silences & long pauses',
-                desc: 'Audio analysis removes every section where you stop talking',
+                label: 'Cut silences, pauses & repetitions',
+                desc: 'Audio + AI analysis removes silences, long pauses, filler words, and repeated phrases',
                 fn: handleCutSilences,
               },
               {
