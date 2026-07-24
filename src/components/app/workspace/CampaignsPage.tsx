@@ -236,8 +236,12 @@ export default function CampaignsPage({}: CampaignsPageProps) {
         setBriefSoFar(combinedMessage);
       }
     } catch (e) {
-      const msg = extractErrorMessage(e, 'Something went wrong. Please try again.');
-      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: `Sorry, ${msg}` };
+      // Show the backend's message as-is — it's already a full, user-friendly
+      // sentence (e.g. the "we're experiencing some difficulties, try again later"
+      // shown when the AI is unreachable). No "Sorry," prefix, which read awkwardly
+      // in front of a complete sentence.
+      const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
+      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
       setMessages((m) => [...m, errMsg]);
       saveMsg(errMsg);
     } finally {
