@@ -58,6 +58,7 @@ interface VideoPlan {
   removeFiller: boolean;
   brollEnabled: boolean;
   brollDensity: 'light' | 'moderate' | 'heavy';
+  customBrollFiles?: File[];
   musicEnabled: boolean;
   musicType: 'upbeat' | 'calm' | 'dramatic';
   targetLength: 'auto' | '15s' | '30s' | '60s';
@@ -426,7 +427,7 @@ function AdjustPanel({
           </>
         );
 
-      case 'broll':
+      case 'broll': {
         if (plan.classification === 'product') {
           return (
             <div style={{ fontSize: 13, color: GRAY, padding: '8px 0' }}>
@@ -435,21 +436,80 @@ function AdjustPanel({
             </div>
           );
         }
-        return section(
-          'B-roll',
-          <>
-            {opt('Light', plan.brollEnabled && plan.brollDensity === 'light', () =>
-              onApply({ brollEnabled: true, brollDensity: 'light' })
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const customBrollRef = React.useRef<HTMLInputElement>(null);
+        return (
+          <div>
+            {section(
+              'B-roll',
+              <>
+                {opt(
+                  'Light',
+                  plan.brollEnabled && plan.brollDensity === 'light' && !plan.customBrollFiles?.length,
+                  () => onApply({ brollEnabled: true, brollDensity: 'light', customBrollFiles: [] })
+                )}
+                {opt(
+                  'Moderate',
+                  plan.brollEnabled && plan.brollDensity === 'moderate' && !plan.customBrollFiles?.length,
+                  () => onApply({ brollEnabled: true, brollDensity: 'moderate', customBrollFiles: [] })
+                )}
+                {opt(
+                  'Heavy',
+                  plan.brollEnabled && plan.brollDensity === 'heavy' && !plan.customBrollFiles?.length,
+                  () => onApply({ brollEnabled: true, brollDensity: 'heavy', customBrollFiles: [] })
+                )}
+                {opt('Off', !plan.brollEnabled, () => onApply({ brollEnabled: false, customBrollFiles: [] }))}
+              </>
             )}
-            {opt('Moderate', plan.brollEnabled && plan.brollDensity === 'moderate', () =>
-              onApply({ brollEnabled: true, brollDensity: 'moderate' })
-            )}
-            {opt('Heavy', plan.brollEnabled && plan.brollDensity === 'heavy', () =>
-              onApply({ brollEnabled: true, brollDensity: 'heavy' })
-            )}
-            {opt('Off', !plan.brollEnabled, () => onApply({ brollEnabled: false }))}
-          </>
+            <div style={{ marginTop: 12 }}>
+              <button
+                onClick={() => customBrollRef.current?.click()}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  border: `1.5px solid ${plan.customBrollFiles?.length ? PINK : BORDER}`,
+                  background: plan.customBrollFiles?.length ? '#fff0f3' : '#fff',
+                  color: plan.customBrollFiles?.length ? PINK : '#374151',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>📎</span>
+                {plan.customBrollFiles?.length
+                  ? `${plan.customBrollFiles.length} clip${plan.customBrollFiles.length > 1 ? 's' : ''} uploaded — change`
+                  : 'Upload my own clips'}
+              </button>
+              <input
+                ref={customBrollRef}
+                type="file"
+                accept="video/*"
+                multiple
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 0) {
+                    onApply({ brollEnabled: true, customBrollFiles: files });
+                  }
+                  e.target.value = '';
+                }}
+              />
+              {plan.customBrollFiles && plan.customBrollFiles.length > 0 && (
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {plan.customBrollFiles.map((f, i) => (
+                    <div key={i} style={{ fontSize: 12, color: GRAY, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ color: PINK }}>▶</span> {f.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         );
+      }
 
       case 'music':
         return section(
@@ -753,7 +813,14 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     fd.append('language', 'en');
     fd.append('output_mode', 'composited');
     fd.append('quality', 'standard');
-    fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
+    const hasCustomBroll =
+      (plan.customBrollFiles?.length ?? 0) > 0 && plan.brollEnabled && plan.classification !== 'product';
+    fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product' && !hasCustomBroll));
+    if (hasCustomBroll) {
+      plan.customBrollFiles!.forEach((f) => fd.append('custom_broll_clips', f));
+      const estimatedDuration = plan.targetLength === '15s' ? 15 : plan.targetLength === '30s' ? 30 : 60;
+      fd.append('custom_broll_estimated_duration', String(estimatedDuration));
+    }
     fd.append('enable_music', String(plan.musicEnabled));
 
     try {
@@ -1168,7 +1235,11 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               : plan.removeFiller
                 ? 'cut filler only'
                 : 'no trimming',
-        brollLabel: !plan.brollEnabled ? 'off' : `on · ${plan.brollDensity}`,
+        brollLabel: !plan.brollEnabled
+          ? 'off'
+          : plan.customBrollFiles?.length
+            ? `custom · ${plan.customBrollFiles.length} clip${plan.customBrollFiles.length > 1 ? 's' : ''}`
+            : `on · ${plan.brollDensity}`,
         musicLabel: !plan.musicEnabled ? 'none' : `${plan.musicType}, under your voice`,
         lengthLabel: plan.targetLength === 'auto' ? 'auto (no limit)' : plan.targetLength,
         formatLabel:
