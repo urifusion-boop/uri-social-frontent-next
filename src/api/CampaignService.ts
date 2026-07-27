@@ -165,6 +165,16 @@ export interface SavedChatMessage {
   kind: 'text' | 'result';
   text: string;
   result: LaunchFromMessageResult | null;
+  thread_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThreadSummary {
+  thread_id: string;
+  title: string;
+  status: 'draft' | 'planned' | 'launched';
+  preview: string;
   created_at: string;
   updated_at: string;
 }
@@ -222,6 +232,7 @@ export class CampaignService {
     is_video?: boolean;
     draft_id?: string;
     whatsapp_number?: string;            // where leads route; sent when answering need_whatsapp
+    thread_id?: string;                  // which campaign thread this plan belongs to (Tier E)
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
@@ -337,8 +348,38 @@ export class CampaignService {
     kind: 'text' | 'result';
     text?: string;
     result?: LaunchFromMessageResult | null;
+    thread_id?: string;
   }): Promise<void> {
     await UriHttpClient.getClient().put(`/jane-ads/chat/history/${msg.message_id}`, msg);
+  }
+
+  /** The active brand's campaign threads (the rail), most-recently-active first. */
+  static async listThreads(): Promise<ThreadSummary[]> {
+    try {
+      const res = await UriHttpClient.getClient().get('/jane-ads/threads');
+      return (res.data as { threads: ThreadSummary[] }).threads || [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Start a fresh campaign thread ('+ New'). */
+  static async createThread(title = 'New campaign'): Promise<ThreadSummary> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/threads', { title });
+    return res.data as ThreadSummary;
+  }
+
+  /** One thread's saved messages, oldest first. */
+  static async getThreadHistory(threadId: string): Promise<SavedChatMessage[]> {
+    const res = await UriHttpClient.getClient().get(`/jane-ads/threads/${threadId}/history`);
+    return (res.data as { messages: SavedChatMessage[] }).messages || [];
+  }
+
+  /** Clone a launched campaign into a new draft thread; returns the new thread + the
+   * seed message the caller sends to rebuild the plan. */
+  static async duplicateThread(threadId: string): Promise<{ thread: ThreadSummary; seed_message: string }> {
+    const res = await UriHttpClient.getClient().post(`/jane-ads/threads/${threadId}/duplicate`, {});
+    return res.data as { thread: ThreadSummary; seed_message: string };
   }
 
   /** The active brand's saved WhatsApp number (where ad leads route), or '' if unset. */

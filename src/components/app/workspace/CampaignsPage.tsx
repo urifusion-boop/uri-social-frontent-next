@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, WalletInfo, BillingSummary, SavedChatMessage, CampaignSummary } from '@/src/api/CampaignService';
+import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, WalletInfo, BillingSummary, CampaignSummary, ThreadSummary } from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -26,6 +26,11 @@ interface SelectedMedia {
 
 const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
 const uid = () => Math.random().toString(36).slice(2);
+
+const GREETING_TEXT =
+  "Hi! Tell me what you'd like to promote, and I'll plan and launch a campaign for you. " +
+  "I'll write the copy, design the visual, and set it up for you, paused until you say go.";
+const makeGreeting = (): ChatMsg => ({ id: uid(), role: 'jane', kind: 'text', text: GREETING_TEXT });
 
 // Tappable quick replies (Tier 5b) — pure UI sugar to cut down on typing for the
 // two spots where Jane's own conversation flow always lands: picking a starting
@@ -72,16 +77,7 @@ function extractErrorMessage(e: unknown, fallback: string): string {
 export default function CampaignsPage({}: CampaignsPageProps) {
   const [tab, setTab] = useState<'chat' | 'manage' | 'wallet' | 'billing'>('chat');
   const [isAdmin, setIsAdmin] = useState(false);
-  const [messages, setMessages] = useState<ChatMsg[]>([
-    {
-      id: uid(),
-      role: 'jane',
-      kind: 'text',
-      text:
-        "Hi! Tell me what you'd like to promote, and I'll plan and launch a campaign for you. " +
-        "I'll write the copy, design the visual, and set it up for you, paused until you say go.",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMsg[]>([makeGreeting()]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
@@ -95,6 +91,11 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [loadingWallet, setLoadingWallet] = useState(false);
+  // Tier E — campaign threads (the left rail). activeThreadRef mirrors the state so the
+  // async send/save handlers always read the current thread without a stale closure.
+  const [threads, setThreads] = useState<ThreadSummary[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const activeThreadRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -136,18 +137,65 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     CampaignService.billingAccess().then(setIsAdmin).catch(() => setIsAdmin(false));
   }, []);
 
-  // Restore the saved chat transcript on mount, so a reload or revisit doesn't reset
-  // the conversation back to just the greeting. The greeting itself is never saved —
-  // it's re-derived fresh each load — so it always shows first, followed by whatever
-  // was actually said. A save failing (e.g. offline) is silent: the chat still works
-  // for this session, it just won't have persisted.
+  // On mount, load the brand's campaign threads (the rail) and reopen the most recent —
+  // so a reload lands back in the last conversation rather than a blank greeting. If the
+  // brand has no threads yet, we leave the greeting and create one lazily on first send.
   useEffect(() => {
-    CampaignService.getChatHistory()
-      .then((saved) => {
-        if (!saved.length) return;
-        setMessages((m) => [
-          ...m,
-          ...saved.map((s: SavedChatMessage): ChatMsg =>
+    (async () => {
+      try {
+        const list = await CampaignService.listThreads();
+        setThreads(list);
+        if (list.length) await openThread(list[0].thread_id);
+      } catch { /* start fresh */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fire-and-forget save — the chat must keep working locally even if this fails. Every
+  // message is tagged with the active thread (Tier E) so it lands in the right conversation.
+  const saveMsg = (msg: ChatMsg) => {
+    const thread_id = activeThreadRef.current || undefined;
+    CampaignService.saveChatMessage(
+      msg.role === 'user'
+        ? { message_id: msg.id, role: 'user', kind: 'text', text: msg.text, thread_id }
+        : msg.kind === 'result'
+        ? { message_id: msg.id, role: 'jane', kind: 'result', result: msg.result, thread_id }
+        : { message_id: msg.id, role: 'jane', kind: 'text', text: msg.text, thread_id }
+    ).catch(() => { /* best-effort */ });
+  };
+
+  // ── Threads (Tier E) ────────────────────────────────────────────────────────
+  const selectThreadId = (id: string | null) => {
+    activeThreadRef.current = id;
+    setActiveThreadId(id);
+  };
+
+  const refreshThreads = useCallback(async () => {
+    setThreads(await CampaignService.listThreads());
+  }, []);
+
+  // A thread must exist before the first message is saved against it — created lazily so
+  // '+ New' and a plain first message both work without leaving empty threads lying around.
+  const ensureThread = async (): Promise<string> => {
+    if (activeThreadRef.current) return activeThreadRef.current;
+    const t = await CampaignService.createThread();
+    selectThreadId(t.thread_id);
+    setThreads((prev) => [t, ...prev]);
+    return t.thread_id;
+  };
+
+  // Open a thread: load its saved messages into the chat, oldest first, after the greeting.
+  const openThread = useCallback(async (threadId: string) => {
+    selectThreadId(threadId);
+    setMedia(null);
+    setBriefSoFar('');
+    setMessages([makeGreeting()]);
+    try {
+      const saved = await CampaignService.getThreadHistory(threadId);
+      if (saved.length) {
+        setMessages([
+          makeGreeting(),
+          ...saved.map((s): ChatMsg =>
             s.kind === 'result'
               ? { id: s.message_id, role: 'jane', kind: 'result', result: s.result as LaunchFromMessageResult }
               : s.role === 'user'
@@ -155,27 +203,43 @@ export default function CampaignsPage({}: CampaignsPageProps) {
               : { id: s.message_id, role: 'jane', kind: 'text', text: s.text }
           ),
         ]);
-        // Rebuild briefSoFar exactly the way send() accumulates it: every user turn
-        // since the last plan/launch, joined the same way, so a reply after a reload
-        // still carries the full brief instead of just that one reply.
-        const lastResolvedIdx = saved.map((s) => s.kind === 'result' && (s.result?.stage === 'planned' || s.result?.stage === 'launched')).lastIndexOf(true);
-        const sinceResolved = saved.slice(lastResolvedIdx + 1).filter((s) => s.role === 'user');
-        if (sinceResolved.length) {
-          setBriefSoFar(sinceResolved.map((s) => s.text).join('. '));
-        }
-      })
-      .catch(() => { /* no saved history yet, or couldn't load — start fresh */ });
+        // Rebuild the accumulated brief the same way send() does — user turns since the
+        // last resolved plan/launch — so a follow-up carries the full picture.
+        const lastResolved = saved.map((s) => s.kind === 'result' && (s.result?.stage === 'planned' || s.result?.stage === 'launched')).lastIndexOf(true);
+        const sinceResolved = saved.slice(lastResolved + 1).filter((s) => s.role === 'user');
+        if (sinceResolved.length) setBriefSoFar(sinceResolved.map((s) => s.text).join('. '));
+      }
+    } catch { /* couldn't load — just the greeting */ }
   }, []);
 
-  // Fire-and-forget save — the chat must keep working locally even if this fails.
-  const saveMsg = (msg: ChatMsg) => {
-    CampaignService.saveChatMessage(
-      msg.role === 'user'
-        ? { message_id: msg.id, role: 'user', kind: 'text', text: msg.text }
-        : msg.kind === 'result'
-        ? { message_id: msg.id, role: 'jane', kind: 'result', result: msg.result }
-        : { message_id: msg.id, role: 'jane', kind: 'text', text: msg.text }
-    ).catch(() => { /* best-effort */ });
+  // '+ New' — start a fresh campaign thread and a clean chat.
+  const startNewThread = async () => {
+    setMedia(null);
+    setBriefSoFar('');
+    setMessages([makeGreeting()]);
+    try {
+      const t = await CampaignService.createThread();
+      selectThreadId(t.thread_id);
+      setThreads((prev) => [t, ...prev]);
+    } catch {
+      selectThreadId(null);
+    }
+  };
+
+  // Duplicate a launched campaign into a fresh draft thread, then auto-send its rebuilt
+  // brief so Jane re-plans it — the user just tweaks and relaunches.
+  const duplicateThread = async (threadId: string) => {
+    try {
+      const { thread, seed_message } = await CampaignService.duplicateThread(threadId);
+      selectThreadId(thread.thread_id);
+      setThreads((prev) => [thread, ...prev]);
+      setMedia(null);
+      setBriefSoFar('');
+      setMessages([makeGreeting()]);
+      await send(seed_message);
+    } catch (e) {
+      ToastService.showToast(extractErrorMessage(e, 'Could not duplicate that campaign.'), ToastTypeEnum.Error);
+    }
   };
 
   // Returning from a Squad checkout: the callback lands here with ?reference=<ref>.
@@ -215,13 +279,15 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     // asking for the same thing. Send the whole brief-so-far each time so Jane
     // has the full picture; it resets once a campaign actually launches.
     const combinedMessage = briefSoFar ? `${briefSoFar}. ${text}` : text;
+    setBusy(true);
+    const threadId = await ensureThread();
     const userMsg: ChatMsg = { id: uid(), role: 'user', text };
     setMessages((m) => [...m, userMsg]);
     saveMsg(userMsg);
-    setBusy(true);
     try {
       const result = await CampaignService.planFromMessage({
         message: combinedMessage,
+        thread_id: threadId,
         ...(attachedMedia?.source === 'upload'
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
           : attachedMedia?.source === 'draft'
@@ -239,6 +305,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       } else {
         setBriefSoFar(combinedMessage);
       }
+      refreshThreads();   // title/status/preview may have changed
     } catch (e) {
       // Show the backend's message as-is — it's already a full, user-friendly
       // sentence (e.g. the "we're experiencing some difficulties, try again later"
@@ -259,15 +326,17 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   const submitWhatsapp = async (number: string) => {
     const clean = number.trim();
     if (!clean || busy) return;
+    setBusy(true);
+    const threadId = await ensureThread();
     const userMsg: ChatMsg = { id: uid(), role: 'user', text: clean };
     setMessages((m) => [...m, userMsg]);
     saveMsg(userMsg);
-    setBusy(true);
     try {
       const attachedMedia = media;
       const result = await CampaignService.planFromMessage({
         message: briefSoFar || clean,
         whatsapp_number: clean,
+        thread_id: threadId,
         ...(attachedMedia?.source === 'upload'
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
           : attachedMedia?.source === 'draft'
@@ -281,6 +350,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
         setMedia(null);
         setBriefSoFar('');
       }
+      refreshThreads();
     } catch (e) {
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
       const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
@@ -370,7 +440,16 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       </div>
 
       {tab === 'chat' ? (
-        <>
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          <ThreadRail
+            threads={threads}
+            activeThreadId={activeThreadId}
+            busy={busy}
+            onSelect={openThread}
+            onNew={startNewThread}
+            onDuplicate={duplicateThread}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
             {messages.map((m) => (
               <div key={m.id} style={{ marginBottom: 16 }}>
@@ -550,7 +629,8 @@ export default function CampaignsPage({}: CampaignsPageProps) {
               </button>
             </div>
           </div>
-        </>
+          </div>
+        </div>
       ) : tab === 'manage' ? (
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
@@ -589,6 +669,88 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       ) : (
         <BillingTab />
       )}
+    </div>
+  );
+}
+
+// Tier E — the left rail: a browsable list of the brand's campaign conversations. '+ New'
+// starts a fresh one; clicking a thread reopens it; a launched one can be duplicated.
+function ThreadRail({
+  threads,
+  activeThreadId,
+  busy,
+  onSelect,
+  onNew,
+  onDuplicate,
+}: {
+  threads: ThreadSummary[];
+  activeThreadId: string | null;
+  busy: boolean;
+  onSelect: (id: string) => void;
+  onNew: () => void;
+  onDuplicate: (id: string) => void;
+}) {
+  const statusColor: Record<string, string> = { draft: '#999', planned: '#a15c00', launched: '#1a7f37' };
+  return (
+    <div style={{ width: 220, flexShrink: 0, borderRight: '1px solid #eee', display: 'flex', flexDirection: 'column', background: '#fafafa' }}>
+      <div style={{ padding: '12px 12px 8px' }}>
+        <button
+          onClick={onNew}
+          disabled={busy}
+          style={{
+            width: '100%', background: PINK, color: '#fff', border: 'none', borderRadius: 8,
+            padding: '9px 12px', fontSize: 13, fontWeight: 700, cursor: busy ? 'default' : 'pointer',
+          }}
+        >
+          + New campaign
+        </button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
+        {threads.length === 0 ? (
+          <p style={{ fontSize: 11.5, color: '#aaa', padding: '8px 6px', lineHeight: 1.5 }}>
+            Your campaigns will show up here as you create them.
+          </p>
+        ) : (
+          threads.map((t) => {
+            const active = t.thread_id === activeThreadId;
+            return (
+              <div
+                key={t.thread_id}
+                onClick={() => onSelect(t.thread_id)}
+                style={{
+                  padding: '9px 10px', borderRadius: 8, cursor: 'pointer', marginBottom: 4,
+                  background: active ? '#fce4ec' : 'transparent',
+                  border: active ? `1px solid ${PINK}` : '1px solid transparent',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 8, color: statusColor[t.status] || '#999' }}>●</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    {t.title || 'New campaign'}
+                  </span>
+                </div>
+                {t.preview && (
+                  <p style={{ margin: '2px 0 0 14px', fontSize: 11, color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.preview}
+                  </p>
+                )}
+                {t.status === 'launched' && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDuplicate(t.thread_id); }}
+                    disabled={busy}
+                    style={{
+                      marginTop: 4, marginLeft: 14, background: 'none', border: 'none', color: PINK,
+                      fontSize: 11, fontWeight: 700, cursor: busy ? 'default' : 'pointer', padding: 0,
+                    }}
+                  >
+                    ⧉ Duplicate
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
