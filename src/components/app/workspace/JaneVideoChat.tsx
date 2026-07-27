@@ -46,6 +46,7 @@ interface StyleTemplate {
   tagline: string;
   bg: string;
   accent: string;
+  previewGif?: string;
 }
 
 interface VideoPlan {
@@ -287,6 +288,22 @@ function PlanRow({
 }
 
 function StylePreviewThumb({ style }: { style: StyleTemplate }) {
+  if (style.previewGif) {
+    return (
+      <img
+        src={style.previewGif}
+        alt={style.name}
+        style={{
+          width: 56,
+          height: 80,
+          borderRadius: 6,
+          objectFit: 'cover',
+          flexShrink: 0,
+          display: 'block',
+        }}
+      />
+    );
+  }
   return (
     <div
       style={{
@@ -708,7 +725,13 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const brollInputRef = useRef<HTMLInputElement>(null);
 
   const [history, setHistory] = useState<HistMsg[]>([]);
-  const [zapCapTemplates, setZapCapTemplates] = useState<{ id: string; name: string }[]>([]);
+  const [zapCapTemplates, setZapCapTemplates] = useState<
+    {
+      id: string;
+      name: string;
+      previews?: { previewGif?: string; previewMp4?: string };
+    }[]
+  >([]);
 
   // Map real ZapCap templates to visual StyleTemplate objects (palette by index)
   const styledTemplates = useMemo<StyleTemplate[]>(
@@ -719,6 +742,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
         tagline: '',
         bg: TEMPLATE_PALETTE[i % TEMPLATE_PALETTE.length].bg,
         accent: TEMPLATE_PALETTE[i % TEMPLATE_PALETTE.length].accent,
+        previewGif: t.previews?.previewGif,
       })),
     [zapCapTemplates]
   );

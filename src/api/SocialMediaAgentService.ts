@@ -886,7 +886,9 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async getZapCapTemplates(): Promise<UriResponse<{ templates: { id: string; name: string }[] }>> {
+  static async getZapCapTemplates(): Promise<
+    UriResponse<{ templates: { id: string; name: string; previews?: { previewGif?: string; previewMp4?: string } }[] }>
+  > {
     const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.zapcapTemplates);
     return response.data;
   }
