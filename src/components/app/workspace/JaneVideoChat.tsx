@@ -58,8 +58,6 @@ interface VideoPlan {
   removeFiller: boolean;
   brollEnabled: boolean;
   brollDensity: 'light' | 'moderate' | 'heavy';
-  customBrollFiles?: File[];
-  customBrollPlacements?: Array<{ clipIndex: number; startTime: number; duration: number }>;
   musicEnabled: boolean;
   musicType: 'upbeat' | 'calm' | 'dramatic';
   targetLength: 'auto' | '15s' | '30s' | '60s';
@@ -315,344 +313,6 @@ function StylePreviewThumb({ style }: { style: StyleTemplate }) {
   );
 }
 
-// ── Shared option button ──────────────────────────────────────────────────────
-
-function OptBtn({
-  label,
-  active,
-  onClick,
-  desc,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  desc?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '8px 14px',
-        borderRadius: 9,
-        border: `1.5px solid ${active ? PINK : BORDER}`,
-        background: active ? LIGHT_PINK : '#fff',
-        color: active ? PINK : '#374151',
-        fontSize: 13,
-        fontWeight: active ? 600 : 400,
-        cursor: 'pointer',
-        textAlign: 'left',
-      }}
-    >
-      <div style={{ fontWeight: 600 }}>{label}</div>
-      {desc && <div style={{ fontSize: 11, color: GRAY, marginTop: 2 }}>{desc}</div>}
-    </button>
-  );
-}
-
-// ── Pre-production b-roll picker with upload + placement ──────────────────────
-
-type BrollAdjustStep = 'options' | 'upload' | 'place';
-
-function BrollAdjustPanel({
-  plan,
-  onApply,
-  onCancel,
-}: {
-  plan: VideoPlan;
-  onApply: (patch: Partial<VideoPlan>) => void;
-  onCancel: () => void;
-}) {
-  const hasExistingClips = (plan.customBrollFiles?.length ?? 0) > 0;
-  const [step, setStep] = useState<BrollAdjustStep>(hasExistingClips ? 'upload' : 'options');
-  const [localClips, setLocalClips] = useState<BrollClipEntry[]>(() =>
-    (plan.customBrollFiles ?? []).map((f) => ({ file: f, tag: 'other' as BrollClipTag, previewUrl: '' }))
-  );
-  const [localPlacements, setLocalPlacements] = useState<BrollPlacement[]>(
-    () => plan.customBrollPlacements?.map((p) => ({ ...p, segmentText: '' })) ?? []
-  );
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const CLIP_TAGS: { value: BrollClipTag; label: string }[] = [
-    { value: 'product', label: 'Product' },
-    { value: 'lifestyle', label: 'Lifestyle' },
-    { value: 'talking', label: 'Talking head' },
-    { value: 'other', label: 'Other' },
-  ];
-
-  if (step === 'options') {
-    return (
-      <div>
-        <SectionLabel text="B-roll" />
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          <OptBtn
-            label="Light"
-            active={plan.brollEnabled && plan.brollDensity === 'light' && !hasExistingClips}
-            onClick={() =>
-              onApply({ brollEnabled: true, brollDensity: 'light', customBrollFiles: [], customBrollPlacements: [] })
-            }
-          />
-          <OptBtn
-            label="Moderate"
-            active={plan.brollEnabled && plan.brollDensity === 'moderate' && !hasExistingClips}
-            onClick={() =>
-              onApply({ brollEnabled: true, brollDensity: 'moderate', customBrollFiles: [], customBrollPlacements: [] })
-            }
-          />
-          <OptBtn
-            label="Heavy"
-            active={plan.brollEnabled && plan.brollDensity === 'heavy' && !hasExistingClips}
-            onClick={() =>
-              onApply({ brollEnabled: true, brollDensity: 'heavy', customBrollFiles: [], customBrollPlacements: [] })
-            }
-          />
-          <OptBtn
-            label="Off"
-            active={!plan.brollEnabled}
-            onClick={() => onApply({ brollEnabled: false, customBrollFiles: [], customBrollPlacements: [] })}
-          />
-        </div>
-        <div style={{ marginTop: 14, borderTop: `1px solid ${BORDER}`, paddingTop: 12 }}>
-          <div style={{ fontSize: 12, color: GRAY, marginBottom: 8 }}>Or use your own footage:</div>
-          <button
-            onClick={() => setStep('upload')}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 9,
-              border: `1.5px solid ${hasExistingClips ? PINK : BORDER}`,
-              background: hasExistingClips ? LIGHT_PINK : '#fff',
-              color: hasExistingClips ? PINK : '#374151',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            {hasExistingClips ? `Custom clips (${plan.customBrollFiles!.length}) — edit` : 'Upload my own clips'}
-          </button>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <TapBtn label="Done" onClick={onCancel} />
-        </div>
-      </div>
-    );
-  }
-
-  if (step === 'upload') {
-    return (
-      <div>
-        <JaneBubble text="Upload your b-roll clips. I'll place them where you tell me — or you can adjust the timing next." />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          style={{
-            marginTop: 10,
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: `1.5px solid ${BORDER}`,
-            background: '#fff',
-            color: '#374151',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          + Add clips
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="video/*"
-          multiple
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            setLocalClips((prev) => [
-              ...prev,
-              ...files.map((f) => ({ file: f, tag: 'other' as BrollClipTag, previewUrl: '' })),
-            ]);
-            e.target.value = '';
-          }}
-        />
-
-        {localClips.length > 0 && (
-          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {localClips.map((entry, i) => (
-              <div
-                key={i}
-                style={{ padding: '10px 12px', border: `1.5px solid ${BORDER}`, borderRadius: 10, background: '#fff' }}
-              >
-                <div
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}
-                >
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>
-                    Clip {i + 1}: <span style={{ color: GRAY, fontWeight: 400 }}>{entry.file.name}</span>
-                  </div>
-                  <button
-                    onClick={() => setLocalClips((prev) => prev.filter((_, j) => j !== i))}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: GRAY, fontSize: 16 }}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {CLIP_TAGS.map((t) => (
-                    <button
-                      key={t.value}
-                      onClick={() =>
-                        setLocalClips((prev) => prev.map((c, j) => (j === i ? { ...c, tag: t.value } : c)))
-                      }
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: 6,
-                        border: `1.5px solid ${entry.tag === t.value ? PINK : BORDER}`,
-                        background: entry.tag === t.value ? LIGHT_PINK : '#fff',
-                        color: entry.tag === t.value ? PINK : GRAY,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <TapBtn label="← Back" onClick={() => setStep('options')} />
-          {localClips.length > 0 && (
-            <button
-              onClick={() => {
-                const estDuration = plan.targetLength === '15s' ? 15 : plan.targetLength === '30s' ? 30 : 60;
-                const spread = estDuration / (localClips.length + 1);
-                const initial: BrollPlacement[] = localClips.map((_, i) => ({
-                  clipIndex: i,
-                  startTime: Math.round(spread * (i + 1) * 10) / 10,
-                  duration: 4,
-                  segmentText: '',
-                }));
-                setLocalPlacements(initial);
-                setStep('place');
-              }}
-              style={{
-                padding: '8px 16px',
-                borderRadius: 8,
-                border: 'none',
-                background: PINK,
-                color: '#fff',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                flex: 1,
-              }}
-            >
-              Next — set timing →
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (step === 'place') {
-    return (
-      <div>
-        <JaneBubble text="Set where each clip appears in your video. Adjust start time and duration." />
-        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {localPlacements.map((placement, i) => (
-            <div
-              key={i}
-              style={{ padding: '10px 12px', border: `1.5px solid ${BORDER}`, borderRadius: 10, background: '#fff' }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', marginBottom: 6 }}>
-                Clip {i + 1}:{' '}
-                <span style={{ color: GRAY, fontWeight: 400 }}>{localClips[placement.clipIndex]?.file.name}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: GRAY }}>Start at:</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  value={placement.startTime}
-                  onChange={(e) =>
-                    setLocalPlacements((prev) =>
-                      prev.map((p, j) => (j === i ? { ...p, startTime: parseFloat(e.target.value) || 0 } : p))
-                    )
-                  }
-                  style={{
-                    width: 64,
-                    padding: '3px 6px',
-                    borderRadius: 6,
-                    border: `1.5px solid ${BORDER}`,
-                    fontSize: 12,
-                  }}
-                />
-                <span style={{ fontSize: 11, color: GRAY }}>seconds</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, color: GRAY }}>Duration:</span>
-                {[3, 4, 5, 6].map((d) => (
-                  <button
-                    key={d}
-                    onClick={() =>
-                      setLocalPlacements((prev) => prev.map((p, j) => (j === i ? { ...p, duration: d } : p)))
-                    }
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: 6,
-                      border: `1.5px solid ${placement.duration === d ? PINK : BORDER}`,
-                      background: placement.duration === d ? LIGHT_PINK : '#fff',
-                      color: placement.duration === d ? PINK : GRAY,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {d}s
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <TapBtn label="← Back" onClick={() => setStep('upload')} />
-          <button
-            onClick={() =>
-              onApply({
-                brollEnabled: true,
-                customBrollFiles: localClips.map((c) => c.file),
-                customBrollPlacements: localPlacements.map((p) => ({
-                  clipIndex: p.clipIndex,
-                  startTime: p.startTime,
-                  duration: p.duration,
-                })),
-              })
-            }
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: 'none',
-              background: PINK,
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              flex: 1,
-            }}
-          >
-            Apply {localPlacements.length} clip{localPlacements.length !== 1 ? 's' : ''}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
 // ── Adjust field pickers ──────────────────────────────────────────────────────
 
 function AdjustPanel({
@@ -775,7 +435,41 @@ function AdjustPanel({
             </div>
           );
         }
-        return <BrollAdjustPanel plan={plan} onApply={onApply} onCancel={onCancel} />;
+        return (
+          <div>
+            {section(
+              'B-roll',
+              <>
+                {opt('Light', plan.brollEnabled && plan.brollDensity === 'light', () =>
+                  onApply({ brollEnabled: true, brollDensity: 'light' })
+                )}
+                {opt('Moderate', plan.brollEnabled && plan.brollDensity === 'moderate', () =>
+                  onApply({ brollEnabled: true, brollDensity: 'moderate' })
+                )}
+                {opt('Heavy', plan.brollEnabled && plan.brollDensity === 'heavy', () =>
+                  onApply({ brollEnabled: true, brollDensity: 'heavy' })
+                )}
+                {opt('Off', !plan.brollEnabled, () => onApply({ brollEnabled: false }))}
+              </>
+            )}
+            <div
+              style={{
+                marginTop: 14,
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: '#F9FAFB',
+                border: `1px solid ${BORDER}`,
+                fontSize: 12,
+                color: GRAY,
+                lineHeight: 1.5,
+              }}
+            >
+              Want to use your own clips? Render first, then tap{' '}
+              <span style={{ fontWeight: 600, color: '#374151' }}>Fix Something → B-roll → Upload my own clips</span> to
+              place them against your transcript.
+            </div>
+          </div>
+        );
 
       case 'music':
         return section(
@@ -1079,18 +773,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     fd.append('language', 'en');
     fd.append('output_mode', 'composited');
     fd.append('quality', 'standard');
-    const hasCustomBroll =
-      (plan.customBrollFiles?.length ?? 0) > 0 && plan.brollEnabled && plan.classification !== 'product';
-    fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product' && !hasCustomBroll));
-    if (hasCustomBroll) {
-      plan.customBrollFiles!.forEach((f) => fd.append('custom_broll_clips', f));
-      if (plan.customBrollPlacements?.length) {
-        fd.append('custom_broll_placements', JSON.stringify(plan.customBrollPlacements));
-      } else {
-        const estimatedDuration = plan.targetLength === '15s' ? 15 : plan.targetLength === '30s' ? 30 : 60;
-        fd.append('custom_broll_estimated_duration', String(estimatedDuration));
-      }
-    }
+    fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
     fd.append('enable_music', String(plan.musicEnabled));
 
     try {
@@ -1505,11 +1188,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               : plan.removeFiller
                 ? 'cut filler only'
                 : 'no trimming',
-        brollLabel: !plan.brollEnabled
-          ? 'off'
-          : plan.customBrollFiles?.length
-            ? `custom · ${plan.customBrollFiles.length} clip${plan.customBrollFiles.length > 1 ? 's' : ''}`
-            : `on · ${plan.brollDensity}`,
+        brollLabel: !plan.brollEnabled ? 'off' : `on · ${plan.brollDensity}`,
         musicLabel: !plan.musicEnabled ? 'none' : `${plan.musicType}, under your voice`,
         lengthLabel: plan.targetLength === 'auto' ? 'auto (no limit)' : plan.targetLength,
         formatLabel:
