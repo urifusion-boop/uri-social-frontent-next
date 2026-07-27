@@ -714,11 +714,11 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     failed: 0,
   };
   const STATUS_LABEL: Record<string, string> = {
-    pending: 'Waiting in queue…',
-    transcribing: 'Transcribing audio…',
-    transcriptionCompleted: 'Preparing render…',
-    rendering: 'Rendering…',
-    completed: 'Done!',
+    pending: 'Getting things ready…',
+    transcribing: 'Listening through your content…',
+    transcriptionCompleted: 'Adding your captions and style…',
+    rendering: 'Almost there — putting on the final touches…',
+    completed: 'Your video is ready!',
     failed: 'Something went wrong',
   };
 
