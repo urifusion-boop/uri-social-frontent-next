@@ -811,6 +811,11 @@ function ResultCard({
               </span>
             ) : null}
           </div>
+          {result.whatsapp_number && (
+            <p style={{ margin: '0 0 12px', fontSize: 12, color: '#666' }}>
+              💬 Leads message <strong>+{result.whatsapp_number}</strong> on WhatsApp
+            </p>
+          )}
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
               {wallet && (wallet.service_fee_ngn ?? 0) > 0 && (

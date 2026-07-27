@@ -47,6 +47,7 @@ export interface LaunchFromMessageResult {
     cta: string;
     is_video?: boolean;
   };
+  whatsapp_number?: string;          // where ad leads route (wa.me/<this>); shown on the plan card
   wallet?: {
     balance_ngn: number;
     budget_ngn: number;              // the ad spend that goes to Meta
