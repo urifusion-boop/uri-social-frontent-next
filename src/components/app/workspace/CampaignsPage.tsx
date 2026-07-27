@@ -1459,6 +1459,18 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
           {c.city && <Metric label="Area" value={c.city} />}
         </div>
+        {/* Where this campaign's leads land — so there's never "no way to tell where the
+            conversations went." Legacy campaigns (no number) routed to a shared inbox. */}
+        {c.whatsapp_number ? (
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#1a7f37' }}>
+            💬 Leads message <strong>+{c.whatsapp_number}</strong> on WhatsApp — open that chat to see them
+          </p>
+        ) : (
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#a15c00' }}>
+            ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number.
+            Duplicate it from a chat thread to relaunch with your number.
+          </p>
+        )}
         {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
       </div>
       {(canToggle || canDelete) && (
