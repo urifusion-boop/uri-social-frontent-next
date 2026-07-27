@@ -1601,6 +1601,50 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
             />
           )}
 
+          {/* Custom b-roll nudge */}
+          {plan?.brollEnabled && (
+            <div
+              style={{
+                background: '#F9FAFB',
+                border: `1px solid ${BORDER}`,
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 12, color: GRAY, lineHeight: 1.5 }}>
+                Want to use your own b-roll clips? You can place them against your transcript.
+              </div>
+              <button
+                onClick={() => {
+                  addMsg('user', 'Upload my own b-roll');
+                  setBrollConvStep('upload');
+                  setBrollClips([]);
+                  setBrollPlacements([]);
+                  setStage('broll_edit');
+                }}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  border: `1.5px solid ${PINK}`,
+                  background: LIGHT_PINK,
+                  color: PINK,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Upload my clips
+              </button>
+            </div>
+          )}
+
           {/* Publish options */}
           <div
             style={{
