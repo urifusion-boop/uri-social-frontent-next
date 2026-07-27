@@ -25,7 +25,7 @@ export interface CampaignPlatform {
 }
 
 export interface LaunchFromMessageResult {
-  stage: 'need_more' | 'advise' | 'planned' | 'launched';
+  stage: 'need_more' | 'advise' | 'need_whatsapp' | 'planned' | 'launched';
   plan_id?: string;                     // present when stage === 'planned' — pass to launchPlan()
   understood?: UnderstoodFields;
   question?: string;
@@ -64,7 +64,9 @@ export interface LaunchFromMessageResult {
 
 export interface CampaignMetrics {
   spend_ngn: number;
-  conversations: number;
+  clicks?: number;                       // WhatsApp link clicks — the real result for wa.me ads
+  cost_per_click_ngn?: number | null;
+  conversations: number;                 // legacy page-connected metric (0 for new wa.me ads)
   cost_per_conversation_ngn: number | null;
   impressions: number;
   reach: number;
@@ -172,6 +174,7 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
+    whatsapp_number?: string;            // where leads route; sent when answering need_whatsapp
   }): Promise<LaunchFromMessageResult> {
     // NL parse + geo lookup + creative generation + the real Meta API calls have been
     // observed taking 90-130s end to end — past the client's global 120s default,
@@ -192,6 +195,7 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
+    whatsapp_number?: string;            // where leads route; sent when answering need_whatsapp
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
@@ -309,5 +313,21 @@ export class CampaignService {
     result?: LaunchFromMessageResult | null;
   }): Promise<void> {
     await UriHttpClient.getClient().put(`/jane-ads/chat/history/${msg.message_id}`, msg);
+  }
+
+  /** The active brand's saved WhatsApp number (where ad leads route), or '' if unset. */
+  static async getWhatsapp(): Promise<string> {
+    try {
+      const res = await UriHttpClient.getClient().get('/jane-ads/whatsapp');
+      return (res.data as { whatsapp_number?: string }).whatsapp_number || '';
+    } catch {
+      return '';
+    }
+  }
+
+  /** Set the brand's WhatsApp number. Returns the normalized number the backend stored. */
+  static async setWhatsapp(whatsappNumber: string): Promise<string> {
+    const res = await UriHttpClient.getClient().put('/jane-ads/whatsapp', { whatsapp_number: whatsappNumber });
+    return (res.data as { whatsapp_number: string }).whatsapp_number;
   }
 }
