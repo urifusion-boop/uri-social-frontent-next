@@ -24,6 +24,30 @@ export interface CampaignPlatform {
   test_scope: string;
 }
 
+export interface ReasonedValue {
+  value: string;
+  reason: string;
+}
+
+export interface CampaignEstimates {
+  audience_size_low?: number | null;
+  audience_size_high?: number | null;
+  estimated_clicks?: number | null;
+  estimated_leads?: number | null;
+  cost_per_result_ngn?: number | null;
+  note: string;
+}
+
+export interface CampaignSummary {
+  objective: ReasonedValue;
+  audience: ReasonedValue;
+  platforms: ReasonedValue;
+  budget_allocation: ReasonedValue;
+  duration: ReasonedValue;
+  optimization: ReasonedValue;
+  estimates: CampaignEstimates;
+}
+
 export interface LaunchFromMessageResult {
   stage: 'need_more' | 'advise' | 'need_whatsapp' | 'planned' | 'launched';
   plan_id?: string;                     // present when stage === 'planned' — pass to launchPlan()
@@ -48,6 +72,7 @@ export interface LaunchFromMessageResult {
     is_video?: boolean;
   };
   whatsapp_number?: string;          // where ad leads route (wa.me/<this>); shown on the plan card
+  summary?: CampaignSummary;         // Tier C — each choice + its why, plus estimates
   wallet?: {
     balance_ngn: number;
     budget_ngn: number;              // the ad spend that goes to Meta
