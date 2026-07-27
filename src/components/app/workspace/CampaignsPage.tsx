@@ -253,6 +253,44 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     }
   };
 
+  // Answer the need_whatsapp step: send the brand's WhatsApp number (stored server-side
+  // for reuse) and continue building the plan. Kept separate from send() because the
+  // number is a distinct field, not another line of the campaign brief.
+  const submitWhatsapp = async (number: string) => {
+    const clean = number.trim();
+    if (!clean || busy) return;
+    const userMsg: ChatMsg = { id: uid(), role: 'user', text: clean };
+    setMessages((m) => [...m, userMsg]);
+    saveMsg(userMsg);
+    setBusy(true);
+    try {
+      const attachedMedia = media;
+      const result = await CampaignService.planFromMessage({
+        message: briefSoFar || clean,
+        whatsapp_number: clean,
+        ...(attachedMedia?.source === 'upload'
+          ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
+          : attachedMedia?.source === 'draft'
+          ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+          : {}),
+      });
+      const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+      setMessages((m) => [...m, resultMsg]);
+      saveMsg(resultMsg);
+      if (result.stage === 'planned') {
+        setMedia(null);
+        setBriefSoFar('');
+      }
+    } catch (e) {
+      const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
+      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
+      setMessages((m) => [...m, errMsg]);
+      saveMsg(errMsg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -361,6 +399,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
                     onLaunched={loadCampaigns}
                     onQuickReply={(text) => send(text)}
                     onTopUp={() => setTab('wallet')}
+                    onSubmitWhatsapp={submitWhatsapp}
                   />
                 )}
               </div>
@@ -616,6 +655,42 @@ function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: st
   );
 }
 
+// Where ad leads go: the brand's own WhatsApp number. Anyone who taps the ad opens a
+// chat straight with this number, so it must be captured before a plan can be built.
+function NeedWhatsapp({ question, onSubmit }: { question?: string; onSubmit: (number: string) => void }) {
+  const [value, setValue] = useState('');
+  const submit = () => {
+    if (value.trim()) onSubmit(value);
+  };
+  return (
+    <div>
+      <JaneBubble>
+        {question || 'Which WhatsApp number should I send your leads to? Anyone who taps your ad will message this number directly.'}
+      </JaneBubble>
+      <div style={{ display: 'flex', gap: 8, marginTop: 8, marginLeft: 40, maxWidth: 360 }}>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          placeholder="e.g. 0803 123 4567"
+          inputMode="tel"
+          style={{ flex: 1, border: '1.5px solid #e0dcd9', borderRadius: 20, padding: '8px 14px', fontSize: 13, outline: 'none' }}
+        />
+        <button
+          onClick={submit}
+          disabled={!value.trim()}
+          style={{
+            background: PINK, border: 'none', color: '#fff', borderRadius: 20, padding: '8px 18px',
+            fontSize: 13, fontWeight: 700, cursor: value.trim() ? 'pointer' : 'default', opacity: value.trim() ? 1 : 0.5,
+          }}
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function TypingDots() {
   return (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', height: 13 }}>
@@ -648,15 +723,21 @@ function ResultCard({
   onLaunched,
   onQuickReply,
   onTopUp,
+  onSubmitWhatsapp,
 }: {
   result: LaunchFromMessageResult;
   onResultChange: (result: LaunchFromMessageResult) => void;
   onLaunched: () => void;
   onQuickReply: (text: string) => void;
   onTopUp: () => void;
+  onSubmitWhatsapp: (number: string) => void;
 }) {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
+
+  if (result.stage === 'need_whatsapp') {
+    return <NeedWhatsapp question={result.question} onSubmit={onSubmitWhatsapp} />;
+  }
 
   if (result.stage === 'need_more') {
     // need_more now covers three distinct questions (nl.py asks business identity, THEN
@@ -1148,10 +1229,10 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           <Metric label="Amount spent" value={naira(c.metrics?.spend_ngn)} />
           <Metric label="Views" value={c.metrics?.impressions != null ? c.metrics.impressions.toLocaleString() : 'N/A'} />
           <Metric label="People reached" value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'} />
-          <Metric label="Conversations" value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'} />
+          <Metric label="WhatsApp clicks" value={c.metrics?.clicks != null ? String(c.metrics.clicks) : 'N/A'} />
           <Metric
-            label="Cost per conversation"
-            value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
+            label="Cost per click"
+            value={c.metrics?.cost_per_click_ngn != null ? naira(c.metrics.cost_per_click_ngn) : 'N/A'}
           />
           <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
           {c.city && <Metric label="Area" value={c.city} />}
