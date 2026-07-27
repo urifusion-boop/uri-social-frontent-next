@@ -866,6 +866,9 @@ const ContentManagerPage = ({
     'generate'
   );
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
+  // Keep JaneVideoChat mounted after first visit so in-progress sessions survive tab switches
+  const [janeEverMounted, setJaneEverMounted] = useState(false);
+  const isJaneActive = activeTab === 'video' && videoTab === 'chat';
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -1130,6 +1133,10 @@ const ContentManagerPage = ({
     if (activeTab === 'scheduled') fetchScheduled();
     if (activeTab === 'auto') fetchAuto();
   }, [activeTab, fetchDrafts, fetchSaved, fetchScheduled, fetchAuto]);
+
+  useEffect(() => {
+    if (isJaneActive && !janeEverMounted) setJaneEverMounted(true);
+  }, [isJaneActive, janeEverMounted]);
 
   useEffect(
     () => () => {
@@ -1498,6 +1505,13 @@ const ContentManagerPage = ({
           </>
         )}
 
+        {/* JaneVideoChat keep-alive: mounted once, hidden with CSS when not active */}
+        {janeEverMounted && (
+          <div style={{ display: isJaneActive ? undefined : 'none' }}>
+            <JaneVideoChat onSaveToDrafts={() => setActiveTab('drafts')} />
+          </div>
+        )}
+
         {activeTab === 'video' && (
           <>
             {/* 5 sub-tabs — horizontal scroll on mobile instead of wrapping,
@@ -1548,7 +1562,6 @@ const ContentManagerPage = ({
                 </button>
               ))}
             </div>
-            {videoTab === 'chat' && <JaneVideoChat onSaveToDrafts={() => setActiveTab('drafts')} />}
             {videoTab === 'generate' && <VideoStoryboardGenerator />}
             {videoTab === 'produce' && (
               <VideoProductionForm
