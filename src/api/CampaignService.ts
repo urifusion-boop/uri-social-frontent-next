@@ -109,6 +109,7 @@ export interface CampaignRow {
   budget_ngn: number | null;
   goal: string;
   city: string;
+  whatsapp_number?: string;   // where this campaign's leads land; empty for legacy campaigns
   status: string;
   created_at: string | null;
   ads_manager_url: string;
