@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, WalletInfo, BillingSummary, SavedChatMessage } from '@/src/api/CampaignService';
+import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, WalletInfo, BillingSummary, SavedChatMessage, CampaignSummary } from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -657,6 +657,60 @@ function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: st
 
 // Where ad leads go: the brand's own WhatsApp number. Anyone who taps the ad opens a
 // chat straight with this number, so it must be captured before a plan can be built.
+// Tier C/D — Jane's reasoning laid out: every choice + its why, plus estimates. Turns
+// the plan card from a black box into "here's what I'm doing and why," like a strategist.
+function CampaignReview({ summary }: { summary: CampaignSummary }) {
+  const rows: { label: string; rv: { value: string; reason: string } }[] = [
+    { label: 'Objective', rv: summary.objective },
+    { label: 'Audience', rv: summary.audience },
+    { label: 'Platforms', rv: summary.platforms },
+    { label: 'Budget', rv: summary.budget_allocation },
+    { label: 'Duration', rv: summary.duration },
+    { label: 'Optimization', rv: summary.optimization },
+  ];
+  const e = summary.estimates;
+  const audience = e.audience_size_low != null && e.audience_size_high != null
+    ? `${e.audience_size_low.toLocaleString()}–${e.audience_size_high.toLocaleString()}`
+    : null;
+  const estItems: { label: string; value: string }[] = [];
+  if (audience) estItems.push({ label: 'Audience you could reach', value: audience });
+  if (e.estimated_clicks != null) estItems.push({ label: 'Est. WhatsApp clicks', value: `~${e.estimated_clicks.toLocaleString()}` });
+  if (e.estimated_leads != null) estItems.push({ label: 'Est. leads', value: `~${e.estimated_leads.toLocaleString()}` });
+  if (e.cost_per_result_ngn != null) estItems.push({ label: 'Est. cost per result', value: naira(e.cost_per_result_ngn) });
+
+  return (
+    <div style={{ margin: '0 0 12px', border: '1px solid #eee', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ background: '#faf7f8', padding: '8px 12px', fontSize: 12, fontWeight: 800, color: PINK }}>
+        Jane&rsquo;s plan — here&rsquo;s my thinking
+      </div>
+      <div style={{ padding: '4px 12px' }}>
+        {rows.map((r) => (
+          <div key={r.label} style={{ padding: '8px 0', borderBottom: '1px solid #f2f0f0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: 0.3 }}>{r.label}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12', textAlign: 'right' }}>{r.rv.value}</span>
+            </div>
+            <p style={{ margin: '3px 0 0', fontSize: 11.5, color: '#888', lineHeight: 1.45 }}>{r.rv.reason}</p>
+          </div>
+        ))}
+      </div>
+      {estItems.length > 0 && (
+        <div style={{ padding: '10px 12px', background: '#fbfbfb' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            {estItems.map((it) => (
+              <div key={it.label} style={{ minWidth: 90 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#1a0a12' }}>{it.value}</div>
+                <div style={{ fontSize: 10.5, color: '#999' }}>{it.label}</div>
+              </div>
+            ))}
+          </div>
+          <p style={{ margin: '8px 0 0', fontSize: 10.5, color: '#aaa', fontStyle: 'italic' }}>{e.note}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NeedWhatsapp({ question, onSubmit }: { question?: string; onSubmit: (number: string) => void }) {
   const [value, setValue] = useState('');
   const submit = () => {
@@ -816,6 +870,7 @@ function ResultCard({
               💬 Leads message <strong>+{result.whatsapp_number}</strong> on WhatsApp
             </p>
           )}
+          {result.summary && <CampaignReview summary={result.summary} />}
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
               {wallet && (wallet.service_fee_ngn ?? 0) > 0 && (
