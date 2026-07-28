@@ -100,6 +100,11 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   // targeting/budget tweak keeps the same visual instead of regenerating (and burning a
   // credit). Cleared on launch / + New / opening another thread.
   const lastCreativeRef = useRef<string>('');
+  // Which image source the user picked for THIS campaign (upload / draft / let Jane
+  // generate). Null until they choose — the first plan attempt asks (creative_source
+  // 'ask' → the choose card). Reset on launch / + New / thread switch.
+  const creativeChoiceRef = useRef<'generate' | 'upload' | 'draft' | null>(null);
+  const uploadForChoiceRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -194,6 +199,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     setMedia(null);
     setBriefSoFar('');
     lastCreativeRef.current = '';
+    creativeChoiceRef.current = null;
     setMessages([makeGreeting()]);
     try {
       const saved = await CampaignService.getThreadHistory(threadId);
@@ -227,6 +233,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     setMedia(null);
     setBriefSoFar('');
     lastCreativeRef.current = '';
+    creativeChoiceRef.current = null;
     setMessages([makeGreeting()]);
     try {
       const t = await CampaignService.createThread();
@@ -303,11 +310,12 @@ export default function CampaignsPage({}: CampaignsPageProps) {
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
           : attachedMedia?.source === 'draft'
           ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
-          // A follow-up after a plan already has an image → reuse it (targeting/budget tweak
-          // shouldn't regenerate the visual or cost a credit).
+          // No media attached. If a plan already produced an image, this is a refinement →
+          // reuse it (no regen/credit). Else honor an already-picked source. Else ASK (Jane
+          // offers upload / past post / generate) instead of silently auto-generating.
           : lastCreativeRef.current
           ? { reuse_image_url: lastCreativeRef.current }
-          : {}),
+          : { creative_source: creativeChoiceRef.current ?? ('ask' as const) }),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
@@ -373,16 +381,53 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     }
   };
 
+  // Continue building the plan once the user picks how to source the image from the
+  // choose-creative-source card. Reuses the accumulated brief (no new user bubble) and
+  // re-runs the plan with a concrete source, so the image/caption step finally runs.
+  const continueWithSource = async (
+    choice:
+      | { creative_source: 'generate' }
+      | { creative_source: 'upload'; reference_image_url: string; is_video: boolean }
+      | { creative_source: 'draft'; draft_id: string },
+  ) => {
+    if (busy || !briefSoFar) return;
+    creativeChoiceRef.current = choice.creative_source;
+    setBusy(true);
+    try {
+      const result = await CampaignService.planFromMessage({ message: briefSoFar, thread_id: activeThreadRef.current ?? undefined, ...choice });
+      const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+      setMessages((m) => [...m, resultMsg]);
+      saveMsg(resultMsg);
+      // Remember the produced image so later typed refinements reuse it (no regen/credit).
+      if (result.creative?.image_url) lastCreativeRef.current = result.creative.image_url;
+      refreshThreads();
+    } catch (e) {
+      const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
+      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
+      setMessages((m) => [...m, errMsg]);
+      saveMsg(errMsg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
+    const forChoice = uploadForChoiceRef.current;
+    uploadForChoiceRef.current = false;
     if (!file) return;
     setUploadError('');
     setUploading(true);
     setDraftsOpen(false);
     try {
       const { url, is_video } = await CampaignService.uploadMedia(file);
-      setMedia({ source: 'upload', url, isVideo: is_video, label: file.name });
+      if (forChoice) {
+        // Came from the choose card — go straight on with the plan using this upload.
+        await continueWithSource({ creative_source: 'upload', reference_image_url: url, is_video });
+      } else {
+        setMedia({ source: 'upload', url, isVideo: is_video, label: file.name });
+      }
     } catch {
       setUploadError('Upload failed, please try again.');
     } finally {
@@ -493,12 +538,19 @@ export default function CampaignsPage({}: CampaignsPageProps) {
                       setBriefSoFar('');
                       setMedia(null);
                       lastCreativeRef.current = '';
+                      creativeChoiceRef.current = null;
                       loadCampaigns();
                       refreshThreads();
                     }}
                     onQuickReply={(text) => send(text)}
                     onTopUp={() => setTab('wallet')}
                     onSubmitWhatsapp={submitWhatsapp}
+                    onChooseGenerate={() => continueWithSource({ creative_source: 'generate' })}
+                    onChooseUpload={() => {
+                      uploadForChoiceRef.current = true;
+                      fileInputRef.current?.click();
+                    }}
+                    onChooseDraft={(draftId) => continueWithSource({ creative_source: 'draft', draft_id: draftId })}
                   />
                 )}
               </div>
@@ -893,6 +945,61 @@ function CampaignReview({ summary }: { summary: CampaignSummary }) {
   );
 }
 
+// The image-source choice Jane offers after budget: upload your own, reuse a past post,
+// or let Jane generate one. Rendered inside a Jane bubble so it reads as her asking.
+function ChooseCreativeSource({
+  drafts,
+  onGenerate,
+  onUpload,
+  onPickDraft,
+}: {
+  drafts: DraftSummary[];
+  onGenerate: () => void;
+  onUpload: () => void;
+  onPickDraft: (draftId: string) => void;
+}) {
+  const [showDrafts, setShowDrafts] = useState(false);
+  const optionBtn: React.CSSProperties = {
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+    background: '#fff', border: `1.5px solid ${PINK}`, color: PINK, borderRadius: 12,
+    padding: '10px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'left',
+  };
+  const sub: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#a06', opacity: 0.85 };
+  return (
+    <div>
+      <JaneBubble>Great — how would you like to handle the image for this ad?</JaneBubble>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
+        <button onClick={onGenerate} style={optionBtn}>
+          ✨ Let Jane create one<span style={sub}>I&apos;ll design a visual for you</span>
+        </button>
+        <button onClick={onUpload} style={optionBtn}>
+          📎 Upload my own<span style={sub}>Use your own photo or video</span>
+        </button>
+        {drafts.length > 0 && (
+          <button onClick={() => setShowDrafts((v) => !v)} style={optionBtn}>
+            🖼 Use a past post<span style={sub}>{drafts.length} available</span>
+          </button>
+        )}
+      </div>
+      {showDrafts && drafts.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, marginLeft: 40, maxWidth: 560 }}>
+          {drafts.map((d) => (
+            <button
+              key={d.draft_id}
+              onClick={() => onPickDraft(d.draft_id)}
+              title={d.content}
+              style={{ padding: 0, border: '2px solid #eee', borderRadius: 10, overflow: 'hidden', cursor: 'pointer', background: '#fff', width: 84, height: 84 }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={d.image_url} alt="past post" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NeedWhatsapp({ question, onSubmit }: { question?: string; onSubmit: (number: string) => void }) {
   const [value, setValue] = useState('');
   const submit = () => {
@@ -960,6 +1067,9 @@ function ResultCard({
   onQuickReply,
   onTopUp,
   onSubmitWhatsapp,
+  onChooseGenerate,
+  onChooseUpload,
+  onChooseDraft,
 }: {
   result: LaunchFromMessageResult;
   onResultChange: (result: LaunchFromMessageResult) => void;
@@ -967,12 +1077,25 @@ function ResultCard({
   onQuickReply: (text: string) => void;
   onTopUp: () => void;
   onSubmitWhatsapp: (number: string) => void;
+  onChooseGenerate: () => void;
+  onChooseUpload: () => void;
+  onChooseDraft: (draftId: string) => void;
 }) {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
 
   if (result.stage === 'need_whatsapp') {
     return <NeedWhatsapp question={result.question} onSubmit={onSubmitWhatsapp} />;
+  }
+  if (result.stage === 'choose_creative_source') {
+    return (
+      <ChooseCreativeSource
+        drafts={result.creative_options?.drafts || []}
+        onGenerate={onChooseGenerate}
+        onUpload={onChooseUpload}
+        onPickDraft={onChooseDraft}
+      />
+    );
   }
 
   if (result.stage === 'need_more') {
@@ -1489,10 +1612,10 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           <Metric label="Amount spent" value={naira(c.metrics?.spend_ngn)} />
           <Metric label="Views" value={c.metrics?.impressions != null ? c.metrics.impressions.toLocaleString() : 'N/A'} />
           <Metric label="People reached" value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'} />
-          <Metric label="WhatsApp chats" value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'} />
+          <Metric label="WhatsApp clicks" value={c.metrics?.clicks != null ? String(c.metrics.clicks) : 'N/A'} />
           <Metric
-            label="Cost per chat"
-            value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
+            label="Cost per click"
+            value={c.metrics?.cost_per_click_ngn != null ? naira(c.metrics.cost_per_click_ngn) : 'N/A'}
           />
           <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
           {c.city && <Metric label="Area" value={c.city} />}
