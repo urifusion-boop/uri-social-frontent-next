@@ -96,6 +96,10 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const activeThreadRef = useRef<string | null>(null);
+  // The last plan's image — reused on refinements ("target lagos", "make it 10k") so a
+  // targeting/budget tweak keeps the same visual instead of regenerating (and burning a
+  // credit). Cleared on launch / + New / opening another thread.
+  const lastCreativeRef = useRef<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -189,10 +193,14 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     selectThreadId(threadId);
     setMedia(null);
     setBriefSoFar('');
+    lastCreativeRef.current = '';
     setMessages([makeGreeting()]);
     try {
       const saved = await CampaignService.getThreadHistory(threadId);
       if (saved.length) {
+        // Carry the last plan's image forward so a refinement after reopening reuses it.
+        const lastWithImage = [...saved].reverse().find((s) => s.result?.creative?.image_url);
+        if (lastWithImage?.result?.creative?.image_url) lastCreativeRef.current = lastWithImage.result.creative.image_url;
         setMessages([
           makeGreeting(),
           ...saved.map((s): ChatMsg =>
@@ -218,6 +226,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   const startNewThread = async () => {
     setMedia(null);
     setBriefSoFar('');
+    lastCreativeRef.current = '';
     setMessages([makeGreeting()]);
     try {
       const t = await CampaignService.createThread();
@@ -294,11 +303,16 @@ export default function CampaignsPage({}: CampaignsPageProps) {
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
           : attachedMedia?.source === 'draft'
           ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+          // A follow-up after a plan already has an image → reuse it (targeting/budget tweak
+          // shouldn't regenerate the visual or cost a credit).
+          : lastCreativeRef.current
+          ? { reuse_image_url: lastCreativeRef.current }
           : {}),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
       saveMsg(resultMsg);
+      if (result.creative?.image_url) lastCreativeRef.current = result.creative.image_url;
       // Keep the accumulated brief through the WHOLE campaign — including after a plan is
       // shown — so a follow-up like "target lagos and abuja" refines THIS campaign instead
       // of being parsed with no context (which made Jane re-ask the objective and drop the
@@ -345,6 +359,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
       saveMsg(resultMsg);
+      if (result.creative?.image_url) lastCreativeRef.current = result.creative.image_url;
       // Keep the brief (the campaign context) intact — a plan isn't the end of the
       // conversation, refinements can still follow. Only a launch/​+New resets it.
       refreshThreads();
@@ -477,6 +492,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
                       // starts a fresh campaign instead of appending to the launched one.
                       setBriefSoFar('');
                       setMedia(null);
+                      lastCreativeRef.current = '';
                       loadCampaigns();
                       refreshThreads();
                     }}
