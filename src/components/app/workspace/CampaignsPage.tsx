@@ -1034,6 +1034,73 @@ function NeedWhatsapp({ question, onSubmit }: { question?: string; onSubmit: (nu
   );
 }
 
+// A thumbnail/preview image the user can tap to see full-size in a lightbox overlay.
+// Self-contained (owns its own open state) so it drops into any card without lifting
+// state up. Click the backdrop or the ✕ to close; a video renders <video controls>.
+function ZoomableImage({
+  src,
+  alt,
+  style,
+  isVideo,
+}: {
+  src: string;
+  alt: string;
+  style?: React.CSSProperties;
+  isVideo?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        aria-label={`View full ${alt || 'image'}`}
+        style={{ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in', display: 'block', width: '100%' }}
+      >
+        {isVideo ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video src={src} style={style} muted />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={alt} style={style} />
+        )}
+      </button>
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out',
+          }}
+        >
+          <button
+            onClick={() => setOpen(false)}
+            aria-label="Close"
+            style={{
+              position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: 'none',
+              color: '#fff', borderRadius: '50%', width: 36, height: 36, fontSize: 18, cursor: 'pointer',
+            }}
+          >
+            ✕
+          </button>
+          {isVideo ? (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <video
+              src={src} controls autoPlay onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }}
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={src} alt={alt} onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }}
+            />
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 function TypingDots() {
   return (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', height: 13 }}>
@@ -1165,8 +1232,12 @@ function ResultCard({
       </div>
       <div style={{ maxWidth: 560, flex: 1, border: '1px solid #eee', borderRadius: 14, overflow: 'hidden', background: '#fff' }}>
         {creative?.image_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={creative.image_url} alt="campaign visual" style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'cover' }} />
+          <ZoomableImage
+            src={creative.image_url}
+            alt="campaign visual"
+            isVideo={creative.is_video}
+            style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'cover' }}
+          />
         )}
         <div style={{ padding: 16 }}>
           <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 15, color: '#1a0a12' }}>{creative?.headline}</p>
@@ -1594,8 +1665,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   return (
     <div style={{ display: 'flex', gap: 14, border: '1px solid #eee', borderRadius: 12, padding: 12, background: '#fff' }}>
       {c.image_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={c.image_url} alt="" style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+        <div style={{ width: 84, height: 84, flexShrink: 0 }}>
+          <ZoomableImage src={c.image_url} alt={c.name} style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover' }} />
+        </div>
       ) : (
         <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
       )}

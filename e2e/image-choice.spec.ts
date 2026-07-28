@@ -39,7 +39,7 @@ async function mockJaneAds(page: Page) {
       return route.fulfill({ json: {
         stage: 'planned', plan_id: 'plan_test',
         plan: { goal: 'messages', behaviour: 'discover', explanation: 'why', platforms: [{ platform: 'meta', budget_ngn: 5000, days: 3, variants: 1, test_scope: 'none' }] },
-        creative: { image_url: 'https://placehold.co/600x800', headline: 'Fresh Lunch', primary_text: 'Hot meals near you.', cta: 'Send WhatsApp Message' },
+        creative: { image_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', headline: 'Fresh Lunch', primary_text: 'Hot meals near you.', cta: 'Send WhatsApp Message' },
         whatsapp_number: '2348031234567',
         wallet: { balance_ngn: 50000, budget_ngn: 5000, service_fee_ngn: 500, total_due_ngn: 5500, sufficient: true },
       } });
@@ -64,23 +64,42 @@ test('objective → budget → image choice → plan', async ({ page }) => {
   await input.fill('get me more whatsapp messages for my restaurant in surulere');
   await input.press('Enter');
 
+  // Chat auto-scrolls on new messages and a floating dev-only debug widget overlays
+  // fixed-position elements in this local harness (neither present in production), so
+  // force:true is used throughout — actionability (visible/attached) is still asserted
+  // via the expect()s before each click.
+
   // 2. Objective question + chips → pick Product.
   await expect(page.getByText(/What are you advertising/i)).toBeVisible();
-  await page.getByRole('button', { name: 'Product' }).click();
+  await page.getByRole('button', { name: 'Product' }).click({ force: true });
 
   // 3. Budget question → answer with a chip.
   await expect(page.getByText(/budget/i).first()).toBeVisible();
-  await page.getByRole('button', { name: /₦5,000 budget/ }).click();
+  await page.getByRole('button', { name: /₦5,000 budget/ }).click({ force: true });
 
   // 4. THE fix under test — the three image options appear (not an auto-generated image).
   await expect(page.getByText(/how would you like to handle the image/i)).toBeVisible();
   await expect(page.getByRole('button', { name: /Let Jane create one/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /Upload my own/i })).toBeVisible();
 
-  // 5. Let Jane generate → the plan/review card renders. force:true — a floating dev-only
-  // debug widget overlays fixed-position elements in this local harness (not present in
-  // production), which otherwise blocks Playwright's actionability check on this button.
+  // 5. Let Jane generate → the plan/review card renders.
   await page.getByRole('button', { name: /Let Jane create one/i }).click({ force: true });
   await expect(page.getByText('Fresh Lunch')).toBeVisible();
   await expect(page.getByRole('button', { name: /Looks good — launch it/i })).toBeVisible();
+
+  // 6. Tapping the campaign image opens a full-size lightbox. The chat auto-scrolls
+  // smoothly on new messages, which can race a click against the settling scroll, so
+  // retry the click until the modal (a second "campaign visual" img + Close button)
+  // actually appears rather than asserting on the always-visible thumbnail.
+  const imageButton = page.getByRole('button', { name: /View full campaign visual/i });
+  const closeButton = page.getByRole('button', { name: 'Close' });
+  await imageButton.scrollIntoViewIfNeeded();
+  await expect(async () => {
+    if (await closeButton.count()) return;
+    await imageButton.click({ force: true, timeout: 2000 });
+    await expect(page.locator('img[alt="campaign visual"]')).toHaveCount(2, { timeout: 1000 });
+  }).toPass({ timeout: 10000 });
+  await expect(closeButton).toBeVisible();
+  await closeButton.click();
+  await expect(closeButton).toHaveCount(0);
 });
