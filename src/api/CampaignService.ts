@@ -49,7 +49,7 @@ export interface CampaignSummary {
 }
 
 export interface LaunchFromMessageResult {
-  stage: 'need_more' | 'advise' | 'need_whatsapp' | 'planned' | 'launched';
+  stage: 'need_more' | 'advise' | 'need_whatsapp' | 'need_facebook_page' | 'planned' | 'launched';
   plan_id?: string;                     // present when stage === 'planned' — pass to launchPlan()
   understood?: UnderstoodFields;
   question?: string;
