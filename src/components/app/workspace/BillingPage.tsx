@@ -56,12 +56,8 @@ declare global {
       key: string;
       email: string;
       amount: number;
-      // Squad's real field name is currency_code, not currency — the
-      // widget's own docs example uses currency_code, and it silently
-      // ignored a `currency` field, contributing to the widget hanging on
-      // its internal loading state indefinitely.
-      currency_code?: string;
-      transaction_ref?: string;
+      currency?: string;
+      transaction_ref: string;
       callback_url?: string;
       onClose?: () => void;
       onLoad?: () => void;
@@ -360,7 +356,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
           key: paymentData.public_key,
           email: paymentData.email,
           amount: paymentData.amount * 100, // Convert to kobo
-          currency_code: paymentData.currency || 'NGN',
+          currency: paymentData.currency || 'NGN',
           transaction_ref: paymentData.transaction_ref,
           onClose: () => {
             // User closed the modal without paying
@@ -419,7 +415,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
           key: paymentData.public_key,
           email: paymentData.email,
           amount: paymentData.amount * 100, // kobo
-          currency_code: paymentData.currency || 'NGN',
+          currency: paymentData.currency || 'NGN',
           transaction_ref: paymentData.transaction_ref,
           onClose: () => {
             clearTimeout(stuckTimeout);
