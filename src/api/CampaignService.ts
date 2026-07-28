@@ -232,6 +232,7 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
+    reuse_image_url?: string;            // refinement — keep the prior plan's image (no regen/credit)
     whatsapp_number?: string;            // where leads route; sent when answering need_whatsapp
     thread_id?: string;                  // which campaign thread this plan belongs to (Tier E)
   }): Promise<LaunchFromMessageResult> {
