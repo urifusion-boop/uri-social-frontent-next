@@ -32,7 +32,7 @@ interface SquadPaymentData {
 
 declare global {
   interface Window {
-    squadPay?: (config: {
+    squadPay: (config: {
       key: string;
       email: string;
       amount: number;
@@ -156,12 +156,6 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
   const [customQty, setCustomQty] = useState(10);
   const [buyingCustomCredits, setBuyingCustomCredits] = useState(false);
-  // Squad's checkout script loads lazily — clicking Subscribe/Buy before it's
-  // ready silently falls back to a full-page redirect instead of the
-  // reliable in-page modal, which is what was causing custom-credit
-  // purchases to get stuck (see onSquadLoad below + the buy/subscribe
-  // buttons' disabled state).
-  const [squadReady, setSquadReady] = useState(false);
   const [paymentModal, setPaymentModal] = useState<{
     show: boolean;
     type: 'success' | 'error' | 'warning';
@@ -216,20 +210,6 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [verifyPaymentCallback]);
-
-  useEffect(() => {
-    // The script may already be loaded/cached from a previous visit, in
-    // which case <Script>'s onLoad won't fire again — check immediately too.
-    if (typeof window !== 'undefined' && window.squadPay) {
-      setSquadReady(true);
-      return;
-    }
-    // Don't leave purchase buttons permanently disabled if the script is
-    // blocked (ad blocker, network issue) — fall back to the redirect path
-    // after a reasonable wait instead of stranding the user.
-    const timeout = setTimeout(() => setSquadReady(true), 8000);
-    return () => clearTimeout(timeout);
-  }, []);
 
   const fetchBillingData = async () => {
     try {
@@ -434,11 +414,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   return (
     <>
       {/* Squad Payment SDK */}
-      <Script
-        src="https://checkout.squadco.com/widget/squad.min.js"
-        strategy="lazyOnload"
-        onLoad={() => setSquadReady(true)}
-      />
+      <Script src="https://checkout.squadco.com/widget/squad.min.js" strategy="lazyOnload" />
 
       <div
         style={{
@@ -1029,17 +1005,16 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
                   <button
                     onClick={handleBuyCustomCredits}
-                    disabled={buyingCustomCredits || customQty < CUSTOM_CREDIT_MIN_QUANTITY || !squadReady}
+                    disabled={buyingCustomCredits || customQty < CUSTOM_CREDIT_MIN_QUANTITY}
                     style={{
                       padding: '11px 22px',
                       borderRadius: 10,
                       border: 'none',
-                      background:
-                        buyingCustomCredits || !squadReady ? '#999' : 'linear-gradient(135deg, #C2185B, #E91E63)',
+                      background: buyingCustomCredits ? '#999' : 'linear-gradient(135deg, #C2185B, #E91E63)',
                       color: '#fff',
                       fontWeight: 800,
                       fontSize: 13.5,
-                      cursor: buyingCustomCredits || !squadReady ? 'not-allowed' : 'pointer',
+                      cursor: buyingCustomCredits ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
@@ -1050,11 +1025,6 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                       <>
                         <I n="loader" s={14} c="#fff" />
                         Processing...
-                      </>
-                    ) : !squadReady ? (
-                      <>
-                        <I n="loader" s={14} c="#fff" />
-                        Preparing checkout...
                       </>
                     ) : (
                       `Buy for ₦${(customQty * CUSTOM_CREDIT_PRICE_NGN).toLocaleString()}`
@@ -1680,17 +1650,17 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                 </button>
                 <button
                   onClick={confirmSubscription}
-                  disabled={subscribing !== null || !squadReady}
+                  disabled={subscribing !== null}
                   style={{
                     flex: 1,
                     padding: '12px 0',
                     borderRadius: 10,
                     border: 'none',
-                    background: subscribing || !squadReady ? '#999' : '#CD1B78',
+                    background: subscribing ? '#999' : '#CD1B78',
                     color: '#fff',
                     fontWeight: 700,
                     fontSize: 14,
-                    cursor: subscribing || !squadReady ? 'not-allowed' : 'pointer',
+                    cursor: subscribing ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1701,11 +1671,6 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                     <>
                       <I n="loader" s={16} c="#fff" />
                       Processing...
-                    </>
-                  ) : !squadReady ? (
-                    <>
-                      <I n="loader" s={16} c="#fff" />
-                      Preparing checkout...
                     </>
                   ) : (
                     'Proceed to Payment'
