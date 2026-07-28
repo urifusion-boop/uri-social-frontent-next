@@ -38,6 +38,10 @@ function CheckoutContent() {
 
         const paymentData = await BillingService.initializePayment(id);
 
+        if (!paymentData.payment_url) {
+          throw new Error('Payment gateway did not return a checkout URL');
+        }
+
         // Redirect to SQUAD checkout
         window.location.href = paymentData.payment_url;
       } catch (error: unknown) {
