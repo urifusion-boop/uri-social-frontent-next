@@ -205,7 +205,9 @@ export default function CampaignsPage({}: CampaignsPageProps) {
         ]);
         // Rebuild the accumulated brief the same way send() does — user turns since the
         // last resolved plan/launch — so a follow-up carries the full picture.
-        const lastResolved = saved.map((s) => s.kind === 'result' && (s.result?.stage === 'planned' || s.result?.stage === 'launched')).lastIndexOf(true);
+        // Only a real launch ends a campaign's brief; a shown plan does not (refinements
+        // can still follow), so accumulate user turns since the last LAUNCH, not the last plan.
+        const lastResolved = saved.map((s) => s.kind === 'result' && s.result?.stage === 'launched').lastIndexOf(true);
         const sinceResolved = saved.slice(lastResolved + 1).filter((s) => s.role === 'user');
         if (sinceResolved.length) setBriefSoFar(sinceResolved.map((s) => s.text).join('. '));
       }
@@ -297,14 +299,11 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
       saveMsg(resultMsg);
-      if (result.stage === 'planned') {
-        // Nothing's been created on Meta yet — that only happens once the user
-        // confirms via the plan card's "Looks good" button (ResultCard below).
-        setMedia(null);
-        setBriefSoFar('');
-      } else {
-        setBriefSoFar(combinedMessage);
-      }
+      // Keep the accumulated brief through the WHOLE campaign — including after a plan is
+      // shown — so a follow-up like "target lagos and abuja" refines THIS campaign instead
+      // of being parsed with no context (which made Jane re-ask the objective and drop the
+      // geo). Only a real launch (or "+ New") starts a fresh brief.
+      setBriefSoFar(combinedMessage);
       refreshThreads();   // title/status/preview may have changed
     } catch (e) {
       // Show the backend's message as-is — it's already a full, user-friendly
@@ -346,10 +345,8 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
       saveMsg(resultMsg);
-      if (result.stage === 'planned') {
-        setMedia(null);
-        setBriefSoFar('');
-      }
+      // Keep the brief (the campaign context) intact — a plan isn't the end of the
+      // conversation, refinements can still follow. Only a launch/​+New resets it.
       refreshThreads();
     } catch (e) {
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
@@ -475,7 +472,14 @@ export default function CampaignsPage({}: CampaignsPageProps) {
                   <ResultCard
                     result={m.result}
                     onResultChange={(r) => updateResultMessage(m.id, r)}
-                    onLaunched={loadCampaigns}
+                    onLaunched={() => {
+                      // Campaign is live — this brief is done. Clear it so the next message
+                      // starts a fresh campaign instead of appending to the launched one.
+                      setBriefSoFar('');
+                      setMedia(null);
+                      loadCampaigns();
+                      refreshThreads();
+                    }}
                     onQuickReply={(text) => send(text)}
                     onTopUp={() => setTab('wallet')}
                     onSubmitWhatsapp={submitWhatsapp}
