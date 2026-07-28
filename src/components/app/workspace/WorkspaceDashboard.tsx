@@ -26,7 +26,7 @@ import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ReactNode } from 'react';
-import { FaFacebook, FaInstagram, FaLinkedin, FaWhatsapp } from 'react-icons/fa';
+import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaWhatsapp } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
@@ -2288,6 +2288,7 @@ const PLATFORM_ICON: Record<string, ReactNode> = {
   whatsapp: <FaWhatsapp size={22} color="#25D366" />,
   facebook: <FaFacebook size={22} color="#1877F2" />,
   instagram: <FaInstagram size={22} color="#E4405F" />,
+  tiktok: <FaTiktok size={22} color="#010101" />,
 };
 
 const PLATFORMS = [
@@ -2322,7 +2323,7 @@ const PLATFORMS = [
     label: 'Facebook',
     color: '#1877F2',
     bg: '#E7F0FD',
-    flow: 'facebook_oauth',
+    flow: 'outstand_oauth',
     tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social',
   },
   {
@@ -2333,6 +2334,14 @@ const PLATFORMS = [
     flow: 'instagram_direct',
     tooltip:
       'Connect your Instagram Business account to publish feed posts, carousels, and stories directly from URI Social',
+  },
+  {
+    id: 'tiktok',
+    label: 'TikTok',
+    color: '#010101',
+    bg: '#F0F0F0',
+    flow: 'outstand_oauth',
+    tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
   },
 ];
 
@@ -2426,6 +2435,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         const conns = fbIg.responseData.connections ?? {};
         const fbConn = conns.facebook?.[0];
         const igConn = conns.instagram?.[0];
+        const ttConn = conns.tiktok?.[0];
         next.facebook = {
           linked: !!conns.facebook?.length,
           account_name: fbConn?.account_name || fbConn?.page_name || fbConn?.username,
@@ -2439,9 +2449,16 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           ig_user_id: igConn?.ig_user_id,
           connected_via: igConn?.connected_via,
         };
+        next.tiktok = {
+          linked: !!conns.tiktok?.length,
+          account_name: ttConn?.account_name || ttConn?.username,
+          outstand_account_id: ttConn?.outstand_account_id,
+          connected_via: ttConn?.connected_via,
+        };
       } else {
         next.facebook = { linked: false };
         next.instagram = { linked: false };
+        next.tiktok = { linked: false };
       }
       setStatuses(next);
     } finally {
@@ -2588,14 +2605,15 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const handleConnect = async (id: string, flow: string) => {
-    if (flow === 'facebook_oauth') {
+    if (flow === 'outstand_oauth') {
       setConnecting(id);
       try {
-        const res = await SocialAccountService.initiateConnection(['facebook'], 'settings');
-        if (res.status && res.responseData?.auth_urls?.facebook) {
+        const res = await SocialAccountService.initiateConnection([id], 'settings');
+        const authUrl = res.responseData?.auth_urls?.[id];
+        if (res.status && authUrl) {
           localStorage.setItem('outstand_connect_source', 'settings');
           localStorage.setItem('outstand_connect_platform', id); // track which platform initiated
-          window.location.href = res.responseData.auth_urls.facebook;
+          window.location.href = authUrl;
           return;
         }
         ToastService.showToast('Could not start connection. Please try again.', ToastTypeEnum.Error);
@@ -2713,6 +2731,15 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
         } else {
           ToastService.showToast('Could not disconnect Facebook. Please try again.', ToastTypeEnum.Error);
+          return;
+        }
+      } else if (id === 'tiktok') {
+        const s = statuses[id];
+        if (s?.outstand_account_id) {
+          const res = await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
+          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+        } else {
+          ToastService.showToast('Could not disconnect TikTok. Please try again.', ToastTypeEnum.Error);
           return;
         }
       }

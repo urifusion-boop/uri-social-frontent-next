@@ -1137,7 +1137,7 @@ export default function VideoStoryboardGenerator() {
               const PUBLISH_PLATFORMS = [
                 { value: 'instagram_reels', label: 'Instagram Reels', connectionKey: 'instagram', enabled: true },
                 { value: 'facebook_reels', label: 'Facebook', connectionKey: 'facebook', enabled: true },
-                { value: 'tiktok', label: 'TikTok', connectionKey: 'tiktok', enabled: false },
+                { value: 'tiktok', label: 'TikTok', connectionKey: 'tiktok', enabled: true },
                 { value: 'linkedin', label: 'LinkedIn', connectionKey: 'linkedin', enabled: false },
               ];
 
