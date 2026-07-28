@@ -31,7 +31,12 @@ interface SquadPaymentData {
 }
 
 interface SquadInstance {
+  // setup() builds the checkout iframe into the DOM but leaves it hidden;
+  // open() is what actually reveals it. Calling setup() alone leaves the
+  // widget invisible with nothing left to fire onLoad/onSuccess/onClose,
+  // which is what left purchases stuck on "Processing..." forever.
   setup: () => void;
+  open: () => void;
 }
 
 declare global {
@@ -338,6 +343,15 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
       // Initialize Squad inline payment modal
       if (typeof window !== 'undefined' && window.Squad) {
+        // Safety net: if the widget never signals onLoad (blocked iframe,
+        // unexpected SDK failure, etc.), don't leave the button stuck on
+        // "Processing..." forever — give up and let the user retry.
+        const stuckTimeout = setTimeout(() => {
+          console.warn('Squad checkout did not load in time');
+          setSubscribing(null);
+          alert('Checkout is taking longer than expected. Please try again.');
+        }, 15000);
+
         const squad = new window.Squad({
           key: paymentData.public_key,
           email: paymentData.email,
@@ -347,14 +361,17 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
           onClose: () => {
             // User closed the modal without paying
             console.log('Payment modal closed');
+            clearTimeout(stuckTimeout);
             setSubscribing(null);
           },
           onLoad: () => {
             console.log('Payment modal loaded');
+            clearTimeout(stuckTimeout);
           },
           onSuccess: async (data: SquadPaymentData) => {
             // Payment successful - verify with backend
             console.log('Payment successful:', data);
+            clearTimeout(stuckTimeout);
             setSubscribing(null);
 
             // Verify payment with backend
@@ -362,6 +379,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
           },
         });
         squad.setup();
+        squad.open();
       } else {
         // Fallback to redirect if Squad SDK not loaded
         console.warn('Squad SDK not loaded, redirecting to payment page');
@@ -385,6 +403,14 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
       // Same inline-modal-with-redirect-fallback pattern as confirmSubscription
       if (typeof window !== 'undefined' && window.Squad) {
+        // Safety net: if the widget never signals onLoad, don't leave the
+        // button stuck on "Processing..." forever.
+        const stuckTimeout = setTimeout(() => {
+          console.warn('Squad checkout did not load in time');
+          setBuyingCustomCredits(false);
+          alert('Checkout is taking longer than expected. Please try again.');
+        }, 15000);
+
         const squad = new window.Squad({
           key: paymentData.public_key,
           email: paymentData.email,
@@ -392,15 +418,20 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
           currency: paymentData.currency || 'NGN',
           transaction_ref: paymentData.transaction_ref,
           onClose: () => {
+            clearTimeout(stuckTimeout);
             setBuyingCustomCredits(false);
           },
-          onLoad: () => {},
+          onLoad: () => {
+            clearTimeout(stuckTimeout);
+          },
           onSuccess: async (data: SquadPaymentData) => {
+            clearTimeout(stuckTimeout);
             setBuyingCustomCredits(false);
             await verifyPaymentCallback(data.transaction_ref);
           },
         });
         squad.setup();
+        squad.open();
       } else {
         console.warn('Squad SDK not loaded, redirecting to payment page');
         window.location.href = paymentData.payment_url;
