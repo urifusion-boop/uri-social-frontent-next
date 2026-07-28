@@ -974,6 +974,24 @@ function ResultCard({
   if (result.stage === 'advise') {
     return <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>;
   }
+  if (result.stage === 'need_facebook_page') {
+    return (
+      <div>
+        <JaneBubble>{result.question || 'Connect your Facebook Page (with WhatsApp linked to it) so leads reach you, then come back and I\'ll launch.'}</JaneBubble>
+        <div style={{ marginLeft: 40, marginTop: 8 }}>
+          <a
+            href="/workspace/?tab=connected-accounts"
+            style={{
+              display: 'inline-block', background: PINK, color: '#fff', textDecoration: 'none',
+              borderRadius: 20, padding: '8px 16px', fontSize: 12.5, fontWeight: 700,
+            }}
+          >
+            Connect Facebook Page →
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   const confirmLaunch = async () => {
     if (launching || !result.plan_id) return;
@@ -1451,10 +1469,10 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           <Metric label="Amount spent" value={naira(c.metrics?.spend_ngn)} />
           <Metric label="Views" value={c.metrics?.impressions != null ? c.metrics.impressions.toLocaleString() : 'N/A'} />
           <Metric label="People reached" value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'} />
-          <Metric label="WhatsApp clicks" value={c.metrics?.clicks != null ? String(c.metrics.clicks) : 'N/A'} />
+          <Metric label="WhatsApp chats" value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'} />
           <Metric
-            label="Cost per click"
-            value={c.metrics?.cost_per_click_ngn != null ? naira(c.metrics.cost_per_click_ngn) : 'N/A'}
+            label="Cost per chat"
+            value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
           />
           <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
           {c.city && <Metric label="Area" value={c.city} />}
