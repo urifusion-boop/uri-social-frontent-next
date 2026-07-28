@@ -18,7 +18,7 @@
     }
   },
   "globalHeaders": {
-    "content-security-policy": "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data: blob:; connect-src 'self' https://api.urisocial.com https://api-staging.urisocial.com https://us.i.posthog.com https://us-assets.i.posthog.com https://checkout.squadco.com https://popup.squadco.com https://squadco.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://us-assets.i.posthog.com https://checkout.squadco.com; script-src-elem 'self' 'unsafe-inline' blob: https://us-assets.i.posthog.com https://checkout.squadco.com; frame-src 'self' https://checkout.squadco.com https://popup.squadco.com"
+    "content-security-policy": "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data: blob:; connect-src 'self' https://api.urisocial.com https://api-staging.urisocial.com https://us.i.posthog.com https://us-assets.i.posthog.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://us-assets.i.posthog.com; script-src-elem 'self' 'unsafe-inline' blob: https://us-assets.i.posthog.com"
   },
   "mimeTypes": {
     ".json": "application/json"
