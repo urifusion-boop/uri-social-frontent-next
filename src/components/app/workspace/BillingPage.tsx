@@ -30,17 +30,9 @@ interface SquadPaymentData {
   [key: string]: unknown;
 }
 
-interface SquadInstance {
-  setup: () => void;
-}
-
 declare global {
   interface Window {
-    // The real widget global (checkout.squadco.com/widget/squad.min.js) is a
-    // constructor — `new Squad({...}).setup()` — not a bare callable
-    // "squadPay" function. That name never existed, so every purchase was
-    // silently falling through to the redirect fallback below.
-    Squad?: (config: {
+    squadPay?: (config: {
       key: string;
       email: string;
       amount: number;
@@ -50,7 +42,7 @@ declare global {
       onClose?: () => void;
       onLoad?: () => void;
       onSuccess?: (data: SquadPaymentData) => void;
-    }) => SquadInstance;
+    }) => void;
   }
 }
 
@@ -228,7 +220,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   useEffect(() => {
     // The script may already be loaded/cached from a previous visit, in
     // which case <Script>'s onLoad won't fire again — check immediately too.
-    if (typeof window !== 'undefined' && window.Squad) {
+    if (typeof window !== 'undefined' && window.squadPay) {
       setSquadReady(true);
       return;
     }
@@ -330,8 +322,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
       setConfirmTier(null);
 
       // Initialize Squad inline payment modal
-      if (typeof window !== 'undefined' && window.Squad) {
-        const squad = window.Squad({
+      if (typeof window !== 'undefined' && window.squadPay) {
+        window.squadPay({
           key: paymentData.public_key,
           email: paymentData.email,
           amount: paymentData.amount * 100, // Convert to kobo
@@ -354,7 +346,6 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
             await verifyPaymentCallback(data.transaction_ref);
           },
         });
-        squad.setup();
       } else {
         // Fallback to redirect if Squad SDK not loaded
         console.warn('Squad SDK not loaded, redirecting to payment page');
@@ -377,8 +368,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
       const paymentData = await BillingService.purchaseCustomCredits(customQty);
 
       // Same inline-modal-with-redirect-fallback pattern as confirmSubscription
-      if (typeof window !== 'undefined' && window.Squad) {
-        const squad = window.Squad({
+      if (typeof window !== 'undefined' && window.squadPay) {
+        window.squadPay({
           key: paymentData.public_key,
           email: paymentData.email,
           amount: paymentData.amount * 100, // kobo
@@ -393,7 +384,6 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
             await verifyPaymentCallback(data.transaction_ref);
           },
         });
-        squad.setup();
       } else {
         console.warn('Squad SDK not loaded, redirecting to payment page');
         window.location.href = paymentData.payment_url;
