@@ -40,7 +40,14 @@ declare global {
     // constructor — `new Squad({...}).setup()` — not a bare callable
     // "squadPay" function. That name never existed, so every purchase was
     // silently falling through to the redirect fallback below.
-    Squad?: (config: {
+    //
+    // IMPORTANT: must be invoked with `new`. Squad's own constructor has a
+    // "helpful" auto-upgrade branch for callers who forget `new` — but that
+    // branch only forwards key/onClose/onSuccess/onLoad to the re-invoked
+    // constructor, silently dropping amount/email/currency/transaction_ref.
+    // Declaring this as a construct signature (not a plain call signature)
+    // makes TypeScript require `new`, so that mistake can't happen again.
+    Squad?: new (config: {
       key: string;
       email: string;
       amount: number;
@@ -331,7 +338,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
       // Initialize Squad inline payment modal
       if (typeof window !== 'undefined' && window.Squad) {
-        const squad = window.Squad({
+        const squad = new window.Squad({
           key: paymentData.public_key,
           email: paymentData.email,
           amount: paymentData.amount * 100, // Convert to kobo
@@ -378,7 +385,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
       // Same inline-modal-with-redirect-fallback pattern as confirmSubscription
       if (typeof window !== 'undefined' && window.Squad) {
-        const squad = window.Squad({
+        const squad = new window.Squad({
           key: paymentData.public_key,
           email: paymentData.email,
           amount: paymentData.amount * 100, // kobo
