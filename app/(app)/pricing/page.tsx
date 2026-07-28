@@ -70,10 +70,6 @@ export default function PricingPage() {
         currency
       );
 
-      if (!paymentData.payment_url) {
-        throw new Error('Payment gateway did not return a checkout URL');
-      }
-
       posthog.capture('checkout_started', { tier_id: tierId, currency, billing_cycle: selectedBillingCycle });
       // Redirect to SQUAD checkout page
       window.location.href = paymentData.payment_url;
@@ -96,11 +92,6 @@ export default function PricingPage() {
 
     try {
       const paymentData = await BillingService.purchaseCustomCredits(customQty);
-
-      if (!paymentData.payment_url) {
-        throw new Error('Payment gateway did not return a checkout URL');
-      }
-
       posthog.capture('checkout_started', { purchase_type: 'custom_credits', quantity: customQty });
       window.location.href = paymentData.payment_url;
     } catch (error: unknown) {

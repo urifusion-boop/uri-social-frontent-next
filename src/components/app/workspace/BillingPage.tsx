@@ -332,16 +332,14 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
               'monthly',
               confirmTier.price_ngn,
               confirmTier.credits,
-              'NGN',
-              true // opening the inline widget below, not redirecting
+              'NGN'
             )
           : await BillingService.initializePayment(
               confirmTier.tier_id,
               selectedBillingCycle,
               undefined,
               undefined,
-              currency,
-              true // opening the inline widget below, not redirecting
+              currency
             ); // Pass selected currency
 
       // Close confirmation modal
@@ -387,13 +385,9 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
         squad.setup();
         squad.open();
       } else {
-        // The widget script never loaded (blocked, offline, etc.) — there's
-        // no separate hosted checkout URL to fall back to anymore (see
-        // PaymentService.initialize_payment), so surface this clearly
-        // instead of navigating to an undefined URL.
-        console.warn('Squad SDK not loaded — cannot start checkout');
-        alert('Unable to load the payment widget. Please check your connection and try again.');
-        setSubscribing(null);
+        // Fallback to redirect if Squad SDK not loaded
+        console.warn('Squad SDK not loaded, redirecting to payment page');
+        window.location.href = paymentData.payment_url;
       }
     } catch (error: unknown) {
       console.error('Payment initialization failed:', error);
@@ -409,7 +403,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
     setBuyingCustomCredits(true);
 
     try {
-      const paymentData = await BillingService.purchaseCustomCredits(customQty, true);
+      const paymentData = await BillingService.purchaseCustomCredits(customQty);
 
       // Same inline-modal-with-redirect-fallback pattern as confirmSubscription
       if (typeof window !== 'undefined' && window.Squad) {
@@ -443,9 +437,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
         squad.setup();
         squad.open();
       } else {
-        console.warn('Squad SDK not loaded — cannot start checkout');
-        alert('Unable to load the payment widget. Please check your connection and try again.');
-        setBuyingCustomCredits(false);
+        console.warn('Squad SDK not loaded, redirecting to payment page');
+        window.location.href = paymentData.payment_url;
       }
     } catch (error: unknown) {
       console.error('Custom credit purchase failed:', error);

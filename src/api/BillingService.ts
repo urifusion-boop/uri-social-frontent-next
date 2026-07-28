@@ -97,9 +97,7 @@ export interface InitializePaymentRequest {
 }
 
 export interface InitializePaymentResponse {
-  // No longer populated — the inline widget initiates its own transaction
-  // with SQUAD directly, so there's no separate hosted checkout URL.
-  payment_url?: string;
+  payment_url: string;
   transaction_ref: string;
   amount: number;
   email: string;
@@ -241,8 +239,7 @@ export class BillingService {
     billingCycle: BillingCycle = 'monthly',
     testAmount?: number,
     testCredits?: number,
-    currency: 'NGN' | 'USD' = 'NGN',
-    forInlineWidget = false
+    currency: 'NGN' | 'USD' = 'NGN'
   ): Promise<InitializePaymentResponse> {
     const response: AxiosResponse<InitializePaymentResponse> = await UriHttpClient.getClient().post(
       '/social-media/billing/initialize-payment',
@@ -252,7 +249,6 @@ export class BillingService {
         test_amount: testAmount,
         test_credits: testCredits,
         currency: currency,
-        for_inline_widget: forInlineWidget,
       }
     );
 
@@ -265,10 +261,10 @@ export class BillingService {
    * initializePayment — verify with verifyPayment() after redirect, same as
    * a subscription purchase.
    */
-  static async purchaseCustomCredits(quantity: number, forInlineWidget = false): Promise<InitializePaymentResponse> {
+  static async purchaseCustomCredits(quantity: number): Promise<InitializePaymentResponse> {
     const response: AxiosResponse<InitializePaymentResponse> = await UriHttpClient.getClient().post(
       '/social-media/billing/credits/purchase-custom',
-      { quantity, for_inline_widget: forInlineWidget }
+      { quantity }
     );
 
     return response.data;
