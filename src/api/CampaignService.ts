@@ -63,6 +63,9 @@ export interface LaunchFromMessageResult {
   page_name?: string;                   // present on meta_connection_* stages, when a Page is already known
   // present when stage === 'choose_creative_source' — the image-source options Jane offers
   creative_options?: { can_generate: boolean; drafts: DraftSummary[] };
+  // present when stage === 'choose_creative_source' — Jane's geography/audience call,
+  // confirmed back to the client (never silently decided) before image selection
+  explanation?: string;
   advice?: { reason: string; suggested_min_ngn?: number };
   jane_recommended_platforms?: string[];
   forced_to_meta?: boolean;

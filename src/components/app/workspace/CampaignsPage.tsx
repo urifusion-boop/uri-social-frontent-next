@@ -1203,12 +1203,19 @@ function ResultCard({
   }
   if (result.stage === 'choose_creative_source') {
     return (
-      <ChooseCreativeSource
-        drafts={result.creative_options?.drafts || []}
-        onGenerate={onChooseGenerate}
-        onUpload={onChooseUpload}
-        onPickDraft={onChooseDraft}
-      />
+      <div>
+        {/* Jane's geography/audience call (jane-strategy-extraction §7.6) is required to be
+            confirmed back to the client, never silently decided — this is the point she'd
+            otherwise reach "ready" and skip straight to image selection with the client never
+            seeing (or able to correct) where she's decided to target. */}
+        {result.explanation && <JaneBubble>{result.explanation}</JaneBubble>}
+        <ChooseCreativeSource
+          drafts={result.creative_options?.drafts || []}
+          onGenerate={onChooseGenerate}
+          onUpload={onChooseUpload}
+          onPickDraft={onChooseDraft}
+        />
+      </div>
     );
   }
 
