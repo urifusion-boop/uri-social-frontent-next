@@ -2513,6 +2513,25 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           })
           .catch(() => ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error));
       }
+    } else if (connected === 'facebook_ads') {
+      // Ads-scoped grant (Per-Brand Page Connection plan) — separate from facebook_direct
+      // above; this is what Jane's campaigns require to launch from the brand's own Page.
+      const fbPageId = searchParams.get('fb_page_id') ?? '';
+      const pageName = searchParams.get('page_name') ?? 'Facebook Page';
+      router.replace('/workspace?tab=connections');
+      if (fbPageId) {
+        SocialAccountService.finalizeFacebookAds(fbPageId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`${pageName} connected for ads!`, ToastTypeEnum.Success);
+              posthog.capture('social_account_connected', { platform: 'facebook_ads', page_name: pageName });
+              loadStatuses();
+            } else {
+              ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error));
+      }
     } else if (connected === 'pending' && token) {
       setSessionToken(token);
       setPhase('pending');
