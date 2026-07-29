@@ -1028,13 +1028,16 @@ function ChooseCreativeSource({
 }
 
 // The one-tap CTA for every meta_connection_* state that needs the OAuth grant
-// (NONE/CONTENT_ONLY/EXPIRED and the legacy need_facebook_page) — the actual
-// `/social-media/connect/facebook-ads/initiate` redirect + finalize is handled by
-// the existing connected-accounts settings tab, so this just routes there.
+// (NONE/CONTENT_ONLY/EXPIRED and the legacy need_facebook_page) — goes straight to the
+// backend's redirect endpoint (same pattern as the working instagram_direct connect
+// button in WorkspaceDashboard.tsx), which sends the browser to Facebook's own OAuth
+// dialog. Facebook redirects back to /workspace?tab=connections&connected=facebook_ads,
+// handled there to call finalizeFacebookAds().
 function ConnectMetaAdsLink({ children }: { children: React.ReactNode }) {
+  const apiBase = (process.env.NEXT_PUBLIC_URI_API_BASE_URL || '').replace(/\/$/, '');
   return (
     <a
-      href="/workspace/?tab=connected-accounts"
+      href={`${apiBase}/social-media/connect/facebook-ads/initiate?source=jane_ads`}
       style={{
         display: 'inline-block', background: PINK, color: '#fff', textDecoration: 'none',
         borderRadius: 20, padding: '8px 16px', fontSize: 12.5, fontWeight: 700,

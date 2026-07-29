@@ -74,4 +74,16 @@ export class SocialAccountService {
     );
     return response.data;
   }
+
+  // Ads-scoped Facebook connection (Per-Brand Page Connection plan) — separate grant
+  // from finalizeFacebookDirect above (publishing-only scopes); this one carries
+  // ads_management/pages_manage_ads, required for Jane's campaigns to launch.
+  static async finalizeFacebookAds(fbPageId: string): Promise<UriResponse<{ fb_page_id: string }>> {
+    const response: AxiosResponse<UriResponse<{ fb_page_id: string }>> = await UriHttpClient.getClient().post(
+      '/social-media/connect/facebook-ads/finalize',
+      null,
+      { params: { fb_page_id: fbPageId } }
+    );
+    return response.data;
+  }
 }
