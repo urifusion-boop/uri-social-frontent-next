@@ -49,10 +49,18 @@ export interface CampaignSummary {
 }
 
 export interface LaunchFromMessageResult {
-  stage: 'need_more' | 'advise' | 'need_whatsapp' | 'need_facebook_page' | 'choose_creative_source' | 'planned' | 'launched';
+  stage:
+    | 'need_more' | 'advise' | 'need_whatsapp' | 'need_facebook_page' | 'choose_creative_source'
+    | 'planned' | 'launched'
+    // Per-Brand Page Connection plan — checked before a campaign is even built, so a
+    // client never designs a whole campaign only to hit a wall. Six explicit states,
+    // never inferred from one boolean; each maps to its own prompt below.
+    | 'meta_connection_none' | 'meta_connection_content_only' | 'meta_connection_ads_no_whatsapp'
+    | 'meta_connection_expired' | 'meta_connection_no_page';
   plan_id?: string;                     // present when stage === 'planned' — pass to launchPlan()
   understood?: UnderstoodFields;
   question?: string;
+  page_name?: string;                   // present on meta_connection_* stages, when a Page is already known
   // present when stage === 'choose_creative_source' — the image-source options Jane offers
   creative_options?: { can_generate: boolean; drafts: DraftSummary[] };
   advice?: { reason: string; suggested_min_ngn?: number };
@@ -92,9 +100,7 @@ export interface LaunchFromMessageResult {
 
 export interface CampaignMetrics {
   spend_ngn: number;
-  clicks?: number;                       // WhatsApp link clicks — the real result for wa.me ads
-  cost_per_click_ngn?: number | null;
-  conversations: number;                 // legacy page-connected metric (0 for new wa.me ads)
+  conversations: number;                 // real Click-to-WhatsApp conversations started
   cost_per_conversation_ngn: number | null;
   impressions: number;
   reach: number;
@@ -399,6 +405,23 @@ export class CampaignService {
   /** Set the brand's WhatsApp number. Returns the normalized number the backend stored. */
   static async setWhatsapp(whatsappNumber: string): Promise<string> {
     const res = await UriHttpClient.getClient().put('/jane-ads/whatsapp', { whatsapp_number: whatsappNumber });
+    return (res.data as { whatsapp_number: string }).whatsapp_number;
+  }
+
+  /** The active brand's per-brand Meta ads connection state (Per-Brand Page
+   * Connection plan) — used by the connections settings tab to show the same
+   * six states Jane's campaign flow gates on, outside of a chat. */
+  static async getMetaConnectionStatus(): Promise<{
+    state: string; page_name: string; whatsapp_number: string; connect_url: string;
+  }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/meta-connection/status');
+    return res.data as { state: string; page_name: string; whatsapp_number: string; connect_url: string };
+  }
+
+  /** Link the brand's WhatsApp number to their ads connection — moves
+   * ADS_NO_WHATSAPP to READY. Returns the normalized number the backend stored. */
+  static async setMetaConnectionWhatsapp(whatsappNumber: string): Promise<string> {
+    const res = await UriHttpClient.getClient().put('/jane-ads/meta-connection/whatsapp', { whatsapp_number: whatsappNumber });
     return (res.data as { whatsapp_number: string }).whatsapp_number;
   }
 }
