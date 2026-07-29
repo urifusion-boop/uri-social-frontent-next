@@ -1319,6 +1319,9 @@ function ResultCard({
     );
   }
 
+  const [fixingWhatsapp, setFixingWhatsapp] = useState(false);
+  const [whatsappFix, setWhatsappFix] = useState('');
+
   const confirmLaunch = async () => {
     if (launching || !result.plan_id) return;
     setLaunchError('');
@@ -1328,7 +1331,33 @@ function ResultCard({
       onResultChange(launched);
       onLaunched();
     } catch (e) {
-      setLaunchError(extractErrorMessage(e, 'Could not launch this campaign, please try again.'));
+      const msg = extractErrorMessage(e, 'Could not launch this campaign, please try again.');
+      setLaunchError(msg);
+      // Meta's own pre-flight rejection when the number Jane has on file isn't actually
+      // linked to the Page yet (a real, live-validated error, not guessed) — offer the
+      // fix right here instead of a dead error the client can only retry blindly.
+      setFixingWhatsapp(/not linked to your account/i.test(msg));
+    } finally {
+      setLaunching(false);
+    }
+  };
+
+  const submitWhatsappFixAndRetry = async () => {
+    const clean = whatsappFix.trim();
+    if (!clean || launching) return;
+    setLaunching(true);
+    setLaunchError('');
+    try {
+      await CampaignService.setMetaConnectionWhatsapp(clean);
+      setFixingWhatsapp(false);
+      setWhatsappFix('');
+      const launched = await CampaignService.launchPlan(result.plan_id!);
+      onResultChange(launched);
+      onLaunched();
+    } catch (e) {
+      const msg = extractErrorMessage(e, "That didn't work — please try again.");
+      setLaunchError(msg);
+      setFixingWhatsapp(/not linked to your account/i.test(msg));
     } finally {
       setLaunching(false);
     }
@@ -1419,6 +1448,30 @@ function ResultCard({
                 {launching ? 'Launching…' : '✓ Looks good — launch it'}
               </button>
               {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
+              {fixingWhatsapp && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <input
+                    value={whatsappFix}
+                    onChange={(e) => setWhatsappFix(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && submitWhatsappFixAndRetry()}
+                    placeholder="e.g. 0803 123 4567"
+                    inputMode="tel"
+                    style={{ flex: 1, border: '1.5px solid #e0dcd9', borderRadius: 20, padding: '8px 14px', fontSize: 13, outline: 'none' }}
+                  />
+                  <button
+                    onClick={submitWhatsappFixAndRetry}
+                    disabled={!whatsappFix.trim() || launching}
+                    style={{
+                      background: PINK, border: 'none', color: '#fff', borderRadius: 20, padding: '8px 18px',
+                      fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+                      cursor: whatsappFix.trim() && !launching ? 'pointer' : 'default',
+                      opacity: whatsappFix.trim() && !launching ? 1 : 0.5,
+                    }}
+                  >
+                    Save &amp; retry
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
