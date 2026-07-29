@@ -260,6 +260,25 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     }
   };
 
+  // Remove a conversation from the rail. Never touches the actual launched campaign
+  // (that stays in 'My Campaigns' regardless) — this only clears chat clutter.
+  const deleteThread = async (threadId: string) => {
+    try {
+      await CampaignService.deleteThread(threadId);
+      setThreads((prev) => prev.filter((t) => t.thread_id !== threadId));
+      if (activeThreadRef.current === threadId) {
+        selectThreadId(null);
+        setMedia(null);
+        setBriefSoFar('');
+        lastCreativeRef.current = '';
+        creativeChoiceRef.current = null;
+        setMessages([makeGreeting()]);
+      }
+    } catch (e) {
+      ToastService.showToast(extractErrorMessage(e, 'Could not delete that conversation.'), ToastTypeEnum.Error);
+    }
+  };
+
   // Returning from a Squad checkout: the callback lands here with ?reference=<ref>.
   // Verify it (credits the wallet idempotently), tell the user, and jump to the
   // wallet tab so they see the new balance. Runs once on mount.
@@ -531,6 +550,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
             onSelect={openThread}
             onNew={startNewThread}
             onDuplicate={duplicateThread}
+            onDelete={deleteThread}
           />
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
@@ -781,6 +801,7 @@ function ThreadRail({
   onSelect,
   onNew,
   onDuplicate,
+  onDelete,
 }: {
   threads: ThreadSummary[];
   activeThreadId: string | null;
@@ -788,6 +809,7 @@ function ThreadRail({
   onSelect: (id: string) => void;
   onNew: () => void;
   onDuplicate: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const statusColor: Record<string, string> = { draft: '#999', planned: '#a15c00', launched: '#1a7f37' };
   return (
@@ -827,6 +849,23 @@ function ThreadRail({
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                     {t.title || 'New campaign'}
                   </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Delete this conversation? Any launched campaign keeps running — this only removes the chat.')) {
+                        onDelete(t.thread_id);
+                      }
+                    }}
+                    disabled={busy}
+                    aria-label="Delete conversation"
+                    title="Delete conversation"
+                    style={{
+                      background: 'none', border: 'none', color: '#bbb', fontSize: 14, lineHeight: 1,
+                      cursor: busy ? 'default' : 'pointer', padding: '0 2px', flexShrink: 0,
+                    }}
+                  >
+                    ✕
+                  </button>
                 </div>
                 {t.preview && (
                   <p style={{ margin: '2px 0 0 14px', fontSize: 11, color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

@@ -395,6 +395,12 @@ export class CampaignService {
     return res.data as { thread: ThreadSummary; seed_message: string };
   }
 
+  /** Remove a conversation from the thread rail. Never touches the brand's actual
+   * launched campaigns — those keep running in 'My Campaigns' regardless. */
+  static async deleteThread(threadId: string): Promise<void> {
+    await UriHttpClient.getClient().delete(`/jane-ads/threads/${threadId}`);
+  }
+
   /** The active brand's saved WhatsApp number (where ad leads route), or '' if unset. */
   static async getWhatsapp(): Promise<string> {
     try {
