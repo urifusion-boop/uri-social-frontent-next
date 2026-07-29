@@ -381,6 +381,32 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     }
   };
 
+  // Answer a meta_connection_ads_no_whatsapp prompt (Per-Brand Page Connection plan):
+  // link the number to the brand's ads connection, then re-run the SAME brief — no new
+  // user bubble, this reads as "progress not restart," not answering a fresh question.
+  const submitMetaConnectionWhatsapp = async (number: string) => {
+    const clean = number.trim();
+    if (!clean || busy || !briefSoFar) return;
+    setBusy(true);
+    try {
+      await CampaignService.setMetaConnectionWhatsapp(clean);
+      const result = await CampaignService.planFromMessage({
+        message: briefSoFar, thread_id: activeThreadRef.current ?? undefined,
+      });
+      const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+      setMessages((m) => [...m, resultMsg]);
+      saveMsg(resultMsg);
+      refreshThreads();
+    } catch (e) {
+      const msg = extractErrorMessage(e, "That number didn't save — please try again.");
+      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
+      setMessages((m) => [...m, errMsg]);
+      saveMsg(errMsg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Continue building the plan once the user picks how to source the image from the
   // choose-creative-source card. Reuses the accumulated brief (no new user bubble) and
   // re-runs the plan with a concrete source, so the image/caption step finally runs.
@@ -545,6 +571,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
                     onQuickReply={(text) => send(text)}
                     onTopUp={() => setTab('wallet')}
                     onSubmitWhatsapp={submitWhatsapp}
+                    onSubmitMetaConnectionWhatsapp={submitMetaConnectionWhatsapp}
                     onChooseGenerate={() => continueWithSource({ creative_source: 'generate' })}
                     onChooseUpload={() => {
                       uploadForChoiceRef.current = true;
@@ -1000,6 +1027,24 @@ function ChooseCreativeSource({
   );
 }
 
+// The one-tap CTA for every meta_connection_* state that needs the OAuth grant
+// (NONE/CONTENT_ONLY/EXPIRED and the legacy need_facebook_page) — the actual
+// `/social-media/connect/facebook-ads/initiate` redirect + finalize is handled by
+// the existing connected-accounts settings tab, so this just routes there.
+function ConnectMetaAdsLink({ children }: { children: React.ReactNode }) {
+  return (
+    <a
+      href="/workspace/?tab=connected-accounts"
+      style={{
+        display: 'inline-block', background: PINK, color: '#fff', textDecoration: 'none',
+        borderRadius: 20, padding: '8px 16px', fontSize: 12.5, fontWeight: 700,
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 function NeedWhatsapp({ question, onSubmit }: { question?: string; onSubmit: (number: string) => void }) {
   const [value, setValue] = useState('');
   const submit = () => {
@@ -1134,6 +1179,7 @@ function ResultCard({
   onQuickReply,
   onTopUp,
   onSubmitWhatsapp,
+  onSubmitMetaConnectionWhatsapp,
   onChooseGenerate,
   onChooseUpload,
   onChooseDraft,
@@ -1144,6 +1190,7 @@ function ResultCard({
   onQuickReply: (text: string) => void;
   onTopUp: () => void;
   onSubmitWhatsapp: (number: string) => void;
+  onSubmitMetaConnectionWhatsapp: (number: string) => void;
   onChooseGenerate: () => void;
   onChooseUpload: () => void;
   onChooseDraft: (draftId: string) => void;
@@ -1185,21 +1232,80 @@ function ResultCard({
     return <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>;
   }
   if (result.stage === 'need_facebook_page') {
+    // Legacy stage — only ever rendered from an OLD saved thread message; the
+    // backend no longer emits it (superseded by the meta_connection_* states below).
     return (
       <div>
         <JaneBubble>{result.question || 'Connect your Facebook Page (with WhatsApp linked to it) so leads reach you, then come back and I\'ll launch.'}</JaneBubble>
         <div style={{ marginLeft: 40, marginTop: 8 }}>
-          <a
-            href="/workspace/?tab=connected-accounts"
-            style={{
-              display: 'inline-block', background: PINK, color: '#fff', textDecoration: 'none',
-              borderRadius: 20, padding: '8px 16px', fontSize: 12.5, fontWeight: 700,
-            }}
-          >
-            Connect Facebook Page →
-          </a>
+          <ConnectMetaAdsLink>Connect Facebook Page →</ConnectMetaAdsLink>
         </div>
       </div>
+    );
+  }
+
+  // Per-Brand Page Connection plan — six explicit states (never inferred from one
+  // boolean), checked before Jane even builds a plan. Each state below is framed
+  // as "progress not restart": what's already true stays true, one reason, one tap.
+  if (result.stage === 'meta_connection_none') {
+    return (
+      <div>
+        <JaneBubble>
+          To run real ads, I need your Facebook Page connected with ads permission — this
+          makes sure the ad runs from YOUR Page, not a shared one, so followers and replies
+          come to you.
+        </JaneBubble>
+        <div style={{ marginLeft: 40, marginTop: 8 }}>
+          <ConnectMetaAdsLink>Connect Facebook Page →</ConnectMetaAdsLink>
+        </div>
+      </div>
+    );
+  }
+  if (result.stage === 'meta_connection_content_only') {
+    return (
+      <div>
+        <JaneBubble>
+          You&rsquo;re already connected for posting — running ads just needs one more
+          permission from Facebook (advertising access), on top of what you&rsquo;ve already granted.
+        </JaneBubble>
+        <div style={{ marginLeft: 40, marginTop: 8 }}>
+          <ConnectMetaAdsLink>Add ads permission →</ConnectMetaAdsLink>
+        </div>
+      </div>
+    );
+  }
+  if (result.stage === 'meta_connection_expired') {
+    return (
+      <div>
+        <JaneBubble>
+          {result.page_name ? `Your connection to ${result.page_name} needs` : 'Your Facebook connection needs'}{' '}
+          refreshing — a permission may have been changed or revoked. Reconnect and I&rsquo;ll pick
+          up right where we left off.
+        </JaneBubble>
+        <div style={{ marginLeft: 40, marginTop: 8 }}>
+          <ConnectMetaAdsLink>Reconnect Facebook Page →</ConnectMetaAdsLink>
+        </div>
+      </div>
+    );
+  }
+  if (result.stage === 'meta_connection_no_page') {
+    return (
+      <JaneBubble>
+        Ads need a Facebook Page behind them, and your account doesn&rsquo;t have one yet.
+        Create a Page in Facebook first, then come back and reconnect.
+      </JaneBubble>
+    );
+  }
+  if (result.stage === 'meta_connection_ads_no_whatsapp') {
+    return (
+      <NeedWhatsapp
+        question={
+          `${result.page_name ? `${result.page_name} is` : 'Your ads permission is'} connected — ` +
+          'just need the WhatsApp number leads should message. One more step after saving: link that ' +
+          'same number to your Page under Facebook Page Settings → WhatsApp (Facebook verifies it with a one-time code).'
+        }
+        onSubmit={onSubmitMetaConnectionWhatsapp}
+      />
     );
   }
 
@@ -1684,10 +1790,10 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           <Metric label="Amount spent" value={naira(c.metrics?.spend_ngn)} />
           <Metric label="Views" value={c.metrics?.impressions != null ? c.metrics.impressions.toLocaleString() : 'N/A'} />
           <Metric label="People reached" value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'} />
-          <Metric label="WhatsApp clicks" value={c.metrics?.clicks != null ? String(c.metrics.clicks) : 'N/A'} />
+          <Metric label="WhatsApp conversations" value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'} />
           <Metric
-            label="Cost per click"
-            value={c.metrics?.cost_per_click_ngn != null ? naira(c.metrics.cost_per_click_ngn) : 'N/A'}
+            label="Cost per conversation"
+            value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
           />
           <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
           {c.city && <Metric label="Area" value={c.city} />}
