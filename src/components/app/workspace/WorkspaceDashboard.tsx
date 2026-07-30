@@ -22,6 +22,7 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import ContentCalendarTab from '@/src/components/app/social-media/ContentCalendarTab';
 import { LinkedInPagesData, PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
+import { CampaignService } from '@/src/api/CampaignService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -2287,6 +2288,7 @@ const PLATFORM_ICON: Record<string, ReactNode> = {
   x: <FaXTwitter size={22} color="#000" />,
   whatsapp: <FaWhatsapp size={22} color="#25D366" />,
   facebook: <FaFacebook size={22} color="#1877F2" />,
+  facebook_ads: <FaFacebook size={22} color="#1877F2" />,
   instagram: <FaInstagram size={22} color="#E4405F" />,
   tiktok: <FaTiktok size={22} color="#010101" />,
 };
@@ -2325,6 +2327,15 @@ const PLATFORMS = [
     bg: '#E7F0FD',
     flow: 'outstand_oauth',
     tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social',
+  },
+  {
+    id: 'facebook_ads',
+    label: 'Facebook Ads',
+    color: '#1877F2',
+    bg: '#E7F0FD',
+    flow: 'facebook_ads_oauth',
+    tooltip:
+      'The Facebook Page Jane\'s ad campaigns actually run from — separate from the Facebook connection above, which is only for organic posts. Requires its own ads-permission grant.',
   },
   {
     id: 'instagram',
@@ -2413,13 +2424,24 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const loadStatuses = async () => {
     setLoading(true);
     try {
-      const [li, x, wa, fbIg] = await Promise.all([
+      const [li, x, wa, fbIg, fbAds] = await Promise.all([
         withTimeout(SocialConnectionService.linkedinStatus()),
         withTimeout(SocialConnectionService.xStatus()),
         withTimeout(SocialConnectionService.whatsappStatus()),
         withTimeout(SocialMediaAgentService.getConnections()),
+        withTimeout(CampaignService.getMetaConnectionStatus()),
       ]);
       const next: Record<string, PlatformStatus> = {};
+      if (fbAds) {
+        // "linked" here means an ads-scoped Page connection actually exists — not
+        // necessarily fully READY (e.g. ads_no_whatsapp/expired still show the Page
+        // name, just with their own state reason below).
+        next.facebook_ads = {
+          linked: !['none', 'content_only'].includes(fbAds.state),
+          account_name: fbAds.page_name || undefined,
+          meta_connection_state: fbAds.state,
+        };
+      }
       next.linkedin = li?.responseData ?? { linked: false };
       if (next.linkedin.linked) loadLinkedInPages();
       next.x = x?.responseData ?? { linked: false };
@@ -2648,6 +2670,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
       window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      return;
+    }
+    if (flow === 'facebook_ads_oauth') {
+      setConnecting(id);
+      // Ads-scoped grant (Per-Brand Page Connection plan) — separate from the
+      // organic Facebook connection above; requesting ads_management etc.
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+      window.location.href = `${apiBase}/social-media/connect/facebook-ads/initiate?source=settings`;
       return;
     }
     if (flow === 'phone') {
@@ -3240,9 +3270,17 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     {linked ? (
                       <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>
                         {s?.account_name || s?.username || s?.phone || 'Connected'}
+                        {p.id === 'facebook_ads' && s?.meta_connection_state === 'ads_no_whatsapp' && (
+                          <span style={{ color: '#a15c00' }}> — WhatsApp not linked yet</span>
+                        )}
+                        {p.id === 'facebook_ads' && s?.meta_connection_state === 'expired' && (
+                          <span style={{ color: '#c62828' }}> — needs reconnecting</span>
+                        )}
                       </div>
                     ) : (
-                      <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>Not connected</div>
+                      <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>
+                        {p.id === 'facebook_ads' ? 'No ads Page connected yet' : 'Not connected'}
+                      </div>
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3271,6 +3309,28 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       >
                         Coming Soon
                       </span>
+                    ) : linked && p.id === 'facebook_ads' ? (
+                      // No disconnect endpoint exists for the ads-scoped connection yet —
+                      // the meaningful action here is reconnecting (e.g. after 'expired'),
+                      // which just re-runs the same OAuth grant and overwrites it.
+                      <button
+                        type="button"
+                        onClick={() => handleConnect(p.id, p.flow)}
+                        disabled={isBusy}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: 7,
+                          border: '1px solid #edecea',
+                          background: '#fff',
+                          fontSize: 12,
+                          color: '#888',
+                          cursor: 'pointer',
+                          fontFamily: 'var(--wf)',
+                          opacity: isBusy ? 0.5 : 1,
+                        }}
+                      >
+                        Reconnect
+                      </button>
                     ) : linked ? (
                       <button
                         type="button"
