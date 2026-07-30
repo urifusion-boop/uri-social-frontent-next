@@ -14,6 +14,10 @@ export interface PlatformStatus {
   connected_via?: string;
   active_author_urn?: string;
   pages?: LinkedInPage[];
+  // facebook_ads only — the Per-Brand Page Connection plan's six-state gate
+  // (none/content_only/ads_no_whatsapp/ready/expired/no_page), so Connected
+  // Accounts can show a state-specific reason instead of just linked/not.
+  meta_connection_state?: string;
 }
 
 export interface LinkedInPage {
