@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
+import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
+import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -701,6 +704,32 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const [stitchedUrl, setStitchedUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [costEstimate, setCostEstimate] = useState<VideoCostEstimate | null>(null);
+  const billingStatus = useVideoBillingStatus();
+  const insufficientCredits =
+    !billingStatus.isTrial &&
+    costEstimate !== null &&
+    billingStatus.creditsRemaining !== null &&
+    billingStatus.creditsRemaining < costEstimate.creditsRequired;
+
+  // Video Editing Billing PRD FR-04: probe whichever source will actually be
+  // rendered (the stitched composition takes priority over the raw upload,
+  // matching handleRender's own precedence) so the plan-stage cost preview
+  // reflects what's really about to be billed.
+  useEffect(() => {
+    const source = stitchedUrl || videoFile;
+    if (!source) {
+      setCostEstimate(null);
+      return;
+    }
+    let cancelled = false;
+    probeVideoDuration(source).then((duration) => {
+      if (!cancelled && duration !== null) setCostEstimate(estimateVideoCost(duration));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [stitchedUrl, videoFile]);
 
   const [classification, setClassification] = useState<Classification>('talking_head');
   const [plan, setPlan] = useState<VideoPlan | null>(null);
@@ -904,6 +933,10 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
 
   const handleRender = async () => {
     if (!videoFile || !plan) return;
+    if (insufficientCredits) {
+      ToastService.showToast('You do not have enough credits to edit this video.', ToastTypeEnum.Error);
+      return;
+    }
     addMsg('user', 'Looks good, make it');
     addMsg('jane', 'On it — this should take about two minutes.');
     setIsSilenceCutting(false);
@@ -935,7 +968,15 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
       setCaptionEdits({});
       startPolling(id);
     } catch (err) {
-      setRenderError(err instanceof Error ? err.message : 'Upload failed');
+      const axiosErr = err as { response?: { status?: number; data?: { responseMessage?: string } } };
+      if (axiosErr?.response?.status === 402) {
+        // Video Editing Billing PRD §11: insufficient credits
+        setRenderError(
+          axiosErr.response?.data?.responseMessage || 'You do not have enough credits to edit this video.'
+        );
+      } else {
+        setRenderError(err instanceof Error ? err.message : 'Upload failed');
+      }
       setStage('preview');
     }
   };
@@ -1042,11 +1083,18 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               setCaptionWords([]);
               setCaptionEdits({});
               startPolling(newId);
-            } catch {
+            } catch (err) {
               // ZapCap failed — fall back to the raw silence-cut video
               setIsSilenceCutting(true);
               setOutputUrl(job.output_url);
-              addMsg('jane', "Silences cut, but couldn't re-apply captions — showing the cut version.");
+              const axiosErr = err as { response?: { status?: number } };
+              addMsg(
+                'jane',
+                axiosErr?.response?.status === 402
+                  ? // Video Editing Billing PRD §11: insufficient credits
+                    "Silences cut, but you don't have enough credits to re-apply captions — showing the cut version."
+                  : "Silences cut, but couldn't re-apply captions — showing the cut version."
+              );
               setStage('preview');
             }
           } else {
@@ -1673,8 +1721,21 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
             <PlanRow label="Format" value={planLabels.formatLabel} field="format" onAdjust={setAdjustField} />
           </div>
 
+          {/* Video Editing Billing PRD FR-04: cost preview before confirming */}
+          {costEstimate && billingStatus.loaded && (
+            <VideoCostPreview
+              estimate={costEstimate}
+              creditsRemaining={billingStatus.creditsRemaining}
+              isTrial={billingStatus.isTrial}
+            />
+          )}
+
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
-            <TapBtn label="Looks good, make it" primary onClick={handleRender} />
+            <TapBtn
+              label={insufficientCredits ? 'Not enough credits' : 'Looks good, make it'}
+              primary
+              onClick={handleRender}
+            />
             <TapBtn label="See other styles" onClick={() => setAdjustField('style')} />
           </div>
         </div>

@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
+import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
+import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
 
 const ACCEPTED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 
@@ -103,6 +106,13 @@ export default function VideoProductionForm({
   const [isDragging, setIsDragging] = useState(false);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [costEstimate, setCostEstimate] = useState<VideoCostEstimate | null>(null);
+  const billingStatus = useVideoBillingStatus();
+  const insufficientCredits =
+    !billingStatus.isTrial &&
+    costEstimate !== null &&
+    billingStatus.creditsRemaining !== null &&
+    billingStatus.creditsRemaining < costEstimate.creditsRequired;
   const [templateId, setTemplateId] = useState<TemplateId>('fast_founder');
   const [enableMusic, setEnableMusic] = useState(true);
   const [muteOriginalAudio, setMuteOriginalAudio] = useState(false);
@@ -174,7 +184,20 @@ export default function VideoProductionForm({
     }
     setVideoFile(file);
     setVideoPreviewUrl(URL.createObjectURL(file));
+    setCostEstimate(null);
+    probeVideoDuration(file).then((duration) => {
+      if (duration !== null) setCostEstimate(estimateVideoCost(duration));
+    });
   };
+
+  // Composition transferred in from Multi-Clip Composer — still show a cost preview.
+  useEffect(() => {
+    if (!sourceUrl) return;
+    setCostEstimate(null);
+    probeVideoDuration(sourceUrl).then((duration) => {
+      if (duration !== null) setCostEstimate(estimateVideoCost(duration));
+    });
+  }, [sourceUrl]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -319,13 +342,23 @@ export default function VideoProductionForm({
       setStatusMessage('Starting pipeline…');
       startPolling(jid);
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number }; code?: string; message?: string };
+      const axiosErr = err as {
+        response?: { status?: number; data?: { responseMessage?: string } };
+        code?: string;
+        message?: string;
+      };
       const status = axiosErr?.response?.status;
       const code = axiosErr?.code;
       const msg = axiosErr?.message;
       console.error('[VideoProduction] upload error:', { status, code, msg });
 
-      if (code === 'ECONNABORTED' || msg?.includes('timeout')) {
+      if (status === 402) {
+        // Video Editing Billing PRD §11: insufficient credits
+        ToastService.showToast(
+          axiosErr.response?.data?.responseMessage || 'You do not have enough credits to edit this video.',
+          ToastTypeEnum.Error
+        );
+      } else if (code === 'ECONNABORTED' || msg?.includes('timeout')) {
         ToastService.showToast('Upload timed out — try a smaller video or a faster connection.', ToastTypeEnum.Error);
       } else if (status === 413) {
         ToastService.showToast('Video file is too large for upload.', ToastTypeEnum.Error);
@@ -1925,24 +1958,34 @@ export default function VideoProductionForm({
         review and approve → Shotstack renders the final video. Takes 3–8 minutes.
       </div>
 
+      {/* Video Editing Billing PRD FR-04: cost preview before confirming */}
+      {costEstimate && billingStatus.loaded && (
+        <VideoCostPreview
+          estimate={costEstimate}
+          creditsRemaining={billingStatus.creditsRemaining}
+          isTrial={billingStatus.isTrial}
+        />
+      )}
+
       {/* Submit */}
       <button
         onClick={handleSubmit}
-        disabled={!videoFile && !sourceUrl}
+        disabled={(!videoFile && !sourceUrl) || insufficientCredits}
         style={{
           width: '100%',
           padding: '13px',
           borderRadius: 10,
           border: 'none',
-          cursor: videoFile || sourceUrl ? 'pointer' : 'not-allowed',
-          background: videoFile || sourceUrl ? 'linear-gradient(135deg,#C2185B,#8E1545)' : '#e5e7eb',
-          color: videoFile || sourceUrl ? '#fff' : '#9ca3af',
+          cursor: (videoFile || sourceUrl) && !insufficientCredits ? 'pointer' : 'not-allowed',
+          background:
+            (videoFile || sourceUrl) && !insufficientCredits ? 'linear-gradient(135deg,#C2185B,#8E1545)' : '#e5e7eb',
+          color: (videoFile || sourceUrl) && !insufficientCredits ? '#fff' : '#9ca3af',
           fontWeight: 700,
           fontSize: 15,
           transition: 'all 0.15s',
         }}
       >
-        Produce Video
+        {insufficientCredits ? 'Not Enough Credits' : 'Produce Video'}
       </button>
     </div>
   );

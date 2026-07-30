@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
+import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
+import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
 
 const ACCEPTED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 const MAX_MB = 500;
@@ -52,6 +55,13 @@ export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Prop
   const [isDragging, setIsDragging] = useState(false);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [costEstimate, setCostEstimate] = useState<VideoCostEstimate | null>(null);
+  const billingStatus = useVideoBillingStatus();
+  const insufficientCredits =
+    !billingStatus.isTrial &&
+    costEstimate !== null &&
+    billingStatus.creditsRemaining !== null &&
+    billingStatus.creditsRemaining < costEstimate.creditsRequired;
 
   const [templateId, setTemplateId] = useState('beast');
   const [language, setLanguage] = useState('en');
@@ -120,7 +130,20 @@ export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Prop
     }
     setVideoFile(file);
     setVideoPreviewUrl(URL.createObjectURL(file));
+    setCostEstimate(null);
+    probeVideoDuration(file).then((duration) => {
+      if (duration !== null) setCostEstimate(estimateVideoCost(duration));
+    });
   };
+
+  // Composition transferred in from Multi-Clip Composer — still show a cost preview.
+  useEffect(() => {
+    if (!sourceUrl || videoFile) return;
+    setCostEstimate(null);
+    probeVideoDuration(sourceUrl).then((duration) => {
+      if (duration !== null) setCostEstimate(estimateVideoCost(duration));
+    });
+  }, [sourceUrl, videoFile]);
 
   const startPolling = (id: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -177,8 +200,17 @@ export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Prop
       setZapcapStatus('pending');
       startPolling(id);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Upload failed';
-      ToastService.showToast(msg, ToastTypeEnum.Error);
+      const axiosErr = err as { response?: { status?: number; data?: { responseMessage?: string } } };
+      if (axiosErr?.response?.status === 402) {
+        // Video Editing Billing PRD §11: insufficient credits
+        ToastService.showToast(
+          axiosErr.response?.data?.responseMessage || 'You do not have enough credits to edit this video.',
+          ToastTypeEnum.Error
+        );
+      } else {
+        const msg = err instanceof Error ? err.message : 'Upload failed';
+        ToastService.showToast(msg, ToastTypeEnum.Error);
+      }
       setPhase('pick');
     }
   };
@@ -683,7 +715,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Prop
   }
 
   // ── Pick ───────────────────────────────────────────────────────────────────
-  const canSubmit = !!videoFile || !!sourceUrl;
+  const canSubmit = (!!videoFile || !!sourceUrl) && !insufficientCredits;
 
   return (
     <div style={{ padding: '20px 0', maxWidth: 620 }}>
@@ -1145,6 +1177,15 @@ export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Prop
         </div>
       </div>
 
+      {/* Video Editing Billing PRD FR-04: cost preview before confirming */}
+      {costEstimate && billingStatus.loaded && (
+        <VideoCostPreview
+          estimate={costEstimate}
+          creditsRemaining={billingStatus.creditsRemaining}
+          isTrial={billingStatus.isTrial}
+        />
+      )}
+
       {/* Submit */}
       <button
         type="button"
@@ -1163,7 +1204,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Prop
           transition: 'all 0.15s',
         }}
       >
-        {canSubmit ? 'Produce' : 'Upload a video to continue'}
+        {insufficientCredits ? 'Not Enough Credits' : canSubmit ? 'Produce' : 'Upload a video to continue'}
       </button>
     </div>
   );
