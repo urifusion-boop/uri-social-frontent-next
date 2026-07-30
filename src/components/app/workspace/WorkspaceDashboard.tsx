@@ -1230,12 +1230,11 @@ const ContentManagerPage = ({
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
     },
-    // Video tab hidden on main branch until billing is wired up
-    // {
-    //   key: 'video',
-    //   label: '🎬 Video',
-    //   tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
-    // },
+    {
+      key: 'video',
+      label: '🎬 Video',
+      tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
+    },
   ];
 
   return (
@@ -1512,8 +1511,7 @@ const ContentManagerPage = ({
           </div>
         )}
 
-        {/* Video tab hidden on main branch until billing is wired up */}
-        {false && activeTab === 'video' && (
+        {activeTab === 'video' && (
           <>
             {/* 5 sub-tabs — horizontal scroll on mobile instead of wrapping,
                 same pattern as the main Content Manager tab bar above. */}
