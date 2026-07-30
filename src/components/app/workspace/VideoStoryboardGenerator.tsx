@@ -73,6 +73,7 @@ export default function VideoStoryboardGenerator() {
   const [mergedUrl, setMergedUrl] = useState('');
   const [mergeError, setMergeError] = useState('');
   const [draftCaption, setDraftCaption] = useState('');
+  const [captionGenerating, setCaptionGenerating] = useState(false);
   const [draftPlatforms, setDraftPlatforms] = useState<string[]>(['instagram_reels']);
   const [savingDraft, setSavingDraft] = useState(false);
   const [savedDraft, setSavedDraft] = useState<VideoDraft | null>(null);
@@ -87,6 +88,69 @@ export default function VideoStoryboardGenerator() {
   const [publishJobs, setPublishJobs] = useState<Record<string, VideoPublishJob>>({});
   const publishPollRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
+  const SESSION_KEY = 'uri:vsg:session';
+
+  const saveSession = (job: VideoJob | null, sb: Storyboard | null, plt: string) => {
+    if (!sb) return;
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ job, storyboard: sb, platform: plt }));
+    } catch {
+      /* quota exceeded — ignore */
+    }
+  };
+
+  const clearSession = () => {
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Restore in-progress session on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      const {
+        job,
+        storyboard: sb,
+        platform: plt,
+      } = JSON.parse(raw) as {
+        job: VideoJob | null;
+        storyboard: Storyboard;
+        platform: string;
+      };
+      if (!sb) {
+        clearSession();
+        return;
+      }
+
+      // Always restore storyboard + platform
+      setStoryboard(sb);
+      setPlatform(plt);
+
+      // Only resume job polling if there's an active job
+      if (job?.job_id && job.status !== 'complete' && job.status !== 'failed') {
+        setVideoJob(job);
+        SocialMediaAgentService.getVideoJob(job.job_id)
+          .then((res) => {
+            if (res.status && res.responseData) {
+              setVideoJob(res.responseData);
+              if (res.responseData.status === 'complete' || res.responseData.status === 'failed') {
+                saveSession(null, sb, plt);
+              } else {
+                saveSession(res.responseData, sb, plt);
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    } catch {
+      /* corrupted storage — ignore */
+    }
+  }, []);
+
   // Poll for job status while generating
   useEffect(() => {
     if (!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') {
@@ -100,6 +164,9 @@ export default function VideoStoryboardGenerator() {
           setVideoJob(res.responseData);
           if (res.responseData.status === 'complete' || res.responseData.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current);
+            clearSession();
+          } else {
+            saveSession(res.responseData, storyboard, platform);
           }
         }
       } catch {
@@ -130,6 +197,33 @@ export default function VideoStoryboardGenerator() {
       .catch(() => setConnectedPlatforms([]));
   }, []);
 
+  const generateCaption = async () => {
+    if (!storyboard) return;
+    setCaptionGenerating(true);
+    try {
+      const mappedPlatform = platform.startsWith('instagram')
+        ? 'instagram'
+        : platform.startsWith('facebook')
+          ? 'facebook'
+          : platform.startsWith('tiktok')
+            ? 'tiktok'
+            : platform.startsWith('linkedin')
+              ? 'linkedin'
+              : 'instagram';
+      const res = await SocialMediaAgentService.generateVideoCaption({
+        storyboard: storyboard as unknown as Record<string, unknown>,
+        platform: mappedPlatform,
+      });
+      if (res.status && res.responseData?.caption) {
+        setDraftCaption(res.responseData.caption);
+      }
+    } catch {
+      /* silently fail — user can write caption manually */
+    } finally {
+      setCaptionGenerating(false);
+    }
+  };
+
   const handleMerge = async () => {
     if (!videoJob) return;
     setMerging(true);
@@ -140,6 +234,8 @@ export default function VideoStoryboardGenerator() {
       const res = await SocialMediaAgentService.mergeVideoJob(videoJob.job_id);
       if (res.status && res.responseData) {
         setMergedUrl(res.responseData.merged_video_url);
+        clearSession();
+        generateCaption();
       } else {
         setMergeError(res.responseMessage || 'Merge failed. Please try again.');
       }
@@ -273,6 +369,7 @@ export default function VideoStoryboardGenerator() {
     setVideoJob(null);
     setVideoError('');
     setFrameMap({});
+    clearSession();
     if (framePollRef.current) clearInterval(framePollRef.current);
     try {
       const res = await SocialMediaAgentService.generateStoryboard({
@@ -284,6 +381,7 @@ export default function VideoStoryboardGenerator() {
       });
       if (res.status && res.responseData) {
         setStoryboard(res.responseData);
+        saveSession(null, res.responseData, platform);
         // Fire frame image generation in the background
         SocialMediaAgentService.generateStoryboardFrames(
           res.responseData.scenes,
@@ -329,6 +427,7 @@ export default function VideoStoryboardGenerator() {
       });
       if (res.status && res.responseData) {
         setVideoJob(res.responseData);
+        saveSession(res.responseData, storyboard, platform);
       } else {
         setVideoError(res.responseMessage || 'Could not start video generation.');
       }
@@ -913,17 +1012,43 @@ export default function VideoStoryboardGenerator() {
                           Save as Draft
                         </p>
 
-                        <label
-                          style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 6 }}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: 6,
+                          }}
                         >
-                          Caption
-                        </label>
+                          <label style={{ fontSize: 12, fontWeight: 600, color: GREY }}>Caption</label>
+                          <button
+                            onClick={generateCaption}
+                            disabled={captionGenerating || !storyboard}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              border: `1.5px solid ${PRIMARY}`,
+                              background: 'transparent',
+                              color: captionGenerating ? GREY : PRIMARY,
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              cursor: captionGenerating || !storyboard ? 'not-allowed' : 'pointer',
+                              fontFamily: 'inherit',
+                              opacity: captionGenerating || !storyboard ? 0.5 : 1,
+                            }}
+                          >
+                            {captionGenerating ? 'Generating…' : '✦ Regenerate'}
+                          </button>
+                        </div>
                         <textarea
-                          value={draftCaption}
+                          value={captionGenerating ? '' : draftCaption}
                           onChange={(e) => setDraftCaption(e.target.value)}
-                          placeholder="Write a caption for this video…"
-                          rows={3}
+                          placeholder={
+                            captionGenerating ? 'Generating caption with AI…' : 'Write a caption for this video…'
+                          }
+                          rows={4}
                           maxLength={2200}
+                          disabled={captionGenerating}
                           style={{
                             width: '100%',
                             border: `1.5px solid ${BORDER}`,
@@ -936,6 +1061,7 @@ export default function VideoStoryboardGenerator() {
                             outline: 'none',
                             boxSizing: 'border-box',
                             marginBottom: 14,
+                            background: captionGenerating ? '#F9FAFB' : '#fff',
                           }}
                         />
 
@@ -1011,7 +1137,7 @@ export default function VideoStoryboardGenerator() {
               const PUBLISH_PLATFORMS = [
                 { value: 'instagram_reels', label: 'Instagram Reels', connectionKey: 'instagram', enabled: true },
                 { value: 'facebook_reels', label: 'Facebook', connectionKey: 'facebook', enabled: true },
-                { value: 'tiktok', label: 'TikTok', connectionKey: 'tiktok', enabled: false },
+                { value: 'tiktok', label: 'TikTok', connectionKey: 'tiktok', enabled: true },
                 { value: 'linkedin', label: 'LinkedIn', connectionKey: 'linkedin', enabled: false },
               ];
 
@@ -1032,7 +1158,7 @@ export default function VideoStoryboardGenerator() {
                     )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                       <span style={{ fontSize: 11, fontWeight: 600, color: GREY }}>Saved for:</span>
-                      {d.platforms.map((p) => (
+                      {(d.platforms ?? []).map((p) => (
                         <span
                           key={p}
                           style={{
@@ -1069,72 +1195,74 @@ export default function VideoStoryboardGenerator() {
                       <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 12 }}>
                         <p style={{ fontSize: 12, fontWeight: 600, color: GREY, margin: '0 0 8px' }}>Publish to</p>
                         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
-                          {PUBLISH_PLATFORMS.filter((pp) => d.platforms.includes(pp.value) || !pp.enabled).map((pp) => {
-                            const isConnected =
-                              connectedPlatforms?.map((c) => c.toLowerCase()).includes(pp.connectionKey) ?? false;
-                            const isSelected = selPlatform === pp.value;
-                            const canSelect = pp.enabled && isConnected;
-                            const jobKey = `${d.id}:${pp.value}`;
-                            const job = publishJobs[jobKey];
-                            const isPublishing = job && job.status !== 'published' && job.status !== 'failed';
+                          {PUBLISH_PLATFORMS.filter((pp) => (d.platforms ?? []).includes(pp.value) || !pp.enabled).map(
+                            (pp) => {
+                              const isConnected =
+                                connectedPlatforms?.map((c) => c.toLowerCase()).includes(pp.connectionKey) ?? false;
+                              const isSelected = selPlatform === pp.value;
+                              const canSelect = pp.enabled && isConnected;
+                              const jobKey = `${d.id}:${pp.value}`;
+                              const job = publishJobs[jobKey];
+                              const isPublishing = job && job.status !== 'published' && job.status !== 'failed';
 
-                            return (
-                              <button
-                                key={pp.value}
-                                onClick={() => {
-                                  if (!canSelect) return;
-                                  setSelectedPublishPlatform((prev) => ({ ...prev, [d.id]: pp.value }));
-                                }}
-                                title={
-                                  !pp.enabled
-                                    ? 'Coming soon'
-                                    : !isConnected
-                                      ? `Connect your ${pp.label} account first`
-                                      : ''
-                                }
-                                style={{
-                                  padding: '6px 13px',
-                                  borderRadius: 8,
-                                  border: `1.5px solid ${isSelected ? PRIMARY : BORDER}`,
-                                  background: isSelected ? '#FFF0F8' : '#fff',
-                                  color: !pp.enabled || !isConnected ? '#9CA3AF' : isSelected ? PRIMARY : DARK,
-                                  fontWeight: isSelected ? 700 : 500,
-                                  fontSize: 12,
-                                  cursor: canSelect ? 'pointer' : 'not-allowed',
-                                  fontFamily: 'inherit',
-                                  opacity: !pp.enabled ? 0.5 : 1,
-                                  position: 'relative',
-                                }}
-                              >
-                                {pp.label}
-                                {!pp.enabled && (
-                                  <span style={{ display: 'block', fontSize: 9, color: '#9CA3AF', fontWeight: 400 }}>
-                                    Coming soon
-                                  </span>
-                                )}
-                                {pp.enabled && !isConnected && (
-                                  <span style={{ display: 'block', fontSize: 9, color: '#9CA3AF', fontWeight: 400 }}>
-                                    Not connected
-                                  </span>
-                                )}
-                                {isPublishing && (
-                                  <span style={{ display: 'block', fontSize: 9, color: PRIMARY, fontWeight: 600 }}>
-                                    {job.status}…
-                                  </span>
-                                )}
-                                {job?.status === 'published' && (
-                                  <span style={{ display: 'block', fontSize: 9, color: '#16a34a', fontWeight: 600 }}>
-                                    Published
-                                  </span>
-                                )}
-                                {job?.status === 'failed' && (
-                                  <span style={{ display: 'block', fontSize: 9, color: '#DC2626', fontWeight: 600 }}>
-                                    Failed
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
+                              return (
+                                <button
+                                  key={pp.value}
+                                  onClick={() => {
+                                    if (!canSelect) return;
+                                    setSelectedPublishPlatform((prev) => ({ ...prev, [d.id]: pp.value }));
+                                  }}
+                                  title={
+                                    !pp.enabled
+                                      ? 'Coming soon'
+                                      : !isConnected
+                                        ? `Connect your ${pp.label} account first`
+                                        : ''
+                                  }
+                                  style={{
+                                    padding: '6px 13px',
+                                    borderRadius: 8,
+                                    border: `1.5px solid ${isSelected ? PRIMARY : BORDER}`,
+                                    background: isSelected ? '#FFF0F8' : '#fff',
+                                    color: !pp.enabled || !isConnected ? '#9CA3AF' : isSelected ? PRIMARY : DARK,
+                                    fontWeight: isSelected ? 700 : 500,
+                                    fontSize: 12,
+                                    cursor: canSelect ? 'pointer' : 'not-allowed',
+                                    fontFamily: 'inherit',
+                                    opacity: !pp.enabled ? 0.5 : 1,
+                                    position: 'relative',
+                                  }}
+                                >
+                                  {pp.label}
+                                  {!pp.enabled && (
+                                    <span style={{ display: 'block', fontSize: 9, color: '#9CA3AF', fontWeight: 400 }}>
+                                      Coming soon
+                                    </span>
+                                  )}
+                                  {pp.enabled && !isConnected && (
+                                    <span style={{ display: 'block', fontSize: 9, color: '#9CA3AF', fontWeight: 400 }}>
+                                      Not connected
+                                    </span>
+                                  )}
+                                  {isPublishing && (
+                                    <span style={{ display: 'block', fontSize: 9, color: PRIMARY, fontWeight: 600 }}>
+                                      {job.status}…
+                                    </span>
+                                  )}
+                                  {job?.status === 'published' && (
+                                    <span style={{ display: 'block', fontSize: 9, color: '#16a34a', fontWeight: 600 }}>
+                                      Published
+                                    </span>
+                                  )}
+                                  {job?.status === 'failed' && (
+                                    <span style={{ display: 'block', fontSize: 9, color: '#DC2626', fontWeight: 600 }}>
+                                      Failed
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            }
+                          )}
                         </div>
 
                         {/* Publish job error */}

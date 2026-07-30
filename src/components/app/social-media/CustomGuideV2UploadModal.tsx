@@ -189,7 +189,22 @@ export default function CustomGuideV2UploadModal({ open, onClose, onSuccess, bra
     onClose();
   };
 
-  const removeUpload = (preview: string) => {
+  const removeUpload = async (preview: string) => {
+    const upload = uploadingImages.find((u) => u.preview === preview);
+
+    // If the upload completed and has a guide ID, delete it from the backend
+    if (upload?.status === 'complete' && upload.result?.id) {
+      try {
+        await CustomVisualGuideV2Service.archiveGuideV2(upload.result.id);
+        ToastService.showToast('Style guide deleted successfully', ToastTypeEnum.Success);
+      } catch (error) {
+        console.error('Failed to delete guide:', error);
+        ToastService.showToast('Failed to delete style guide', ToastTypeEnum.Error);
+        return; // Don't remove from UI if backend deletion failed
+      }
+    }
+
+    // Remove from upload list and clean up preview URL
     setUploadingImages((prev) => {
       const upload = prev.find((u) => u.preview === preview);
       if (upload) {

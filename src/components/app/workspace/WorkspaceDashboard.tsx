@@ -15,6 +15,7 @@ import {
   SocialMediaAgentService,
   TrendKeyword,
   TrendsData,
+  VideoDraft,
 } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -25,7 +26,7 @@ import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ReactNode } from 'react';
-import { FaFacebook, FaInstagram, FaLinkedin, FaWhatsapp } from 'react-icons/fa';
+import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaWhatsapp } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
@@ -43,13 +44,19 @@ import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import MultiClipComposer from '@/src/components/app/workspace/MultiClipComposer';
+import JaneVideoChat from '@/src/components/app/workspace/JaneVideoChat';
 import VideoEditForm from '@/src/components/app/workspace/VideoEditForm';
 import VideoPolishForm from '@/src/components/app/workspace/VideoPolishForm';
 import VideoProductionForm from '@/src/components/app/workspace/VideoProductionForm';
+import SubmagicProductionForm from '@/src/components/app/workspace/SubmagicProductionForm';
+import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductionForm';
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
+import { JaneService, JaneFirstMessageResponse } from '@/src/api/JaneService';
+import JaneWelcomeCard from '@/src/components/app/workspace/JaneWelcomeCard';
 import { hexToColorName } from '@/src/utils/colorNamer';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
 import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
@@ -84,6 +91,7 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       </>
     ),
     chart: <path d="M18 20V10M12 20V4M6 20v-6" />,
+    megaphone: <path d="M3 11l14-6v14L3 13v-2zM3 11H2a1 1 0 00-1 1v0a1 1 0 001 1h1M7 18l1 3" />,
     grid: (
       <>
         <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -134,6 +142,13 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       <>
         <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
         <path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+      </>
+    ),
+    more: (
+      <>
+        <circle cx="12" cy="5" r="1.6" fill={c} stroke="none" />
+        <circle cx="12" cy="12" r="1.6" fill={c} stroke="none" />
+        <circle cx="12" cy="19" r="1.6" fill={c} stroke="none" />
       </>
     ),
     mic: (
@@ -783,10 +798,18 @@ const ContentManagerPage = ({
   onJane,
   isMobile = false,
   requireEmailVerification,
+  janeMessage,
+  janeGenerating,
+  onAcceptJaneMessage,
+  onDeclineJaneMessage,
 }: {
   onJane: () => void;
   isMobile?: boolean;
   requireEmailVerification: (callback?: () => void) => boolean;
+  janeMessage: JaneFirstMessageResponse | null;
+  janeGenerating: boolean;
+  onAcceptJaneMessage: () => void;
+  onDeclineJaneMessage: () => void;
 }) => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
@@ -836,8 +859,14 @@ const ContentManagerPage = ({
   const [v3Enabled, setV3Enabled] = useState(false);
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
-  const [createMode, setCreateMode] = useState<'generate' | 'upload' | 'video'>('generate');
-  const [videoSubMode, setVideoSubMode] = useState<'edit_video' | 'polish_video' | 'produce_video'>('edit_video');
+  const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
+  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>(
+    'generate'
+  );
+  const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
+  // Keep JaneVideoChat mounted after first visit so in-progress sessions survive tab switches
+  const [janeEverMounted, setJaneEverMounted] = useState(false);
+  const isJaneActive = activeTab === 'video' && videoTab === 'chat';
 
   const toggleDraftSelection = (id: string) => {
     setSelectedDraftIds((prev) => {
@@ -970,9 +999,12 @@ const ContentManagerPage = ({
     if (!silent) setLoadingDrafts(true);
     setDraftsError(false);
     try {
-      const response = await SocialMediaAgentService.getContentCalendar();
-      if (response.status && response.responseData) {
-        const allDrafts = response.responseData.drafts ?? [];
+      const [calendarRes, videoRes] = await Promise.all([
+        SocialMediaAgentService.getContentCalendar(),
+        SocialMediaAgentService.listVideoDrafts(),
+      ]);
+      if (calendarRes.status && calendarRes.responseData) {
+        const allDrafts = calendarRes.responseData.drafts ?? [];
         const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'denied', 'replaced']);
         const filtered = allDrafts.filter((d: ContentDraft) => {
           const s = d.status;
@@ -981,7 +1013,30 @@ const ContentManagerPage = ({
           if (a) return a === 'pending';
           return true;
         });
-        setDrafts(filtered);
+
+        // Add video drafts not already present in the calendar (dedup by id)
+        const calendarIds = new Set(filtered.map((d: ContentDraft) => d.id ?? d.draft_id).filter(Boolean));
+        const extraVideoDrafts: ContentDraft[] = (videoRes.responseData ?? [])
+          .filter((vd: VideoDraft) => !EXCLUDE.has(vd.status) && !calendarIds.has(vd.id))
+          .map((vd: VideoDraft) => ({
+            id: vd.id,
+            draft_id: vd.id,
+            platform: (vd.platforms ?? [])[0] ?? 'instagram',
+            content: vd.content,
+            video_url: vd.video_url,
+            post_type: 'reel' as const,
+            status: vd.status as ContentDraft['status'],
+            created_at: vd.created_at,
+            has_image: false,
+          }));
+
+        const merged = [...filtered, ...extraVideoDrafts].sort((a, b) => {
+          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return tb - ta;
+        });
+
+        setDrafts(merged);
         const stillPending = filtered.some(hasPendingImage);
         if (stillPending && activeTabRef.current === 'drafts' && pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
           const attempt = pollAttemptsRef.current;
@@ -1077,6 +1132,10 @@ const ContentManagerPage = ({
     if (activeTab === 'auto') fetchAuto();
   }, [activeTab, fetchDrafts, fetchSaved, fetchScheduled, fetchAuto]);
 
+  useEffect(() => {
+    if (isJaneActive && !janeEverMounted) setJaneEverMounted(true);
+  }, [isJaneActive, janeEverMounted]);
+
   useEffect(
     () => () => {
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
@@ -1171,7 +1230,11 @@ const ContentManagerPage = ({
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
     },
-    // Video tab hidden on main branch (develop-only feature)
+    {
+      key: 'video',
+      label: '🎬 Video',
+      tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
+    },
   ];
 
   return (
@@ -1326,75 +1389,38 @@ const ContentManagerPage = ({
             )}
             {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
-            {/* Create mode toggle: Generate vs Upload */}
+            {/* Create mode switcher */}
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => setCreateMode('generate')}
-                  style={{
-                    padding: '8px 18px',
-                    borderRadius: 10,
-                    border: createMode === 'generate' ? 'none' : '1.5px solid #E5E7EB',
-                    background:
-                      createMode === 'generate' ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
-                    color: createMode === 'generate' ? '#fff' : '#6B7280',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  ✨ Generate Content
-                </button>
-                <button
-                  onClick={() => setCreateMode('upload')}
-                  style={{
-                    padding: '8px 18px',
-                    borderRadius: 10,
-                    border: createMode === 'upload' ? 'none' : '1.5px solid #E5E7EB',
-                    background: createMode === 'upload' ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
-                    color: createMode === 'upload' ? '#fff' : '#6B7280',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  📤 Upload Content
-                </button>
-              </div>
-            </div>
-
-            {/* Video sub-mode selector - Hidden on main branch (develop-only feature) */}
-            {false && createMode === 'video' && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingLeft: 4 }}>
                 {(
                   [
-                    { key: 'edit_video', label: 'Edit My Video' },
-                    { key: 'polish_video', label: 'Polish My Video' },
-                    { key: 'produce_video', label: '✨ Produce My Video' },
-                  ] as { key: 'edit_video' | 'polish_video' | 'produce_video'; label: string }[]
-                ).map((sub) => (
+                    { key: 'generate', label: '✨ Generate Content' },
+                    { key: 'upload', label: '📤 Upload Content' },
+                  ] as { key: 'generate' | 'upload'; label: string }[]
+                ).map((mode) => (
                   <button
-                    key={sub.key}
-                    onClick={() => setVideoSubMode(sub.key)}
+                    key={mode.key}
+                    onClick={() => setCreateMode(mode.key)}
                     style={{
-                      padding: '6px 14px',
-                      borderRadius: 8,
-                      border: videoSubMode === sub.key ? '2px solid #CD1B78' : '1.5px solid #E5E7EB',
-                      background: videoSubMode === sub.key ? '#FDF2F8' : '#fff',
-                      color: videoSubMode === sub.key ? '#CD1B78' : '#6B7280',
-                      fontSize: 13,
+                      flex: isMobile ? 1 : undefined,
+                      padding: isMobile ? '8px 10px' : '8px 18px',
+                      borderRadius: 10,
+                      border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
+                      background:
+                        createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                      color: createMode === mode.key ? '#fff' : '#6B7280',
+                      fontSize: isMobile ? 12.5 : 13,
                       fontWeight: 600,
                       cursor: 'pointer',
                       transition: 'all 0.15s',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    {sub.label}
+                    {mode.label}
                   </button>
                 ))}
               </div>
-            )}
+            </div>
 
             {createMode === 'generate' && (
               <>
@@ -1454,38 +1480,22 @@ const ContentManagerPage = ({
                     </a>
                   </div>
                 )}
+
+                {/* PRD: Jane's First Message - show at top of create tab */}
+                {janeMessage && (
+                  <JaneWelcomeCard
+                    message={janeMessage}
+                    onAccept={onAcceptJaneMessage}
+                    onDecline={onDeclineJaneMessage}
+                    isGenerating={janeGenerating}
+                  />
+                )}
+
                 <ContentGeneratorForm
                   onGenerated={handleGenerated}
                   requireEmailVerification={requireEmailVerification}
                 />
               </>
-            )}
-
-            {/* Video forms - Hidden on main branch (develop-only feature) */}
-            {false && createMode === 'video' && videoSubMode === 'edit_video' && (
-              <VideoEditForm
-                onEditComplete={() => {
-                  handleGenerated();
-                  setCreateMode('generate');
-                }}
-              />
-            )}
-
-            {false && createMode === 'video' && videoSubMode === 'polish_video' && (
-              <VideoPolishForm
-                onPolishComplete={() => {
-                  handleGenerated();
-                  setCreateMode('generate');
-                }}
-              />
-            )}
-
-            {false && createMode === 'video' && videoSubMode === 'produce_video' && (
-              <VideoProductionForm
-                onComplete={() => {
-                  handleGenerated();
-                }}
-              />
             )}
 
             {createMode === 'upload' && (
@@ -1494,8 +1504,97 @@ const ContentManagerPage = ({
           </>
         )}
 
-        {/* Video tab content - Hidden on main branch (develop-only feature) */}
-        {false && activeTab === 'video' && <VideoStoryboardGenerator />}
+        {/* JaneVideoChat keep-alive: mounted once, hidden with CSS when not active */}
+        {janeEverMounted && (
+          <div style={{ display: isJaneActive ? undefined : 'none' }}>
+            <JaneVideoChat onSaveToDrafts={() => setActiveTab('drafts')} />
+          </div>
+        )}
+
+        {activeTab === 'video' && (
+          <>
+            {/* 5 sub-tabs — horizontal scroll on mobile instead of wrapping,
+                same pattern as the main Content Manager tab bar above. */}
+            <div
+              className={isMobile ? 'tab-scroll' : undefined}
+              style={{
+                display: 'flex',
+                gap: 8,
+                marginBottom: 20,
+                ...(isMobile
+                  ? ({
+                      overflowX: 'auto',
+                      WebkitOverflowScrolling: 'touch',
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none',
+                    } as React.CSSProperties)
+                  : { flexWrap: 'wrap' }),
+              }}
+            >
+              {(
+                [
+                  { key: 'chat', label: '✦ Ask Jane' },
+                  { key: 'generate', label: '🎬 Generate' },
+                  { key: 'produce', label: '✨ Produce' },
+                  { key: 'zapcap', label: '⚡ Produce my video' },
+                  { key: 'compose', label: '🎞 Compose' },
+                ] as { key: 'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'; label: string }[]
+              ).map((vt) => (
+                <button
+                  key={vt.key}
+                  onClick={() => setVideoTab(vt.key)}
+                  style={{
+                    flexShrink: 0,
+                    padding: isMobile ? '8px 14px' : '8px 18px',
+                    borderRadius: 10,
+                    border: videoTab === vt.key ? 'none' : '1.5px solid #E5E7EB',
+                    background: videoTab === vt.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                    color: videoTab === vt.key ? '#fff' : '#6B7280',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {vt.label}
+                </button>
+              ))}
+            </div>
+            {videoTab === 'generate' && <VideoStoryboardGenerator />}
+            {videoTab === 'produce' && (
+              <VideoProductionForm
+                sourceUrl={pendingProduceUrl}
+                onComplete={() => {
+                  setPendingProduceUrl(null);
+                  setVideoTab('generate');
+                }}
+                onSaveToDrafts={() => {
+                  setPendingProduceUrl(null);
+                  setActiveTab('drafts');
+                }}
+              />
+            )}
+            {videoTab === 'submagic' && <SubmagicProductionForm onSaveToDrafts={() => setActiveTab('drafts')} />}
+            {videoTab === 'zapcap' && (
+              <ZapCapProductionForm
+                sourceUrl={pendingProduceUrl}
+                onSaveToDrafts={() => {
+                  setPendingProduceUrl(null);
+                  setActiveTab('drafts');
+                }}
+              />
+            )}
+            {videoTab === 'compose' && (
+              <MultiClipComposer
+                onSendToProduce={(url) => {
+                  setPendingProduceUrl(url);
+                  setVideoTab('zapcap');
+                }}
+              />
+            )}
+          </>
+        )}
 
         {activeTab === 'drafts' && (
           <>
@@ -2188,6 +2287,7 @@ const PLATFORM_ICON: Record<string, ReactNode> = {
   whatsapp: <FaWhatsapp size={22} color="#25D366" />,
   facebook: <FaFacebook size={22} color="#1877F2" />,
   instagram: <FaInstagram size={22} color="#E4405F" />,
+  tiktok: <FaTiktok size={22} color="#010101" />,
 };
 
 const PLATFORMS = [
@@ -2222,7 +2322,7 @@ const PLATFORMS = [
     label: 'Facebook',
     color: '#1877F2',
     bg: '#E7F0FD',
-    flow: 'facebook_oauth',
+    flow: 'outstand_oauth',
     tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social',
   },
   {
@@ -2233,6 +2333,14 @@ const PLATFORMS = [
     flow: 'instagram_direct',
     tooltip:
       'Connect your Instagram Business account to publish feed posts, carousels, and stories directly from URI Social',
+  },
+  {
+    id: 'tiktok',
+    label: 'TikTok',
+    color: '#010101',
+    bg: '#F0F0F0',
+    flow: 'outstand_oauth',
+    tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
   },
 ];
 
@@ -2257,6 +2365,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [networkName, setNetworkName] = useState('');
   // Which platform initiated the Outstand connect (used to filter the page picker)
   const [pendingPlatform, setPendingPlatform] = useState<string>('');
+  // Set when Meta OAuth rejects or returns empty pages — shows platform-specific fix guide
+  const [connectError, setConnectError] = useState<{ platform: string; error: string } | null>(null);
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -2324,6 +2434,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         const conns = fbIg.responseData.connections ?? {};
         const fbConn = conns.facebook?.[0];
         const igConn = conns.instagram?.[0];
+        const ttConn = conns.tiktok?.[0];
         next.facebook = {
           linked: !!conns.facebook?.length,
           account_name: fbConn?.account_name || fbConn?.page_name || fbConn?.username,
@@ -2337,9 +2448,16 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           ig_user_id: igConn?.ig_user_id,
           connected_via: igConn?.connected_via,
         };
+        next.tiktok = {
+          linked: !!conns.tiktok?.length,
+          account_name: ttConn?.account_name || ttConn?.username,
+          outstand_account_id: ttConn?.outstand_account_id,
+          connected_via: ttConn?.connected_via,
+        };
       } else {
         next.facebook = { linked: false };
         next.instagram = { linked: false };
+        next.tiktok = { linked: false };
       }
       setStatuses(next);
     } finally {
@@ -2431,8 +2549,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       // If this page is running inside a popup, close it so the opener's polling timer fires
       if (typeof window !== 'undefined' && window.opener) window.close();
     } else if (connected === 'false') {
-      const err = searchParams.get('error');
-      ToastService.showToast(err ?? 'Connection failed. Please try again.', ToastTypeEnum.Error);
+      const err = searchParams.get('error') ?? '';
+      const storedPlatform = localStorage.getItem('outstand_connect_platform') ?? '';
+      localStorage.removeItem('outstand_connect_platform');
+      setConnectError({ platform: storedPlatform, error: err });
       router.replace('/workspace?tab=connections');
       if (typeof window !== 'undefined' && window.opener) window.close();
     }
@@ -2484,14 +2604,15 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const handleConnect = async (id: string, flow: string) => {
-    if (flow === 'facebook_oauth') {
+    if (flow === 'outstand_oauth') {
       setConnecting(id);
       try {
-        const res = await SocialAccountService.initiateConnection(['facebook'], 'settings');
-        if (res.status && res.responseData?.auth_urls?.facebook) {
+        const res = await SocialAccountService.initiateConnection([id], 'settings');
+        const authUrl = res.responseData?.auth_urls?.[id];
+        if (res.status && authUrl) {
           localStorage.setItem('outstand_connect_source', 'settings');
           localStorage.setItem('outstand_connect_platform', id); // track which platform initiated
-          window.location.href = res.responseData.auth_urls.facebook;
+          window.location.href = authUrl;
           return;
         }
         ToastService.showToast('Could not start connection. Please try again.', ToastTypeEnum.Error);
@@ -2602,11 +2723,22 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       } else if (id === 'facebook') {
         const s = statuses[id];
         if (s?.connected_via?.startsWith('facebook_direct')) {
-          await SocialMediaAgentService.disconnectFacebookDirect();
+          const res = await SocialMediaAgentService.disconnectFacebookDirect();
+          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
         } else if (s?.outstand_account_id) {
-          await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
+          const res = await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
+          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
         } else {
           ToastService.showToast('Could not disconnect Facebook. Please try again.', ToastTypeEnum.Error);
+          return;
+        }
+      } else if (id === 'tiktok') {
+        const s = statuses[id];
+        if (s?.outstand_account_id) {
+          const res = await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
+          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+        } else {
+          ToastService.showToast('Could not disconnect TikTok. Please try again.', ToastTypeEnum.Error);
           return;
         }
       }
@@ -2703,8 +2835,89 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
               const autoPages = platformPages.filter((p) => p.auto_connect);
               if (selectablePages.length === 0) {
                 return (
-                  <div style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>
-                    No accounts found. Make sure you have admin access to at least one page.
+                  <div
+                    style={{
+                      background: '#FFF7ED',
+                      border: '1.5px solid #FDBA74',
+                      borderRadius: 12,
+                      padding: '16px 18px',
+                    }}
+                  >
+                    {pendingPlatform === 'instagram' ? (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 8 }}>
+                          No Instagram Business account found
+                        </div>
+                        <div style={{ fontSize: 12, color: '#78350F', lineHeight: 1.8 }}>
+                          Instagram Personal accounts cannot be connected. You need a{' '}
+                          <strong>Business or Creator account</strong> linked to a Facebook Page.
+                        </div>
+                        <ol
+                          style={{ margin: '10px 0 0 16px', padding: 0, fontSize: 12, color: '#78350F', lineHeight: 2 }}
+                        >
+                          <li>
+                            Open the <strong>Instagram app</strong> → Profile → Menu (☰) → Settings → Account
+                          </li>
+                          <li>
+                            Tap <strong>Switch to Professional Account</strong> → choose <strong>Business</strong> or{' '}
+                            <strong>Creator</strong>
+                          </li>
+                          <li>
+                            Go to Settings → Account → <strong>Linked Accounts</strong> → connect your Facebook Page
+                          </li>
+                          <li>
+                            Close this panel and tap <strong>Connect</strong> on Instagram again
+                          </li>
+                        </ol>
+                      </>
+                    ) : pendingPlatform === 'facebook' ? (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 8 }}>
+                          No Facebook Pages found
+                        </div>
+                        <div style={{ fontSize: 12, color: '#78350F', lineHeight: 1.8 }}>
+                          The Facebook API only connects to <strong>Pages</strong>, not personal profiles. You must be
+                          an <strong>Admin or Editor</strong> of a Page.
+                        </div>
+                        <ol
+                          style={{ margin: '10px 0 0 16px', padding: 0, fontSize: 12, color: '#78350F', lineHeight: 2 }}
+                        >
+                          <li>
+                            Make sure you logged in with the Facebook account that{' '}
+                            <strong>owns or manages your Page</strong>
+                          </li>
+                          <li>
+                            No Page yet?{' '}
+                            <a
+                              href="https://www.facebook.com/pages/create"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#1877F2' }}
+                            >
+                              Create a Facebook Page
+                            </a>{' '}
+                            — it only takes a minute
+                          </li>
+                          <li>
+                            Already have a Page but not admin? Ask the owner to add you as <strong>Admin</strong> in
+                            Page Settings → Page Roles
+                          </li>
+                          <li>
+                            Once sorted, close this panel and tap <strong>Connect</strong> on Facebook again
+                          </li>
+                        </ol>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 6 }}>
+                          No accounts found
+                        </div>
+                        <div style={{ fontSize: 12, color: '#78350F' }}>
+                          Make sure you have admin access to at least one Page and that your account meets the platform
+                          requirements, then try connecting again.
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               }
@@ -2833,6 +3046,117 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           </div>
         </div>
       )}
+      {/* OAuth failure — show platform-specific fix guide */}
+      {connectError && (
+        <div
+          style={{
+            background: '#FFF7ED',
+            border: '1.5px solid #FDBA74',
+            borderRadius: 14,
+            padding: '18px 20px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: '#92400E', marginBottom: 10 }}>
+              {connectError.platform === 'instagram'
+                ? 'Could not connect Instagram'
+                : connectError.platform === 'facebook'
+                  ? 'Could not connect Facebook'
+                  : 'Connection failed'}
+            </div>
+            <button
+              type="button"
+              onClick={() => setConnectError(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#9CA3AF',
+                fontSize: 16,
+                lineHeight: 1,
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+          </div>
+          {connectError.error && (
+            <div
+              style={{
+                fontSize: 11.5,
+                color: '#B45309',
+                marginBottom: 10,
+                fontFamily: 'monospace',
+                background: '#FEF3C7',
+                padding: '4px 8px',
+                borderRadius: 6,
+              }}
+            >
+              {connectError.error}
+            </div>
+          )}
+          {connectError.platform === 'facebook' ? (
+            <div style={{ fontSize: 12.5, color: '#78350F', lineHeight: 1.8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Facebook requires a Page — not a personal profile.</div>
+              <div>
+                To connect, you need to be an <strong>Admin or Editor</strong> of a Facebook Page:
+              </div>
+              <ol style={{ margin: '8px 0 0 16px', padding: 0, lineHeight: 2 }}>
+                <li>
+                  Make sure you're logged in with the Facebook account that <strong>owns or manages the Page</strong>
+                </li>
+                <li>
+                  Don't have a Page yet?{' '}
+                  <a
+                    href="https://www.facebook.com/pages/create"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#1877F2' }}
+                  >
+                    Create a Facebook Page
+                  </a>
+                </li>
+                <li>
+                  Already have a Page but aren't admin? Ask the Page owner to add you as <strong>Admin</strong> in Page
+                  Settings → Page Roles
+                </li>
+                <li>
+                  Once you have admin access, click <strong>Connect</strong> on Facebook below and try again
+                </li>
+              </ol>
+            </div>
+          ) : connectError.platform === 'instagram' ? (
+            <div style={{ fontSize: 12.5, color: '#78350F', lineHeight: 1.8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Instagram Personal accounts cannot be connected.</div>
+              <div>
+                You need an <strong>Instagram Business or Creator account</strong> linked to a Facebook Page:
+              </div>
+              <ol style={{ margin: '8px 0 0 16px', padding: 0, lineHeight: 2 }}>
+                <li>
+                  Open the <strong>Instagram app</strong> → Profile → Menu (☰) → Settings → Account
+                </li>
+                <li>
+                  Tap <strong>Switch to Professional Account</strong> and choose <strong>Business</strong> or{' '}
+                  <strong>Creator</strong>
+                </li>
+                <li>
+                  Go to Settings → Account → <strong>Linked Accounts</strong> and connect your Facebook Page
+                </li>
+                <li>
+                  Come back here and tap <strong>Connect</strong> on Instagram again
+                </li>
+              </ol>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12.5, color: '#78350F' }}>
+              Please try again. If the problem persists, make sure you are authorising with the correct account and have
+              granted all requested permissions.
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 40 }}>
           <div
@@ -4534,6 +4858,13 @@ const PlaybookPage = ({
     }
   }, [profile?.logo_position]);
 
+  // Sync logo size when profile changes (e.g., after save/refresh)
+  useEffect(() => {
+    if (profile?.logo_size) {
+      setLogoSize(profile.logo_size as 'small' | 'medium' | 'large');
+    }
+  }, [profile?.logo_size]);
+
   // Auto-save custom guide selections
   const handleCustomGuideChange = async (guideIds: string[]) => {
     setSelectedCustomGuides(guideIds);
@@ -4587,6 +4918,11 @@ const PlaybookPage = ({
 
   const startEdit = () => {
     if (!profile) return;
+    console.log('📖 LOAD PLAYBOOK DEBUG:', {
+      logo_position: profile.logo_position,
+      logo_size: profile.logo_size,
+      profile,
+    });
     setBrandName(profile.brand_name ?? '');
     setIndustry(profile.industry ?? '');
     setWebsite(profile.website ?? '');
@@ -4603,16 +4939,36 @@ const PlaybookPage = ({
     setCompliance(profile.guardrails?.compliance_notes ?? '');
     setCtaStyles([...(profile.cta_styles ?? [])]);
     setDefaultLink(profile.default_link ?? '');
-    const age = profile.audience_age_range;
-    setAudienceAge(Array.isArray(age) ? age : age ? [age] : []);
+    // audience_age_range/region are saved as a single comma-joined string
+    // (e.g. "Gen Z (18-24), Millennials (25-40)"), not an array — wrapping the
+    // whole string as one array element (the old `[age]`) meant none of the
+    // individual chips ever matched via .includes() on re-entering edit mode,
+    // so nothing showed as selected, and re-clicking chips appended fresh
+    // selections onto the untouched blob instead of toggling them, compounding
+    // duplicates on every edit/save cycle. Split back into individual values
+    // and de-dupe so profiles already corrupted by the old bug self-heal on
+    // the next edit rather than needing every chip manually toggled off/on.
+    const splitList = (v?: string | string[]): string[] =>
+      Array.from(
+        new Set(
+          Array.isArray(v)
+            ? v
+            : v
+              ? v
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              : []
+        )
+      );
+    setAudienceAge(splitList(profile.audience_age_range));
     setPrimaryGoal(profile.primary_goal ?? '');
     setTargetPlatforms([...(profile.target_platforms ?? [])]);
     setIdealCustomerProfile(profile.ideal_customer_profile ?? '');
     const comps = profile.competitor_handles ?? [];
     setCompetitors([comps[0] ?? '', comps[1] ?? '', comps[2] ?? '']);
     setLanguages([...(profile.languages ?? [])]);
-    const reg = profile.region;
-    setRegion(Array.isArray(reg) ? reg : reg ? [reg] : []);
+    setRegion(splitList(profile.region));
     setCadence(profile.posting_cadence ?? '');
     setApproval(profile.approval_workflow ?? '');
     setTemplateUrls([...(profile.sample_template_urls ?? [])]);
@@ -4693,6 +5049,8 @@ const PlaybookPage = ({
         custom_font_analysis: customFontAnalysis,
         custom_font_directive: customFontDirective,
       };
+      console.log('💾 SAVE PLAYBOOK DEBUG:', { logoPosition, logoSize, updated_logo_size: updated.logo_size });
+      console.log('💾 FULL PAYLOAD BEING SENT:', JSON.stringify(updated, null, 2));
       const saveRes = await BrandProfileService.save(updated);
       if (!saveRes.status) {
         throw new Error(saveRes.responseMessage || 'Save failed');
@@ -5016,7 +5374,10 @@ const PlaybookPage = ({
               {(['small', 'medium', 'large'] as const).map((size) => (
                 <button
                   key={size}
-                  onClick={() => setLogoSize(size)}
+                  onClick={() => {
+                    console.log('🎯 Logo size button clicked:', size);
+                    setLogoSize(size);
+                  }}
                   style={{
                     padding: '6px 16px',
                     borderRadius: 6,
@@ -6281,6 +6642,260 @@ const PlaybookPage = ({
           </div>
         )}
       </PbSection>
+
+      {/* V3 Enhanced Prompts - Hidden on main branch (develop-only feature) */}
+      {false && (
+        <PbSection title="Enhanced Image Prompts (V3)">
+          <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
+            Our new 10-block prompt system for richer, more detailed images. Includes expanded aesthetic vocabulary,
+            better African representation, enhanced product preservation, and 100+ safety rules.
+          </div>
+          {!editing ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div
+                style={{
+                  background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                  color: p?.use_v3_prompts ? '#fff' : '#6b7280',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                {p?.use_v3_prompts ? (
+                  <>
+                    <span>✨</span>
+                    <span>V3 Enabled</span>
+                  </>
+                ) : (
+                  <>
+                    <span>V2 Standard</span>
+                  </>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: '#666' }}>
+                {p?.use_v3_prompts
+                  ? 'Using V3 10-block architecture with enhanced vocabulary'
+                  : 'Using V2 6-section prompt system'}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <button
+                onClick={async () => {
+                  const newValue = !(p?.use_v3_prompts ?? false);
+                  try {
+                    const response = await V3Service.toggleV3(newValue);
+                    if (response.status && response.responseData) {
+                      if (onProfileUpdate && p) {
+                        onProfileUpdate({ ...p, use_v3_prompts: newValue });
+                      }
+                      ToastService.showToast(
+                        newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
+                        ToastTypeEnum.Success
+                      );
+                      posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'playbook' });
+                    } else {
+                      throw new Error(response.responseMessage || 'Failed to toggle V3');
+                    }
+                  } catch (error) {
+                    console.error('[Playbook] V3 toggle failed:', error);
+                    ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
+                  }
+                }}
+                style={{
+                  background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                  color: p?.use_v3_prompts ? '#fff' : '#111',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '12px 20px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  transition: 'all 0.2s',
+                  alignSelf: 'flex-start',
+                }}
+              >
+                {p?.use_v3_prompts ? (
+                  <>
+                    <span>✨</span>
+                    <span>V3 Enabled</span>
+                    <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Enable V3</span>
+                    <span style={{ fontSize: 11, opacity: 0.7 }}>(Recommended)</span>
+                  </>
+                )}
+              </button>
+              <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+                {p?.use_v3_prompts
+                  ? 'V3 is active. All future image generations will use the enhanced 10-block prompt system.'
+                  : 'Enable V3 for richer prompts with better quality, cultural sensitivity, and product preservation.'}
+              </div>
+            </div>
+          )}
+          {p?.use_v3_prompts && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                background: '#F7F7FD',
+                border: '1px solid #E0DEF7',
+                borderRadius: 8,
+                fontSize: 11.5,
+                color: '#555',
+                lineHeight: 1.6,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Enhancements Active:</div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li>10-block prompt architecture (vs. 6-section)</li>
+                <li>400+ aesthetic vocabulary terms (vs. ~150)</li>
+                <li>11-dimensional style system with parametric control</li>
+                <li>100+ context-aware safety & exclusion rules</li>
+                <li>Enhanced African realism vocabulary for authentic representation</li>
+                <li>Improved product preservation with forensic analysis</li>
+              </ul>
+            </div>
+          )}
+        </PbSection>
+      )}
+
+      {/* Canvas Editor Toggle - Hidden on main branch (develop-only feature) */}
+      {false && (
+        <PbSection title="Canvas Editor (Beta)">
+          <p style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6, marginBottom: 16 }}>
+            Enable advanced post editing with drag-drop layers, text editing, and multi-format export
+          </p>
+          {p && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                    color: p?.canvas_editor_enabled ? '#fff' : '#6b7280',
+                    borderRadius: 8,
+                    padding: '8px 16px',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {p?.canvas_editor_enabled ? (
+                    <>
+                      <span>✨</span>
+                      <span>Canvas Enabled</span>
+                    </>
+                  ) : (
+                    <span>Disabled</span>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={async () => {
+                  const newValue = !(p?.canvas_editor_enabled ?? false);
+                  console.log('🎨 Canvas Editor Toggle:', {
+                    currentValue: p?.canvas_editor_enabled,
+                    newValue,
+                    profileData: p,
+                  });
+                  try {
+                    const updatedProfile = { ...p, canvas_editor_enabled: newValue };
+                    console.log('🎨 Saving profile:', updatedProfile);
+                    const response = await BrandProfileService.save(updatedProfile);
+                    console.log('🎨 Save response:', response);
+                    if (response.status) {
+                      onProfileUpdate({ ...p, canvas_editor_enabled: newValue });
+                      ToastService.showToast(
+                        newValue ? '✨ Canvas Editor Enabled!' : 'Canvas Editor Disabled',
+                        ToastTypeEnum.Success
+                      );
+                      posthog.capture('canvas_editor_toggle', { enabled: newValue });
+                    } else {
+                      console.error('🎨 Save failed - response.status is false:', response);
+                      ToastService.showToast(
+                        'Failed to save: ' + (response.responseMessage || 'Unknown error'),
+                        ToastTypeEnum.Error
+                      );
+                    }
+                  } catch (error) {
+                    console.error('🎨 Canvas Editor save error:', error);
+                    ToastService.showToast('Failed to update Canvas Editor setting', ToastTypeEnum.Error);
+                  }
+                }}
+                style={{
+                  background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                  color: p?.canvas_editor_enabled ? '#fff' : '#111',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '12px 20px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  transition: 'all 0.2s',
+                  alignSelf: 'flex-start',
+                }}
+              >
+                {p?.canvas_editor_enabled ? (
+                  <>
+                    <span>✨</span>
+                    <span>Canvas Enabled</span>
+                    <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Enable Canvas Editor</span>
+                    <span style={{ fontSize: 11, opacity: 0.7 }}>(Beta)</span>
+                  </>
+                )}
+              </button>
+              <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+                {p?.canvas_editor_enabled
+                  ? 'Canvas Editor is active. Generated posts will have editable layers for text, logo, and background.'
+                  : 'Enable Canvas Editor to edit posts with drag-drop layers and export to multiple aspect ratios.'}
+              </div>
+            </div>
+          )}
+          {p?.canvas_editor_enabled && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                background: '#FFF7ED',
+                border: '1px solid #FED7AA',
+                borderRadius: 8,
+                fontSize: 11.5,
+                color: '#555',
+                lineHeight: 1.6,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 6, color: '#EA580C' }}>✨ Canvas Editor Features:</div>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li>Edit text content, fonts, colors, and positions</li>
+                <li>Drag & drop repositioning for all layers</li>
+                <li>Undo/redo support (50 operations)</li>
+                <li>Export to multiple formats (1:1, 9:16, 4:5, 16:9)</li>
+                <li>Layer management (show/hide, delete, reorder)</li>
+                <li>Visual editing without regenerating (saves credits)</li>
+              </ul>
+            </div>
+          )}
+        </PbSection>
+      )}
     </SubPage>
   );
 };
@@ -7018,7 +7633,7 @@ const NAV = [
 
 const MOBILE_TABS = [
   { id: 'workspace', icon: 'home', label: 'Jane' },
-  { id: 'schedule', icon: 'calendar', label: 'Schedule' },
+  { id: 'schedule', icon: 'calendar', label: 'Create' },
   { id: 'performance', icon: 'chart', label: 'Analytics' },
   { id: 'playbook', icon: 'book', label: 'Playbook' },
   { id: 'more', icon: 'settings', label: 'More' },
@@ -7027,6 +7642,8 @@ const MOBILE_TABS = [
 const MORE_NAV = [
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
+  { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts' },
+  { id: 'brand-setup', icon: 'edit', label: 'Edit Brand Setup', href: '/social-media/brand-setup' },
 ];
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -7073,6 +7690,8 @@ export default function WorkspaceDashboard() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [trialExpiredOpen, setTrialExpiredOpen] = useState(false);
   const [trialEndingDismissed, setTrialEndingDismissed] = useState(false);
+  const [janeMessage, setJaneMessage] = useState<JaneFirstMessageResponse | null>(null);
+  const [janeGenerating, setJaneGenerating] = useState(false);
   const feedEnd = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -7141,6 +7760,54 @@ export default function WorkspaceDashboard() {
       if (!dismissed) setTrialExpiredOpen(true);
     }
   }, [userDetails?.trialExpired, userDetails?.subscriptionTier]);
+
+  // PRD: Jane's First Message - fetch on workspace load if eligible
+  useEffect(() => {
+    const fetchJaneMessage = async () => {
+      const shouldShow = await JaneService.shouldShowFirstMessage();
+      if (shouldShow) {
+        const message = await JaneService.getFirstMessage();
+        if (message) {
+          setJaneMessage(message);
+        }
+      }
+    };
+    fetchJaneMessage();
+  }, []);
+
+  // PRD Section 8: After the Yes - What Happens Next
+  const handleAcceptJaneMessage = async () => {
+    if (!janeMessage) return;
+
+    setJaneGenerating(true);
+    try {
+      const accepted = await JaneService.acceptFirstMessage(janeMessage.message_id);
+      if (accepted) {
+        await SocialMediaAgentService.generateContent({
+          seed_content: accepted.seed_content,
+          platforms: accepted.platforms,
+          include_images: true,
+          post_type: 'feed',
+          acknowledged_incomplete_profile: false,
+        });
+
+        setJaneMessage(null);
+        ToastService.showToast('Jane is creating your content! Check your drafts.', ToastTypeEnum.Success);
+      }
+    } catch (error) {
+      console.error('Error accepting Jane message:', error);
+      ToastService.showToast('Failed to generate content. Please try again.', ToastTypeEnum.Error);
+    } finally {
+      setJaneGenerating(false);
+    }
+  };
+
+  // PRD Section 9: If They Don't Say Yes - graceful decline
+  const handleDeclineJaneMessage = async () => {
+    if (!janeMessage) return;
+    await JaneService.declineFirstMessage(janeMessage.message_id);
+    setJaneMessage(null);
+  };
 
   // Load persisted conversation history on mount
   useEffect(() => {
@@ -7400,6 +8067,10 @@ export default function WorkspaceDashboard() {
         onJane={goWorkspace}
         isMobile={isMobile}
         requireEmailVerification={requireEmailVerification}
+        janeMessage={janeMessage}
+        janeGenerating={janeGenerating}
+        onAcceptJaneMessage={handleAcceptJaneMessage}
+        onDeclineJaneMessage={handleDeclineJaneMessage}
       />
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
@@ -7696,11 +8367,13 @@ export default function WorkspaceDashboard() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              rowGap: 6,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 7 : 9 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 7 : 9, minWidth: 0, flexShrink: 1 }}>
               {isMobile && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginRight: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginRight: 4, flexShrink: 0 }}>
                   <div
                     style={{
                       width: 24,
@@ -7715,7 +8388,7 @@ export default function WorkspaceDashboard() {
                   >
                     <span style={{ color: '#fff', fontWeight: 900, fontSize: 11 }}>U</span>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111', whiteSpace: 'nowrap' }}>
                     URI <span style={{ fontWeight: 400, color: '#999' }}>Social</span>
                   </span>
                 </div>
@@ -7728,100 +8401,133 @@ export default function WorkspaceDashboard() {
                     borderRadius: '50%',
                     background: '#4caf50',
                     boxShadow: '0 0 7px rgba(76,175,80,.4)',
+                    flexShrink: 0,
                   }}
                 />
               )}
-              <span
-                style={{
-                  fontSize: isMobile ? 11 : 12.5,
-                  color: '#666',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  maxWidth: isMobile ? 160 : 'none',
-                }}
-              >
-                {!isMobile && (
-                  <>
-                    <strong style={{ color: '#C2185B' }}>URI Agent</strong> is active:{' '}
-                  </>
-                )}
-                <span key={sIdx} style={{ animation: 'wStatusFade 5s linear', display: 'inline-block' }}>
-                  {isMobile ? STATUS_MSGS[sIdx].slice(0, 28) + '…' : STATUS_MSGS[sIdx]}
-                </span>
-              </span>
-            </div>
-            <div id="tour-notification-area" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <button
-                onClick={() => router.push('/settings/social-accounts')}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 7,
-                  border: '1px solid #e5e3df',
-                  background: '#fff',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title="Social Accounts"
-              >
-                <I n="settings" s={14} c="#666" />
-              </button>
-              <button
-                onClick={() => router.push('/social-media/brand-setup')}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 7,
-                  border: '1px solid #e5e3df',
-                  background: '#fff',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title="Edit Brand Setup"
-              >
-                <I n="edit" s={14} c="#666" />
-              </button>
-
-              {/* Clear conversation — workspace only */}
-              {nav === 'workspace' && (
-                <button
-                  onClick={() => setClearConfirmOpen(true)}
-                  title="Clear conversation"
+              {/* Rotating status line is decorative flavour text — dropped on
+                  mobile entirely so the functional controls on the right
+                  (credits, notifications, profile) always have room and are
+                  never the thing that silently overflows off-screen. */}
+              {!isMobile && (
+                <span
                   style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 7,
-                    border: '1px solid #e5e3df',
-                    background: '#fff',
+                    fontSize: 12.5,
+                    color: '#666',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <strong style={{ color: '#C2185B' }}>URI Agent</strong> is active:{' '}
+                  <span key={sIdx} style={{ animation: 'wStatusFade 5s linear', display: 'inline-block' }}>
+                    {STATUS_MSGS[sIdx]}
+                  </span>
+                </span>
+              )}
+            </div>
+            <div
+              id="tour-notification-area"
+              style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, flexWrap: 'wrap' }}
+            >
+              {/* Utility toolbar — Settings, Edit Brand Setup, Clear conversation.
+                  A single segmented pill instead of loose bordered squares reads
+                  as one cohesive control rather than three separate buttons, and
+                  it's shown on mobile too now (icon-only, same as desktop) rather
+                  than being dropped entirely — the "More" drawer still offers the
+                  labeled versions for anyone who prefers text over icons. */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'stretch',
+                  border: '1px solid #e5e3df',
+                  borderRadius: 9,
+                  overflow: 'hidden',
+                  background: '#fff',
+                  flexShrink: 0,
+                }}
+              >
+                <button
+                  onClick={() => router.push('/settings/social-accounts')}
+                  title="Social Accounts"
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  style={{
+                    width: isMobile ? 34 : 32,
+                    height: isMobile ? 34 : 32,
+                    border: 'none',
+                    borderRight: '1px solid #edecea',
+                    background: 'transparent',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    transition: 'background .15s',
                   }}
                 >
-                  <I n="broom" s={14} c="#666" />
+                  <I n="settings" s={14} c="#666" />
                 </button>
-              )}
+                <button
+                  onClick={() => router.push('/social-media/brand-setup')}
+                  title="Edit Brand Setup"
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  style={{
+                    width: isMobile ? 34 : 32,
+                    height: isMobile ? 34 : 32,
+                    border: 'none',
+                    borderRight: nav === 'workspace' ? '1px solid #edecea' : 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background .15s',
+                  }}
+                >
+                  <I n="edit" s={14} c="#666" />
+                </button>
+                {nav === 'workspace' && (
+                  <button
+                    onClick={() => setClearConfirmOpen(true)}
+                    title="Clear conversation"
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    style={{
+                      width: isMobile ? 34 : 32,
+                      height: isMobile ? 34 : 32,
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background .15s',
+                    }}
+                  >
+                    <I n="broom" s={14} c="#666" />
+                  </button>
+                )}
+              </div>
 
               {/* Notification Bell */}
               <NotificationBell isMobile={isMobile} onViewAll={() => goTo('notifications')} />
 
-              {/* Trial Badge */}
-              {!isMobile && userDetails?.trialActive && (
+              {/* Trial Badge — kept visible (compact) on mobile too. Hiding this
+                  entirely used to mean there was no way to see remaining
+                  credits on mobile short of opening Billing, including for
+                  Jane herself when asked "how many credits do I have left". */}
+              {userDetails?.trialActive && (
                 <TrialBanner
                   daysRemaining={userDetails.trialDaysRemaining ?? 0}
                   creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
                   onClick={() => goTo('billing')}
+                  compact={isMobile}
                 />
               )}
 
-              {/* Credit Balance Badge */}
-              {!isMobile && !userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => goTo('billing')} />}
+              {/* Credit Balance Badge — already compact enough for mobile as-is */}
+              {!userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => goTo('billing')} />}
 
               {/* Profile Dropdown */}
               <WorkspaceProfileDropdown onNavigate={goTo} onLogout={logoutUser} />
@@ -8384,7 +9090,11 @@ export default function WorkspaceDashboard() {
                   <button
                     key={n.id}
                     onClick={() => {
-                      goTo(n.id);
+                      if ('href' in n && n.href) {
+                        router.push(n.href);
+                      } else {
+                        goTo(n.id);
+                      }
                       setMoreOpen(false);
                     }}
                     style={{

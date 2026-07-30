@@ -26,11 +26,17 @@ export interface GenerateContentPayload {
   include_images?: boolean;
   image_model?: string;
   brand_context?: BrandContext;
+  /** @deprecated use reference_images */
   reference_image?: string;
+  reference_images?: string[];
+  /** Carousel only: per-slide index into reference_images (or null for no image). Omit to cycle images across slides (image 1 -> slide 1, image 2 -> slide 2, ...). */
+  slide_image_map?: (number | null)[];
   post_type?: 'feed' | 'carousel' | 'story';
   num_slides?: number;
   acknowledged_incomplete_profile?: boolean; // OPTION 1: User acknowledged incomplete profile warning
   override_cta?: string; // One-time CTA for this generation only (not saved to brand playbook)
+  /** One-time visual style slug(s) for this generation only (not saved to brand playbook). Carousel: cycles per slide. Single post: uses the first slug. */
+  style_override?: string[];
 }
 
 export interface UploadUserContentPayload {
@@ -153,6 +159,63 @@ export interface VideoPolishStyle {
   best_for: string;
   energy_level: number;
   good_for_intents: string[];
+}
+
+export interface MultiClipClip {
+  clip_id: string;
+  filename: string;
+  cloudinary_url: string;
+  order_index: number;
+  duration_seconds: number;
+  clip_type: 'speech' | 'silent' | 'still';
+  has_face: boolean;
+  quality_flags: string[];
+  recommended_drop: boolean;
+  drop_reason: string | null;
+  transcript: string;
+  dropped?: boolean;
+  // Audio leveling
+  volume_boost?: number;
+  // Subject-aware crop
+  subject_position?: 'left' | 'center' | 'right';
+  // Product Story fields
+  vision_description?: string;
+  shot_type?: string;
+  vision_role?: string;
+}
+
+export interface MultiClipJob {
+  job_id: string;
+  user_id: string;
+  story_type: 'founder' | 'product';
+  status: 'analyzing' | 'awaiting_script' | 'awaiting_order' | 'stitching' | 'ready' | 'failed';
+  status_message: string;
+  progress: number;
+  clips: MultiClipClip[];
+  suggested_order: string[];
+  target_duration_seconds: number;
+  orientation: '9:16' | '1:1' | '16:9';
+  enable_music: boolean;
+  music_mood: string;
+  output_url: string | null;
+  created_at: string;
+  completed_at: string | null;
+  // Product Story script fields
+  story_description?: string;
+  script_draft?: string;
+  script_lines_draft?: string[];
+  script?: string;
+  script_lines?: string[];
+  // Phase 3: mismatch detection
+  mismatch_info?: { type: string; message: string } | null;
+  // Phase 4: length budget
+  length_budget_info?: {
+    total_footage_seconds: number;
+    target_seconds: number;
+    ratio: number;
+    recommendation: 'ok' | 'trim_light' | 'trim_heavy' | 'short';
+    message: string;
+  } | null;
 }
 
 export interface VideoPublishJob {
@@ -586,7 +649,7 @@ export class SocialMediaAgentService {
     const response: Awaited<AxiosResponse<UriResponse<VideoJob>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.generateVideoFromStoryboard,
       payload,
-      { timeout: 30000 }
+      { timeout: 180000 }
     );
     return response.data;
   }
@@ -717,7 +780,7 @@ export class SocialMediaAgentService {
   static async getVideoProductionJob(jobId: string): Promise<
     UriResponse<{
       job_id: string;
-      status: 'processing' | 'ready' | 'failed';
+      status: 'processing' | 'awaiting_review' | 'ready' | 'failed';
       status_message: string;
       progress: number;
       output_url: string | null;
@@ -725,10 +788,163 @@ export class SocialMediaAgentService {
       pacing_note: string;
       cuts: { remove_start: number; remove_end: number; reason: string }[];
       zooms: { at: number; type: string; intensity: string; reason: string }[];
+      ai_decisions?: {
+        cuts: { remove_start: number; remove_end: number; reason: string; confidence?: number }[];
+        zooms: { at: number; type: string; intensity: string; reason: string }[];
+        sound_effects: { at: number; type: string; reason: string }[];
+        broll: {
+          at: number;
+          duration: number;
+          description: string;
+          concept: string;
+          reason?: string;
+          url?: string;
+          image_prompt?: string;
+        }[];
+        hook_text: string;
+        music_mood: string;
+        pacing_note: string;
+        caption_cues?: { start: number; end: number; type: 'emphasis' | 'cta' | 'metric' }[];
+        topic_changes?: { at: number; confidence: number }[];
+        icon_overlays?: { at: number; duration: number; category: string }[];
+      };
     }>
   > {
     const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.produceVideoJob}/${jobId}`);
     return response.data;
+  }
+
+  static async startVideoProductionRender(
+    jobId: string,
+    decisions?: object
+  ): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/start-render`,
+      decisions ? { decisions } : {}
+    );
+    return response.data;
+  }
+
+  static async regenerateBroll(
+    jobId: string,
+    index: number,
+    imagePrompt?: string
+  ): Promise<
+    UriResponse<{
+      index: number;
+      broll: { at: number; duration: number; description: string; url?: string; image_prompt?: string };
+    }>
+  > {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/broll/${index}/regenerate`,
+      imagePrompt ? { image_prompt: imagePrompt } : {}
+    );
+    return response.data;
+  }
+
+  static async adjustVideoProduction(
+    jobId: string,
+    opts: {
+      captionColor?: string;
+      captionTextEdits?: { index: number; text: string }[];
+      captionFont?: string;
+      hookText?: string;
+      hookTextColor?: string;
+      hookTextSize?: number;
+    }
+  ): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const body: Record<string, unknown> = {};
+    if (opts.captionColor) body.caption_color = opts.captionColor;
+    if (opts.captionTextEdits?.length) body.caption_text_edits = opts.captionTextEdits;
+    if (opts.captionFont) body.caption_font = opts.captionFont;
+    if (opts.hookText) body.hook_text = opts.hookText;
+    if (opts.hookTextColor) body.hook_text_color = opts.hookTextColor;
+    if (opts.hookTextSize) body.hook_text_size = opts.hookTextSize;
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/adjust`,
+      body
+    );
+    return response.data;
+  }
+
+  static async produceWithSubmagic(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.submagicProduce, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000,
+    });
+    return response.data;
+  }
+
+  static async getSubmagicJob(jobId: string): Promise<
+    UriResponse<{
+      status: string;
+      output_url: string | null;
+      failure_reason: string | null;
+    }>
+  > {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.submagicJob}/${jobId}`);
+    return response.data;
+  }
+
+  static async getZapCapTemplates(): Promise<
+    UriResponse<{ templates: { id: string; name: string; previews?: { previewGif?: string; previewMp4?: string } }[] }>
+  > {
+    const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.zapcapTemplates);
+    return response.data;
+  }
+
+  static async produceWithZapCap(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.zapcapProduce, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000,
+    });
+    return response.data;
+  }
+
+  static async getZapCapJob(jobId: string): Promise<
+    UriResponse<{
+      status: string;
+      output_url: string | null;
+      failure_reason: string | null;
+    }>
+  > {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.zapcapJob}/${jobId}`);
+    return response.data;
+  }
+
+  static async getZapCapTranscript(
+    jobId: string
+  ): Promise<UriResponse<{ words: { id: string; text: string; start_time: number; end_time: number }[] }>> {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.zapcapJob}/${jobId}/transcript`);
+    return response.data;
+  }
+
+  static async rerenderZapCapJob(
+    jobId: string,
+    payload: { word_edits: { id: string; text: string }[]; template_id?: string; enable_broll?: boolean }
+  ): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.zapcapJob}/${jobId}/rerender`,
+      payload
+    );
+    return response.data;
+  }
+
+  static async customBrollZapCapJob(jobId: string, formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.zapcapJob}/${jobId}/custom-broll`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data;
+  }
+
+  static async captureVideoFrame(jobId: string, seconds: number): Promise<string> {
+    const response = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.produceVideoJob}/${jobId}/capture-frame?t=${seconds}`,
+      { responseType: 'blob' }
+    );
+    return URL.createObjectURL(response.data);
   }
 
   static async generateStoryboardFrames(
@@ -1004,6 +1220,131 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  // ── Multi-Clip Composition ────────────────────────────────────────────────
+
+  static async startMultiClipJob(
+    formData: FormData,
+    onUploadProgress?: (pct: number) => void
+  ): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string; status: string }>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.multiClipStart, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 0,
+        onUploadProgress: onUploadProgress
+          ? (e: AxiosProgressEvent) => {
+              const pct = e.total ? Math.round((e.loaded / e.total) * 100) : 0;
+              onUploadProgress(pct);
+            }
+          : undefined,
+      });
+    return response.data;
+  }
+
+  static async getMultiClipJob(jobId: string): Promise<UriResponse<MultiClipJob>> {
+    const response: Awaited<AxiosResponse<UriResponse<MultiClipJob>>> = await UriHttpClient.getClient().get(
+      `${socialMediaAgentRoutes.multiClipJob}/${jobId}`
+    );
+    return response.data;
+  }
+
+  static async reorderMultiClipJob(jobId: string, clipIds: string[]): Promise<UriResponse<{ accepted: boolean }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ accepted: boolean }>>> = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.multiClipReorder}/${jobId}/reorder`,
+      { clip_ids: clipIds }
+    );
+    return response.data;
+  }
+
+  static async dropMultiClip(
+    jobId: string,
+    clipId: string,
+    dropped: boolean
+  ): Promise<UriResponse<{ clip_id: string; dropped: boolean }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ clip_id: string; dropped: boolean }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipDropClip}/${jobId}/drop-clip`, {
+        clip_id: clipId,
+        dropped,
+      });
+    return response.data;
+  }
+
+  static async stitchMultiClipJob(jobId: string): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string; status: string }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipStitch}/${jobId}/stitch`, {});
+    return response.data;
+  }
+
+  static async draftProductScript(
+    jobId: string,
+    description: string
+  ): Promise<UriResponse<{ draft: string; lines: string[] }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ draft: string; lines: string[] }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipDraftScript}/${jobId}/draft-script`, {
+        description,
+      });
+    return response.data;
+  }
+
+  static async approveProductScript(
+    jobId: string,
+    script: string,
+    lines: string[]
+  ): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string; status: string }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipApproveScript}/${jobId}/approve-script`, {
+        script,
+        lines,
+      });
+    return response.data;
+  }
+
+  static async resetMultiClipJob(jobId: string): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string; status: string }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.multiClipReset}/${jobId}/reset`);
+    return response.data;
+  }
+
+  static async analyzeMultiClipJob(jobId: string): Promise<
+    UriResponse<{
+      cuts: { at: number; end: number; reason: string }[];
+      zooms: { at: number; duration: number; reason: string }[];
+      transition_style: string;
+      summary: string;
+    }>
+  > {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.multiClipAnalyze}/${jobId}/analyze`,
+      {},
+      { timeout: 30000 }
+    );
+    return response.data;
+  }
+
+  static async updateClipPosition(
+    jobId: string,
+    clipId: string,
+    position: 'left' | 'center' | 'right'
+  ): Promise<UriResponse<{ clip_id: string; subject_position: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ clip_id: string; subject_position: string }>>> =
+      await UriHttpClient.getClient().patch(
+        `${socialMediaAgentRoutes.multiClipUpdateClip}/${jobId}/clip/${clipId}/position`,
+        { subject_position: position }
+      );
+    return response.data;
+  }
+
+  static async generateVideoCaption(payload: {
+    storyboard: Record<string, unknown>;
+    platform?: string;
+  }): Promise<UriResponse<{ caption: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ caption: string }>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateVideoCaption,
+      payload,
+      { timeout: 60000 }
+    );
+    return response.data;
+  }
+
   static async publishBlogPost(
     blogId: string,
     publishedUrl?: string
@@ -1065,6 +1406,7 @@ export interface PerformanceData {
 export interface CalendarDayItem {
   day_index: number;
   date: string;
+  day_of_week?: string; // Monday, Tuesday, etc.
   content_type: 'educational' | 'relatable' | 'promotional' | 'behind_the_scenes' | 'engagement';
   title: string;
   description: string;
@@ -1080,6 +1422,17 @@ export interface CalendarDayItem {
   format_score?: number;
   final_score?: number;
   reason?: string;
+  // Enhanced PRD fields
+  recommended_cta?: string; // Suggested CTA based on content type + goal
+  caption_angle?: string; // Caption writing guidance
+  upcoming_holidays?: Array<{
+    date: string;
+    name: string;
+    type: string;
+    relevance_score: number;
+    content_angle: string;
+  }>;
+  trending_topics?: string[]; // Top 3 trending topics
 }
 
 export interface ContentCalendarPlan {
