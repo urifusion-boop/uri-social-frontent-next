@@ -7,6 +7,7 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
 import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
 import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
 
 const ACCEPTED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 const MAX_MB = 500;
@@ -163,6 +164,8 @@ export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Prop
           if (pollRef.current) clearInterval(pollRef.current);
           setFailureReason(data.failure_reason);
           setPhase('failed');
+          // Refunded server-side (Video Editing Billing PRD §refund-on-failure).
+          EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 0, operation: 'zapcap_produce_refund' });
         }
       } catch {
         // network blip — keep polling
@@ -198,6 +201,11 @@ export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Prop
       setVideoWasSubmitted(true);
       setPhase('processing');
       setZapcapStatus('pending');
+
+      // Charged synchronously inside POST /zapcap-produce, before this
+      // response returns — mirrors ContentGeneratorForm's real-time update.
+      EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'zapcap_produce' });
+
       startPolling(id);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status?: number; data?: { responseMessage?: string } } };
