@@ -125,6 +125,8 @@ const LIGHT_PINK = '#FFF0F7';
 const GRAY = '#6B7280';
 const BORDER = '#E5E7EB';
 
+const SESSION_KEY = 'uri:janevideo:session';
+
 // ── Small atoms ───────────────────────────────────────────────────────────────
 
 function JaneBubble({ text }: { text: string }) {
@@ -752,6 +754,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
   const [isSilenceCutting, setIsSilenceCutting] = useState(false);
 
   const [zapCapJobId, setZapCapJobId] = useState<string | null>(null);
+  const [composeJobId, setComposeJobId] = useState<string | null>(null);
   const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
   const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({});
   const [editingWordId, setEditingWordId] = useState<string | null>(null);
@@ -942,6 +945,50 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     }, 6000);
   };
 
+  // Shared multi-clip compose/stitch poll — used by both handleStitch and
+  // handleCutSilences (and to resume an in-flight job after a page reload).
+  const startComposePolling = (
+    jobId: string,
+    opts: {
+      labelMap: Record<string, string>;
+      progressMap: Record<string, number>;
+      onReady: (outputUrl: string) => void | Promise<void>;
+      onFailed: () => void;
+    }
+  ) => {
+    if (composePollRef.current) clearInterval(composePollRef.current);
+    setComposeJobId(jobId);
+    let hasStitched = false;
+
+    composePollRef.current = setInterval(async () => {
+      try {
+        const res = await SocialMediaAgentService.getMultiClipJob(jobId);
+        const job = res?.responseData;
+        if (!job) return;
+
+        setRenderStatus(opts.labelMap[job.status] ?? job.status_message ?? job.status);
+        setRenderProgress(opts.progressMap[job.status] ?? 50);
+
+        if (job.status === 'awaiting_order' && !hasStitched) {
+          hasStitched = true;
+          await SocialMediaAgentService.stitchMultiClipJob(jobId);
+        }
+
+        if (job.status === 'ready' && job.output_url) {
+          clearInterval(composePollRef.current!);
+          setComposeJobId(null);
+          await opts.onReady(job.output_url);
+        } else if (job.status === 'failed') {
+          clearInterval(composePollRef.current!);
+          setComposeJobId(null);
+          opts.onFailed();
+        }
+      } catch {
+        // keep polling on blip
+      }
+    }, 6000);
+  };
+
   const handleRender = async () => {
     if ((!videoFile && !stitchedUrl) || !plan) return;
     if (insufficientCredits) {
@@ -1017,7 +1064,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     // /multi-clip/start accepts either an uploaded file or a source_url. When the source is
     // a stitched multi-clip video (videoFile never set), pass stitchedUrl and let the backend
     // fetch it server-side — the browser can't fetch a third-party host directly (CSP).
-    let composeJobId: string;
+    let jobId: string;
     try {
       const fd = new FormData();
       if (videoFile) {
@@ -1033,8 +1080,8 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       fd.append('music_volume', '0');
 
       const res = await SocialMediaAgentService.startMultiClipJob(fd);
-      composeJobId = res?.responseData?.job_id ?? '';
-      if (!composeJobId) throw new Error('No job ID returned');
+      jobId = res?.responseData?.job_id ?? '';
+      if (!jobId) throw new Error('No job ID returned');
     } catch (err) {
       setRenderError(err instanceof Error ? err.message : 'Upload failed');
       setStage('preview');
@@ -1042,93 +1089,69 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     }
 
     // Step 2: poll until ingest finishes (awaiting_order), then auto-stitch
-    if (composePollRef.current) clearInterval(composePollRef.current);
-
-    const COMPOSE_STATUS_LABEL: Record<string, string> = {
-      analyzing: 'Analysing audio…',
-      awaiting_order: 'Audio analysed — cutting silences…',
-      stitching: 'Stitching edited video…',
-      ready: 'Done!',
-      failed: 'Something went wrong',
-    };
-    const COMPOSE_PROGRESS: Record<string, number> = {
-      analyzing: 30,
-      awaiting_order: 60,
-      stitching: 80,
-      ready: 100,
-      failed: 0,
-    };
-
-    let hasStitched = false;
-
-    composePollRef.current = setInterval(async () => {
-      try {
-        const res = await SocialMediaAgentService.getMultiClipJob(composeJobId);
-        const job = res?.responseData;
-        if (!job) return;
-
-        setRenderStatus(COMPOSE_STATUS_LABEL[job.status] ?? job.status_message);
-        setRenderProgress(COMPOSE_PROGRESS[job.status] ?? 50);
-
-        if (job.status === 'awaiting_order' && !hasStitched) {
-          // Ingest complete — auto-stitch immediately (single clip, no reordering needed)
-          hasStitched = true;
-          await SocialMediaAgentService.stitchMultiClipJob(composeJobId);
-        }
-
-        if (job.status === 'ready' && job.output_url) {
-          clearInterval(composePollRef.current!);
-
-          if (willRerender) {
-            // Fix Something path — pipe the silence-cut URL back through ZapCap
-            // so captions and b-roll are re-applied on the tighter edit.
-            addMsg('jane', 'Silences cut — re-applying captions and b-roll…');
-            setRenderProgress(5);
-            setRenderStatus('pending');
-            const fd2 = new FormData();
-            fd2.append('source_url', job.output_url);
-            fd2.append('template_id', plan?.style?.id || zapCapTemplates[0]?.id || 'beast');
-            fd2.append('language', 'en');
-            fd2.append('output_mode', 'composited');
-            fd2.append('quality', 'standard');
-            fd2.append('enable_broll', String(plan?.brollEnabled ?? false));
-            fd2.append('enable_music', 'false');
-            try {
-              const res = await SocialMediaAgentService.produceWithZapCap(fd2);
-              const newId = res?.responseData?.job_id;
-              if (!newId) throw new Error('No job ID');
-              setZapCapJobId(newId);
-              setCaptionWords([]);
-              setCaptionEdits({});
-              startPolling(newId);
-            } catch (err) {
-              // ZapCap failed — fall back to the raw silence-cut video
-              setIsSilenceCutting(true);
-              setOutputUrl(job.output_url);
-              const axiosErr = err as { response?: { status?: number } };
-              addMsg(
-                'jane',
-                axiosErr?.response?.status === 402
-                  ? // Video Editing Billing PRD §11: insufficient credits
-                    "Silences cut, but you don't have enough credits to re-apply captions — showing the cut version."
-                  : "Silences cut, but couldn't re-apply captions — showing the cut version."
-              );
-              setStage('preview');
-            }
-          } else {
-            setOutputUrl(job.output_url);
-            addMsg('jane', "Done. Here's the version with silences cut 👇");
+    startComposePolling(jobId, {
+      labelMap: {
+        analyzing: 'Analysing audio…',
+        awaiting_order: 'Audio analysed — cutting silences…',
+        stitching: 'Stitching edited video…',
+        ready: 'Done!',
+        failed: 'Something went wrong',
+      },
+      progressMap: {
+        analyzing: 30,
+        awaiting_order: 60,
+        stitching: 80,
+        ready: 100,
+        failed: 0,
+      },
+      onReady: async (outputUrl) => {
+        if (willRerender) {
+          // Fix Something path — pipe the silence-cut URL back through ZapCap
+          // so captions and b-roll are re-applied on the tighter edit.
+          addMsg('jane', 'Silences cut — re-applying captions and b-roll…');
+          setRenderProgress(5);
+          setRenderStatus('pending');
+          const fd2 = new FormData();
+          fd2.append('source_url', outputUrl);
+          fd2.append('template_id', plan?.style?.id || zapCapTemplates[0]?.id || 'beast');
+          fd2.append('language', 'en');
+          fd2.append('output_mode', 'composited');
+          fd2.append('quality', 'standard');
+          fd2.append('enable_broll', String(plan?.brollEnabled ?? false));
+          fd2.append('enable_music', 'false');
+          try {
+            const res = await SocialMediaAgentService.produceWithZapCap(fd2);
+            const newId = res?.responseData?.job_id;
+            if (!newId) throw new Error('No job ID');
+            setZapCapJobId(newId);
+            setCaptionWords([]);
+            setCaptionEdits({});
+            startPolling(newId);
+          } catch (err) {
+            // ZapCap failed — fall back to the raw silence-cut video
+            setIsSilenceCutting(true);
+            setOutputUrl(outputUrl);
+            const axiosErr = err as { response?: { status?: number } };
+            addMsg(
+              'jane',
+              axiosErr?.response?.status === 402
+                ? // Video Editing Billing PRD §11: insufficient credits
+                  "Silences cut, but you don't have enough credits to re-apply captions — showing the cut version."
+                : "Silences cut, but couldn't re-apply captions — showing the cut version."
+            );
             setStage('preview');
           }
-        } else if (job.status === 'failed') {
-          clearInterval(composePollRef.current!);
-          setRenderError('Silence cutting failed — try again.');
+        } else {
+          setOutputUrl(outputUrl);
+          addMsg('jane', "Done. Here's the version with silences cut 👇");
           setStage('preview');
         }
-      } catch {
-        // keep polling on blip
-      }
-    }, 6000);
+      },
+      onFailed: () => {
+        setRenderError('Silence cutting failed — try again.');
+        setStage('preview');
+      },
+    });
   };
 
   // ── Stitch multiple clips ─────────────────────────────────────────────────
@@ -1149,64 +1172,43 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     fd.append('music_mood', 'chill');
     fd.append('music_volume', '0');
 
-    let composeJobId: string;
+    let jobId: string;
     try {
       const res = await SocialMediaAgentService.startMultiClipJob(fd);
-      composeJobId = res?.responseData?.job_id ?? '';
-      if (!composeJobId) throw new Error('No job ID returned');
+      jobId = res?.responseData?.job_id ?? '';
+      if (!jobId) throw new Error('No job ID returned');
     } catch (err) {
       setRenderError(err instanceof Error ? err.message : 'Upload failed');
       setRenderStatus('failed');
       return;
     }
 
-    if (composePollRef.current) clearInterval(composePollRef.current);
-    let hasStitched = false;
-
-    composePollRef.current = setInterval(async () => {
-      try {
-        const res = await SocialMediaAgentService.getMultiClipJob(composeJobId);
-        const job = res?.responseData;
-        if (!job) return;
-
-        const labelMap: Record<string, string> = {
-          analyzing: 'Analysing clips…',
-          awaiting_order: 'Combining clips…',
-          stitching: 'Stitching…',
-          ready: 'Done!',
-          failed: 'Something went wrong',
-        };
-        const progressMap: Record<string, number> = {
-          analyzing: 30,
-          awaiting_order: 55,
-          stitching: 80,
-          ready: 100,
-          failed: 0,
-        };
-
-        setRenderStatus(labelMap[job.status] ?? job.status_message ?? job.status);
-        setRenderProgress(progressMap[job.status] ?? 50);
-
-        if (job.status === 'awaiting_order' && !hasStitched) {
-          hasStitched = true;
-          await SocialMediaAgentService.stitchMultiClipJob(composeJobId);
-        }
-
-        if (job.status === 'ready' && job.output_url) {
-          clearInterval(composePollRef.current!);
-          setStitchedUrl(job.output_url);
-          setVideoFiles([]);
-          addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
-          setStage('classify');
-        } else if (job.status === 'failed') {
-          clearInterval(composePollRef.current!);
-          setRenderError('Stitch failed — try again.');
-          setRenderStatus('failed');
-        }
-      } catch {
-        // keep polling on blip
-      }
-    }, 6000);
+    startComposePolling(jobId, {
+      labelMap: {
+        analyzing: 'Analysing clips…',
+        awaiting_order: 'Combining clips…',
+        stitching: 'Stitching…',
+        ready: 'Done!',
+        failed: 'Something went wrong',
+      },
+      progressMap: {
+        analyzing: 30,
+        awaiting_order: 55,
+        stitching: 80,
+        ready: 100,
+        failed: 0,
+      },
+      onReady: (outputUrl) => {
+        setStitchedUrl(outputUrl);
+        setVideoFiles([]);
+        addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
+        setStage('classify');
+      },
+      onFailed: () => {
+        setRenderError('Stitch failed — try again.');
+        setRenderStatus('failed');
+      },
+    });
   };
 
   // ── Rerender with caption edits ───────────────────────────────────────────
@@ -1352,6 +1354,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       });
       addMsg('jane', 'Saved to drafts. You can schedule or publish it anytime from the Drafts tab.');
       setStage('publish');
+      clearSession();
       onSaveToDrafts?.();
     } catch {
       ToastService.showToast('Could not save — try again.', ToastTypeEnum.Error);
@@ -1378,6 +1381,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     setVideoFiles([]);
     setStitchedUrl(null);
     setZapCapJobId(null);
+    setComposeJobId(null);
     setCaptionWords([]);
     setCaptionEdits({});
     setEditingWordId(null);
@@ -1389,7 +1393,146 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     setAdjustField(null);
     setPublishPlatforms([]);
     setPublishCaption('');
+    clearSession();
   };
+
+  // ── Session persistence (survive a refresh/reload mid-flow) ───────────────
+  // Same localStorage idiom as MultiClipComposer.tsx / VideoStoryboardGenerator.tsx:
+  // save on change, restore on mount, resume any in-flight job by its id.
+
+  const clearSession = () => {
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    if (stage === 'upload') return; // nothing submitted yet — nothing worth saving
+    try {
+      localStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+          stage,
+          plan,
+          stitchedUrl,
+          zapCapJobId,
+          composeJobId,
+          captionWords,
+          captionEdits,
+          brollConvStep,
+          brollPlacements,
+          history,
+          publishPlatforms,
+          publishCaption,
+          outputUrl,
+          renderStatus,
+          renderProgress,
+          classification,
+          adjustField,
+        })
+      );
+    } catch {
+      /* quota */
+    }
+  }, [
+    stage,
+    plan,
+    stitchedUrl,
+    zapCapJobId,
+    composeJobId,
+    captionWords,
+    captionEdits,
+    brollConvStep,
+    brollPlacements,
+    history,
+    publishPlatforms,
+    publishCaption,
+    outputUrl,
+    renderStatus,
+    renderProgress,
+    classification,
+    adjustField,
+  ]);
+
+  // Restore on mount — runs once, before the templates-fetch/cleanup effect below
+  // has any bearing on this. Only resumes a session that got past raw upload and
+  // isn't already a dead end.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as {
+        stage: Stage;
+        plan: VideoPlan | null;
+        stitchedUrl: string | null;
+        zapCapJobId: string | null;
+        composeJobId: string | null;
+        captionWords: CaptionWord[];
+        captionEdits: Record<string, string>;
+        brollConvStep: BrollConvStep;
+        brollPlacements: BrollPlacement[];
+        history: HistMsg[];
+        publishPlatforms: string[];
+        publishCaption: string;
+        outputUrl: string | null;
+        renderStatus: string;
+        renderProgress: number;
+        classification: Classification;
+        adjustField: AdjustField | null;
+      };
+      if (!saved?.stage || saved.stage === 'upload') {
+        clearSession();
+        return;
+      }
+
+      setStage(saved.stage);
+      setPlan(saved.plan ?? null);
+      setStitchedUrl(saved.stitchedUrl ?? null);
+      setZapCapJobId(saved.zapCapJobId ?? null);
+      setCaptionWords(saved.captionWords ?? []);
+      setCaptionEdits(saved.captionEdits ?? {});
+      setBrollConvStep(saved.brollConvStep ?? 'choose');
+      setBrollPlacements(saved.brollPlacements ?? []);
+      setHistory(saved.history ?? []);
+      setPublishPlatforms(saved.publishPlatforms ?? []);
+      setPublishCaption(saved.publishCaption ?? '');
+      setOutputUrl(saved.outputUrl ?? null);
+      setRenderStatus(saved.renderStatus ?? 'pending');
+      setRenderProgress(saved.renderProgress ?? 0);
+      setClassification(saved.classification ?? 'talking_head');
+      setAdjustField(saved.adjustField ?? null);
+
+      // Resume whichever job was in flight, if any.
+      if (saved.composeJobId && saved.stage === 'stitch') {
+        startComposePolling(saved.composeJobId, {
+          labelMap: {
+            analyzing: 'Analysing clips…',
+            awaiting_order: 'Combining clips…',
+            stitching: 'Stitching…',
+            ready: 'Done!',
+            failed: 'Something went wrong',
+          },
+          progressMap: { analyzing: 30, awaiting_order: 55, stitching: 80, ready: 100, failed: 0 },
+          onReady: (outputUrl) => {
+            setStitchedUrl(outputUrl);
+            addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
+            setStage('classify');
+          },
+          onFailed: () => {
+            setRenderError('Stitch failed — try again.');
+            setRenderStatus('failed');
+          },
+        });
+      } else if (saved.zapCapJobId && saved.stage === 'render') {
+        startPolling(saved.zapCapJobId);
+      }
+    } catch {
+      clearSession();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Active panel for current stage ────────────────────────────────────────
 
