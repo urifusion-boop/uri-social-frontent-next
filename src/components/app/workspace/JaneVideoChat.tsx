@@ -932,7 +932,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   };
 
   const handleRender = async () => {
-    if (!videoFile || !plan) return;
+    if ((!videoFile && !stitchedUrl) || !plan) return;
     if (insufficientCredits) {
       ToastService.showToast('You do not have enough credits to edit this video.', ToastTypeEnum.Error);
       return;
