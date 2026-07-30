@@ -70,6 +70,7 @@ type ISocialMediaAgentApi =
   | 'agencySettings'
   | 'agencyReportPortfolio'
   | 'agencyReportBrand'
+  | 'videoEditingPricing'
   | 'produceVideo'
   | 'produceVideoJob'
   | 'produceVideoStartRender'
@@ -159,6 +160,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   agencySettings: '/agency/settings',
   agencyReportPortfolio: '/agency/reports/portfolio',
   agencyReportBrand: '/agency/reports/brand/{brand_id}',
+  videoEditingPricing: '/video-editing/pricing',
   produceVideo: '/produce-video',
   produceVideoJob: '/produce-video-job',
   produceVideoStartRender: '/produce-video-job',

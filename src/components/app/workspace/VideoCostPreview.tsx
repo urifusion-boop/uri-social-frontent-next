@@ -1,6 +1,6 @@
 'use client';
 
-import { VIDEO_EDIT_CREDITS_PER_MINUTE, VideoCostEstimate, formatDuration } from '@/src/utils/videoBilling';
+import { VideoCostEstimate, formatDuration } from '@/src/utils/videoBilling';
 
 interface VideoCostPreviewProps {
   estimate: VideoCostEstimate;
@@ -16,7 +16,7 @@ interface VideoCostPreviewProps {
  * and the trial/insufficient-credit variants.
  */
 export default function VideoCostPreview({ estimate, creditsRemaining, isTrial }: VideoCostPreviewProps) {
-  const { durationSeconds, billableMinutes, creditsRequired } = estimate;
+  const { durationSeconds, billableMinutes, creditsRequired, ratePerMinute } = estimate;
   const insufficient = !isTrial && creditsRemaining !== null && creditsRemaining < creditsRequired;
 
   return (
@@ -35,7 +35,7 @@ export default function VideoCostPreview({ estimate, creditsRemaining, isTrial }
     >
       <div>
         Your video is {formatDuration(durationSeconds)} long. Billable duration: {billableMinutes} minute
-        {billableMinutes === 1 ? '' : 's'} ({VIDEO_EDIT_CREDITS_PER_MINUTE} credits/min).
+        {billableMinutes === 1 ? '' : 's'} ({ratePerMinute} credits/min).
       </div>
 
       {isTrial ? (

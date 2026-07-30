@@ -104,7 +104,7 @@ export default function SubmagicProductionForm({ onSaveToDrafts }: Props) {
     setVideoPreviewUrl(URL.createObjectURL(file));
     setCostEstimate(null);
     probeVideoDuration(file).then((duration) => {
-      if (duration !== null) setCostEstimate(estimateVideoCost(duration));
+      if (duration !== null) setCostEstimate(estimateVideoCost(duration, billingStatus.ratePerMinute));
     });
   };
 

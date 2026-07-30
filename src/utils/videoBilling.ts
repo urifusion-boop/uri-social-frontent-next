@@ -1,22 +1,27 @@
 /**
  * Video Editing Billing PRD — client-side cost preview helpers.
  *
- * Mirrors the backend's pricing rule exactly (app/services/VideoBillingService.py
- * on uri-social-backend): 4 credits per billable minute, partial minutes
+ * Mirrors the backend's pricing rule (app/services/VideoBillingService.py on
+ * uri-social-backend): N credits per billable minute, partial minutes
  * rounded up. This is a PREVIEW only — the backend remains the source of
  * truth and re-checks/re-charges on submit; this just lets the UI show the
  * cost before the user confirms (PRD FR-04), without a network round trip.
+ *
+ * The rate itself is admin-configurable server-side (PRD §12 NFR) — it is
+ * NOT a constant here. Callers must fetch it via useVideoBillingStatus()
+ * (which hits GET /video-editing/pricing) and pass it in; DEFAULT_RATE below
+ * exists only as a last-resort fallback for the brief window before that
+ * fetch resolves, so the preview isn't blank.
  */
 
-// Keep in sync with settings.VIDEO_EDIT_CREDITS_PER_MINUTE on the backend.
-export const VIDEO_EDIT_CREDITS_PER_MINUTE = 4;
+export const DEFAULT_VIDEO_EDIT_CREDITS_PER_MINUTE = 4;
 
 export function computeBillableMinutes(durationSeconds: number): number {
   return Math.max(1, Math.ceil(Math.max(durationSeconds, 0) / 60));
 }
 
-export function computeVideoCredits(durationSeconds: number): number {
-  return computeBillableMinutes(durationSeconds) * VIDEO_EDIT_CREDITS_PER_MINUTE;
+export function computeVideoCredits(durationSeconds: number, ratePerMinute: number): number {
+  return computeBillableMinutes(durationSeconds) * ratePerMinute;
 }
 
 export function formatDuration(totalSeconds: number): string {
@@ -76,12 +81,14 @@ export interface VideoCostEstimate {
   durationSeconds: number;
   billableMinutes: number;
   creditsRequired: number;
+  ratePerMinute: number;
 }
 
-export function estimateVideoCost(durationSeconds: number): VideoCostEstimate {
+export function estimateVideoCost(durationSeconds: number, ratePerMinute: number): VideoCostEstimate {
   return {
     durationSeconds,
     billableMinutes: computeBillableMinutes(durationSeconds),
-    creditsRequired: computeVideoCredits(durationSeconds),
+    creditsRequired: computeVideoCredits(durationSeconds, ratePerMinute),
+    ratePerMinute,
   };
 }
