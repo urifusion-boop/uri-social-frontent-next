@@ -1003,21 +1003,17 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     setStage('render');
 
     // Step 1: start the multi-clip job (single clip, founder mode → runs silencedetect at ingest).
-    // /multi-clip/start only accepts an uploaded file — when the source is a stitched
-    // multi-clip video (videoFile never set), fetch its bytes so we can attach them the
-    // same way as a direct single-clip upload.
+    // /multi-clip/start accepts either an uploaded file or a source_url. When the source is
+    // a stitched multi-clip video (videoFile never set), pass stitchedUrl and let the backend
+    // fetch it server-side — the browser can't fetch a third-party host directly (CSP).
     let composeJobId: string;
     try {
-      const clipFile =
-        videoFile ??
-        (await (async () => {
-          const fetched = await fetch(stitchedUrl!);
-          const blob = await fetched.blob();
-          return new File([blob], 'stitched.mp4', { type: blob.type || 'video/mp4' });
-        })());
-
       const fd = new FormData();
-      fd.append('clips', clipFile);
+      if (videoFile) {
+        fd.append('clips', videoFile);
+      } else if (stitchedUrl) {
+        fd.append('source_url', stitchedUrl);
+      }
       fd.append('story_type', 'founder');
       fd.append('target_duration', '0');
       fd.append('orientation', plan?.aspectRatio ?? '9:16');
