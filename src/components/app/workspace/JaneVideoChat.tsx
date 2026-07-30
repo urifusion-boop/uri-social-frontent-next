@@ -984,7 +984,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   // ── Cut silences (compose pipeline) ───────────────────────────────────────
 
   const handleCutSilences = async () => {
-    if (!videoFile) return;
+    if (!videoFile && !stitchedUrl) return;
     addMsg('user', 'Cut silences, pauses & repetitions');
     // When called from Fix Something (zapCapJobId set), we'll re-run ZapCap after
     // cutting so captions + b-roll are preserved. Warn the user it takes longer.
@@ -1002,18 +1002,29 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     setRenderStatus('analyzing');
     setStage('render');
 
-    // Step 1: start the multi-clip job (single clip, founder mode → runs silencedetect at ingest)
-    const fd = new FormData();
-    fd.append('clips', videoFile);
-    fd.append('story_type', 'founder');
-    fd.append('target_duration', '0');
-    fd.append('orientation', plan?.aspectRatio ?? '9:16');
-    fd.append('enable_music', 'false');
-    fd.append('music_mood', 'chill');
-    fd.append('music_volume', '0');
-
+    // Step 1: start the multi-clip job (single clip, founder mode → runs silencedetect at ingest).
+    // /multi-clip/start only accepts an uploaded file — when the source is a stitched
+    // multi-clip video (videoFile never set), fetch its bytes so we can attach them the
+    // same way as a direct single-clip upload.
     let composeJobId: string;
     try {
+      const clipFile =
+        videoFile ??
+        (await (async () => {
+          const fetched = await fetch(stitchedUrl!);
+          const blob = await fetched.blob();
+          return new File([blob], 'stitched.mp4', { type: blob.type || 'video/mp4' });
+        })());
+
+      const fd = new FormData();
+      fd.append('clips', clipFile);
+      fd.append('story_type', 'founder');
+      fd.append('target_duration', '0');
+      fd.append('orientation', plan?.aspectRatio ?? '9:16');
+      fd.append('enable_music', 'false');
+      fd.append('music_mood', 'chill');
+      fd.append('music_volume', '0');
+
       const res = await SocialMediaAgentService.startMultiClipJob(fd);
       composeJobId = res?.responseData?.job_id ?? '';
       if (!composeJobId) throw new Error('No job ID returned');
