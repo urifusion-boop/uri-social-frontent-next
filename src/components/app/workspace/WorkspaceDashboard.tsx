@@ -1509,7 +1509,7 @@ const ContentManagerPage = ({
         {/* JaneVideoChat keep-alive: mounted once, hidden with CSS when not active */}
         {janeEverMounted && (
           <div style={{ display: isJaneActive ? undefined : 'none' }}>
-            <JaneVideoChat onSaveToDrafts={() => setActiveTab('drafts')} />
+            <JaneVideoChat onSaveToDrafts={() => setActiveTab('drafts')} isMobile={isMobile} />
           </div>
         )}
 
@@ -2335,7 +2335,7 @@ const PLATFORMS = [
     bg: '#E7F0FD',
     flow: 'facebook_ads_oauth',
     tooltip:
-      'The Facebook Page Jane\'s ad campaigns actually run from — separate from the Facebook connection above, which is only for organic posts. Requires its own ads-permission grant.',
+      "The Facebook Page Jane's ad campaigns actually run from — separate from the Facebook connection above, which is only for organic posts. Requires its own ads-permission grant.",
   },
   {
     id: 'instagram',
@@ -2552,7 +2552,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
               ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error);
             }
           })
-          .catch(() => ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error));
+          .catch(() =>
+            ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error)
+          );
       }
     } else if (connected === 'pending' && token) {
       setSessionToken(token);

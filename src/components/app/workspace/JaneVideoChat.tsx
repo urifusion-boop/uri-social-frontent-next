@@ -76,6 +76,7 @@ interface HistMsg {
 
 interface Props {
   onSaveToDrafts?: () => void;
+  isMobile?: boolean;
 }
 
 // ── Style templates ───────────────────────────────────────────────────────────
@@ -278,7 +279,8 @@ function PlanRow({
             fontSize: 12,
             fontWeight: 600,
             cursor: 'pointer',
-            padding: '2px 4px',
+            padding: '13px 10px',
+            margin: '-13px -10px',
             borderRadius: 4,
             flexShrink: 0,
           }}
@@ -341,12 +343,14 @@ function AdjustPanel({
   onApply,
   onCancel,
   styleTemplates,
+  isMobile = false,
 }: {
   field: AdjustField;
   plan: VideoPlan;
   onApply: (patch: Partial<VideoPlan>) => void;
   onCancel: () => void;
   styleTemplates: StyleTemplate[];
+  isMobile?: boolean;
 }) {
   const section = (title: string, children: React.ReactNode) => (
     <div>
@@ -359,7 +363,7 @@ function AdjustPanel({
     <button
       onClick={onClick}
       style={{
-        padding: '8px 14px',
+        padding: '12px 14px',
         borderRadius: 9,
         border: `1.5px solid ${active ? PINK : BORDER}`,
         background: active ? LIGHT_PINK : '#fff',
@@ -508,7 +512,14 @@ function AdjustPanel({
         return (
           <div>
             <SectionLabel text="Caption style" />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+                gap: 8,
+                marginBottom: 10,
+              }}
+            >
               {CAPTION_STYLES.map((s) => {
                 const active = plan.captionsEnabled && plan.captionStyle === s.value;
                 return (
@@ -690,7 +701,7 @@ function AdjustPanel({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function JaneVideoChat({ onSaveToDrafts }: Props) {
+export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const composePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1480,7 +1491,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
         return (
           <div>
             <JaneBubble text={`Stitch failed: ${renderError ?? 'something went wrong'}. Want to try again?`} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               <TapBtn
                 label="Try again"
                 primary
@@ -1589,7 +1600,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <TapBtn label="Stitch & continue" primary onClick={handleStitch} />
             <TapBtn label="Start over" onClick={reset} />
           </div>
@@ -1656,6 +1667,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               onApply={applyAdjust}
               onCancel={() => setAdjustField(null)}
               styleTemplates={styledTemplates}
+              isMobile={isMobile}
             />
           </div>
         );
@@ -1701,7 +1713,9 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: 'pointer',
-                  padding: 0,
+                  padding: '13px 10px',
+                  margin: '-13px -10px',
+                  flexShrink: 0,
                 }}
               >
                 change
@@ -1795,7 +1809,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
         return (
           <div>
             <JaneBubble text={`Something went wrong: ${renderError}. Want to try again?`} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               <TapBtn label="Try again" primary onClick={reset} />
               <TapBtn label="Start over" onClick={reset} />
             </div>
@@ -2128,7 +2142,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                               border: 'none',
                               outline: `1.5px solid ${PINK}`,
                               borderRadius: 4,
-                              padding: '2px 5px',
+                              padding: '8px 7px',
                               background: LIGHT_PINK,
                               color: PINK,
                               width: `${Math.max(display.length, 3) + 1}ch`,
@@ -2139,7 +2153,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                             onClick={() => setEditingWordId(w.id)}
                             style={{
                               fontSize: 13,
-                              padding: '3px 5px',
+                              padding: '8px 7px',
                               borderRadius: 4,
                               cursor: 'text',
                               color: edited ? PINK : '#374151',
@@ -2164,8 +2178,8 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
-                      padding: 0,
-                      marginBottom: 10,
+                      padding: '12px 0',
+                      marginBottom: 2,
                       display: 'block',
                     }}
                   >
@@ -2372,7 +2386,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                               setBrollClips((prev) => prev.map((c, j) => (j === i ? { ...c, tag: t.value } : c)))
                             }
                             style={{
-                              padding: '2px 8px',
+                              padding: '8px 10px',
                               borderRadius: 6,
                               border: `1.5px solid ${entry.tag === t.value ? PINK : BORDER}`,
                               background: entry.tag === t.value ? LIGHT_PINK : '#fff',
@@ -2389,7 +2403,16 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                     </div>
                     <button
                       onClick={() => setBrollClips((prev) => prev.filter((_, j) => j !== i))}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: GRAY, fontSize: 16 }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: GRAY,
+                        fontSize: 16,
+                        padding: 12,
+                        margin: -12,
+                        flexShrink: 0,
+                      }}
                     >
                       ×
                     </button>
@@ -2398,7 +2421,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
               <TapBtn label="← Back" onClick={() => setBrollConvStep('choose')} />
               {brollClips.length > 0 && (
                 <button
@@ -2486,7 +2509,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                               )
                             }
                             style={{
-                              padding: '3px 8px',
+                              padding: '9px 10px',
                               borderRadius: 6,
                               border: `1.5px solid ${placement.startTime === seg.startTime ? PINK : BORDER}`,
                               background: placement.startTime === seg.startTime ? LIGHT_PINK : '#FAFAFA',
@@ -2520,7 +2543,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                         }
                         style={{
                           width: 64,
-                          padding: '3px 6px',
+                          padding: '8px 6px',
                           borderRadius: 6,
                           border: `1.5px solid ${BORDER}`,
                           fontSize: 12,
@@ -2530,7 +2553,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 11, color: GRAY }}>Duration:</span>
                     {[3, 4, 5, 6].map((d) => (
                       <button
@@ -2539,7 +2562,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                           setBrollPlacements((prev) => prev.map((p, j) => (j === i ? { ...p, duration: d } : p)))
                         }
                         style={{
-                          padding: '2px 8px',
+                          padding: '9px 10px',
                           borderRadius: 6,
                           border: `1.5px solid ${placement.duration === d ? PINK : BORDER}`,
                           background: placement.duration === d ? LIGHT_PINK : '#fff',
@@ -2557,7 +2580,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
               <TapBtn label="← Back" onClick={() => setBrollConvStep('upload')} />
               <button
                 onClick={handleCustomBrollApply}
@@ -2590,7 +2613,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     if (stage === 'publish') {
       return (
         <div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <TapBtn label="Make another video" primary onClick={reset} />
           </div>
         </div>
