@@ -7,6 +7,7 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
 import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
 import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -924,6 +925,8 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
           clearInterval(pollRef.current!);
           setRenderError(d.failure_reason ?? 'Render failed');
           setStage('preview');
+          // Refunded server-side (Video Editing Billing PRD §refund-on-failure).
+          EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 0, operation: 'zapcap_produce_refund' });
         }
       } catch {
         // keep polling on blip
@@ -966,6 +969,9 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
       setZapCapJobId(id);
       setCaptionWords([]);
       setCaptionEdits({});
+      // Charged synchronously inside POST /zapcap-produce, before this
+      // response returns — mirrors ContentGeneratorForm's real-time update.
+      EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'zapcap_produce' });
       startPolling(id);
     } catch (err) {
       const axiosErr = err as { response?: { status?: number; data?: { responseMessage?: string } } };
@@ -1082,6 +1088,9 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               setZapCapJobId(newId);
               setCaptionWords([]);
               setCaptionEdits({});
+              // Charged synchronously inside POST /zapcap-produce, before this
+              // response returns — mirrors ContentGeneratorForm's real-time update.
+              EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'zapcap_produce' });
               startPolling(newId);
             } catch (err) {
               // ZapCap failed — fall back to the raw silence-cut video

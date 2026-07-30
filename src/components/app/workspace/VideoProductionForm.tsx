@@ -7,6 +7,7 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
 import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
 import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
 
 const ACCEPTED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 
@@ -248,6 +249,9 @@ export default function VideoProductionForm({
         } else if (j.status === 'failed') {
           clearInterval(pollRef.current!);
           setPhase('failed');
+          // A failure past this point is refunded server-side (Video Editing
+          // Billing PRD §refund-on-system-failure) — reflect that refund too.
+          EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 0, operation: 'video_production_refund' });
         }
       } catch {
         // transient — keep polling
@@ -340,6 +344,13 @@ export default function VideoProductionForm({
       onStartProcessing?.();
       setPhase('processing');
       setStatusMessage('Starting pipeline…');
+
+      // Video Editing Billing PRD: charged synchronously inside POST /produce-video,
+      // before this response comes back — so the deduction is real by this point,
+      // even though rendering hasn't started. Mirrors ContentGeneratorForm's pattern
+      // so the navbar/wallet balance updates immediately instead of only on reload.
+      EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'video_production' });
+
       startPolling(jid);
     } catch (err: unknown) {
       const axiosErr = err as {
