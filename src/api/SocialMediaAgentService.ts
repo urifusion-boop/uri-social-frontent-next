@@ -759,6 +759,17 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  // ── Video Editing Billing ────────────────────────────────────────────────
+
+  /**
+   * Video Editing Billing PRD §12 NFR: the rate is admin-configurable
+   * server-side, not a frontend constant — fetch it instead of hard-coding.
+   */
+  static async getVideoEditingPricing(): Promise<UriResponse<{ credits_per_minute: number }>> {
+    const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.videoEditingPricing);
+    return response.data;
+  }
+
   // ── Video Production ──────────────────────────────────────────────────────
 
   static async submitVideoProduction(

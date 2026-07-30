@@ -133,7 +133,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Prop
     setVideoPreviewUrl(URL.createObjectURL(file));
     setCostEstimate(null);
     probeVideoDuration(file).then((duration) => {
-      if (duration !== null) setCostEstimate(estimateVideoCost(duration));
+      if (duration !== null) setCostEstimate(estimateVideoCost(duration, billingStatus.ratePerMinute));
     });
   };
 
@@ -142,7 +142,7 @@ export default function ZapCapProductionForm({ onSaveToDrafts, sourceUrl }: Prop
     if (!sourceUrl || videoFile) return;
     setCostEstimate(null);
     probeVideoDuration(sourceUrl).then((duration) => {
-      if (duration !== null) setCostEstimate(estimateVideoCost(duration));
+      if (duration !== null) setCostEstimate(estimateVideoCost(duration, billingStatus.ratePerMinute));
     });
   }, [sourceUrl, videoFile]);
 

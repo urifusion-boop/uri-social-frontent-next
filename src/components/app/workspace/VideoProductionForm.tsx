@@ -187,7 +187,7 @@ export default function VideoProductionForm({
     setVideoPreviewUrl(URL.createObjectURL(file));
     setCostEstimate(null);
     probeVideoDuration(file).then((duration) => {
-      if (duration !== null) setCostEstimate(estimateVideoCost(duration));
+      if (duration !== null) setCostEstimate(estimateVideoCost(duration, billingStatus.ratePerMinute));
     });
   };
 
@@ -196,7 +196,7 @@ export default function VideoProductionForm({
     if (!sourceUrl) return;
     setCostEstimate(null);
     probeVideoDuration(sourceUrl).then((duration) => {
-      if (duration !== null) setCostEstimate(estimateVideoCost(duration));
+      if (duration !== null) setCostEstimate(estimateVideoCost(duration, billingStatus.ratePerMinute));
     });
   }, [sourceUrl]);
 

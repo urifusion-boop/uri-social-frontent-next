@@ -725,7 +725,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     }
     let cancelled = false;
     probeVideoDuration(source).then((duration) => {
-      if (!cancelled && duration !== null) setCostEstimate(estimateVideoCost(duration));
+      if (!cancelled && duration !== null) setCostEstimate(estimateVideoCost(duration, billingStatus.ratePerMinute));
     });
     return () => {
       cancelled = true;
