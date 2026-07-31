@@ -1533,9 +1533,11 @@ const ContentManagerPage = ({
             >
               {(
                 [
-                  { key: 'chat', label: '✦ Ask Jane' },
-                  // Generate / Produce / Produce my video / Compose hidden for now —
-                  // same pattern as the Video tab itself was hidden/un-hidden.
+                  // All sub-tabs hidden for now — videoTab defaults to 'chat'
+                  // so Ask Jane still renders as the content, just without a
+                  // now-pointless single-button nav bar above it. Same
+                  // hide/un-hide pattern as the Video tab itself.
+                  // { key: 'chat', label: '✦ Ask Jane' },
                   // { key: 'generate', label: '🎬 Generate' },
                   // { key: 'produce', label: '✨ Produce' },
                   // { key: 'zapcap', label: '⚡ Produce my video' },
