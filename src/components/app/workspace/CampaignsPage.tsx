@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, WalletInfo, BillingSummary, CampaignSummary, ThreadSummary } from '@/src/api/CampaignService';
+import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, PlanAskResult, WalletInfo, BillingSummary, CampaignSummary, ThreadSummary } from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -1087,6 +1087,100 @@ function ConnectMetaAdsLink({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Plan Defence — a question box beneath the "planned" review card. Answers/what-ifs
+// come straight from the backend's own persisted derivation (never fabricated here);
+// a correction ("challenge") comes back as a preview that only replaces the shown
+// plan once the user explicitly confirms it.
+function PlanAskBox({
+  planId,
+  onPlanUpdated,
+}: {
+  planId: string;
+  onPlanUpdated: (updates: Partial<LaunchFromMessageResult>) => void;
+}) {
+  const [question, setQuestion] = useState('');
+  const [lastQuestion, setLastQuestion] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [answer, setAnswer] = useState<PlanAskResult | null>(null);
+  const [error, setError] = useState('');
+
+  const ask = async () => {
+    const q = question.trim();
+    if (!q || asking) return;
+    setAsking(true);
+    setError('');
+    try {
+      const result = await CampaignService.askAboutPlan(planId, q);
+      setAnswer(result);
+      setLastQuestion(q);
+      setQuestion('');
+    } catch (e) {
+      setError(extractErrorMessage(e, "I couldn't work that out just now — try again in a moment."));
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  const confirmCorrection = async () => {
+    if (!lastQuestion || asking) return;
+    setAsking(true);
+    setError('');
+    try {
+      const confirmed = await CampaignService.askAboutPlan(planId, lastQuestion, true);
+      onPlanUpdated({ plan: confirmed.plan, creative: confirmed.creative, summary: confirmed.summary });
+      setAnswer(null);
+    } catch (e) {
+      setError(extractErrorMessage(e, "Couldn't apply that correction — try again."));
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 10, borderTop: '1px solid #f0e3d0', paddingTop: 10 }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && ask()}
+          placeholder="Ask Jane about this plan — e.g. why this budget?"
+          disabled={asking}
+          style={{ flex: 1, border: '1px solid #e5d9c8', borderRadius: 8, padding: '7px 10px', fontSize: 12.5 }}
+        />
+        <button
+          onClick={ask}
+          disabled={asking || !question.trim()}
+          style={{
+            border: 'none', borderRadius: 8, padding: '7px 12px', fontWeight: 700, fontSize: 12,
+            cursor: asking ? 'default' : 'pointer',
+            background: asking ? '#eee' : PINK, color: asking ? '#999' : '#fff',
+          }}
+        >
+          {asking ? '…' : 'Ask'}
+        </button>
+      </div>
+      {error && <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
+      {answer && (
+        <div style={{ marginTop: 8, background: '#fff', border: '1px solid #f0e3d0', borderRadius: 8, padding: '8px 10px' }}>
+          <p style={{ margin: 0, fontSize: 12.5, color: '#1a0a12', lineHeight: 1.5 }}>{answer.answer || answer.note}</p>
+          {answer.kind === 'challenge' && answer.stage === 'challenge_preview' && (
+            <button
+              onClick={confirmCorrection}
+              disabled={asking}
+              style={{
+                marginTop: 8, border: `1.5px solid ${PINK}`, borderRadius: 8, padding: '6px 10px',
+                fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: '#fff', color: PINK,
+              }}
+            >
+              Replace plan with this correction
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NeedWhatsapp({ question, onSubmit }: { question?: string; onSubmit: (number: string) => void }) {
   const [value, setValue] = useState('');
   const submit = () => {
@@ -1512,7 +1606,14 @@ function ResultCard({
                 </div>
               )}
             </div>
-          ) : (
+          ) : null}
+          {result.stage === 'planned' && result.plan_id && (
+            <PlanAskBox
+              planId={result.plan_id}
+              onPlanUpdated={(updates) => onResultChange({ ...result, ...updates })}
+            />
+          )}
+          {result.stage !== 'planned' && (
             <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
               <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>✓ Campaign created, paused, no spend yet</p>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>{launch?.note}</p>
