@@ -13,18 +13,7 @@ import {
 } from '@/src/api/AgencyService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import {
-  FiPlus,
-  FiUsers,
-  FiGrid,
-  FiBarChart2,
-  FiCreditCard,
-  FiCopy,
-  FiX,
-  FiEdit2,
-  FiCheck,
-  FiTrash2,
-} from 'react-icons/fi';
+import { FiPlus, FiUsers, FiGrid, FiBarChart2, FiCopy, FiX, FiEdit2, FiCheck, FiTrash2 } from 'react-icons/fi';
 
 const URI_PINK = '#CD1B78';
 
@@ -71,7 +60,6 @@ export default function AgencyDashboard() {
         }}
       >
         <EditableAgencyName agency={agency} onChange={setAgency} />
-        <WalletBadge agency={agency} onChange={setAgency} />
       </div>
 
       {/* Section tabs */}
@@ -285,54 +273,6 @@ function EditableAgencyName({ agency, onChange }: { agency: Agency; onChange: (a
   );
 }
 
-// ── Wallet badge + top-up ───────────────────────────────────────────────────
-
-function WalletBadge({ agency, onChange }: { agency: Agency; onChange: (a: Agency) => void }) {
-  const [open, setOpen] = useState(false);
-  const [amt, setAmt] = useState(500);
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div
-        style={{
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 10,
-          padding: '8px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <FiCreditCard size={16} color={URI_PINK} />
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>
-          {agency.wallet_credits.toLocaleString()} credits
-        </span>
-      </div>
-      <button onClick={() => setOpen(true)} style={ghost}>
-        Top up
-      </button>
-      {open && (
-        <Modal title="Top up wallet" onClose={() => setOpen(false)}>
-          <input type="number" value={amt} onChange={(e) => setAmt(Number(e.target.value))} style={input} />
-          <button
-            style={primary}
-            onClick={async () => {
-              const res = await AgencyService.topUpWallet(amt);
-              if (res.status && res.responseData) {
-                onChange({ ...agency, wallet_credits: res.responseData.wallet_credits });
-                ToastService.showToast('Wallet topped up', ToastTypeEnum.Success);
-                setOpen(false);
-              }
-            }}
-          >
-            Add {amt} credits
-          </button>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
 // ── Roster ───────────────────────────────────────────────────────────────────
 
 function RosterSection({
@@ -527,8 +467,8 @@ function DeleteBrandModal({
   return (
     <Modal title={`Delete ${brand.name}`} onClose={onClose}>
       <p style={{ fontSize: 14, color: '#374151', marginTop: 0, lineHeight: 1.5 }}>
-        This permanently deletes <strong>{brand.name}</strong> and everything attached to it —
-        brand playbook, connected social accounts, and member access. This cannot be undone.
+        This permanently deletes <strong>{brand.name}</strong> and everything attached to it — brand playbook, connected
+        social accounts, and member access. This cannot be undone.
       </p>
       <label style={{ fontSize: 13, color: '#6b7280', display: 'block', marginBottom: 6 }}>
         Type <strong>{brand.name}</strong> to confirm
