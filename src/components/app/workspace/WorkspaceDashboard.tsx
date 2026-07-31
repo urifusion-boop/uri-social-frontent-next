@@ -863,9 +863,7 @@ const ContentManagerPage = ({
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
-  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>(
-    'generate'
-  );
+  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
   // Keep JaneVideoChat mounted after first visit so in-progress sessions survive tab switches
   const [janeEverMounted, setJaneEverMounted] = useState(false);
@@ -1536,10 +1534,12 @@ const ContentManagerPage = ({
               {(
                 [
                   { key: 'chat', label: '✦ Ask Jane' },
-                  { key: 'generate', label: '🎬 Generate' },
-                  { key: 'produce', label: '✨ Produce' },
-                  { key: 'zapcap', label: '⚡ Produce my video' },
-                  { key: 'compose', label: '🎞 Compose' },
+                  // Generate / Produce / Produce my video / Compose hidden for now —
+                  // same pattern as the Video tab itself was hidden/un-hidden.
+                  // { key: 'generate', label: '🎬 Generate' },
+                  // { key: 'produce', label: '✨ Produce' },
+                  // { key: 'zapcap', label: '⚡ Produce my video' },
+                  // { key: 'compose', label: '🎞 Compose' },
                 ] as { key: 'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'; label: string }[]
               ).map((vt) => (
                 <button
