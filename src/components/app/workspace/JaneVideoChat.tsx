@@ -992,6 +992,31 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     }, 6000);
   };
 
+  // Multi-clip uploads are large and, on a slower/less stable mobile connection,
+  // prone to a dropped connection mid-upload — with no server-side rejection
+  // (no HTTP response at all) to explain it. Retry only that class of failure;
+  // a real HTTP error from the server (4xx/5xx) means resending won't help.
+  const startMultiClipJobWithRetry = async (
+    fd: FormData,
+    onRetry?: (attempt: number, maxAttempts: number) => void,
+    maxAttempts = 3
+  ): Promise<string> => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const res = await SocialMediaAgentService.startMultiClipJob(fd);
+        const id = res?.responseData?.job_id ?? '';
+        if (!id) throw new Error('No job ID returned');
+        return id;
+      } catch (err) {
+        const axiosErr = err as { response?: unknown };
+        if (axiosErr?.response || attempt === maxAttempts) throw err;
+        onRetry?.(attempt, maxAttempts);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+    throw new Error('Upload failed');
+  };
+
   const handleRender = async () => {
     if ((!videoFile && !stitchedUrl) || !plan) return;
     if (insufficientCredits) {
@@ -1085,9 +1110,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       fd.append('music_mood', 'chill');
       fd.append('music_volume', '0');
 
-      const res = await SocialMediaAgentService.startMultiClipJob(fd);
-      jobId = res?.responseData?.job_id ?? '';
-      if (!jobId) throw new Error('No job ID returned');
+      jobId = await startMultiClipJobWithRetry(fd, (attempt, max) => {
+        setRenderStatus(`Upload dropped — retrying (${attempt}/${max - 1})…`);
+      });
     } catch (err) {
       setRenderError(err instanceof Error ? err.message : 'Upload failed');
       setStage('preview');
@@ -1183,9 +1208,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
     let jobId: string;
     try {
-      const res = await SocialMediaAgentService.startMultiClipJob(fd);
-      jobId = res?.responseData?.job_id ?? '';
-      if (!jobId) throw new Error('No job ID returned');
+      jobId = await startMultiClipJobWithRetry(fd, (attempt, max) => {
+        setRenderStatus(`Upload dropped — retrying (${attempt}/${max - 1})…`);
+      });
     } catch (err) {
       setRenderError(err instanceof Error ? err.message : 'Upload failed');
       setRenderStatus('failed');
