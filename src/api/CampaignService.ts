@@ -101,6 +101,20 @@ export interface LaunchFromMessageResult {
   };
 }
 
+export interface PlanAskResult {
+  kind: 'question' | 'challenge' | 'new_campaign';
+  answer?: string;
+  what_if?: { changed: string; original: CampaignSummary; hypothetical: CampaignSummary };
+  // present when kind === 'challenge' — the re-derived plan, shown as a preview until
+  // confirmed (askAboutPlan(planId, question, true)) replaces the stored one
+  stage?: 'challenge_preview' | 'planned';
+  plan_id?: string;
+  note?: string;
+  plan?: LaunchFromMessageResult['plan'];
+  creative?: LaunchFromMessageResult['creative'];
+  summary?: CampaignSummary;
+}
+
 export interface CampaignMetrics {
   spend_ngn: number;
   conversations: number;                 // real Click-to-WhatsApp conversations started
@@ -255,6 +269,20 @@ export class CampaignService {
   static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/launch`, {}, { timeout: 120000 });
     return res.data as LaunchFromMessageResult;
+  }
+
+  /** Ask Jane about an existing plan — "why this budget?", "what if I spent half?", or
+   * a correction ("students aren't my main buyers"). Never fabricates a number: answers
+   * come from the plan's own persisted derivation, or a real re-run of the decision
+   * engine for a what-if. A correction ("challenge") comes back as a preview first —
+   * resend with confirmCorrection=true to actually replace the stored plan. */
+  static async askAboutPlan(planId: string, question: string, confirmCorrection = false): Promise<PlanAskResult> {
+    const res = await UriHttpClient.getClient().post(
+      `/jane-ads/meta/plan/${planId}/ask`,
+      { question, confirm_correction: confirmCorrection },
+      { timeout: 30000 },
+    );
+    return res.data as PlanAskResult;
   }
 
   /** The active brand's campaigns + live metrics, for the management view. */
