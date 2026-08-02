@@ -77,6 +77,7 @@ interface HistMsg {
 
 interface Props {
   onSaveToDrafts?: () => void;
+  isMobile?: boolean;
 }
 
 // ── Style templates ───────────────────────────────────────────────────────────
@@ -124,6 +125,8 @@ const PINK = '#CD1B78';
 const LIGHT_PINK = '#FFF0F7';
 const GRAY = '#6B7280';
 const BORDER = '#E5E7EB';
+
+const SESSION_KEY = 'uri:janevideo:session';
 
 // ── Small atoms ───────────────────────────────────────────────────────────────
 
@@ -279,7 +282,8 @@ function PlanRow({
             fontSize: 12,
             fontWeight: 600,
             cursor: 'pointer',
-            padding: '2px 4px',
+            padding: '13px 10px',
+            margin: '-13px -10px',
             borderRadius: 4,
             flexShrink: 0,
           }}
@@ -342,12 +346,14 @@ function AdjustPanel({
   onApply,
   onCancel,
   styleTemplates,
+  isMobile = false,
 }: {
   field: AdjustField;
   plan: VideoPlan;
   onApply: (patch: Partial<VideoPlan>) => void;
   onCancel: () => void;
   styleTemplates: StyleTemplate[];
+  isMobile?: boolean;
 }) {
   const section = (title: string, children: React.ReactNode) => (
     <div>
@@ -360,7 +366,7 @@ function AdjustPanel({
     <button
       onClick={onClick}
       style={{
-        padding: '8px 14px',
+        padding: '12px 14px',
         borderRadius: 9,
         border: `1.5px solid ${active ? PINK : BORDER}`,
         background: active ? LIGHT_PINK : '#fff',
@@ -509,7 +515,14 @@ function AdjustPanel({
         return (
           <div>
             <SectionLabel text="Caption style" />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+                gap: 8,
+                marginBottom: 10,
+              }}
+            >
               {CAPTION_STYLES.map((s) => {
                 const active = plan.captionsEnabled && plan.captionStyle === s.value;
                 return (
@@ -691,7 +704,7 @@ function AdjustPanel({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function JaneVideoChat({ onSaveToDrafts }: Props) {
+export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const composePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -742,6 +755,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   const [isSilenceCutting, setIsSilenceCutting] = useState(false);
 
   const [zapCapJobId, setZapCapJobId] = useState<string | null>(null);
+  const [composeJobId, setComposeJobId] = useState<string | null>(null);
   const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
   const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({});
   const [editingWordId, setEditingWordId] = useState<string | null>(null);
@@ -934,8 +948,77 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     }, 6000);
   };
 
+  // Shared multi-clip compose/stitch poll — used by both handleStitch and
+  // handleCutSilences (and to resume an in-flight job after a page reload).
+  const startComposePolling = (
+    jobId: string,
+    opts: {
+      labelMap: Record<string, string>;
+      progressMap: Record<string, number>;
+      onReady: (outputUrl: string) => void | Promise<void>;
+      onFailed: () => void;
+    }
+  ) => {
+    if (composePollRef.current) clearInterval(composePollRef.current);
+    setComposeJobId(jobId);
+    let hasStitched = false;
+
+    composePollRef.current = setInterval(async () => {
+      try {
+        const res = await SocialMediaAgentService.getMultiClipJob(jobId);
+        const job = res?.responseData;
+        if (!job) return;
+
+        setRenderStatus(opts.labelMap[job.status] ?? job.status_message ?? job.status);
+        setRenderProgress(opts.progressMap[job.status] ?? 50);
+
+        if (job.status === 'awaiting_order' && !hasStitched) {
+          hasStitched = true;
+          await SocialMediaAgentService.stitchMultiClipJob(jobId);
+        }
+
+        if (job.status === 'ready' && job.output_url) {
+          clearInterval(composePollRef.current!);
+          setComposeJobId(null);
+          await opts.onReady(job.output_url);
+        } else if (job.status === 'failed') {
+          clearInterval(composePollRef.current!);
+          setComposeJobId(null);
+          opts.onFailed();
+        }
+      } catch {
+        // keep polling on blip
+      }
+    }, 6000);
+  };
+
+  // Multi-clip uploads are large and, on a slower/less stable mobile connection,
+  // prone to a dropped connection mid-upload — with no server-side rejection
+  // (no HTTP response at all) to explain it. Retry only that class of failure;
+  // a real HTTP error from the server (4xx/5xx) means resending won't help.
+  const startMultiClipJobWithRetry = async (
+    fd: FormData,
+    onRetry?: (attempt: number, maxAttempts: number) => void,
+    maxAttempts = 3
+  ): Promise<string> => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const res = await SocialMediaAgentService.startMultiClipJob(fd);
+        const id = res?.responseData?.job_id ?? '';
+        if (!id) throw new Error('No job ID returned');
+        return id;
+      } catch (err) {
+        const axiosErr = err as { response?: unknown };
+        if (axiosErr?.response || attempt === maxAttempts) throw err;
+        onRetry?.(attempt, maxAttempts);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+    throw new Error('Upload failed');
+  };
+
   const handleRender = async () => {
-    if (!videoFile || !plan) return;
+    if ((!videoFile && !stitchedUrl) || !plan) return;
     if (insufficientCredits) {
       ToastService.showToast('You do not have enough credits to edit this video.', ToastTypeEnum.Error);
       return;
@@ -990,7 +1073,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
   // ── Cut silences (compose pipeline) ───────────────────────────────────────
 
   const handleCutSilences = async () => {
-    if (!videoFile) return;
+    if (!videoFile && !stitchedUrl) return;
     addMsg('user', 'Cut silences, pauses & repetitions');
     // When called from Fix Something (zapCapJobId set), we'll re-run ZapCap after
     // cutting so captions + b-roll are preserved. Warn the user it takes longer.
@@ -1008,21 +1091,28 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     setRenderStatus('analyzing');
     setStage('render');
 
-    // Step 1: start the multi-clip job (single clip, founder mode → runs silencedetect at ingest)
-    const fd = new FormData();
-    fd.append('clips', videoFile);
-    fd.append('story_type', 'founder');
-    fd.append('target_duration', '0');
-    fd.append('orientation', plan?.aspectRatio ?? '9:16');
-    fd.append('enable_music', 'false');
-    fd.append('music_mood', 'chill');
-    fd.append('music_volume', '0');
-
-    let composeJobId: string;
+    // Step 1: start the multi-clip job (single clip, founder mode → runs silencedetect at ingest).
+    // /multi-clip/start accepts either an uploaded file or a source_url. When the source is
+    // a stitched multi-clip video (videoFile never set), pass stitchedUrl and let the backend
+    // fetch it server-side — the browser can't fetch a third-party host directly (CSP).
+    let jobId: string;
     try {
-      const res = await SocialMediaAgentService.startMultiClipJob(fd);
-      composeJobId = res?.responseData?.job_id ?? '';
-      if (!composeJobId) throw new Error('No job ID returned');
+      const fd = new FormData();
+      if (videoFile) {
+        fd.append('clips', videoFile);
+      } else if (stitchedUrl) {
+        fd.append('source_url', stitchedUrl);
+      }
+      fd.append('story_type', 'founder');
+      fd.append('target_duration', '0');
+      fd.append('orientation', plan?.aspectRatio ?? '9:16');
+      fd.append('enable_music', 'false');
+      fd.append('music_mood', 'chill');
+      fd.append('music_volume', '0');
+
+      jobId = await startMultiClipJobWithRetry(fd, (attempt, max) => {
+        setRenderStatus(`Upload dropped — retrying (${attempt}/${max - 1})…`);
+      });
     } catch (err) {
       setRenderError(err instanceof Error ? err.message : 'Upload failed');
       setStage('preview');
@@ -1030,96 +1120,72 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     }
 
     // Step 2: poll until ingest finishes (awaiting_order), then auto-stitch
-    if (composePollRef.current) clearInterval(composePollRef.current);
-
-    const COMPOSE_STATUS_LABEL: Record<string, string> = {
-      analyzing: 'Analysing audio…',
-      awaiting_order: 'Audio analysed — cutting silences…',
-      stitching: 'Stitching edited video…',
-      ready: 'Done!',
-      failed: 'Something went wrong',
-    };
-    const COMPOSE_PROGRESS: Record<string, number> = {
-      analyzing: 30,
-      awaiting_order: 60,
-      stitching: 80,
-      ready: 100,
-      failed: 0,
-    };
-
-    let hasStitched = false;
-
-    composePollRef.current = setInterval(async () => {
-      try {
-        const res = await SocialMediaAgentService.getMultiClipJob(composeJobId);
-        const job = res?.responseData;
-        if (!job) return;
-
-        setRenderStatus(COMPOSE_STATUS_LABEL[job.status] ?? job.status_message);
-        setRenderProgress(COMPOSE_PROGRESS[job.status] ?? 50);
-
-        if (job.status === 'awaiting_order' && !hasStitched) {
-          // Ingest complete — auto-stitch immediately (single clip, no reordering needed)
-          hasStitched = true;
-          await SocialMediaAgentService.stitchMultiClipJob(composeJobId);
-        }
-
-        if (job.status === 'ready' && job.output_url) {
-          clearInterval(composePollRef.current!);
-
-          if (willRerender) {
-            // Fix Something path — pipe the silence-cut URL back through ZapCap
-            // so captions and b-roll are re-applied on the tighter edit.
-            addMsg('jane', 'Silences cut — re-applying captions and b-roll…');
-            setRenderProgress(5);
-            setRenderStatus('pending');
-            const fd2 = new FormData();
-            fd2.append('source_url', job.output_url);
-            fd2.append('template_id', plan?.style?.id || zapCapTemplates[0]?.id || 'beast');
-            fd2.append('language', 'en');
-            fd2.append('output_mode', 'composited');
-            fd2.append('quality', 'standard');
-            fd2.append('enable_broll', String(plan?.brollEnabled ?? false));
-            fd2.append('enable_music', 'false');
-            try {
-              const res = await SocialMediaAgentService.produceWithZapCap(fd2);
-              const newId = res?.responseData?.job_id;
-              if (!newId) throw new Error('No job ID');
-              setZapCapJobId(newId);
-              setCaptionWords([]);
-              setCaptionEdits({});
-              // Charged synchronously inside POST /zapcap-produce, before this
-              // response returns — mirrors ContentGeneratorForm's real-time update.
-              EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'zapcap_produce' });
-              startPolling(newId);
-            } catch (err) {
-              // ZapCap failed — fall back to the raw silence-cut video
-              setIsSilenceCutting(true);
-              setOutputUrl(job.output_url);
-              const axiosErr = err as { response?: { status?: number } };
-              addMsg(
-                'jane',
-                axiosErr?.response?.status === 402
-                  ? // Video Editing Billing PRD §11: insufficient credits
-                    "Silences cut, but you don't have enough credits to re-apply captions — showing the cut version."
-                  : "Silences cut, but couldn't re-apply captions — showing the cut version."
-              );
-              setStage('preview');
-            }
-          } else {
-            setOutputUrl(job.output_url);
-            addMsg('jane', "Done. Here's the version with silences cut 👇");
+    startComposePolling(jobId, {
+      labelMap: {
+        analyzing: 'Analysing audio…',
+        awaiting_order: 'Audio analysed — cutting silences…',
+        stitching: 'Stitching edited video…',
+        ready: 'Done!',
+        failed: 'Something went wrong',
+      },
+      progressMap: {
+        analyzing: 30,
+        awaiting_order: 60,
+        stitching: 80,
+        ready: 100,
+        failed: 0,
+      },
+      onReady: async (outputUrl) => {
+        if (willRerender) {
+          // Fix Something path — pipe the silence-cut URL back through ZapCap
+          // so captions and b-roll are re-applied on the tighter edit.
+          addMsg('jane', 'Silences cut — re-applying captions and b-roll…');
+          setRenderProgress(5);
+          setRenderStatus('pending');
+          const fd2 = new FormData();
+          fd2.append('source_url', outputUrl);
+          fd2.append('template_id', plan?.style?.id || zapCapTemplates[0]?.id || 'beast');
+          fd2.append('language', 'en');
+          fd2.append('output_mode', 'composited');
+          fd2.append('quality', 'standard');
+          fd2.append('enable_broll', String(plan?.brollEnabled ?? false));
+          fd2.append('enable_music', 'false');
+          try {
+            const res = await SocialMediaAgentService.produceWithZapCap(fd2);
+            const newId = res?.responseData?.job_id;
+            if (!newId) throw new Error('No job ID');
+            setZapCapJobId(newId);
+            setCaptionWords([]);
+            setCaptionEdits({});
+            // Charged synchronously inside POST /zapcap-produce, before this
+            // response returns — mirrors ContentGeneratorForm's real-time update.
+            EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'zapcap_produce' });
+            startPolling(newId);
+          } catch (err) {
+            // ZapCap failed — fall back to the raw silence-cut video
+            setIsSilenceCutting(true);
+            setOutputUrl(outputUrl);
+            const axiosErr = err as { response?: { status?: number } };
+            addMsg(
+              'jane',
+              axiosErr?.response?.status === 402
+                ? // Video Editing Billing PRD §11: insufficient credits
+                  "Silences cut, but you don't have enough credits to re-apply captions — showing the cut version."
+                : "Silences cut, but couldn't re-apply captions — showing the cut version."
+            );
             setStage('preview');
           }
-        } else if (job.status === 'failed') {
-          clearInterval(composePollRef.current!);
-          setRenderError('Silence cutting failed — try again.');
+        } else {
+          setOutputUrl(outputUrl);
+          addMsg('jane', "Done. Here's the version with silences cut 👇");
           setStage('preview');
         }
-      } catch {
-        // keep polling on blip
-      }
-    }, 6000);
+      },
+      onFailed: () => {
+        setRenderError('Silence cutting failed — try again.');
+        setStage('preview');
+      },
+    });
   };
 
   // ── Stitch multiple clips ─────────────────────────────────────────────────
@@ -1140,64 +1206,43 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     fd.append('music_mood', 'chill');
     fd.append('music_volume', '0');
 
-    let composeJobId: string;
+    let jobId: string;
     try {
-      const res = await SocialMediaAgentService.startMultiClipJob(fd);
-      composeJobId = res?.responseData?.job_id ?? '';
-      if (!composeJobId) throw new Error('No job ID returned');
+      jobId = await startMultiClipJobWithRetry(fd, (attempt, max) => {
+        setRenderStatus(`Upload dropped — retrying (${attempt}/${max - 1})…`);
+      });
     } catch (err) {
       setRenderError(err instanceof Error ? err.message : 'Upload failed');
       setRenderStatus('failed');
       return;
     }
 
-    if (composePollRef.current) clearInterval(composePollRef.current);
-    let hasStitched = false;
-
-    composePollRef.current = setInterval(async () => {
-      try {
-        const res = await SocialMediaAgentService.getMultiClipJob(composeJobId);
-        const job = res?.responseData;
-        if (!job) return;
-
-        const labelMap: Record<string, string> = {
-          analyzing: 'Analysing clips…',
-          awaiting_order: 'Combining clips…',
-          stitching: 'Stitching…',
-          ready: 'Done!',
-          failed: 'Something went wrong',
-        };
-        const progressMap: Record<string, number> = {
-          analyzing: 30,
-          awaiting_order: 55,
-          stitching: 80,
-          ready: 100,
-          failed: 0,
-        };
-
-        setRenderStatus(labelMap[job.status] ?? job.status_message ?? job.status);
-        setRenderProgress(progressMap[job.status] ?? 50);
-
-        if (job.status === 'awaiting_order' && !hasStitched) {
-          hasStitched = true;
-          await SocialMediaAgentService.stitchMultiClipJob(composeJobId);
-        }
-
-        if (job.status === 'ready' && job.output_url) {
-          clearInterval(composePollRef.current!);
-          setStitchedUrl(job.output_url);
-          setVideoFiles([]);
-          addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
-          setStage('classify');
-        } else if (job.status === 'failed') {
-          clearInterval(composePollRef.current!);
-          setRenderError('Stitch failed — try again.');
-          setRenderStatus('failed');
-        }
-      } catch {
-        // keep polling on blip
-      }
-    }, 6000);
+    startComposePolling(jobId, {
+      labelMap: {
+        analyzing: 'Analysing clips…',
+        awaiting_order: 'Combining clips…',
+        stitching: 'Stitching…',
+        ready: 'Done!',
+        failed: 'Something went wrong',
+      },
+      progressMap: {
+        analyzing: 30,
+        awaiting_order: 55,
+        stitching: 80,
+        ready: 100,
+        failed: 0,
+      },
+      onReady: (outputUrl) => {
+        setStitchedUrl(outputUrl);
+        setVideoFiles([]);
+        addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
+        setStage('classify');
+      },
+      onFailed: () => {
+        setRenderError('Stitch failed — try again.');
+        setRenderStatus('failed');
+      },
+    });
   };
 
   // ── Rerender with caption edits ───────────────────────────────────────────
@@ -1343,6 +1388,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
       });
       addMsg('jane', 'Saved to drafts. You can schedule or publish it anytime from the Drafts tab.');
       setStage('publish');
+      clearSession();
       onSaveToDrafts?.();
     } catch {
       ToastService.showToast('Could not save — try again.', ToastTypeEnum.Error);
@@ -1369,6 +1415,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     setVideoFiles([]);
     setStitchedUrl(null);
     setZapCapJobId(null);
+    setComposeJobId(null);
     setCaptionWords([]);
     setCaptionEdits({});
     setEditingWordId(null);
@@ -1380,7 +1427,146 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     setAdjustField(null);
     setPublishPlatforms([]);
     setPublishCaption('');
+    clearSession();
   };
+
+  // ── Session persistence (survive a refresh/reload mid-flow) ───────────────
+  // Same localStorage idiom as MultiClipComposer.tsx / VideoStoryboardGenerator.tsx:
+  // save on change, restore on mount, resume any in-flight job by its id.
+
+  const clearSession = () => {
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    if (stage === 'upload') return; // nothing submitted yet — nothing worth saving
+    try {
+      localStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+          stage,
+          plan,
+          stitchedUrl,
+          zapCapJobId,
+          composeJobId,
+          captionWords,
+          captionEdits,
+          brollConvStep,
+          brollPlacements,
+          history,
+          publishPlatforms,
+          publishCaption,
+          outputUrl,
+          renderStatus,
+          renderProgress,
+          classification,
+          adjustField,
+        })
+      );
+    } catch {
+      /* quota */
+    }
+  }, [
+    stage,
+    plan,
+    stitchedUrl,
+    zapCapJobId,
+    composeJobId,
+    captionWords,
+    captionEdits,
+    brollConvStep,
+    brollPlacements,
+    history,
+    publishPlatforms,
+    publishCaption,
+    outputUrl,
+    renderStatus,
+    renderProgress,
+    classification,
+    adjustField,
+  ]);
+
+  // Restore on mount — runs once, before the templates-fetch/cleanup effect below
+  // has any bearing on this. Only resumes a session that got past raw upload and
+  // isn't already a dead end.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as {
+        stage: Stage;
+        plan: VideoPlan | null;
+        stitchedUrl: string | null;
+        zapCapJobId: string | null;
+        composeJobId: string | null;
+        captionWords: CaptionWord[];
+        captionEdits: Record<string, string>;
+        brollConvStep: BrollConvStep;
+        brollPlacements: BrollPlacement[];
+        history: HistMsg[];
+        publishPlatforms: string[];
+        publishCaption: string;
+        outputUrl: string | null;
+        renderStatus: string;
+        renderProgress: number;
+        classification: Classification;
+        adjustField: AdjustField | null;
+      };
+      if (!saved?.stage || saved.stage === 'upload') {
+        clearSession();
+        return;
+      }
+
+      setStage(saved.stage);
+      setPlan(saved.plan ?? null);
+      setStitchedUrl(saved.stitchedUrl ?? null);
+      setZapCapJobId(saved.zapCapJobId ?? null);
+      setCaptionWords(saved.captionWords ?? []);
+      setCaptionEdits(saved.captionEdits ?? {});
+      setBrollConvStep(saved.brollConvStep ?? 'choose');
+      setBrollPlacements(saved.brollPlacements ?? []);
+      setHistory(saved.history ?? []);
+      setPublishPlatforms(saved.publishPlatforms ?? []);
+      setPublishCaption(saved.publishCaption ?? '');
+      setOutputUrl(saved.outputUrl ?? null);
+      setRenderStatus(saved.renderStatus ?? 'pending');
+      setRenderProgress(saved.renderProgress ?? 0);
+      setClassification(saved.classification ?? 'talking_head');
+      setAdjustField(saved.adjustField ?? null);
+
+      // Resume whichever job was in flight, if any.
+      if (saved.composeJobId && saved.stage === 'stitch') {
+        startComposePolling(saved.composeJobId, {
+          labelMap: {
+            analyzing: 'Analysing clips…',
+            awaiting_order: 'Combining clips…',
+            stitching: 'Stitching…',
+            ready: 'Done!',
+            failed: 'Something went wrong',
+          },
+          progressMap: { analyzing: 30, awaiting_order: 55, stitching: 80, ready: 100, failed: 0 },
+          onReady: (outputUrl) => {
+            setStitchedUrl(outputUrl);
+            addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
+            setStage('classify');
+          },
+          onFailed: () => {
+            setRenderError('Stitch failed — try again.');
+            setRenderStatus('failed');
+          },
+        });
+      } else if (saved.zapCapJobId && saved.stage === 'render') {
+        startPolling(saved.zapCapJobId);
+      }
+    } catch {
+      clearSession();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Active panel for current stage ────────────────────────────────────────
 
@@ -1482,7 +1668,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
         return (
           <div>
             <JaneBubble text={`Stitch failed: ${renderError ?? 'something went wrong'}. Want to try again?`} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               <TapBtn
                 label="Try again"
                 primary
@@ -1591,7 +1777,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <TapBtn label="Stitch & continue" primary onClick={handleStitch} />
             <TapBtn label="Start over" onClick={reset} />
           </div>
@@ -1658,6 +1844,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               onApply={applyAdjust}
               onCancel={() => setAdjustField(null)}
               styleTemplates={styledTemplates}
+              isMobile={isMobile}
             />
           </div>
         );
@@ -1703,7 +1890,9 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: 'pointer',
-                  padding: 0,
+                  padding: '13px 10px',
+                  margin: '-13px -10px',
+                  flexShrink: 0,
                 }}
               >
                 change
@@ -1797,7 +1986,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
         return (
           <div>
             <JaneBubble text={`Something went wrong: ${renderError}. Want to try again?`} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               <TapBtn label="Try again" primary onClick={reset} />
               <TapBtn label="Start over" onClick={reset} />
             </div>
@@ -2130,7 +2319,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                               border: 'none',
                               outline: `1.5px solid ${PINK}`,
                               borderRadius: 4,
-                              padding: '2px 5px',
+                              padding: '8px 7px',
                               background: LIGHT_PINK,
                               color: PINK,
                               width: `${Math.max(display.length, 3) + 1}ch`,
@@ -2141,7 +2330,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                             onClick={() => setEditingWordId(w.id)}
                             style={{
                               fontSize: 13,
-                              padding: '3px 5px',
+                              padding: '8px 7px',
                               borderRadius: 4,
                               cursor: 'text',
                               color: edited ? PINK : '#374151',
@@ -2166,8 +2355,8 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
-                      padding: 0,
-                      marginBottom: 10,
+                      padding: '12px 0',
+                      marginBottom: 2,
                       display: 'block',
                     }}
                   >
@@ -2374,7 +2563,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                               setBrollClips((prev) => prev.map((c, j) => (j === i ? { ...c, tag: t.value } : c)))
                             }
                             style={{
-                              padding: '2px 8px',
+                              padding: '8px 10px',
                               borderRadius: 6,
                               border: `1.5px solid ${entry.tag === t.value ? PINK : BORDER}`,
                               background: entry.tag === t.value ? LIGHT_PINK : '#fff',
@@ -2391,7 +2580,16 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                     </div>
                     <button
                       onClick={() => setBrollClips((prev) => prev.filter((_, j) => j !== i))}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: GRAY, fontSize: 16 }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: GRAY,
+                        fontSize: 16,
+                        padding: 12,
+                        margin: -12,
+                        flexShrink: 0,
+                      }}
                     >
                       ×
                     </button>
@@ -2400,7 +2598,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
               <TapBtn label="← Back" onClick={() => setBrollConvStep('choose')} />
               {brollClips.length > 0 && (
                 <button
@@ -2488,7 +2686,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                               )
                             }
                             style={{
-                              padding: '3px 8px',
+                              padding: '9px 10px',
                               borderRadius: 6,
                               border: `1.5px solid ${placement.startTime === seg.startTime ? PINK : BORDER}`,
                               background: placement.startTime === seg.startTime ? LIGHT_PINK : '#FAFAFA',
@@ -2522,7 +2720,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                         }
                         style={{
                           width: 64,
-                          padding: '3px 6px',
+                          padding: '8px 6px',
                           borderRadius: 6,
                           border: `1.5px solid ${BORDER}`,
                           fontSize: 12,
@@ -2532,7 +2730,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 11, color: GRAY }}>Duration:</span>
                     {[3, 4, 5, 6].map((d) => (
                       <button
@@ -2541,7 +2739,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
                           setBrollPlacements((prev) => prev.map((p, j) => (j === i ? { ...p, duration: d } : p)))
                         }
                         style={{
-                          padding: '2px 8px',
+                          padding: '9px 10px',
                           borderRadius: 6,
                           border: `1.5px solid ${placement.duration === d ? PINK : BORDER}`,
                           background: placement.duration === d ? LIGHT_PINK : '#fff',
@@ -2559,7 +2757,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
               <TapBtn label="← Back" onClick={() => setBrollConvStep('upload')} />
               <button
                 onClick={handleCustomBrollApply}
@@ -2592,7 +2790,7 @@ export default function JaneVideoChat({ onSaveToDrafts }: Props) {
     if (stage === 'publish') {
       return (
         <div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <TapBtn label="Make another video" primary onClick={reset} />
           </div>
         </div>

@@ -1505,7 +1505,7 @@ const ContentManagerPage = ({
         {/* JaneVideoChat keep-alive: mounted once, hidden with CSS when not active */}
         {janeEverMounted && (
           <div style={{ display: isJaneActive ? undefined : 'none' }}>
-            <JaneVideoChat onSaveToDrafts={() => setActiveTab('drafts')} />
+            <JaneVideoChat onSaveToDrafts={() => setActiveTab('drafts')} isMobile={isMobile} />
           </div>
         )}
 
