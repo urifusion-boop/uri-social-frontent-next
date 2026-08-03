@@ -1789,9 +1789,12 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     if (stage === 'classify') {
       return (
         <div>
-          {videoPreviewUrl && (
+          {(stitchedUrl || videoPreviewUrl) && (
             <video
-              src={videoPreviewUrl}
+              // Prefer the actual stitched output once it exists — videoPreviewUrl is only
+              // ever the raw first clip (set before stitching even starts), so for a
+              // multi-clip upload it never reflected the real merged result.
+              src={stitchedUrl || videoPreviewUrl!}
               style={{
                 width: '100%',
                 maxHeight: 140,
@@ -1800,6 +1803,8 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                 marginBottom: 12,
               }}
               muted
+              playsInline
+              controls
               preload="metadata"
             />
           )}
@@ -2000,6 +2005,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
             <video
               src={outputUrl}
               controls
+              playsInline
               style={{
                 width: '100%',
                 maxHeight: 340,
@@ -2541,6 +2547,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                       src={entry.previewUrl}
                       style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
                       muted
+                      playsInline
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
