@@ -1883,11 +1883,17 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                 objectFit: 'cover',
                 borderRadius: 10,
                 marginBottom: 12,
+                background: '#000',
               }}
+              // This is just a glance-preview, not something to scrub through — autoplaying
+              // muted+loop forces mobile Safari to actually paint a frame immediately.
+              // Relying on preload="metadata" + controls alone leaves it blank on iOS until
+              // playback starts, since it won't reliably auto-generate a poster frame.
               muted
               playsInline
-              controls
-              preload="metadata"
+              autoPlay
+              loop
+              preload="auto"
             />
           )}
           <JaneBubble text="Got it! What kind of clip is this?" />
