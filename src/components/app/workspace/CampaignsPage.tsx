@@ -1,7 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CampaignService, CampaignRow, DraftSummary, LaunchFromMessageResult, PlanAskResult, WalletInfo, BillingSummary, CampaignSummary, ThreadSummary } from '@/src/api/CampaignService';
+import {
+  CampaignService,
+  CampaignRow,
+  DraftSummary,
+  LaunchFromMessageResult,
+  PlanAskResult,
+  PlanVariant,
+  PlanVariantSet,
+  WalletInfo,
+  BillingSummary,
+  CampaignSummary,
+  ThreadSummary,
+} from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -143,7 +155,9 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   // Only admins get the Billing tab — the backend decides, so there's no email list
   // duplicated here. Runs once on mount.
   useEffect(() => {
-    CampaignService.billingAccess().then(setIsAdmin).catch(() => setIsAdmin(false));
+    CampaignService.billingAccess()
+      .then(setIsAdmin)
+      .catch(() => setIsAdmin(false));
   }, []);
 
   // On mount, load the brand's campaign threads (the rail) and reopen the most recent —
@@ -155,7 +169,9 @@ export default function CampaignsPage({}: CampaignsPageProps) {
         const list = await CampaignService.listThreads();
         setThreads(list);
         if (list.length) await openThread(list[0].thread_id);
-      } catch { /* start fresh */ }
+      } catch {
+        /* start fresh */
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -168,9 +184,11 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       msg.role === 'user'
         ? { message_id: msg.id, role: 'user', kind: 'text', text: msg.text, thread_id }
         : msg.kind === 'result'
-        ? { message_id: msg.id, role: 'jane', kind: 'result', result: msg.result, thread_id }
-        : { message_id: msg.id, role: 'jane', kind: 'text', text: msg.text, thread_id }
-    ).catch(() => { /* best-effort */ });
+          ? { message_id: msg.id, role: 'jane', kind: 'result', result: msg.result, thread_id }
+          : { message_id: msg.id, role: 'jane', kind: 'text', text: msg.text, thread_id }
+    ).catch(() => {
+      /* best-effort */
+    });
   };
 
   // ── Threads (Tier E) ────────────────────────────────────────────────────────
@@ -206,15 +224,17 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       if (saved.length) {
         // Carry the last plan's image forward so a refinement after reopening reuses it.
         const lastWithImage = [...saved].reverse().find((s) => s.result?.creative?.image_url);
-        if (lastWithImage?.result?.creative?.image_url) lastCreativeRef.current = lastWithImage.result.creative.image_url;
+        if (lastWithImage?.result?.creative?.image_url)
+          lastCreativeRef.current = lastWithImage.result.creative.image_url;
         setMessages([
           makeGreeting(),
-          ...saved.map((s): ChatMsg =>
-            s.kind === 'result'
-              ? { id: s.message_id, role: 'jane', kind: 'result', result: s.result as LaunchFromMessageResult }
-              : s.role === 'user'
-              ? { id: s.message_id, role: 'user', text: s.text }
-              : { id: s.message_id, role: 'jane', kind: 'text', text: s.text }
+          ...saved.map(
+            (s): ChatMsg =>
+              s.kind === 'result'
+                ? { id: s.message_id, role: 'jane', kind: 'result', result: s.result as LaunchFromMessageResult }
+                : s.role === 'user'
+                  ? { id: s.message_id, role: 'user', text: s.text }
+                  : { id: s.message_id, role: 'jane', kind: 'text', text: s.text }
           ),
         ]);
         // Rebuild the accumulated brief the same way send() does — user turns since the
@@ -225,7 +245,9 @@ export default function CampaignsPage({}: CampaignsPageProps) {
         const sinceResolved = saved.slice(lastResolved + 1).filter((s) => s.role === 'user');
         if (sinceResolved.length) setBriefSoFar(sinceResolved.map((s) => s.text).join('. '));
       }
-    } catch { /* couldn't load — just the greeting */ }
+    } catch {
+      /* couldn't load — just the greeting */
+    }
   }, []);
 
   // '+ New' — start a fresh campaign thread and a clean chat.
@@ -294,10 +316,16 @@ export default function CampaignsPage({}: CampaignsPageProps) {
         if (res.status === 'completed') {
           ToastService.showToast('Wallet topped up successfully.', ToastTypeEnum.Success);
         } else {
-          ToastService.showToast("We couldn't confirm that payment. If you were charged, it'll reflect shortly.", ToastTypeEnum.Error);
+          ToastService.showToast(
+            "We couldn't confirm that payment. If you were charged, it'll reflect shortly.",
+            ToastTypeEnum.Error
+          );
         }
       } catch {
-        ToastService.showToast("We couldn't confirm that payment. If you were charged, it'll reflect shortly.", ToastTypeEnum.Error);
+        ToastService.showToast(
+          "We couldn't confirm that payment. If you were charged, it'll reflect shortly.",
+          ToastTypeEnum.Error
+        );
       } finally {
         setTab('wallet');
         loadWallet();
@@ -328,13 +356,13 @@ export default function CampaignsPage({}: CampaignsPageProps) {
         ...(attachedMedia?.source === 'upload'
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
           : attachedMedia?.source === 'draft'
-          ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
-          // No media attached. If a plan already produced an image, this is a refinement →
-          // reuse it (no regen/credit). Else honor an already-picked source. Else ASK (Jane
-          // offers upload / past post / generate) instead of silently auto-generating.
-          : lastCreativeRef.current
-          ? { reuse_image_url: lastCreativeRef.current }
-          : { creative_source: creativeChoiceRef.current ?? ('ask' as const) }),
+            ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+            : // No media attached. If a plan already produced an image, this is a refinement →
+              // reuse it (no regen/credit). Else honor an already-picked source. Else ASK (Jane
+              // offers upload / past post / generate) instead of silently auto-generating.
+              lastCreativeRef.current
+              ? { reuse_image_url: lastCreativeRef.current }
+              : { creative_source: creativeChoiceRef.current ?? ('ask' as const) }),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
@@ -345,7 +373,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       // of being parsed with no context (which made Jane re-ask the objective and drop the
       // geo). Only a real launch (or "+ New") starts a fresh brief.
       setBriefSoFar(combinedMessage);
-      refreshThreads();   // title/status/preview may have changed
+      refreshThreads(); // title/status/preview may have changed
     } catch (e) {
       // Show the backend's message as-is — it's already a full, user-friendly
       // sentence (e.g. the "we're experiencing some difficulties, try again later"
@@ -380,8 +408,8 @@ export default function CampaignsPage({}: CampaignsPageProps) {
         ...(attachedMedia?.source === 'upload'
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
           : attachedMedia?.source === 'draft'
-          ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
-          : {}),
+            ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+            : {}),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
@@ -410,7 +438,8 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     try {
       await CampaignService.setMetaConnectionWhatsapp(clean);
       const result = await CampaignService.planFromMessage({
-        message: briefSoFar, thread_id: activeThreadRef.current ?? undefined,
+        message: briefSoFar,
+        thread_id: activeThreadRef.current ?? undefined,
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
@@ -433,18 +462,54 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     choice:
       | { creative_source: 'generate' }
       | { creative_source: 'upload'; reference_image_url: string; is_video: boolean }
-      | { creative_source: 'draft'; draft_id: string },
+      | { creative_source: 'draft'; draft_id: string }
   ) => {
     if (busy || !briefSoFar) return;
     creativeChoiceRef.current = choice.creative_source;
     setBusy(true);
     try {
-      const result = await CampaignService.planFromMessage({ message: briefSoFar, thread_id: activeThreadRef.current ?? undefined, ...choice });
+      const result = await CampaignService.planFromMessage({
+        message: briefSoFar,
+        thread_id: activeThreadRef.current ?? undefined,
+        ...choice,
+      });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
       saveMsg(resultMsg);
       // Remember the produced image so later typed refinements reuse it (no regen/credit).
       if (result.creative?.image_url) lastCreativeRef.current = result.creative.image_url;
+      refreshThreads();
+    } catch (e) {
+      const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
+      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
+      setMessages((m) => [...m, errMsg]);
+      saveMsg(errMsg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Multi-Plan Audience Variants — the client picked one or more ranked audience
+  // strategies from a choose_plan_variant card set. Each selected variant gets its
+  // OWN independent plan build (spec §7 "one creative per plan") — one
+  // planFromMessage call per variant, each producing its own chat bubble/result,
+  // all tagged with the same variant_group_id so they're understood as a set.
+  const continueWithVariants = async (variants: PlanVariant[], variantGroupId: string) => {
+    if (busy || !briefSoFar || variants.length === 0) return;
+    setBusy(true);
+    try {
+      for (const variant of variants) {
+        const result = await CampaignService.planFromMessage({
+          message: briefSoFar,
+          thread_id: activeThreadRef.current ?? undefined,
+          selected_plan_variant: variant,
+          variant_group_id: variantGroupId,
+        });
+        const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+        setMessages((m) => [...m, resultMsg]);
+        saveMsg(resultMsg);
+        if (result.creative?.image_url) lastCreativeRef.current = result.creative.image_url;
+      }
       refreshThreads();
     } catch (e) {
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
@@ -502,24 +567,37 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   // Lets a plan-review card (still "planned") turn into a launch confirmation
   // ("launched") in place, once the user confirms and it actually goes live.
   const updateResultMessage = (id: string, result: LaunchFromMessageResult) => {
-    setMessages((prev) => prev.map((msg) => (msg.id === id && msg.role === 'jane' && msg.kind === 'result' ? { ...msg, result } : msg)));
+    setMessages((prev) =>
+      prev.map((msg) => (msg.id === id && msg.role === 'jane' && msg.kind === 'result' ? { ...msg, result } : msg))
+    );
     // Same message_id — the backend upserts, so this replaces the saved "planned"
     // row with "launched" in place rather than creating a second saved message.
     saveMsg({ id, role: 'jane', kind: 'result', result });
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'var(--wf, Urbanist, sans-serif)' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        fontFamily: 'var(--wf, Urbanist, sans-serif)',
+      }}
+    >
       {/* Header */}
       <div style={{ padding: '16px 24px 0', display: 'flex', alignItems: 'center', gap: 16 }}>
         <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1a0a12', margin: 0 }}>Campaigns</h1>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: '#f4f2f0', padding: 3, borderRadius: 10 }}>
-          {([
-            ['chat', 'Create with Jane'],
-            ['manage', 'My Campaigns'],
-            ['wallet', 'Wallet'],
-            ...(isAdmin ? [['billing', 'Revenue'] as const] : []),
-          ] as const).map(([t, label]) => (
+        <div
+          style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: '#f4f2f0', padding: 3, borderRadius: 10 }}
+        >
+          {(
+            [
+              ['chat', 'Create with Jane'],
+              ['manage', 'My Campaigns'],
+              ['wallet', 'Wallet'],
+              ...(isAdmin ? [['billing', 'Revenue'] as const] : []),
+            ] as const
+          ).map(([t, label]) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -553,201 +631,306 @@ export default function CampaignsPage({}: CampaignsPageProps) {
             onDelete={deleteThread}
           />
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
-            {messages.map((m) => (
-              <div key={m.id} style={{ marginBottom: 16 }}>
-                {m.role === 'user' ? (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <div
-                      style={{
-                        maxWidth: 520,
-                        padding: '11px 16px',
-                        borderRadius: '14px 3px 14px 14px',
-                        background: '#1a0a12',
-                        color: '#f3d0df',
-                        fontSize: 13,
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      {m.text}
+            <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+              {messages.map((m) => (
+                <div key={m.id} style={{ marginBottom: 16 }}>
+                  {m.role === 'user' ? (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <div
+                        style={{
+                          maxWidth: 520,
+                          padding: '11px 16px',
+                          borderRadius: '14px 3px 14px 14px',
+                          background: '#1a0a12',
+                          color: '#f3d0df',
+                          fontSize: 13,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {m.text}
+                      </div>
                     </div>
-                  </div>
-                ) : m.kind === 'text' ? (
-                  <JaneBubble>{m.text}</JaneBubble>
-                ) : (
-                  <ResultCard
-                    result={m.result}
-                    onResultChange={(r) => updateResultMessage(m.id, r)}
-                    onLaunched={() => {
-                      // Campaign is live — this brief is done. Clear it so the next message
-                      // starts a fresh campaign instead of appending to the launched one.
-                      setBriefSoFar('');
-                      setMedia(null);
-                      lastCreativeRef.current = '';
-                      creativeChoiceRef.current = null;
-                      loadCampaigns();
-                      refreshThreads();
-                    }}
-                    onQuickReply={(text) => send(text)}
-                    onTopUp={() => setTab('wallet')}
-                    onSubmitWhatsapp={submitWhatsapp}
-                    onSubmitMetaConnectionWhatsapp={submitMetaConnectionWhatsapp}
-                    onChooseGenerate={() => continueWithSource({ creative_source: 'generate' })}
-                    onChooseUpload={() => {
-                      uploadForChoiceRef.current = true;
-                      fileInputRef.current?.click();
-                    }}
-                    onChooseDraft={(draftId) => continueWithSource({ creative_source: 'draft', draft_id: draftId })}
-                  />
-                )}
-              </div>
-            ))}
-            {/* Quick-start goal chips — only before the conversation gets going, so a
-                new user doesn't have to think of a phrasing from scratch. */}
-            {messages.length === 1 && !busy && (
-              <QuickReplyChips
-                chips={GOAL_STARTER_CHIPS}
-                onPick={(text) => setInput((prev) => (prev ? prev : text))}
-              />
-            )}
-            {busy && <JaneBubble><TypingDots /></JaneBubble>}
-          </div>
-          <div style={{ padding: '12px 24px 20px', borderTop: '1px solid #eee', background: '#fff', position: 'relative' }}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
-              style={{ display: 'none' }}
-              onChange={handleFileChosen}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={busy || uploading}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6, background: '#f6f5f3', border: '1px solid #e0dcd9',
-                  borderRadius: 20, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, color: '#555',
-                  cursor: busy || uploading ? 'default' : 'pointer',
-                }}
-              >
-                📎 {uploading ? 'Uploading…' : 'Upload photo/video'}
-              </button>
-              <button
-                onClick={openDrafts}
-                disabled={busy}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6, background: '#f6f5f3', border: '1px solid #e0dcd9',
-                  borderRadius: 20, padding: '6px 12px', fontSize: 12.5, fontWeight: 600, color: '#555',
-                  cursor: busy ? 'default' : 'pointer',
-                }}
-              >
-                🖼 Choose from drafts
-              </button>
-              {media && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fce4ec', border: '1px solid #f5c2d8', borderRadius: 20, padding: '4px 6px 4px 4px' }}>
-                  {media.isVideo || !media.url ? (
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>
-                      {media.isVideo ? '▶' : '🖼'}
-                    </div>
+                  ) : m.kind === 'text' ? (
+                    <JaneBubble>{m.text}</JaneBubble>
                   ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={media.url} alt="" style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }} />
+                    <ResultCard
+                      result={m.result}
+                      onResultChange={(r) => updateResultMessage(m.id, r)}
+                      onLaunched={() => {
+                        // Campaign is live — this brief is done. Clear it so the next message
+                        // starts a fresh campaign instead of appending to the launched one.
+                        setBriefSoFar('');
+                        setMedia(null);
+                        lastCreativeRef.current = '';
+                        creativeChoiceRef.current = null;
+                        loadCampaigns();
+                        refreshThreads();
+                      }}
+                      onQuickReply={(text) => send(text)}
+                      onTopUp={() => setTab('wallet')}
+                      onSubmitWhatsapp={submitWhatsapp}
+                      onSubmitMetaConnectionWhatsapp={submitMetaConnectionWhatsapp}
+                      onChooseGenerate={() => continueWithSource({ creative_source: 'generate' })}
+                      onChooseUpload={() => {
+                        uploadForChoiceRef.current = true;
+                        fileInputRef.current?.click();
+                      }}
+                      onChooseDraft={(draftId) => continueWithSource({ creative_source: 'draft', draft_id: draftId })}
+                      onChooseVariants={(variants, groupId) => continueWithVariants(variants, groupId)}
+                    />
                   )}
-                  <span style={{ fontSize: 12, color: PINK, fontWeight: 600, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {media.source === 'draft' ? 'From drafts' : media.label}
-                  </span>
-                  <button
-                    onClick={() => setMedia(null)}
-                    style={{ background: 'none', border: 'none', color: PINK, cursor: 'pointer', fontSize: 13, padding: '0 4px', lineHeight: 1 }}
-                  >
-                    ×
-                  </button>
                 </div>
+              ))}
+              {/* Quick-start goal chips — only before the conversation gets going, so a
+                new user doesn't have to think of a phrasing from scratch. */}
+              {messages.length === 1 && !busy && (
+                <QuickReplyChips
+                  chips={GOAL_STARTER_CHIPS}
+                  onPick={(text) => setInput((prev) => (prev ? prev : text))}
+                />
+              )}
+              {busy && (
+                <JaneBubble>
+                  <TypingDots />
+                </JaneBubble>
               )}
             </div>
-            {uploadError && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#c62828' }}>{uploadError}</p>}
-            {draftsOpen && (
-              <div
-                style={{
-                  position: 'absolute', bottom: '100%', left: 24, marginBottom: 8, width: 320, maxHeight: 320,
-                  overflowY: 'auto', background: '#fff', border: '1px solid #e0dcd9', borderRadius: 12,
-                  boxShadow: '0 8px 24px rgba(0,0,0,.12)', zIndex: 10, padding: 8,
-                }}
-              >
-                {loadingDrafts ? (
-                  <p style={{ margin: 8, fontSize: 13, color: '#aaa' }}>Loading…</p>
-                ) : drafts.length === 0 ? (
-                  <p style={{ margin: 8, fontSize: 13, color: '#aaa' }}>No drafts with an image yet.</p>
-                ) : (
-                  drafts.map((d) => (
-                    <button
-                      key={d.draft_id}
-                      onClick={() => pickDraft(d)}
+            <div
+              style={{
+                padding: '12px 24px 20px',
+                borderTop: '1px solid #eee',
+                background: '#fff',
+                position: 'relative',
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
+                style={{ display: 'none' }}
+                onChange={handleFileChosen}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={busy || uploading}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#f6f5f3',
+                    border: '1px solid #e0dcd9',
+                    borderRadius: 20,
+                    padding: '6px 12px',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: '#555',
+                    cursor: busy || uploading ? 'default' : 'pointer',
+                  }}
+                >
+                  📎 {uploading ? 'Uploading…' : 'Upload photo/video'}
+                </button>
+                <button
+                  onClick={openDrafts}
+                  disabled={busy}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#f6f5f3',
+                    border: '1px solid #e0dcd9',
+                    borderRadius: 20,
+                    padding: '6px 12px',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: '#555',
+                    cursor: busy ? 'default' : 'pointer',
+                  }}
+                >
+                  🖼 Choose from drafts
+                </button>
+                {media && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: '#fce4ec',
+                      border: '1px solid #f5c2d8',
+                      borderRadius: 20,
+                      padding: '4px 6px 4px 4px',
+                    }}
+                  >
+                    {media.isVideo || !media.url ? (
+                      <div
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: '50%',
+                          background: '#eee',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 11,
+                        }}
+                      >
+                        {media.isVideo ? '▶' : '🖼'}
+                      </div>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={media.url}
+                        alt=""
+                        style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                    )}
+                    <span
                       style={{
-                        display: 'flex', gap: 10, alignItems: 'center', width: '100%', textAlign: 'left',
-                        background: 'none', border: 'none', borderRadius: 8, padding: 8, cursor: 'pointer',
+                        fontSize: 12,
+                        color: PINK,
+                        fontWeight: 600,
+                        maxWidth: 140,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = '#f6f5f3')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                     >
-                      {d.image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={d.image_url} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                      ) : (
-                        <div style={{ width: 44, height: 44, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
-                      )}
-                      <span style={{ fontSize: 12.5, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                        {d.content || d.platform}
-                      </span>
+                      {media.source === 'draft' ? 'From drafts' : media.label}
+                    </span>
+                    <button
+                      onClick={() => setMedia(null)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: PINK,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        padding: '0 4px',
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
                     </button>
-                  ))
+                  </div>
                 )}
               </div>
-            )}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    send();
-                  }
-                }}
-                placeholder="Tell Jane what you want to promote…"
-                rows={1}
-                disabled={busy}
-                style={{
-                  flex: 1,
-                  resize: 'none',
-                  border: '1.5px solid #e0dcd9',
-                  borderRadius: 12,
-                  padding: '11px 14px',
-                  fontSize: 14,
-                  fontFamily: 'inherit',
-                  color: '#111',
-                  maxHeight: 120,
-                }}
-              />
-              <button
-                onClick={() => send()}
-                disabled={busy || !input.trim()}
-                style={{
-                  padding: '11px 20px',
-                  border: 'none',
-                  borderRadius: 12,
-                  background: busy || !input.trim() ? '#ddd' : `linear-gradient(135deg,${PINK},#8E1545)`,
-                  color: '#fff',
-                  fontWeight: 800,
-                  fontSize: 14,
-                  cursor: busy || !input.trim() ? 'default' : 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {busy ? 'Working…' : 'Send'}
-              </button>
+              {uploadError && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#c62828' }}>{uploadError}</p>}
+              {draftsOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: 24,
+                    marginBottom: 8,
+                    width: 320,
+                    maxHeight: 320,
+                    overflowY: 'auto',
+                    background: '#fff',
+                    border: '1px solid #e0dcd9',
+                    borderRadius: 12,
+                    boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+                    zIndex: 10,
+                    padding: 8,
+                  }}
+                >
+                  {loadingDrafts ? (
+                    <p style={{ margin: 8, fontSize: 13, color: '#aaa' }}>Loading…</p>
+                  ) : drafts.length === 0 ? (
+                    <p style={{ margin: 8, fontSize: 13, color: '#aaa' }}>No drafts with an image yet.</p>
+                  ) : (
+                    drafts.map((d) => (
+                      <button
+                        key={d.draft_id}
+                        onClick={() => pickDraft(d)}
+                        style={{
+                          display: 'flex',
+                          gap: 10,
+                          alignItems: 'center',
+                          width: '100%',
+                          textAlign: 'left',
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 8,
+                          padding: 8,
+                          cursor: 'pointer',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#f6f5f3')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                      >
+                        {d.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={d.image_url}
+                            alt=""
+                            style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
+                          />
+                        ) : (
+                          <div
+                            style={{ width: 44, height: 44, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }}
+                          />
+                        )}
+                        <span
+                          style={{
+                            fontSize: 12.5,
+                            color: '#333',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                          }}
+                        >
+                          {d.content || d.platform}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  placeholder="Tell Jane what you want to promote…"
+                  rows={1}
+                  disabled={busy}
+                  style={{
+                    flex: 1,
+                    resize: 'none',
+                    border: '1.5px solid #e0dcd9',
+                    borderRadius: 12,
+                    padding: '11px 14px',
+                    fontSize: 14,
+                    fontFamily: 'inherit',
+                    color: '#111',
+                    maxHeight: 120,
+                  }}
+                />
+                <button
+                  onClick={() => send()}
+                  disabled={busy || !input.trim()}
+                  style={{
+                    padding: '11px 20px',
+                    border: 'none',
+                    borderRadius: 12,
+                    background: busy || !input.trim() ? '#ddd' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                    color: '#fff',
+                    fontWeight: 800,
+                    fontSize: 14,
+                    cursor: busy || !input.trim() ? 'default' : 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {busy ? 'Working…' : 'Send'}
+                </button>
+              </div>
             </div>
-          </div>
           </div>
         </div>
       ) : tab === 'manage' ? (
@@ -758,7 +941,16 @@ export default function CampaignsPage({}: CampaignsPageProps) {
             </p>
             <button
               onClick={loadCampaigns}
-              style={{ marginLeft: 'auto', background: 'none', border: '1px solid #e0dcd9', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', color: '#555' }}
+              style={{
+                marginLeft: 'auto',
+                background: 'none',
+                border: '1px solid #e0dcd9',
+                borderRadius: 8,
+                padding: '6px 12px',
+                fontSize: 12,
+                cursor: 'pointer',
+                color: '#555',
+              }}
             >
               ↻ Refresh
             </button>
@@ -770,7 +962,17 @@ export default function CampaignsPage({}: CampaignsPageProps) {
               <p style={{ fontSize: 14, margin: 0 }}>No campaigns yet.</p>
               <button
                 onClick={() => setTab('chat')}
-                style={{ marginTop: 12, background: PINK, color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                style={{
+                  marginTop: 12,
+                  background: PINK,
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '9px 18px',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
               >
                 Create one with Jane
               </button>
@@ -813,14 +1015,30 @@ function ThreadRail({
 }) {
   const statusColor: Record<string, string> = { draft: '#999', planned: '#a15c00', launched: '#1a7f37' };
   return (
-    <div style={{ width: 220, flexShrink: 0, borderRight: '1px solid #eee', display: 'flex', flexDirection: 'column', background: '#fafafa' }}>
+    <div
+      style={{
+        width: 220,
+        flexShrink: 0,
+        borderRight: '1px solid #eee',
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#fafafa',
+      }}
+    >
       <div style={{ padding: '12px 12px 8px' }}>
         <button
           onClick={onNew}
           disabled={busy}
           style={{
-            width: '100%', background: PINK, color: '#fff', border: 'none', borderRadius: 8,
-            padding: '9px 12px', fontSize: 13, fontWeight: 700, cursor: busy ? 'default' : 'pointer',
+            width: '100%',
+            background: PINK,
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            padding: '9px 12px',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: busy ? 'default' : 'pointer',
           }}
         >
           + New campaign
@@ -839,20 +1057,37 @@ function ThreadRail({
                 key={t.thread_id}
                 onClick={() => onSelect(t.thread_id)}
                 style={{
-                  padding: '9px 10px', borderRadius: 8, cursor: 'pointer', marginBottom: 4,
+                  padding: '9px 10px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  marginBottom: 4,
                   background: active ? '#fce4ec' : 'transparent',
                   border: active ? `1px solid ${PINK}` : '1px solid transparent',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 8, color: statusColor[t.status] || '#999' }}>●</span>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  <span
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      color: '#1a0a12',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      flex: 1,
+                    }}
+                  >
                     {t.title || 'New campaign'}
                   </span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm('Delete this conversation? Any launched campaign keeps running — this only removes the chat.')) {
+                      if (
+                        window.confirm(
+                          'Delete this conversation? Any launched campaign keeps running — this only removes the chat.'
+                        )
+                      ) {
                         onDelete(t.thread_id);
                       }
                     }}
@@ -860,25 +1095,50 @@ function ThreadRail({
                     aria-label="Delete conversation"
                     title="Delete conversation"
                     style={{
-                      background: 'none', border: 'none', color: '#bbb', fontSize: 14, lineHeight: 1,
-                      cursor: busy ? 'default' : 'pointer', padding: '0 2px', flexShrink: 0,
+                      background: 'none',
+                      border: 'none',
+                      color: '#bbb',
+                      fontSize: 14,
+                      lineHeight: 1,
+                      cursor: busy ? 'default' : 'pointer',
+                      padding: '0 2px',
+                      flexShrink: 0,
                     }}
                   >
                     ✕
                   </button>
                 </div>
                 {t.preview && (
-                  <p style={{ margin: '2px 0 0 14px', fontSize: 11, color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p
+                    style={{
+                      margin: '2px 0 0 14px',
+                      fontSize: 11,
+                      color: '#999',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     {t.preview}
                   </p>
                 )}
                 {t.status === 'launched' && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); onDuplicate(t.thread_id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDuplicate(t.thread_id);
+                    }}
                     disabled={busy}
                     style={{
-                      marginTop: 4, marginLeft: 14, background: 'none', border: 'none', color: PINK,
-                      fontSize: 11, fontWeight: 700, cursor: busy ? 'default' : 'pointer', padding: 0,
+                      marginTop: 4,
+                      marginLeft: 14,
+                      background: 'none',
+                      border: 'none',
+                      color: PINK,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: busy ? 'default' : 'pointer',
+                      padding: 0,
                     }}
                   >
                     ⧉ Duplicate
@@ -969,14 +1229,18 @@ function CampaignReview({ summary }: { summary: CampaignSummary }) {
     { label: 'Optimization', rv: summary.optimization },
   ];
   const e = summary.estimates;
-  const audience = e.audience_size_low != null && e.audience_size_high != null
-    ? `${e.audience_size_low.toLocaleString()}–${e.audience_size_high.toLocaleString()}`
-    : null;
+  const audience =
+    e.audience_size_low != null && e.audience_size_high != null
+      ? `${e.audience_size_low.toLocaleString()}–${e.audience_size_high.toLocaleString()}`
+      : null;
   const estItems: { label: string; value: string }[] = [];
   if (audience) estItems.push({ label: 'Audience you could reach', value: audience });
-  if (e.estimated_clicks != null) estItems.push({ label: 'Est. WhatsApp clicks', value: `~${e.estimated_clicks.toLocaleString()}` });
-  if (e.estimated_leads != null) estItems.push({ label: 'Est. leads', value: `~${e.estimated_leads.toLocaleString()}` });
-  if (e.cost_per_result_ngn != null) estItems.push({ label: 'Est. cost per result', value: naira(e.cost_per_result_ngn) });
+  if (e.estimated_clicks != null)
+    estItems.push({ label: 'Est. WhatsApp clicks', value: `~${e.estimated_clicks.toLocaleString()}` });
+  if (e.estimated_leads != null)
+    estItems.push({ label: 'Est. leads', value: `~${e.estimated_leads.toLocaleString()}` });
+  if (e.cost_per_result_ngn != null)
+    estItems.push({ label: 'Est. cost per result', value: naira(e.cost_per_result_ngn) });
 
   return (
     <div style={{ margin: '0 0 12px', border: '1px solid #eee', borderRadius: 10, overflow: 'hidden' }}>
@@ -987,8 +1251,14 @@ function CampaignReview({ summary }: { summary: CampaignSummary }) {
         {rows.map((r) => (
           <div key={r.label} style={{ padding: '8px 0', borderBottom: '1px solid #f2f0f0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: 0.3 }}>{r.label}</span>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12', textAlign: 'right' }}>{r.rv.value}</span>
+              <span
+                style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: 0.3 }}
+              >
+                {r.label}
+              </span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12', textAlign: 'right' }}>
+                {r.rv.value}
+              </span>
             </div>
             <p style={{ margin: '3px 0 0', fontSize: 11.5, color: '#888', lineHeight: 1.45 }}>{r.rv.reason}</p>
           </div>
@@ -1026,9 +1296,19 @@ function ChooseCreativeSource({
 }) {
   const [showDrafts, setShowDrafts] = useState(false);
   const optionBtn: React.CSSProperties = {
-    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
-    background: '#fff', border: `1.5px solid ${PINK}`, color: PINK, borderRadius: 12,
-    padding: '10px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'left',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 2,
+    background: '#fff',
+    border: `1.5px solid ${PINK}`,
+    color: PINK,
+    borderRadius: 12,
+    padding: '10px 14px',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    textAlign: 'left',
   };
   const sub: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#a06', opacity: 0.85 };
   return (
@@ -1054,14 +1334,186 @@ function ChooseCreativeSource({
               key={d.draft_id}
               onClick={() => onPickDraft(d.draft_id)}
               title={d.content}
-              style={{ padding: 0, border: '2px solid #eee', borderRadius: 10, overflow: 'hidden', cursor: 'pointer', background: '#fff', width: 84, height: 84 }}
+              style={{
+                padding: 0,
+                border: '2px solid #eee',
+                borderRadius: 10,
+                overflow: 'hidden',
+                cursor: 'pointer',
+                background: '#fff',
+                width: 84,
+                height: 84,
+              }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={d.image_url} alt="past post" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img
+                src={d.image_url}
+                alt="past post"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
             </button>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Multi-Plan Audience Variants — up to five ranked, genuinely-distinct audience
+// strategies (spec v1.0.0). Mobile-first: stacked vertically, the recommended card
+// expanded by default, others collapsed to a one-line summary (spec §4.2). Budget
+// gates how many can be selected (max_selectable, computed server-side — never
+// guessed here) — single-select becomes a radio-like tap, multi-select toggles.
+function PlanVariantCards({
+  variantSet,
+  onConfirm,
+}: {
+  variantSet: PlanVariantSet;
+  onConfirm: (variants: PlanVariant[]) => void;
+}) {
+  const recommendedRank = variantSet.variants.find((v) => v.recommended)?.rank ?? variantSet.variants[0]?.rank;
+  const [expandedRank, setExpandedRank] = useState<number | null>(recommendedRank ?? null);
+  const [selectedRanks, setSelectedRanks] = useState<number[]>([]);
+  const maxSelectable = variantSet.max_selectable;
+
+  const toggleSelect = (rank: number) => {
+    setSelectedRanks((prev) => {
+      if (prev.includes(rank)) return prev.filter((r) => r !== rank);
+      if (maxSelectable === 1) return [rank];
+      if (prev.length >= maxSelectable) return prev; // ignore taps past the budget-gated limit
+      return [...prev, rank];
+    });
+  };
+
+  const cardStyle = (v: PlanVariant): React.CSSProperties => ({
+    border: `1.5px solid ${v.recommended ? PINK : '#eee'}`,
+    borderRadius: 12,
+    padding: '12px 14px',
+    background: '#fff',
+    cursor: 'pointer',
+  });
+  const label: React.CSSProperties = {
+    fontSize: 10.5,
+    fontWeight: 700,
+    color: '#999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  };
+
+  return (
+    <div>
+      <JaneBubble>{variantSet.recommendation_reason}</JaneBubble>
+      {variantSet.selection_rule_reason && (
+        <p style={{ margin: '4px 0 8px 40px', fontSize: 11.5, color: '#888', fontStyle: 'italic', maxWidth: 520 }}>
+          {variantSet.selection_rule_reason}
+        </p>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginLeft: 40, maxWidth: 560 }}>
+        {variantSet.variants.map((v) => {
+          const isExpanded = expandedRank === v.rank;
+          const isSelected = selectedRanks.includes(v.rank);
+          return (
+            <div key={v.rank} style={cardStyle(v)}>
+              <div
+                onClick={() => setExpandedRank(isExpanded ? null : v.rank)}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
+              >
+                <div>
+                  <span style={label}>Plan {v.rank}</span>
+                  <p style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 800, color: '#1a0a12' }}>{v.who_its_for}</p>
+                </div>
+                {v.recommended && (
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: PINK, whiteSpace: 'nowrap' }}>
+                    ★ RECOMMENDED
+                  </span>
+                )}
+              </div>
+              {isExpanded && (
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {v.geo_pockets.length > 0 && (
+                    <div>
+                      <span style={label}>Where</span>
+                      <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#444' }}>
+                        {v.geo_pockets.join(', ')} <em style={{ opacity: 0.6 }}>(confirm these match you)</em>
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <span style={label}>Why this could work</span>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#444', lineHeight: 1.5 }}>
+                      {v.why_this_could_work}
+                    </p>
+                  </div>
+                  <div>
+                    <span style={label}>Trade-off</span>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#a15c00', lineHeight: 1.5 }}>
+                      {v.trade_off}
+                    </p>
+                  </div>
+                  <div>
+                    <span style={label}>Creative</span>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#444' }}>
+                      {v.needs_video ? 'Video of you talking' : 'Photos would work'}
+                    </p>
+                  </div>
+                  <div>
+                    <span style={label}>Budget</span>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#444' }}>
+                      {naira(v.budget_alone_ngn)} if run alone
+                      {v.budget_shared_ngn != null && `, or ${naira(v.budget_shared_ngn)} alongside another`}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleSelect(v.rank);
+                }}
+                style={{
+                  marginTop: 10,
+                  width: '100%',
+                  border: `1.5px solid ${PINK}`,
+                  borderRadius: 10,
+                  padding: '8px 12px',
+                  fontWeight: 700,
+                  fontSize: 12.5,
+                  cursor: 'pointer',
+                  background: isSelected ? PINK : '#fff',
+                  color: isSelected ? '#fff' : PINK,
+                }}
+              >
+                {isSelected ? '✓ Selected' : maxSelectable > 1 ? 'Select this one' : 'Choose this one'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {maxSelectable > 1 && (
+        <p style={{ margin: '10px 0 0 40px', fontSize: 11.5, color: '#888', maxWidth: 520 }}>
+          ℹ️ Picking more than one means a separate ad for each — since they need different messages, one shared ad
+          would end up vague. That's {Math.max(selectedRanks.length, 1)} creative credit
+          {selectedRanks.length === 1 ? '' : 's'}.
+        </p>
+      )}
+      <button
+        onClick={() => onConfirm(variantSet.variants.filter((v) => selectedRanks.includes(v.rank)))}
+        disabled={selectedRanks.length === 0}
+        style={{
+          marginTop: 10,
+          marginLeft: 40,
+          border: 'none',
+          borderRadius: 10,
+          padding: '10px 16px',
+          fontWeight: 700,
+          fontSize: 13,
+          cursor: selectedRanks.length ? 'pointer' : 'default',
+          background: selectedRanks.length ? `linear-gradient(135deg,${PINK},#8E1545)` : '#eee',
+          color: selectedRanks.length ? '#fff' : '#999',
+        }}
+      >
+        {selectedRanks.length > 1 ? `Build ${selectedRanks.length} ads` : 'Build this ad'}
+      </button>
     </div>
   );
 }
@@ -1078,8 +1530,14 @@ function ConnectMetaAdsLink({ children }: { children: React.ReactNode }) {
     <a
       href={`${apiBase}/social-media/connect/facebook-ads/initiate?source=jane_ads`}
       style={{
-        display: 'inline-block', background: PINK, color: '#fff', textDecoration: 'none',
-        borderRadius: 20, padding: '8px 16px', fontSize: 12.5, fontWeight: 700,
+        display: 'inline-block',
+        background: PINK,
+        color: '#fff',
+        textDecoration: 'none',
+        borderRadius: 20,
+        padding: '8px 16px',
+        fontSize: 12.5,
+        fontWeight: 700,
       }}
     >
       {children}
@@ -1151,9 +1609,14 @@ function PlanAskBox({
           onClick={ask}
           disabled={asking || !question.trim()}
           style={{
-            border: 'none', borderRadius: 8, padding: '7px 12px', fontWeight: 700, fontSize: 12,
+            border: 'none',
+            borderRadius: 8,
+            padding: '7px 12px',
+            fontWeight: 700,
+            fontSize: 12,
             cursor: asking ? 'default' : 'pointer',
-            background: asking ? '#eee' : PINK, color: asking ? '#999' : '#fff',
+            background: asking ? '#eee' : PINK,
+            color: asking ? '#999' : '#fff',
           }}
         >
           {asking ? '…' : 'Ask'}
@@ -1161,15 +1624,30 @@ function PlanAskBox({
       </div>
       {error && <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
       {answer && (
-        <div style={{ marginTop: 8, background: '#fff', border: '1px solid #f0e3d0', borderRadius: 8, padding: '8px 10px' }}>
+        <div
+          style={{
+            marginTop: 8,
+            background: '#fff',
+            border: '1px solid #f0e3d0',
+            borderRadius: 8,
+            padding: '8px 10px',
+          }}
+        >
           <p style={{ margin: 0, fontSize: 12.5, color: '#1a0a12', lineHeight: 1.5 }}>{answer.answer || answer.note}</p>
           {answer.kind === 'challenge' && answer.stage === 'challenge_preview' && (
             <button
               onClick={confirmCorrection}
               disabled={asking}
               style={{
-                marginTop: 8, border: `1.5px solid ${PINK}`, borderRadius: 8, padding: '6px 10px',
-                fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: '#fff', color: PINK,
+                marginTop: 8,
+                border: `1.5px solid ${PINK}`,
+                borderRadius: 8,
+                padding: '6px 10px',
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                background: '#fff',
+                color: PINK,
               }}
             >
               Replace plan with this correction
@@ -1189,7 +1667,8 @@ function NeedWhatsapp({ question, onSubmit }: { question?: string; onSubmit: (nu
   return (
     <div>
       <JaneBubble>
-        {question || 'Which WhatsApp number should I send your leads to? Anyone who taps your ad will message this number directly.'}
+        {question ||
+          'Which WhatsApp number should I send your leads to? Anyone who taps your ad will message this number directly.'}
       </JaneBubble>
       <div style={{ display: 'flex', gap: 8, marginTop: 8, marginLeft: 40, maxWidth: 360 }}>
         <input
@@ -1198,14 +1677,28 @@ function NeedWhatsapp({ question, onSubmit }: { question?: string; onSubmit: (nu
           onKeyDown={(e) => e.key === 'Enter' && submit()}
           placeholder="e.g. 0803 123 4567"
           inputMode="tel"
-          style={{ flex: 1, border: '1.5px solid #e0dcd9', borderRadius: 20, padding: '8px 14px', fontSize: 13, outline: 'none' }}
+          style={{
+            flex: 1,
+            border: '1.5px solid #e0dcd9',
+            borderRadius: 20,
+            padding: '8px 14px',
+            fontSize: 13,
+            outline: 'none',
+          }}
         />
         <button
           onClick={submit}
           disabled={!value.trim()}
           style={{
-            background: PINK, border: 'none', color: '#fff', borderRadius: 20, padding: '8px 18px',
-            fontSize: 13, fontWeight: 700, cursor: value.trim() ? 'pointer' : 'default', opacity: value.trim() ? 1 : 0.5,
+            background: PINK,
+            border: 'none',
+            color: '#fff',
+            borderRadius: 20,
+            padding: '8px 18px',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: value.trim() ? 'pointer' : 'default',
+            opacity: value.trim() ? 1 : 0.5,
           }}
         >
           Save
@@ -1238,7 +1731,6 @@ function ZoomableImage({
         style={{ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in', display: 'block', width: '100%' }}
       >
         {isVideo ? (
-          // eslint-disable-next-line jsx-a11y/media-has-caption
           <video src={src} style={style} muted />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
@@ -1249,30 +1741,50 @@ function ZoomableImage({
         <div
           onClick={() => setOpen(false)}
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out',
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.85)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            cursor: 'zoom-out',
           }}
         >
           <button
             onClick={() => setOpen(false)}
             aria-label="Close"
             style={{
-              position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: 'none',
-              color: '#fff', borderRadius: '50%', width: 36, height: 36, fontSize: 18, cursor: 'pointer',
+              position: 'absolute',
+              top: 20,
+              right: 24,
+              background: 'rgba(255,255,255,0.15)',
+              border: 'none',
+              color: '#fff',
+              borderRadius: '50%',
+              width: 36,
+              height: 36,
+              fontSize: 18,
+              cursor: 'pointer',
             }}
           >
             ✕
           </button>
           {isVideo ? (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
             <video
-              src={src} controls autoPlay onClick={(e) => e.stopPropagation()}
+              src={src}
+              controls
+              autoPlay
+              onClick={(e) => e.stopPropagation()}
               style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8 }}
             />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={src} alt={alt} onClick={(e) => e.stopPropagation()}
+              src={src}
+              alt={alt}
+              onClick={(e) => e.stopPropagation()}
               style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }}
             />
           )}
@@ -1300,8 +1812,16 @@ function TypingDots() {
       ))}
       <style jsx>{`
         @keyframes jane-typing-bounce {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-          30% { transform: translateY(-4px); opacity: 1; }
+          0%,
+          60%,
+          100% {
+            transform: translateY(0);
+            opacity: 0.5;
+          }
+          30% {
+            transform: translateY(-4px);
+            opacity: 1;
+          }
         }
       `}</style>
     </span>
@@ -1319,6 +1839,7 @@ function ResultCard({
   onChooseGenerate,
   onChooseUpload,
   onChooseDraft,
+  onChooseVariants,
 }: {
   result: LaunchFromMessageResult;
   onResultChange: (result: LaunchFromMessageResult) => void;
@@ -1330,9 +1851,16 @@ function ResultCard({
   onChooseGenerate: () => void;
   onChooseUpload: () => void;
   onChooseDraft: (draftId: string) => void;
+  onChooseVariants: (variants: PlanVariant[], variantGroupId: string) => void;
 }) {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
+  // Pre-existing rules-of-hooks bug: these two were declared after several early
+  // returns below (meta_connection_ads_no_whatsapp, choose_creative_source, etc.),
+  // meaning React skipped them whenever an earlier stage matched — moved up here
+  // alongside the other hooks so every render calls the same hooks in the same order.
+  const [fixingWhatsapp, setFixingWhatsapp] = useState(false);
+  const [whatsappFix, setWhatsappFix] = useState('');
 
   if (result.stage === 'need_whatsapp') {
     return <NeedWhatsapp question={result.question} onSubmit={onSubmitWhatsapp} />;
@@ -1355,6 +1883,16 @@ function ResultCard({
     );
   }
 
+  if (result.stage === 'choose_plan_variant' && result.plan_variants) {
+    const groupId = result.variant_group_id || '';
+    return (
+      <PlanVariantCards
+        variantSet={result.plan_variants}
+        onConfirm={(variants) => onChooseVariants(variants, groupId)}
+      />
+    );
+  }
+
   if (result.stage === 'need_more') {
     // need_more now covers three distinct questions (nl.py asks business identity, THEN
     // the objective/offer_type, THEN budget — in that order) — chips only make sense for
@@ -1372,14 +1910,19 @@ function ResultCard({
     );
   }
   if (result.stage === 'advise') {
-    return <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>;
+    return (
+      <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>
+    );
   }
   if (result.stage === 'need_facebook_page') {
     // Legacy stage — only ever rendered from an OLD saved thread message; the
     // backend no longer emits it (superseded by the meta_connection_* states below).
     return (
       <div>
-        <JaneBubble>{result.question || 'Connect your Facebook Page (with WhatsApp linked to it) so leads reach you, then come back and I\'ll launch.'}</JaneBubble>
+        <JaneBubble>
+          {result.question ||
+            "Connect your Facebook Page (with WhatsApp linked to it) so leads reach you, then come back and I'll launch."}
+        </JaneBubble>
         <div style={{ marginLeft: 40, marginTop: 8 }}>
           <ConnectMetaAdsLink>Connect Facebook Page →</ConnectMetaAdsLink>
         </div>
@@ -1394,9 +1937,8 @@ function ResultCard({
     return (
       <div>
         <JaneBubble>
-          To run real ads, I need your Facebook Page connected with ads permission — this
-          makes sure the ad runs from YOUR Page, not a shared one, so followers and replies
-          come to you.
+          To run real ads, I need your Facebook Page connected with ads permission — this makes sure the ad runs from
+          YOUR Page, not a shared one, so followers and replies come to you.
         </JaneBubble>
         <div style={{ marginLeft: 40, marginTop: 8 }}>
           <ConnectMetaAdsLink>Connect Facebook Page →</ConnectMetaAdsLink>
@@ -1408,8 +1950,8 @@ function ResultCard({
     return (
       <div>
         <JaneBubble>
-          You&rsquo;re already connected for posting — running ads just needs one more
-          permission from Facebook (advertising access), on top of what you&rsquo;ve already granted.
+          You&rsquo;re already connected for posting — running ads just needs one more permission from Facebook
+          (advertising access), on top of what you&rsquo;ve already granted.
         </JaneBubble>
         <div style={{ marginLeft: 40, marginTop: 8 }}>
           <ConnectMetaAdsLink>Add ads permission →</ConnectMetaAdsLink>
@@ -1422,8 +1964,8 @@ function ResultCard({
       <div>
         <JaneBubble>
           {result.page_name ? `Your connection to ${result.page_name} needs` : 'Your Facebook connection needs'}{' '}
-          refreshing — a permission may have been changed or revoked. Reconnect and I&rsquo;ll pick
-          up right where we left off.
+          refreshing — a permission may have been changed or revoked. Reconnect and I&rsquo;ll pick up right where we
+          left off.
         </JaneBubble>
         <div style={{ marginLeft: 40, marginTop: 8 }}>
           <ConnectMetaAdsLink>Reconnect Facebook Page →</ConnectMetaAdsLink>
@@ -1434,8 +1976,8 @@ function ResultCard({
   if (result.stage === 'meta_connection_no_page') {
     return (
       <JaneBubble>
-        Ads need a Facebook Page behind them, and your account doesn&rsquo;t have one yet.
-        Create a Page in Facebook first, then come back and reconnect.
+        Ads need a Facebook Page behind them, and your account doesn&rsquo;t have one yet. Create a Page in Facebook
+        first, then come back and reconnect.
       </JaneBubble>
     );
   }
@@ -1451,9 +1993,6 @@ function ResultCard({
       />
     );
   }
-
-  const [fixingWhatsapp, setFixingWhatsapp] = useState(false);
-  const [whatsappFix, setWhatsappFix] = useState('');
 
   const confirmLaunch = async () => {
     if (launching || !result.plan_id) return;
@@ -1501,14 +2040,31 @@ function ResultCard({
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
       <div
         style={{
-          width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-          background: `linear-gradient(135deg,${PINK},#8E1545)`, color: '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13,
+          width: 30,
+          height: 30,
+          borderRadius: '50%',
+          flexShrink: 0,
+          background: `linear-gradient(135deg,${PINK},#8E1545)`,
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 800,
+          fontSize: 13,
         }}
       >
         J
       </div>
-      <div style={{ maxWidth: 560, flex: 1, border: '1px solid #eee', borderRadius: 14, overflow: 'hidden', background: '#fff' }}>
+      <div
+        style={{
+          maxWidth: 560,
+          flex: 1,
+          border: '1px solid #eee',
+          borderRadius: 14,
+          overflow: 'hidden',
+          background: '#fff',
+        }}
+      >
         {creative?.image_url && (
           <ZoomableImage
             src={creative.image_url}
@@ -1527,12 +2083,31 @@ function ResultCard({
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
             {plan?.platforms?.map((p, i) => (
-              <span key={i} style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: '#fce4ec', color: PINK }}>
+              <span
+                key={i}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '3px 9px',
+                  borderRadius: 20,
+                  background: '#fce4ec',
+                  color: PINK,
+                }}
+              >
                 {naira(p.budget_ngn)} · {p.days} days
               </span>
             ))}
             {plan?.geo?.pins?.length ? (
-              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: '#f0eded', color: '#666' }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '3px 9px',
+                  borderRadius: 20,
+                  background: '#f0eded',
+                  color: '#666',
+                }}
+              >
                 📍 {plan.geo.pins.map((x) => x.name).join(', ')}
               </span>
             ) : null}
@@ -1554,14 +2129,22 @@ function ResultCard({
               {wallet && !wallet.sufficient && (
                 <>
                   <p style={{ margin: '0 0 8px', fontSize: 12.5, color: '#a15c00' }}>
-                    You&rsquo;ll need {naira(wallet.total_due_ngn ?? wallet.budget_ngn)} in your wallet to run this — you have {naira(wallet.balance_ngn)} now.
+                    You&rsquo;ll need {naira(wallet.total_due_ngn ?? wallet.budget_ngn)} in your wallet to run this —
+                    you have {naira(wallet.balance_ngn)} now.
                   </p>
                   <button
                     onClick={onTopUp}
                     style={{
-                      width: '100%', marginBottom: 8, border: `1.5px solid ${PINK}`, borderRadius: 10,
-                      padding: '9px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer',
-                      background: '#fff', color: PINK,
+                      width: '100%',
+                      marginBottom: 8,
+                      border: `1.5px solid ${PINK}`,
+                      borderRadius: 10,
+                      padding: '9px 14px',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      background: '#fff',
+                      color: PINK,
                     }}
                   >
                     Top up wallet
@@ -1572,7 +2155,12 @@ function ResultCard({
                 onClick={confirmLaunch}
                 disabled={launching}
                 style={{
-                  width: '100%', border: 'none', borderRadius: 10, padding: '10px 14px', fontWeight: 700, fontSize: 13,
+                  width: '100%',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  fontWeight: 700,
+                  fontSize: 13,
                   cursor: launching ? 'default' : 'pointer',
                   background: launching ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
                   color: launching ? '#999' : '#fff',
@@ -1589,14 +2177,27 @@ function ResultCard({
                     onKeyDown={(e) => e.key === 'Enter' && submitWhatsappFixAndRetry()}
                     placeholder="e.g. 0803 123 4567"
                     inputMode="tel"
-                    style={{ flex: 1, border: '1.5px solid #e0dcd9', borderRadius: 20, padding: '8px 14px', fontSize: 13, outline: 'none' }}
+                    style={{
+                      flex: 1,
+                      border: '1.5px solid #e0dcd9',
+                      borderRadius: 20,
+                      padding: '8px 14px',
+                      fontSize: 13,
+                      outline: 'none',
+                    }}
                   />
                   <button
                     onClick={submitWhatsappFixAndRetry}
                     disabled={!whatsappFix.trim() || launching}
                     style={{
-                      background: PINK, border: 'none', color: '#fff', borderRadius: 20, padding: '8px 18px',
-                      fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+                      background: PINK,
+                      border: 'none',
+                      color: '#fff',
+                      borderRadius: 20,
+                      padding: '8px 18px',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
                       cursor: whatsappFix.trim() && !launching ? 'pointer' : 'default',
                       opacity: whatsappFix.trim() && !launching ? 1 : 0.5,
                     }}
@@ -1615,7 +2216,9 @@ function ResultCard({
           )}
           {result.stage !== 'planned' && (
             <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
-              <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>✓ Campaign created, paused, no spend yet</p>
+              <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>
+                ✓ Campaign created, paused, no spend yet
+              </p>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>{launch?.note}</p>
             </div>
           )}
@@ -1645,7 +2248,15 @@ function fmtTxnDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function WalletTab({ wallet, loading, onFunded }: { wallet: WalletInfo | null; loading: boolean; onFunded: () => void }) {
+function WalletTab({
+  wallet,
+  loading,
+  onFunded,
+}: {
+  wallet: WalletInfo | null;
+  loading: boolean;
+  onFunded: () => void;
+}) {
   const min = wallet?.min_topup_ngn ?? 5000;
   const [amount, setAmount] = useState<number>(min);
   const [funding, setFunding] = useState(false);
@@ -1685,14 +2296,31 @@ function WalletTab({ wallet, loading, onFunded }: { wallet: WalletInfo | null; l
         </p>
         <button
           onClick={onFunded}
-          style={{ marginLeft: 'auto', background: 'none', border: '1px solid #e0dcd9', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', color: '#555' }}
+          style={{
+            marginLeft: 'auto',
+            background: 'none',
+            border: '1px solid #e0dcd9',
+            borderRadius: 8,
+            padding: '6px 12px',
+            fontSize: 12,
+            cursor: 'pointer',
+            color: '#555',
+          }}
         >
           ↻ Refresh
         </button>
       </div>
 
       {/* Balance */}
-      <div style={{ background: `linear-gradient(135deg,${PINK},#8E1545)`, borderRadius: 16, padding: '22px 24px', color: '#fff', marginBottom: 20 }}>
+      <div
+        style={{
+          background: `linear-gradient(135deg,${PINK},#8E1545)`,
+          borderRadius: 16,
+          padding: '22px 24px',
+          color: '#fff',
+          marginBottom: 20,
+        }}
+      >
         <div style={{ fontSize: 12.5, opacity: 0.85, fontWeight: 600, letterSpacing: 0.3 }}>CURRENT BALANCE</div>
         <div style={{ fontSize: 34, fontWeight: 800, marginTop: 4 }}>
           {loading && !wallet ? '…' : naira(wallet?.balance_ngn ?? 0)}
@@ -1706,12 +2334,19 @@ function WalletTab({ wallet, loading, onFunded }: { wallet: WalletInfo | null; l
           {presets.map((p) => (
             <button
               key={p}
-              onClick={() => { setAmount(p); setError(''); }}
+              onClick={() => {
+                setAmount(p);
+                setError('');
+              }}
               style={{
                 background: amount === p ? PINK : '#fff',
                 color: amount === p ? '#fff' : PINK,
                 border: `1.5px solid ${PINK}`,
-                borderRadius: 20, padding: '6px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                borderRadius: 20,
+                padding: '6px 14px',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
               }}
             >
               {naira(p)}
@@ -1719,23 +2354,49 @@ function WalletTab({ wallet, loading, onFunded }: { wallet: WalletInfo | null; l
           ))}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', flex: 1, border: '1.5px solid #e0dcd9', borderRadius: 12, padding: '0 12px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              flex: 1,
+              border: '1.5px solid #e0dcd9',
+              borderRadius: 12,
+              padding: '0 12px',
+            }}
+          >
             <span style={{ color: '#888', fontSize: 15, fontWeight: 700 }}>₦</span>
             <input
               type="number"
               min={min}
               value={amount || ''}
-              onChange={(e) => { setAmount(Number(e.target.value)); setError(''); }}
-              style={{ border: 'none', outline: 'none', padding: '11px 8px', fontSize: 15, width: '100%', color: '#111', fontFamily: 'inherit' }}
+              onChange={(e) => {
+                setAmount(Number(e.target.value));
+                setError('');
+              }}
+              style={{
+                border: 'none',
+                outline: 'none',
+                padding: '11px 8px',
+                fontSize: 15,
+                width: '100%',
+                color: '#111',
+                fontFamily: 'inherit',
+              }}
             />
           </div>
           <button
             onClick={topUp}
             disabled={funding}
             style={{
-              padding: '11px 22px', border: 'none', borderRadius: 12, whiteSpace: 'nowrap',
+              padding: '11px 22px',
+              border: 'none',
+              borderRadius: 12,
+              whiteSpace: 'nowrap',
               background: funding ? '#ddd' : `linear-gradient(135deg,${PINK},#8E1545)`,
-              color: '#fff', fontWeight: 800, fontSize: 14, cursor: funding ? 'default' : 'pointer',
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: 14,
+              cursor: funding ? 'default' : 'pointer',
             }}
           >
             {funding ? 'Starting…' : 'Top up'}
@@ -1753,17 +2414,37 @@ function WalletTab({ wallet, loading, onFunded }: { wallet: WalletInfo | null; l
       ) : !wallet?.transactions?.length ? (
         <p style={{ color: '#aaa', fontSize: 13 }}>No activity yet. Top up to get started.</p>
       ) : (
-        <div style={{ display: 'grid', gap: 1, background: '#eee', border: '1px solid #eee', borderRadius: 12, overflow: 'hidden' }}>
+        <div
+          style={{
+            display: 'grid',
+            gap: 1,
+            background: '#eee',
+            border: '1px solid #eee',
+            borderRadius: 12,
+            overflow: 'hidden',
+          }}
+        >
           {wallet.transactions.map((t) => {
             const credit = t.amount_ngn >= 0;
             return (
-              <div key={t.transaction_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: '#fff' }}>
+              <div
+                key={t.transaction_id}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: '#fff' }}
+              >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>{walletTxnLabel(t)}</div>
                   <div style={{ fontSize: 11.5, color: '#aaa' }}>{fmtTxnDate(t.created_at)}</div>
                 </div>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: credit ? '#1e7e34' : '#c62828', whiteSpace: 'nowrap' }}>
-                  {credit ? '+' : '−'}{naira(Math.abs(t.amount_ngn))}
+                <div
+                  style={{
+                    fontSize: 13.5,
+                    fontWeight: 700,
+                    color: credit ? '#1e7e34' : '#c62828',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {credit ? '+' : '−'}
+                  {naira(Math.abs(t.amount_ngn))}
                 </div>
               </div>
             );
@@ -1812,7 +2493,14 @@ function BillingTab() {
   };
 
   const t = data?.totals;
-  const dateInput: React.CSSProperties = { border: '1.5px solid #e0dcd9', borderRadius: 10, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', color: '#111' };
+  const dateInput: React.CSSProperties = {
+    border: '1.5px solid #e0dcd9',
+    borderRadius: 10,
+    padding: '8px 10px',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    color: '#111',
+  };
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
@@ -1823,22 +2511,45 @@ function BillingTab() {
       {/* Filters */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end', marginBottom: 18 }}>
         <label style={{ fontSize: 11.5, color: '#888' }}>
-          From<br /><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={dateInput} />
+          From
+          <br />
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={dateInput} />
         </label>
         <label style={{ fontSize: 11.5, color: '#888' }}>
-          To<br /><input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={dateInput} />
+          To
+          <br />
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={dateInput} />
         </label>
         <button
           onClick={load}
           disabled={loading}
-          style={{ border: 'none', borderRadius: 10, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', background: `linear-gradient(135deg,${PINK},#8E1545)`, color: '#fff' }}
+          style={{
+            border: 'none',
+            borderRadius: 10,
+            padding: '9px 18px',
+            fontWeight: 700,
+            fontSize: 13,
+            cursor: 'pointer',
+            background: `linear-gradient(135deg,${PINK},#8E1545)`,
+            color: '#fff',
+          }}
         >
           {loading ? 'Loading…' : 'Apply'}
         </button>
         <button
           onClick={download}
           disabled={downloading || !data}
-          style={{ border: `1.5px solid ${PINK}`, borderRadius: 10, padding: '9px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', background: '#fff', color: PINK, marginLeft: 'auto' }}
+          style={{
+            border: `1.5px solid ${PINK}`,
+            borderRadius: 10,
+            padding: '9px 16px',
+            fontWeight: 700,
+            fontSize: 13,
+            cursor: 'pointer',
+            background: '#fff',
+            color: PINK,
+            marginLeft: 'auto',
+          }}
         >
           {downloading ? 'Preparing…' : '⤓ Download CSV'}
         </button>
@@ -1880,7 +2591,9 @@ function BillingTab() {
                   <td style={{ padding: '9px 10px', textAlign: 'right', color: '#666' }}>{r.campaigns}</td>
                   <td style={{ padding: '9px 10px', textAlign: 'right', color: '#333' }}>{naira(r.real_spend_ngn)}</td>
                   <td style={{ padding: '9px 10px', textAlign: 'right', color: '#333' }}>{naira(r.billed_ngn)}</td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700, color: '#1e7e34' }}>{naira(r.margin_ngn)}</td>
+                  <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700, color: '#1e7e34' }}>
+                    {naira(r.margin_ngn)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1893,7 +2606,15 @@ function BillingTab() {
 
 function TotalCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div style={{ border: '1px solid #eee', borderRadius: 12, padding: '12px 16px', minWidth: 130, background: accent ? '#f6fbf6' : '#fff' }}>
+    <div
+      style={{
+        border: '1px solid #eee',
+        borderRadius: 12,
+        padding: '12px 16px',
+        minWidth: 130,
+        background: accent ? '#f6fbf6' : '#fff',
+      }}
+    >
       <div style={{ fontSize: 10.5, color: '#aaa', textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: accent ? '#1e7e34' : '#1a0a12', marginTop: 2 }}>{value}</div>
     </div>
@@ -1920,7 +2641,9 @@ function statusStyle(status: string) {
 function formatEnds(endsAt: string | null | undefined) {
   if (!endsAt) return 'Ongoing';
   const d = new Date(endsAt);
-  return Number.isNaN(d.getTime()) ? 'Ongoing' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return Number.isNaN(d.getTime())
+    ? 'Ongoing'
+    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 const _TOGGLABLE_STATUSES = new Set(['active', 'paused']);
@@ -1972,10 +2695,16 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   };
 
   return (
-    <div style={{ display: 'flex', gap: 14, border: '1px solid #eee', borderRadius: 12, padding: 12, background: '#fff' }}>
+    <div
+      style={{ display: 'flex', gap: 14, border: '1px solid #eee', borderRadius: 12, padding: 12, background: '#fff' }}
+    >
       {c.image_url ? (
         <div style={{ width: 84, height: 84, flexShrink: 0 }}>
-          <ZoomableImage src={c.image_url} alt={c.name} style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover' }} />
+          <ZoomableImage
+            src={c.image_url}
+            alt={c.name}
+            style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover' }}
+          />
         </div>
       ) : (
         <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
@@ -1983,17 +2712,44 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#1a0a12' }}>{c.name}</p>
-          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: bg, color, textTransform: 'uppercase' }}>
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: 20,
+              background: bg,
+              color,
+              textTransform: 'uppercase',
+            }}
+          >
             {displayStatus}
           </span>
         </div>
-        <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.headline}</p>
+        <p
+          style={{
+            margin: '3px 0 0',
+            fontSize: 12.5,
+            color: '#666',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {c.headline}
+        </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8, fontSize: 12 }}>
           <Metric label="Budget" value={naira(c.budget_ngn)} />
           <Metric label="Amount spent" value={naira(c.metrics?.spend_ngn)} />
-          <Metric label="Views" value={c.metrics?.impressions != null ? c.metrics.impressions.toLocaleString() : 'N/A'} />
+          <Metric
+            label="Views"
+            value={c.metrics?.impressions != null ? c.metrics.impressions.toLocaleString() : 'N/A'}
+          />
           <Metric label="People reached" value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'} />
-          <Metric label="WhatsApp conversations" value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'} />
+          <Metric
+            label="WhatsApp conversations"
+            value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'}
+          />
           <Metric
             label="Cost per conversation"
             value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
@@ -2009,8 +2765,8 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           </p>
         ) : (
           <p style={{ margin: '8px 0 0', fontSize: 12, color: '#a15c00' }}>
-            ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number.
-            Duplicate it from a chat thread to relaunch with your number.
+            ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number. Duplicate it from a chat
+            thread to relaunch with your number.
           </p>
         )}
         {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
@@ -2023,8 +2779,15 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               disabled={busy}
               title={isActive ? 'Pause' : 'Activate'}
               style={{
-                width: 34, height: 34, borderRadius: '50%', border: 'none', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                border: 'none',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 13,
                 cursor: busy ? 'default' : 'pointer',
                 background: working ? '#eee' : isActive ? '#fdecea' : `linear-gradient(135deg,${PINK},#8E1545)`,
                 color: working ? '#999' : isActive ? '#c62828' : '#fff',
@@ -2039,8 +2802,15 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               disabled={busy}
               title="Delete"
               style={{
-                width: 34, height: 34, borderRadius: '50%', border: '1px solid #f0d8dc', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                border: '1px solid #f0d8dc',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 13,
                 cursor: busy ? 'default' : 'pointer',
                 background: deleting ? '#eee' : '#fff',
                 color: deleting ? '#999' : '#c62828',
