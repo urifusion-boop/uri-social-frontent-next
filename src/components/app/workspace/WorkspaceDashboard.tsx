@@ -2336,14 +2336,8 @@ const PLATFORMS = [
     tooltip:
       'Connect your Instagram Business account to publish feed posts, carousels, and stories directly from URI Social',
   },
-  {
-    id: 'tiktok',
-    label: 'TikTok',
-    color: '#010101',
-    bg: '#F0F0F0',
-    flow: 'outstand_oauth',
-    tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
-  },
+  // TikTok connect option hidden in main (production) for now — kept out of PLATFORMS
+  // rather than deleted so it's a one-line restore when it's ready to ship here.
 ];
 
 const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
