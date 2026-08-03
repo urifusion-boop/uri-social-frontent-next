@@ -64,7 +64,7 @@ interface VideoPlan {
   brollEnabled: boolean;
   brollDensity: 'light' | 'moderate' | 'heavy';
   musicEnabled: boolean;
-  musicType: 'upbeat' | 'calm' | 'dramatic';
+  musicType: 'upbeat' | 'calm' | 'dramatic' | 'custom';
   targetLength: 'auto' | '15s' | '30s' | '60s';
   aspectRatio: '9:16' | '16:9' | '1:1';
 }
@@ -347,6 +347,8 @@ function AdjustPanel({
   onCancel,
   styleTemplates,
   isMobile = false,
+  musicFile,
+  onMusicFileChange,
 }: {
   field: AdjustField;
   plan: VideoPlan;
@@ -354,7 +356,11 @@ function AdjustPanel({
   onCancel: () => void;
   styleTemplates: StyleTemplate[];
   isMobile?: boolean;
+  musicFile: File | null;
+  onMusicFileChange: (f: File | null) => void;
 }) {
+  const musicInputRef = useRef<HTMLInputElement>(null);
+
   const section = (title: string, children: React.ReactNode) => (
     <div>
       <SectionLabel text={title} />
@@ -631,20 +637,101 @@ function AdjustPanel({
         );
 
       case 'music':
-        return section(
-          'Music',
-          <>
-            {opt('Upbeat · under your voice', plan.musicEnabled && plan.musicType === 'upbeat', () =>
-              onApply({ musicEnabled: true, musicType: 'upbeat' })
+        return (
+          <div>
+            {section(
+              'Music',
+              <>
+                {opt('Upbeat · under your voice', plan.musicEnabled && plan.musicType === 'upbeat', () => {
+                  onMusicFileChange(null);
+                  onApply({ musicEnabled: true, musicType: 'upbeat' });
+                })}
+                {opt('Calm · under your voice', plan.musicEnabled && plan.musicType === 'calm', () => {
+                  onMusicFileChange(null);
+                  onApply({ musicEnabled: true, musicType: 'calm' });
+                })}
+                {opt('Dramatic · under your voice', plan.musicEnabled && plan.musicType === 'dramatic', () => {
+                  onMusicFileChange(null);
+                  onApply({ musicEnabled: true, musicType: 'dramatic' });
+                })}
+                {opt('No music', !plan.musicEnabled, () => {
+                  onMusicFileChange(null);
+                  onApply({ musicEnabled: false });
+                })}
+              </>
             )}
-            {opt('Calm · under your voice', plan.musicEnabled && plan.musicType === 'calm', () =>
-              onApply({ musicEnabled: true, musicType: 'calm' })
-            )}
-            {opt('Dramatic · under your voice', plan.musicEnabled && plan.musicType === 'dramatic', () =>
-              onApply({ musicEnabled: true, musicType: 'dramatic' })
-            )}
-            {opt('No music', !plan.musicEnabled, () => onApply({ musicEnabled: false }))}
-          </>
+
+            <div style={{ marginTop: 14 }}>
+              <SectionLabel text="Or use your own track" />
+              {musicFile ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 14px',
+                    borderRadius: 9,
+                    border: `1.5px solid ${PINK}`,
+                    background: LIGHT_PINK,
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: PINK, fontWeight: 600, flex: 1, minWidth: 0 }}>
+                    🎵 {musicFile.name}
+                  </span>
+                  <button
+                    onClick={() => onMusicFileChange(null)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: GRAY,
+                      fontSize: 16,
+                      padding: 12,
+                      margin: -12,
+                      flexShrink: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => musicInputRef.current?.click()}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 9,
+                    border: `1.5px solid ${BORDER}`,
+                    background: '#fff',
+                    color: '#374151',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    width: '100%',
+                    textAlign: 'left',
+                  }}
+                >
+                  + Upload MP3
+                </button>
+              )}
+              <input
+                ref={musicInputRef}
+                type="file"
+                accept="audio/mpeg,audio/mp3,.mp3"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  if (f.size > 50 * 1024 * 1024) {
+                    ToastService.showToast('MP3 must be under 50MB.', ToastTypeEnum.Error);
+                    return;
+                  }
+                  onMusicFileChange(f);
+                  onApply({ musicEnabled: true, musicType: 'custom' });
+                  e.target.value = '';
+                }}
+              />
+            </div>
+          </div>
         );
 
       case 'length':
@@ -767,6 +854,11 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
   const [brollPlacements, setBrollPlacements] = useState<BrollPlacement[]>([]);
   const [isApplyingBroll, setIsApplyingBroll] = useState(false);
   const brollInputRef = useRef<HTMLInputElement>(null);
+
+  // Custom background music — not part of VideoPlan since a File can't survive
+  // the session-persistence JSON round-trip (same reason videoFile/videoFiles
+  // are kept outside the plan too).
+  const [musicFile, setMusicFile] = useState<File | null>(null);
 
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<
@@ -1043,7 +1135,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     fd.append('quality', 'standard');
     fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
     fd.append('caption_style', plan.captionsEnabled ? plan.captionStyle : 'bold');
-    fd.append('enable_music', String(plan.musicEnabled));
+    fd.append('enable_music', String(plan.musicEnabled && (plan.musicType !== 'custom' || !!musicFile)));
+    if (plan.musicEnabled && plan.musicType === 'custom' && musicFile) {
+      fd.append('custom_music', musicFile);
+    }
 
     try {
       const res = await SocialMediaAgentService.produceWithZapCap(fd);
@@ -1422,6 +1517,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     setBrollConvStep('choose');
     setBrollClips([]);
     setBrollPlacements([]);
+    setMusicFile(null);
     setHistory([]);
     setClassification('talking_head');
     setAdjustField(null);
@@ -1582,7 +1678,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                 ? 'cut filler only'
                 : 'no trimming',
         brollLabel: !plan.brollEnabled ? 'off' : `on · ${plan.brollDensity}`,
-        musicLabel: !plan.musicEnabled ? 'none' : `${plan.musicType}, under your voice`,
+        musicLabel: !plan.musicEnabled
+          ? 'none'
+          : `${plan.musicType === 'custom' ? 'your track' : plan.musicType}, under your voice`,
         lengthLabel: plan.targetLength === 'auto' ? 'auto (no limit)' : plan.targetLength,
         formatLabel:
           plan.aspectRatio === '9:16'
@@ -1850,6 +1948,8 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
               onCancel={() => setAdjustField(null)}
               styleTemplates={styledTemplates}
               isMobile={isMobile}
+              musicFile={musicFile}
+              onMusicFileChange={setMusicFile}
             />
           </div>
         );
