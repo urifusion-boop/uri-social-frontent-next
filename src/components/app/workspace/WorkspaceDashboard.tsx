@@ -1228,11 +1228,14 @@ const ContentManagerPage = ({
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
     },
-    {
-      key: 'video',
-      label: '🎬 Video',
-      tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
-    },
+    // Video tab hidden — ZapCap/Submagic are 503ing in production
+    // (ZAPCAP_API_KEY/SUBMAGIC_API_KEY unset server-side). Re-add once
+    // those are configured.
+    // {
+    //   key: 'video',
+    //   label: '🎬 Video',
+    //   tooltip: 'Generate branded video Reels from storyboards or edit your own footage',
+    // },
   ];
 
   return (
