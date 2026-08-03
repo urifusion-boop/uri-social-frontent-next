@@ -64,7 +64,6 @@ interface VideoPlan {
   brollEnabled: boolean;
   brollDensity: 'light' | 'moderate' | 'heavy';
   musicEnabled: boolean;
-  musicType: 'upbeat' | 'calm' | 'dramatic' | 'custom';
   targetLength: 'auto' | '15s' | '30s' | '60s';
   aspectRatio: '9:16' | '16:9' | '1:1';
 }
@@ -112,8 +111,7 @@ function defaultPlan(c: Classification, p: Purpose): VideoPlan {
     removeFiller: isTalking,
     brollEnabled: p === 'sell',
     brollDensity: 'light',
-    musicEnabled: true,
-    musicType: 'upbeat',
+    musicEnabled: false,
     targetLength: 'auto',
     aspectRatio: '9:16',
   };
@@ -642,18 +640,6 @@ function AdjustPanel({
             {section(
               'Music',
               <>
-                {opt('Upbeat · under your voice', plan.musicEnabled && plan.musicType === 'upbeat', () => {
-                  onMusicFileChange(null);
-                  onApply({ musicEnabled: true, musicType: 'upbeat' });
-                })}
-                {opt('Calm · under your voice', plan.musicEnabled && plan.musicType === 'calm', () => {
-                  onMusicFileChange(null);
-                  onApply({ musicEnabled: true, musicType: 'calm' });
-                })}
-                {opt('Dramatic · under your voice', plan.musicEnabled && plan.musicType === 'dramatic', () => {
-                  onMusicFileChange(null);
-                  onApply({ musicEnabled: true, musicType: 'dramatic' });
-                })}
                 {opt('No music', !plan.musicEnabled, () => {
                   onMusicFileChange(null);
                   onApply({ musicEnabled: false });
@@ -662,7 +648,7 @@ function AdjustPanel({
             )}
 
             <div style={{ marginTop: 14 }}>
-              <SectionLabel text="Or use your own track" />
+              <SectionLabel text="Upload your own track" />
               {musicFile ? (
                 <div
                   style={{
@@ -726,7 +712,7 @@ function AdjustPanel({
                     return;
                   }
                   onMusicFileChange(f);
-                  onApply({ musicEnabled: true, musicType: 'custom' });
+                  onApply({ musicEnabled: true });
                   e.target.value = '';
                 }}
               />
@@ -1135,8 +1121,8 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     fd.append('quality', 'standard');
     fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
     fd.append('caption_style', plan.captionsEnabled ? plan.captionStyle : 'bold');
-    fd.append('enable_music', String(plan.musicEnabled && (plan.musicType !== 'custom' || !!musicFile)));
-    if (plan.musicEnabled && plan.musicType === 'custom' && musicFile) {
+    fd.append('enable_music', String(plan.musicEnabled && !!musicFile));
+    if (plan.musicEnabled && musicFile) {
       fd.append('custom_music', musicFile);
     }
 
@@ -1678,9 +1664,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                 ? 'cut filler only'
                 : 'no trimming',
         brollLabel: !plan.brollEnabled ? 'off' : `on · ${plan.brollDensity}`,
-        musicLabel: !plan.musicEnabled
-          ? 'none'
-          : `${plan.musicType === 'custom' ? 'your track' : plan.musicType}, under your voice`,
+        musicLabel: !plan.musicEnabled ? 'none' : 'your track, under your voice',
         lengthLabel: plan.targetLength === 'auto' ? 'auto (no limit)' : plan.targetLength,
         formatLabel:
           plan.aspectRatio === '9:16'
