@@ -48,19 +48,51 @@ export interface CampaignSummary {
   estimates: CampaignEstimates;
 }
 
+// Multi-Plan Audience Variants — a candidate STRATEGY, not yet a plan (no platform/
+// budget decision made). Same shape as backend PlanVariant (models.py).
+export interface PlanVariant {
+  rank: number;
+  recommended: boolean;
+  who_its_for: string; // customer's own words — never a segment label
+  audience_segment: string; // internal targeting label — never shown as-is
+  geo_pockets: string[];
+  trigger: string; // the buying-moment hypothesis
+  why_this_could_work: string;
+  trade_off: string; // always present
+  needs_video: boolean;
+  budget_alone_ngn: number;
+  budget_shared_ngn?: number | null;
+}
+
+export interface PlanVariantSet {
+  variants: PlanVariant[];
+  recommendation_reason: string;
+  max_selectable: number; // computed from the real budget floors, never guessed
+  selection_rule_reason: string;
+}
+
 export interface LaunchFromMessageResult {
   stage:
-    | 'need_more' | 'advise' | 'need_whatsapp' | 'need_facebook_page' | 'choose_creative_source'
-    | 'planned' | 'launched'
+    | 'need_more'
+    | 'advise'
+    | 'need_whatsapp'
+    | 'need_facebook_page'
+    | 'choose_creative_source'
+    | 'choose_plan_variant'
+    | 'planned'
+    | 'launched'
     // Per-Brand Page Connection plan — checked before a campaign is even built, so a
     // client never designs a whole campaign only to hit a wall. Six explicit states,
     // never inferred from one boolean; each maps to its own prompt below.
-    | 'meta_connection_none' | 'meta_connection_content_only' | 'meta_connection_ads_no_whatsapp'
-    | 'meta_connection_expired' | 'meta_connection_no_page';
-  plan_id?: string;                     // present when stage === 'planned' — pass to launchPlan()
+    | 'meta_connection_none'
+    | 'meta_connection_content_only'
+    | 'meta_connection_ads_no_whatsapp'
+    | 'meta_connection_expired'
+    | 'meta_connection_no_page';
+  plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
   understood?: UnderstoodFields;
   question?: string;
-  page_name?: string;                   // present on meta_connection_* stages, when a Page is already known
+  page_name?: string; // present on meta_connection_* stages, when a Page is already known
   // present when stage === 'choose_creative_source' — the image-source options Jane offers
   creative_options?: { can_generate: boolean; drafts: DraftSummary[] };
   // present when stage === 'choose_creative_source' — Jane's geography/audience call,
@@ -69,6 +101,12 @@ export interface LaunchFromMessageResult {
   advice?: { reason: string; suggested_min_ngn?: number };
   jane_recommended_platforms?: string[];
   forced_to_meta?: boolean;
+  // present when stage === 'choose_plan_variant' — the ranked audience strategies to
+  // pick from, plus the group id to echo back on every follow-up selection call
+  plan_variants?: PlanVariantSet;
+  variant_group_id?: string;
+  // present on 'planned'/'launched' — which audience this specific build used, if any
+  selected_plan_variant?: PlanVariant | null;
   plan?: {
     goal: string;
     behaviour: string;
@@ -84,13 +122,13 @@ export interface LaunchFromMessageResult {
     cta: string;
     is_video?: boolean;
   };
-  whatsapp_number?: string;          // where ad leads route (wa.me/<this>); shown on the plan card
-  summary?: CampaignSummary;         // Tier C — each choice + its why, plus estimates
+  whatsapp_number?: string; // where ad leads route (wa.me/<this>); shown on the plan card
+  summary?: CampaignSummary; // Tier C — each choice + its why, plus estimates
   wallet?: {
     balance_ngn: number;
-    budget_ngn: number;              // the ad spend that goes to Meta
-    service_fee_ngn?: number;        // URI's markup
-    total_due_ngn?: number;          // budget + fee — what the wallet must cover
+    budget_ngn: number; // the ad spend that goes to Meta
+    service_fee_ngn?: number; // URI's markup
+    total_due_ngn?: number; // budget + fee — what the wallet must cover
     sufficient: boolean;
   };
   launch?: {
@@ -117,7 +155,7 @@ export interface PlanAskResult {
 
 export interface CampaignMetrics {
   spend_ngn: number;
-  conversations: number;                 // real Click-to-WhatsApp conversations started
+  conversations: number; // real Click-to-WhatsApp conversations started
   cost_per_conversation_ngn: number | null;
   impressions: number;
   reach: number;
@@ -134,7 +172,7 @@ export interface CampaignRow {
   budget_ngn: number | null;
   goal: string;
   city: string;
-  whatsapp_number?: string;   // where this campaign's leads land; empty for legacy campaigns
+  whatsapp_number?: string; // where this campaign's leads land; empty for legacy campaigns
   status: string;
   created_at: string | null;
   ads_manager_url: string;
@@ -153,12 +191,12 @@ export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask';
 
 export interface BillingRow {
   business_id: string;
-  label?: string;              // owning account email, best-effort
+  label?: string; // owning account email, best-effort
   campaigns: number;
   charges: number;
-  real_spend_ngn: number;      // what Meta actually charged us
-  billed_ngn: number;          // what we charged the customer's wallet
-  margin_ngn: number;          // our service fee earned
+  real_spend_ngn: number; // what Meta actually charged us
+  billed_ngn: number; // what we charged the customer's wallet
+  margin_ngn: number; // our service fee earned
 }
 
 export interface BillingSummary {
@@ -171,7 +209,7 @@ export interface BillingSummary {
 export interface WalletTransaction {
   transaction_id: string;
   type: 'topup' | 'ad_spend' | 'conversation_charge' | 'refund' | 'adjustment';
-  amount_ngn: number;          // signed: + credit, − debit
+  amount_ngn: number; // signed: + credit, − debit
   balance_after_ngn: number;
   reference: string;
   campaign_id: string;
@@ -236,12 +274,14 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
-    whatsapp_number?: string;            // where leads route; sent when answering need_whatsapp
+    whatsapp_number?: string; // where leads route; sent when answering need_whatsapp
   }): Promise<LaunchFromMessageResult> {
     // NL parse + geo lookup + creative generation + the real Meta API calls have been
     // observed taking 90-130s end to end — past the client's global 120s default,
     // which was cutting off successful requests mid-flight. Give this one call room.
-    const res = await UriHttpClient.getClient().post('/jane-ads/meta/launch-from-message', payload, { timeout: 240000 });
+    const res = await UriHttpClient.getClient().post('/jane-ads/meta/launch-from-message', payload, {
+      timeout: 240000,
+    });
     return res.data as LaunchFromMessageResult;
   }
 
@@ -257,9 +297,13 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
-    reuse_image_url?: string;            // refinement — keep the prior plan's image (no regen/credit)
-    whatsapp_number?: string;            // where leads route; sent when answering need_whatsapp
-    thread_id?: string;                  // which campaign thread this plan belongs to (Tier E)
+    reuse_image_url?: string; // refinement — keep the prior plan's image (no regen/credit)
+    whatsapp_number?: string; // where leads route; sent when answering need_whatsapp
+    thread_id?: string; // which campaign thread this plan belongs to (Tier E)
+    selected_plan_variant?: PlanVariant; // echo back the exact variant shown in
+    // choose_plan_variant to confirm a selection
+    variant_group_id?: string; // echo back the id from choose_plan_variant so
+    // multiple selected variants' builds are tied together
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
@@ -280,7 +324,7 @@ export class CampaignService {
     const res = await UriHttpClient.getClient().post(
       `/jane-ads/meta/plan/${planId}/ask`,
       { question, confirm_correction: confirmCorrection },
-      { timeout: 30000 },
+      { timeout: 30000 }
     );
     return res.data as PlanAskResult;
   }
@@ -449,7 +493,10 @@ export class CampaignService {
    * Connection plan) — used by the connections settings tab to show the same
    * six states Jane's campaign flow gates on, outside of a chat. */
   static async getMetaConnectionStatus(): Promise<{
-    state: string; page_name: string; whatsapp_number: string; connect_url: string;
+    state: string;
+    page_name: string;
+    whatsapp_number: string;
+    connect_url: string;
   }> {
     const res = await UriHttpClient.getClient().get('/jane-ads/meta-connection/status');
     return res.data as { state: string; page_name: string; whatsapp_number: string; connect_url: string };
@@ -458,7 +505,9 @@ export class CampaignService {
   /** Link the brand's WhatsApp number to their ads connection — moves
    * ADS_NO_WHATSAPP to READY. Returns the normalized number the backend stored. */
   static async setMetaConnectionWhatsapp(whatsappNumber: string): Promise<string> {
-    const res = await UriHttpClient.getClient().put('/jane-ads/meta-connection/whatsapp', { whatsapp_number: whatsappNumber });
+    const res = await UriHttpClient.getClient().put('/jane-ads/meta-connection/whatsapp', {
+      whatsapp_number: whatsappNumber,
+    });
     return (res.data as { whatsapp_number: string }).whatsapp_number;
   }
 }
