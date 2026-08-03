@@ -2661,15 +2661,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         setWaExpanded(false);
         setWaPhone('');
         setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone } }));
-      } else if (
-        detail?.toLowerCase().includes('already linked') ||
-        detail?.toLowerCase().includes('already connected')
-      ) {
-        saveWaCache(waPhone.trim());
-        setWaExpanded(false);
-        setWaPhone('');
-        setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone: waPhone.trim() } }));
       } else {
+        // POST /whatsapp/connect only returns a "linked" conflict when the
+        // number belongs to a DIFFERENT account — resubmitting your own
+        // already-linked number succeeds normally (res.status true) instead
+        // of hitting this branch at all. So there's no case here that
+        // should be treated as success; this used to match on "already
+        // linked"/"already connected" and silently show Connected for a
+        // number that was actually rejected and never linked to this user.
         setWaError(detail || res.responseMessage || 'Failed to connect. Please try again.');
       }
     } catch (err) {
@@ -2677,13 +2676,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       const errData = (err as { data?: { detail?: string; responseMessage?: string } } | null)?.data;
       const errDetail = errData?.detail ?? errData?.responseMessage ?? '';
       const lower = errDetail.toLowerCase();
-      if (lower.includes('already linked') || lower.includes('already connected') || lower.includes('already in use')) {
-        // Treat as a successful connection — number was already registered
-        saveWaCache(waPhone.trim());
-        setWaExpanded(false);
-        setWaPhone('');
-        setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone: waPhone.trim() } }));
-      } else if (lower.includes('invalid') || lower.includes('not a valid') || lower.includes('format')) {
+      // Same reasoning as above — a "different account" conflict is a real
+      // rejection, never a stand-in for "you're already connected".
+      if (lower.includes('invalid') || lower.includes('not a valid') || lower.includes('format')) {
         setWaError('Invalid phone number. Use international format, e.g. +2348012345678.');
       } else if (errDetail) {
         setWaError(errDetail);
