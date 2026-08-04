@@ -160,8 +160,11 @@ test('single-select: expand the recommended card and build one ad', async ({ pag
   await expect(page.getByText('property developers doing multiple units')).toBeVisible();
   await expect(page.getByText('people fitting out a new place')).toBeVisible();
   await expect(page.getByText('★ RECOMMENDED')).toBeVisible();
-  // Recommended card expanded by default — its trade-off is visible without tapping.
+  // Every variant is expanded by default, not just the recommended one — comparing
+  // trade-offs side by side is the whole point, so neither card should ever be
+  // collapsed to just a headline (live-reported regression, 2026-08-04).
   await expect(page.getByText(/Small audience, and a longer conversation/i)).toBeVisible();
+  await expect(page.getByText(/Slower to convert than someone with an urgent problem/i)).toBeVisible();
 
   // max_selectable is 2 in this fixture, so the button reads "Select this one" —
   // the user is still only picking ONE (single-select is a user choice here, not
