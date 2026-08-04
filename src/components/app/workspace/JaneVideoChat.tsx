@@ -58,7 +58,6 @@ interface VideoPlan {
   purpose: Purpose;
   style: StyleTemplate;
   captionsEnabled: boolean;
-  captionStyle: 'bold' | 'minimal' | 'animated';
   removeSilence: boolean;
   removeFiller: boolean;
   brollEnabled: boolean;
@@ -106,7 +105,6 @@ function defaultPlan(c: Classification, p: Purpose): VideoPlan {
     purpose: p,
     style: PLACEHOLDER_STYLE,
     captionsEnabled: isTalking,
-    captionStyle: 'bold',
     removeSilence: isTalking,
     removeFiller: isTalking,
     brollEnabled: p === 'sell',
@@ -416,159 +414,19 @@ function AdjustPanel({
           ))
         );
 
-      case 'captions': {
-        type CaptionStyleDef = {
-          value: 'bold' | 'minimal' | 'animated';
-          label: string;
-          preview: React.ReactNode;
-        };
-        const CAPTION_STYLES: CaptionStyleDef[] = [
-          {
-            value: 'bold',
-            label: 'Bold',
-            preview: (
-              <div
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  height: 80,
-                  background: 'linear-gradient(160deg,#1a1a2e 0%,#16213e 100%)',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'center',
-                  paddingBottom: 10,
-                }}
-              >
-                <div style={{ textAlign: 'center', lineHeight: 1.2 }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 900,
-                      color: '#fff',
-                      textTransform: 'uppercase',
-                      textShadow: '-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000',
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    JUST <span style={{ color: '#FFE600' }}>LIKE</span> THIS
-                  </span>
-                </div>
-              </div>
-            ),
-          },
-          {
-            value: 'minimal',
-            label: 'Minimal',
-            preview: (
-              <div
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  height: 80,
-                  background: 'linear-gradient(160deg,#111 0%,#2d2d2d 100%)',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'center',
-                  paddingBottom: 12,
-                }}
-              >
-                <span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(255,255,255,0.92)', letterSpacing: 0.2 }}>
-                  Just like this
-                </span>
-              </div>
-            ),
-          },
-          {
-            value: 'animated',
-            label: 'Animated',
-            preview: (
-              <div
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  height: 80,
-                  background: 'linear-gradient(160deg,#0d0d1a 0%,#1a0a2e 100%)',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'center',
-                  paddingBottom: 10,
-                }}
-              >
-                <div style={{ textAlign: 'center', lineHeight: 1.2 }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: '#fff',
-                      textShadow: '-1px -1px 0 #0008,1px 1px 0 #0008',
-                    }}
-                  >
-                    Just <span style={{ color: '#FF6B9D' }}>like</span> this
-                  </span>
-                </div>
-              </div>
-            ),
-          },
-        ];
-        return (
-          <div>
-            <SectionLabel text="Caption style" />
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
-                gap: 8,
-                marginBottom: 10,
-              }}
-            >
-              {CAPTION_STYLES.map((s) => {
-                const active = plan.captionsEnabled && plan.captionStyle === s.value;
-                return (
-                  <button
-                    key={s.value}
-                    onClick={() => onApply({ captionsEnabled: true, captionStyle: s.value })}
-                    style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                  >
-                    <div
-                      style={{
-                        border: `2px solid ${active ? PINK : BORDER}`,
-                        borderRadius: 10,
-                        overflow: 'hidden',
-                        transition: 'border-color 0.15s',
-                      }}
-                    >
-                      {s.preview}
-                    </div>
-                    <div
-                      style={{
-                        marginTop: 4,
-                        fontSize: 11,
-                        fontWeight: active ? 700 : 400,
-                        color: active ? PINK : '#374151',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {s.label}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+      case 'captions':
+        return section(
+          'Captions',
+          <>
+            {opt('On', plan.captionsEnabled, () => onApply({ captionsEnabled: true }))}
             {opt(
               'Off',
               !plan.captionsEnabled,
               () => onApply({ captionsEnabled: false }),
               plan.classification === 'product' ? 'No speech detected' : undefined
             )}
-          </div>
+          </>
         );
-      }
 
       case 'trim':
         return section(
@@ -1120,7 +978,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     fd.append('output_mode', 'composited');
     fd.append('quality', 'standard');
     fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
-    fd.append('caption_style', plan.captionsEnabled ? plan.captionStyle : 'bold');
+    fd.append('caption_style', 'bold');
     fd.append('enable_music', String(plan.musicEnabled && !!musicFile));
     if (plan.musicEnabled && musicFile) {
       fd.append('custom_music', musicFile);
@@ -1654,7 +1512,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
   const planLabels = plan
     ? {
-        captionLabel: !plan.captionsEnabled ? 'off' : `on · ${plan.captionStyle}`,
+        captionLabel: plan.captionsEnabled ? 'on' : 'off',
         trimLabel:
           plan.removeSilence && plan.removeFiller
             ? 'cut pauses and filler'
