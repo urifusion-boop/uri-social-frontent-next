@@ -124,7 +124,16 @@ async function mockJaneAds(page: Page) {
     }
     // Variant(s) already offered and picked, now asking how to source the image —
     // the step that was previously (live-caught 2026-08-04) skipped entirely.
-    if (body.creative_source === 'ask' && variantsOffered) {
+    //
+    // `selected_plan_variant` is REQUIRED here, mirroring the real backend: it only
+    // skips regenerating variants once it can see a choice was already made
+    // (router.py `if selected_variant is None: ... return choose_plan_variant`).
+    // Live-caught 2026-08-04: continueWithVariants omitted it, so the real backend
+    // just returned a fresh choose_plan_variant round — "Build this ad" appeared to
+    // do nothing but repeat the message. This mock used to accept a bare 'ask' and
+    // therefore passed straight through that bug; requiring the field here is what
+    // makes this spec actually catch it.
+    if (body.creative_source === 'ask' && variantsOffered && body.selected_plan_variant) {
       return route.fulfill({
         json: {
           stage: 'choose_creative_source',
