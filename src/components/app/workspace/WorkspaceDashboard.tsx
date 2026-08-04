@@ -7954,10 +7954,20 @@ export default function WorkspaceDashboard() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!localStorage.getItem('uri_tour_v1')) {
+    // Live-reported bug: the tour's full-page click-catcher backdrop (see
+    // GuidedTour, "Clickable backdrop... to allow skip on outside click")
+    // swallows the FIRST real click anywhere on the page while it's open,
+    // dismissing the tour silently instead of reaching whatever the user
+    // actually meant to click — e.g. a plan-variant card's "Select this
+    // one", making "Build this ad" look broken/stuck disabled until a
+    // second click. A direct link to a specific tab (?tab=campaigns, etc.)
+    // means the user is returning to do real work, not landing fresh — the
+    // tour should never auto-launch on top of that.
+    if (!localStorage.getItem('uri_tour_v1') && !searchParams?.get('tab')) {
       const t = setTimeout(() => setTourOpen(true), 900);
       return () => clearTimeout(t);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keep URL in sync with nav so that router.push('/workspace?tab=X') always triggers a URL change.
