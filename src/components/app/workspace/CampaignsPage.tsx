@@ -117,6 +117,11 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   // 'ask' → the choose card). Reset on launch / + New / thread switch.
   const creativeChoiceRef = useRef<'generate' | 'upload' | 'draft' | null>(null);
   const uploadForChoiceRef = useRef(false);
+  // Multi-Plan Audience Variants — set while waiting for the user to pick an image
+  // source for one or more selected variants (continueWithVariants asks first,
+  // same as the normal flow, instead of silently auto-generating). Consumed and
+  // cleared by continueWithSource once a source is chosen.
+  const pendingVariantsRef = useRef<{ variants: PlanVariant[]; variantGroupId: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -458,6 +463,13 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   // Continue building the plan once the user picks how to source the image from the
   // choose-creative-source card. Reuses the accumulated brief (no new user bubble) and
   // re-runs the plan with a concrete source, so the image/caption step finally runs.
+  //
+  // Multi-Plan Audience Variants: if pendingVariantsRef is set — the user picked one
+  // or more audience variants and this source choice is answering "how should Jane
+  // make the image for them" — fan out to ONE independent build PER pending variant
+  // using this same chosen source (spec §7 "one creative per plan"), instead of a
+  // single call. Live-caught 2026-08-04: continueWithVariants used to skip this
+  // ask entirely and silently auto-generate, dropping the upload/draft choice.
   const continueWithSource = async (
     choice:
       | { creative_source: 'generate' }
@@ -466,18 +478,24 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   ) => {
     if (busy || !briefSoFar) return;
     creativeChoiceRef.current = choice.creative_source;
+    const pendingVariants = pendingVariantsRef.current;
+    pendingVariantsRef.current = null;
     setBusy(true);
     try {
-      const result = await CampaignService.planFromMessage({
-        message: briefSoFar,
-        thread_id: activeThreadRef.current ?? undefined,
-        ...choice,
-      });
-      const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
-      setMessages((m) => [...m, resultMsg]);
-      saveMsg(resultMsg);
-      // Remember the produced image so later typed refinements reuse it (no regen/credit).
-      if (result.creative?.image_url) lastCreativeRef.current = result.creative.image_url;
+      const variants = pendingVariants ? pendingVariants.variants : [null];
+      for (const variant of variants) {
+        const result = await CampaignService.planFromMessage({
+          message: briefSoFar,
+          thread_id: activeThreadRef.current ?? undefined,
+          ...(variant ? { selected_plan_variant: variant, variant_group_id: pendingVariants!.variantGroupId } : {}),
+          ...choice,
+        });
+        const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+        setMessages((m) => [...m, resultMsg]);
+        saveMsg(resultMsg);
+        // Remember the produced image so later typed refinements reuse it (no regen/credit).
+        if (result.creative?.image_url) lastCreativeRef.current = result.creative.image_url;
+      }
       refreshThreads();
     } catch (e) {
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
@@ -490,28 +508,25 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   };
 
   // Multi-Plan Audience Variants — the client picked one or more ranked audience
-  // strategies from a choose_plan_variant card set. Each selected variant gets its
-  // OWN independent plan build (spec §7 "one creative per plan") — one
-  // planFromMessage call per variant, each producing its own chat bubble/result,
-  // all tagged with the same variant_group_id so they're understood as a set.
+  // strategies from a choose_plan_variant card set. Ask how to source the image for
+  // them, same as every other path gets (upload / past post / let Jane generate) —
+  // continueWithSource fans this one choice out to every pending variant once the
+  // user answers.
   const continueWithVariants = async (variants: PlanVariant[], variantGroupId: string) => {
     if (busy || !briefSoFar || variants.length === 0) return;
+    pendingVariantsRef.current = { variants, variantGroupId };
     setBusy(true);
     try {
-      for (const variant of variants) {
-        const result = await CampaignService.planFromMessage({
-          message: briefSoFar,
-          thread_id: activeThreadRef.current ?? undefined,
-          selected_plan_variant: variant,
-          variant_group_id: variantGroupId,
-        });
-        const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
-        setMessages((m) => [...m, resultMsg]);
-        saveMsg(resultMsg);
-        if (result.creative?.image_url) lastCreativeRef.current = result.creative.image_url;
-      }
-      refreshThreads();
+      const result = await CampaignService.planFromMessage({
+        message: briefSoFar,
+        thread_id: activeThreadRef.current ?? undefined,
+        creative_source: 'ask',
+      });
+      const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+      setMessages((m) => [...m, resultMsg]);
+      saveMsg(resultMsg);
     } catch (e) {
+      pendingVariantsRef.current = null;
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
       const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
       setMessages((m) => [...m, errMsg]);

@@ -79,9 +79,18 @@ async function mockJaneAds(page: Page) {
   );
   await page.route('**/jane-ads/creative/drafts**', (r) => r.fulfill({ json: { drafts: [] } }));
 
+  // The real backend runs plan-variant generation BEFORE the creative_source=ask
+  // check — so the very first message (frontend's send() already defaults to
+  // creative_source:'ask') still gets choose_plan_variant, never choose_creative_source.
+  // Only once variants have already been offered does a later 'ask' call (from
+  // continueWithVariants) mean "how should I source the image" — track that with a
+  // flag, mirroring image-choice.spec.ts's own step-counter convention for the same
+  // kind of stateful, order-dependent mock.
+  let variantsOffered = false;
   await page.route('**/jane-ads/meta/plan-from-message', async (route) => {
     const body = JSON.parse(route.request().postData() || '{}');
-    if (body.selected_plan_variant) {
+    // A variant was selected AND a real creative source chosen — the build itself.
+    if (body.selected_plan_variant && body.creative_source && body.creative_source !== 'ask') {
       const v = body.selected_plan_variant;
       return route.fulfill({
         json: {
@@ -113,6 +122,18 @@ async function mockJaneAds(page: Page) {
         },
       });
     }
+    // Variant(s) already offered and picked, now asking how to source the image —
+    // the step that was previously (live-caught 2026-08-04) skipped entirely.
+    if (body.creative_source === 'ask' && variantsOffered) {
+      return route.fulfill({
+        json: {
+          stage: 'choose_creative_source',
+          understood: {},
+          creative_options: { can_generate: true, drafts: [] },
+        },
+      });
+    }
+    variantsOffered = true;
     return route.fulfill({
       json: {
         stage: 'choose_plan_variant',
@@ -151,6 +172,11 @@ test('single-select: expand the recommended card and build one ad', async ({ pag
   await expect(page.getByText('✓ Selected')).toBeVisible();
   await page.getByRole('button', { name: 'Build this ad' }).click({ force: true });
 
+  // The image-source ask must still appear — this is the step a live bug (2026-08-04)
+  // skipped entirely, auto-generating without ever asking.
+  await expect(page.getByText(/how would you like to handle the image/i)).toBeVisible();
+  await page.getByRole('button', { name: /Let Jane create one/i }).click({ force: true });
+
   await expect(page.getByText('Ad for plan 1')).toBeVisible({ timeout: 20000 });
   await expect(page.getByText('Built for: property developers doing multiple units')).toBeVisible();
 });
@@ -183,7 +209,12 @@ test('multi-select: pick two, cost disclosure shown, build two independent ads',
 
   await page.getByRole('button', { name: 'Build 2 ads' }).click({ force: true });
 
-  // Two independent result cards, one per plan.
-  await expect(page.getByText('Ad for plan 1')).toBeVisible();
-  await expect(page.getByText('Ad for plan 2')).toBeVisible();
+  // Asked once for both — picking a source fans out to build BOTH selected variants.
+  await expect(page.getByText(/how would you like to handle the image/i)).toBeVisible();
+  await page.getByRole('button', { name: /Let Jane create one/i }).click({ force: true });
+
+  // Two independent result cards, one per plan — confirms spec §7 "one creative
+  // per plan" survived the fix (not just a single build for the first variant).
+  await expect(page.getByText('Ad for plan 1')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByText('Ad for plan 2')).toBeVisible({ timeout: 20000 });
 });
