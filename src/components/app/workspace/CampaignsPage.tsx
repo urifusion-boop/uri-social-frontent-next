@@ -1386,9 +1386,24 @@ function PlanVariantCards({
   variantSet: PlanVariantSet;
   onConfirm: (variants: PlanVariant[]) => void;
 }) {
-  const recommendedRank = variantSet.variants.find((v) => v.recommended)?.rank ?? variantSet.variants[0]?.rank;
-  const [expandedRank, setExpandedRank] = useState<number | null>(recommendedRank ?? null);
+  // Every variant's full reasoning (why it could work, its trade-off, creative fit,
+  // budget) is shown from the start, not just the recommended one — the whole point
+  // of presenting genuinely distinct options is comparing their trade-offs side by
+  // side, which a collapsed-to-just-a-headline card actively hides. Collapsible
+  // per-card afterward is still fine (progressive disclosure once already seen).
+  const [expandedRanks, setExpandedRanks] = useState<Set<number>>(
+    () => new Set(variantSet.variants.map((v) => v.rank))
+  );
   const [selectedRanks, setSelectedRanks] = useState<number[]>([]);
+
+  const toggleExpanded = (rank: number) => {
+    setExpandedRanks((prev) => {
+      const next = new Set(prev);
+      if (next.has(rank)) next.delete(rank);
+      else next.add(rank);
+      return next;
+    });
+  };
   const maxSelectable = variantSet.max_selectable;
 
   const toggleSelect = (rank: number) => {
@@ -1425,12 +1440,12 @@ function PlanVariantCards({
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginLeft: 40, maxWidth: 560 }}>
         {variantSet.variants.map((v) => {
-          const isExpanded = expandedRank === v.rank;
+          const isExpanded = expandedRanks.has(v.rank);
           const isSelected = selectedRanks.includes(v.rank);
           return (
             <div key={v.rank} style={cardStyle(v)}>
               <div
-                onClick={() => setExpandedRank(isExpanded ? null : v.rank)}
+                onClick={() => toggleExpanded(v.rank)}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
               >
                 <div>
