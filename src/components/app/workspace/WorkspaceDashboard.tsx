@@ -2340,6 +2340,40 @@ const PLATFORMS = [
   // rather than deleted so it's a one-line restore when it's ready to ship here.
 ];
 
+// Validates a WhatsApp number before it ever reaches the backend. Twilio requires
+// E.164 (a leading "+" and country code) and rejects anything else with a 400 that
+// only ever surfaces in server logs — the connect call itself still returns success,
+// since sending the confirmation message is best-effort and never blocks the
+// response, so a malformed number used to fail completely silently from the user's
+// point of view. Returns a specific, friendly message per failure reason (rather
+// than one generic "invalid number") so the user knows exactly what to fix; null
+// means the number is valid. Doesn't assume a country — the field isn't Nigeria-only
+// (placeholder shows +1), so guessing a default country code risks being wrong
+// instead of just asking the user to type theirs.
+const normalizeWhatsappPhone = (raw: string): string => raw.trim().replace(/[\s\-().]/g, '');
+
+const validateWhatsappPhone = (raw: string): string | null => {
+  const cleaned = normalizeWhatsappPhone(raw);
+  if (!cleaned) return 'Enter a phone number to connect.';
+  if (!cleaned.startsWith('+')) {
+    return "Don't forget your country code — start with + then your country code, e.g. +234 803 123 4567.";
+  }
+  const digits = cleaned.slice(1);
+  if (!digits || !/^\d+$/.test(digits)) {
+    return 'Only numbers are allowed after the +.';
+  }
+  if (digits.startsWith('0')) {
+    // A country code never starts with 0 — this is the classic mistake of typing
+    // a local number's leading 0 straight after the + instead of the real code
+    // (e.g. "+09135175220" instead of "+2349135175220").
+    return "That's not a valid country code — check the digits right after the + and try again.";
+  }
+  if (digits.length < 8 || digits.length > 15) {
+    return "That doesn't look like a complete phone number — double-check the digits.";
+  }
+  return null;
+};
+
 const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -2649,14 +2683,21 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const handleWhatsappSubmit = async () => {
-    if (!waPhone.trim()) return;
+    const trimmedPhone = waPhone.trim();
+    if (!trimmedPhone) return;
     setWaError('');
+    const validationError = validateWhatsappPhone(trimmedPhone);
+    if (validationError) {
+      setWaError(validationError);
+      return;
+    }
+    const normalizedPhone = normalizeWhatsappPhone(trimmedPhone);
     setConnecting('whatsapp');
     try {
-      const res = await SocialConnectionService.whatsappConnect(waPhone.trim());
+      const res = await SocialConnectionService.whatsappConnect(normalizedPhone);
       const detail = (res as unknown as { detail?: string }).detail;
       if (res.status) {
-        const phone = res.responseData?.phone ?? waPhone.trim();
+        const phone = res.responseData?.phone ?? normalizedPhone;
         saveWaCache(phone);
         setWaExpanded(false);
         setWaPhone('');
