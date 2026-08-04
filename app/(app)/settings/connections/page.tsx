@@ -180,7 +180,7 @@ export default function WhatsAppConnectionPage() {
 
               <Box sx={{ background: '#F0FDF4', borderRadius: '10px', p: 2, mb: 2.5, border: '1px solid #BBF7D0' }}>
                 <Typography fontSize="13px" color="#166534" fontWeight={500}>
-                  Message <strong>+1 415 523 8886</strong> on WhatsApp to interact with your URI Agent.
+                  Message <strong>+234 707 630 7855</strong> on WhatsApp to interact with your URI Agent.
                 </Typography>
               </Box>
 
