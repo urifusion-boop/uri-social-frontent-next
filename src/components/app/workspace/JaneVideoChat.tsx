@@ -960,7 +960,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     if (classification === 'product') {
       addMsg(
         'jane',
-        "There's no speech in this clip, so I've turned captions off — there's nothing to caption. I've added music and text-on-screen instead. You can change anything in the plan below."
+        "There's no speech in this clip, so I've turned captions off — there's nothing to caption. I've added text-on-screen instead. Since it's silent, you'll probably want background music — upload a track in the Music option below. You can change anything else in the plan too."
       );
     }
 
