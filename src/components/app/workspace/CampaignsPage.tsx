@@ -122,6 +122,16 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   // same as the normal flow, instead of silently auto-generating). Consumed and
   // cleared by continueWithSource once a source is chosen.
   const pendingVariantsRef = useRef<{ variants: PlanVariant[]; variantGroupId: string } | null>(null);
+  // The audience the client ALREADY chose, kept for the whole campaign — not consumed
+  // like pendingVariantsRef above. Live-reported loop: after picking an audience, any
+  // typed reply (e.g. answering Jane's own "which areas in Ikeja?" question) went
+  // through send(), which carried no selected_plan_variant — so the backend, which
+  // re-parses each call from scratch, had no idea a choice had been made and offered
+  // the whole variant set again. Confirmed in a real thread: choose_plan_variant →
+  // choose_creative_source → (typed "none") → choose_plan_variant AGAIN. Every
+  // subsequent call now carries the choice, exactly like briefSoFar carries the brief,
+  // and it's cleared in the same places briefSoFar is.
+  const chosenVariantRef = useRef<{ variant: PlanVariant; variantGroupId: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -223,6 +233,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     setBriefSoFar('');
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
+    chosenVariantRef.current = null;
     setMessages([makeGreeting()]);
     try {
       const saved = await CampaignService.getThreadHistory(threadId);
@@ -261,6 +272,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     setBriefSoFar('');
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
+    chosenVariantRef.current = null;
     setMessages([makeGreeting()]);
     try {
       const t = await CampaignService.createThread();
@@ -280,6 +292,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       setThreads((prev) => [thread, ...prev]);
       setMedia(null);
       setBriefSoFar('');
+      chosenVariantRef.current = null;
       setMessages([makeGreeting()]);
       await send(seed_message);
     } catch (e) {
@@ -299,6 +312,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
         setBriefSoFar('');
         lastCreativeRef.current = '';
         creativeChoiceRef.current = null;
+        chosenVariantRef.current = null;
         setMessages([makeGreeting()]);
       }
     } catch (e) {
@@ -358,6 +372,14 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       const result = await CampaignService.planFromMessage({
         message: combinedMessage,
         thread_id: threadId,
+        // Keep the already-chosen audience attached to every follow-up, so typing a
+        // reply refines THIS campaign instead of re-opening the audience question.
+        ...(chosenVariantRef.current
+          ? {
+              selected_plan_variant: chosenVariantRef.current.variant,
+              variant_group_id: chosenVariantRef.current.variantGroupId,
+            }
+          : {}),
         ...(attachedMedia?.source === 'upload'
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
           : attachedMedia?.source === 'draft'
@@ -515,6 +537,9 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   const continueWithVariants = async (variants: PlanVariant[], variantGroupId: string) => {
     if (busy || !briefSoFar || variants.length === 0) return;
     pendingVariantsRef.current = { variants, variantGroupId };
+    // Remember the choice for the REST of the campaign, so a typed reply after this
+    // point never drops back to "pick an audience" (see chosenVariantRef above).
+    chosenVariantRef.current = { variant: variants[0], variantGroupId };
     setBusy(true);
     try {
       // Live-reported bug: this call omitted selected_plan_variant entirely, so the
@@ -687,6 +712,7 @@ export default function CampaignsPage({}: CampaignsPageProps) {
                         setMedia(null);
                         lastCreativeRef.current = '';
                         creativeChoiceRef.current = null;
+                        chosenVariantRef.current = null;
                         loadCampaigns();
                         refreshThreads();
                       }}
@@ -1404,6 +1430,8 @@ function PlanVariantCards({
     () => new Set(variantSet.variants.map((v) => v.rank))
   );
   const [selectedRanks, setSelectedRanks] = useState<number[]>([]);
+  // Guards against a duplicate build from a second tap (see the Build button below).
+  const [confirmed, setConfirmed] = useState(false);
 
   const toggleExpanded = (rank: number) => {
     setExpandedRanks((prev) => {
@@ -1536,8 +1564,15 @@ function PlanVariantCards({
         </p>
       )}
       <button
-        onClick={() => onConfirm(variantSet.variants.filter((v) => selectedRanks.includes(v.rank)))}
-        disabled={selectedRanks.length === 0}
+        onClick={() => {
+          if (confirmed) return;
+          setConfirmed(true);
+          onConfirm(variantSet.variants.filter((v) => selectedRanks.includes(v.rank)));
+        }}
+        // Live-reported: this stayed clickable after use, so a second tap fired a
+        // duplicate build — and because the consultant re-parses each call, the extra
+        // one came back as a fresh question, which read as Jane looping.
+        disabled={selectedRanks.length === 0 || confirmed}
         style={{
           marginTop: 10,
           marginLeft: 40,
@@ -1546,12 +1581,12 @@ function PlanVariantCards({
           padding: '10px 16px',
           fontWeight: 700,
           fontSize: 13,
-          cursor: selectedRanks.length ? 'pointer' : 'default',
-          background: selectedRanks.length ? `linear-gradient(135deg,${PINK},#8E1545)` : '#eee',
-          color: selectedRanks.length ? '#fff' : '#999',
+          cursor: selectedRanks.length && !confirmed ? 'pointer' : 'default',
+          background: selectedRanks.length && !confirmed ? `linear-gradient(135deg,${PINK},#8E1545)` : '#eee',
+          color: selectedRanks.length && !confirmed ? '#fff' : '#999',
         }}
       >
-        {selectedRanks.length > 1 ? `Build ${selectedRanks.length} ads` : 'Build this ad'}
+        {confirmed ? 'Building…' : selectedRanks.length > 1 ? `Build ${selectedRanks.length} ads` : 'Build this ad'}
       </button>
     </div>
   );
