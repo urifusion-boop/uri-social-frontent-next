@@ -42,7 +42,7 @@ interface BrollPlacement {
 type CaptionWord = { id: string; text: string; start_time: number; end_time: number };
 type Classification = 'talking_head' | 'product' | 'mixed';
 type Purpose = 'sell' | 'teach' | 'announce' | 'general';
-type AdjustField = 'style' | 'captions' | 'trim' | 'broll' | 'music' | 'length' | 'format';
+type AdjustField = 'style' | 'captions' | 'trim' | 'broll' | 'music' | 'hookText' | 'length' | 'format';
 
 interface StyleTemplate {
   id: string;
@@ -63,6 +63,7 @@ interface VideoPlan {
   brollEnabled: boolean;
   brollDensity: 'light' | 'moderate' | 'heavy';
   musicEnabled: boolean;
+  hookTextEnabled: boolean;
   targetLength: 'auto' | '15s' | '30s' | '60s';
   aspectRatio: '9:16' | '16:9' | '1:1';
 }
@@ -110,6 +111,7 @@ function defaultPlan(c: Classification, p: Purpose): VideoPlan {
     brollEnabled: p === 'sell',
     brollDensity: 'light',
     musicEnabled: false,
+    hookTextEnabled: false,
     targetLength: 'auto',
     aspectRatio: '9:16',
   };
@@ -425,6 +427,15 @@ function AdjustPanel({
               () => onApply({ captionsEnabled: false }),
               plan.classification === 'product' ? 'No speech detected' : undefined
             )}
+          </>
+        );
+
+      case 'hookText':
+        return section(
+          'Hook text',
+          <>
+            {opt('On', plan.hookTextEnabled, () => onApply({ hookTextEnabled: true }))}
+            {opt('Off', !plan.hookTextEnabled, () => onApply({ hookTextEnabled: false }))}
           </>
         );
 
@@ -983,6 +994,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     if (plan.musicEnabled && musicFile) {
       fd.append('custom_music', musicFile);
     }
+    fd.append('enable_hook_text', String(plan.hookTextEnabled));
 
     try {
       const res = await SocialMediaAgentService.produceWithZapCap(fd);
@@ -1523,6 +1535,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                 : 'no trimming',
         brollLabel: !plan.brollEnabled ? 'off' : `on · ${plan.brollDensity}`,
         musicLabel: !plan.musicEnabled ? 'none' : 'your track, under your voice',
+        hookTextLabel: plan.hookTextEnabled ? 'on' : 'off',
         lengthLabel: plan.targetLength === 'auto' ? 'auto (no limit)' : plan.targetLength,
         formatLabel:
           plan.aspectRatio === '9:16'
@@ -1868,6 +1881,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
             />
             <PlanRow label="B-roll" value={planLabels.brollLabel} field="broll" onAdjust={setAdjustField} />
             <PlanRow label="Music" value={planLabels.musicLabel} field="music" onAdjust={setAdjustField} />
+            <PlanRow label="Hook Text" value={planLabels.hookTextLabel} field="hookText" onAdjust={setAdjustField} />
             <PlanRow label="Length" value={planLabels.lengthLabel} field="length" onAdjust={setAdjustField} />
             <PlanRow label="Format" value={planLabels.formatLabel} field="format" onAdjust={setAdjustField} />
           </div>
