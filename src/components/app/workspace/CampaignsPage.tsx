@@ -455,15 +455,21 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     }
   };
 
-  // Answer a meta_connection_ads_no_whatsapp prompt (Per-Brand Page Connection plan):
-  // link the number to the brand's ads connection, then re-run the SAME brief — no new
-  // user bubble, this reads as "progress not restart," not answering a fresh question.
+  // Answer a meta_connection_ads_no_whatsapp prompt: save the brand's WhatsApp number,
+  // then re-run the SAME brief — no new user bubble, so this reads as "progress not
+  // restart," rather than answering a fresh question.
   const submitMetaConnectionWhatsapp = async (number: string) => {
     const clean = number.trim();
     if (!clean || busy || !briefSoFar) return;
     setBusy(true);
     try {
-      await CampaignService.setMetaConnectionWhatsapp(clean);
+      // Saves to the brand's own settings — the SAME place the launch path reads the
+      // number from (resolve_ads_page_for_launch -> get_brand_whatsapp). This used to
+      // call setMetaConnectionWhatsapp, which writes to the per-brand Meta *connection*
+      // row; since every brand now launches from URI's shared Page, most brands have no
+      // such row, so saving here just 409'd with meta_connection_none and the number
+      // never reached the launch at all. Live-reported.
+      await CampaignService.setWhatsapp(clean);
       const result = await CampaignService.planFromMessage({
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
@@ -2094,7 +2100,13 @@ function ResultCard({
     setLaunching(true);
     setLaunchError('');
     try {
-      await CampaignService.setMetaConnectionWhatsapp(clean);
+      // Saves to the brand's own settings — the SAME place the launch path reads the
+      // number from (resolve_ads_page_for_launch -> get_brand_whatsapp). This used to
+      // call setMetaConnectionWhatsapp, which writes to the per-brand Meta *connection*
+      // row; since every brand now launches from URI's shared Page, most brands have no
+      // such row, so saving here just 409'd with meta_connection_none and the number
+      // never reached the launch at all. Live-reported.
+      await CampaignService.setWhatsapp(clean);
       setFixingWhatsapp(false);
       setWhatsappFix('');
       const launched = await CampaignService.launchPlan(result.plan_id!);
