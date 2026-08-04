@@ -517,10 +517,19 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     pendingVariantsRef.current = { variants, variantGroupId };
     setBusy(true);
     try {
+      // Live-reported bug: this call omitted selected_plan_variant entirely, so the
+      // backend had no way to know a choice had already been made — it just
+      // regenerated a fresh set of audience variants again instead of asking about
+      // the image source, making "Build this ad" look like it did nothing but repeat
+      // the original message. Only the FIRST selected variant is needed here (just
+      // to signal "a choice was made" and skip regeneration) — continueWithSource
+      // below still builds each pending variant with its own correct data.
       const result = await CampaignService.planFromMessage({
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         creative_source: 'ask',
+        selected_plan_variant: variants[0],
+        variant_group_id: variantGroupId,
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
