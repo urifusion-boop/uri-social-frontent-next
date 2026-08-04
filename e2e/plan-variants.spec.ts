@@ -230,3 +230,56 @@ test('multi-select: pick two, cost disclosure shown, build two independent ads',
   await expect(page.getByText('Ad for plan 1')).toBeVisible({ timeout: 20000 });
   await expect(page.getByText('Ad for plan 2')).toBeVisible({ timeout: 20000 });
 });
+
+test('typing a reply after choosing an audience must NOT re-offer the variants', async ({ page }) => {
+  // Live-reported loop, reproduced from a real thread's saved history:
+  //   choose_plan_variant → choose_creative_source → (user typed "none")
+  //   → choose_plan_variant AGAIN
+  // Cause: the chosen audience lived only in a one-shot ref that send() never
+  // included, so the backend (which re-parses every call from scratch) could not see
+  // that a choice had been made and re-opened the audience question.
+  await fakeAuth(page);
+  await mockJaneAds(page);
+  await page.goto('/workspace/?tab=campaigns');
+
+  await expect(page.getByRole('heading', { name: 'Campaigns' })).toBeVisible({ timeout: 20000 });
+  const input = page.getByPlaceholder(/Tell Jane what you want to promote/i);
+  await input.fill('solar installer, budget 80000, lekki');
+  await input.press('Enter');
+
+  await expect(page.getByText('★ RECOMMENDED')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Select this one' }).first().click({ force: true });
+  await expect(page.getByText('✓ Selected')).toBeVisible();
+  await page.getByRole('button', { name: 'Build this ad' }).click({ force: true });
+  await expect(page.getByText(/how would you like to handle the image/i)).toBeVisible();
+
+  // Answer one of Jane's own follow-up questions by TYPING, exactly as the user did.
+  await input.fill('none');
+  await input.press('Enter');
+
+  // The audience question must not come back: still exactly one variant card set.
+  await expect(page.getByText(/how would you like to handle the image/i).last()).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText('★ RECOMMENDED')).toHaveCount(1);
+});
+
+test('Build this ad cannot be fired twice', async ({ page }) => {
+  // The duplicate request is what produced a stray extra Jane question in the real
+  // thread (an unexplained need_more with no user message before it).
+  await fakeAuth(page);
+  await mockJaneAds(page);
+  await page.goto('/workspace/?tab=campaigns');
+
+  await expect(page.getByRole('heading', { name: 'Campaigns' })).toBeVisible({ timeout: 20000 });
+  const input = page.getByPlaceholder(/Tell Jane what you want to promote/i);
+  await input.fill('solar installer, budget 80000, lekki');
+  await input.press('Enter');
+
+  await expect(page.getByText('★ RECOMMENDED')).toBeVisible();
+  await page.getByRole('button', { name: 'Select this one' }).first().click({ force: true });
+  await expect(page.getByText('✓ Selected')).toBeVisible();
+
+  const build = page.getByRole('button', { name: /Build this ad/i });
+  await build.click({ force: true });
+  // Immediately reads as in-flight and refuses further taps.
+  await expect(page.getByRole('button', { name: 'Building…' })).toBeDisabled();
+});
