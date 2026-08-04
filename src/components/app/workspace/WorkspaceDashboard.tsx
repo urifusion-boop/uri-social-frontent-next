@@ -2,7 +2,7 @@
 
 import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { BrandProfileData, BrandProfileService, CustomFontAnalysis } from '@/src/api/BrandProfileService';
+import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontAnalysis } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
 import {
   AccountMetricItem,
@@ -4860,6 +4860,9 @@ const PlaybookPage = ({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pillars, setPillars] = useState<string[]>([]);
   const [newPillar, setNewPillar] = useState('');
+  const [keyDates, setKeyDates] = useState<BrandKeyDate[]>([]);
+  const [newKeyDate, setNewKeyDate] = useState('');
+  const [newKeyDateLabel, setNewKeyDateLabel] = useState('');
   const [formats, setFormats] = useState<string[]>([]);
   const [avoidTopics, setAvoidTopics] = useState('');
   const [bannedWords, setBannedWords] = useState('');
@@ -5015,6 +5018,7 @@ const PlaybookPage = ({
     setVoiceSample(profile.voice_sample ?? '');
     setColors([...(profile.brand_colors ?? [])]);
     setPillars([...(profile.content_pillars ?? [])]);
+    setKeyDates([...(profile.key_dates ?? [])]);
     setFormats([...(profile.preferred_formats ?? [])]);
     setAvoidTopics(profile.guardrails?.avoid_topics ?? '');
     setBannedWords(profile.guardrails?.banned_words ?? '');
@@ -5095,6 +5099,7 @@ const PlaybookPage = ({
         voice_sample: voiceSample,
         brand_colors: colors,
         content_pillars: pillars,
+        key_dates: keyDates,
         preferred_formats: formats,
         guardrails: {
           avoid_topics: avoidTopics,
@@ -5952,6 +5957,134 @@ const PlaybookPage = ({
               {ALL_FORMATS.map((f) => (
                 <PbChip key={f} label={f} active={formats.includes(f)} onClick={() => pbTgl(formats, setFormats, f)} />
               ))}
+            </div>
+          )}
+        </div>
+      </PbSection>
+
+      {/* Important Dates */}
+      <PbSection title="Important Dates">
+        <div>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#999',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              marginBottom: 8,
+            }}
+          >
+            Key dates
+            <BrandTooltip
+              title="Product launches, sales, anniversaries — the content calendar plans around these automatically when they fall in an upcoming week."
+              arrow
+              placement="right"
+            >
+              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
+              </span>
+            </BrandTooltip>
+          </div>
+          {!editing ? (
+            (p?.key_dates ?? []).length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(p?.key_dates ?? []).map((d, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                    <span style={{ fontWeight: 600, color: '#111' }}>{d.date}</span>
+                    <span style={{ color: '#ccc' }}>—</span>
+                    <span style={{ color: '#555' }}>{d.label}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span style={{ fontSize: 13, color: '#bbb' }}>—</span>
+            )
+          ) : (
+            <div>
+              {keyDates.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                  {keyDates.map((d, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        background: '#fafaf8',
+                        border: '1.5px solid #e5e3df',
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, fontSize: 12.5, color: '#111' }}>{d.date}</span>
+                      <span style={{ color: '#ccc', fontSize: 12.5 }}>—</span>
+                      <span style={{ flex: 1, fontSize: 12.5, color: '#555' }}>{d.label}</span>
+                      <button
+                        onClick={() => setKeyDates(keyDates.filter((_, j) => j !== i))}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#999',
+                          cursor: 'pointer',
+                          fontSize: 15,
+                          lineHeight: 1,
+                          padding: 0,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="date"
+                  value={newKeyDate}
+                  onChange={(e) => setNewKeyDate(e.target.value)}
+                  style={{
+                    flex: '0 0 150px',
+                    padding: '8px 11px',
+                    borderRadius: 8,
+                    border: '1.5px solid #e5e3df',
+                    fontSize: 13,
+                    fontFamily: 'var(--wf)',
+                    outline: 'none',
+                    background: '#fafaf8',
+                    color: '#111',
+                  }}
+                />
+                <PbInput value={newKeyDateLabel} onChange={setNewKeyDateLabel} placeholder="e.g. Summer Sale Launch" />
+                <button
+                  onClick={() => {
+                    if (newKeyDate && newKeyDateLabel.trim()) {
+                      setKeyDates([...keyDates, { date: newKeyDate, label: newKeyDateLabel.trim() }]);
+                      setNewKeyDate('');
+                      setNewKeyDateLabel('');
+                    }
+                  }}
+                  disabled={!newKeyDate || !newKeyDateLabel.trim()}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    border: '1.5px solid #C2185B',
+                    background: '#fff',
+                    color: '#C2185B',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: !newKeyDate || !newKeyDateLabel.trim() ? 'not-allowed' : 'pointer',
+                    opacity: !newKeyDate || !newKeyDateLabel.trim() ? 0.5 : 1,
+                    whiteSpace: 'nowrap',
+                    fontFamily: 'var(--wf)',
+                  }}
+                >
+                  + Add
+                </button>
+              </div>
             </div>
           )}
         </div>
