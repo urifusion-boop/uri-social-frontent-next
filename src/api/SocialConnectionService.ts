@@ -102,22 +102,26 @@ export class SocialConnectionService {
   }
 
   // ── WhatsApp ──────────────────────────────────────────────────────────────
+  // Routed to whatsapp-agent (its own service, own real Twilio WhatsApp Business
+  // number) instead of the main backend — see http.config.ts's getWhatsAppAgentClient.
 
   static async whatsappConnect(phone: string): Promise<UriResponse<{ phone: string }>> {
-    const res: AxiosResponse<UriResponse<{ phone: string }>> = await UriHttpClient.getClient().post(
-      '/whatsapp/connect',
+    const res: AxiosResponse<UriResponse<{ phone: string }>> = await UriHttpClient.getWhatsAppAgentClient().post(
+      '/api/v1/whatsapp/connect',
       { phone }
     );
     return res.data;
   }
 
   static async whatsappStatus(): Promise<UriResponse<PlatformStatus>> {
-    const res: AxiosResponse<UriResponse<PlatformStatus>> = await UriHttpClient.getClient().get('/whatsapp/status');
+    const res: AxiosResponse<UriResponse<PlatformStatus>> =
+      await UriHttpClient.getWhatsAppAgentClient().get('/api/v1/whatsapp/status');
     return res.data;
   }
 
   static async whatsappDisconnect(): Promise<UriResponse<string>> {
-    const res: AxiosResponse<UriResponse<string>> = await UriHttpClient.getClient().delete('/whatsapp/connect');
+    const res: AxiosResponse<UriResponse<string>> =
+      await UriHttpClient.getWhatsAppAgentClient().delete('/api/v1/whatsapp/connect');
     return res.data;
   }
 
