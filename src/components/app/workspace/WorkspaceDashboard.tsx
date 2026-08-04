@@ -2340,6 +2340,27 @@ const PLATFORMS = [
   // rather than deleted so it's a one-line restore when it's ready to ship here.
 ];
 
+// Same list as app/(app)/settings/connections/page.tsx's WhatsApp connect form —
+// keep both in sync if this changes. A required dropdown (rather than free-text +
+// validation alone) so a country code can never be missing or malformed by
+// construction, not just caught after the fact.
+const WHATSAPP_COUNTRY_CODES = [
+  { code: '+1', flag: '🇺🇸', label: 'US' },
+  { code: '+44', flag: '🇬🇧', label: 'GB' },
+  { code: '+234', flag: '🇳🇬', label: 'NG' },
+  { code: '+27', flag: '🇿🇦', label: 'ZA' },
+  { code: '+254', flag: '🇰🇪', label: 'KE' },
+  { code: '+233', flag: '🇬🇭', label: 'GH' },
+  { code: '+49', flag: '🇩🇪', label: 'DE' },
+  { code: '+33', flag: '🇫🇷', label: 'FR' },
+  { code: '+91', flag: '🇮🇳', label: 'IN' },
+  { code: '+86', flag: '🇨🇳', label: 'CN' },
+  { code: '+55', flag: '🇧🇷', label: 'BR' },
+  { code: '+52', flag: '🇲🇽', label: 'MX' },
+  { code: '+971', flag: '🇦🇪', label: 'AE' },
+  { code: '+966', flag: '🇸🇦', label: 'SA' },
+];
+
 // Validates a WhatsApp number before it ever reaches the backend. Twilio requires
 // E.164 (a leading "+" and country code) and rejects anything else with a 400 that
 // only ever surfaces in server logs — the connect call itself still returns success,
@@ -2381,7 +2402,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
-  const [waPhone, setWaPhone] = useState('');
+  const [waCountryCode, setWaCountryCode] = useState('+234');
+  const [waLocalNumber, setWaLocalNumber] = useState('');
   const [waExpanded, setWaExpanded] = useState(false);
   const [waError, setWaError] = useState('');
   const [liPages, setLiPages] = useState<LinkedInPagesData | null>(null);
@@ -2683,15 +2705,18 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   };
 
   const handleWhatsappSubmit = async () => {
-    const trimmedPhone = waPhone.trim();
-    if (!trimmedPhone) return;
+    if (!waLocalNumber.trim()) return;
     setWaError('');
-    const validationError = validateWhatsappPhone(trimmedPhone);
+    // The country code always comes from the dropdown (never free-typed), so a
+    // missing/malformed code is no longer reachable via this UI — but keep the
+    // shared validator as a backstop against a too-short/garbage local number.
+    const fullPhone = `${waCountryCode}${waLocalNumber.replace(/^0+/, '')}`;
+    const validationError = validateWhatsappPhone(fullPhone);
     if (validationError) {
       setWaError(validationError);
       return;
     }
-    const normalizedPhone = normalizeWhatsappPhone(trimmedPhone);
+    const normalizedPhone = normalizeWhatsappPhone(fullPhone);
     setConnecting('whatsapp');
     try {
       const res = await SocialConnectionService.whatsappConnect(normalizedPhone);
@@ -2700,7 +2725,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         const phone = res.responseData?.phone ?? normalizedPhone;
         saveWaCache(phone);
         setWaExpanded(false);
-        setWaPhone('');
+        setWaLocalNumber('');
         setStatuses((prev) => ({ ...prev, whatsapp: { linked: true, phone } }));
       } else {
         // POST /whatsapp/connect only returns a "linked" conflict when the
@@ -3425,29 +3450,61 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       gap: 8,
                     }}
                   >
-                    <input
-                      type="tel"
-                      placeholder="+1 234 567 8900"
-                      value={waPhone}
-                      onChange={(e) => setWaPhone(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleWhatsappSubmit()}
-                      aria-label="WhatsApp phone number"
-                      style={{
-                        padding: '9px 13px',
-                        borderRadius: 8,
-                        border: '1.5px solid #25D366',
-                        fontSize: 13,
-                        fontFamily: 'var(--wf)',
-                        outline: 'none',
-                        background: '#fff',
-                      }}
-                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select
+                        value={waCountryCode}
+                        onChange={(e) => setWaCountryCode(e.target.value)}
+                        disabled={connecting === 'whatsapp'}
+                        aria-label="Country code"
+                        style={{
+                          width: 100,
+                          flexShrink: 0,
+                          padding: '9px 6px',
+                          borderRadius: 8,
+                          border: '1.5px solid #25D366',
+                          fontSize: 13,
+                          fontFamily: 'var(--wf)',
+                          outline: 'none',
+                          background: '#fff',
+                          color: '#111',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {WHATSAPP_COUNTRY_CODES.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.flag} {c.code}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="tel"
+                        placeholder="8012345678"
+                        value={waLocalNumber}
+                        onChange={(e) => {
+                          setWaLocalNumber(e.target.value.replace(/[^\d]/g, ''));
+                          setWaError('');
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleWhatsappSubmit()}
+                        aria-label="WhatsApp phone number"
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          padding: '9px 13px',
+                          borderRadius: 8,
+                          border: '1.5px solid #25D366',
+                          fontSize: 13,
+                          fontFamily: 'var(--wf)',
+                          outline: 'none',
+                          background: '#fff',
+                        }}
+                      />
+                    </div>
                     {waError && <div style={{ fontSize: 12, color: '#e53935' }}>{waError}</div>}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button
                         type="button"
                         onClick={handleWhatsappSubmit}
-                        disabled={!waPhone.trim() || connecting === 'whatsapp'}
+                        disabled={!waLocalNumber.trim() || connecting === 'whatsapp'}
                         style={{
                           padding: '7px 16px',
                           borderRadius: 7,
@@ -3458,7 +3515,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                           fontWeight: 600,
                           cursor: 'pointer',
                           fontFamily: 'var(--wf)',
-                          opacity: !waPhone.trim() || connecting === 'whatsapp' ? 0.5 : 1,
+                          opacity: !waLocalNumber.trim() || connecting === 'whatsapp' ? 0.5 : 1,
                         }}
                       >
                         {connecting === 'whatsapp' ? 'Connecting...' : 'Connect WhatsApp'}
