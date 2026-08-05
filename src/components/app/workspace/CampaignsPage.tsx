@@ -77,6 +77,30 @@ function extractErrorMessage(e: unknown, fallback: string): string {
   return fallback;
 }
 
+// Any failure that's actually about the WhatsApp number itself — not just the one
+// specific phrase from the old native Click-to-WhatsApp integration ("not linked to
+// your account"), which shouldn't even occur any more now that launches route through
+// a wa.me link. Broadened on request so any number-shaped rejection (a malformed
+// number Meta rejects, a future edge case, etc.) still gets the same guided fix
+// instead of a dead error the client can only retry blindly.
+function isWhatsappNumberError(msg: string): boolean {
+  return /whatsapp|phone number/i.test(msg);
+}
+
+// The number saved here is now also a first-class field in Connected Accounts (not
+// just a one-off chat fix) — this points there so the client knows there's a
+// permanent place to manage it, not just this one retry.
+function ConnectedAccountsWhatsappLink() {
+  return (
+    <a
+      href="/workspace?tab=connections"
+      style={{ fontSize: 12, color: PINK, textDecoration: 'underline', display: 'inline-block', marginTop: 4 }}
+    >
+      Manage this number anytime in Connected Accounts →
+    </a>
+  );
+}
+
 /**
  * Campaign section: chat with Jane to create a campaign in plain language, and manage
  * existing campaigns with their reach/conversation metrics. No platform jargon — the
@@ -1739,7 +1763,15 @@ function PlanAskBox({
   );
 }
 
-function NeedWhatsapp({ question, onSubmit }: { question?: string; onSubmit: (number: string) => void }) {
+function NeedWhatsapp({
+  question,
+  onSubmit,
+  showConnectedAccountsLink,
+}: {
+  question?: string;
+  onSubmit: (number: string) => void;
+  showConnectedAccountsLink?: boolean;
+}) {
   const [value, setValue] = useState('');
   const submit = () => {
     if (value.trim()) onSubmit(value);
@@ -1784,6 +1816,11 @@ function NeedWhatsapp({ question, onSubmit }: { question?: string; onSubmit: (nu
           Save
         </button>
       </div>
+      {showConnectedAccountsLink && (
+        <div style={{ marginLeft: 40, marginTop: 6 }}>
+          <ConnectedAccountsWhatsappLink />
+        </div>
+      )}
     </div>
   );
 }
@@ -2066,10 +2103,11 @@ function ResultCard({
       <NeedWhatsapp
         question={
           `${result.page_name ? `${result.page_name} is` : 'Your ads permission is'} connected — ` +
-          'just need the WhatsApp number leads should message. One more step after saving: link that ' +
-          'same number to your Page under Facebook Page Settings → WhatsApp (Facebook verifies it with a one-time code).'
+          "just need the WhatsApp number leads should message. That's it — ads route through a plain " +
+          'WhatsApp link, so there is no separate Facebook Page linking step to do afterward.'
         }
         onSubmit={onSubmitMetaConnectionWhatsapp}
+        showConnectedAccountsLink
       />
     );
   }
@@ -2088,7 +2126,7 @@ function ResultCard({
       // Meta's own pre-flight rejection when the number Jane has on file isn't actually
       // linked to the Page yet (a real, live-validated error, not guessed) — offer the
       // fix right here instead of a dead error the client can only retry blindly.
-      setFixingWhatsapp(/not linked to your account/i.test(msg));
+      setFixingWhatsapp(isWhatsappNumberError(msg));
     } finally {
       setLaunching(false);
     }
@@ -2115,7 +2153,7 @@ function ResultCard({
     } catch (e) {
       const msg = extractErrorMessage(e, "That didn't work — please try again.");
       setLaunchError(msg);
-      setFixingWhatsapp(/not linked to your account/i.test(msg));
+      setFixingWhatsapp(isWhatsappNumberError(msg));
     } finally {
       setLaunching(false);
     }
@@ -2256,40 +2294,43 @@ function ResultCard({
               </button>
               {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
               {fixingWhatsapp && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                  <input
-                    value={whatsappFix}
-                    onChange={(e) => setWhatsappFix(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && submitWhatsappFixAndRetry()}
-                    placeholder="e.g. 0803 123 4567"
-                    inputMode="tel"
-                    style={{
-                      flex: 1,
-                      border: '1.5px solid #e0dcd9',
-                      borderRadius: 20,
-                      padding: '8px 14px',
-                      fontSize: 13,
-                      outline: 'none',
-                    }}
-                  />
-                  <button
-                    onClick={submitWhatsappFixAndRetry}
-                    disabled={!whatsappFix.trim() || launching}
-                    style={{
-                      background: PINK,
-                      border: 'none',
-                      color: '#fff',
-                      borderRadius: 20,
-                      padding: '8px 18px',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap',
-                      cursor: whatsappFix.trim() && !launching ? 'pointer' : 'default',
-                      opacity: whatsappFix.trim() && !launching ? 1 : 0.5,
-                    }}
-                  >
-                    Save &amp; retry
-                  </button>
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      value={whatsappFix}
+                      onChange={(e) => setWhatsappFix(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && submitWhatsappFixAndRetry()}
+                      placeholder="e.g. 0803 123 4567"
+                      inputMode="tel"
+                      style={{
+                        flex: 1,
+                        border: '1.5px solid #e0dcd9',
+                        borderRadius: 20,
+                        padding: '8px 14px',
+                        fontSize: 13,
+                        outline: 'none',
+                      }}
+                    />
+                    <button
+                      onClick={submitWhatsappFixAndRetry}
+                      disabled={!whatsappFix.trim() || launching}
+                      style={{
+                        background: PINK,
+                        border: 'none',
+                        color: '#fff',
+                        borderRadius: 20,
+                        padding: '8px 18px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        whiteSpace: 'nowrap',
+                        cursor: whatsappFix.trim() && !launching ? 'pointer' : 'default',
+                        opacity: whatsappFix.trim() && !launching ? 1 : 0.5,
+                      }}
+                    >
+                      Save &amp; retry
+                    </button>
+                  </div>
+                  <ConnectedAccountsWhatsappLink />
                 </div>
               )}
             </div>
