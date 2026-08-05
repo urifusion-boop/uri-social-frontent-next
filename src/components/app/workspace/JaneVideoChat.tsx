@@ -64,6 +64,7 @@ interface VideoPlan {
   brollDensity: 'light' | 'moderate' | 'heavy';
   musicEnabled: boolean;
   hookTextEnabled: boolean;
+  hookTextCustom: string;
   targetLength: 'auto' | '15s' | '30s' | '60s';
   aspectRatio: '9:16' | '16:9' | '1:1';
 }
@@ -112,6 +113,7 @@ function defaultPlan(c: Classification, p: Purpose): VideoPlan {
     brollDensity: 'light',
     musicEnabled: false,
     hookTextEnabled: false,
+    hookTextCustom: '',
     targetLength: 'auto',
     aspectRatio: '9:16',
   };
@@ -431,12 +433,36 @@ function AdjustPanel({
         );
 
       case 'hookText':
-        return section(
-          'Hook text',
-          <>
-            {opt('On', plan.hookTextEnabled, () => onApply({ hookTextEnabled: true }))}
-            {opt('Off', !plan.hookTextEnabled, () => onApply({ hookTextEnabled: false }))}
-          </>
+        return (
+          <div>
+            {section(
+              'Hook text',
+              <>
+                {opt('On', plan.hookTextEnabled, () => onApply({ hookTextEnabled: true }))}
+                {opt('Off', !plan.hookTextEnabled, () => onApply({ hookTextEnabled: false, hookTextCustom: '' }))}
+              </>
+            )}
+            {plan.hookTextEnabled && (
+              <div style={{ marginTop: 10 }}>
+                <SectionLabel text="Text (optional — leave blank for AI-generated)" />
+                <input
+                  type="text"
+                  value={plan.hookTextCustom}
+                  onChange={(e) => onApply({ hookTextCustom: e.target.value })}
+                  placeholder="e.g. You record, we do the rest"
+                  maxLength={60}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${BORDER}`,
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+            )}
+          </div>
         );
 
       case 'trim':
@@ -995,6 +1021,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       fd.append('custom_music', musicFile);
     }
     fd.append('enable_hook_text', String(plan.hookTextEnabled));
+    if (plan.hookTextEnabled && plan.hookTextCustom.trim()) {
+      fd.append('custom_hook_text', plan.hookTextCustom.trim());
+    }
 
     try {
       const res = await SocialMediaAgentService.produceWithZapCap(fd);
@@ -1535,7 +1564,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                 : 'no trimming',
         brollLabel: !plan.brollEnabled ? 'off' : `on · ${plan.brollDensity}`,
         musicLabel: !plan.musicEnabled ? 'none' : 'your track, under your voice',
-        hookTextLabel: plan.hookTextEnabled ? 'on' : 'off',
+        hookTextLabel: !plan.hookTextEnabled ? 'off' : plan.hookTextCustom ? 'custom text' : 'AI-generated',
         lengthLabel: plan.targetLength === 'auto' ? 'auto (no limit)' : plan.targetLength,
         formatLabel:
           plan.aspectRatio === '9:16'
