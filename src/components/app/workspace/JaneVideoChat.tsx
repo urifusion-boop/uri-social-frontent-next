@@ -352,7 +352,7 @@ function AdjustPanel({
 }: {
   field: AdjustField;
   plan: VideoPlan;
-  onApply: (patch: Partial<VideoPlan>) => void;
+  onApply: (patch: Partial<VideoPlan>, closePanel?: boolean) => void;
   onCancel: () => void;
   styleTemplates: StyleTemplate[];
   isMobile?: boolean;
@@ -448,7 +448,7 @@ function AdjustPanel({
                 <input
                   type="text"
                   value={plan.hookTextCustom}
-                  onChange={(e) => onApply({ hookTextCustom: e.target.value })}
+                  onChange={(e) => onApply({ hookTextCustom: e.target.value }, false)}
                   placeholder="e.g. You record, we do the rest"
                   maxLength={60}
                   style={{
@@ -864,9 +864,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
   // ── Plan adjustments ───────────────────────────────────────────────────────
 
-  const applyAdjust = (patch: Partial<VideoPlan>) => {
+  const applyAdjust = (patch: Partial<VideoPlan>, closePanel: boolean = true) => {
     setPlan((prev) => (prev ? { ...prev, ...patch } : null));
-    setAdjustField(null);
+    if (closePanel) setAdjustField(null);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
