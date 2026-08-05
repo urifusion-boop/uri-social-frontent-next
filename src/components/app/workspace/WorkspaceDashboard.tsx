@@ -2368,6 +2368,15 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [waPhone, setWaPhone] = useState('');
   const [waExpanded, setWaExpanded] = useState(false);
   const [waError, setWaError] = useState('');
+  // The number Jane's ads route leads to (GET/PUT /jane-ads/whatsapp) — distinct
+  // from waPhone above, which is the daily-push notification number. Previously
+  // only settable reactively, buried inside a campaign chat prompt when a launch
+  // failed asking for it — no page let a brand see or change it proactively.
+  const [adsWaNumber, setAdsWaNumber] = useState('');
+  const [adsWaInput, setAdsWaInput] = useState('');
+  const [adsWaSaving, setAdsWaSaving] = useState(false);
+  const [adsWaError, setAdsWaError] = useState('');
+  const [adsWaLoaded, setAdsWaLoaded] = useState(false);
   const [liPages, setLiPages] = useState<LinkedInPagesData | null>(null);
   const [liPagesLoading, setLiPagesLoading] = useState(false);
 
@@ -2493,6 +2502,34 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   useEffect(() => {
     loadStatuses();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    CampaignService.getWhatsapp().then((number) => {
+      setAdsWaNumber(number);
+      setAdsWaInput(number);
+      setAdsWaLoaded(true);
+    });
+  }, []);
+
+  const saveAdsWhatsapp = async () => {
+    const clean = adsWaInput.trim();
+    if (!clean || adsWaSaving) return;
+    setAdsWaSaving(true);
+    setAdsWaError('');
+    try {
+      const saved = await CampaignService.setWhatsapp(clean);
+      setAdsWaNumber(saved);
+      setAdsWaInput(saved);
+      ToastService.showToast('WhatsApp number updated — new ads will route here.', ToastTypeEnum.Success);
+    } catch (e) {
+      const msg =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        "That number didn't save — please try again.";
+      setAdsWaError(msg);
+    } finally {
+      setAdsWaSaving(false);
+    }
+  };
 
   // Handle OAuth callback params (after Facebook/Instagram OAuth redirect back here)
   useEffect(() => {
@@ -3411,6 +3448,73 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     )}
                   </div>
                 </div>
+                {p.id === 'facebook_ads' && adsWaLoaded && (
+                  // The number Jane's ads route to on WhatsApp — separate from
+                  // whether a Facebook Page is connected above: launches always
+                  // work via a wa.me link, so this is settable and visible on its
+                  // own instead of only surfacing reactively inside a campaign
+                  // chat when a launch already failed asking for it.
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: '#fafafa',
+                      borderRadius: '0 0 12px 12px',
+                      border: '1.5px solid #edecea',
+                      borderTop: 'none',
+                      marginTop: -8,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: '#666' }}>Ads WhatsApp number</div>
+                    <div style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>
+                      Where leads from your ads land — not the number above.
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="tel"
+                        value={adsWaInput}
+                        onChange={(e) => setAdsWaInput(e.target.value)}
+                        placeholder="e.g. 0803 123 4567"
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: '1.5px solid #e0e0e0',
+                          fontSize: 12.5,
+                          fontFamily: 'var(--wf)',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={saveAdsWhatsapp}
+                        disabled={adsWaSaving || !adsWaInput.trim() || adsWaInput.trim() === adsWaNumber}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: 8,
+                          border: 'none',
+                          background: '#C2185B',
+                          color: '#fff',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          fontFamily: 'var(--wf)',
+                          cursor: 'pointer',
+                          opacity: adsWaSaving || !adsWaInput.trim() || adsWaInput.trim() === adsWaNumber ? 0.5 : 1,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {adsWaSaving ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                    {adsWaError && <div style={{ fontSize: 11.5, color: '#e53935' }}>{adsWaError}</div>}
+                    {!adsWaNumber && !adsWaError && (
+                      <div style={{ fontSize: 11.5, color: '#a15c00' }}>
+                        Not set yet — Jane will ask for this the first time you build an ad.
+                      </div>
+                    )}
+                  </div>
+                )}
                 {p.id === 'linkedin' && linked && liPages && liPages.pages.length > 0 && (
                   <div
                     style={{
