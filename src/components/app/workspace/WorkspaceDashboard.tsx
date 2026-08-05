@@ -73,7 +73,7 @@ import TrialExpiredModal from '@/src/components/app/atoms/TrialExpiredModal';
 import NotificationBell from '@/src/components/app/atoms/NotificationBell';
 import NotificationsPanel from '@/src/components/app/workspace/NotificationsPanel';
 import { useNotifications } from '@/src/providers/NotificationProvider';
-import { Tooltip } from '@mui/material';
+import { BrandTooltip } from '@/src/components/app/workspace/BrandTooltip';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { AuthService } from '@/src/api/AuthService';
 
@@ -289,41 +289,6 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
     </svg>
   );
 };
-
-/* ── Brand Tooltip ──────────────────────────────────────────────────────── */
-const BrandTooltip = (props: React.ComponentProps<typeof Tooltip>) => (
-  <Tooltip
-    enterTouchDelay={0}
-    leaveTouchDelay={3000}
-    {...props}
-    componentsProps={{
-      ...props.componentsProps,
-      tooltip: {
-        sx: {
-          background: 'linear-gradient(135deg,#1a0a12 0%,#2d0d1e 100%)',
-          color: '#fff',
-          fontSize: 12,
-          fontWeight: 500,
-          lineHeight: 1.45,
-          padding: '8px 12px',
-          borderRadius: '8px',
-          maxWidth: 220,
-          boxShadow: '0 8px 28px rgba(194,24,91,.30),0 2px 8px rgba(0,0,0,.25)',
-          border: '1px solid rgba(194,24,91,.28)',
-          fontFamily: 'var(--wf,sans-serif)',
-        },
-        ...((props.componentsProps?.tooltip as object) ?? {}),
-      },
-      arrow: {
-        sx: {
-          color: '#1a0a12',
-          '&::before': { border: '1px solid rgba(194,24,91,.28)' },
-        },
-        ...((props.componentsProps?.arrow as object) ?? {}),
-      },
-    }}
-  />
-);
 
 /* ── Guided Tour ─────────────────────────────────────────────────────────── */
 type TourStepDef = { target: string; title: string; body: string; radius?: number };

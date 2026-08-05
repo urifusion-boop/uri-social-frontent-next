@@ -8,6 +8,7 @@ import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/
 import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
 import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
+import { BrandTooltip } from '@/src/components/app/workspace/BrandTooltip';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -245,18 +246,48 @@ function SectionLabel({ text }: { text: string }) {
 
 // ── Plan card ─────────────────────────────────────────────────────────────────
 
+function InfoDot({ text }: { text: string }) {
+  return (
+    <BrandTooltip title={text} arrow placement="top">
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 14,
+          height: 14,
+          borderRadius: '50%',
+          border: `1.3px solid ${GRAY}`,
+          color: GRAY,
+          fontSize: 9,
+          fontWeight: 700,
+          fontStyle: 'italic',
+          lineHeight: 1,
+          cursor: 'help',
+          flexShrink: 0,
+          marginLeft: 4,
+        }}
+      >
+        i
+      </span>
+    </BrandTooltip>
+  );
+}
+
 function PlanRow({
   label,
   value,
   field,
   onAdjust,
   disabled = false,
+  tooltip,
 }: {
   label: string;
   value: string;
   field: AdjustField;
   onAdjust: (f: AdjustField) => void;
   disabled?: boolean;
+  tooltip?: string;
 }) {
   return (
     <div
@@ -268,9 +299,10 @@ function PlanRow({
         borderBottom: `1px solid ${BORDER}`,
       }}
     >
-      <span style={{ fontSize: 13, color: '#374151', flex: 1 }}>
+      <span style={{ fontSize: 13, color: '#374151', flex: 1, display: 'flex', alignItems: 'center' }}>
         <span style={{ color: GRAY, fontSize: 12, marginRight: 6 }}>{label}</span>
         {value}
+        {tooltip && <InfoDot text={tooltip} />}
       </span>
       {!disabled && (
         <button
@@ -1872,7 +1904,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
             >
               <StylePreviewThumb style={plan.style} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: GRAY }}>Style</div>
+                <div style={{ fontSize: 12, color: GRAY, display: 'flex', alignItems: 'center' }}>
+                  Style
+                  <InfoDot text="The caption look and pacing your video is edited with. Change it to try a different visual feel without redoing your plan." />
+                </div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{plan.style.name}</div>
                 <div style={{ fontSize: 11, color: GRAY }}>{plan.style.tagline}</div>
               </div>
@@ -1900,6 +1935,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
               field="captions"
               onAdjust={setAdjustField}
               disabled={plan.classification === 'product' && !plan.captionsEnabled}
+              tooltip="Burned-in subtitles synced to your speech. Off by default for silent product videos since there's no speech to caption."
             />
             <PlanRow
               label="Trim"
@@ -1907,12 +1943,43 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
               field="trim"
               onAdjust={setAdjustField}
               disabled={plan.classification === 'product'}
+              tooltip="Automatically cuts out dead air, long pauses, and filler words like 'um' so your video stays tight."
             />
-            <PlanRow label="B-roll" value={planLabels.brollLabel} field="broll" onAdjust={setAdjustField} />
-            <PlanRow label="Music" value={planLabels.musicLabel} field="music" onAdjust={setAdjustField} />
-            <PlanRow label="Hook Text" value={planLabels.hookTextLabel} field="hookText" onAdjust={setAdjustField} />
-            <PlanRow label="Length" value={planLabels.lengthLabel} field="length" onAdjust={setAdjustField} />
-            <PlanRow label="Format" value={planLabels.formatLabel} field="format" onAdjust={setAdjustField} />
+            <PlanRow
+              label="B-roll"
+              value={planLabels.brollLabel}
+              field="broll"
+              onAdjust={setAdjustField}
+              tooltip="Cutaway footage inserted over parts of your talking-head clip to keep the video visually interesting."
+            />
+            <PlanRow
+              label="Music"
+              value={planLabels.musicLabel}
+              field="music"
+              onAdjust={setAdjustField}
+              tooltip="Upload your own MP3 to play under the video, mixed quietly beneath your voice so it doesn't compete with your speech."
+            />
+            <PlanRow
+              label="Hook Text"
+              value={planLabels.hookTextLabel}
+              field="hookText"
+              onAdjust={setAdjustField}
+              tooltip="A short line of text shown on screen for the first ~2.5 seconds to grab attention. Leave it on AI-generated or type your own."
+            />
+            <PlanRow
+              label="Length"
+              value={planLabels.lengthLabel}
+              field="length"
+              onAdjust={setAdjustField}
+              tooltip="Target duration for the finished video. 'Auto' keeps everything and doesn't force a cutoff."
+            />
+            <PlanRow
+              label="Format"
+              value={planLabels.formatLabel}
+              field="format"
+              onAdjust={setAdjustField}
+              tooltip="Aspect ratio for the export — vertical for Reels/TikTok/Shorts, landscape for YouTube, square for feed posts."
+            />
           </div>
 
           {/* Video Editing Billing PRD FR-04: cost preview before confirming */}
