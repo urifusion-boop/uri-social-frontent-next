@@ -484,7 +484,7 @@ function AdjustPanel({
             {section(
               'Hook text',
               <>
-                {opt('On', plan.hookTextEnabled, () => onApply({ hookTextEnabled: true }))}
+                {opt('On', plan.hookTextEnabled, () => onApply({ hookTextEnabled: true }, false))}
                 {opt('Off', !plan.hookTextEnabled, () => onApply({ hookTextEnabled: false, hookTextCustom: '' }))}
               </>
             )}
@@ -520,7 +520,7 @@ function AdjustPanel({
                   ].map((c) => (
                     <button
                       key={c.value}
-                      onClick={() => onApply({ hookTextColor: c.value })}
+                      onClick={() => onApply({ hookTextColor: c.value }, false)}
                       title={c.label}
                       style={{
                         width: 32,
@@ -615,11 +615,11 @@ function AdjustPanel({
                   onApply({ musicEnabled: false });
                 })}
                 {opt('Upload your own', plan.musicEnabled && plan.musicSource === 'upload', () =>
-                  onApply({ musicEnabled: true, musicSource: 'upload' })
+                  onApply({ musicEnabled: true, musicSource: 'upload' }, false)
                 )}
                 {opt('Auto-pick for me', plan.musicEnabled && plan.musicSource === 'auto', () => {
                   onMusicFileChange(null);
-                  onApply({ musicEnabled: true, musicSource: 'auto' });
+                  onApply({ musicEnabled: true, musicSource: 'auto' }, false);
                 })}
               </>
             )}
@@ -690,7 +690,7 @@ function AdjustPanel({
                       return;
                     }
                     onMusicFileChange(f);
-                    onApply({ musicEnabled: true, musicSource: 'upload' });
+                    onApply({ musicEnabled: true, musicSource: 'upload' }, false);
                     e.target.value = '';
                   }}
                 />
