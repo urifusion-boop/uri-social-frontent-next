@@ -828,6 +828,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
   // so the user can review/reorder/drop clips before the actual stitch runs.
   const [reviewJob, setReviewJob] = useState<MultiClipJob | null>(null);
   const [reviewBusyClipId, setReviewBusyClipId] = useState<string | null>(null);
+  // True once a stitch finishes and before the user confirms — shows the merged
+  // video in a real player so they can check it before moving into editing.
+  const [stitchReadyForReview, setStitchReadyForReview] = useState(false);
   const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
   const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({});
   const [editingWordId, setEditingWordId] = useState<string | null>(null);
@@ -1340,8 +1343,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       onReady: (outputUrl) => {
         setStitchedUrl(outputUrl);
         setVideoFiles([]);
-        addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
-        setStage('classify');
+        setStitchReadyForReview(true);
       },
       onFailed: () => {
         setRenderError('Stitch failed — try again.');
@@ -1379,14 +1381,21 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       onReady: (outputUrl) => {
         setStitchedUrl(outputUrl);
         setVideoFiles([]);
-        addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
-        setStage('classify');
+        setStitchReadyForReview(true);
       },
       onFailed: () => {
         setRenderError('Stitch failed — try again.');
         setRenderStatus('failed');
       },
     });
+  };
+
+  // Called once the user has watched the merged video and taps "Continue" —
+  // moves on into the classify/plan editing phase.
+  const confirmStitchPreview = () => {
+    setStitchReadyForReview(false);
+    addMsg('jane', 'Now tell me a bit about this video:');
+    setStage('classify');
   };
 
   // ── Clip review actions (reorder / drop / crop position) ──────────────────
@@ -1612,6 +1621,8 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     setIsSilenceCutting(false);
     setVideoFiles([]);
     setStitchedUrl(null);
+    setStitchReadyForReview(false);
+    setReviewJob(null);
     setZapCapJobId(null);
     setComposeJobId(null);
     setCaptionWords([]);
@@ -1650,6 +1661,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
           stage,
           plan,
           stitchedUrl,
+          stitchReadyForReview,
           zapCapJobId,
           composeJobId,
           captionWords,
@@ -1673,6 +1685,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     stage,
     plan,
     stitchedUrl,
+    stitchReadyForReview,
     zapCapJobId,
     composeJobId,
     captionWords,
@@ -1700,6 +1713,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
         stage: Stage;
         plan: VideoPlan | null;
         stitchedUrl: string | null;
+        stitchReadyForReview?: boolean;
         zapCapJobId: string | null;
         composeJobId: string | null;
         captionWords: CaptionWord[];
@@ -1723,6 +1737,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       setStage(saved.stage);
       setPlan(saved.plan ?? null);
       setStitchedUrl(saved.stitchedUrl ?? null);
+      setStitchReadyForReview(saved.stitchReadyForReview ?? false);
       setZapCapJobId(saved.zapCapJobId ?? null);
       setCaptionWords(saved.captionWords ?? []);
       setCaptionEdits(saved.captionEdits ?? {});
@@ -1750,8 +1765,8 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
           progressMap: { analyzing: 30, awaiting_order: 55, stitching: 80, ready: 100, failed: 0 },
           onReady: (outputUrl) => {
             setStitchedUrl(outputUrl);
-            addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
-            setStage('classify');
+            setVideoFiles([]);
+            setStitchReadyForReview(true);
           },
           onFailed: () => {
             setRenderError('Stitch failed — try again.');
@@ -2088,6 +2103,31 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                   continueStitchAfterReview();
                 }}
               />
+              <TapBtn label="Start over" onClick={reset} />
+            </div>
+          </div>
+        );
+      }
+
+      // Stitch complete — show the merged video before moving into editing
+      if (stitchReadyForReview && stitchedUrl) {
+        return (
+          <div>
+            <JaneBubble text="Here's your merged video — take a look before we move on." />
+            <video
+              src={stitchedUrl}
+              controls
+              playsInline
+              style={{
+                width: '100%',
+                maxHeight: 340,
+                borderRadius: 12,
+                background: '#000',
+                marginBottom: 14,
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <TapBtn label="Looks good, continue" primary onClick={confirmStitchPreview} />
               <TapBtn label="Start over" onClick={reset} />
             </div>
           </div>
