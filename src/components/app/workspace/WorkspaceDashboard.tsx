@@ -27,7 +27,7 @@ import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ReactNode } from 'react';
-import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaWhatsapp } from 'react-icons/fa';
+import { FaFacebook, FaGoogle, FaInstagram, FaLinkedin, FaTiktok, FaWhatsapp } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import AutoGenerateTab from '@/src/components/app/social-media/AutoGenerateTab';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
@@ -2256,6 +2256,7 @@ const PLATFORM_ICON: Record<string, ReactNode> = {
   whatsapp: <FaWhatsapp size={22} color="#25D366" />,
   facebook: <FaFacebook size={22} color="#1877F2" />,
   facebook_ads: <FaFacebook size={22} color="#1877F2" />,
+  google_ads: <FaGoogle size={22} color="#4285F4" />,
   instagram: <FaInstagram size={22} color="#E4405F" />,
   tiktok: <FaTiktok size={22} color="#010101" />,
 };
@@ -2305,6 +2306,15 @@ const PLATFORMS = [
       "The Facebook Page Jane's ad campaigns actually run from — separate from the Facebook connection above, which is only for organic posts. Requires its own ads-permission grant.",
   },
   {
+    id: 'google_ads',
+    label: 'Google Ads',
+    color: '#4285F4',
+    bg: '#E8F0FE',
+    flow: 'google_ads_oauth',
+    tooltip:
+      "The Google Ads account Jane's Search campaigns run from — separate from any other Google connection. Links to (or creates) an account under URI's manager account.",
+  },
+  {
     id: 'instagram',
     label: 'Instagram',
     color: '#E4405F',
@@ -2344,6 +2354,15 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [adsWaLoaded, setAdsWaLoaded] = useState(false);
   const [liPages, setLiPages] = useState<LinkedInPagesData | null>(null);
   const [liPagesLoading, setLiPagesLoading] = useState(false);
+
+  // Google Ads account-selection panel (needs_account_selection state) — the extra
+  // step Meta's ads connection doesn't have: after OAuth, the brand still has to
+  // link an existing Google Ads account or create one fresh under URI's MCC.
+  const [googleAccountChoice, setGoogleAccountChoice] = useState<'none' | 'existing' | 'create'>('none');
+  const [googleCustomerIdInput, setGoogleCustomerIdInput] = useState('');
+  const [googleAccountNameInput, setGoogleAccountNameInput] = useState('');
+  const [googleAccountSubmitting, setGoogleAccountSubmitting] = useState(false);
+  const [googleAccountError, setGoogleAccountError] = useState('');
 
   // Facebook/Instagram OAuth callback state
   const [phase, setPhase] = useState<'idle' | 'pending' | 'finalizing'>('idle');
@@ -2400,12 +2419,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const loadStatuses = async () => {
     setLoading(true);
     try {
-      const [li, x, wa, fbIg, fbAds] = await Promise.all([
+      const [li, x, wa, fbIg, fbAds, gAds] = await Promise.all([
         withTimeout(SocialConnectionService.linkedinStatus()),
         withTimeout(SocialConnectionService.xStatus()),
         withTimeout(SocialConnectionService.whatsappStatus()),
         withTimeout(SocialMediaAgentService.getConnections()),
         withTimeout(CampaignService.getMetaConnectionStatus()),
+        withTimeout(CampaignService.getGoogleConnectionStatus()),
       ]);
       const next: Record<string, PlatformStatus> = {};
       if (fbAds) {
@@ -2416,6 +2436,18 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           linked: !['none', 'content_only'].includes(fbAds.state),
           account_name: fbAds.page_name || undefined,
           meta_connection_state: fbAds.state,
+        };
+      }
+      if (gAds) {
+        // Same "linked = anything beyond nothing at all" convention as facebook_ads —
+        // the card's own state-specific subtext (see the render below) carries the
+        // detail for every state short of fully ready.
+        next.google_ads = {
+          linked: gAds.state !== 'none',
+          account_name: gAds.account_name || undefined,
+          google_connection_state: gAds.state,
+          google_customer_id: gAds.customer_id || undefined,
+          google_whatsapp_number: gAds.whatsapp_number || undefined,
         };
       }
       next.linkedin = li?.responseData ?? { linked: false };
@@ -2560,6 +2592,29 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error)
           );
       }
+    } else if (connected === 'google_ads') {
+      // jane-ads' own OAuth callback stores a PENDING connection and returns conn_id —
+      // finalize just associates it with the active brand; account selection (link
+      // existing vs. create new) is a separate step surfaced by GoogleAdsSetupPanel
+      // once the card re-renders in the needs_account_selection state.
+      const connId = searchParams.get('conn_id') ?? '';
+      router.replace('/workspace?tab=connections');
+      if (connId) {
+        CampaignService.googleFinalize(connId)
+          .then((res) => {
+            if (res.status === 'finalized') {
+              ToastService.showToast(
+                'Google Ads connected — choose or create your account next.',
+                ToastTypeEnum.Success
+              );
+              posthog.capture('social_account_connected', { platform: 'google_ads' });
+              loadStatuses();
+            } else {
+              ToastService.showToast('Google Ads connection failed. Please try again.', ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => ToastService.showToast('Google Ads connection failed. Please try again.', ToastTypeEnum.Error));
+      }
     } else if (connected === 'pending' && token) {
       setSessionToken(token);
       setPhase('pending');
@@ -2686,6 +2741,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       window.location.href = `${apiBase}/social-media/connect/facebook-ads/initiate?source=settings`;
       return;
     }
+    if (flow === 'google_ads_oauth') {
+      setConnecting(id);
+      // jane-ads' own OAuth flow, not the older /social-media/connect/* router —
+      // Google Ads has no equivalent to the Meta organic-connection reuse pattern.
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+      window.location.href = `${apiBase}/jane-ads/google/connect/initiate?source=settings`;
+      return;
+    }
     if (flow === 'phone') {
       setWaExpanded(true);
       return;
@@ -2752,6 +2815,44 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       }
     } finally {
       setConnecting(null);
+    }
+  };
+
+  const handleGoogleLinkExisting = async () => {
+    if (!googleCustomerIdInput.trim()) return;
+    setGoogleAccountError('');
+    setGoogleAccountSubmitting(true);
+    try {
+      const res = await CampaignService.googleLinkExistingAccount(googleCustomerIdInput.trim());
+      if (res.manager_link_status === 'refused') {
+        setGoogleAccountError(res.detail || 'That account is already linked to another manager.');
+      } else {
+        ToastService.showToast('Link request sent — accept it in your Google Ads account.', ToastTypeEnum.Success);
+        setGoogleAccountChoice('none');
+        setGoogleCustomerIdInput('');
+        loadStatuses();
+      }
+    } catch {
+      setGoogleAccountError('Could not send the link request. Check the account ID and try again.');
+    } finally {
+      setGoogleAccountSubmitting(false);
+    }
+  };
+
+  const handleGoogleCreateAccount = async () => {
+    if (!googleAccountNameInput.trim()) return;
+    setGoogleAccountError('');
+    setGoogleAccountSubmitting(true);
+    try {
+      await CampaignService.googleCreateAccount(googleAccountNameInput.trim());
+      ToastService.showToast('Google Ads account created!', ToastTypeEnum.Success);
+      setGoogleAccountChoice('none');
+      setGoogleAccountNameInput('');
+      loadStatuses();
+    } catch {
+      setGoogleAccountError('Could not create the account. Please try again.');
+    } finally {
+      setGoogleAccountSubmitting(false);
     }
   };
 
@@ -3282,10 +3383,31 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         {p.id === 'facebook_ads' && s?.meta_connection_state === 'expired' && (
                           <span style={{ color: '#c62828' }}> — needs reconnecting</span>
                         )}
+                        {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
+                          <span style={{ color: '#4285F4' }}> — choose or create your Ads account below</span>
+                        )}
+                        {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_pending' && (
+                          <span style={{ color: '#a15c00' }}> — waiting for you to accept the link in Google Ads</span>
+                        )}
+                        {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_refused' && (
+                          <span style={{ color: '#c62828' }}> — already linked to another manager</span>
+                        )}
+                        {p.id === 'google_ads' && s?.google_connection_state === 'expired' && (
+                          <span style={{ color: '#c62828' }}> — needs reconnecting</span>
+                        )}
+                        {p.id === 'google_ads' &&
+                          s?.google_connection_state === 'ready' &&
+                          !s?.google_whatsapp_number && (
+                            <span style={{ color: '#a15c00' }}> — add a WhatsApp number below</span>
+                          )}
                       </div>
                     ) : (
                       <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>
-                        {p.id === 'facebook_ads' ? 'No ads Page connected yet' : 'Not connected'}
+                        {p.id === 'facebook_ads'
+                          ? 'No ads Page connected yet'
+                          : p.id === 'google_ads'
+                            ? 'No ads account connected yet'
+                            : 'Not connected'}
                       </div>
                     )}
                   </div>
@@ -3315,8 +3437,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       >
                         Coming Soon
                       </span>
-                    ) : linked && p.id === 'facebook_ads' ? (
-                      // No disconnect endpoint exists for the ads-scoped connection yet —
+                    ) : linked && (p.id === 'facebook_ads' || p.id === 'google_ads') ? (
+                      // No disconnect endpoint exists for either ads-scoped connection —
                       // the meaningful action here is reconnecting (e.g. after 'expired'),
                       // which just re-runs the same OAuth grant and overwrites it.
                       <button
@@ -3413,7 +3535,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     )}
                   </div>
                 </div>
-                {p.id === 'facebook_ads' && adsWaLoaded && (
+                {(p.id === 'facebook_ads' || p.id === 'google_ads') && adsWaLoaded && (
                   // The number Jane's ads route to on WhatsApp — separate from
                   // whether a Facebook Page is connected above: launches always
                   // work via a wa.me link, so this is settable and visible on its
@@ -3478,6 +3600,218 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         Not set yet — Jane will ask for this the first time you build an ad.
                       </div>
                     )}
+                  </div>
+                )}
+                {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: '#f7faff',
+                      borderRadius: '0 0 12px 12px',
+                      border: '1.5px solid #4285F444',
+                      borderTop: 'none',
+                    }}
+                  >
+                    {googleAccountChoice === 'none' ? (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGoogleAccountError('');
+                            setGoogleAccountChoice('existing');
+                          }}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #4285F4',
+                            background: '#fff',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: '#4285F4',
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                          }}
+                        >
+                          I already have a Google Ads account
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGoogleAccountError('');
+                            setGoogleAccountChoice('create');
+                          }}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: '#4285F4',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                          }}
+                        >
+                          Create one for me
+                        </button>
+                      </div>
+                    ) : googleAccountChoice === 'existing' ? (
+                      <div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <input
+                            type="text"
+                            placeholder="e.g. 123-456-7890"
+                            value={googleCustomerIdInput}
+                            onChange={(e) => setGoogleCustomerIdInput(e.target.value)}
+                            style={{
+                              flex: 1,
+                              padding: '7px 10px',
+                              borderRadius: 7,
+                              border: `1.5px solid ${googleAccountError ? '#c62828' : '#4285F444'}`,
+                              fontSize: 12.5,
+                              fontFamily: 'var(--wf)',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleGoogleLinkExisting}
+                            disabled={googleAccountSubmitting || !googleCustomerIdInput.trim()}
+                            style={{
+                              padding: '7px 14px',
+                              borderRadius: 7,
+                              border: 'none',
+                              background: '#4285F4',
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              fontFamily: 'var(--wf)',
+                              opacity: googleAccountSubmitting ? 0.6 : 1,
+                            }}
+                          >
+                            {googleAccountSubmitting ? 'Sending...' : 'Send link request'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGoogleAccountChoice('none');
+                              setGoogleAccountError('');
+                            }}
+                            style={{
+                              padding: '7px 10px',
+                              borderRadius: 7,
+                              border: '1px solid #edecea',
+                              background: '#fff',
+                              color: '#888',
+                              fontSize: 12,
+                              cursor: 'pointer',
+                              fontFamily: 'var(--wf)',
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {googleAccountError && (
+                          <div style={{ fontSize: 11.5, color: '#c62828', marginTop: 6 }}>{googleAccountError}</div>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <input
+                            type="text"
+                            placeholder="Business name for the new account"
+                            value={googleAccountNameInput}
+                            onChange={(e) => setGoogleAccountNameInput(e.target.value)}
+                            style={{
+                              flex: 1,
+                              padding: '7px 10px',
+                              borderRadius: 7,
+                              border: `1.5px solid ${googleAccountError ? '#c62828' : '#4285F444'}`,
+                              fontSize: 12.5,
+                              fontFamily: 'var(--wf)',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleGoogleCreateAccount}
+                            disabled={googleAccountSubmitting || !googleAccountNameInput.trim()}
+                            style={{
+                              padding: '7px 14px',
+                              borderRadius: 7,
+                              border: 'none',
+                              background: '#4285F4',
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              fontFamily: 'var(--wf)',
+                              opacity: googleAccountSubmitting ? 0.6 : 1,
+                            }}
+                          >
+                            {googleAccountSubmitting ? 'Creating...' : 'Create account'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGoogleAccountChoice('none');
+                              setGoogleAccountError('');
+                            }}
+                            style={{
+                              padding: '7px 10px',
+                              borderRadius: 7,
+                              border: '1px solid #edecea',
+                              background: '#fff',
+                              color: '#888',
+                              fontSize: 12,
+                              cursor: 'pointer',
+                              fontFamily: 'var(--wf)',
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {googleAccountError && (
+                          <div style={{ fontSize: 11.5, color: '#c62828', marginTop: 6 }}>{googleAccountError}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_pending' && (
+                  <div
+                    style={{
+                      padding: '10px 16px',
+                      background: '#fffaf0',
+                      borderRadius: '0 0 12px 12px',
+                      border: '1.5px solid #4285F444',
+                      borderTop: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, color: '#a15c00' }}>
+                      Waiting for you to accept the link request in Google Ads.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => loadStatuses()}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: 7,
+                        border: '1px solid #edecea',
+                        background: '#fff',
+                        fontSize: 11.5,
+                        color: '#4285F4',
+                        cursor: 'pointer',
+                        fontFamily: 'var(--wf)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Check again
+                    </button>
                   </div>
                 )}
                 {p.id === 'linkedin' && linked && liPages && liPages.pages.length > 0 && (

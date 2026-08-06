@@ -510,4 +510,52 @@ export class CampaignService {
     });
     return (res.data as { whatsapp_number: string }).whatsapp_number;
   }
+
+  /** The active brand's Google Ads connection state — mirrors getMetaConnectionStatus's
+   * shape, but Google's state machine has an extra step Meta's doesn't (choosing/linking
+   * an actual Ads account after OAuth), reflected in `state` and `customer_id`. */
+  static async getGoogleConnectionStatus(): Promise<{
+    state: string;
+    account_name: string;
+    customer_id: string;
+    whatsapp_number: string;
+    connect_url: string;
+  }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/google/connection/status');
+    return res.data as {
+      state: string;
+      account_name: string;
+      customer_id: string;
+      whatsapp_number: string;
+      connect_url: string;
+    };
+  }
+
+  /** Associates the pending connection (stored by the OAuth callback) with the active
+   * brand — the step right after the redirect back from Google's consent screen. */
+  static async googleFinalize(connId: string): Promise<{ status: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect/finalize', { conn_id: connId });
+    return res.data as { status: string };
+  }
+
+  /** Path (a): the brand already has a Google Ads account — sends a manager-link
+   * invitation from URI's MCC. `detail` carries a specific, actionable message on the
+   * known "already linked to another manager" refusal — never a generic error. */
+  static async googleLinkExistingAccount(
+    customerId: string
+  ): Promise<{ manager_link_status: string; detail?: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect/link-existing-account', {
+      customer_id: customerId,
+    });
+    return res.data as { manager_link_status: string; detail?: string };
+  }
+
+  /** Path (b): the brand has no Google Ads account — creates one fresh under URI's MCC
+   * (auto-linked, no accept step needed). */
+  static async googleCreateAccount(accountName: string): Promise<{ customer_id: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect/create-account', {
+      account_name: accountName,
+    });
+    return res.data as { customer_id: string };
+  }
 }

@@ -18,6 +18,11 @@ export interface PlatformStatus {
   // (none/content_only/ads_no_whatsapp/ready/expired/no_page), so Connected
   // Accounts can show a state-specific reason instead of just linked/not.
   meta_connection_state?: string;
+  // google_ads only — mirrors meta_connection_state's role, but Google's state
+  // machine has an extra step Meta's doesn't (needs_account_selection).
+  google_connection_state?: string;
+  google_customer_id?: string;
+  google_whatsapp_number?: string;
 }
 
 export interface LinkedInPage {
