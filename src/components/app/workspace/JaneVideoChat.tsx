@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { SocialMediaAgentService, MultiClipJob, MultiClipClip } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
@@ -64,8 +64,11 @@ interface VideoPlan {
   brollEnabled: boolean;
   brollDensity: 'light' | 'moderate' | 'heavy';
   musicEnabled: boolean;
+  musicSource: 'upload' | 'auto';
+  muteOriginalAudio: boolean;
   hookTextEnabled: boolean;
   hookTextCustom: string;
+  hookTextColor: string;
   targetLength: 'auto' | '15s' | '30s' | '60s';
   aspectRatio: '9:16' | '16:9' | '1:1';
 }
@@ -113,8 +116,11 @@ function defaultPlan(c: Classification, p: Purpose): VideoPlan {
     brollEnabled: p === 'sell',
     brollDensity: 'light',
     musicEnabled: false,
+    musicSource: 'upload',
+    muteOriginalAudio: false,
     hookTextEnabled: false,
     hookTextCustom: '',
+    hookTextColor: '#ffffff',
     targetLength: 'auto',
     aspectRatio: '9:16',
   };
@@ -126,6 +132,14 @@ const PINK = '#CD1B78';
 const LIGHT_PINK = '#FFF0F7';
 const GRAY = '#6B7280';
 const BORDER = '#E5E7EB';
+
+const QUALITY_FLAG_LABEL: Record<string, string> = {
+  too_dark: 'Too dark',
+  too_short: 'Too short',
+  too_quiet: 'Too quiet',
+  pre_edited: 'Pre-edited',
+  upload_failed: 'Upload failed',
+};
 
 const SESSION_KEY = 'uri:janevideo:session';
 
@@ -494,6 +508,35 @@ function AdjustPanel({
                 />
               </div>
             )}
+            {plan.hookTextEnabled && (
+              <div style={{ marginTop: 14 }}>
+                <SectionLabel text="Text color" />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[
+                    { label: 'White', value: '#ffffff' },
+                    { label: 'Black', value: '#000000' },
+                    { label: 'Pink', value: '#CD1B78' },
+                    { label: 'Yellow', value: '#FACC15' },
+                  ].map((c) => (
+                    <button
+                      key={c.value}
+                      onClick={() => onApply({ hookTextColor: c.value })}
+                      title={c.label}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        background: c.value,
+                        border: plan.hookTextColor === c.value ? `2.5px solid ${PINK}` : `1.5px solid ${BORDER}`,
+                        cursor: 'pointer',
+                        padding: 0,
+                        boxShadow: c.value === '#ffffff' ? 'inset 0 0 0 1px #E5E7EB' : 'none',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
 
@@ -571,79 +614,104 @@ function AdjustPanel({
                   onMusicFileChange(null);
                   onApply({ musicEnabled: false });
                 })}
+                {opt('Upload your own', plan.musicEnabled && plan.musicSource === 'upload', () =>
+                  onApply({ musicEnabled: true, musicSource: 'upload' })
+                )}
+                {opt('Auto-pick for me', plan.musicEnabled && plan.musicSource === 'auto', () => {
+                  onMusicFileChange(null);
+                  onApply({ musicEnabled: true, musicSource: 'auto' });
+                })}
               </>
             )}
 
-            <div style={{ marginTop: 14 }}>
-              <SectionLabel text="Upload your own track" />
-              {musicFile ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '10px 14px',
-                    borderRadius: 9,
-                    border: `1.5px solid ${PINK}`,
-                    background: LIGHT_PINK,
-                  }}
-                >
-                  <span style={{ fontSize: 13, color: PINK, fontWeight: 600, flex: 1, minWidth: 0 }}>
-                    🎵 {musicFile.name}
-                  </span>
-                  <button
-                    onClick={() => onMusicFileChange(null)}
+            {plan.musicEnabled && plan.musicSource === 'upload' && (
+              <div style={{ marginTop: 14 }}>
+                <SectionLabel text="Upload your own track" />
+                {musicFile ? (
+                  <div
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: GRAY,
-                      fontSize: 16,
-                      padding: 12,
-                      margin: -12,
-                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '10px 14px',
+                      borderRadius: 9,
+                      border: `1.5px solid ${PINK}`,
+                      background: LIGHT_PINK,
                     }}
                   >
-                    ×
+                    <span style={{ fontSize: 13, color: PINK, fontWeight: 600, flex: 1, minWidth: 0 }}>
+                      🎵 {musicFile.name}
+                    </span>
+                    <button
+                      onClick={() => onMusicFileChange(null)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: GRAY,
+                        fontSize: 16,
+                        padding: 12,
+                        margin: -12,
+                        flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => musicInputRef.current?.click()}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 9,
+                      border: `1.5px solid ${BORDER}`,
+                      background: '#fff',
+                      color: '#374151',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      width: '100%',
+                      textAlign: 'left',
+                    }}
+                  >
+                    + Upload MP3
                   </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => musicInputRef.current?.click()}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 9,
-                    border: `1.5px solid ${BORDER}`,
-                    background: '#fff',
-                    color: '#374151',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    width: '100%',
-                    textAlign: 'left',
+                )}
+                <input
+                  ref={musicInputRef}
+                  type="file"
+                  accept="audio/mpeg,audio/mp3,.mp3"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    if (f.size > 50 * 1024 * 1024) {
+                      ToastService.showToast('MP3 must be under 50MB.', ToastTypeEnum.Error);
+                      return;
+                    }
+                    onMusicFileChange(f);
+                    onApply({ musicEnabled: true, musicSource: 'upload' });
+                    e.target.value = '';
                   }}
-                >
-                  + Upload MP3
-                </button>
-              )}
-              <input
-                ref={musicInputRef}
-                type="file"
-                accept="audio/mpeg,audio/mp3,.mp3"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  if (f.size > 50 * 1024 * 1024) {
-                    ToastService.showToast('MP3 must be under 50MB.', ToastTypeEnum.Error);
-                    return;
-                  }
-                  onMusicFileChange(f);
-                  onApply({ musicEnabled: true });
-                  e.target.value = '';
-                }}
-              />
-            </div>
+                />
+              </div>
+            )}
+
+            {plan.musicEnabled && (
+              <div style={{ marginTop: 14 }}>
+                {section(
+                  'Voice',
+                  <>
+                    {opt('Keep my voice, music underneath', !plan.muteOriginalAudio, () =>
+                      onApply({ muteOriginalAudio: false })
+                    )}
+                    {opt('Mute my voice, just play music', plan.muteOriginalAudio, () =>
+                      onApply({ muteOriginalAudio: true })
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         );
 
@@ -756,6 +824,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
   const [zapCapJobId, setZapCapJobId] = useState<string | null>(null);
   const [composeJobId, setComposeJobId] = useState<string | null>(null);
+  // Populated when a multi-clip job hits 'awaiting_order' — pauses handleStitch
+  // so the user can review/reorder/drop clips before the actual stitch runs.
+  const [reviewJob, setReviewJob] = useState<MultiClipJob | null>(null);
+  const [reviewBusyClipId, setReviewBusyClipId] = useState<string | null>(null);
   const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
   const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({});
   const [editingWordId, setEditingWordId] = useState<string | null>(null);
@@ -962,6 +1034,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       progressMap: Record<string, number>;
       onReady: (outputUrl: string) => void | Promise<void>;
       onFailed: () => void;
+      // When provided, polling pauses at 'awaiting_order' and hands the job
+      // to the caller (clip review UI) instead of auto-stitching. Omit to
+      // keep the old auto-stitch-immediately behavior.
+      onAwaitingOrder?: (job: MultiClipJob) => void;
     }
   ) => {
     if (composePollRef.current) clearInterval(composePollRef.current);
@@ -979,6 +1055,13 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
         if (job.status === 'awaiting_order' && !hasStitched) {
           hasStitched = true;
+          if (opts.onAwaitingOrder) {
+            // Keep composeJobId set (rather than clearing it) so a page
+            // reload during review can re-fetch and re-show this job.
+            clearInterval(composePollRef.current!);
+            opts.onAwaitingOrder(job);
+            return;
+          }
           await SocialMediaAgentService.stitchMultiClipJob(jobId);
         }
 
@@ -1048,13 +1131,23 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     fd.append('quality', 'standard');
     fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
     fd.append('caption_style', 'bold');
-    fd.append('enable_music', String(plan.musicEnabled && !!musicFile));
-    if (plan.musicEnabled && musicFile) {
-      fd.append('custom_music', musicFile);
+    const musicActive = plan.musicEnabled && (plan.musicSource === 'auto' || !!musicFile);
+    fd.append('enable_music', String(musicActive));
+    if (musicActive) {
+      fd.append('music_source', plan.musicSource);
+      if (plan.musicSource === 'upload' && musicFile) {
+        fd.append('custom_music', musicFile);
+      } else {
+        fd.append('purpose', plan.purpose);
+      }
+      fd.append('mute_original_audio', String(plan.muteOriginalAudio));
     }
     fd.append('enable_hook_text', String(plan.hookTextEnabled));
-    if (plan.hookTextEnabled && plan.hookTextCustom.trim()) {
-      fd.append('custom_hook_text', plan.hookTextCustom.trim());
+    if (plan.hookTextEnabled) {
+      if (plan.hookTextCustom.trim()) {
+        fd.append('custom_hook_text', plan.hookTextCustom.trim());
+      }
+      fd.append('hook_text_color', plan.hookTextColor);
     }
 
     try {
@@ -1254,7 +1347,100 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
         setRenderError('Stitch failed — try again.');
         setRenderStatus('failed');
       },
+      onAwaitingOrder: (job) => {
+        setReviewJob(job);
+        addMsg('jane', "I've looked over your clips — check the order and flag anything before I stitch them.");
+      },
     });
+  };
+
+  // Called once the user confirms the clip order/drops/positions in the
+  // review step — moves the job from awaiting_order into actual stitching.
+  const continueStitchAfterReview = async () => {
+    if (!reviewJob) return;
+    const jobId = reviewJob.job_id;
+    setReviewJob(null);
+    setRenderProgress(60);
+    setRenderStatus('Stitching…');
+    try {
+      await SocialMediaAgentService.stitchMultiClipJob(jobId);
+    } catch {
+      setRenderError('Stitch failed — try again.');
+      setRenderStatus('failed');
+      return;
+    }
+    startComposePolling(jobId, {
+      labelMap: {
+        stitching: 'Stitching…',
+        ready: 'Done!',
+        failed: 'Something went wrong',
+      },
+      progressMap: { stitching: 80, ready: 100, failed: 0 },
+      onReady: (outputUrl) => {
+        setStitchedUrl(outputUrl);
+        setVideoFiles([]);
+        addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
+        setStage('classify');
+      },
+      onFailed: () => {
+        setRenderError('Stitch failed — try again.');
+        setRenderStatus('failed');
+      },
+    });
+  };
+
+  // ── Clip review actions (reorder / drop / crop position) ──────────────────
+
+  const moveReviewClip = async (clipId: string, direction: -1 | 1) => {
+    if (!reviewJob) return;
+    const activeClips = reviewJob.clips.filter((c) => !c.dropped).sort((a, b) => a.order_index - b.order_index);
+    const idx = activeClips.findIndex((c) => c.clip_id === clipId);
+    const swapIdx = idx + direction;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= activeClips.length) return;
+    const reordered = [...activeClips];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    const newOrderIds = reordered.map((c) => c.clip_id);
+    const orderIndexById = new Map(newOrderIds.map((id, i) => [id, i]));
+    setReviewJob({
+      ...reviewJob,
+      clips: reviewJob.clips.map((c) =>
+        orderIndexById.has(c.clip_id) ? { ...c, order_index: orderIndexById.get(c.clip_id)! } : c
+      ),
+    });
+    try {
+      await SocialMediaAgentService.reorderMultiClipJob(reviewJob.job_id, newOrderIds);
+    } catch {
+      ToastService.showToast('Could not save the new order — try again.', ToastTypeEnum.Error);
+    }
+  };
+
+  const toggleDropReviewClip = async (clipId: string, dropped: boolean) => {
+    if (!reviewJob) return;
+    setReviewBusyClipId(clipId);
+    setReviewJob({
+      ...reviewJob,
+      clips: reviewJob.clips.map((c) => (c.clip_id === clipId ? { ...c, dropped } : c)),
+    });
+    try {
+      await SocialMediaAgentService.dropMultiClip(reviewJob.job_id, clipId, dropped);
+    } catch {
+      ToastService.showToast('Could not update that clip — try again.', ToastTypeEnum.Error);
+    } finally {
+      setReviewBusyClipId(null);
+    }
+  };
+
+  const setReviewClipPosition = async (clipId: string, position: 'left' | 'center' | 'right') => {
+    if (!reviewJob) return;
+    setReviewJob({
+      ...reviewJob,
+      clips: reviewJob.clips.map((c) => (c.clip_id === clipId ? { ...c, subject_position: position } : c)),
+    });
+    try {
+      await SocialMediaAgentService.updateClipPosition(reviewJob.job_id, clipId, position);
+    } catch {
+      ToastService.showToast('Could not update crop position — try again.', ToastTypeEnum.Error);
+    }
   };
 
   // ── Rerender with caption edits ───────────────────────────────────────────
@@ -1571,6 +1757,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
             setRenderError('Stitch failed — try again.');
             setRenderStatus('failed');
           },
+          onAwaitingOrder: (job) => {
+            setReviewJob(job);
+          },
         });
       } else if (saved.zapCapJobId && saved.stage === 'render') {
         startPolling(saved.zapCapJobId);
@@ -1595,7 +1784,15 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                 ? 'cut filler only'
                 : 'no trimming',
         brollLabel: !plan.brollEnabled ? 'off' : `on · ${plan.brollDensity}`,
-        musicLabel: !plan.musicEnabled ? 'none' : 'your track, under your voice',
+        musicLabel: !plan.musicEnabled
+          ? 'none'
+          : plan.musicSource === 'auto'
+            ? plan.muteOriginalAudio
+              ? 'AI-picked, replacing your voice'
+              : 'AI-picked, under your voice'
+            : plan.muteOriginalAudio
+              ? 'your track, replacing your voice'
+              : 'your track, under your voice',
         hookTextLabel: !plan.hookTextEnabled ? 'off' : plan.hookTextCustom ? 'custom text' : 'AI-generated',
         lengthLabel: plan.targetLength === 'auto' ? 'auto (no limit)' : plan.targetLength,
         formatLabel:
@@ -1691,6 +1888,204 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                   setRenderProgress(0);
                   setRenderError(null);
                   handleStitch();
+                }}
+              />
+              <TapBtn label="Start over" onClick={reset} />
+            </div>
+          </div>
+        );
+      }
+
+      // Clip review — paused at awaiting_order so the user can reorder/drop/
+      // flag clips before the actual stitch runs.
+      if (reviewJob) {
+        const clips = [...reviewJob.clips].sort((a, b) => a.order_index - b.order_index);
+        const activeClips = clips.filter((c) => !c.dropped);
+        const posPill = (clip: MultiClipClip, pos: 'left' | 'center' | 'right') => {
+          const active = (clip.subject_position ?? 'center') === pos;
+          return (
+            <button
+              key={pos}
+              onClick={() => setReviewClipPosition(clip.clip_id, pos)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 20,
+                border: `1.3px solid ${active ? PINK : BORDER}`,
+                background: active ? LIGHT_PINK : '#fff',
+                color: active ? PINK : GRAY,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                textTransform: 'capitalize',
+              }}
+            >
+              {pos}
+            </button>
+          );
+        };
+        return (
+          <div>
+            <JaneBubble text="Here's what I found in your clips — reorder, drop, or flag anything before I stitch them together." />
+            <div
+              style={{
+                background: '#fff',
+                border: `1.5px solid ${BORDER}`,
+                borderRadius: 12,
+                padding: '4px 14px',
+                marginTop: 10,
+                marginBottom: 12,
+              }}
+            >
+              {clips.map((clip, i) => {
+                const activeIdx = activeClips.findIndex((c) => c.clip_id === clip.clip_id);
+                return (
+                  <div
+                    key={clip.clip_id}
+                    style={{
+                      padding: '10px 0',
+                      borderBottom: i < clips.length - 1 ? `1px solid ${BORDER}` : 'none',
+                      opacity: clip.dropped ? 0.45 : 1,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: '50%',
+                          background: '#F3F4F6',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: GRAY,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {activeIdx === -1 ? '–' : activeIdx + 1}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: '#374151',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          flex: 1,
+                        }}
+                      >
+                        {clip.filename}
+                      </div>
+                      {!clip.dropped && (
+                        <>
+                          <button
+                            onClick={() => moveReviewClip(clip.clip_id, -1)}
+                            disabled={activeIdx <= 0}
+                            style={{
+                              background: 'none',
+                              border: `1px solid ${BORDER}`,
+                              borderRadius: 6,
+                              width: 24,
+                              height: 24,
+                              cursor: activeIdx <= 0 ? 'default' : 'pointer',
+                              color: activeIdx <= 0 ? '#D1D5DB' : '#374151',
+                              fontSize: 12,
+                              flexShrink: 0,
+                            }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => moveReviewClip(clip.clip_id, 1)}
+                            disabled={activeIdx === -1 || activeIdx >= activeClips.length - 1}
+                            style={{
+                              background: 'none',
+                              border: `1px solid ${BORDER}`,
+                              borderRadius: 6,
+                              width: 24,
+                              height: 24,
+                              cursor: activeIdx >= activeClips.length - 1 ? 'default' : 'pointer',
+                              color: activeIdx >= activeClips.length - 1 ? '#D1D5DB' : '#374151',
+                              fontSize: 12,
+                              flexShrink: 0,
+                            }}
+                          >
+                            ↓
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => toggleDropReviewClip(clip.clip_id, !clip.dropped)}
+                        disabled={reviewBusyClipId === clip.clip_id}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: clip.dropped ? PINK : GRAY,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: '6px 6px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {clip.dropped ? 'Restore' : 'Drop'}
+                      </button>
+                    </div>
+                    {!clip.dropped && (clip.quality_flags?.length > 0 || clip.recommended_drop) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, marginLeft: 30 }}>
+                        {clip.quality_flags?.map((f) => (
+                          <span
+                            key={f}
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: 20,
+                              background: '#FEF3C7',
+                              color: '#92400E',
+                            }}
+                          >
+                            {QUALITY_FLAG_LABEL[f] ?? f}
+                          </span>
+                        ))}
+                        {clip.recommended_drop && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: 20,
+                              background: '#FEE2E2',
+                              color: '#991B1B',
+                            }}
+                          >
+                            Recommend dropping{clip.drop_reason ? ` — ${clip.drop_reason}` : ''}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {!clip.dropped && (
+                      <div style={{ display: 'flex', gap: 6, marginTop: 8, marginLeft: 30 }}>
+                        {(['left', 'center', 'right'] as const).map((pos) => posPill(clip, pos))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {activeClips.length === 0 ? (
+              <div style={{ fontSize: 12, color: GRAY, marginBottom: 10 }}>
+                Restore at least one clip before continuing.
+              </div>
+            ) : null}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <TapBtn
+                label="Stitch & continue"
+                primary
+                onClick={() => {
+                  if (activeClips.length === 0) return;
+                  continueStitchAfterReview();
                 }}
               />
               <TapBtn label="Start over" onClick={reset} />
