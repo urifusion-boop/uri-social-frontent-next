@@ -232,7 +232,8 @@ export default function FontPickerGallery({
   };
 
   const handleFontAnalyzed = (data: CustomFontUploadData) => {
-    setShowUploader(false);
+    // Appends this one font to the gallery immediately — doesn't wait for the rest
+    // of a multi-file batch, so the gallery grows as each upload actually finishes.
     onCustomFontUpload?.(data);
   };
 
@@ -250,7 +251,11 @@ export default function FontPickerGallery({
             Your Custom Fonts
           </Typography>
           {showUploader ? (
-            <CustomFontUploader onFontAnalyzed={handleFontAnalyzed} onCancel={() => setShowUploader(false)} />
+            <CustomFontUploader
+              onFontAnalyzed={handleFontAnalyzed}
+              onAllDone={() => setShowUploader(false)}
+              onCancel={() => setShowUploader(false)}
+            />
           ) : (
             <Box
               sx={{

@@ -499,6 +499,10 @@ export default function CustomGuidesGallery({
         <DialogContent>
           <CustomFontUploader
             onFontAnalyzed={handleFontAnalyzed}
+            onAllDone={() => {
+              setFontUploadModalOpen(false);
+              setGuideForFontUpload(null);
+            }}
             onCancel={() => {
               setFontUploadModalOpen(false);
               setGuideForFontUpload(null);
