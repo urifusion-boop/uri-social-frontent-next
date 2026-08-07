@@ -1436,6 +1436,7 @@ export interface CalendarDayItem {
   // Enhanced PRD fields
   recommended_cta?: string; // Suggested CTA based on content type + goal
   caption_angle?: string; // Caption writing guidance
+  video_idea?: VideoIdea;
   upcoming_holidays?: Array<{
     date: string;
     name: string;
@@ -1444,6 +1445,14 @@ export interface CalendarDayItem {
     content_angle: string;
   }>;
   trending_topics?: string[]; // Top 3 trending topics
+}
+
+export interface VideoIdea {
+  format: 'talking_head' | 'product_demo' | 'testimonial' | 'tutorial' | 'behind_the_scenes' | 'trend_based';
+  hook: string;
+  talking_points: string[];
+  scenes: string[];
+  cta: string;
 }
 
 export interface ContentCalendarPlan {
