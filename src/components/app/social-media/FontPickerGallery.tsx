@@ -242,7 +242,9 @@ export default function FontPickerGallery({
       {/* Load Google Fonts */}
       <style>{`@import url('${GOOGLE_FONTS_URL}');`}</style>
 
-      {/* Your custom fonts — accumulates across uploads, never discards a prior one */}
+      {/* Your custom fonts — accumulates across uploads, never discards a prior one.
+          The existing gallery stays visible while uploading another — it must never
+          disappear just because showUploader is true. */}
       {(customFonts.length > 0 || showUploader) && (
         <Box sx={{ mb: 3 }}>
           <Typography
@@ -250,18 +252,13 @@ export default function FontPickerGallery({
           >
             Your Custom Fonts
           </Typography>
-          {showUploader ? (
-            <CustomFontUploader
-              onFontAnalyzed={handleFontAnalyzed}
-              onAllDone={() => setShowUploader(false)}
-              onCancel={() => setShowUploader(false)}
-            />
-          ) : (
+          {customFonts.length > 0 && (
             <Box
               sx={{
                 display: 'grid',
                 gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
                 gap: 1.5,
+                mb: showUploader ? 1.5 : 0,
               }}
             >
               {customFonts.map((font) => (
@@ -273,8 +270,15 @@ export default function FontPickerGallery({
                   primary={primary}
                 />
               ))}
-              <UploadTile onClick={() => setShowUploader(true)} primary={primary} />
+              {!showUploader && <UploadTile onClick={() => setShowUploader(true)} primary={primary} />}
             </Box>
+          )}
+          {showUploader && (
+            <CustomFontUploader
+              onFontAnalyzed={handleFontAnalyzed}
+              onAllDone={() => setShowUploader(false)}
+              onCancel={() => setShowUploader(false)}
+            />
           )}
         </Box>
       )}
