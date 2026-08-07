@@ -2197,9 +2197,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       // Prompt
       return (
         <div>
-          <JaneBubble
-            text={`I see ${videoFiles.length} clips. I'll stitch them together in the order you dropped them, then we'll build your video plan.`}
-          />
+          <JaneBubble text={`Stitching ${videoFiles.length} clips together — this takes about a minute.`} />
           <div
             style={{
               background: '#fff',
