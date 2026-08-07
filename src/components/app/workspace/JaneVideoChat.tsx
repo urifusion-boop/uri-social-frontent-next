@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { SocialMediaAgentService, MultiClipJob, MultiClipClip } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
 import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
 import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
+import { BrandTooltip } from '@/src/components/app/workspace/BrandTooltip';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ interface BrollPlacement {
 type CaptionWord = { id: string; text: string; start_time: number; end_time: number };
 type Classification = 'talking_head' | 'product' | 'mixed';
 type Purpose = 'sell' | 'teach' | 'announce' | 'general';
-type AdjustField = 'style' | 'captions' | 'trim' | 'broll' | 'music' | 'length' | 'format';
+type AdjustField = 'style' | 'captions' | 'trim' | 'broll' | 'music' | 'hookText' | 'length' | 'format';
 
 interface StyleTemplate {
   id: string;
@@ -58,13 +59,16 @@ interface VideoPlan {
   purpose: Purpose;
   style: StyleTemplate;
   captionsEnabled: boolean;
-  captionStyle: 'bold' | 'minimal' | 'animated';
   removeSilence: boolean;
   removeFiller: boolean;
   brollEnabled: boolean;
   brollDensity: 'light' | 'moderate' | 'heavy';
   musicEnabled: boolean;
-  musicType: 'upbeat' | 'calm' | 'dramatic';
+  musicSource: 'upload' | 'auto';
+  muteOriginalAudio: boolean;
+  hookTextEnabled: boolean;
+  hookTextCustom: string;
+  hookTextColor: string;
   targetLength: 'auto' | '15s' | '30s' | '60s';
   aspectRatio: '9:16' | '16:9' | '1:1';
 }
@@ -107,13 +111,16 @@ function defaultPlan(c: Classification, p: Purpose): VideoPlan {
     purpose: p,
     style: PLACEHOLDER_STYLE,
     captionsEnabled: isTalking,
-    captionStyle: 'bold',
     removeSilence: isTalking,
     removeFiller: isTalking,
     brollEnabled: p === 'sell',
     brollDensity: 'light',
-    musicEnabled: true,
-    musicType: 'upbeat',
+    musicEnabled: false,
+    musicSource: 'upload',
+    muteOriginalAudio: false,
+    hookTextEnabled: false,
+    hookTextCustom: '',
+    hookTextColor: '#ffffff',
     targetLength: 'auto',
     aspectRatio: '9:16',
   };
@@ -125,6 +132,14 @@ const PINK = '#CD1B78';
 const LIGHT_PINK = '#FFF0F7';
 const GRAY = '#6B7280';
 const BORDER = '#E5E7EB';
+
+const QUALITY_FLAG_LABEL: Record<string, string> = {
+  too_dark: 'Too dark',
+  too_short: 'Too short',
+  too_quiet: 'Too quiet',
+  pre_edited: 'Pre-edited',
+  upload_failed: 'Upload failed',
+};
 
 const SESSION_KEY = 'uri:janevideo:session';
 
@@ -245,18 +260,48 @@ function SectionLabel({ text }: { text: string }) {
 
 // ── Plan card ─────────────────────────────────────────────────────────────────
 
+function InfoDot({ text }: { text: string }) {
+  return (
+    <BrandTooltip title={text} arrow placement="top">
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 14,
+          height: 14,
+          borderRadius: '50%',
+          border: `1.3px solid ${GRAY}`,
+          color: GRAY,
+          fontSize: 9,
+          fontWeight: 700,
+          fontStyle: 'italic',
+          lineHeight: 1,
+          cursor: 'help',
+          flexShrink: 0,
+          marginLeft: 4,
+        }}
+      >
+        i
+      </span>
+    </BrandTooltip>
+  );
+}
+
 function PlanRow({
   label,
   value,
   field,
   onAdjust,
   disabled = false,
+  tooltip,
 }: {
   label: string;
   value: string;
   field: AdjustField;
   onAdjust: (f: AdjustField) => void;
   disabled?: boolean;
+  tooltip?: string;
 }) {
   return (
     <div
@@ -268,9 +313,10 @@ function PlanRow({
         borderBottom: `1px solid ${BORDER}`,
       }}
     >
-      <span style={{ fontSize: 13, color: '#374151', flex: 1 }}>
+      <span style={{ fontSize: 13, color: '#374151', flex: 1, display: 'flex', alignItems: 'center' }}>
         <span style={{ color: GRAY, fontSize: 12, marginRight: 6 }}>{label}</span>
         {value}
+        {tooltip && <InfoDot text={tooltip} />}
       </span>
       {!disabled && (
         <button
@@ -347,14 +393,20 @@ function AdjustPanel({
   onCancel,
   styleTemplates,
   isMobile = false,
+  musicFile,
+  onMusicFileChange,
 }: {
   field: AdjustField;
   plan: VideoPlan;
-  onApply: (patch: Partial<VideoPlan>) => void;
+  onApply: (patch: Partial<VideoPlan>, closePanel?: boolean) => void;
   onCancel: () => void;
   styleTemplates: StyleTemplate[];
   isMobile?: boolean;
+  musicFile: File | null;
+  onMusicFileChange: (f: File | null) => void;
 }) {
+  const musicInputRef = useRef<HTMLInputElement>(null);
+
   const section = (title: string, children: React.ReactNode) => (
     <div>
       <SectionLabel text={title} />
@@ -412,159 +464,81 @@ function AdjustPanel({
           ))
         );
 
-      case 'captions': {
-        type CaptionStyleDef = {
-          value: 'bold' | 'minimal' | 'animated';
-          label: string;
-          preview: React.ReactNode;
-        };
-        const CAPTION_STYLES: CaptionStyleDef[] = [
-          {
-            value: 'bold',
-            label: 'Bold',
-            preview: (
-              <div
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  height: 80,
-                  background: 'linear-gradient(160deg,#1a1a2e 0%,#16213e 100%)',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'center',
-                  paddingBottom: 10,
-                }}
-              >
-                <div style={{ textAlign: 'center', lineHeight: 1.2 }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 900,
-                      color: '#fff',
-                      textTransform: 'uppercase',
-                      textShadow: '-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000',
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    JUST <span style={{ color: '#FFE600' }}>LIKE</span> THIS
-                  </span>
-                </div>
-              </div>
-            ),
-          },
-          {
-            value: 'minimal',
-            label: 'Minimal',
-            preview: (
-              <div
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  height: 80,
-                  background: 'linear-gradient(160deg,#111 0%,#2d2d2d 100%)',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'center',
-                  paddingBottom: 12,
-                }}
-              >
-                <span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(255,255,255,0.92)', letterSpacing: 0.2 }}>
-                  Just like this
-                </span>
-              </div>
-            ),
-          },
-          {
-            value: 'animated',
-            label: 'Animated',
-            preview: (
-              <div
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  height: 80,
-                  background: 'linear-gradient(160deg,#0d0d1a 0%,#1a0a2e 100%)',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'center',
-                  paddingBottom: 10,
-                }}
-              >
-                <div style={{ textAlign: 'center', lineHeight: 1.2 }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: '#fff',
-                      textShadow: '-1px -1px 0 #0008,1px 1px 0 #0008',
-                    }}
-                  >
-                    Just <span style={{ color: '#FF6B9D' }}>like</span> this
-                  </span>
-                </div>
-              </div>
-            ),
-          },
-        ];
-        return (
-          <div>
-            <SectionLabel text="Caption style" />
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
-                gap: 8,
-                marginBottom: 10,
-              }}
-            >
-              {CAPTION_STYLES.map((s) => {
-                const active = plan.captionsEnabled && plan.captionStyle === s.value;
-                return (
-                  <button
-                    key={s.value}
-                    onClick={() => onApply({ captionsEnabled: true, captionStyle: s.value })}
-                    style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                  >
-                    <div
-                      style={{
-                        border: `2px solid ${active ? PINK : BORDER}`,
-                        borderRadius: 10,
-                        overflow: 'hidden',
-                        transition: 'border-color 0.15s',
-                      }}
-                    >
-                      {s.preview}
-                    </div>
-                    <div
-                      style={{
-                        marginTop: 4,
-                        fontSize: 11,
-                        fontWeight: active ? 700 : 400,
-                        color: active ? PINK : '#374151',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {s.label}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+      case 'captions':
+        return section(
+          'Captions',
+          <>
+            {opt('On', plan.captionsEnabled, () => onApply({ captionsEnabled: true }))}
             {opt(
               'Off',
               !plan.captionsEnabled,
               () => onApply({ captionsEnabled: false }),
               plan.classification === 'product' ? 'No speech detected' : undefined
             )}
+          </>
+        );
+
+      case 'hookText':
+        return (
+          <div>
+            {section(
+              'Hook text',
+              <>
+                {opt('On', plan.hookTextEnabled, () => onApply({ hookTextEnabled: true }, false))}
+                {opt('Off', !plan.hookTextEnabled, () => onApply({ hookTextEnabled: false, hookTextCustom: '' }))}
+              </>
+            )}
+            {plan.hookTextEnabled && (
+              <div style={{ marginTop: 10 }}>
+                <SectionLabel text="Text (optional — leave blank for AI-generated)" />
+                <input
+                  type="text"
+                  value={plan.hookTextCustom}
+                  onChange={(e) => onApply({ hookTextCustom: e.target.value }, false)}
+                  placeholder="e.g. You record, we do the rest"
+                  maxLength={60}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${BORDER}`,
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+            )}
+            {plan.hookTextEnabled && (
+              <div style={{ marginTop: 14 }}>
+                <SectionLabel text="Text color" />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[
+                    { label: 'White', value: '#ffffff' },
+                    { label: 'Black', value: '#000000' },
+                    { label: 'Pink', value: '#CD1B78' },
+                    { label: 'Yellow', value: '#FACC15' },
+                  ].map((c) => (
+                    <button
+                      key={c.value}
+                      onClick={() => onApply({ hookTextColor: c.value }, false)}
+                      title={c.label}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        background: c.value,
+                        border: plan.hookTextColor === c.value ? `2.5px solid ${PINK}` : `1.5px solid ${BORDER}`,
+                        cursor: 'pointer',
+                        padding: 0,
+                        boxShadow: c.value === '#ffffff' ? 'inset 0 0 0 1px #E5E7EB' : 'none',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
-      }
 
       case 'trim':
         return section(
@@ -631,20 +605,114 @@ function AdjustPanel({
         );
 
       case 'music':
-        return section(
-          'Music',
-          <>
-            {opt('Upbeat · under your voice', plan.musicEnabled && plan.musicType === 'upbeat', () =>
-              onApply({ musicEnabled: true, musicType: 'upbeat' })
+        return (
+          <div>
+            {section(
+              'Music',
+              <>
+                {opt('No music', !plan.musicEnabled, () => {
+                  onMusicFileChange(null);
+                  onApply({ musicEnabled: false });
+                })}
+                {opt('Upload your own', plan.musicEnabled && plan.musicSource === 'upload', () =>
+                  onApply({ musicEnabled: true, musicSource: 'upload' }, false)
+                )}
+                {opt('Auto-pick for me', plan.musicEnabled && plan.musicSource === 'auto', () => {
+                  onMusicFileChange(null);
+                  onApply({ musicEnabled: true, musicSource: 'auto' }, false);
+                })}
+              </>
             )}
-            {opt('Calm · under your voice', plan.musicEnabled && plan.musicType === 'calm', () =>
-              onApply({ musicEnabled: true, musicType: 'calm' })
+
+            {plan.musicEnabled && plan.musicSource === 'upload' && (
+              <div style={{ marginTop: 14 }}>
+                <SectionLabel text="Upload your own track" />
+                {musicFile ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '10px 14px',
+                      borderRadius: 9,
+                      border: `1.5px solid ${PINK}`,
+                      background: LIGHT_PINK,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: PINK, fontWeight: 600, flex: 1, minWidth: 0 }}>
+                      🎵 {musicFile.name}
+                    </span>
+                    <button
+                      onClick={() => onMusicFileChange(null)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: GRAY,
+                        fontSize: 16,
+                        padding: 12,
+                        margin: -12,
+                        flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => musicInputRef.current?.click()}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 9,
+                      border: `1.5px solid ${BORDER}`,
+                      background: '#fff',
+                      color: '#374151',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      width: '100%',
+                      textAlign: 'left',
+                    }}
+                  >
+                    + Upload MP3
+                  </button>
+                )}
+                <input
+                  ref={musicInputRef}
+                  type="file"
+                  accept="audio/mpeg,audio/mp3,.mp3"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    if (f.size > 50 * 1024 * 1024) {
+                      ToastService.showToast('MP3 must be under 50MB.', ToastTypeEnum.Error);
+                      return;
+                    }
+                    onMusicFileChange(f);
+                    onApply({ musicEnabled: true, musicSource: 'upload' }, false);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
             )}
-            {opt('Dramatic · under your voice', plan.musicEnabled && plan.musicType === 'dramatic', () =>
-              onApply({ musicEnabled: true, musicType: 'dramatic' })
+
+            {plan.musicEnabled && (
+              <div style={{ marginTop: 14 }}>
+                {section(
+                  'Voice',
+                  <>
+                    {opt('Keep my voice, music underneath', !plan.muteOriginalAudio, () =>
+                      onApply({ muteOriginalAudio: false })
+                    )}
+                    {opt('Mute my voice, just play music', plan.muteOriginalAudio, () =>
+                      onApply({ muteOriginalAudio: true })
+                    )}
+                  </>
+                )}
+              </div>
             )}
-            {opt('No music', !plan.musicEnabled, () => onApply({ musicEnabled: false }))}
-          </>
+          </div>
         );
 
       case 'length':
@@ -756,6 +824,13 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
   const [zapCapJobId, setZapCapJobId] = useState<string | null>(null);
   const [composeJobId, setComposeJobId] = useState<string | null>(null);
+  // Populated when a multi-clip job hits 'awaiting_order' — pauses handleStitch
+  // so the user can review/reorder/drop clips before the actual stitch runs.
+  const [reviewJob, setReviewJob] = useState<MultiClipJob | null>(null);
+  const [reviewBusyClipId, setReviewBusyClipId] = useState<string | null>(null);
+  // True once a stitch finishes and before the user confirms — shows the merged
+  // video in a real player so they can check it before moving into editing.
+  const [stitchReadyForReview, setStitchReadyForReview] = useState(false);
   const [captionWords, setCaptionWords] = useState<CaptionWord[]>([]);
   const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({});
   const [editingWordId, setEditingWordId] = useState<string | null>(null);
@@ -767,6 +842,11 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
   const [brollPlacements, setBrollPlacements] = useState<BrollPlacement[]>([]);
   const [isApplyingBroll, setIsApplyingBroll] = useState(false);
   const brollInputRef = useRef<HTMLInputElement>(null);
+
+  // Custom background music — not part of VideoPlan since a File can't survive
+  // the session-persistence JSON round-trip (same reason videoFile/videoFiles
+  // are kept outside the plan too).
+  const [musicFile, setMusicFile] = useState<File | null>(null);
 
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<
@@ -830,16 +910,45 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
   const acceptFiles = useCallback(
     (files: File[]) => {
-      const OK = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
-      const valid = files.filter((f) => OK.includes(f.type) || /\.(mp4|mov|webm|m4v)$/i.test(f.name));
+      // Accept anything the browser tags as a video, plus a broad extension
+      // fallback for files with a missing/generic MIME type (some OSes report
+      // e.g. .mts/.avi as application/octet-stream) — ffmpeg on the backend
+      // handles essentially every common container, so there's no need to
+      // maintain a narrow allow-list here.
+      const VIDEO_EXT_RE = /\.(mp4|mov|webm|m4v|avi|mkv|wmv|flv|3gp|3gpp|mts|m2ts|ts|mpg|mpeg|ogv)$/i;
+      const isVideo = (f: File) => f.type.startsWith('video/') || VIDEO_EXT_RE.test(f.name);
+      const wrongType = files.filter((f) => !isVideo(f));
+      const typedOk = files.filter(isVideo);
+      const tooBig = typedOk.filter((f) => f.size > 500 * 1024 * 1024);
+      const valid = typedOk.filter((f) => f.size <= 500 * 1024 * 1024);
+
+      if (files.length === 0) return;
+
       if (valid.length === 0) {
-        ToastService.showToast('Please upload MP4 or MOV videos.', ToastTypeEnum.Error);
+        ToastService.showToast(
+          wrongType.length > 0
+            ? 'Please upload video files (MP4, MOV, AVI, MKV, and most other formats are supported).'
+            : `All ${tooBig.length} clip(s) are over the 500 MB limit.`,
+          ToastTypeEnum.Error
+        );
         return;
       }
-      const oversized = valid.find((f) => f.size > 500 * 1024 * 1024);
-      if (oversized) {
-        ToastService.showToast(`"${oversized.name}" is too large. Max 500 MB per clip.`, ToastTypeEnum.Error);
-        return;
+
+      // Some files got skipped but at least one was usable — say so explicitly
+      // instead of silently uploading fewer clips than the user selected.
+      const skipped = [...wrongType, ...tooBig];
+      if (skipped.length > 0) {
+        ToastService.showToast(
+          `Skipped ${skipped.length} of ${files.length} file(s) — ` +
+            [
+              wrongType.length > 0 ? `${wrongType.length} unsupported format` : null,
+              tooBig.length > 0 ? `${tooBig.length} over 500 MB` : null,
+            ]
+              .filter(Boolean)
+              .join(', ') +
+            `. Using the remaining ${valid.length}.`,
+          ToastTypeEnum.Error
+        );
       }
 
       if (valid.length === 1) {
@@ -882,7 +991,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     if (classification === 'product') {
       addMsg(
         'jane',
-        "There's no speech in this clip, so I've turned captions off — there's nothing to caption. I've added music and text-on-screen instead. You can change anything in the plan below."
+        "There's no speech in this clip, so I've turned captions off — there's nothing to caption. I've added text-on-screen instead. Since it's silent, you'll probably want background music — upload a track in the Music option below. You can change anything else in the plan too."
       );
     }
 
@@ -891,9 +1000,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
   // ── Plan adjustments ───────────────────────────────────────────────────────
 
-  const applyAdjust = (patch: Partial<VideoPlan>) => {
+  const applyAdjust = (patch: Partial<VideoPlan>, closePanel: boolean = true) => {
     setPlan((prev) => (prev ? { ...prev, ...patch } : null));
-    setAdjustField(null);
+    if (closePanel) setAdjustField(null);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -957,6 +1066,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       progressMap: Record<string, number>;
       onReady: (outputUrl: string) => void | Promise<void>;
       onFailed: () => void;
+      // When provided, polling pauses at 'awaiting_order' and hands the job
+      // to the caller (clip review UI) instead of auto-stitching. Omit to
+      // keep the old auto-stitch-immediately behavior.
+      onAwaitingOrder?: (job: MultiClipJob) => void;
     }
   ) => {
     if (composePollRef.current) clearInterval(composePollRef.current);
@@ -974,6 +1087,13 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
         if (job.status === 'awaiting_order' && !hasStitched) {
           hasStitched = true;
+          if (opts.onAwaitingOrder) {
+            // Keep composeJobId set (rather than clearing it) so a page
+            // reload during review can re-fetch and re-show this job.
+            clearInterval(composePollRef.current!);
+            opts.onAwaitingOrder(job);
+            return;
+          }
           await SocialMediaAgentService.stitchMultiClipJob(jobId);
         }
 
@@ -1042,8 +1162,25 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     fd.append('output_mode', 'composited');
     fd.append('quality', 'standard');
     fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
-    fd.append('caption_style', plan.captionsEnabled ? plan.captionStyle : 'bold');
-    fd.append('enable_music', String(plan.musicEnabled));
+    fd.append('caption_style', 'bold');
+    const musicActive = plan.musicEnabled && (plan.musicSource === 'auto' || !!musicFile);
+    fd.append('enable_music', String(musicActive));
+    if (musicActive) {
+      fd.append('music_source', plan.musicSource);
+      if (plan.musicSource === 'upload' && musicFile) {
+        fd.append('custom_music', musicFile);
+      } else {
+        fd.append('purpose', plan.purpose);
+      }
+      fd.append('mute_original_audio', String(plan.muteOriginalAudio));
+    }
+    fd.append('enable_hook_text', String(plan.hookTextEnabled));
+    if (plan.hookTextEnabled) {
+      if (plan.hookTextCustom.trim()) {
+        fd.append('custom_hook_text', plan.hookTextCustom.trim());
+      }
+      fd.append('hook_text_color', plan.hookTextColor);
+    }
 
     try {
       const res = await SocialMediaAgentService.produceWithZapCap(fd);
@@ -1235,14 +1372,113 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       onReady: (outputUrl) => {
         setStitchedUrl(outputUrl);
         setVideoFiles([]);
-        addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
-        setStage('classify');
+        setStitchReadyForReview(true);
+      },
+      onFailed: () => {
+        setRenderError('Stitch failed — try again.');
+        setRenderStatus('failed');
+      },
+      onAwaitingOrder: (job) => {
+        setReviewJob(job);
+        addMsg('jane', "I've looked over your clips — check the order and flag anything before I stitch them.");
+      },
+    });
+  };
+
+  // Called once the user confirms the clip order/drops/positions in the
+  // review step — moves the job from awaiting_order into actual stitching.
+  const continueStitchAfterReview = async () => {
+    if (!reviewJob) return;
+    const jobId = reviewJob.job_id;
+    setReviewJob(null);
+    setRenderProgress(60);
+    setRenderStatus('Stitching…');
+    try {
+      await SocialMediaAgentService.stitchMultiClipJob(jobId);
+    } catch {
+      setRenderError('Stitch failed — try again.');
+      setRenderStatus('failed');
+      return;
+    }
+    startComposePolling(jobId, {
+      labelMap: {
+        stitching: 'Stitching…',
+        ready: 'Done!',
+        failed: 'Something went wrong',
+      },
+      progressMap: { stitching: 80, ready: 100, failed: 0 },
+      onReady: (outputUrl) => {
+        setStitchedUrl(outputUrl);
+        setVideoFiles([]);
+        setStitchReadyForReview(true);
       },
       onFailed: () => {
         setRenderError('Stitch failed — try again.');
         setRenderStatus('failed');
       },
     });
+  };
+
+  // Called once the user has watched the merged video and taps "Continue" —
+  // moves on into the classify/plan editing phase.
+  const confirmStitchPreview = () => {
+    setStitchReadyForReview(false);
+    addMsg('jane', 'Now tell me a bit about this video:');
+    setStage('classify');
+  };
+
+  // ── Clip review actions (reorder / drop / crop position) ──────────────────
+
+  const moveReviewClip = async (clipId: string, direction: -1 | 1) => {
+    if (!reviewJob) return;
+    const activeClips = reviewJob.clips.filter((c) => !c.dropped).sort((a, b) => a.order_index - b.order_index);
+    const idx = activeClips.findIndex((c) => c.clip_id === clipId);
+    const swapIdx = idx + direction;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= activeClips.length) return;
+    const reordered = [...activeClips];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    const newOrderIds = reordered.map((c) => c.clip_id);
+    const orderIndexById = new Map(newOrderIds.map((id, i) => [id, i]));
+    setReviewJob({
+      ...reviewJob,
+      clips: reviewJob.clips.map((c) =>
+        orderIndexById.has(c.clip_id) ? { ...c, order_index: orderIndexById.get(c.clip_id)! } : c
+      ),
+    });
+    try {
+      await SocialMediaAgentService.reorderMultiClipJob(reviewJob.job_id, newOrderIds);
+    } catch {
+      ToastService.showToast('Could not save the new order — try again.', ToastTypeEnum.Error);
+    }
+  };
+
+  const toggleDropReviewClip = async (clipId: string, dropped: boolean) => {
+    if (!reviewJob) return;
+    setReviewBusyClipId(clipId);
+    setReviewJob({
+      ...reviewJob,
+      clips: reviewJob.clips.map((c) => (c.clip_id === clipId ? { ...c, dropped } : c)),
+    });
+    try {
+      await SocialMediaAgentService.dropMultiClip(reviewJob.job_id, clipId, dropped);
+    } catch {
+      ToastService.showToast('Could not update that clip — try again.', ToastTypeEnum.Error);
+    } finally {
+      setReviewBusyClipId(null);
+    }
+  };
+
+  const setReviewClipPosition = async (clipId: string, position: 'left' | 'center' | 'right') => {
+    if (!reviewJob) return;
+    setReviewJob({
+      ...reviewJob,
+      clips: reviewJob.clips.map((c) => (c.clip_id === clipId ? { ...c, subject_position: position } : c)),
+    });
+    try {
+      await SocialMediaAgentService.updateClipPosition(reviewJob.job_id, clipId, position);
+    } catch {
+      ToastService.showToast('Could not update crop position — try again.', ToastTypeEnum.Error);
+    }
   };
 
   // ── Rerender with caption edits ───────────────────────────────────────────
@@ -1414,6 +1650,8 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     setIsSilenceCutting(false);
     setVideoFiles([]);
     setStitchedUrl(null);
+    setStitchReadyForReview(false);
+    setReviewJob(null);
     setZapCapJobId(null);
     setComposeJobId(null);
     setCaptionWords([]);
@@ -1422,6 +1660,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     setBrollConvStep('choose');
     setBrollClips([]);
     setBrollPlacements([]);
+    setMusicFile(null);
     setHistory([]);
     setClassification('talking_head');
     setAdjustField(null);
@@ -1451,6 +1690,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
           stage,
           plan,
           stitchedUrl,
+          stitchReadyForReview,
           zapCapJobId,
           composeJobId,
           captionWords,
@@ -1474,6 +1714,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     stage,
     plan,
     stitchedUrl,
+    stitchReadyForReview,
     zapCapJobId,
     composeJobId,
     captionWords,
@@ -1501,6 +1742,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
         stage: Stage;
         plan: VideoPlan | null;
         stitchedUrl: string | null;
+        stitchReadyForReview?: boolean;
         zapCapJobId: string | null;
         composeJobId: string | null;
         captionWords: CaptionWord[];
@@ -1524,6 +1766,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       setStage(saved.stage);
       setPlan(saved.plan ?? null);
       setStitchedUrl(saved.stitchedUrl ?? null);
+      setStitchReadyForReview(saved.stitchReadyForReview ?? false);
       setZapCapJobId(saved.zapCapJobId ?? null);
       setCaptionWords(saved.captionWords ?? []);
       setCaptionEdits(saved.captionEdits ?? {});
@@ -1551,12 +1794,15 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
           progressMap: { analyzing: 30, awaiting_order: 55, stitching: 80, ready: 100, failed: 0 },
           onReady: (outputUrl) => {
             setStitchedUrl(outputUrl);
-            addMsg('jane', 'Clips merged. Now tell me a bit about this video:');
-            setStage('classify');
+            setVideoFiles([]);
+            setStitchReadyForReview(true);
           },
           onFailed: () => {
             setRenderError('Stitch failed — try again.');
             setRenderStatus('failed');
+          },
+          onAwaitingOrder: (job) => {
+            setReviewJob(job);
           },
         });
       } else if (saved.zapCapJobId && saved.stage === 'render') {
@@ -1572,7 +1818,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
   const planLabels = plan
     ? {
-        captionLabel: !plan.captionsEnabled ? 'off' : `on · ${plan.captionStyle}`,
+        captionLabel: plan.captionsEnabled ? 'on' : 'off',
         trimLabel:
           plan.removeSilence && plan.removeFiller
             ? 'cut pauses and filler'
@@ -1582,7 +1828,16 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                 ? 'cut filler only'
                 : 'no trimming',
         brollLabel: !plan.brollEnabled ? 'off' : `on · ${plan.brollDensity}`,
-        musicLabel: !plan.musicEnabled ? 'none' : `${plan.musicType}, under your voice`,
+        musicLabel: !plan.musicEnabled
+          ? 'none'
+          : plan.musicSource === 'auto'
+            ? plan.muteOriginalAudio
+              ? 'AI-picked, replacing your voice'
+              : 'AI-picked, under your voice'
+            : plan.muteOriginalAudio
+              ? 'your track, replacing your voice'
+              : 'your track, under your voice',
+        hookTextLabel: !plan.hookTextEnabled ? 'off' : plan.hookTextCustom ? 'custom text' : 'AI-generated',
         lengthLabel: plan.targetLength === 'auto' ? 'auto (no limit)' : plan.targetLength,
         formatLabel:
           plan.aspectRatio === '9:16'
@@ -1649,7 +1904,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
             ref={fileInputRef}
             type="file"
             multiple
-            accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.webm,.m4v"
+            accept="video/*,.mp4,.mov,.webm,.m4v,.avi,.mkv,.wmv,.flv,.3gp,.mts,.m2ts,.mpg,.mpeg,.ogv"
             style={{ display: 'none' }}
             onChange={(e) => {
               const files = Array.from(e.target.files ?? []);
@@ -1679,6 +1934,229 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                   handleStitch();
                 }}
               />
+              <TapBtn label="Start over" onClick={reset} />
+            </div>
+          </div>
+        );
+      }
+
+      // Clip review — paused at awaiting_order so the user can reorder/drop/
+      // flag clips before the actual stitch runs.
+      if (reviewJob) {
+        const clips = [...reviewJob.clips].sort((a, b) => a.order_index - b.order_index);
+        const activeClips = clips.filter((c) => !c.dropped);
+        const posPill = (clip: MultiClipClip, pos: 'left' | 'center' | 'right') => {
+          const active = (clip.subject_position ?? 'center') === pos;
+          return (
+            <button
+              key={pos}
+              onClick={() => setReviewClipPosition(clip.clip_id, pos)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 20,
+                border: `1.3px solid ${active ? PINK : BORDER}`,
+                background: active ? LIGHT_PINK : '#fff',
+                color: active ? PINK : GRAY,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                textTransform: 'capitalize',
+              }}
+            >
+              {pos}
+            </button>
+          );
+        };
+        return (
+          <div>
+            <JaneBubble text="Here's what I found in your clips — reorder, drop, or flag anything before I stitch them together." />
+            <div
+              style={{
+                background: '#fff',
+                border: `1.5px solid ${BORDER}`,
+                borderRadius: 12,
+                padding: '4px 14px',
+                marginTop: 10,
+                marginBottom: 12,
+              }}
+            >
+              {clips.map((clip, i) => {
+                const activeIdx = activeClips.findIndex((c) => c.clip_id === clip.clip_id);
+                return (
+                  <div
+                    key={clip.clip_id}
+                    style={{
+                      padding: '10px 0',
+                      borderBottom: i < clips.length - 1 ? `1px solid ${BORDER}` : 'none',
+                      opacity: clip.dropped ? 0.45 : 1,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: '50%',
+                          background: '#F3F4F6',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: GRAY,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {activeIdx === -1 ? '–' : activeIdx + 1}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: '#374151',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          flex: 1,
+                        }}
+                      >
+                        {clip.filename}
+                      </div>
+                      {!clip.dropped && (
+                        <>
+                          <button
+                            onClick={() => moveReviewClip(clip.clip_id, -1)}
+                            disabled={activeIdx <= 0}
+                            style={{
+                              background: 'none',
+                              border: `1px solid ${BORDER}`,
+                              borderRadius: 6,
+                              width: 24,
+                              height: 24,
+                              cursor: activeIdx <= 0 ? 'default' : 'pointer',
+                              color: activeIdx <= 0 ? '#D1D5DB' : '#374151',
+                              fontSize: 12,
+                              flexShrink: 0,
+                            }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => moveReviewClip(clip.clip_id, 1)}
+                            disabled={activeIdx === -1 || activeIdx >= activeClips.length - 1}
+                            style={{
+                              background: 'none',
+                              border: `1px solid ${BORDER}`,
+                              borderRadius: 6,
+                              width: 24,
+                              height: 24,
+                              cursor: activeIdx >= activeClips.length - 1 ? 'default' : 'pointer',
+                              color: activeIdx >= activeClips.length - 1 ? '#D1D5DB' : '#374151',
+                              fontSize: 12,
+                              flexShrink: 0,
+                            }}
+                          >
+                            ↓
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => toggleDropReviewClip(clip.clip_id, !clip.dropped)}
+                        disabled={reviewBusyClipId === clip.clip_id}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: clip.dropped ? PINK : GRAY,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: '6px 6px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {clip.dropped ? 'Restore' : 'Drop'}
+                      </button>
+                    </div>
+                    {!clip.dropped && (clip.quality_flags?.length > 0 || clip.recommended_drop) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, marginLeft: 30 }}>
+                        {clip.quality_flags?.map((f) => (
+                          <span
+                            key={f}
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: 20,
+                              background: '#FEF3C7',
+                              color: '#92400E',
+                            }}
+                          >
+                            {QUALITY_FLAG_LABEL[f] ?? f}
+                          </span>
+                        ))}
+                        {clip.recommended_drop && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: 20,
+                              background: '#FEE2E2',
+                              color: '#991B1B',
+                            }}
+                          >
+                            Recommend dropping{clip.drop_reason ? ` — ${clip.drop_reason}` : ''}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {!clip.dropped && (
+                      <div style={{ display: 'flex', gap: 6, marginTop: 8, marginLeft: 30 }}>
+                        {(['left', 'center', 'right'] as const).map((pos) => posPill(clip, pos))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {activeClips.length === 0 ? (
+              <div style={{ fontSize: 12, color: GRAY, marginBottom: 10 }}>
+                Restore at least one clip before continuing.
+              </div>
+            ) : null}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <TapBtn
+                label="Stitch & continue"
+                primary
+                onClick={() => {
+                  if (activeClips.length === 0) return;
+                  continueStitchAfterReview();
+                }}
+              />
+              <TapBtn label="Start over" onClick={reset} />
+            </div>
+          </div>
+        );
+      }
+
+      // Stitch complete — show the merged video before moving into editing
+      if (stitchReadyForReview && stitchedUrl) {
+        return (
+          <div>
+            <JaneBubble text="Here's your merged video — take a look before we move on." />
+            <video
+              src={stitchedUrl}
+              controls
+              playsInline
+              style={{
+                width: '100%',
+                maxHeight: 340,
+                borderRadius: 12,
+                background: '#000',
+                marginBottom: 14,
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <TapBtn label="Looks good, continue" primary onClick={confirmStitchPreview} />
               <TapBtn label="Start over" onClick={reset} />
             </div>
           </div>
@@ -1719,9 +2197,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       // Prompt
       return (
         <div>
-          <JaneBubble
-            text={`I see ${videoFiles.length} clips. I'll stitch them together in the order you dropped them, then we'll build your video plan.`}
-          />
+          <JaneBubble text={`Stitching ${videoFiles.length} clips together — this takes about a minute.`} />
           <div
             style={{
               background: '#fff',
@@ -1789,18 +2265,29 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     if (stage === 'classify') {
       return (
         <div>
-          {videoPreviewUrl && (
+          {(stitchedUrl || videoPreviewUrl) && (
             <video
-              src={videoPreviewUrl}
+              // Prefer the actual stitched output once it exists — videoPreviewUrl is only
+              // ever the raw first clip (set before stitching even starts), so for a
+              // multi-clip upload it never reflected the real merged result.
+              src={stitchedUrl || videoPreviewUrl!}
               style={{
                 width: '100%',
                 maxHeight: 140,
                 objectFit: 'cover',
                 borderRadius: 10,
                 marginBottom: 12,
+                background: '#000',
               }}
+              // This is just a glance-preview, not something to scrub through — autoplaying
+              // muted+loop forces mobile Safari to actually paint a frame immediately.
+              // Relying on preload="metadata" + controls alone leaves it blank on iOS until
+              // playback starts, since it won't reliably auto-generate a poster frame.
               muted
-              preload="metadata"
+              playsInline
+              autoPlay
+              loop
+              preload="auto"
             />
           )}
           <JaneBubble text="Got it! What kind of clip is this?" />
@@ -1845,6 +2332,8 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
               onCancel={() => setAdjustField(null)}
               styleTemplates={styledTemplates}
               isMobile={isMobile}
+              musicFile={musicFile}
+              onMusicFileChange={setMusicFile}
             />
           </div>
         );
@@ -1877,7 +2366,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
             >
               <StylePreviewThumb style={plan.style} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: GRAY }}>Style</div>
+                <div style={{ fontSize: 12, color: GRAY, display: 'flex', alignItems: 'center' }}>
+                  Style
+                  <InfoDot text="The caption look and pacing your video is edited with. Change it to try a different visual feel without redoing your plan." />
+                </div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{plan.style.name}</div>
                 <div style={{ fontSize: 11, color: GRAY }}>{plan.style.tagline}</div>
               </div>
@@ -1905,6 +2397,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
               field="captions"
               onAdjust={setAdjustField}
               disabled={plan.classification === 'product' && !plan.captionsEnabled}
+              tooltip="Burned-in subtitles synced to your speech. Off by default for silent product videos since there's no speech to caption."
             />
             <PlanRow
               label="Trim"
@@ -1912,11 +2405,43 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
               field="trim"
               onAdjust={setAdjustField}
               disabled={plan.classification === 'product'}
+              tooltip="Automatically cuts out dead air, long pauses, and filler words like 'um' so your video stays tight."
             />
-            <PlanRow label="B-roll" value={planLabels.brollLabel} field="broll" onAdjust={setAdjustField} />
-            <PlanRow label="Music" value={planLabels.musicLabel} field="music" onAdjust={setAdjustField} />
-            <PlanRow label="Length" value={planLabels.lengthLabel} field="length" onAdjust={setAdjustField} />
-            <PlanRow label="Format" value={planLabels.formatLabel} field="format" onAdjust={setAdjustField} />
+            <PlanRow
+              label="B-roll"
+              value={planLabels.brollLabel}
+              field="broll"
+              onAdjust={setAdjustField}
+              tooltip="Cutaway footage inserted over parts of your talking-head clip to keep the video visually interesting."
+            />
+            <PlanRow
+              label="Music"
+              value={planLabels.musicLabel}
+              field="music"
+              onAdjust={setAdjustField}
+              tooltip="Upload your own MP3 to play under the video, mixed quietly beneath your voice so it doesn't compete with your speech."
+            />
+            <PlanRow
+              label="Hook Text"
+              value={planLabels.hookTextLabel}
+              field="hookText"
+              onAdjust={setAdjustField}
+              tooltip="A short line of text shown on screen for the first ~2.5 seconds to grab attention. Leave it on AI-generated or type your own."
+            />
+            <PlanRow
+              label="Length"
+              value={planLabels.lengthLabel}
+              field="length"
+              onAdjust={setAdjustField}
+              tooltip="Target duration for the finished video. 'Auto' keeps everything and doesn't force a cutoff."
+            />
+            <PlanRow
+              label="Format"
+              value={planLabels.formatLabel}
+              field="format"
+              onAdjust={setAdjustField}
+              tooltip="Aspect ratio for the export — vertical for Reels/TikTok/Shorts, landscape for YouTube, square for feed posts."
+            />
           </div>
 
           {/* Video Editing Billing PRD FR-04: cost preview before confirming */}
@@ -2000,6 +2525,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
             <video
               src={outputUrl}
               controls
+              playsInline
               style={{
                 width: '100%',
                 maxHeight: 340,
@@ -2541,6 +3067,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
                       src={entry.previewUrl}
                       style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
                       muted
+                      playsInline
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
