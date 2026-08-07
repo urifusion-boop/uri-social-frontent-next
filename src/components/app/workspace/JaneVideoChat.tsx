@@ -911,15 +911,38 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
   const acceptFiles = useCallback(
     (files: File[]) => {
       const OK = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
-      const valid = files.filter((f) => OK.includes(f.type) || /\.(mp4|mov|webm|m4v)$/i.test(f.name));
+      const wrongType = files.filter((f) => !(OK.includes(f.type) || /\.(mp4|mov|webm|m4v)$/i.test(f.name)));
+      const typedOk = files.filter((f) => OK.includes(f.type) || /\.(mp4|mov|webm|m4v)$/i.test(f.name));
+      const tooBig = typedOk.filter((f) => f.size > 500 * 1024 * 1024);
+      const valid = typedOk.filter((f) => f.size <= 500 * 1024 * 1024);
+
+      if (files.length === 0) return;
+
       if (valid.length === 0) {
-        ToastService.showToast('Please upload MP4 or MOV videos.', ToastTypeEnum.Error);
+        ToastService.showToast(
+          wrongType.length > 0
+            ? 'Please upload MP4, MOV, WebM, or M4V videos.'
+            : `All ${tooBig.length} clip(s) are over the 500 MB limit.`,
+          ToastTypeEnum.Error
+        );
         return;
       }
-      const oversized = valid.find((f) => f.size > 500 * 1024 * 1024);
-      if (oversized) {
-        ToastService.showToast(`"${oversized.name}" is too large. Max 500 MB per clip.`, ToastTypeEnum.Error);
-        return;
+
+      // Some files got skipped but at least one was usable — say so explicitly
+      // instead of silently uploading fewer clips than the user selected.
+      const skipped = [...wrongType, ...tooBig];
+      if (skipped.length > 0) {
+        ToastService.showToast(
+          `Skipped ${skipped.length} of ${files.length} file(s) — ` +
+            [
+              wrongType.length > 0 ? `${wrongType.length} unsupported format` : null,
+              tooBig.length > 0 ? `${tooBig.length} over 500 MB` : null,
+            ]
+              .filter(Boolean)
+              .join(', ') +
+            `. Using the remaining ${valid.length}.`,
+          ToastTypeEnum.Error
+        );
       }
 
       if (valid.length === 1) {
