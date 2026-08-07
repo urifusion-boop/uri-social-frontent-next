@@ -2,10 +2,9 @@
 
 import { Box, Button, CircularProgress, Typography } from '@mui/material';
 import { useState, useRef } from 'react';
-import { FaUpload, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import { FaCheckCircle, FaFileUpload, FaTimesCircle } from 'react-icons/fa';
 import { MdCloudUpload } from 'react-icons/md';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
-import { CustomVisualGuideService } from '@/src/api/CustomVisualGuideService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -28,110 +27,130 @@ interface CustomFontUploadData {
   promptDirective: string;
 }
 
+type FileStatus = 'pending' | 'uploading' | 'analyzing' | 'done' | 'error';
+
 interface CustomFontUploaderProps {
+  /** Fires once per file, as soon as that individual file finishes — so a caller
+   * managing a gallery can append fonts progressively rather than waiting for the
+   * whole batch. */
   onFontAnalyzed: (data: CustomFontUploadData) => void;
+  /** Fires once, after every selected file has either succeeded or failed. */
+  onAllDone: () => void;
   onCancel: () => void;
 }
 
-export default function CustomFontUploader({ onFontAnalyzed, onCancel }: CustomFontUploaderProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [error, setError] = useState('');
-  const [analysis, setAnalysis] = useState<CustomFontAnalysis | null>(null);
-  const [promptDirective, setPromptDirective] = useState('');
+export default function CustomFontUploader({ onFontAnalyzed, onAllDone, onCancel }: CustomFontUploaderProps) {
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [statuses, setStatuses] = useState<Record<string, FileStatus>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [processing, setProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const primary = '#CD1B78';
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
 
-    // Validate file type
-    const filename = file.name.toLowerCase();
-    if (!filename.endsWith('.ttf') && !filename.endsWith('.otf')) {
-      setError('Invalid file type. Please upload .ttf or .otf files only.');
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > 5) {
-      setError(`File too large (${sizeMB.toFixed(1)}MB). Maximum size is 5MB.`);
-      return;
-    }
-
-    setSelectedFile(file);
-    setError('');
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile) return;
-
-    try {
-      setUploading(true);
-      setUploadProgress(30);
-      setError('');
-
-      // Upload font file
-      const uploadResponse = await SocialMediaAgentService.uploadCustomFont(selectedFile);
-
-      if (!uploadResponse.status || !uploadResponse.responseData) {
-        throw new Error('Upload failed');
+    const valid: File[] = [];
+    const rejectionErrors: Record<string, string> = {};
+    for (const file of files) {
+      const filename = file.name.toLowerCase();
+      if (!filename.endsWith('.ttf') && !filename.endsWith('.otf')) {
+        rejectionErrors[file.name] = 'Invalid file type — .ttf or .otf only.';
+        continue;
       }
-
-      setUploadProgress(60);
-      const { font_url, filename } = uploadResponse.responseData;
-
-      // Analyze font
-      setUploading(false);
-      setAnalyzing(true);
-
-      const analysisResponse = await SocialMediaAgentService.analyzeCustomFont(font_url);
-
-      if (!analysisResponse.status || !analysisResponse.responseData) {
-        throw new Error('Analysis failed');
+      const sizeMB = file.size / (1024 * 1024);
+      if (sizeMB > 5) {
+        rejectionErrors[file.name] = `Too large (${sizeMB.toFixed(1)}MB) — max 5MB.`;
+        continue;
       }
-
-      const { analysis: fontAnalysis, prompt_directive } = analysisResponse.responseData;
-
-      setAnalysis(fontAnalysis);
-      setPromptDirective(prompt_directive);
-      setAnalyzing(false);
-      setUploadProgress(100);
-
-      // Notify parent component
-      onFontAnalyzed({
-        fontUrl: font_url,
-        filename,
-        analysis: fontAnalysis,
-        promptDirective: prompt_directive,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
-      setUploading(false);
-      setAnalyzing(false);
-      setUploadProgress(0);
+      valid.push(file);
+    }
+    setErrors(rejectionErrors);
+    setSelectedFiles(valid);
+    setStatuses({});
+    if (Object.keys(rejectionErrors).length > 0) {
+      ToastService.showToast(
+        `${Object.keys(rejectionErrors).length} file(s) skipped — see details below.`,
+        ToastTypeEnum.Error
+      );
     }
   };
 
-  const isLoading = uploading || analyzing;
+  const handleUploadAll = async () => {
+    if (selectedFiles.length === 0) return;
+    setProcessing(true);
+    setStatuses(Object.fromEntries(selectedFiles.map((f) => [f.name, 'pending' as FileStatus])));
+
+    for (const file of selectedFiles) {
+      setStatuses((prev) => ({ ...prev, [file.name]: 'uploading' }));
+      try {
+        const uploadResponse = await SocialMediaAgentService.uploadCustomFont(file);
+        if (!uploadResponse.status || !uploadResponse.responseData) {
+          throw new Error('Upload failed');
+        }
+        const { font_url, filename } = uploadResponse.responseData;
+
+        setStatuses((prev) => ({ ...prev, [file.name]: 'analyzing' }));
+        const analysisResponse = await SocialMediaAgentService.analyzeCustomFont(font_url);
+        if (!analysisResponse.status || !analysisResponse.responseData) {
+          throw new Error('Analysis failed');
+        }
+        const { analysis, prompt_directive } = analysisResponse.responseData;
+
+        setStatuses((prev) => ({ ...prev, [file.name]: 'done' }));
+        onFontAnalyzed({ fontUrl: font_url, filename, analysis, promptDirective: prompt_directive });
+      } catch (err) {
+        setStatuses((prev) => ({ ...prev, [file.name]: 'error' }));
+        setErrors((prev) => ({
+          ...prev,
+          [file.name]: err instanceof Error ? err.message : 'Upload failed. Please try again.',
+        }));
+      }
+    }
+
+    setProcessing(false);
+    onAllDone();
+  };
+
+  const removeFile = (name: string) => {
+    setSelectedFiles((prev) => prev.filter((f) => f.name !== name));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+  };
+
+  const statusIcon = (status: FileStatus | undefined) => {
+    if (status === 'uploading' || status === 'analyzing') return <CircularProgress size={16} sx={{ color: primary }} />;
+    if (status === 'done') return <FaCheckCircle size={16} color={primary} />;
+    if (status === 'error') return <FaTimesCircle size={16} color="#DC2626" />;
+    return <FaFileUpload size={16} color="#9CA3AF" />;
+  };
+
+  const statusLabel = (status: FileStatus | undefined) => {
+    if (status === 'uploading') return 'Uploading…';
+    if (status === 'analyzing') return 'Analyzing with AI…';
+    if (status === 'done') return 'Done';
+    if (status === 'error') return 'Failed';
+    return null;
+  };
 
   return (
     <Box sx={{ width: '100%' }}>
-      {/* File input (hidden) */}
       <input
         ref={fileInputRef}
         type="file"
         accept=".ttf,.otf"
+        multiple
         style={{ display: 'none' }}
         onChange={handleFileSelect}
       />
 
       {/* Upload area */}
-      {!selectedFile && !analysis && (
+      {selectedFiles.length === 0 && (
         <Box
           onClick={() => fileInputRef.current?.click()}
           sx={{
@@ -142,76 +161,72 @@ export default function CustomFontUploader({ onFontAnalyzed, onCancel }: CustomF
             cursor: 'pointer',
             background: `${primary}05`,
             transition: 'all 0.2s',
-            '&:hover': {
-              borderColor: `${primary}55`,
-              background: `${primary}08`,
-            },
+            '&:hover': { borderColor: `${primary}55`, background: `${primary}08` },
           }}
         >
           <MdCloudUpload size={48} color={primary} style={{ marginBottom: 16 }} />
           <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#0d0e0f', mb: 1 }}>
-            Click to upload your custom font
+            Click to upload your custom fonts
           </Typography>
-          <Typography sx={{ fontSize: 13, color: '#6B7280' }}>Upload .ttf or .otf files • Max 5MB</Typography>
+          <Typography sx={{ fontSize: 13, color: '#6B7280' }}>
+            Select one or more • .ttf or .otf files • Max 5MB each
+          </Typography>
         </Box>
       )}
 
-      {/* Selected file */}
-      {selectedFile && !analysis && (
-        <Box
-          sx={{
-            border: `2px solid ${primary}22`,
-            borderRadius: '16px',
-            p: 3,
-            background: '#fff',
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-            <FaUpload size={24} color={primary} />
-            <Box sx={{ flex: 1 }}>
-              <Typography sx={{ fontSize: 14, fontWeight: 600, color: '#0d0e0f' }}>{selectedFile.name}</Typography>
-              <Typography sx={{ fontSize: 12, color: '#6B7280' }}>
-                {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
-              </Typography>
-            </Box>
-          </Box>
-
-          {/* Upload progress */}
-          {isLoading && (
-            <Box sx={{ mb: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                <CircularProgress size={20} sx={{ color: primary }} />
-                <Typography sx={{ fontSize: 13, color: '#6B7280' }}>
-                  {uploading ? 'Uploading font...' : 'Analyzing font with AI...'}
-                </Typography>
-              </Box>
+      {/* Selected files list */}
+      {selectedFiles.length > 0 && (
+        <Box sx={{ border: `2px solid ${primary}22`, borderRadius: '16px', p: 3, background: '#fff' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
+            {selectedFiles.map((file) => (
               <Box
+                key={file.name}
                 sx={{
-                  width: '100%',
-                  height: 4,
-                  background: '#f0f0f0',
-                  borderRadius: 2,
-                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  p: 1.5,
+                  borderRadius: '10px',
+                  background: '#f9f9fb',
                 }}
               >
-                <Box
-                  sx={{
-                    width: `${uploadProgress}%`,
-                    height: '100%',
-                    background: primary,
-                    transition: 'width 0.3s',
-                  }}
-                />
+                {statusIcon(statuses[file.name])}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography
+                    sx={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#0d0e0f',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {file.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11.5, color: statuses[file.name] === 'error' ? '#DC2626' : '#6B7280' }}>
+                    {statusLabel(statuses[file.name]) ??
+                      errors[file.name] ??
+                      `${(file.size / (1024 * 1024)).toFixed(2)} MB`}
+                  </Typography>
+                </Box>
+                {!processing && (
+                  <Button
+                    onClick={() => removeFile(file.name)}
+                    sx={{ minWidth: 0, p: 0.5, color: '#9CA3AF', '&:hover': { color: '#DC2626' } }}
+                  >
+                    <FaTimesCircle size={14} />
+                  </Button>
+                )}
               </Box>
-            </Box>
-          )}
+            ))}
+          </Box>
 
-          {/* Error */}
-          {error && (
+          {Object.keys(errors).length > 0 && !processing && (
             <Box
               sx={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 gap: 1,
                 p: 2,
                 mb: 2,
@@ -219,83 +234,48 @@ export default function CustomFontUploader({ onFontAnalyzed, onCancel }: CustomF
                 borderRadius: '8px',
               }}
             >
-              <FaTimesCircle color="#DC2626" />
-              <Typography sx={{ fontSize: 13, color: '#DC2626' }}>{error}</Typography>
-            </Box>
-          )}
-
-          {/* Actions */}
-          {!isLoading && (
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <Button
-                variant="contained"
-                onClick={handleUpload}
-                disabled={isLoading}
-                sx={{
-                  flex: 1,
-                  background: primary,
-                  color: '#fff',
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  '&:hover': { background: '#B01667' },
-                }}
-              >
-                Upload & Analyze
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={onCancel}
-                sx={{
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  borderColor: '#ddd',
-                  color: '#6B7280',
-                  '&:hover': { borderColor: '#bbb', background: '#f9f9f9' },
-                }}
-              >
-                Cancel
-              </Button>
-            </Box>
-          )}
-        </Box>
-      )}
-
-      {/* Analysis result */}
-      {analysis && promptDirective && (
-        <Box
-          sx={{
-            border: `2px solid ${primary}`,
-            borderRadius: '16px',
-            p: 3,
-            background: `${primary}05`,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-            <FaCheckCircle size={32} color={primary} />
-            <Box>
-              <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#0d0e0f' }}>
-                Font Analyzed Successfully!
+              <FaTimesCircle color="#DC2626" style={{ marginTop: 2, flexShrink: 0 }} />
+              <Typography sx={{ fontSize: 12.5, color: '#DC2626' }}>
+                {Object.entries(errors)
+                  .filter(([name]) => !selectedFiles.find((f) => f.name === name) || statuses[name] === 'error')
+                  .map(([name, msg]) => `${name}: ${msg}`)
+                  .join(' • ')}
               </Typography>
-              <Typography sx={{ fontSize: 13, color: '#6B7280' }}>{selectedFile?.name}</Typography>
             </Box>
-          </Box>
+          )}
 
-          <Box sx={{ mb: 3 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#0d0e0f', mb: 1 }}>Font Description:</Typography>
-            <Typography sx={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>
-              {analysis.overall_feel} • {analysis.font_category} • {analysis.stroke_weight}
-            </Typography>
-          </Box>
-
-          <Box
-            sx={{
-              p: 2,
-              background: '#fff',
-              borderRadius: '8px',
-              border: '1px solid #e5e7eb',
-            }}
-          >
-            <Typography sx={{ fontSize: 12, color: '#6B7280', lineHeight: 1.6 }}>{promptDirective}</Typography>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="contained"
+              onClick={handleUploadAll}
+              disabled={processing || selectedFiles.length === 0}
+              sx={{
+                flex: 1,
+                background: primary,
+                color: '#fff',
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': { background: '#B01667' },
+              }}
+            >
+              {processing
+                ? 'Uploading…'
+                : `Upload & Analyze ${selectedFiles.length > 1 ? `${selectedFiles.length} Fonts` : 'Font'}`}
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={onCancel}
+              disabled={processing}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 600,
+                borderColor: '#ddd',
+                color: '#6B7280',
+                '&:hover': { borderColor: '#bbb', background: '#f9f9f9' },
+              }}
+            >
+              Cancel
+            </Button>
           </Box>
         </Box>
       )}
