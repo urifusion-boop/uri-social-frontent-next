@@ -513,13 +513,12 @@ export class CampaignService {
 
   /** The active brand's Google Ads connection state — mirrors getMetaConnectionStatus's
    * shape, but Google's state machine has an extra step Meta's doesn't (choosing/linking
-   * an actual Ads account after OAuth), reflected in `state` and `customer_id`. */
+   * an actual Ads account), reflected in `state` and `customer_id`. */
   static async getGoogleConnectionStatus(): Promise<{
     state: string;
     account_name: string;
     customer_id: string;
     whatsapp_number: string;
-    connect_url: string;
   }> {
     const res = await UriHttpClient.getClient().get('/jane-ads/google/connection/status');
     return res.data as {
@@ -527,14 +526,15 @@ export class CampaignService {
       account_name: string;
       customer_id: string;
       whatsapp_number: string;
-      connect_url: string;
     };
   }
 
-  /** Associates the pending connection (stored by the OAuth callback) with the active
-   * brand — the step right after the redirect back from Google's consent screen. */
-  static async googleFinalize(connId: string): Promise<{ status: string }> {
-    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect/finalize', { conn_id: connId });
+  /** Marks the brand as wanting Google Ads. No OAuth redirect — Google Ads API calls
+   * authenticate as URI's own admin identity, never the brand's own Google login, so
+   * there's nothing for the brand to personally authorize. Synchronous: the card can
+   * move straight to the account-selection state on success. */
+  static async connectGoogleAds(): Promise<{ status: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect');
     return res.data as { status: string };
   }
 

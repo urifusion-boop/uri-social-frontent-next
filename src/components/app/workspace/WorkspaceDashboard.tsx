@@ -2310,7 +2310,7 @@ const PLATFORMS = [
     label: 'Google Ads',
     color: '#4285F4',
     bg: '#E8F0FE',
-    flow: 'google_ads_oauth',
+    flow: 'google_ads_direct',
     tooltip:
       "The Google Ads account Jane's Search campaigns run from — separate from any other Google connection. Links to (or creates) an account under URI's manager account.",
   },
@@ -2592,29 +2592,6 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error)
           );
       }
-    } else if (connected === 'google_ads') {
-      // jane-ads' own OAuth callback stores a PENDING connection and returns conn_id —
-      // finalize just associates it with the active brand; account selection (link
-      // existing vs. create new) is a separate step surfaced by GoogleAdsSetupPanel
-      // once the card re-renders in the needs_account_selection state.
-      const connId = searchParams.get('conn_id') ?? '';
-      router.replace('/workspace?tab=connections');
-      if (connId) {
-        CampaignService.googleFinalize(connId)
-          .then((res) => {
-            if (res.status === 'finalized') {
-              ToastService.showToast(
-                'Google Ads connected — choose or create your account next.',
-                ToastTypeEnum.Success
-              );
-              posthog.capture('social_account_connected', { platform: 'google_ads' });
-              loadStatuses();
-            } else {
-              ToastService.showToast('Google Ads connection failed. Please try again.', ToastTypeEnum.Error);
-            }
-          })
-          .catch(() => ToastService.showToast('Google Ads connection failed. Please try again.', ToastTypeEnum.Error));
-      }
     } else if (connected === 'pending' && token) {
       setSessionToken(token);
       setPhase('pending');
@@ -2741,12 +2718,21 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       window.location.href = `${apiBase}/social-media/connect/facebook-ads/initiate?source=settings`;
       return;
     }
-    if (flow === 'google_ads_oauth') {
+    if (flow === 'google_ads_direct') {
       setConnecting(id);
-      // jane-ads' own OAuth flow, not the older /social-media/connect/* router —
-      // Google Ads has no equivalent to the Meta organic-connection reuse pattern.
-      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
-      window.location.href = `${apiBase}/jane-ads/google/connect/initiate?source=settings`;
+      // No OAuth redirect: Google Ads API calls authenticate as URI's own admin
+      // identity, never the brand's own Google login (Google's agency/MCC model —
+      // see the backend's google_ads_connection.py module docstring), so there's
+      // nothing for the brand to personally authorize. Synchronous call straight
+      // to the account-selection state.
+      try {
+        await CampaignService.connectGoogleAds();
+        await loadStatuses();
+      } catch {
+        ToastService.showToast('Could not connect Google Ads. Please try again.', ToastTypeEnum.Error);
+      } finally {
+        setConnecting(null);
+      }
       return;
     }
     if (flow === 'phone') {
@@ -3392,9 +3378,6 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_refused' && (
                           <span style={{ color: '#c62828' }}> — already linked to another manager</span>
                         )}
-                        {p.id === 'google_ads' && s?.google_connection_state === 'expired' && (
-                          <span style={{ color: '#c62828' }}> — needs reconnecting</span>
-                        )}
                         {p.id === 'google_ads' &&
                           s?.google_connection_state === 'ready' &&
                           !s?.google_whatsapp_number && (
@@ -3437,10 +3420,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       >
                         Coming Soon
                       </span>
-                    ) : linked && (p.id === 'facebook_ads' || p.id === 'google_ads') ? (
-                      // No disconnect endpoint exists for either ads-scoped connection —
-                      // the meaningful action here is reconnecting (e.g. after 'expired'),
-                      // which just re-runs the same OAuth grant and overwrites it.
+                    ) : linked && p.id === 'facebook_ads' ? (
+                      // No disconnect endpoint exists for this ads-scoped connection —
+                      // the meaningful action here is reconnecting (e.g. after
+                      // 'expired'), which just re-runs the same OAuth grant and
+                      // overwrites it.
                       <button
                         type="button"
                         onClick={() => handleConnect(p.id, p.flow)}
@@ -3459,6 +3443,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       >
                         Reconnect
                       </button>
+                    ) : linked && p.id === 'google_ads' ? (
+                      // No button here on purpose — Google Ads has no per-brand token
+                      // to expire (it authenticates as URI's own admin identity, see
+                      // the backend's google_ads_connection.py) and no disconnect
+                      // endpoint exists. Whatever action is relevant for the current
+                      // sub-state (choose/create account, check link status) is
+                      // already surfaced by the panels below the card.
+                      <></>
                     ) : linked ? (
                       <button
                         type="button"
