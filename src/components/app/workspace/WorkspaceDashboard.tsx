@@ -2,7 +2,7 @@
 
 import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { BrandProfileData, BrandProfileService, CustomFontAnalysis } from '@/src/api/BrandProfileService';
+import { BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
 import {
   AccountMetricItem,
@@ -4846,21 +4846,13 @@ const PlaybookPage = ({
   const [primaryFont, setPrimaryFont] = useState<string>('');
   const [secondaryFont, setSecondaryFont] = useState<string>('');
   // Custom font upload is per-slot — primary (headlines) and secondary (body) each
-  // independently toggle between a library font and their own uploaded custom font.
-  const [primaryCustomFontEnabled, setPrimaryCustomFontEnabled] = useState(false);
-  const [primaryCustomFontFile, setPrimaryCustomFontFile] = useState<{ url: string; filename: string } | undefined>(
-    undefined
-  );
-  const [primaryCustomFontAnalysis, setPrimaryCustomFontAnalysis] = useState<CustomFontAnalysis | undefined>(undefined);
-  const [primaryCustomFontDirective, setPrimaryCustomFontDirective] = useState('');
-  const [secondaryCustomFontEnabled, setSecondaryCustomFontEnabled] = useState(false);
-  const [secondaryCustomFontFile, setSecondaryCustomFontFile] = useState<{ url: string; filename: string } | undefined>(
-    undefined
-  );
-  const [secondaryCustomFontAnalysis, setSecondaryCustomFontAnalysis] = useState<CustomFontAnalysis | undefined>(
-    undefined
-  );
-  const [secondaryCustomFontDirective, setSecondaryCustomFontDirective] = useState('');
+  // keep their OWN gallery of uploaded fonts (a new upload adds to it, never
+  // discards a prior one), plus which one (if any) is selected. Empty selected-url
+  // means this slot uses its library font (primaryFont/secondaryFont above) instead.
+  const [primaryCustomFonts, setPrimaryCustomFonts] = useState<CustomFontEntry[]>([]);
+  const [primaryCustomFontSelectedUrl, setPrimaryCustomFontSelectedUrl] = useState('');
+  const [secondaryCustomFonts, setSecondaryCustomFonts] = useState<CustomFontEntry[]>([]);
+  const [secondaryCustomFontSelectedUrl, setSecondaryCustomFontSelectedUrl] = useState('');
 
   // Read-only preview of whichever custom guides (V1/V2) are currently saved on
   // the profile — the profile only stores guide IDs, so the full guide objects
@@ -5030,14 +5022,10 @@ const PlaybookPage = ({
     setFontStyle(profile.font_style ?? '');
     setPrimaryFont(profile.primary_font ?? '');
     setSecondaryFont(profile.secondary_font ?? '');
-    setPrimaryCustomFontEnabled(profile.primary_custom_font_enabled ?? false);
-    setPrimaryCustomFontFile(profile.primary_custom_font_file);
-    setPrimaryCustomFontAnalysis(profile.primary_custom_font_analysis as CustomFontAnalysis | undefined);
-    setPrimaryCustomFontDirective(profile.primary_custom_font_directive ?? '');
-    setSecondaryCustomFontEnabled(profile.secondary_custom_font_enabled ?? false);
-    setSecondaryCustomFontFile(profile.secondary_custom_font_file);
-    setSecondaryCustomFontAnalysis(profile.secondary_custom_font_analysis as CustomFontAnalysis | undefined);
-    setSecondaryCustomFontDirective(profile.secondary_custom_font_directive ?? '');
+    setPrimaryCustomFonts(profile.primary_custom_fonts ?? []);
+    setPrimaryCustomFontSelectedUrl(profile.primary_custom_font_selected_url ?? '');
+    setSecondaryCustomFonts(profile.secondary_custom_fonts ?? []);
+    setSecondaryCustomFontSelectedUrl(profile.secondary_custom_font_selected_url ?? '');
     setEditing(true);
   };
 
@@ -5096,14 +5084,10 @@ const PlaybookPage = ({
         primary_font_prompt: getFont(primaryFont)?.promptFragment ?? '',
         secondary_font: secondaryFont,
         secondary_font_prompt: getFont(secondaryFont)?.promptFragment ?? '',
-        primary_custom_font_enabled: primaryCustomFontEnabled,
-        primary_custom_font_file: primaryCustomFontFile,
-        primary_custom_font_analysis: primaryCustomFontAnalysis,
-        primary_custom_font_directive: primaryCustomFontDirective,
-        secondary_custom_font_enabled: secondaryCustomFontEnabled,
-        secondary_custom_font_file: secondaryCustomFontFile,
-        secondary_custom_font_analysis: secondaryCustomFontAnalysis,
-        secondary_custom_font_directive: secondaryCustomFontDirective,
+        primary_custom_fonts: primaryCustomFonts,
+        primary_custom_font_selected_url: primaryCustomFontSelectedUrl,
+        secondary_custom_fonts: secondaryCustomFonts,
+        secondary_custom_font_selected_url: secondaryCustomFontSelectedUrl,
       };
       console.log('💾 SAVE PLAYBOOK DEBUG:', { logoPosition, logoSize, updated_logo_size: updated.logo_size });
       console.log('💾 FULL PAYLOAD BEING SENT:', JSON.stringify(updated, null, 2));
@@ -6555,43 +6539,46 @@ const PlaybookPage = ({
             )}
 
             {/* Primary Custom Font Display */}
-            {p?.primary_custom_font_enabled && p?.primary_custom_font_file && (
-              <div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: '#999',
-                    marginBottom: 4,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Primary (Headlines) — Custom
-                </div>
-                <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
-                  <div
-                    style={{
-                      height: 64,
-                      background: '#f9f9fb',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderBottom: '1px solid #f0eef8',
-                    }}
-                  >
-                    <FaCheckCircle size={22} color="#C2185B" />
-                  </div>
-                  <div style={{ padding: '6px 10px' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>
-                      {p.primary_custom_font_file.filename}
+            {p?.primary_custom_font_selected_url &&
+              (() => {
+                const font = (p.primary_custom_fonts ?? []).find((f) => f.url === p.primary_custom_font_selected_url);
+                if (!font) return null;
+                return (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: '#999',
+                        marginBottom: 4,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      Primary (Headlines) — Custom
                     </div>
-                    <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
-                      {p.primary_custom_font_analysis?.overall_feel || 'Uploaded font'}
+                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
+                      <div
+                        style={{
+                          height: 64,
+                          background: '#f9f9fb',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderBottom: '1px solid #f0eef8',
+                        }}
+                      >
+                        <FaCheckCircle size={22} color="#C2185B" />
+                      </div>
+                      <div style={{ padding: '6px 10px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{font.filename}</div>
+                        <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                          {font.analysis?.overall_feel || 'Uploaded font'}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
+                );
+              })()}
 
             {/* Secondary Font Display */}
             {p?.secondary_font && getFont(p.secondary_font) && (
@@ -6638,48 +6625,53 @@ const PlaybookPage = ({
             )}
 
             {/* Secondary Custom Font Display */}
-            {p?.secondary_custom_font_enabled && p?.secondary_custom_font_file && (
-              <div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: '#999',
-                    marginBottom: 4,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Secondary (Body) — Custom
-                </div>
-                <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
-                  <div
-                    style={{
-                      height: 64,
-                      background: '#f9f9fb',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderBottom: '1px solid #f0eef8',
-                    }}
-                  >
-                    <FaCheckCircle size={22} color="#C2185B" />
-                  </div>
-                  <div style={{ padding: '6px 10px' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>
-                      {p.secondary_custom_font_file.filename}
+            {p?.secondary_custom_font_selected_url &&
+              (() => {
+                const font = (p.secondary_custom_fonts ?? []).find(
+                  (f) => f.url === p.secondary_custom_font_selected_url
+                );
+                if (!font) return null;
+                return (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: '#999',
+                        marginBottom: 4,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      Secondary (Body) — Custom
                     </div>
-                    <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
-                      {p.secondary_custom_font_analysis?.overall_feel || 'Uploaded font'}
+                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
+                      <div
+                        style={{
+                          height: 64,
+                          background: '#f9f9fb',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderBottom: '1px solid #f0eef8',
+                        }}
+                      >
+                        <FaCheckCircle size={22} color="#C2185B" />
+                      </div>
+                      <div style={{ padding: '6px 10px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{font.filename}</div>
+                        <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                          {font.analysis?.overall_feel || 'Uploaded font'}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
+                );
+              })()}
 
             {!p?.primary_font &&
               !p?.secondary_font &&
-              !p?.primary_custom_font_enabled &&
-              !p?.secondary_custom_font_enabled && <div style={{ fontSize: 13, color: '#bbb' }}>—</div>}
+              !p?.primary_custom_font_selected_url &&
+              !p?.secondary_custom_font_selected_url && <div style={{ fontSize: 13, color: '#bbb' }}>—</div>}
           </div>
         ) : (
           <div>
@@ -6730,17 +6722,19 @@ const PlaybookPage = ({
               <FontPickerGallery
                 selected={primaryFont}
                 onChange={setPrimaryFont}
-                customFontEnabled={primaryCustomFontEnabled}
-                customFontFilename={primaryCustomFontFile?.filename}
-                customFontAnalysis={primaryCustomFontAnalysis}
+                customFonts={primaryCustomFonts}
+                selectedCustomFontUrl={primaryCustomFontSelectedUrl}
+                onSelectCustomFont={setPrimaryCustomFontSelectedUrl}
                 onCustomFontUpload={(data) => {
-                  setPrimaryCustomFontFile({ url: data.fontUrl, filename: data.filename });
-                  setPrimaryCustomFontAnalysis(data.analysis);
-                  setPrimaryCustomFontDirective(data.promptDirective);
-                  setPrimaryCustomFontEnabled(true);
+                  const entry: CustomFontEntry = {
+                    url: data.fontUrl,
+                    filename: data.filename,
+                    analysis: data.analysis,
+                    directive: data.promptDirective,
+                  };
+                  setPrimaryCustomFonts((prev) => [...prev, entry]);
+                  setPrimaryCustomFontSelectedUrl(entry.url);
                 }}
-                onUseCustomFont={() => setPrimaryCustomFontEnabled(true)}
-                onUseLibraryFont={() => setPrimaryCustomFontEnabled(false)}
               />
             </div>
 
@@ -6791,17 +6785,19 @@ const PlaybookPage = ({
               <FontPickerGallery
                 selected={secondaryFont}
                 onChange={setSecondaryFont}
-                customFontEnabled={secondaryCustomFontEnabled}
-                customFontFilename={secondaryCustomFontFile?.filename}
-                customFontAnalysis={secondaryCustomFontAnalysis}
+                customFonts={secondaryCustomFonts}
+                selectedCustomFontUrl={secondaryCustomFontSelectedUrl}
+                onSelectCustomFont={setSecondaryCustomFontSelectedUrl}
                 onCustomFontUpload={(data) => {
-                  setSecondaryCustomFontFile({ url: data.fontUrl, filename: data.filename });
-                  setSecondaryCustomFontAnalysis(data.analysis);
-                  setSecondaryCustomFontDirective(data.promptDirective);
-                  setSecondaryCustomFontEnabled(true);
+                  const entry: CustomFontEntry = {
+                    url: data.fontUrl,
+                    filename: data.filename,
+                    analysis: data.analysis,
+                    directive: data.promptDirective,
+                  };
+                  setSecondaryCustomFonts((prev) => [...prev, entry]);
+                  setSecondaryCustomFontSelectedUrl(entry.url);
                 }}
-                onUseCustomFont={() => setSecondaryCustomFontEnabled(true)}
-                onUseLibraryFont={() => setSecondaryCustomFontEnabled(false)}
               />
             </div>
           </div>

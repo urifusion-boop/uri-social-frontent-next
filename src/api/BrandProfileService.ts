@@ -35,6 +35,13 @@ export interface CustomFontAnalysis {
   overall_feel: string;
 }
 
+export interface CustomFontEntry {
+  url: string;
+  filename: string;
+  analysis?: CustomFontAnalysis;
+  directive?: string;
+}
+
 export interface BrandProfileData {
   id?: string;
   brand_name?: string;
@@ -84,16 +91,13 @@ export interface BrandProfileData {
   secondary_font?: string;
   secondary_font_prompt?: string;
   // Custom font upload is per-slot: primary (headlines) and secondary (body) each
-  // independently use either a library font (primary_font/secondary_font above) or
-  // their own uploaded custom font.
-  primary_custom_font_enabled?: boolean;
-  primary_custom_font_file?: { url: string; filename: string };
-  primary_custom_font_analysis?: CustomFontAnalysis;
-  primary_custom_font_directive?: string;
-  secondary_custom_font_enabled?: boolean;
-  secondary_custom_font_file?: { url: string; filename: string };
-  secondary_custom_font_analysis?: CustomFontAnalysis;
-  secondary_custom_font_directive?: string;
+  // keep their OWN gallery of uploaded fonts (a new upload adds to it, never
+  // discards a prior one), plus which one (if any) is currently selected. An empty
+  // *_custom_font_selected_url means this slot uses its library font instead.
+  primary_custom_fonts?: CustomFontEntry[];
+  primary_custom_font_selected_url?: string;
+  secondary_custom_fonts?: CustomFontEntry[];
+  secondary_custom_font_selected_url?: string;
   use_v3_prompts?: boolean; // V3 enhanced prompt system toggle
   canvas_editor_enabled?: boolean; // Canvas Editor feature flag
   onboarding_completed?: boolean;
