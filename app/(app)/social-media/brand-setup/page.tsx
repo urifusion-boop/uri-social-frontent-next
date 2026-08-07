@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
-import { BrandProfileData, BrandProfileService } from '@/src/api/BrandProfileService';
+import { BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
 import CustomButton from '@/src/components/app/atoms/CustomButton';
 import useCustomTheme from '@/src/hooks/theme.hook';
 import { useAuth } from '@/src/providers/AuthProvider';
@@ -610,6 +610,12 @@ function BrandSetupPageContent() {
   const [fontStyle, setFontStyle] = useState<string>('');
   const [primaryFont, setPrimaryFont] = useState<string>('');
   const [secondaryFont, setSecondaryFont] = useState<string>('');
+  // Custom font upload is per-slot — primary (headlines) and secondary (body) each
+  // keep their OWN gallery of uploaded fonts, plus which one (if any) is selected.
+  const [primaryCustomFonts, setPrimaryCustomFonts] = useState<CustomFontEntry[]>([]);
+  const [primaryCustomFontSelectedUrl, setPrimaryCustomFontSelectedUrl] = useState('');
+  const [secondaryCustomFonts, setSecondaryCustomFonts] = useState<CustomFontEntry[]>([]);
+  const [secondaryCustomFontSelectedUrl, setSecondaryCustomFontSelectedUrl] = useState('');
   const quizData = [
     {
       id: 'formality',
@@ -837,6 +843,10 @@ function BrandSetupPageContent() {
       primary_font_prompt: getFont(primaryFont)?.promptFragment ?? '',
       secondary_font: secondaryFont,
       secondary_font_prompt: getFont(secondaryFont)?.promptFragment ?? '',
+      primary_custom_fonts: primaryCustomFonts,
+      primary_custom_font_selected_url: primaryCustomFontSelectedUrl,
+      secondary_custom_fonts: secondaryCustomFonts,
+      secondary_custom_font_selected_url: secondaryCustomFontSelectedUrl,
       onboarding_completed: true,
     };
     try {
@@ -1409,7 +1419,23 @@ function BrandSetupPageContent() {
                   </Typography>
                 </Box>
               )}
-              <FontPickerGallery selected={primaryFont} onChange={setPrimaryFont} customFontEnabled={false} />
+              <FontPickerGallery
+                selected={primaryFont}
+                onChange={setPrimaryFont}
+                customFonts={primaryCustomFonts}
+                selectedCustomFontUrl={primaryCustomFontSelectedUrl}
+                onSelectCustomFont={setPrimaryCustomFontSelectedUrl}
+                onCustomFontUpload={(data) => {
+                  const entry: CustomFontEntry = {
+                    url: data.fontUrl,
+                    filename: data.filename,
+                    analysis: data.analysis,
+                    directive: data.promptDirective,
+                  };
+                  setPrimaryCustomFonts((prev) => [...prev, entry]);
+                  setPrimaryCustomFontSelectedUrl(entry.url);
+                }}
+              />
             </Box>
 
             {/* Secondary Font */}
@@ -1447,7 +1473,23 @@ function BrandSetupPageContent() {
                   </Typography>
                 </Box>
               )}
-              <FontPickerGallery selected={secondaryFont} onChange={setSecondaryFont} customFontEnabled={false} />
+              <FontPickerGallery
+                selected={secondaryFont}
+                onChange={setSecondaryFont}
+                customFonts={secondaryCustomFonts}
+                selectedCustomFontUrl={secondaryCustomFontSelectedUrl}
+                onSelectCustomFont={setSecondaryCustomFontSelectedUrl}
+                onCustomFontUpload={(data) => {
+                  const entry: CustomFontEntry = {
+                    url: data.fontUrl,
+                    filename: data.filename,
+                    analysis: data.analysis,
+                    directive: data.promptDirective,
+                  };
+                  setSecondaryCustomFonts((prev) => [...prev, entry]);
+                  setSecondaryCustomFontSelectedUrl(entry.url);
+                }}
+              />
             </Box>
             <Box display="flex" gap={1.5} alignItems="center">
               <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
