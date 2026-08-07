@@ -83,10 +83,17 @@ export interface BrandProfileData {
   primary_font_prompt?: string;
   secondary_font?: string;
   secondary_font_prompt?: string;
-  custom_font_enabled?: boolean;
-  custom_font_files?: { url: string; filename: string }[];
-  custom_font_analysis?: CustomFontAnalysis;
-  custom_font_directive?: string;
+  // Custom font upload is per-slot: primary (headlines) and secondary (body) each
+  // independently use either a library font (primary_font/secondary_font above) or
+  // their own uploaded custom font.
+  primary_custom_font_enabled?: boolean;
+  primary_custom_font_file?: { url: string; filename: string };
+  primary_custom_font_analysis?: CustomFontAnalysis;
+  primary_custom_font_directive?: string;
+  secondary_custom_font_enabled?: boolean;
+  secondary_custom_font_file?: { url: string; filename: string };
+  secondary_custom_font_analysis?: CustomFontAnalysis;
+  secondary_custom_font_directive?: string;
   use_v3_prompts?: boolean; // V3 enhanced prompt system toggle
   canvas_editor_enabled?: boolean; // Canvas Editor feature flag
   onboarding_completed?: boolean;
