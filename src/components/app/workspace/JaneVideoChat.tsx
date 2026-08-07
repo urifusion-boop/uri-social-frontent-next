@@ -910,9 +910,15 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
   const acceptFiles = useCallback(
     (files: File[]) => {
-      const OK = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
-      const wrongType = files.filter((f) => !(OK.includes(f.type) || /\.(mp4|mov|webm|m4v)$/i.test(f.name)));
-      const typedOk = files.filter((f) => OK.includes(f.type) || /\.(mp4|mov|webm|m4v)$/i.test(f.name));
+      // Accept anything the browser tags as a video, plus a broad extension
+      // fallback for files with a missing/generic MIME type (some OSes report
+      // e.g. .mts/.avi as application/octet-stream) — ffmpeg on the backend
+      // handles essentially every common container, so there's no need to
+      // maintain a narrow allow-list here.
+      const VIDEO_EXT_RE = /\.(mp4|mov|webm|m4v|avi|mkv|wmv|flv|3gp|3gpp|mts|m2ts|ts|mpg|mpeg|ogv)$/i;
+      const isVideo = (f: File) => f.type.startsWith('video/') || VIDEO_EXT_RE.test(f.name);
+      const wrongType = files.filter((f) => !isVideo(f));
+      const typedOk = files.filter(isVideo);
       const tooBig = typedOk.filter((f) => f.size > 500 * 1024 * 1024);
       const valid = typedOk.filter((f) => f.size <= 500 * 1024 * 1024);
 
@@ -921,7 +927,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
       if (valid.length === 0) {
         ToastService.showToast(
           wrongType.length > 0
-            ? 'Please upload MP4, MOV, WebM, or M4V videos.'
+            ? 'Please upload video files (MP4, MOV, AVI, MKV, and most other formats are supported).'
             : `All ${tooBig.length} clip(s) are over the 500 MB limit.`,
           ToastTypeEnum.Error
         );
@@ -1898,7 +1904,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
             ref={fileInputRef}
             type="file"
             multiple
-            accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.webm,.m4v"
+            accept="video/*,.mp4,.mov,.webm,.m4v,.avi,.mkv,.wmv,.flv,.3gp,.mts,.m2ts,.mpg,.mpeg,.ogv"
             style={{ display: 'none' }}
             onChange={(e) => {
               const files = Array.from(e.target.files ?? []);
