@@ -187,7 +187,7 @@ export interface DraftSummary {
   created_at: string;
 }
 
-export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask';
+export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask' | 'recomposite';
 
 export interface BillingRow {
   business_id: string;
