@@ -139,8 +139,10 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   // Which image source the user picked for THIS campaign (upload / draft / let Jane
   // generate). Null until they choose — the first plan attempt asks (creative_source
   // 'ask' → the choose card). Reset on launch / + New / thread switch.
-  const creativeChoiceRef = useRef<'generate' | 'upload' | 'draft' | null>(null);
-  const uploadForChoiceRef = useRef(false);
+  const creativeChoiceRef = useRef<'generate' | 'upload' | 'draft' | 'recomposite' | null>(null);
+  // false = not from the choose card; 'upload'/'recomposite' = which choose-card button
+  // triggered this file picker, so handleFileChosen knows which creative_source to send.
+  const uploadForChoiceRef = useRef<false | 'upload' | 'recomposite'>(false);
   // Multi-Plan Audience Variants — set while waiting for the user to pick an image
   // source for one or more selected variants (continueWithVariants asks first,
   // same as the normal flow, instead of silently auto-generating). Consumed and
@@ -527,6 +529,10 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       | { creative_source: 'generate' }
       | { creative_source: 'upload'; reference_image_url: string; is_video: boolean }
       | { creative_source: 'draft'; draft_id: string }
+      // Recomposite (creative brief spec §7.2): the real product photo, background
+      // regenerated around it via the same content-engine pipeline organic posts
+      // use — image-only, no is_video (the backend has no video recomposite path).
+      | { creative_source: 'recomposite'; reference_image_url: string }
   ) => {
     if (busy || !briefSoFar) return;
     creativeChoiceRef.current = choice.creative_source;
@@ -611,7 +617,15 @@ export default function CampaignsPage({}: CampaignsPageProps) {
     setDraftsOpen(false);
     try {
       const { url, is_video } = await CampaignService.uploadMedia(file);
-      if (forChoice) {
+      if (forChoice === 'recomposite') {
+        // Recomposite is image-only — the content engine's product-preservation
+        // pipeline has no video path.
+        if (is_video) {
+          setUploadError('Recompositing works with a photo, not a video — please choose an image.');
+          return;
+        }
+        await continueWithSource({ creative_source: 'recomposite', reference_image_url: url });
+      } else if (forChoice === 'upload') {
         // Came from the choose card — go straight on with the plan using this upload.
         await continueWithSource({ creative_source: 'upload', reference_image_url: url, is_video });
       } else {
@@ -752,7 +766,11 @@ export default function CampaignsPage({}: CampaignsPageProps) {
                       onSubmitMetaConnectionWhatsapp={submitMetaConnectionWhatsapp}
                       onChooseGenerate={() => continueWithSource({ creative_source: 'generate' })}
                       onChooseUpload={() => {
-                        uploadForChoiceRef.current = true;
+                        uploadForChoiceRef.current = 'upload';
+                        fileInputRef.current?.click();
+                      }}
+                      onChooseRecomposite={() => {
+                        uploadForChoiceRef.current = 'recomposite';
                         fileInputRef.current?.click();
                       }}
                       onChooseDraft={(draftId) => continueWithSource({ creative_source: 'draft', draft_id: draftId })}
@@ -1367,11 +1385,13 @@ function ChooseCreativeSource({
   drafts,
   onGenerate,
   onUpload,
+  onRecomposite,
   onPickDraft,
 }: {
   drafts: DraftSummary[];
   onGenerate: () => void;
   onUpload: () => void;
+  onRecomposite: () => void;
   onPickDraft: (draftId: string) => void;
 }) {
   const [showDrafts, setShowDrafts] = useState(false);
@@ -1400,6 +1420,9 @@ function ChooseCreativeSource({
         </button>
         <button onClick={onUpload} style={optionBtn}>
           📎 Upload my own<span style={sub}>Use your own photo or video</span>
+        </button>
+        <button onClick={onRecomposite} style={optionBtn}>
+          🎨 Use my product photo<span style={sub}>Keep the real product, new scene around it</span>
         </button>
         {drafts.length > 0 && (
           <button onClick={() => setShowDrafts((v) => !v)} style={optionBtn}>
@@ -1955,6 +1978,7 @@ function ResultCard({
   onSubmitMetaConnectionWhatsapp,
   onChooseGenerate,
   onChooseUpload,
+  onChooseRecomposite,
   onChooseDraft,
   onChooseVariants,
 }: {
@@ -1967,6 +1991,7 @@ function ResultCard({
   onSubmitMetaConnectionWhatsapp: (number: string) => void;
   onChooseGenerate: () => void;
   onChooseUpload: () => void;
+  onChooseRecomposite: () => void;
   onChooseDraft: (draftId: string) => void;
   onChooseVariants: (variants: PlanVariant[], variantGroupId: string) => void;
 }) {
@@ -1994,6 +2019,7 @@ function ResultCard({
           drafts={result.creative_options?.drafts || []}
           onGenerate={onChooseGenerate}
           onUpload={onChooseUpload}
+          onRecomposite={onChooseRecomposite}
           onPickDraft={onChooseDraft}
         />
       </div>
