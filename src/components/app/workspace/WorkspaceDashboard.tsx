@@ -5077,6 +5077,8 @@ const IntelPage = ({ onJane, embedded }: { onJane: () => void; embedded?: boolea
 const pbTgl = <T,>(arr: T[], set: (v: T[]) => void, val: T) =>
   set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
 
+const isValidHexColor = (v: string) => /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(v);
+
 const PbInput = ({
   value,
   onChange,
@@ -6051,10 +6053,31 @@ const PlaybookPage = ({
                     }}
                   >
                     <HexColorPicker color={newColor} onChange={setNewColor} />
+                    <input
+                      value={newColor}
+                      onChange={(e) => {
+                        let v = e.target.value;
+                        if (v && !v.startsWith('#')) v = '#' + v;
+                        setNewColor(v);
+                      }}
+                      placeholder="#CD1B78"
+                      spellCheck={false}
+                      style={{
+                        marginTop: 10,
+                        width: '100%',
+                        padding: '7px 10px',
+                        borderRadius: 6,
+                        border: isValidHexColor(newColor) ? '1px solid #ddd' : '1.5px solid #e57373',
+                        fontSize: 12.5,
+                        fontFamily: 'var(--mono, monospace)',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
                     <button
                       onClick={() => setShowColorPicker(false)}
                       style={{
-                        marginTop: 12,
+                        marginTop: 8,
                         width: '100%',
                         padding: '6px 12px',
                         borderRadius: 6,
@@ -6073,11 +6096,12 @@ const PlaybookPage = ({
               </div>
               <button
                 onClick={() => {
-                  if (newColor.trim()) {
+                  if (isValidHexColor(newColor)) {
                     setColors([...colors, newColor.trim()]);
                     setShowColorPicker(false);
                   }
                 }}
+                disabled={!isValidHexColor(newColor)}
                 style={{
                   padding: '8px 14px',
                   borderRadius: 8,
@@ -6086,7 +6110,8 @@ const PlaybookPage = ({
                   color: '#C2185B',
                   fontSize: 13,
                   fontWeight: 700,
-                  cursor: 'pointer',
+                  cursor: isValidHexColor(newColor) ? 'pointer' : 'not-allowed',
+                  opacity: isValidHexColor(newColor) ? 1 : 0.5,
                   whiteSpace: 'nowrap',
                   fontFamily: 'var(--wf)',
                 }}
