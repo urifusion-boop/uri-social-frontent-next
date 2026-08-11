@@ -21,6 +21,15 @@ const PINK = '#C2185B';
 
 interface CampaignsPageProps {
   onJane?: () => void;
+  // Video quality hand-off (redirect to Video Polish, come back with the result):
+  // asks the parent to switch pages and start a polish job for this file, returning
+  // to this exact thread when done. Optional — omitted entirely, this page just
+  // skips the "improve quality?" prompt and behaves as it always has.
+  onRequestVideoPolish?: (file: File, threadId: string) => void;
+  // Set by the parent once a polish job finishes and the user chose to use the
+  // result — this page picks it back up as if the user had just uploaded it.
+  pendingResumeVideo?: { threadId: string; url: string } | null;
+  onResumeVideoConsumed?: () => void;
 }
 
 type ChatMsg =
@@ -110,7 +119,11 @@ function ConnectedAccountsWhatsappLink() {
 // `onJane` in CampaignsPageProps is kept for prop-shape compatibility with the shared
 // pattern every workspace page uses (WorkspaceDashboard passes it to all of them) —
 // this page no longer shows a back link, so nothing here reads it.
-export default function CampaignsPage({}: CampaignsPageProps) {
+export default function CampaignsPage({
+  onRequestVideoPolish,
+  pendingResumeVideo,
+  onResumeVideoConsumed,
+}: CampaignsPageProps) {
   const [tab, setTab] = useState<'chat' | 'manage' | 'wallet' | 'billing'>('chat');
   const [isAdmin, setIsAdmin] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([makeGreeting()]);
@@ -143,6 +156,16 @@ export default function CampaignsPage({}: CampaignsPageProps) {
   // false = not from the choose card; 'upload'/'recomposite' = which choose-card button
   // triggered this file picker, so handleFileChosen knows which creative_source to send.
   const uploadForChoiceRef = useRef<false | 'upload' | 'recomposite'>(false);
+  // A video was just uploaded (from either upload path) and is waiting on the
+  // "improve quality first?" prompt before it continues into the plan. Holds the
+  // raw File (needed to seed Video Polish, which takes a fresh upload, not a URL)
+  // alongside the already-hosted url/forChoice so "use as-is" can proceed exactly
+  // as a normal video upload would have.
+  const [pendingVideoQualityCheck, setPendingVideoQualityCheck] = useState<{
+    file: File;
+    url: string;
+    forChoice: false | 'upload';
+  } | null>(null);
   // Multi-Plan Audience Variants — set while waiting for the user to pick an image
   // source for one or more selected variants (continueWithVariants asks first,
   // same as the normal flow, instead of silently auto-generating). Consumed and
@@ -625,6 +648,11 @@ export default function CampaignsPage({}: CampaignsPageProps) {
           return;
         }
         await continueWithSource({ creative_source: 'recomposite', reference_image_url: url });
+      } else if (is_video && onRequestVideoPolish) {
+        // Ask before committing to this video — Video Polish (upscale/stabilise/
+        // captions) is one redirect away, and most raw phone footage benefits from
+        // it. "Use as-is" below falls through to exactly what used to happen here.
+        setPendingVideoQualityCheck({ file, url, forChoice: forChoice === 'upload' ? 'upload' : false });
       } else if (forChoice === 'upload') {
         // Came from the choose card — go straight on with the plan using this upload.
         await continueWithSource({ creative_source: 'upload', reference_image_url: url, is_video });
@@ -637,6 +665,47 @@ export default function CampaignsPage({}: CampaignsPageProps) {
       setUploading(false);
     }
   };
+
+  // "Use as-is" on the improve-quality prompt — exactly what would have happened
+  // before this feature existed.
+  const dismissVideoQualityCheck = async () => {
+    const pending = pendingVideoQualityCheck;
+    if (!pending) return;
+    setPendingVideoQualityCheck(null);
+    if (pending.forChoice === 'upload') {
+      await continueWithSource({ creative_source: 'upload', reference_image_url: pending.url, is_video: true });
+    } else {
+      setMedia({ source: 'upload', url: pending.url, isVideo: true, label: pending.file.name });
+    }
+  };
+
+  // "Improve it" — hand the raw file off to the parent (Video Polish needs a fresh
+  // upload, not a URL) and remember which thread to come back to. The parent
+  // switches pages; this component just waits for pendingResumeVideo below.
+  const requestVideoPolishForPending = async () => {
+    const pending = pendingVideoQualityCheck;
+    if (!pending || !onRequestVideoPolish) return;
+    setPendingVideoQualityCheck(null);
+    const threadId = await ensureThread();
+    onRequestVideoPolish(pending.file, threadId);
+  };
+
+  // Coming back from Video Polish with a finished clip — resume the exact thread
+  // it was requested from and continue exactly as a normal video upload would,
+  // now that the client has actually chosen to use this result.
+  useEffect(() => {
+    if (!pendingResumeVideo) return;
+    (async () => {
+      await openThread(pendingResumeVideo.threadId);
+      await continueWithSource({
+        creative_source: 'upload',
+        reference_image_url: pendingResumeVideo.url,
+        is_video: true,
+      });
+      onResumeVideoConsumed?.();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingResumeVideo]);
 
   const openDrafts = async () => {
     setDraftsOpen((v) => !v);
@@ -791,6 +860,43 @@ export default function CampaignsPage({}: CampaignsPageProps) {
                 <JaneBubble>
                   <TypingDots />
                 </JaneBubble>
+              )}
+              {pendingVideoQualityCheck && (
+                <div>
+                  <JaneBubble>Want to improve this video&apos;s quality before using it?</JaneBubble>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
+                    <button
+                      onClick={requestVideoPolishForPending}
+                      style={{
+                        background: `linear-gradient(135deg,${PINK},#8E1545)`,
+                        border: 'none',
+                        color: '#fff',
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✨ Improve it
+                    </button>
+                    <button
+                      onClick={dismissVideoQualityCheck}
+                      style={{
+                        background: '#fff',
+                        border: `1.5px solid ${PINK}`,
+                        color: PINK,
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Use as-is
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
             <div

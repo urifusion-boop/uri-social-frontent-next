@@ -770,6 +770,8 @@ const ContentManagerPage = ({
   janeGenerating,
   onAcceptJaneMessage,
   onDeclineJaneMessage,
+  videoPolishHandoff,
+  onReturnToCampaignFromPolish,
 }: {
   onJane: () => void;
   isMobile?: boolean;
@@ -778,6 +780,9 @@ const ContentManagerPage = ({
   janeGenerating: boolean;
   onAcceptJaneMessage: () => void;
   onDeclineJaneMessage: () => void;
+  // Jane Ads video-quality hand-off — see the note by videoTab's useEffect below.
+  videoPolishHandoff?: { file: File; returnThreadId: string } | null;
+  onReturnToCampaignFromPolish?: (url: string) => void;
 }) => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
@@ -828,7 +833,19 @@ const ContentManagerPage = ({
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
-  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
+  const [videoTab, setVideoTab] = useState<
+    'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat' | 'polish'
+  >('chat');
+  // Jane Ads hand-off (upload a video in a campaign -> optionally improve its
+  // quality here -> come back to that exact thread). Not a visible nav tab —
+  // reached only via onRequestVideoPolish below, same as every other video tool
+  // here that's deliberately hidden from the tab bar for now.
+  useEffect(() => {
+    if (videoPolishHandoff) {
+      setActiveTab('video');
+      setVideoTab('polish');
+    }
+  }, [videoPolishHandoff]);
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
   // Keep JaneVideoChat mounted after first visit so in-progress sessions survive tab switches
   const [janeEverMounted, setJaneEverMounted] = useState(false);
@@ -1545,6 +1562,13 @@ const ContentManagerPage = ({
               />
             )}
             {videoTab === 'submagic' && <SubmagicProductionForm onSaveToDrafts={() => setActiveTab('drafts')} />}
+            {videoTab === 'polish' && (
+              <VideoPolishForm
+                initialFile={videoPolishHandoff?.file}
+                onPolishComplete={() => setActiveTab('drafts')}
+                onUseInCampaign={onReturnToCampaignFromPolish}
+              />
+            )}
             {videoTab === 'zapcap' && (
               <ZapCapProductionForm
                 sourceUrl={pendingProduceUrl}
@@ -8499,6 +8523,31 @@ export default function WorkspaceDashboard() {
     [router]
   );
 
+  // Jane Ads video-quality hand-off: a video uploaded in a campaign thread can be
+  // sent here for polishing, then the finished clip comes back to that exact
+  // thread. Lives at this level because it bridges two independent top-level
+  // pages (campaigns <-> schedule/Video Polish), neither of which otherwise
+  // knows about the other.
+  const [videoPolishHandoff, setVideoPolishHandoff] = useState<{ file: File; returnThreadId: string } | null>(null);
+  const [pendingResumeVideo, setPendingResumeVideo] = useState<{ threadId: string; url: string } | null>(null);
+
+  const handleRequestVideoPolish = useCallback(
+    (file: File, threadId: string) => {
+      setVideoPolishHandoff({ file, returnThreadId: threadId });
+      goTo('schedule');
+    },
+    [goTo]
+  );
+
+  const handleReturnToCampaignFromPolish = useCallback(
+    (url: string) => {
+      if (videoPolishHandoff) setPendingResumeVideo({ threadId: videoPolishHandoff.returnThreadId, url });
+      setVideoPolishHandoff(null);
+      goTo('campaigns');
+    },
+    [videoPolishHandoff, goTo]
+  );
+
   const closeTour = useCallback(
     (navigate = false) => {
       setTourOpen(false);
@@ -8826,11 +8875,20 @@ export default function WorkspaceDashboard() {
         janeGenerating={janeGenerating}
         onAcceptJaneMessage={handleAcceptJaneMessage}
         onDeclineJaneMessage={handleDeclineJaneMessage}
+        videoPolishHandoff={videoPolishHandoff}
+        onReturnToCampaignFromPolish={handleReturnToCampaignFromPolish}
       />
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
-    campaigns: <CampaignsPage onJane={goWorkspace} />,
+    campaigns: (
+      <CampaignsPage
+        onJane={goWorkspace}
+        onRequestVideoPolish={handleRequestVideoPolish}
+        pendingResumeVideo={pendingResumeVideo}
+        onResumeVideoConsumed={() => setPendingResumeVideo(null)}
+      />
+    ),
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
