@@ -835,17 +835,15 @@ const ContentManagerPage = ({
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
   const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
   // Jane Ads hand-off (upload a video in a campaign -> optionally improve its
-  // quality here -> come back to that exact thread). Lands on Submagic, not
-  // Video Polish — Video Polish wraps Reap, which has a hard 2-minute minimum
-  // baked into that vendor's own API (not ours to relax); Submagic has no such
-  // floor and is built for exactly this ("take one clip I already have and
-  // caption/edit it"), not Reap's job of extracting clips from long footage.
-  // Not a visible nav tab — reached only via onRequestVideoPolish below, same
-  // as every other video tool here that's deliberately hidden from the tab bar.
+  // quality here -> come back to that exact thread). Lands on JaneVideoChat
+  // ('chat', already the default tab) — confirmed this is the tool actually in
+  // use; Video Polish (Reap) and Submagic were both considered and ruled out
+  // (Reap has a hard 2-minute minimum baked into that vendor's API; Submagic
+  // isn't the tool this product actually uses for video production).
   useEffect(() => {
     if (videoPolishHandoff) {
       setActiveTab('video');
-      setVideoTab('submagic');
+      setVideoTab('chat');
     }
   }, [videoPolishHandoff]);
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
@@ -1491,7 +1489,14 @@ const ContentManagerPage = ({
         {/* JaneVideoChat keep-alive: mounted once, hidden with CSS when not active */}
         {janeEverMounted && (
           <div style={{ display: isJaneActive ? undefined : 'none' }}>
-            <JaneVideoChat onSaveToDrafts={() => setActiveTab('drafts')} isMobile={isMobile} />
+            <JaneVideoChat
+              onSaveToDrafts={() => setActiveTab('drafts')}
+              isMobile={isMobile}
+              // Both undefined outside the Jane Ads hand-off, so this chat's
+              // normal flow renders exactly as it always has.
+              initialFile={videoPolishHandoff?.file}
+              onUseInCampaign={videoPolishHandoff ? onReturnToCampaignFromPolish : undefined}
+            />
           </div>
         )}
 
@@ -1563,15 +1568,7 @@ const ContentManagerPage = ({
                 }}
               />
             )}
-            {videoTab === 'submagic' && (
-              <SubmagicProductionForm
-                onSaveToDrafts={() => setActiveTab('drafts')}
-                // Both undefined outside the Jane Ads hand-off, so this engineer's
-                // existing Submagic flow renders exactly as it always has.
-                initialFile={videoPolishHandoff?.file}
-                onUseInCampaign={videoPolishHandoff ? onReturnToCampaignFromPolish : undefined}
-              />
-            )}
+            {videoTab === 'submagic' && <SubmagicProductionForm onSaveToDrafts={() => setActiveTab('drafts')} />}
             {videoTab === 'zapcap' && (
               <ZapCapProductionForm
                 sourceUrl={pendingProduceUrl}

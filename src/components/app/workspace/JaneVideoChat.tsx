@@ -82,6 +82,13 @@ interface HistMsg {
 interface Props {
   onSaveToDrafts?: () => void;
   isMobile?: boolean;
+  // Jane Ads hand-off: seed the picker with an already-chosen file, exactly as if
+  // the user had just attached it in this chat.
+  initialFile?: File;
+  // Shown as an extra action alongside "Save to drafts" once a video is ready,
+  // only when this chat was opened from that hand-off — calls back with the
+  // finished video's URL so the caller can resume wherever the video came from.
+  onUseInCampaign?: (url: string) => void;
 }
 
 // ── Style templates ───────────────────────────────────────────────────────────
@@ -772,7 +779,7 @@ function AdjustPanel({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Props) {
+export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initialFile, onUseInCampaign }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const composePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -967,6 +974,21 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
     },
     [addMsg]
   );
+
+  // Jane Ads hand-off — the file arrives already chosen, so accept it exactly as
+  // if the user had just attached it. Unlike Video Polish/Submagic, this chat is
+  // kept mounted across tab switches (see the "keep-alive" comment where it's
+  // rendered) rather than remounted fresh each time — a plain mount-only effect
+  // would silently miss a hand-off that arrives after the chat already mounted
+  // from an earlier visit, so this reacts to initialFile changing instead, guarded
+  // against re-accepting the same file twice.
+  const acceptedInitialFileRef = useRef<File | null>(null);
+  useEffect(() => {
+    if (initialFile && acceptedInitialFileRef.current !== initialFile) {
+      acceptedInitialFileRef.current = initialFile;
+      acceptFiles([initialFile]);
+    }
+  }, [initialFile, acceptFiles]);
 
   // ── Classify ───────────────────────────────────────────────────────────────
 
@@ -2638,6 +2660,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false }: Prop
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <TapBtn label={isSaving ? 'Saving…' : 'Save to drafts'} primary onClick={handleSaveToDrafts} />
+            {onUseInCampaign && outputUrl && (
+              <TapBtn label="↩ Use in my ad" onClick={() => onUseInCampaign(outputUrl)} />
+            )}
             <TapBtn
               label="Fix something"
               onClick={() => {

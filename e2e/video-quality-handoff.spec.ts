@@ -1,15 +1,15 @@
 /**
  * Playwright e2e — the video-upload "improve quality?" hand-off: uploading a video
- * in a Jane Ads conversation, choosing to improve it, landing on Submagic with the
- * file already loaded (no re-picking), and returning to the exact same thread with
- * the produced result once the client picks "Use in my ad".
+ * in a Jane Ads conversation, choosing to improve it, landing on JaneVideoChat with
+ * the file already accepted (no re-picking), walking the real classify -> intent ->
+ * plan -> render flow, and returning to the exact same thread with the produced
+ * result once the client picks "Use in my ad".
  *
- * Lands on Submagic, not Video Polish (Reap) — Reap has a hard 2-minute minimum
- * baked into that vendor's own API (live-confirmed: a real ~90s ad clip got
- * rejected server-side even after the frontend's own pre-check was bypassed, since
- * the limit isn't ours to relax). Submagic has no such floor and is built for
- * exactly this job (caption/edit one clip you already have), not Reap's job of
- * extracting clips from long raw footage.
+ * Lands on JaneVideoChat ('chat', already the default Video sub-tab) — confirmed
+ * this is the tool actually in production use. Two earlier guesses were wrong and
+ * corrected before this one: Video Polish wraps Reap, which has a hard 2-minute
+ * minimum baked into that vendor's own API (not ours to relax); Submagic isn't the
+ * tool this product actually uses for video production either.
  *
  * Runs against a LOCAL dev server on this branch (npm run dev). Auth is faked and
  * every backend call is mocked, so the run is deterministic and never touches real
@@ -64,7 +64,7 @@ async function mockBackend(page: Page) {
     r.fulfill({ json: { url: 'https://fake-cdn.test/uploaded-ad-clip.mp4', is_video: true } })
   );
 
-  // Plenty of credits, so Submagic's own insufficient-credits gate never blocks submit.
+  // Plenty of credits, so JaneVideoChat's own insufficient-credits gate never blocks render.
   await page.route('**/social-media/billing/credits/balance', (r) =>
     r.fulfill({
       json: {
@@ -77,11 +77,13 @@ async function mockBackend(page: Page) {
     })
   );
 
-  // Submagic.
-  await page.route('**/submagic-produce', (r) =>
+  // ZapCap (what JaneVideoChat actually renders through).
+  await page.route('**/zapcap-templates', (r) => r.fulfill({ json: { responseData: { templates: [] } } }));
+  await page.route('**/zapcap-produce', (r) =>
     r.request().method() === 'POST' ? r.fulfill({ json: { responseData: { job_id: 'job_test' } } }) : r.fallback()
   );
-  await page.route('**/submagic-job/**', (r) =>
+  await page.route('**/zapcap-job/*/transcript', (r) => r.fulfill({ json: { responseData: { words: [] } } }));
+  await page.route('**/zapcap-job/**', (r) =>
     r.fulfill({
       json: {
         responseData: {
@@ -120,7 +122,7 @@ async function mockBackend(page: Page) {
   );
 }
 
-test('upload a video -> improve quality -> Submagic -> use in my ad -> resumes the thread', async ({ page }) => {
+test('upload a video -> improve quality -> JaneVideoChat -> use in my ad -> resumes the thread', async ({ page }) => {
   await fakeAuth(page);
   await mockBackend(page);
   await page.goto('/workspace/?tab=campaigns');
@@ -136,17 +138,20 @@ test('upload a video -> improve quality -> Submagic -> use in my ad -> resumes t
 
   await page.getByRole('button', { name: /Improve it/i }).click();
 
-  // Landed on Submagic, file already loaded — no re-picking. It renders a preview
-  // player for the already-accepted file rather than showing the filename as text.
-  await expect(page.getByRole('button', { name: 'Produce with Submagic' })).toBeVisible({ timeout: 10000 });
-  await expect(page.locator('video[src^="blob:"]').first()).toBeVisible();
+  // Landed on JaneVideoChat, file already accepted — shows up as the first chat
+  // bubble exactly as if the user had just attached it themselves.
+  await expect(page.getByText('"test-ad-clip.mp4"')).toBeVisible({ timeout: 10000 });
 
-  await page.getByRole('button', { name: 'Produce with Submagic' }).click();
+  // Classify -> Intent -> Plan, same real flow as any normal upload.
+  await page.getByRole('button', { name: 'Me talking to camera' }).click();
+  await page.getByRole('button', { name: 'Sell a product' }).click();
+  await expect(page.getByRole('button', { name: 'Looks good, make it' })).toBeVisible({ timeout: 10000 });
+  await page.getByRole('button', { name: 'Looks good, make it' }).click();
 
   // Job resolves to 'completed' on the very first poll (mocked) — the finished
-  // video and the "Use in my ad" action both appear.
+  // video and the "Use in my ad" action both appear alongside Save to drafts.
   const useInAd = page.getByRole('button', { name: /Use in my ad/i });
-  await expect(useInAd).toBeVisible({ timeout: 15000 });
+  await expect(useInAd).toBeVisible({ timeout: 20000 });
   await useInAd.click();
 
   // Back on Campaigns, thread resumed, continuing with the produced clip.
