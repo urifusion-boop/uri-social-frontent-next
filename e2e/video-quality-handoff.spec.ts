@@ -1,8 +1,15 @@
 /**
  * Playwright e2e — the video-upload "improve quality?" hand-off: uploading a video
- * in a Jane Ads conversation, choosing to improve it, landing on Video Polish with
- * the file already loaded (no re-picking, no 2-minute floor), and returning to the
- * exact same thread with the polished result once the client picks "Use in my ad".
+ * in a Jane Ads conversation, choosing to improve it, landing on Submagic with the
+ * file already loaded (no re-picking), and returning to the exact same thread with
+ * the produced result once the client picks "Use in my ad".
+ *
+ * Lands on Submagic, not Video Polish (Reap) — Reap has a hard 2-minute minimum
+ * baked into that vendor's own API (live-confirmed: a real ~90s ad clip got
+ * rejected server-side even after the frontend's own pre-check was bypassed, since
+ * the limit isn't ours to relax). Submagic has no such floor and is built for
+ * exactly this job (caption/edit one clip you already have), not Reap's job of
+ * extracting clips from long raw footage.
  *
  * Runs against a LOCAL dev server on this branch (npm run dev). Auth is faked and
  * every backend call is mocked, so the run is deterministic and never touches real
@@ -57,57 +64,30 @@ async function mockBackend(page: Page) {
     r.fulfill({ json: { url: 'https://fake-cdn.test/uploaded-ad-clip.mp4', is_video: true } })
   );
 
-  // Video Polish.
-  await page.route('**/video-polish-styles', (r) =>
+  // Plenty of credits, so Submagic's own insufficient-credits gate never blocks submit.
+  await page.route('**/social-media/billing/credits/balance', (r) =>
     r.fulfill({
       json: {
-        responseData: [
-          {
-            name: 'clean_professional',
-            display_name: 'Clean & Professional',
-            description: 'Minimal, polished look.',
-            best_for: 'Ads, product demos',
-            energy_level: 2,
-            good_for_intents: ['ads'],
-          },
-        ],
+        total_credits: 10000,
+        credits_used: 0,
+        credits_remaining: 10000,
+        subscription_tier: 'standard',
+        next_renewal: null,
       },
     })
   );
-  await page.route('**/video-polish-caption-presets', (r) => r.fulfill({ json: { responseData: [] } }));
-  await page.route('**/polish-video', (r) =>
+
+  // Submagic.
+  await page.route('**/submagic-produce', (r) =>
     r.request().method() === 'POST' ? r.fulfill({ json: { responseData: { job_id: 'job_test' } } }) : r.fallback()
   );
-  await page.route('**/polish-video-job/**', (r) =>
+  await page.route('**/submagic-job/**', (r) =>
     r.fulfill({
       json: {
         responseData: {
-          job_id: 'job_test',
-          user_id: 'u_test',
-          style_preset: 'clean_professional',
-          language_setting: 'en-NG',
-          status: 'ready',
-          status_message: 'Done',
-          progress: 100,
-          source_video_url: 'https://fake-cdn.test/uploaded-ad-clip.mp4',
-          source_duration_seconds: 1,
-          source_quality_flags: {},
-          output_clips: [
-            {
-              clip_id: 'clip_1',
-              clip_url: 'https://fake-cdn.test/polished-ad-clip.mp4',
-              captioned_clip_url: 'https://fake-cdn.test/polished-ad-clip-captioned.mp4',
-              duration: 1,
-              title: 'Polished clip',
-              virality_score: 0,
-              hook: '',
-              transcript: '',
-              caption_text: '',
-            },
-          ],
-          credits_charged: 1,
-          user_action: 'pending',
-          created_at: '',
+          status: 'completed',
+          output_url: 'https://fake-cdn.test/produced-ad-clip.mp4',
+          failure_reason: null,
         },
       },
     })
@@ -127,7 +107,7 @@ async function mockBackend(page: Page) {
           platforms: [{ platform: 'meta', budget_ngn: 5000, days: 3, variants: 1, test_scope: 'none' }],
         },
         creative: {
-          image_url: 'https://fake-cdn.test/polished-ad-clip-captioned.mp4',
+          image_url: 'https://fake-cdn.test/produced-ad-clip.mp4',
           is_video: true,
           headline: 'Fresh Lunch',
           primary_text: 'Hot meals near you.',
@@ -140,7 +120,7 @@ async function mockBackend(page: Page) {
   );
 }
 
-test('upload a video -> improve quality -> polish -> use in my ad -> resumes the thread', async ({ page }) => {
+test('upload a video -> improve quality -> Submagic -> use in my ad -> resumes the thread', async ({ page }) => {
   await fakeAuth(page);
   await mockBackend(page);
   await page.goto('/workspace/?tab=campaigns');
@@ -156,18 +136,19 @@ test('upload a video -> improve quality -> polish -> use in my ad -> resumes the
 
   await page.getByRole('button', { name: /Improve it/i }).click();
 
-  // Landed on Video Polish, file already loaded — no picker, no 2-minute floor.
-  await expect(page.getByRole('heading', { name: 'Polish My Video' })).toBeVisible({ timeout: 10000 });
-  await expect(page.getByText('test-ad-clip.mp4')).toBeVisible();
+  // Landed on Submagic, file already loaded — no re-picking. It renders a preview
+  // player for the already-accepted file rather than showing the filename as text.
+  await expect(page.getByRole('button', { name: 'Produce with Submagic' })).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('video[src^="blob:"]').first()).toBeVisible();
 
-  await page.getByRole('button', { name: /Polish My Video ✨/i }).click();
+  await page.getByRole('button', { name: 'Produce with Submagic' }).click();
 
-  // Job resolves to 'ready' on the very first poll (mocked) — the finished clip
-  // and the "Use in my ad" action both appear.
+  // Job resolves to 'completed' on the very first poll (mocked) — the finished
+  // video and the "Use in my ad" action both appear.
   const useInAd = page.getByRole('button', { name: /Use in my ad/i });
   await expect(useInAd).toBeVisible({ timeout: 15000 });
   await useInAd.click();
 
-  // Back on Campaigns, thread resumed, continuing with the polished clip.
+  // Back on Campaigns, thread resumed, continuing with the produced clip.
   await expect(page.getByRole('heading', { name: 'Campaigns' })).toBeVisible({ timeout: 10000 });
 });

@@ -833,17 +833,19 @@ const ContentManagerPage = ({
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
-  const [videoTab, setVideoTab] = useState<
-    'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat' | 'polish'
-  >('chat');
+  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
   // Jane Ads hand-off (upload a video in a campaign -> optionally improve its
-  // quality here -> come back to that exact thread). Not a visible nav tab —
-  // reached only via onRequestVideoPolish below, same as every other video tool
-  // here that's deliberately hidden from the tab bar for now.
+  // quality here -> come back to that exact thread). Lands on Submagic, not
+  // Video Polish — Video Polish wraps Reap, which has a hard 2-minute minimum
+  // baked into that vendor's own API (not ours to relax); Submagic has no such
+  // floor and is built for exactly this ("take one clip I already have and
+  // caption/edit it"), not Reap's job of extracting clips from long footage.
+  // Not a visible nav tab — reached only via onRequestVideoPolish below, same
+  // as every other video tool here that's deliberately hidden from the tab bar.
   useEffect(() => {
     if (videoPolishHandoff) {
       setActiveTab('video');
-      setVideoTab('polish');
+      setVideoTab('submagic');
     }
   }, [videoPolishHandoff]);
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
@@ -1561,12 +1563,13 @@ const ContentManagerPage = ({
                 }}
               />
             )}
-            {videoTab === 'submagic' && <SubmagicProductionForm onSaveToDrafts={() => setActiveTab('drafts')} />}
-            {videoTab === 'polish' && (
-              <VideoPolishForm
+            {videoTab === 'submagic' && (
+              <SubmagicProductionForm
+                onSaveToDrafts={() => setActiveTab('drafts')}
+                // Both undefined outside the Jane Ads hand-off, so this engineer's
+                // existing Submagic flow renders exactly as it always has.
                 initialFile={videoPolishHandoff?.file}
-                onPolishComplete={() => setActiveTab('drafts')}
-                onUseInCampaign={onReturnToCampaignFromPolish}
+                onUseInCampaign={videoPolishHandoff ? onReturnToCampaignFromPolish : undefined}
               />
             )}
             {videoTab === 'zapcap' && (
