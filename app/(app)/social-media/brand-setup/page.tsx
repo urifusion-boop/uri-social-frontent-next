@@ -1194,14 +1194,49 @@ function BrandSetupPageContent() {
                 <FieldLabel>Brand Colors</FieldLabel>
                 <ColorPicker colors={colors} onChange={setColors} primary={primary} />
                 {colors.length > 0 && (
-                  <Box display="flex" gap={1} alignItems="center" mt={1.5}>
+                  <Box display="flex" gap={1} alignItems="center" flexWrap="wrap" mt={1.5}>
                     {colors.map((c) => (
                       <Box
                         key={c}
-                        sx={{ width: 26, height: 26, borderRadius: '6px', background: c, border: '1px solid #E0DEF7' }}
+                        component="button"
+                        type="button"
+                        onClick={() => setColors(colors.filter((x) => x !== c))}
+                        title={`Remove ${c}`}
+                        sx={{
+                          position: 'relative',
+                          width: 26,
+                          height: 26,
+                          borderRadius: '6px',
+                          background: c,
+                          border: '1px solid #E0DEF7',
+                          flexShrink: 0,
+                          cursor: 'pointer',
+                          p: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          '&:hover::after': { opacity: 1 },
+                          '&::after': {
+                            content: '"×"',
+                            position: 'absolute',
+                            inset: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '6px',
+                            background: 'rgba(0,0,0,0.45)',
+                            color: '#fff',
+                            fontSize: 15,
+                            fontWeight: 700,
+                            opacity: 0,
+                            transition: 'opacity 0.15s',
+                          },
+                        }}
                       />
                     ))}
-                    <Typography sx={{ fontSize: 11.5, color: '#9CA3AF' }}>Your brand palette</Typography>
+                    <Typography sx={{ fontSize: 11.5, color: '#9CA3AF' }}>
+                      Your brand palette (click to remove)
+                    </Typography>
                   </Box>
                 )}
               </Grid>
