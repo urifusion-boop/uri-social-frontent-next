@@ -80,10 +80,20 @@ async function mockBackend(page: Page) {
   );
   await page.route('**/jane-ads/threads/*/history', (r) => {
     const url = r.request().url();
-    const marker = url.includes('thr_video') ? 'VIDEO_THREAD_MARKER' : 'SALES_THREAD_MARKER';
-    r.fulfill({
-      json: { messages: [{ message_id: `m_${marker}`, role: 'jane', kind: 'text', text: marker }] },
-    });
+    // thr_video carries a real prior USER turn ("brief"), same as the real bug: the
+    // client typed what they wanted before uploading the video. This is what
+    // openThread rebuilds into a brief on reopen — a jane-only marker wouldn't
+    // exercise that path (sinceResolved only counts role:'user' turns), which is
+    // exactly why the earlier version of this test didn't catch the stale-briefSoFar
+    // bug: it only checked the right thread reopened, never that resuming actually
+    // continued the plan with it.
+    const messages = url.includes('thr_video')
+      ? [
+          { message_id: 'm_video_brief', role: 'user', kind: 'text', text: 'Ad for my hot lunch delivery' },
+          { message_id: 'm_video_marker', role: 'jane', kind: 'text', text: 'VIDEO_THREAD_MARKER' },
+        ]
+      : [{ message_id: 'm_sales_marker', role: 'jane', kind: 'text', text: 'SALES_THREAD_MARKER' }];
+    r.fulfill({ json: { messages } });
   });
   await page.route('**/jane-ads/chat/history**', (r) =>
     r.fulfill({ json: r.request().method() === 'GET' ? { messages: [] } : { ok: true } })
@@ -178,8 +188,16 @@ test('resuming a video hand-off reopens the originating thread, not the generic 
   await useInAd.click();
 
   // Back on Campaigns: the resumed thread's history must still be what's showing —
-  // this is the exact assertion that would have failed before the fix, since the
-  // generic "reopen threads[0]" effect would have clobbered it back to thr_sales.
+  // this is the assertion the race fix alone satisfies (the generic "reopen
+  // threads[0]" effect would otherwise have clobbered it back to thr_sales).
   await expect(page.getByRole('heading', { name: 'Campaigns' })).toBeVisible({ timeout: 10000 });
   await expect(page.getByText('VIDEO_THREAD_MARKER')).toBeVisible({ timeout: 10000 });
+
+  // And the resume must have actually continued the plan with the produced video —
+  // this is the assertion that catches the separate stale-briefSoFar-closure bug:
+  // continueWithSource silently no-ops on an empty brief, and briefSoFar's update
+  // from openThread hadn't flushed into a re-render yet when the resume effect,
+  // captured on the stale pre-openThread render, called it. Without passing
+  // openThread's returned brief through explicitly, this never appears.
+  await expect(page.getByText('Fresh Lunch').first()).toBeVisible({ timeout: 10000 });
 });

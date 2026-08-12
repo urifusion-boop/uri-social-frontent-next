@@ -279,7 +279,12 @@ export default function CampaignsPage({
   };
 
   // Open a thread: load its saved messages into the chat, oldest first, after the greeting.
-  const openThread = useCallback(async (threadId: string) => {
+  // Returns the rebuilt brief — callers that need to act on it immediately (the video
+  // hand-off resume below) can't rely on reading `briefSoFar` right after awaiting this:
+  // that state update from setBriefSoFar hasn't flushed yet, so continueWithSource would
+  // still see whatever briefSoFar was BEFORE this call (empty, on a fresh mount) via its
+  // stale closure — silently no-opping since it bails out on an empty brief.
+  const openThread = useCallback(async (threadId: string): Promise<string> => {
     selectThreadId(threadId);
     setMedia(null);
     setBriefSoFar('');
@@ -287,6 +292,7 @@ export default function CampaignsPage({
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
     setMessages([makeGreeting()]);
+    let rebuiltBrief = '';
     try {
       const saved = await CampaignService.getThreadHistory(threadId);
       if (saved.length) {
@@ -311,11 +317,15 @@ export default function CampaignsPage({
         // can still follow), so accumulate user turns since the last LAUNCH, not the last plan.
         const lastResolved = saved.map((s) => s.kind === 'result' && s.result?.stage === 'launched').lastIndexOf(true);
         const sinceResolved = saved.slice(lastResolved + 1).filter((s) => s.role === 'user');
-        if (sinceResolved.length) setBriefSoFar(sinceResolved.map((s) => s.text).join('. '));
+        if (sinceResolved.length) {
+          rebuiltBrief = sinceResolved.map((s) => s.text).join('. ');
+          setBriefSoFar(rebuiltBrief);
+        }
       }
     } catch {
       /* couldn't load — just the greeting */
     }
+    return rebuiltBrief;
   }, []);
 
   // '+ New' — start a fresh campaign thread and a clean chat.
@@ -558,9 +568,14 @@ export default function CampaignsPage({
       // Recomposite (creative brief spec §7.2): the real product photo, background
       // regenerated around it via the same content-engine pipeline organic posts
       // use — image-only, no is_video (the backend has no video recomposite path).
-      | { creative_source: 'recomposite'; reference_image_url: string }
+      | { creative_source: 'recomposite'; reference_image_url: string },
+    // Explicit override for callers that just rebuilt the brief via openThread's
+    // return value and can't wait for that setBriefSoFar to flush into a re-render —
+    // reading the briefSoFar closure here would still see its pre-openThread value.
+    briefOverride?: string
   ) => {
-    if (busy || !briefSoFar) return;
+    const brief = briefOverride ?? briefSoFar;
+    if (busy || !brief) return;
     creativeChoiceRef.current = choice.creative_source;
     const pendingVariants = pendingVariantsRef.current;
     pendingVariantsRef.current = null;
@@ -569,7 +584,7 @@ export default function CampaignsPage({
       const variants = pendingVariants ? pendingVariants.variants : [null];
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
-          message: briefSoFar,
+          message: brief,
           thread_id: activeThreadRef.current ?? undefined,
           ...(variant ? { selected_plan_variant: variant, variant_group_id: pendingVariants!.variantGroupId } : {}),
           ...choice,
@@ -699,12 +714,19 @@ export default function CampaignsPage({
   useEffect(() => {
     if (!pendingResumeVideo) return;
     (async () => {
-      await openThread(pendingResumeVideo.threadId);
-      await continueWithSource({
-        creative_source: 'upload',
-        reference_image_url: pendingResumeVideo.url,
-        is_video: true,
-      });
+      // openThread's setBriefSoFar hasn't flushed to a re-render yet at this point —
+      // continueWithSource would still read the pre-openThread (empty, on a fresh
+      // mount) briefSoFar via its stale closure and silently no-op. Use openThread's
+      // returned brief explicitly instead.
+      const brief = await openThread(pendingResumeVideo.threadId);
+      await continueWithSource(
+        {
+          creative_source: 'upload',
+          reference_image_url: pendingResumeVideo.url,
+          is_video: true,
+        },
+        brief
+      );
       onResumeVideoConsumed?.();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
