@@ -930,6 +930,30 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async generateVoiceoverScript(payload: {
+    source_url: string;
+    purpose: string;
+    user_note?: string;
+  }): Promise<UriResponse<{ script: string }>> {
+    const fd = new FormData();
+    fd.append('source_url', payload.source_url);
+    fd.append('purpose', payload.purpose);
+    if (payload.user_note) fd.append('user_note', payload.user_note);
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.videoVoiceoverScript, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    });
+    return response.data;
+  }
+
+  static async produceVoiceover(formData: FormData): Promise<UriResponse<{ job_id: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.videoVoiceoverProduce, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000,
+    });
+    return response.data;
+  }
+
   static async rerenderZapCapJob(
     jobId: string,
     payload: { word_edits: { id: string; text: string }[]; template_id?: string; enable_broll?: boolean }

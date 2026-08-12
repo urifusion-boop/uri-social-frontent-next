@@ -23,9 +23,11 @@ type Stage =
   | 'cleanup'
   | 'caption_edit'
   | 'broll_edit'
+  | 'voiceover'
   | 'publish';
 
 type BrollConvStep = 'choose' | 'upload' | 'place' | 'confirm';
+type VoiceoverConvStep = 'offer' | 'script' | 'record';
 type BrollClipTag = 'product' | 'lifestyle' | 'talking' | 'other';
 
 interface BrollClipEntry {
@@ -855,6 +857,20 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
   // are kept outside the plan too).
   const [musicFile, setMusicFile] = useState<File | null>(null);
 
+  // Voiceover (MVP — no semantic shot-alignment yet, see the approved plan).
+  const [voiceoverStep, setVoiceoverStep] = useState<VoiceoverConvStep>('offer');
+  const [voiceoverScript, setVoiceoverScript] = useState('');
+  const [voiceoverNote, setVoiceoverNote] = useState('');
+  const [loadingVoiceoverScript, setLoadingVoiceoverScript] = useState(false);
+  const [voiceoverBlob, setVoiceoverBlob] = useState<Blob | null>(null);
+  const [voiceoverFileName, setVoiceoverFileName] = useState('');
+  const [voiceoverKeepOriginal, setVoiceoverKeepOriginal] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [voiceoverError, setVoiceoverError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceoverChunksRef = useRef<Blob[]>([]);
+  const voiceoverInputRef = useRef<HTMLInputElement>(null);
+
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<
     {
@@ -1626,6 +1642,96 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
       setStage('preview');
     } finally {
       setIsApplyingBroll(false);
+    }
+  };
+
+  // ── Voiceover (MVP — no semantic shot-alignment yet) ────────────────────────
+
+  const fetchVoiceoverScript = async () => {
+    setLoadingVoiceoverScript(true);
+    try {
+      const res = await SocialMediaAgentService.generateVoiceoverScript({
+        source_url: outputUrl || stitchedUrl || '',
+        purpose: plan?.purpose || 'general',
+      });
+      setVoiceoverScript(res?.responseData?.script || '');
+    } catch {
+      setVoiceoverScript('');
+    } finally {
+      setLoadingVoiceoverScript(false);
+      setVoiceoverStep('script');
+    }
+  };
+
+  const startVoiceRecording = async () => {
+    setVoiceoverError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      voiceoverChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) voiceoverChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(voiceoverChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        setVoiceoverBlob(blob);
+        setVoiceoverFileName('');
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecordingVoice(true);
+    } catch {
+      setVoiceoverError(
+        "Couldn't access your microphone — check your browser permissions, or upload a voice note instead."
+      );
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecordingVoice(false);
+  };
+
+  const handleSubmitVoiceover = async () => {
+    if (!voiceoverBlob || (!outputUrl && !stitchedUrl)) return;
+    addMsg('user', 'Here is my voiceover');
+    addMsg('jane', "On it — I'm cleaning it up and rebuilding your video with your voice.");
+    setStage('render');
+    setRenderProgress(5);
+    setRenderStatus('pending');
+
+    const fd = new FormData();
+    fd.append('source_url', outputUrl || stitchedUrl || '');
+    fd.append(
+      'voiceover_audio',
+      voiceoverBlob,
+      voiceoverFileName || `voiceover.${voiceoverBlob.type.includes('webm') ? 'webm' : 'm4a'}`
+    );
+    fd.append('keep_original_audio', String(voiceoverKeepOriginal));
+    fd.append('template_id', plan?.style?.id || zapCapTemplates[0]?.id || 'beast');
+    fd.append('caption_style', 'bold');
+    fd.append('enable_broll', String(plan?.brollEnabled && plan?.classification !== 'product'));
+
+    try {
+      const res = await SocialMediaAgentService.produceVoiceover(fd);
+      const id = res?.responseData?.job_id;
+      if (!id) throw new Error('No job ID returned');
+      setZapCapJobId(id);
+      setCaptionWords([]);
+      setCaptionEdits({});
+      EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 1, operation: 'zapcap_produce' });
+      startPolling(id);
+    } catch (err) {
+      const axiosErr = err as { response?: { status?: number; data?: { responseMessage?: string } } };
+      setRenderError(
+        axiosErr?.response?.status === 402
+          ? axiosErr.response?.data?.responseMessage || 'You do not have enough credits to add a voiceover.'
+          : err instanceof Error
+            ? err.message
+            : 'Voiceover mix failed — try again.'
+      );
+      setStage('preview');
     }
   };
 
@@ -2701,6 +2807,20 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
                 fn: handleCutSilences,
               },
               {
+                label: 'Add voice',
+                desc: 'Record or upload a voiceover — turns a silent video into one with real narration',
+                fn: () => {
+                  addMsg('user', 'Add voice');
+                  setVoiceoverStep('offer');
+                  setVoiceoverScript('');
+                  setVoiceoverNote('');
+                  setVoiceoverBlob(null);
+                  setVoiceoverFileName('');
+                  setVoiceoverError(null);
+                  setStage('voiceover');
+                },
+              },
+              {
                 label: 'Caption text',
                 desc: 'Edit specific words or lines',
                 fn: () => {
@@ -3336,6 +3456,219 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
       }
 
       return null;
+    }
+
+    // ── VOICEOVER ──────────────────────────────────────────────────────────
+    if (stage === 'voiceover') {
+      if (voiceoverStep === 'offer') {
+        return (
+          <div>
+            <JaneBubble text="Want to add your voice? A real voiceover usually sells better than music alone — and it lets me caption and clean up the video properly too." />
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <TapBtn label="Add my voice" primary onClick={fetchVoiceoverScript} />
+              <TapBtn
+                label="Never mind"
+                onClick={() => {
+                  addMsg('user', 'Never mind');
+                  setStage('cleanup');
+                }}
+              />
+            </div>
+          </div>
+        );
+      }
+
+      if (voiceoverStep === 'script') {
+        return (
+          <div>
+            {loadingVoiceoverScript ? (
+              <JaneBubble text="Writing you a script based on your video and brand voice…" />
+            ) : (
+              <>
+                <JaneBubble text="Here's what I'd say — feel free to change it, or ignore it and say your own thing:" />
+                <textarea
+                  value={voiceoverScript}
+                  onChange={(e) => setVoiceoverScript(e.target.value)}
+                  rows={6}
+                  style={{
+                    width: '100%',
+                    marginTop: 10,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${BORDER}`,
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                  }}
+                />
+                <div style={{ marginTop: 10 }}>
+                  <SectionLabel text="Anything specific you want said (price, offer, etc.)? Optional." />
+                  <input
+                    type="text"
+                    value={voiceoverNote}
+                    onChange={(e) => setVoiceoverNote(e.target.value)}
+                    placeholder="e.g. ₦12,000, I deliver around Yaba"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: `1.5px solid ${BORDER}`,
+                      fontSize: 13,
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                  <TapBtn label="Record" primary onClick={() => setVoiceoverStep('record')} />
+                  <TapBtn
+                    label="Give me different words"
+                    onClick={async () => {
+                      setLoadingVoiceoverScript(true);
+                      const res = await SocialMediaAgentService.generateVoiceoverScript({
+                        source_url: outputUrl || stitchedUrl || '',
+                        purpose: plan?.purpose || 'general',
+                        user_note: voiceoverNote,
+                      });
+                      setVoiceoverScript(res?.responseData?.script || '');
+                      setLoadingVoiceoverScript(false);
+                    }}
+                  />
+                  <TapBtn
+                    label="I'll say my own thing"
+                    onClick={() => {
+                      setVoiceoverScript('');
+                      setVoiceoverStep('record');
+                    }}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        );
+      }
+
+      // record
+      return (
+        <div>
+          <JaneBubble text="Just talk — don't worry about matching the timing or making mistakes. I'll cut them out." />
+          {voiceoverScript && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: '#F9FAFB',
+                border: `1px solid ${BORDER}`,
+                fontSize: 12,
+                color: '#374151',
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {voiceoverScript}
+            </div>
+          )}
+
+          {plan?.classification !== 'product' && (
+            <div style={{ marginTop: 12 }}>
+              <SectionLabel text="Original video sound" />
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Mute it — just my voice', value: false },
+                  { label: 'Keep it low, under my voice', value: true },
+                ].map((o) => (
+                  <button
+                    key={o.label}
+                    onClick={() => setVoiceoverKeepOriginal(o.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 9,
+                      border: `1.5px solid ${voiceoverKeepOriginal === o.value ? PINK : BORDER}`,
+                      background: voiceoverKeepOriginal === o.value ? LIGHT_PINK : '#fff',
+                      color: voiceoverKeepOriginal === o.value ? PINK : '#374151',
+                      fontSize: 13,
+                      fontWeight: voiceoverKeepOriginal === o.value ? 600 : 400,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {!voiceoverBlob ? (
+              <>
+                <button
+                  onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
+                  style={{
+                    padding: '14px 18px',
+                    borderRadius: 10,
+                    border: `1.5px solid ${isRecordingVoice ? '#DC2626' : PINK}`,
+                    background: isRecordingVoice ? '#FEF2F2' : LIGHT_PINK,
+                    color: isRecordingVoice ? '#DC2626' : PINK,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isRecordingVoice ? '⏹ Stop recording' : '🎙 Start recording'}
+                </button>
+                <div style={{ fontSize: 12, color: GRAY, textAlign: 'center' }}>or</div>
+                <button
+                  onClick={() => voiceoverInputRef.current?.click()}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 9,
+                    border: `1.5px solid ${BORDER}`,
+                    background: '#fff',
+                    color: '#374151',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  + Upload a voice note
+                </button>
+                <input
+                  ref={voiceoverInputRef}
+                  type="file"
+                  accept="audio/*,.ogg,.oga,.m4a,.mp3,.wav,.aac,.opus"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    if (f.size > 50 * 1024 * 1024) {
+                      ToastService.showToast('Voice note must be under 50MB.', ToastTypeEnum.Error);
+                      return;
+                    }
+                    setVoiceoverBlob(f);
+                    setVoiceoverFileName(f.name);
+                    e.target.value = '';
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <audio controls src={URL.createObjectURL(voiceoverBlob)} style={{ width: '100%' }} />
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <TapBtn label="Use this voiceover" primary onClick={handleSubmitVoiceover} />
+                  <TapBtn
+                    label="Re-record"
+                    onClick={() => {
+                      setVoiceoverBlob(null);
+                      setVoiceoverFileName('');
+                    }}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          {voiceoverError && <div style={{ marginTop: 10, fontSize: 12, color: '#DC2626' }}>{voiceoverError}</div>}
+        </div>
+      );
     }
 
     // ── PUBLISH ────────────────────────────────────────────────────────────
