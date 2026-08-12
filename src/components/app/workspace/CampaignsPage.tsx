@@ -19,16 +19,21 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 const PINK = '#C2185B';
 
+// A chosen (but not yet built) multi-plan audience selection — see pendingVariantsRef
+// below. Threaded through the video hand-off below because it lives in a ref that
+// gets wiped when this component unmounts for the hand-off and remounts on return.
+type PendingVariants = { variants: PlanVariant[]; variantGroupId: string };
+
 interface CampaignsPageProps {
   onJane?: () => void;
   // Video quality hand-off (redirect to Video Polish, come back with the result):
   // asks the parent to switch pages and start a polish job for this file, returning
   // to this exact thread when done. Optional — omitted entirely, this page just
   // skips the "improve quality?" prompt and behaves as it always has.
-  onRequestVideoPolish?: (file: File, threadId: string) => void;
+  onRequestVideoPolish?: (file: File, threadId: string, pendingVariants?: PendingVariants) => void;
   // Set by the parent once a polish job finishes and the user chose to use the
   // result — this page picks it back up as if the user had just uploaded it.
-  pendingResumeVideo?: { threadId: string; url: string } | null;
+  pendingResumeVideo?: { threadId: string; url: string; pendingVariants?: PendingVariants } | null;
   onResumeVideoConsumed?: () => void;
 }
 
@@ -170,7 +175,7 @@ export default function CampaignsPage({
   // source for one or more selected variants (continueWithVariants asks first,
   // same as the normal flow, instead of silently auto-generating). Consumed and
   // cleared by continueWithSource once a source is chosen.
-  const pendingVariantsRef = useRef<{ variants: PlanVariant[]; variantGroupId: string } | null>(null);
+  const pendingVariantsRef = useRef<PendingVariants | null>(null);
   // The audience the client ALREADY chose, kept for the whole campaign — not consumed
   // like pendingVariantsRef above. Live-reported loop: after picking an audience, any
   // typed reply (e.g. answering Jane's own "which areas in Ikeja?" question) went
@@ -700,12 +705,20 @@ export default function CampaignsPage({
   // "Improve it" — hand the raw file off to the parent (Video Polish needs a fresh
   // upload, not a URL) and remember which thread to come back to. The parent
   // switches pages; this component just waits for pendingResumeVideo below.
+  // Live-reported bug: this component unmounts for the hand-off (a fresh
+  // CampaignsPage instance mounts on return, wiping pendingVariantsRef) — if the
+  // client had already picked an audience plan before uploading the video, that
+  // choice was silently lost and the resumed build came back with NO
+  // selected_plan_variant, which the backend reads as "nothing chosen yet" and
+  // answers by generating a fresh set of plans instead of building the ad with the
+  // video — pass the pending variants through explicitly so they survive the
+  // remount, same as the brief already does.
   const requestVideoPolishForPending = async () => {
     const pending = pendingVideoQualityCheck;
     if (!pending || !onRequestVideoPolish) return;
     setPendingVideoQualityCheck(null);
     const threadId = await ensureThread();
-    onRequestVideoPolish(pending.file, threadId);
+    onRequestVideoPolish(pending.file, threadId, pendingVariantsRef.current ?? undefined);
   };
 
   // Coming back from Video Polish with a finished clip — resume the exact thread
@@ -719,6 +732,15 @@ export default function CampaignsPage({
       // mount) briefSoFar via its stale closure and silently no-op. Use openThread's
       // returned brief explicitly instead.
       const brief = await openThread(pendingResumeVideo.threadId);
+      // openThread just reset both refs above — restore the pre-hand-off audience
+      // choice, if there was one, before continueWithSource reads pendingVariantsRef.
+      if (pendingResumeVideo.pendingVariants) {
+        pendingVariantsRef.current = pendingResumeVideo.pendingVariants;
+        chosenVariantRef.current = {
+          variant: pendingResumeVideo.pendingVariants.variants[0],
+          variantGroupId: pendingResumeVideo.pendingVariants.variantGroupId,
+        };
+      }
       await continueWithSource(
         {
           creative_source: 'upload',

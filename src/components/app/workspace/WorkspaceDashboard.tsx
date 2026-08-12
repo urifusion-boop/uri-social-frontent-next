@@ -22,7 +22,7 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import ContentCalendarTab from '@/src/components/app/social-media/ContentCalendarTab';
 import { LinkedInPagesData, PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
-import { CampaignService } from '@/src/api/CampaignService';
+import { CampaignService, PlanVariant } from '@/src/api/CampaignService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -762,6 +762,13 @@ interface PostItem {
 ═══════════════════════════════════════════════════════════════════════════ */
 type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
 
+// A chosen (but not yet built) multi-plan audience selection from CampaignsPage —
+// mirrors that file's own PendingVariants type. Threaded through here because it
+// lives in a CampaignsPage-local ref that gets wiped when that page unmounts for
+// the video-quality hand-off and remounts on return.
+type PendingVariants = { variants: PlanVariant[]; variantGroupId: string };
+type VideoPolishHandoff = { file: File; returnThreadId: string; pendingVariants?: PendingVariants };
+
 const ContentManagerPage = ({
   onJane,
   isMobile = false,
@@ -781,7 +788,7 @@ const ContentManagerPage = ({
   onAcceptJaneMessage: () => void;
   onDeclineJaneMessage: () => void;
   // Jane Ads video-quality hand-off — see the note by videoTab's useEffect below.
-  videoPolishHandoff?: { file: File; returnThreadId: string } | null;
+  videoPolishHandoff?: VideoPolishHandoff | null;
   onReturnToCampaignFromPolish?: (url: string) => void;
 }) => {
   const router = useRouter();
@@ -8552,13 +8559,22 @@ export default function WorkspaceDashboard() {
   // sent here for polishing, then the finished clip comes back to that exact
   // thread. Lives at this level because it bridges two independent top-level
   // pages (campaigns <-> schedule/Video Polish), neither of which otherwise
-  // knows about the other.
-  const [videoPolishHandoff, setVideoPolishHandoff] = useState<{ file: File; returnThreadId: string } | null>(null);
-  const [pendingResumeVideo, setPendingResumeVideo] = useState<{ threadId: string; url: string } | null>(null);
+  // knows about the other. CampaignsPage unmounts for the trip and remounts on
+  // return — pendingVariants (an already-chosen but not-yet-built audience plan)
+  // carries through here because it lives in a CampaignsPage-local ref that the
+  // remount would otherwise wipe, silently dropping the client's choice and making
+  // the resumed build fall back to generating a fresh set of plans instead of
+  // using the video for the ad they'd already started building.
+  const [videoPolishHandoff, setVideoPolishHandoff] = useState<VideoPolishHandoff | null>(null);
+  const [pendingResumeVideo, setPendingResumeVideo] = useState<{
+    threadId: string;
+    url: string;
+    pendingVariants?: PendingVariants;
+  } | null>(null);
 
   const handleRequestVideoPolish = useCallback(
-    (file: File, threadId: string) => {
-      setVideoPolishHandoff({ file, returnThreadId: threadId });
+    (file: File, threadId: string, pendingVariants?: PendingVariants) => {
+      setVideoPolishHandoff({ file, returnThreadId: threadId, pendingVariants });
       goTo('schedule');
     },
     [goTo]
@@ -8566,7 +8582,12 @@ export default function WorkspaceDashboard() {
 
   const handleReturnToCampaignFromPolish = useCallback(
     (url: string) => {
-      if (videoPolishHandoff) setPendingResumeVideo({ threadId: videoPolishHandoff.returnThreadId, url });
+      if (videoPolishHandoff)
+        setPendingResumeVideo({
+          threadId: videoPolishHandoff.returnThreadId,
+          url,
+          pendingVariants: videoPolishHandoff.pendingVariants,
+        });
       setVideoPolishHandoff(null);
       goTo('campaigns');
     },
