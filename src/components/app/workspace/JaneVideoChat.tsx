@@ -863,6 +863,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
   const [voiceoverNote, setVoiceoverNote] = useState('');
   const [loadingVoiceoverScript, setLoadingVoiceoverScript] = useState(false);
   const [voiceoverBlob, setVoiceoverBlob] = useState<Blob | null>(null);
+  const [voiceoverPreviewUrl, setVoiceoverPreviewUrl] = useState<string | null>(null);
   const [voiceoverFileName, setVoiceoverFileName] = useState('');
   const [voiceoverKeepOriginal, setVoiceoverKeepOriginal] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -870,6 +871,21 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceoverChunksRef = useRef<Blob[]>([]);
   const voiceoverInputRef = useRef<HTMLInputElement>(null);
+
+  // A fresh object URL must NOT be created inline in render — any unrelated
+  // re-render (this file polls several things in the background) would swap the
+  // <audio> element's src to a new URL mid-playback, which the browser treats as
+  // an entirely different resource and stops playback wherever the re-render
+  // happened to land. Create it once per blob instead, and revoke the old one.
+  useEffect(() => {
+    if (!voiceoverBlob) {
+      setVoiceoverPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(voiceoverBlob);
+    setVoiceoverPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [voiceoverBlob]);
 
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<
@@ -3651,7 +3667,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
               </>
             ) : (
               <>
-                <audio controls src={URL.createObjectURL(voiceoverBlob)} style={{ width: '100%' }} />
+                {voiceoverPreviewUrl && <audio controls src={voiceoverPreviewUrl} style={{ width: '100%' }} />}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <TapBtn label="Use this voiceover" primary onClick={handleSubmitVoiceover} />
                   <TapBtn
