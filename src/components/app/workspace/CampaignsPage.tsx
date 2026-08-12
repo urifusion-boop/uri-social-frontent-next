@@ -227,12 +227,15 @@ export default function CampaignsPage({
   // On mount, load the brand's campaign threads (the rail) and reopen the most recent —
   // so a reload lands back in the last conversation rather than a blank greeting. If the
   // brand has no threads yet, we leave the greeting and create one lazily on first send.
+  // Skipped when a video hand-off is resuming (below): that effect owns which thread
+  // opens in that case, and racing both against each other let this one silently win
+  // and clobber the resumed thread back to whatever was most recently touched.
   useEffect(() => {
     (async () => {
       try {
         const list = await CampaignService.listThreads();
         setThreads(list);
-        if (list.length) await openThread(list[0].thread_id);
+        if (list.length && !pendingResumeVideo) await openThread(list[0].thread_id);
       } catch {
         /* start fresh */
       }
