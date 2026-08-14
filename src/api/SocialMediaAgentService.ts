@@ -954,6 +954,34 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async adjustBrandOverlay(payload: {
+    job_id: string;
+    logo_position: string;
+    logo_timing: string;
+    contact_source: string;
+    custom_contact_text?: string;
+    contact_position: string;
+    contact_timing: string;
+  }): Promise<UriResponse<{ output_url: string }>> {
+    const fd = new FormData();
+    Object.entries(payload).forEach(([k, v]) => {
+      if (v !== undefined) fd.append(k, String(v));
+    });
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.videoBrandOverlayAdjust, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+    return response.data;
+  }
+
+  static async getVideoFrame(videoUrl: string, seconds: number): Promise<string> {
+    const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.videoFrame, {
+      params: { video_url: videoUrl, t: seconds },
+      responseType: 'blob',
+    });
+    return URL.createObjectURL(response.data);
+  }
+
   static async rerenderZapCapJob(
     jobId: string,
     payload: { word_edits: { id: string; text: string }[]; template_id?: string; enable_broll?: boolean }

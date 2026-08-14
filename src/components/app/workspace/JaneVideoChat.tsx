@@ -9,6 +9,7 @@ import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
 import VideoCostPreview from '@/src/components/app/workspace/VideoCostPreview';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { BrandTooltip } from '@/src/components/app/workspace/BrandTooltip';
+import { BrandProfileService } from '@/src/api/BrandProfileService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ type Stage =
   | 'caption_edit'
   | 'broll_edit'
   | 'voiceover'
+  | 'brand_overlay_edit'
   | 'publish';
 
 type BrollConvStep = 'choose' | 'upload' | 'place' | 'confirm';
@@ -45,7 +47,16 @@ interface BrollPlacement {
 type CaptionWord = { id: string; text: string; start_time: number; end_time: number };
 type Classification = 'talking_head' | 'product' | 'mixed';
 type Purpose = 'sell' | 'teach' | 'announce' | 'general';
-type AdjustField = 'style' | 'captions' | 'trim' | 'broll' | 'music' | 'hookText' | 'length' | 'format';
+type AdjustField =
+  | 'style'
+  | 'captions'
+  | 'trim'
+  | 'broll'
+  | 'music'
+  | 'hookText'
+  | 'length'
+  | 'format'
+  | 'brandOverlay';
 
 interface StyleTemplate {
   id: string;
@@ -73,6 +84,13 @@ interface VideoPlan {
   hookTextColor: string;
   targetLength: 'auto' | '15s' | '30s' | '60s';
   aspectRatio: '9:16' | '16:9' | '1:1';
+  brandOverlayEnabled: boolean;
+  logoPosition: 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right';
+  logoTiming: 'whole' | 'end' | 'start';
+  contactSource: 'whatsapp' | 'whatsapp_prefixed' | 'website' | 'custom' | 'none';
+  customContactText: string;
+  contactPosition: 'bottom_center' | 'top_center';
+  contactTiming: 'end' | 'whole' | 'last_few';
 }
 
 interface HistMsg {
@@ -113,7 +131,7 @@ const PLACEHOLDER_STYLE: StyleTemplate = {
   accent: TEMPLATE_PALETTE[0].accent,
 };
 
-function defaultPlan(c: Classification, p: Purpose): VideoPlan {
+function defaultPlan(c: Classification, p: Purpose, hasLogo: boolean = false): VideoPlan {
   const isTalking = c !== 'product';
   return {
     classification: c,
@@ -132,6 +150,15 @@ function defaultPlan(c: Classification, p: Purpose): VideoPlan {
     hookTextColor: '#ffffff',
     targetLength: 'auto',
     aspectRatio: '9:16',
+    // Most clients want their branding on their video and shouldn't have to ask
+    // for it — on by default whenever a logo is already on file.
+    brandOverlayEnabled: hasLogo,
+    logoPosition: 'top_left',
+    logoTiming: 'whole',
+    contactSource: 'whatsapp',
+    customContactText: '',
+    contactPosition: 'bottom_center',
+    contactTiming: 'end',
   };
 }
 
@@ -393,6 +420,130 @@ function StylePreviewThumb({ style }: { style: StyleTemplate }) {
   );
 }
 
+// ── Brand overlay: position picker over a real frame ───────────────────────────
+// Vertical video (9:16) has real platform UI covering the bottom band and right
+// edge (captions/buttons on TikTok & Reels) — bottom-right is usually the worst
+// spot, even though it's the one people instinctively reach for. This is a
+// static, per-aspect-ratio lookup, not detection — just enough to nudge once.
+const RISKY_LOGO_POSITIONS: Record<string, string[]> = {
+  '9:16': ['bottom_right'],
+};
+
+type LogoPos = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right';
+
+function LogoPositionPicker({
+  videoSourceUrl,
+  aspectRatio,
+  position,
+  onPick,
+}: {
+  videoSourceUrl?: string | null;
+  aspectRatio: string;
+  position: LogoPos;
+  onPick: (pos: LogoPos) => void;
+}) {
+  const [frameUrl, setFrameUrl] = useState<string | null>(null);
+  const [pendingRisky, setPendingRisky] = useState<LogoPos | null>(null);
+
+  useEffect(() => {
+    if (!videoSourceUrl) return;
+    let cancelled = false;
+    SocialMediaAgentService.getVideoFrame(videoSourceUrl, 1)
+      .then((url) => {
+        if (!cancelled) setFrameUrl(url);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [videoSourceUrl]);
+
+  const positions: { key: LogoPos; style: React.CSSProperties }[] = [
+    { key: 'top_left', style: { top: 10, left: 10 } },
+    { key: 'top_right', style: { top: 10, right: 10 } },
+    { key: 'bottom_left', style: { bottom: 10, left: 10 } },
+    { key: 'bottom_right', style: { bottom: 10, right: 10 } },
+  ];
+
+  const handleTap = (pos: LogoPos) => {
+    if ((RISKY_LOGO_POSITIONS[aspectRatio] || []).includes(pos) && pos !== position) {
+      setPendingRisky(pos);
+    } else {
+      onPick(pos);
+    }
+  };
+
+  return (
+    <div>
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 220,
+          aspectRatio: aspectRatio === '9:16' ? '9/16' : aspectRatio === '1:1' ? '1/1' : '16/9',
+          borderRadius: 10,
+          overflow: 'hidden',
+          background: '#111',
+          margin: '0 auto',
+        }}
+      >
+        {frameUrl && (
+          <img src={frameUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        )}
+        {positions.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => handleTap(p.key)}
+            style={{
+              position: 'absolute',
+              ...p.style,
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              border: `2px solid ${position === p.key ? PINK : '#fff'}`,
+              background: position === p.key ? PINK : 'rgba(0,0,0,0.35)',
+              cursor: 'pointer',
+            }}
+            aria-label={p.key}
+          />
+        ))}
+      </div>
+      {pendingRisky && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: '10px 12px',
+            borderRadius: 8,
+            background: '#FFF7ED',
+            border: '1px solid #FDBA74',
+            fontSize: 12,
+            color: '#9A3412',
+          }}
+        >
+          That corner usually gets covered by TikTok/Reels' buttons — a safer spot is available. Want me to move it?
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <TapBtn
+              label="Move it"
+              primary
+              onClick={() => {
+                onPick('top_left');
+                setPendingRisky(null);
+              }}
+            />
+            <TapBtn
+              label="Leave it there"
+              onClick={() => {
+                onPick(pendingRisky);
+                setPendingRisky(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Adjust field pickers ──────────────────────────────────────────────────────
 
 function AdjustPanel({
@@ -404,6 +555,10 @@ function AdjustPanel({
   isMobile = false,
   musicFile,
   onMusicFileChange,
+  videoSourceUrl,
+  brandLogoUrl,
+  brandName,
+  cancelLabel = '← Back to plan',
 }: {
   field: AdjustField;
   plan: VideoPlan;
@@ -413,6 +568,10 @@ function AdjustPanel({
   isMobile?: boolean;
   musicFile: File | null;
   onMusicFileChange: (f: File | null) => void;
+  videoSourceUrl?: string | null;
+  brandLogoUrl?: string | null;
+  brandName?: string;
+  cancelLabel?: string;
 }) {
   const musicInputRef = useRef<HTMLInputElement>(null);
 
@@ -745,6 +904,123 @@ function AdjustPanel({
           </>
         );
 
+      case 'brandOverlay':
+        return (
+          <div>
+            {section(
+              'Show your branding',
+              <>
+                {opt('On', plan.brandOverlayEnabled, () => onApply({ brandOverlayEnabled: true }, false))}
+                {opt('Off', !plan.brandOverlayEnabled, () => onApply({ brandOverlayEnabled: false }))}
+              </>
+            )}
+            {plan.brandOverlayEnabled && (
+              <>
+                {!brandLogoUrl && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      background: '#F9FAFB',
+                      border: `1px solid ${BORDER}`,
+                      fontSize: 11,
+                      color: GRAY,
+                    }}
+                  >
+                    No logo on file — I&apos;ll show your business name in your brand colour instead. Add a logo in
+                    Brand Playbook any time.
+                  </div>
+                )}
+
+                <div style={{ marginTop: 14 }}>
+                  <SectionLabel text={brandLogoUrl ? 'Logo position' : 'Name position'} />
+                  <LogoPositionPicker
+                    videoSourceUrl={videoSourceUrl}
+                    aspectRatio={plan.aspectRatio}
+                    position={plan.logoPosition}
+                    onPick={(pos) => onApply({ logoPosition: pos }, false)}
+                  />
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <SectionLabel text={brandLogoUrl ? 'Logo timing' : 'Name timing'} />
+                  {section(
+                    '',
+                    <>
+                      {opt('Whole video', plan.logoTiming === 'whole', () => onApply({ logoTiming: 'whole' }, false))}
+                      {opt('First few seconds', plan.logoTiming === 'start', () =>
+                        onApply({ logoTiming: 'start' }, false)
+                      )}
+                      {opt('End only', plan.logoTiming === 'end', () => onApply({ logoTiming: 'end' }, false))}
+                    </>
+                  )}
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <SectionLabel text="Contact" />
+                  {section(
+                    '',
+                    <>
+                      {opt('WhatsApp number', plan.contactSource === 'whatsapp', () =>
+                        onApply({ contactSource: 'whatsapp' }, false)
+                      )}
+                      {opt('"Message us" + number', plan.contactSource === 'whatsapp_prefixed', () =>
+                        onApply({ contactSource: 'whatsapp_prefixed' }, false)
+                      )}
+                      {opt('Website', plan.contactSource === 'website', () =>
+                        onApply({ contactSource: 'website' }, false)
+                      )}
+                      {opt('Custom', plan.contactSource === 'custom', () =>
+                        onApply({ contactSource: 'custom' }, false)
+                      )}
+                      {opt('None', plan.contactSource === 'none', () => onApply({ contactSource: 'none' }, false))}
+                    </>
+                  )}
+                </div>
+
+                {plan.contactSource === 'custom' && (
+                  <div style={{ marginTop: 10 }}>
+                    <input
+                      type="text"
+                      value={plan.customContactText}
+                      onChange={(e) => onApply({ customContactText: e.target.value }, false)}
+                      placeholder="e.g. Free delivery in Yaba"
+                      maxLength={40}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: `1.5px solid ${BORDER}`,
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                  </div>
+                )}
+
+                {plan.contactSource !== 'none' && (
+                  <div style={{ marginTop: 14 }}>
+                    <SectionLabel text="Contact timing" />
+                    {section(
+                      '',
+                      <>
+                        {opt('End only', plan.contactTiming === 'end', () => onApply({ contactTiming: 'end' }, false))}
+                        {opt('Whole video', plan.contactTiming === 'whole', () =>
+                          onApply({ contactTiming: 'whole' }, false)
+                        )}
+                        {opt('Last few seconds', plan.contactTiming === 'last_few', () =>
+                          onApply({ contactTiming: 'last_few' }, false)
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+
       default:
         return null;
     }
@@ -773,7 +1049,7 @@ function AdjustPanel({
           padding: 0,
         }}
       >
-        ← Back to plan
+        {cancelLabel}
       </button>
     </div>
   );
@@ -924,10 +1200,24 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
   const [publishPlatforms, setPublishPlatforms] = useState<string[]>([]);
   const [publishCaption, setPublishCaption] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isAdjustingBrandOverlay, setIsAdjustingBrandOverlay] = useState(false);
+
+  // Brand overlay — logo/name pre-filled from the playbook, never asked for
+  // fresh. Fetched once on mount so defaultPlan() can turn the overlay on by
+  // default the moment a logo is on file.
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(null);
+  const [brandName, setBrandName] = useState('');
 
   useEffect(() => {
     SocialMediaAgentService.getZapCapTemplates()
       .then((r) => setZapCapTemplates(r?.responseData?.templates ?? []))
+      .catch(() => {});
+    BrandProfileService.get()
+      .then((r) => {
+        const data = r?.responseData;
+        setBrandLogoUrl(data?.logo_url || null);
+        setBrandName(data?.brand_name || '');
+      })
       .catch(() => {});
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -1034,7 +1324,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
 
   const handleIntent = (purpose: Purpose, label: string) => {
     addMsg('user', label);
-    const p = defaultPlan(classification, purpose);
+    const p = defaultPlan(classification, purpose, !!brandLogoUrl);
     // Apply the first real ZapCap template immediately if already loaded
     if (styledTemplates.length > 0) {
       p.style = styledTemplates[0];
@@ -1234,6 +1524,17 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
         fd.append('custom_hook_text', plan.hookTextCustom.trim());
       }
       fd.append('hook_text_color', plan.hookTextColor);
+    }
+    fd.append('enable_brand_overlay', String(plan.brandOverlayEnabled));
+    if (plan.brandOverlayEnabled) {
+      fd.append('logo_position', plan.logoPosition);
+      fd.append('logo_timing', plan.logoTiming);
+      fd.append('contact_source', plan.contactSource);
+      if (plan.contactSource === 'custom') {
+        fd.append('custom_contact_text', plan.customContactText.trim());
+      }
+      fd.append('contact_position', plan.contactPosition);
+      fd.append('contact_timing', plan.contactTiming);
     }
 
     try {
@@ -1751,6 +2052,36 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
     }
   };
 
+  // ── Brand overlay post-render adjustment (compositing-only, no re-render) ───
+
+  const handleAdjustBrandOverlay = async () => {
+    if (!plan || !zapCapJobId) return;
+    setIsAdjustingBrandOverlay(true);
+    try {
+      const res = await SocialMediaAgentService.adjustBrandOverlay({
+        job_id: zapCapJobId,
+        logo_position: plan.logoPosition,
+        logo_timing: plan.logoTiming,
+        contact_source: plan.contactSource,
+        custom_contact_text: plan.customContactText,
+        contact_position: plan.contactPosition,
+        contact_timing: plan.contactTiming,
+      });
+      if (res?.responseData?.output_url) {
+        setOutputUrl(res.responseData.output_url);
+        addMsg('jane', "Updated — here's the new version 👇");
+      } else {
+        throw new Error('No output returned');
+      }
+    } catch {
+      ToastService.showToast('Could not update the overlay — try again.', ToastTypeEnum.Error);
+    } finally {
+      setIsAdjustingBrandOverlay(false);
+      setAdjustField(null);
+      setStage('preview');
+    }
+  };
+
   // ── Save to drafts ─────────────────────────────────────────────────────────
 
   const handleSaveToDrafts = async () => {
@@ -1982,6 +2313,11 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
               ? 'your track, replacing your voice'
               : 'your track, under your voice',
         hookTextLabel: !plan.hookTextEnabled ? 'off' : plan.hookTextCustom ? 'custom text' : 'AI-generated',
+        brandOverlayLabel: !plan.brandOverlayEnabled
+          ? 'off'
+          : plan.contactSource === 'none'
+            ? 'logo only'
+            : 'logo & contact',
         lengthLabel: plan.targetLength === 'auto' ? 'auto (no limit)' : plan.targetLength,
         formatLabel:
           plan.aspectRatio === '9:16'
@@ -2478,6 +2814,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
               isMobile={isMobile}
               musicFile={musicFile}
               onMusicFileChange={setMusicFile}
+              videoSourceUrl={stitchedUrl || videoPreviewUrl}
+              brandLogoUrl={brandLogoUrl}
+              brandName={brandName}
             />
           </div>
         );
@@ -2571,6 +2910,13 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
               field="hookText"
               onAdjust={setAdjustField}
               tooltip="A short line of text shown on screen for the first ~2.5 seconds to grab attention. Leave it on AI-generated or type your own."
+            />
+            <PlanRow
+              label="Your logo & number"
+              value={planLabels.brandOverlayLabel}
+              field="brandOverlay"
+              onAdjust={setAdjustField}
+              tooltip="Burns your logo and a contact line (like your WhatsApp number) into the video in a corner you pick, timed so it doesn't get covered by platform buttons."
             />
             <PlanRow
               label="Length"
@@ -2834,6 +3180,15 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
                   setVoiceoverFileName('');
                   setVoiceoverError(null);
                   setStage('voiceover');
+                },
+              },
+              {
+                label: 'Logo & number',
+                desc: 'Move or change your logo and contact overlay — no full re-render',
+                fn: () => {
+                  addMsg('user', 'Logo & number');
+                  setAdjustField('brandOverlay');
+                  setStage('brand_overlay_edit');
                 },
               },
               {
@@ -3683,6 +4038,39 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
           </div>
 
           {voiceoverError && <div style={{ marginTop: 10, fontSize: 12, color: '#DC2626' }}>{voiceoverError}</div>}
+        </div>
+      );
+    }
+
+    // ── BRAND OVERLAY EDIT (post-render, compositing-only) ──────────────────
+    if (stage === 'brand_overlay_edit' && plan) {
+      return (
+        <div>
+          <JaneBubble text="Move or change your logo and contact overlay — this recomposites the finished video, not a full re-render." />
+          <AdjustPanel
+            field="brandOverlay"
+            plan={plan}
+            onApply={applyAdjust}
+            onCancel={() => {
+              setAdjustField(null);
+              setStage('preview');
+            }}
+            styleTemplates={styledTemplates}
+            isMobile={isMobile}
+            musicFile={musicFile}
+            onMusicFileChange={setMusicFile}
+            videoSourceUrl={outputUrl}
+            brandLogoUrl={brandLogoUrl}
+            brandName={brandName}
+            cancelLabel="← Back without changes"
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            <TapBtn
+              label={isAdjustingBrandOverlay ? 'Applying…' : 'Apply'}
+              primary
+              onClick={handleAdjustBrandOverlay}
+            />
+          </div>
         </div>
       );
     }

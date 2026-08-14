@@ -91,7 +91,9 @@ type ISocialMediaAgentApi =
   | 'zapcapTemplates'
   | 'multiClipAnalyze'
   | 'videoVoiceoverScript'
-  | 'videoVoiceoverProduce';
+  | 'videoVoiceoverProduce'
+  | 'videoBrandOverlayAdjust'
+  | 'videoFrame';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -182,6 +184,8 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   zapcapJob: '/zapcap-job',
   videoVoiceoverScript: '/video-voiceover/script',
   videoVoiceoverProduce: '/video-voiceover/produce',
+  videoBrandOverlayAdjust: '/video-brand-overlay/adjust',
+  videoFrame: '/video-frame',
   zapcapTemplates: '/zapcap-templates',
   multiClipAnalyze: '/multi-clip/job',
 };
