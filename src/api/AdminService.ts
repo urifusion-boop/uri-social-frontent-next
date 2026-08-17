@@ -17,6 +17,7 @@ export interface AdminUser {
   trial_start?: string;
   trial_end?: string;
   credits_balance?: number;
+  is_admin?: boolean;
 }
 
 export interface AdminUserDetails extends AdminUser {
@@ -68,6 +69,27 @@ export interface EmailExport {
   email: string;
   name: string;
   registered_at: string;
+}
+
+export interface CreditAdjustResponse {
+  user_id: string;
+  credits_balance: number;
+  bonus_credits: number;
+  total_credits: number;
+}
+
+export interface TrialAdjustResponse {
+  is_trial: boolean;
+  trial_active: boolean;
+  trial_start_date?: string;
+  trial_end_date?: string;
+  trial_credits?: number;
+  credits_remaining: number;
+  days_remaining?: number;
+  hours_remaining?: number;
+  trial_expired: boolean;
+  trial_already_used: boolean;
+  low_credit_warning?: boolean;
 }
 
 export class AdminService {
@@ -125,9 +147,67 @@ export class AdminService {
   }
 
   /**
-   * Check if current user is admin
+   * Adjust a user's credit balance by a signed amount (positive grants,
+   * negative claws back). Floored at 0 server-side.
    */
-  static isAdmin(userEmail?: string | null): boolean {
-    return userEmail === 'urisocialingsight@gmail.com';
+  static async adjustUserCredits(userId: string, amount: number, reason?: string): Promise<CreditAdjustResponse> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/credits/adjust`, {
+      amount,
+      reason,
+    });
+    return response.data;
+  }
+
+  /**
+   * Adjust a user's remaining trial credits by a signed amount. Floored at 0 server-side.
+   */
+  static async adjustUserTrialCredits(userId: string, amount: number, reason?: string): Promise<TrialAdjustResponse> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/trial/adjust`, {
+      amount,
+      reason,
+    });
+    return response.data;
+  }
+
+  /**
+   * Force-expire a user's trial (credits_remaining=0, trial_used=true).
+   */
+  static async expireUserTrial(userId: string): Promise<TrialAdjustResponse> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/trial/expire`);
+    return response.data;
+  }
+
+  /**
+   * Grant admin access to a user. Caller must already be an admin — enforced
+   * server-side, not just by hiding the button.
+   */
+  static async grantAdmin(userId: string): Promise<{ user_id: string; is_admin: boolean }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/admin/grant`);
+    return response.data;
+  }
+
+  /**
+   * Revoke a user's admin access. The backend rejects revoking your own
+   * access (self-lockout guard), regardless of what the UI allows.
+   */
+  static async revokeAdmin(userId: string): Promise<{ user_id: string; is_admin: boolean }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/admin/revoke`);
+    return response.data;
+  }
+
+  /**
+   * Ask the backend whether the CURRENT logged-in user is an admin — the
+   * source of truth for nav visibility. Admin status is DB-driven (grantable
+   * via grantAdmin/revokeAdmin) plus the env-configured bootstrap allowlist,
+   * neither of which the frontend can determine on its own, so this can't be
+   * a synchronous client-side check.
+   */
+  static async checkIsAdmin(): Promise<boolean> {
+    try {
+      const response = await UriHttpClient.getClient().get('/api/admin/me');
+      return !!response.data?.is_admin;
+    } catch {
+      return false;
+    }
   }
 }

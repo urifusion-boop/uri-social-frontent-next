@@ -139,7 +139,7 @@ interface AdminUsersPageProps {
 }
 
 export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
-  const { userDetails } = useAuth();
+  const { isAdminUser, isAdminStatusPending } = useAuth();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<'stats' | 'all-users' | 'recent'>('stats');
@@ -157,14 +157,14 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [recentDays, setRecentDays] = useState(7);
 
-  // Check if user is admin
-  const isAdmin = AdminService.isAdmin(userDetails?.email);
-
   useEffect(() => {
-    if (!isAdmin) {
+    // Wait for the backend-verified admin check to resolve before redirecting —
+    // isAdminUser defaults to false while it's in flight, and redirecting on
+    // that transient false would kick out a real admin on every page refresh.
+    if (!isAdminStatusPending && !isAdminUser) {
       router.push('/workspace');
     }
-  }, [isAdmin, router]);
+  }, [isAdminUser, isAdminStatusPending, router]);
 
   // Load stats on mount
   useEffect(() => {
@@ -235,6 +235,15 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
     }
   };
 
+  // Patches the modal's user AND the underlying list row so both stay in sync
+  // with a credit/trial adjustment, rather than only updating local optimistic
+  // state that a fresh getUserDetails() call would then contradict.
+  const handleUserUpdated = (userId: string, updates: Partial<AdminUser>) => {
+    setSelectedUser((prev) => (prev && prev.id === userId ? { ...prev, ...updates } : prev));
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updates } : u)));
+    setRecentUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updates } : u)));
+  };
+
   const handleExportEmails = async () => {
     try {
       const emails = await AdminService.exportEmails();
@@ -261,7 +270,7 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
     });
   };
 
-  if (!isAdmin) {
+  if (isAdminStatusPending || !isAdminUser) {
     return null;
   }
 
@@ -671,7 +680,12 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
 
       {/* User Details Modal */}
       {selectedUser && (
-        <UserDetailsModal user={selectedUser} onClose={() => setSelectedUser(null)} formatDate={formatDate} />
+        <UserDetailsModal
+          user={selectedUser}
+          onClose={() => setSelectedUser(null)}
+          formatDate={formatDate}
+          onUserUpdated={handleUserUpdated}
+        />
       )}
     </div>
   );
@@ -807,7 +821,23 @@ function UserTable({
                   }}
                 >
                   <td style={{ padding: '12px 16px', fontSize: 13, color: '#1a1a1a', fontWeight: 500 }}>
-                    {user.email}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {user.email}
+                      {user.is_admin && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            color: '#2E7D32',
+                            background: 'rgba(46,125,50,.1)',
+                          }}
+                        >
+                          Admin
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: '#666' }}>{name}</td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: '#666' }}>{formatDate(user.createdAt)}</td>
@@ -855,10 +885,12 @@ function UserDetailsModal({
   user,
   onClose,
   formatDate,
+  onUserUpdated,
 }: {
   user: AdminUserDetails;
   onClose: () => void;
   formatDate: (date?: string) => string;
+  onUserUpdated: (userId: string, updates: Partial<AdminUser>) => void;
 }) {
   const name = user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.name || 'N/A';
 
@@ -942,6 +974,12 @@ function UserDetailsModal({
               <InfoItem label="Credits" value={user.credits_balance?.toLocaleString() || '0'} />
             </div>
           </div>
+
+          {/* Admin Access */}
+          <AdminAccessManagement user={user} onUserUpdated={onUserUpdated} />
+
+          {/* Credit & Trial Management */}
+          <CreditTrialManagement user={user} onUserUpdated={onUserUpdated} />
 
           {/* Trial Info */}
           {user.trial_end && (
@@ -1051,6 +1089,284 @@ function UserDetailsModal({
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Admin Access — grant/revoke another user's admin status. The backend is the
+// real gate (rejects a non-admin caller and rejects self-revoke regardless of
+// what this UI does); the disabled state here just avoids sending requests
+// that are guaranteed to fail.
+function AdminAccessManagement({
+  user,
+  onUserUpdated,
+}: {
+  user: AdminUserDetails;
+  onUserUpdated: (userId: string, updates: Partial<AdminUser>) => void;
+}) {
+  const { userDetails } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const isSelf = userDetails?.email?.toLowerCase() === user.email?.toLowerCase();
+
+  const handleToggle = async () => {
+    if (user.is_admin && !window.confirm(`Remove admin access from ${user.email}?`)) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = user.is_admin ? await AdminService.revokeAdmin(user.id) : await AdminService.grantAdmin(user.id);
+      onUserUpdated(user.id, { is_admin: result.is_admin });
+      setMessage({ type: 'ok', text: result.is_admin ? 'Admin access granted.' : 'Admin access revoked.' });
+    } catch (error) {
+      console.error('Failed to change admin access:', error);
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setMessage({ type: 'err', text: detail || 'Failed to change admin access.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px', color: '#1a1a1a' }}>Admin Access</h3>
+      <div
+        style={{
+          padding: 16,
+          background: 'rgba(0,0,0,.02)',
+          border: '1px solid rgba(0,0,0,.06)',
+          borderRadius: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}
+      >
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: 999,
+              color: user.is_admin ? '#2E7D32' : '#666',
+              background: user.is_admin ? 'rgba(46,125,50,.1)' : 'rgba(0,0,0,.05)',
+            }}
+          >
+            {user.is_admin ? 'Admin' : 'Not an admin'}
+          </span>
+          <button
+            onClick={handleToggle}
+            disabled={busy || isSelf}
+            title={isSelf ? "You can't change your own admin access" : undefined}
+            style={{
+              padding: '8px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'white',
+              background: user.is_admin ? '#B71C1C' : '#AD1457',
+              border: 'none',
+              borderRadius: 8,
+              cursor: busy || isSelf ? 'not-allowed' : 'pointer',
+              opacity: busy || isSelf ? 0.5 : 1,
+            }}
+          >
+            {busy ? 'Working…' : user.is_admin ? 'Remove Admin' : 'Make Admin'}
+          </button>
+          {isSelf && <span style={{ fontSize: 12, color: '#999' }}>This is your own account</span>}
+        </div>
+        {message && (
+          <div style={{ fontSize: 12, fontWeight: 600, color: message.type === 'ok' ? '#2E7D32' : '#C62828' }}>
+            {message.text}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Credit & Trial Management — the actual editing capability this admin tab
+// was missing. Every adjustment re-fetches the user's full details afterward
+// rather than hand-merging the response, since credits_balance folds trial
+// credits in with subscription-tier logic computed server-side (see
+// admin_router.get_user_details) that this component shouldn't re-derive.
+function CreditTrialManagement({
+  user,
+  onUserUpdated,
+}: {
+  user: AdminUserDetails;
+  onUserUpdated: (userId: string, updates: Partial<AdminUser>) => void;
+}) {
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditReason, setCreditReason] = useState('');
+  const [trialAmount, setTrialAmount] = useState('');
+  const [trialReason, setTrialReason] = useState('');
+  const [busy, setBusy] = useState<'credit' | 'trial' | 'expire' | null>(null);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const refreshUser = async () => {
+    const details = await AdminService.getUserDetails(user.id);
+    onUserUpdated(user.id, details);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    padding: '8px 10px',
+    fontSize: 13,
+    border: '1px solid rgba(0,0,0,.12)',
+    borderRadius: 8,
+    outline: 'none',
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    padding: '8px 14px',
+    fontSize: 12,
+    fontWeight: 700,
+    color: 'white',
+    background: '#AD1457',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  };
+
+  const handleCreditAdjust = async () => {
+    const amount = parseInt(creditAmount, 10);
+    if (!amount) return;
+    setBusy('credit');
+    setMessage(null);
+    try {
+      await AdminService.adjustUserCredits(user.id, amount, creditReason || undefined);
+      await refreshUser();
+      setMessage({ type: 'ok', text: `Applied ${amount > 0 ? '+' : ''}${amount} credits.` });
+      setCreditAmount('');
+      setCreditReason('');
+    } catch (error) {
+      console.error('Failed to adjust credits:', error);
+      setMessage({ type: 'err', text: 'Failed to adjust credits.' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleTrialAdjust = async () => {
+    const amount = parseInt(trialAmount, 10);
+    if (!amount) return;
+    setBusy('trial');
+    setMessage(null);
+    try {
+      await AdminService.adjustUserTrialCredits(user.id, amount, trialReason || undefined);
+      await refreshUser();
+      setMessage({ type: 'ok', text: `Applied ${amount > 0 ? '+' : ''}${amount} trial credits.` });
+      setTrialAmount('');
+      setTrialReason('');
+    } catch (error) {
+      console.error('Failed to adjust trial credits:', error);
+      setMessage({ type: 'err', text: 'Failed to adjust trial credits. Does this user have a trial record?' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleExpireTrial = async () => {
+    if (!window.confirm(`Force-expire ${user.email}'s trial? This sets trial credits to 0 and cannot be undone.`)) {
+      return;
+    }
+    setBusy('expire');
+    setMessage(null);
+    try {
+      await AdminService.expireUserTrial(user.id);
+      await refreshUser();
+      setMessage({ type: 'ok', text: 'Trial expired.' });
+    } catch (error) {
+      console.error('Failed to expire trial:', error);
+      setMessage({ type: 'err', text: 'Failed to expire trial. Does this user have a trial record?' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px', color: '#1a1a1a' }}>
+        Credit &amp; Trial Management
+      </h3>
+      <div
+        style={{
+          padding: 16,
+          background: 'rgba(0,0,0,.02)',
+          border: '1px solid rgba(0,0,0,.06)',
+          borderRadius: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        {/* Credit adjustment */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Adjust credits</span>
+          <input
+            type="number"
+            value={creditAmount}
+            onChange={(e) => setCreditAmount(e.target.value)}
+            placeholder="Amount (+/-)"
+            style={{ ...inputStyle, width: 110 }}
+          />
+          <input
+            type="text"
+            value={creditReason}
+            onChange={(e) => setCreditReason(e.target.value)}
+            placeholder="Reason (optional)"
+            style={{ ...inputStyle, flex: 1, minWidth: 140 }}
+          />
+          <button onClick={handleCreditAdjust} disabled={busy === 'credit' || !creditAmount} style={buttonStyle}>
+            {busy === 'credit' ? 'Applying…' : 'Apply'}
+          </button>
+        </div>
+
+        {/* Trial credit adjustment */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Adjust trial credits</span>
+          <input
+            type="number"
+            value={trialAmount}
+            onChange={(e) => setTrialAmount(e.target.value)}
+            placeholder="Amount (+/-)"
+            style={{ ...inputStyle, width: 110 }}
+          />
+          <input
+            type="text"
+            value={trialReason}
+            onChange={(e) => setTrialReason(e.target.value)}
+            placeholder="Reason (optional)"
+            style={{ ...inputStyle, flex: 1, minWidth: 140 }}
+          />
+          <button onClick={handleTrialAdjust} disabled={busy === 'trial' || !trialAmount} style={buttonStyle}>
+            {busy === 'trial' ? 'Applying…' : 'Apply'}
+          </button>
+        </div>
+
+        {/* Expire trial */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Force-expire trial</span>
+          <button
+            onClick={handleExpireTrial}
+            disabled={busy === 'expire'}
+            style={{ ...buttonStyle, background: '#B71C1C' }}
+          >
+            {busy === 'expire' ? 'Expiring…' : 'Expire Trial'}
+          </button>
+        </div>
+
+        {message && (
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: message.type === 'ok' ? '#2E7D32' : '#C62828',
+            }}
+          >
+            {message.text}
+          </div>
+        )}
       </div>
     </div>
   );

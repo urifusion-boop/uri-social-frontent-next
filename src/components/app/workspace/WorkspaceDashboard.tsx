@@ -64,6 +64,7 @@ import DraftCard from '@/src/components/app/social-media/DraftCard';
 import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
+import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
@@ -166,6 +167,14 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       <>
         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
         <polyline points="17 6 23 6 23 12" />
+      </>
+    ),
+    users: (
+      <>
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 00-3-3.87" />
+        <path d="M16 3.13a4 4 0 010 7.75" />
       </>
     ),
     clock: (
@@ -7764,58 +7773,77 @@ const STATUS_MSGS = [
   'Generating content ideas...',
 ];
 
-const NAV = [
-  {
-    id: 'workspace',
-    icon: 'home',
-    label: 'Workspace',
-    tooltip: "Your AI command centre — chat with URI Agent and see today's briefing",
-  },
-  // { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
-  {
-    id: 'schedule',
-    icon: 'calendar',
-    label: 'Create Content',
-    tooltip: 'Generate, review, and schedule social media posts across all your platforms',
-  },
-  {
-    id: 'connections',
-    icon: 'share',
-    label: 'Connected Accounts',
-    tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly',
-  },
-  {
-    id: 'performance',
-    icon: 'chart',
-    label: 'Performance',
-    tooltip: 'Posts, accounts, and market intel — all your insights in one place',
-  },
-  // Blog tab hidden on main branch (develop-only feature)
-  // {
-  //   id: 'blog',
-  //   icon: 'book',
-  //   label: 'Blog',
-  //   tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
-  // },
-  {
-    id: 'playbook',
-    icon: 'book',
-    label: 'Brand Playbook',
-    tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
-  },
-  {
-    id: 'settings',
-    icon: 'settings',
-    label: 'Settings',
-    tooltip: 'Manage your profile, preferences, and account integrations',
-  },
-  {
-    id: 'billing',
-    icon: 'trending',
-    label: 'Billing',
-    tooltip: 'View your plan, content credits, and billing history',
-  },
-];
+const getNav = (isAdminUser: boolean) => {
+  const baseNav = [
+    {
+      id: 'workspace',
+      icon: 'home',
+      label: 'Workspace',
+      tooltip: "Your AI command centre — chat with URI Agent and see today's briefing",
+    },
+    // { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
+    {
+      id: 'schedule',
+      icon: 'calendar',
+      label: 'Create Content',
+      tooltip: 'Generate, review, and schedule social media posts across all your platforms',
+    },
+    {
+      id: 'connections',
+      icon: 'share',
+      label: 'Connected Accounts',
+      tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly',
+    },
+    {
+      id: 'performance',
+      icon: 'chart',
+      label: 'Performance',
+      tooltip: 'Posts, accounts, and market intel — all your insights in one place',
+    },
+    // Blog tab hidden on main branch (develop-only feature)
+    // {
+    //   id: 'blog',
+    //   icon: 'book',
+    //   label: 'Blog',
+    //   tooltip: 'Generate SEO-optimized blog posts and manage your drafts',
+    // },
+    {
+      id: 'playbook',
+      icon: 'book',
+      label: 'Brand Playbook',
+      tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
+    },
+    {
+      id: 'settings',
+      icon: 'settings',
+      label: 'Settings',
+      tooltip: 'Manage your profile, preferences, and account integrations',
+    },
+    {
+      id: 'billing',
+      icon: 'trending',
+      label: 'Billing',
+      tooltip: 'View your plan, content credits, and billing history',
+    },
+  ];
+
+  // Admin-only tab — was wired up in commit 05fbdab but silently dropped when
+  // this NAV array got reverted to a plain static list in a later refactor of
+  // this file. Re-added here; keep this conditional intact through future edits
+  // to this array. isAdminUser comes from AuthProvider's backend-verified
+  // /api/admin/me check (DB is_admin flag + bootstrap allowlist), not a
+  // hardcoded email — any user granted admin via the panel gets this tab too.
+  if (isAdminUser) {
+    baseNav.push({
+      id: 'admin',
+      icon: 'users',
+      label: 'Manage Users',
+      tooltip: 'Admin dashboard for user management, credits, and platform analytics',
+    });
+  }
+
+  return baseNav;
+};
 
 const MOBILE_TABS = [
   { id: 'workspace', icon: 'home', label: 'Jane' },
@@ -7836,7 +7864,7 @@ const MORE_NAV = [
    MAIN DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function WorkspaceDashboard() {
-  const { logoutUser, userDetails } = useAuth();
+  const { logoutUser, userDetails, isAdminUser } = useAuth();
   const { unreadCount } = useNotifications();
   const { showVerifyModal, setShowVerifyModal, requireEmailVerification } = useEmailVerification();
   const router = useRouter();
@@ -8269,6 +8297,7 @@ export default function WorkspaceDashboard() {
       <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
     ),
     billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
+    admin: <AdminUsersPage onBack={goWorkspace} />,
     notifications: <NotificationsPanel />,
   };
 
@@ -8369,7 +8398,7 @@ export default function WorkspaceDashboard() {
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', paddingLeft: 37 }}>Active & ready</div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {NAV.map((n) => {
+              {getNav(isAdminUser).map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
                 return (
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
