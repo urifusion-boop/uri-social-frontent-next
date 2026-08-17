@@ -446,7 +446,14 @@ function LogoPositionPicker({
   const [pendingRisky, setPendingRisky] = useState<LogoPos | null>(null);
 
   useEffect(() => {
-    if (!videoSourceUrl) return;
+    // blob: URLs are local to this browser tab (URL.createObjectURL) — the
+    // backend can't fetch them at all, so there's nothing to send for a frame
+    // grab. Only fetch once a real, server-reachable URL exists (after
+    // stitching/upload); until then the picker just shows plain corner dots.
+    if (!videoSourceUrl || videoSourceUrl.startsWith('blob:')) {
+      setFrameUrl(null);
+      return;
+    }
     let cancelled = false;
     SocialMediaAgentService.getVideoFrame(videoSourceUrl, 1)
       .then((url) => {
@@ -487,8 +494,25 @@ function LogoPositionPicker({
           margin: '0 auto',
         }}
       >
-        {frameUrl && (
+        {frameUrl ? (
           <img src={frameUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 12,
+              textAlign: 'center',
+              fontSize: 11,
+              color: 'rgba(255,255,255,0.5)',
+            }}
+          >
+            A preview frame will show here once your video finishes rendering — pick a corner for now, you can change it
+            after
+          </div>
         )}
         {positions.map((p) => (
           <button
