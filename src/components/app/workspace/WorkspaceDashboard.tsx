@@ -23,6 +23,7 @@ import ContentCalendarTab from '@/src/components/app/social-media/ContentCalenda
 import { LinkedInPagesData, PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
 import { useAuth } from '@/src/providers/AuthProvider';
+import { hasActiveSubscription } from '@/src/utils/subscription.util';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ReactNode } from 'react';
@@ -8731,8 +8732,16 @@ export default function WorkspaceDashboard() {
               {/* Trial Badge — kept visible (compact) on mobile too. Hiding this
                   entirely used to mean there was no way to see remaining
                   credits on mobile short of opening Billing, including for
-                  Jane herself when asked "how many credits do I have left". */}
-              {userDetails?.trialActive && (
+                  Jane herself when asked "how many credits do I have left".
+                  Only for PURE trial users — a subscriber's trial keeps
+                  running on its own clock (it isn't cut short by
+                  subscribing) so trialActive can still be true for them, but
+                  they've already upgraded, so this "you're on a free trial"
+                  framing (and the "Upgrade Now" banner below) shouldn't
+                  address them — WorkspaceCreditBadge shows their real
+                  combined balance (subscription + any unexpired trial
+                  credits) instead. */}
+              {userDetails?.trialActive && !hasActiveSubscription(userDetails?.subscriptionTier) && (
                 <TrialBanner
                   daysRemaining={userDetails.trialDaysRemaining ?? 0}
                   creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
@@ -8742,21 +8751,26 @@ export default function WorkspaceDashboard() {
               )}
 
               {/* Credit Balance Badge — already compact enough for mobile as-is */}
-              {!userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => goTo('billing')} />}
+              {(!userDetails?.trialActive || hasActiveSubscription(userDetails?.subscriptionTier)) && (
+                <WorkspaceCreditBadge onClick={() => goTo('billing')} />
+              )}
 
               {/* Profile Dropdown */}
               <WorkspaceProfileDropdown onNavigate={goTo} onLogout={logoutUser} />
             </div>
           </div>
 
-          {/* Trial ending banner (≤24h remaining) */}
-          {userDetails?.trialActive && (userDetails.trialHoursRemaining ?? 999) <= 24 && !trialEndingDismissed && (
-            <TrialEndingBanner
-              hoursRemaining={userDetails.trialHoursRemaining ?? 0}
-              creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
-              onDismiss={() => setTrialEndingDismissed(true)}
-            />
-          )}
+          {/* Trial ending banner (≤24h remaining) — pure trial users only, see above */}
+          {userDetails?.trialActive &&
+            !hasActiveSubscription(userDetails?.subscriptionTier) &&
+            (userDetails.trialHoursRemaining ?? 999) <= 24 &&
+            !trialEndingDismissed && (
+              <TrialEndingBanner
+                hoursRemaining={userDetails.trialHoursRemaining ?? 0}
+                creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
+                onDismiss={() => setTrialEndingDismissed(true)}
+              />
+            )}
 
           {/* Page content */}
           <div style={{ flex: 1, overflow: nav === 'workspace' ? 'hidden' : 'auto' }}>
