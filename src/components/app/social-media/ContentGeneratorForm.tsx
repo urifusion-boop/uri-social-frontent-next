@@ -588,6 +588,9 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
                   </Typography>
                 </Box>
               ))}
+              <Typography fontSize="12px" color="#9CA3AF" ml={0.5}>
+                Uses {numSlides} credit{numSlides === 1 ? '' : 's'} (1 per slide)
+              </Typography>
             </Box>
           )}
         </Box>
