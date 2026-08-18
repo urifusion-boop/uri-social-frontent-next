@@ -14,6 +14,7 @@ import {
   CampaignSummary,
   ThreadSummary,
 } from '@/src/api/CampaignService';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -129,6 +130,8 @@ export default function CampaignsPage({
   pendingResumeVideo,
   onResumeVideoConsumed,
 }: CampaignsPageProps) {
+  const isMobile = useIsMobile();
+  const [railOpen, setRailOpen] = useState(false);
   const [tab, setTab] = useState<'chat' | 'manage' | 'wallet' | 'billing'>('chat');
   const [isAdmin, setIsAdmin] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([makeGreeting()]);
@@ -794,10 +797,52 @@ export default function CampaignsPage({
       }}
     >
       {/* Header */}
-      <div style={{ padding: '16px 24px 0', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1a0a12', margin: 0 }}>Campaigns</h1>
+      <div
+        style={{
+          padding: isMobile ? '12px 12px 0' : '16px 24px 0',
+          display: 'flex',
+          alignItems: isMobile ? 'stretch' : 'center',
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: isMobile ? 10 : 16,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {isMobile && tab === 'chat' && (
+            <button
+              onClick={() => setRailOpen(true)}
+              aria-label="Open campaign threads"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 36,
+                height: 36,
+                flexShrink: 0,
+                border: '1px solid #e0dcd9',
+                borderRadius: 9,
+                background: '#fff',
+                color: '#555',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: 15, lineHeight: 1 }}>☰</span>
+            </button>
+          )}
+          <h1 style={{ fontSize: isMobile ? 18 : 20, fontWeight: 800, color: '#1a0a12', margin: 0 }}>Campaigns</h1>
+        </div>
         <div
-          style={{ marginLeft: 'auto', display: 'flex', gap: 4, background: '#f4f2f0', padding: 3, borderRadius: 10 }}
+          className={isMobile ? 'tab-scroll' : undefined}
+          style={{
+            marginLeft: isMobile ? undefined : 'auto',
+            display: 'flex',
+            gap: 4,
+            background: '#f4f2f0',
+            padding: 3,
+            borderRadius: 10,
+            ...(isMobile
+              ? ({ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' } as const)
+              : {}),
+          }}
         >
           {(
             [
@@ -811,9 +856,11 @@ export default function CampaignsPage({
               key={t}
               onClick={() => setTab(t)}
               style={{
-                padding: '7px 16px',
+                padding: isMobile ? '8px 14px' : '7px 16px',
                 border: 'none',
                 borderRadius: 8,
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
                 background: tab === t ? '#fff' : 'transparent',
                 color: tab === t ? PINK : '#888',
                 fontWeight: tab === t ? 700 : 500,
@@ -834,13 +881,22 @@ export default function CampaignsPage({
             threads={threads}
             activeThreadId={activeThreadId}
             busy={busy}
-            onSelect={openThread}
-            onNew={startNewThread}
+            isMobile={isMobile}
+            open={railOpen}
+            onClose={() => setRailOpen(false)}
+            onSelect={(id) => {
+              openThread(id);
+              setRailOpen(false);
+            }}
+            onNew={() => {
+              startNewThread();
+              setRailOpen(false);
+            }}
             onDuplicate={duplicateThread}
             onDelete={deleteThread}
           />
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+            <div ref={scrollRef} className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
               {messages.map((m) => (
                 <div key={m.id} style={{ marginBottom: 16 }}>
                   {m.role === 'user' ? (
@@ -911,7 +967,7 @@ export default function CampaignsPage({
               {pendingVideoQualityCheck && (
                 <div>
                   <JaneBubble>Want to improve this video&apos;s quality before using it?</JaneBubble>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
+                  <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
                     <button
                       onClick={requestVideoPolishForPending}
                       style={{
@@ -948,7 +1004,7 @@ export default function CampaignsPage({
             </div>
             <div
               style={{
-                padding: '12px 24px 20px',
+                padding: isMobile ? '10px 12px 14px' : '12px 24px 20px',
                 borderTop: '1px solid #eee',
                 background: '#fff',
                 position: 'relative',
@@ -1071,9 +1127,9 @@ export default function CampaignsPage({
                   style={{
                     position: 'absolute',
                     bottom: '100%',
-                    left: 24,
+                    left: isMobile ? 12 : 24,
                     marginBottom: 8,
-                    width: 320,
+                    width: isMobile ? 'calc(100vw - 40px)' : 320,
                     maxHeight: 320,
                     overflowY: 'auto',
                     background: '#fff',
@@ -1185,7 +1241,7 @@ export default function CampaignsPage({
           </div>
         </div>
       ) : tab === 'manage' ? (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+        <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
             <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
               Campaigns Jane has set up for you. Each is paused until you activate it.
@@ -1251,6 +1307,9 @@ function ThreadRail({
   threads,
   activeThreadId,
   busy,
+  isMobile,
+  open,
+  onClose,
   onSelect,
   onNew,
   onDuplicate,
@@ -1259,23 +1318,75 @@ function ThreadRail({
   threads: ThreadSummary[];
   activeThreadId: string | null;
   busy: boolean;
+  isMobile: boolean;
+  open: boolean;
+  onClose: () => void;
   onSelect: (id: string) => void;
   onNew: () => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
   const statusColor: Record<string, string> = { draft: '#999', planned: '#a15c00', launched: '#1a7f37' };
+
+  // On phones the rail would eat most of the screen, so it becomes a slide-over
+  // drawer opened from the header instead of a permanent column.
+  if (isMobile && !open) return null;
+
   return (
-    <div
-      style={{
-        width: 220,
-        flexShrink: 0,
-        borderRight: '1px solid #eee',
-        display: 'flex',
-        flexDirection: 'column',
-        background: '#fafafa',
-      }}
-    >
+    <>
+      {isMobile && (
+        <div
+          onClick={onClose}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.38)', zIndex: 40 }}
+        />
+      )}
+      <div
+        style={{
+          width: isMobile ? 'min(82vw, 300px)' : 220,
+          flexShrink: 0,
+          borderRight: '1px solid #eee',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#fafafa',
+          ...(isMobile
+            ? ({
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                bottom: 0,
+                zIndex: 41,
+                boxShadow: '0 0 28px rgba(0,0,0,.18)',
+              } as const)
+            : {}),
+        }}
+      >
+        {isMobile && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 12px 0',
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#1a0a12' }}>Campaign threads</span>
+            <button
+              onClick={onClose}
+              aria-label="Close campaign threads"
+              style={{
+                border: 'none',
+                background: 'none',
+                fontSize: 20,
+                lineHeight: 1,
+                color: '#888',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
       <div style={{ padding: '12px 12px 8px' }}>
         <button
           onClick={onNew}
@@ -1399,8 +1510,9 @@ function ThreadRail({
             );
           })
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1443,7 +1555,7 @@ function JaneBubble({ children }: { children: React.ReactNode }) {
 
 function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: string) => void }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginLeft: 40 }}>
+    <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginLeft: 40 }}>
       {chips.map((chip) => (
         <button
           key={chip}
@@ -1567,7 +1679,7 @@ function ChooseCreativeSource({
   return (
     <div>
       <JaneBubble>Great — how would you like to handle the image for this ad?</JaneBubble>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
+      <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
         <button onClick={onGenerate} style={optionBtn}>
           ✨ Let Jane create one<span style={sub}>I&apos;ll design a visual for you</span>
         </button>
@@ -1584,7 +1696,7 @@ function ChooseCreativeSource({
         )}
       </div>
       {showDrafts && drafts.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, marginLeft: 40, maxWidth: 560 }}>
+        <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, marginLeft: 40, maxWidth: 560 }}>
           {drafts.map((d) => (
             <button
               key={d.draft_id}
@@ -1681,7 +1793,7 @@ function PlanVariantCards({
           {variantSet.selection_rule_reason}
         </p>
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginLeft: 40, maxWidth: 560 }}>
+      <div className="camp-indent" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginLeft: 40, maxWidth: 560 }}>
         {variantSet.variants.map((v) => {
           const isExpanded = expandedRanks.has(v.rank);
           const isSelected = selectedRanks.includes(v.rank);
@@ -1958,7 +2070,7 @@ function NeedWhatsapp({
         {question ||
           'Which WhatsApp number should I send your leads to? Anyone who taps your ad will message this number directly.'}
       </JaneBubble>
-      <div style={{ display: 'flex', gap: 8, marginTop: 8, marginLeft: 40, maxWidth: 360 }}>
+      <div className="camp-indent" style={{ display: 'flex', gap: 8, marginTop: 8, marginLeft: 40, maxWidth: 360 }}>
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -1993,7 +2105,7 @@ function NeedWhatsapp({
         </button>
       </div>
       {showConnectedAccountsLink && (
-        <div style={{ marginLeft: 40, marginTop: 6 }}>
+        <div className="camp-indent" style={{ marginLeft: 40, marginTop: 6 }}>
           <ConnectedAccountsWhatsappLink />
         </div>
       )}
@@ -2219,7 +2331,7 @@ function ResultCard({
           {result.question ||
             "Connect your Facebook Page (with WhatsApp linked to it) so leads reach you, then come back and I'll launch."}
         </JaneBubble>
-        <div style={{ marginLeft: 40, marginTop: 8 }}>
+        <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
           <ConnectMetaAdsLink>Connect Facebook Page →</ConnectMetaAdsLink>
         </div>
       </div>
@@ -2236,7 +2348,7 @@ function ResultCard({
           To run real ads, I need your Facebook Page connected with ads permission — this makes sure the ad runs from
           YOUR Page, not a shared one, so followers and replies come to you.
         </JaneBubble>
-        <div style={{ marginLeft: 40, marginTop: 8 }}>
+        <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
           <ConnectMetaAdsLink>Connect Facebook Page →</ConnectMetaAdsLink>
         </div>
       </div>
@@ -2249,7 +2361,7 @@ function ResultCard({
           You&rsquo;re already connected for posting — running ads just needs one more permission from Facebook
           (advertising access), on top of what you&rsquo;ve already granted.
         </JaneBubble>
-        <div style={{ marginLeft: 40, marginTop: 8 }}>
+        <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
           <ConnectMetaAdsLink>Add ads permission →</ConnectMetaAdsLink>
         </div>
       </div>
@@ -2263,7 +2375,7 @@ function ResultCard({
           refreshing — a permission may have been changed or revoked. Reconnect and I&rsquo;ll pick up right where we
           left off.
         </JaneBubble>
-        <div style={{ marginLeft: 40, marginTop: 8 }}>
+        <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
           <ConnectMetaAdsLink>Reconnect Facebook Page →</ConnectMetaAdsLink>
         </div>
       </div>
@@ -2595,7 +2707,7 @@ function WalletTab({
   };
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+    <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
         <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
           Your prepaid wallet. Campaigns spend from this balance — top up before you launch.
@@ -2809,7 +2921,7 @@ function BillingTab() {
   };
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+    <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
       <p style={{ margin: '0 0 14px', color: '#888', fontSize: 13 }}>
         What each customer has spent on ads, what we billed them, and our margin. Numbers fill in as campaigns deliver.
       </p>

@@ -65,6 +65,7 @@ import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
@@ -8440,11 +8441,17 @@ const MOBILE_TABS = [
   { id: 'more', icon: 'settings', label: 'More' },
 ];
 
+// Every NAV id that the bottom bar has no room for lives here, so mobile can
+// still reach all of them — MOBILE_TABS only holds the five primary destinations.
 const MORE_NAV = [
+  { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
+  { id: 'blog', icon: 'book', label: 'Blog' },
+  { id: 'connections', icon: 'share', label: 'Connected Accounts' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
   { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts' },
   { id: 'brand-setup', icon: 'edit', label: 'Edit Brand Setup', href: '/social-media/brand-setup' },
+  { id: 'visual-engine-v2', icon: 'grid', label: '🧪 Visual Engine V2' },
 ];
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -8485,7 +8492,7 @@ export default function WorkspaceDashboard() {
     };
   }, [attachment?.previewUrl]);
   const [profile, setProfile] = useState<BrandProfileData | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
   const [switcherBrands, setSwitcherBrands] = useState<BrandAccount[] | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -8508,13 +8515,6 @@ export default function WorkspaceDashboard() {
       if (res.status && res.responseData) setProfile(res.responseData);
     });
   }, [router]);
-
-  useEffect(() => {
-    const ck = () => setIsMobile(window.innerWidth < 768);
-    ck();
-    window.addEventListener('resize', ck);
-    return () => window.removeEventListener('resize', ck);
-  }, []);
 
   useEffect(() => {
     AgencyService.listBrands()
@@ -9899,6 +9899,10 @@ export default function WorkspaceDashboard() {
                 boxShadow: '0 -4px 24px rgba(0,0,0,.12)',
                 zIndex: 201,
                 paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                // The drawer now lists every nav item the bottom bar can't hold,
+                // so it has to scroll rather than run off the top of short screens.
+                maxHeight: 'calc(100vh - 56px - 24px)',
+                overflowY: 'auto',
               }}
             >
               {/* Handle */}

@@ -16,5 +16,10 @@ export default defineConfig({
     storageState: process.env.STORAGE_STATE || undefined,
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // Pixel 5 is Chromium-based — the iPhone profiles run WebKit, which segfaults
+    // on some macOS hosts. Same phone-sized viewport and touch emulation.
+    { name: 'mobile', use: { ...devices['Pixel 5'] } },
+  ],
 });

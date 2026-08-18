@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Urbanist } from "next/font/google";
 import "./globals.css";
 import PageLayout from "@/components/PageLayout";
@@ -12,6 +12,12 @@ const urbanist = Urbanist({
 export const metadata: Metadata = {
   title: "URI Social - AI-Powered Social Media Manager",
   description: "Meet Jane, your AI social media manager who creates posts, publishes on time, and delivers results 24/7.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
