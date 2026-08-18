@@ -1,0 +1,68 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "branch=${AWS_BRANCH:-unknown} app=${AWS_APP_ID:-unknown} commit=${AWS_COMMIT_ID:-unknown}"
+        - echo "api=${NEXT_PUBLIC_URI_API_BASE_URL:-UNSET} env=${NEXT_PUBLIC_ENV:-UNSET}"
+
+        - nvm use 22 || nvm install 22
+        - node -v
+        - test -n "$NEXT_PUBLIC_URI_API_BASE_URL" || { echo "FATAL NEXT_PUBLIC_URI_API_BASE_URL is not set on this app"; exit 1; }
+        - |
+          grep -qF "$NEXT_PUBLIC_URI_API_BASE_URL" amplify.yml || {
+            echo "FATAL $NEXT_PUBLIC_URI_API_BASE_URL is not listed in the customHeaders connect-src in amplify.yml.";
+            echo "Add it there, or every request from the browser will be blocked by CSP while this build reports success.";
+            exit 1;
+          }
+        - |
+          if [ -z "$NEXT_PUBLIC_WHATSAPP_AGENT_BASE_URL" ]; then
+            echo "WARNING NEXT_PUBLIC_WHATSAPP_AGENT_BASE_URL is unset — the app will fall back to https://whatsapp.urisocial.com (production).";
+          fi
+        - |
+          if [ -z "$NEXT_PUBLIC_GOOGLE_CLIENT_ID" ]; then
+            echo "WARNING NEXT_PUBLIC_GOOGLE_CLIENT_ID is unset — Google sign-in will not work.";
+          fi
+
+        - npm ci
+    build:
+      commands:
+        - npm run build
+        - |
+          test -f out/index.html || {
+            echo "FATAL out/index.html missing. Is the export output mode still set in next.config.ts?";
+            exit 1;
+          }
+        - |
+          test -f out/404.html || {
+            echo "FATAL out/404.html missing — unexpected static export output";
+            exit 1;
+          }
+        - echo "exported $(find out -name '*.html' | wc -l | tr -d ' ') HTML files"
+  artifacts:
+    baseDirectory: out
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*
+
+customHeaders:
+  - pattern: '**'
+    headers:
+      - key: 'Content-Security-Policy'
+        value: >-
+          default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval';
+          img-src 'self' https: data: blob:;
+          connect-src 'self'
+          https://api-social-dev.urisocial.com
+          https://whatsapp.urisocial.com
+          https://us.i.posthog.com
+          https://us-assets.i.posthog.com;
+          script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://us-assets.i.posthog.com;
+          script-src-elem 'self' 'unsafe-inline' blob: https://us-assets.i.posthog.com
+      - key: 'X-Content-Type-Options'
+        value: 'nosniff'
+      - key: 'Referrer-Policy'
+        value: 'strict-origin-when-cross-origin'
