@@ -394,3 +394,16 @@
 .tab-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* ── Campaigns: phone gutters ──────────────────────────────────────────────
+   CampaignsPage styles its panes with inline style objects, which can't carry
+   media queries — these rules need !important to win against them. Keyed to
+   the same 768px breakpoint as useIsMobile so JS and CSS agree. */
+@media (max-width: 767px) {
+  .camp-pane {
+    padding: 14px 12px !important;
+  }
+  .camp-indent {
+    margin-left: 0 !important;
+  }
+}
