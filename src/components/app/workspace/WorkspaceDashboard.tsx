@@ -2360,7 +2360,7 @@ const PLATFORMS = [
     label: 'TikTok',
     color: '#010101',
     bg: '#F0F0F0',
-    flow: 'outstand_oauth',
+    flow: 'tiktok_direct_oauth',
     tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
   },
 ];
@@ -2603,6 +2603,30 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           })
           .catch(() => ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error));
       }
+    } else if (connected === 'tiktok_direct') {
+      const ttOpenId = searchParams.get('tt_open_id') ?? '';
+      const accountName = searchParams.get('account_name')
+        ? decodeURIComponent(searchParams.get('account_name')!)
+        : 'TikTok';
+      router.replace('/workspace?tab=connections');
+      if (ttOpenId) {
+        SocialAccountService.finalizeTikTokDirect(ttOpenId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`${accountName} connected!`, ToastTypeEnum.Success);
+              posthog.capture('social_account_connected', { platform: 'tiktok', account_name: accountName });
+              try {
+                sessionStorage.removeItem('social_connections_cache');
+              } catch {
+                /* noop */
+              }
+              loadStatuses();
+            } else {
+              ToastService.showToast('TikTok connection failed. Please try again.', ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => ToastService.showToast('TikTok connection failed. Please try again.', ToastTypeEnum.Error));
+      }
     } else if (connected === 'facebook_ads') {
       // Ads-scoped grant (Per-Brand Page Connection plan) — separate from facebook_direct
       // above; this is what Jane's campaigns require to launch from the brand's own Page.
@@ -2740,6 +2764,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
       window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      return;
+    }
+    if (flow === 'tiktok_direct_oauth') {
+      setConnecting(id);
+      // Direct TikTok Login Kit flow (FILE_UPLOAD posting, bypasses Outstand) —
+      // same full-page redirect shape as Instagram/Facebook direct above.
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+      window.location.href = `${apiBase}/social-media/connect/tiktok-direct/initiate?source=settings`;
       return;
     }
     if (flow === 'facebook_ads_oauth') {
@@ -2909,7 +2941,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         }
       } else if (id === 'tiktok') {
         const s = statuses[id];
-        if (s?.outstand_account_id) {
+        if (s?.connected_via?.startsWith('tiktok_direct')) {
+          const res = await SocialMediaAgentService.disconnectTikTokDirect();
+          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+        } else if (s?.outstand_account_id) {
           const res = await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
           if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
         } else {

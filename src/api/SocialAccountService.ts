@@ -86,4 +86,15 @@ export class SocialAccountService {
     );
     return response.data;
   }
+
+  // Direct TikTok OAuth (FILE_UPLOAD posting, bypasses Outstand) — same
+  // pending-then-finalize shape as finalizeFacebookDirect above.
+  static async finalizeTikTokDirect(ttOpenId: string): Promise<UriResponse<{ tt_open_id: string }>> {
+    const response: AxiosResponse<UriResponse<{ tt_open_id: string }>> = await UriHttpClient.getClient().post(
+      '/social-media/connect/tiktok-direct/finalize',
+      null,
+      { params: { tt_open_id: ttOpenId } }
+    );
+    return response.data;
+  }
 }
