@@ -1167,10 +1167,12 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
   const [voiceoverFileName, setVoiceoverFileName] = useState('');
   const [voiceoverKeepOriginal, setVoiceoverKeepOriginal] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [voiceoverError, setVoiceoverError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceoverChunksRef = useRef<Blob[]>([]);
   const voiceoverInputRef = useRef<HTMLInputElement>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // A fresh object URL must NOT be created inline in render — any unrelated
   // re-render (this file polls several things in the background) would swap the
@@ -1186,6 +1188,12 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
     setVoiceoverPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [voiceoverBlob]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
 
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<
@@ -2022,6 +2030,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
       mediaRecorderRef.current = recorder;
       recorder.start();
       setIsRecordingVoice(true);
+      setRecordingSeconds(0);
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
     } catch {
       setVoiceoverError(
         "Couldn't access your microphone — check your browser permissions, or upload a voice note instead."
@@ -2032,6 +2043,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
   const stopVoiceRecording = () => {
     mediaRecorderRef.current?.stop();
     setIsRecordingVoice(false);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
   };
 
   const handleSubmitVoiceover = async () => {
@@ -3995,6 +4010,54 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
           <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {!voiceoverBlob ? (
               <>
+                <style>{`
+                  @keyframes recPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(0.7); } }
+                  @keyframes recBar { 0%, 100% { height: 4px; } 50% { height: 16px; } }
+                `}</style>
+                {isRecordingVoice && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 10,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      background: '#FEF2F2',
+                      border: '1.5px solid #FCA5A5',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: '#DC2626',
+                        flexShrink: 0,
+                        animation: 'recPulse 1.2s ease-in-out infinite',
+                      }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 16 }}>
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <span
+                          key={i}
+                          style={{
+                            width: 3,
+                            height: 4,
+                            borderRadius: 2,
+                            background: '#DC2626',
+                            animation: `recBar 0.9s ease-in-out ${i * 0.12}s infinite`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span
+                      style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      Recording… {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')}
+                    </span>
+                  </div>
+                )}
                 <button
                   onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
                   style={{
