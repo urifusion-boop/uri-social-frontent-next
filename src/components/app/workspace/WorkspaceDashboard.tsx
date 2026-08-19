@@ -66,6 +66,7 @@ import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
+import EscalationsPage from '@/src/components/app/workspace/EscalationsPage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
@@ -7774,7 +7775,7 @@ const STATUS_MSGS = [
   'Generating content ideas...',
 ];
 
-const getNav = (isAdminUser: boolean) => {
+const getNav = (isAdminUser: boolean, isSupportUser: boolean) => {
   const baseNav = [
     {
       id: 'workspace',
@@ -7843,6 +7844,19 @@ const getNav = (isAdminUser: boolean) => {
     });
   }
 
+  // Support-access tab (Jane-on-WhatsApp escalations) — gated on isSupportUser,
+  // not isAdminUser: real customer-care team members without admin/credit-editing
+  // powers still need this. Admins always pass isSupportUser too (implicit
+  // support access, see uri-social-backend's admin_router._is_support_email).
+  if (isSupportUser) {
+    baseNav.push({
+      id: 'escalations',
+      icon: 'inbox',
+      label: 'Escalations',
+      tooltip: "Reply to customer questions Jane's WhatsApp reply engine couldn't answer",
+    });
+  }
+
   return baseNav;
 };
 
@@ -7865,7 +7879,7 @@ const MORE_NAV = [
    MAIN DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function WorkspaceDashboard() {
-  const { logoutUser, userDetails, isAdminUser } = useAuth();
+  const { logoutUser, userDetails, isAdminUser, isSupportUser } = useAuth();
   const { unreadCount } = useNotifications();
   const { showVerifyModal, setShowVerifyModal, requireEmailVerification } = useEmailVerification();
   const router = useRouter();
@@ -8299,6 +8313,7 @@ export default function WorkspaceDashboard() {
     ),
     billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
     admin: <AdminUsersPage onBack={goWorkspace} />,
+    escalations: <EscalationsPage onBack={goWorkspace} />,
     notifications: <NotificationsPanel />,
   };
 
@@ -8399,7 +8414,7 @@ export default function WorkspaceDashboard() {
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', paddingLeft: 37 }}>Active & ready</div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {getNav(isAdminUser).map((n) => {
+              {getNav(isAdminUser, isSupportUser).map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
                 return (
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>

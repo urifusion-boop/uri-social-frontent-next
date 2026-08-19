@@ -16,7 +16,9 @@ interface IAuthContext {
   isAuthenticated: boolean;
   isPending: boolean;
   isAdminUser: boolean;
-  isAdminStatusPending: boolean; // true until checkIsAdmin() resolves — distinguishes "still checking" from "confirmed not admin"
+  isAdminStatusPending: boolean; // true until checkAdminStatus() resolves — distinguishes "still checking" from "confirmed not admin"
+  isSupportUser: boolean; // true for admins too — an admin already has support access implicitly
+  isSupportStatusPending: boolean;
   saveUserDetails: (data: UserDto) => void;
   saveUserTokens: (data: ITokenDetails) => void;
   logoutUser: () => void;
@@ -49,11 +51,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [tokenDetails, setTokenDetails] = useState<ITokenDetails | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isPending, setIsPending] = useState(true);
-  // Defaults to false (hide-until-confirmed) — admin status is DB-driven
-  // (see AdminService.checkIsAdmin) and can't be inferred client-side, unlike
+  // Defaults to false (hide-until-confirmed) — admin/support status is DB-driven
+  // (see AdminService.checkAdminStatus) and can't be inferred client-side, unlike
   // the old hardcoded-email check this replaces.
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isAdminStatusPending, setIsAdminStatusPending] = useState(true);
+  const [isSupportUser, setIsSupportUser] = useState(false);
+  const [isSupportStatusPending, setIsSupportStatusPending] = useState(true);
   // The axios interceptor clears localStorage's tokens SYNCHRONOUSLY, before it
   // ever dispatches 'unauthorized' — so by the time that event's handler runs,
   // localStorage.getItem(STORE_KEYS.USER_TOKENS) is already null even for a real,
@@ -149,21 +153,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isAuthenticated, isPending, refreshCreditBalance, refreshTrialStatus]);
 
-  // Resolve admin status against the backend on the same auth-transition —
-  // infrequent enough (unlike credits/trial) that it doesn't need the 60s
-  // poll below, just a correct answer once the session is live.
+  // Resolve admin + support status against the backend on the same
+  // auth-transition — infrequent enough (unlike credits/trial) that it doesn't
+  // need the 60s poll below, just a correct answer once the session is live.
+  // One call covers both flags (see AdminService.checkAdminStatus) rather than
+  // two separate round-trips for what's the same backend response.
   useEffect(() => {
     if (!isAuthenticated || isPending) {
       setIsAdminUser(false);
       setIsAdminStatusPending(true);
+      setIsSupportUser(false);
+      setIsSupportStatusPending(true);
       return;
     }
     let cancelled = false;
     setIsAdminStatusPending(true);
-    AdminService.checkIsAdmin().then((result) => {
+    setIsSupportStatusPending(true);
+    AdminService.checkAdminStatus().then(({ isAdmin, isSupport }) => {
       if (cancelled) return;
-      setIsAdminUser(result);
+      setIsAdminUser(isAdmin);
       setIsAdminStatusPending(false);
+      setIsSupportUser(isSupport);
+      setIsSupportStatusPending(false);
     });
     return () => {
       cancelled = true;
@@ -219,6 +230,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setTokenDetails(null);
     setIsAuthenticated(false);
     setIsAdminUser(false);
+    setIsSupportUser(false);
     router.push('/login');
   }, [router]);
 
@@ -265,6 +277,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isPending,
         isAdminUser,
         isAdminStatusPending,
+        isSupportUser,
+        isSupportStatusPending,
         saveUserDetails,
         saveUserTokens,
         logoutUser,
