@@ -2653,6 +2653,34 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error)
           );
       }
+    } else if (connected === 'direct') {
+      // Outstand's "direct" callback shape — account_id/username/network
+      // returned immediately (TikTok, X), no session-token page-selection
+      // step. Previously unhandled here entirely, so the connection never
+      // got saved until someone tried to publish.
+      const accountId = searchParams.get('account_id') ?? '';
+      const network = searchParams.get('network') ?? '';
+      const username = searchParams.get('username') ?? '';
+      const networkUniqueId = searchParams.get('network_unique_id') ?? '';
+      router.replace('/workspace?tab=connections');
+      if (accountId && network) {
+        SocialAccountService.finalizeOutstandDirect(accountId, network, username, networkUniqueId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`${username || network} connected!`, ToastTypeEnum.Success);
+              posthog.capture('social_account_connected', { platform: network, username });
+              try {
+                sessionStorage.removeItem('social_connections_cache');
+              } catch {
+                /* noop */
+              }
+              loadStatuses();
+            } else {
+              ToastService.showToast(`${network} connection failed. Please try again.`, ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => ToastService.showToast(`${network} connection failed. Please try again.`, ToastTypeEnum.Error));
+      }
     } else if (connected === 'pending' && token) {
       setSessionToken(token);
       setPhase('pending');
