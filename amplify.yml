@@ -18,6 +18,12 @@ frontend:
         - |
           if [ -z "$NEXT_PUBLIC_WHATSAPP_AGENT_BASE_URL" ]; then
             echo "WARNING NEXT_PUBLIC_WHATSAPP_AGENT_BASE_URL is unset — the app will fall back to https://whatsapp.urisocial.com (production).";
+          else
+            grep -qF "$NEXT_PUBLIC_WHATSAPP_AGENT_BASE_URL" amplify.yml || {
+              echo "FATAL $NEXT_PUBLIC_WHATSAPP_AGENT_BASE_URL is not listed in the customHeaders connect-src in amplify.yml.";
+              echo "Add it there, or every WhatsApp agent request from the browser will be blocked by CSP while this build reports success.";
+              exit 1;
+            }
           fi
         - |
           if [ -z "$NEXT_PUBLIC_GOOGLE_CLIENT_ID" ]; then
@@ -58,6 +64,7 @@ customHeaders:
           connect-src 'self'
           https://api-social-dev.urisocial.com
           https://whatsapp.urisocial.com
+          https://whatsapp-agent-staging.urisocial.com
           https://us.i.posthog.com
           https://us-assets.i.posthog.com;
           script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://us-assets.i.posthog.com;
