@@ -40,7 +40,7 @@ const TYPE_STYLE: Record<string, { bg: string; color: string; label: string }> =
 };
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const CONNECTED_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'x'];
+const CONNECTED_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'x', 'tiktok'];
 
 const VIDEO_FORMAT_LABELS: Record<string, string> = {
   talking_head: 'Talking Head',
