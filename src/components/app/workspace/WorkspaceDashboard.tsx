@@ -2360,13 +2360,12 @@ const PLATFORMS = [
     label: 'TikTok',
     color: '#010101',
     bg: '#F0F0F0',
-    flow: 'tiktok_direct_oauth',
-    // Two ways in: direct (FILE_UPLOAD, no domain verification, posts as
-    // soon as the redirect_uri is approved) or via Outstand (works today,
-    // no TikTok review wait). Surfaced as two buttons below instead of
-    // picking one for the user.
-    secondaryFlow: 'outstand_oauth',
-    secondaryLabel: 'Via Outstand',
+    // Direct (FILE_UPLOAD) OAuth exists (tiktok_direct_service.py,
+    // /connect/tiktok-direct/*) but is hidden here for now — it's blocked on
+    // TikTok's redirect_uri review, and a real customer's Outstand-mediated
+    // connect surfaced a more pressing bug (no local finalize step) that
+    // needs fixing before adding a second connect path back into the UI.
+    flow: 'outstand_oauth',
     tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
   },
 ];
@@ -3561,65 +3560,42 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         )}
                       </button>
                     ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <button
-                          type="button"
-                          onClick={() => handleConnect(p.id, p.flow)}
-                          disabled={isBusy}
-                          style={{
-                            padding: '5px 14px',
-                            borderRadius: 7,
-                            border: 'none',
-                            background: p.color,
-                            fontSize: 12,
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                            fontFamily: 'var(--wf)',
-                            opacity: isBusy ? 0.5 : 1,
-                          }}
-                        >
-                          {connecting === p.id ? (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <span
-                                style={{
-                                  width: 10,
-                                  height: 10,
-                                  border: '2px solid rgba(255,255,255,0.4)',
-                                  borderTopColor: '#fff',
-                                  borderRadius: '50%',
-                                  display: 'inline-block',
-                                  animation: 'spin 0.7s linear infinite',
-                                }}
-                              />
-                              Connecting...
-                            </span>
-                          ) : (
-                            'Connect'
-                          )}
-                        </button>
-                        {'secondaryFlow' in p && p.secondaryFlow && (
-                          <button
-                            type="button"
-                            onClick={() => handleConnect(p.id, p.secondaryFlow)}
-                            disabled={isBusy}
-                            title={`Connect ${p.label} via Outstand instead`}
-                            style={{
-                              padding: '5px 12px',
-                              borderRadius: 7,
-                              border: '1px solid #edecea',
-                              background: '#fff',
-                              fontSize: 12,
-                              color: '#888',
-                              cursor: 'pointer',
-                              fontFamily: 'var(--wf)',
-                              opacity: isBusy ? 0.5 : 1,
-                            }}
-                          >
-                            {'secondaryLabel' in p ? p.secondaryLabel : 'Connect'}
-                          </button>
+                      <button
+                        type="button"
+                        onClick={() => handleConnect(p.id, p.flow)}
+                        disabled={isBusy}
+                        style={{
+                          padding: '5px 14px',
+                          borderRadius: 7,
+                          border: 'none',
+                          background: p.color,
+                          fontSize: 12,
+                          color: '#fff',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontFamily: 'var(--wf)',
+                          opacity: isBusy ? 0.5 : 1,
+                        }}
+                      >
+                        {connecting === p.id ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span
+                              style={{
+                                width: 10,
+                                height: 10,
+                                border: '2px solid rgba(255,255,255,0.4)',
+                                borderTopColor: '#fff',
+                                borderRadius: '50%',
+                                display: 'inline-block',
+                                animation: 'spin 0.7s linear infinite',
+                              }}
+                            />
+                            Connecting...
+                          </span>
+                        ) : (
+                          'Connect'
                         )}
-                      </div>
+                      </button>
                     )}
                   </div>
                 </div>
