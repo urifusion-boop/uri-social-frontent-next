@@ -18,7 +18,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useRef, useState, useEffect } from 'react';
-import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
+import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { MdChevronLeft, MdChevronRight, MdClose, MdImage, MdInfoOutline, MdUpload, MdVideocam } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import LowCreditWarning from '../atoms/LowCreditWarning';
@@ -28,6 +28,7 @@ const PLATFORMS = [
   { key: 'instagram', label: 'Instagram', icon: <FaInstagram size={16} color="#E1306C" /> },
   { key: 'twitter', label: 'Twitter / X', icon: <FaTwitter size={16} color="#1DA1F2" /> },
   { key: 'linkedin', label: 'LinkedIn', icon: <FaLinkedin size={16} color="#0A66C2" /> },
+  { key: 'tiktok', label: 'TikTok', icon: <FaTiktok size={16} color="#010101" /> },
 ];
 
 const POST_TYPES: Array<{
@@ -81,7 +82,9 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   const [lowCreditWarningOpen, setLowCreditWarningOpen] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number>(0);
 
-  const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook' || p === 'linkedin');
+  const showPostTypeSelector = selectedPlatforms.some(
+    (p) => p === 'instagram' || p === 'facebook' || p === 'linkedin' || p === 'tiktok'
+  );
 
   // Reset post type to feed if selector is hidden
   useEffect(() => {
