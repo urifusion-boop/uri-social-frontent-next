@@ -1539,6 +1539,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
     fd.append('quality', 'standard');
     fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
     fd.append('caption_style', 'bold');
+    fd.append('captions_enabled', String(plan.captionsEnabled));
     const musicActive = plan.musicEnabled && (plan.musicSource === 'auto' || !!musicFile);
     fd.append('enable_music', String(musicActive));
     if (musicActive) {
@@ -1661,9 +1662,14 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
       },
       onReady: async (outputUrl) => {
         if (willRerender) {
-          // Fix Something path — pipe the silence-cut URL back through ZapCap
-          // so captions and b-roll are re-applied on the tighter edit.
-          addMsg('jane', 'Silences cut — re-applying captions and b-roll…');
+          // Fix Something path — pipe the silence-cut URL back through the
+          // same pipeline as the original render, respecting the user's
+          // captions choice instead of always forcing captions back on.
+          const captionsWanted = plan?.captionsEnabled ?? true;
+          addMsg(
+            'jane',
+            captionsWanted ? 'Silences cut — re-applying captions and b-roll…' : 'Silences cut — re-applying b-roll…'
+          );
           setRenderProgress(5);
           setRenderStatus('pending');
           const fd2 = new FormData();
@@ -1673,6 +1679,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
           fd2.append('output_mode', 'composited');
           fd2.append('quality', 'standard');
           fd2.append('enable_broll', String(plan?.brollEnabled ?? false));
+          fd2.append('captions_enabled', String(captionsWanted));
           fd2.append('enable_music', 'false');
           try {
             const res = await SocialMediaAgentService.produceWithZapCap(fd2);
@@ -2918,8 +2925,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
               value={planLabels.captionLabel}
               field="captions"
               onAdjust={setAdjustField}
-              disabled={plan.classification === 'product' && !plan.captionsEnabled}
-              tooltip="Burned-in subtitles synced to your speech. Off by default for silent product videos since there's no speech to caption."
+              tooltip="Burned-in subtitles synced to your speech. Off by default for product videos, which are usually silent — turn on if yours has narration."
             />
             <PlanRow
               label="Trim"
