@@ -20,7 +20,12 @@ import {
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import ContentCalendarTab from '@/src/components/app/social-media/ContentCalendarTab';
-import { LinkedInPagesData, PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
+import {
+  ConnectedAccountEntry,
+  LinkedInPagesData,
+  PlatformStatus,
+  SocialConnectionService,
+} from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
 import { CampaignService, PlanVariant } from '@/src/api/CampaignService';
 import { useAuth } from '@/src/providers/AuthProvider';
@@ -2377,6 +2382,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
+  // Which platforms' connected-accounts dropdown is expanded (facebook,
+  // instagram, tiktok — the platforms that can have more than one page/
+  // account connected at once).
+  const [expandedAccountLists, setExpandedAccountLists] = useState<Set<string>>(new Set());
   const [waPhone, setWaPhone] = useState('');
   const [waExpanded, setWaExpanded] = useState(false);
   const [waError, setWaError] = useState('');
@@ -2411,6 +2420,19 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [pendingPlatform, setPendingPlatform] = useState<string>('');
   // Set when Meta OAuth rejects or returns empty pages — shows platform-specific fix guide
   const [connectError, setConnectError] = useState<{ platform: string; error: string } | null>(null);
+
+  // Instagram-direct picker — separate from the Outstand pending-connection
+  // state above on purpose. The direct-OAuth flow never touches Outstand, so
+  // reusing sessionToken/availablePages/phase here would mean threading a
+  // second, structurally different data shape through logic (multi-select,
+  // auto-pages, network filtering) that's specific to Outstand's picker. A
+  // non-null token is what shows this panel.
+  const [igPendingToken, setIgPendingToken] = useState<string | null>(null);
+  const [igCandidates, setIgCandidates] = useState<
+    Array<{ ig_user_id: string; page_name?: string; username?: string; profile_picture_url?: string }>
+  >([]);
+  const [igPickerLoading, setIgPickerLoading] = useState(false);
+  const [igFinalizing, setIgFinalizing] = useState<string | null>(null);
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -2503,11 +2525,17 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         const fbConn = conns.facebook?.[0];
         const igConn = conns.instagram?.[0];
         const ttConn = conns.tiktok?.[0];
+        // accounts carries the FULL list — previously only conns.<platform>[0]
+        // was ever read, so a second connected page for the same platform was
+        // invisible and unreachable (no way to see it, let alone disconnect
+        // it). The single fields below still mirror accounts[0] for anything
+        // that only needs "is something connected" rather than the full list.
         next.facebook = {
           linked: !!conns.facebook?.length,
           account_name: fbConn?.account_name || fbConn?.page_name || fbConn?.username,
           outstand_account_id: fbConn?.outstand_account_id,
           connected_via: fbConn?.connected_via,
+          accounts: conns.facebook ?? [],
         };
         next.instagram = {
           linked: !!conns.instagram?.length,
@@ -2515,12 +2543,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           outstand_account_id: igConn?.outstand_account_id,
           ig_user_id: igConn?.ig_user_id,
           connected_via: igConn?.connected_via,
+          accounts: conns.instagram ?? [],
         };
         next.tiktok = {
           linked: !!conns.tiktok?.length,
           account_name: ttConn?.account_name || ttConn?.username,
           outstand_account_id: ttConn?.outstand_account_id,
           connected_via: ttConn?.connected_via,
+          accounts: conns.tiktok ?? [],
         };
       } else {
         next.facebook = { linked: false };
@@ -2590,6 +2620,33 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             }
           })
           .catch(() => ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error));
+      }
+    } else if (connected === 'instagram_pending') {
+      // More than one Facebook Page had a linked Instagram Business Account —
+      // let the user pick which one instead of silently connecting whichever
+      // came first.
+      const igToken = searchParams.get('token');
+      router.replace('/workspace?tab=connections');
+      if (igToken) {
+        setIgPendingToken(igToken);
+        setIgPickerLoading(true);
+        SocialMediaAgentService.getInstagramDirectPending(igToken)
+          .then((res) => {
+            if (res.status && res.responseData) {
+              setIgCandidates(res.responseData.candidates ?? []);
+            } else {
+              ToastService.showToast(
+                res.responseMessage || 'Could not load Instagram accounts. Please try again.',
+                ToastTypeEnum.Error
+              );
+              setIgPendingToken(null);
+            }
+          })
+          .catch(() => {
+            ToastService.showToast('Could not load Instagram accounts. Please try again.', ToastTypeEnum.Error);
+            setIgPendingToken(null);
+          })
+          .finally(() => setIgPickerLoading(false));
       }
     } else if (connected === 'facebook_direct') {
       const fbPageId = searchParams.get('fb_page_id') ?? '';
@@ -2754,6 +2811,38 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     } catch {
       ToastService.showToast('Finalization failed. Please try again.', ToastTypeEnum.Error);
       setPhase('pending');
+    }
+  };
+
+  const handleFinalizeInstagramPending = async (igUserId: string) => {
+    if (!igPendingToken) return;
+    setIgFinalizing(igUserId);
+    try {
+      const res = await SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, igUserId);
+      if (res.status) {
+        ToastService.showToast(
+          `Instagram @${res.responseData?.username || igUserId} connected!`,
+          ToastTypeEnum.Success
+        );
+        posthog.capture('social_account_connected', { platform: 'instagram', username: res.responseData?.username });
+        setIgPendingToken(null);
+        setIgCandidates([]);
+        try {
+          sessionStorage.removeItem('social_connections_cache');
+        } catch {
+          /* noop */
+        }
+        loadStatuses();
+      } else {
+        ToastService.showToast(
+          res.responseMessage || 'Could not connect that account. Please try again.',
+          ToastTypeEnum.Error
+        );
+      }
+    } catch {
+      ToastService.showToast('Could not connect that account. Please try again.', ToastTypeEnum.Error);
+    } finally {
+      setIgFinalizing(null);
     }
   };
 
@@ -2949,51 +3038,86 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         await SocialConnectionService.xDisconnect();
       } else if (id === 'whatsapp') {
         await SocialConnectionService.whatsappDisconnect();
-      } else if (id === 'instagram') {
-        const s = statuses[id];
-        // Try direct disconnect first (direct OAuth connection)
-        if (s?.ig_user_id) {
-          await SocialMediaAgentService.disconnectInstagramDirect(s.ig_user_id);
-        } else if (s?.outstand_account_id) {
-          await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
-        } else {
-          ToastService.showToast('Could not disconnect Instagram. Please try again.', ToastTypeEnum.Error);
-          return;
-        }
-      } else if (id === 'facebook') {
-        const s = statuses[id];
-        if (s?.connected_via?.startsWith('facebook_direct')) {
-          const res = await SocialMediaAgentService.disconnectFacebookDirect();
-          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
-        } else if (s?.outstand_account_id) {
-          const res = await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
-          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
-        } else {
-          ToastService.showToast('Could not disconnect Facebook. Please try again.', ToastTypeEnum.Error);
-          return;
-        }
-      } else if (id === 'tiktok') {
-        const s = statuses[id];
-        if (s?.connected_via?.startsWith('tiktok_direct')) {
-          const res = await SocialMediaAgentService.disconnectTikTokDirect();
-          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
-        } else if (s?.outstand_account_id) {
-          const res = await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
-          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
-        } else {
-          ToastService.showToast('Could not disconnect TikTok. Please try again.', ToastTypeEnum.Error);
-          return;
-        }
       }
-      // Invalidate DraftCard's connection cache so it re-fetches after a disconnect.
+      // facebook/instagram/tiktok no longer disconnect from here — they can
+      // have more than one connected page/account, so they go through the
+      // per-account dropdown (handleDisconnectAccount) or "Disconnect All"
+      // (handleDisconnectAllPlatform) below instead.
       try {
         sessionStorage.removeItem('social_connections_cache');
       } catch {
         /* noop */
       }
-      // Reload from server to confirm disconnect — do not optimistically set linked: false
       await loadStatuses();
       ToastService.showToast('Account disconnected.', ToastTypeEnum.Success);
+    } catch {
+      ToastService.showToast('Could not disconnect. Please try again.', ToastTypeEnum.Error);
+      await loadStatuses();
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
+  // Disconnects ONE specific page/account for a platform that can have more
+  // than one connected at a time (Facebook, Instagram, TikTok) — used by each
+  // row inside that platform's "connected accounts" dropdown. Previously the
+  // single Disconnect button could only ever target statuses[id]'s one
+  // account, so a second connected page for the same platform had no way to
+  // be reached at all — this is the fix for that.
+  const handleDisconnectAccount = async (platform: string, account: ConnectedAccountEntry) => {
+    const disconnectKey = `${platform}:${account.outstand_account_id || account.id}`;
+    setDisconnecting(disconnectKey);
+    try {
+      if (account.connected_via?.startsWith('facebook_direct')) {
+        const res = await SocialMediaAgentService.disconnectFacebookDirect();
+        if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+      } else if (account.connected_via?.startsWith('tiktok_direct')) {
+        const res = await SocialMediaAgentService.disconnectTikTokDirect();
+        if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+      } else if (platform === 'instagram' && account.connected_via?.startsWith('instagram_direct')) {
+        const igId = account.id || account.outstand_account_id;
+        if (!igId) throw new Error('Missing account id');
+        await SocialMediaAgentService.disconnectInstagramDirect(igId);
+      } else if (account.outstand_account_id) {
+        const res = await SocialMediaAgentService.disconnectPlatform(account.outstand_account_id);
+        if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+      } else {
+        throw new Error('Could not identify this account to disconnect');
+      }
+      try {
+        sessionStorage.removeItem('social_connections_cache');
+      } catch {
+        /* noop */
+      }
+      await loadStatuses();
+      ToastService.showToast(
+        `${account.account_name || account.username || 'Account'} disconnected.`,
+        ToastTypeEnum.Success
+      );
+    } catch {
+      ToastService.showToast('Could not disconnect. Please try again.', ToastTypeEnum.Error);
+      await loadStatuses();
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
+  // "Disconnect All" — the main row's button once at least one page/account is
+  // connected. One backend call handles every connected account for this
+  // platform (Outstand-managed and direct-OAuth alike), rather than looping
+  // individual disconnect calls client-side.
+  const handleDisconnectAllPlatform = async (platform: string) => {
+    setDisconnecting(`${platform}:all`);
+    try {
+      const res = await SocialMediaAgentService.disconnectAllForPlatform(platform);
+      if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+      try {
+        sessionStorage.removeItem('social_connections_cache');
+      } catch {
+        /* noop */
+      }
+      await loadStatuses();
+      ToastService.showToast('All accounts disconnected.', ToastTypeEnum.Success);
     } catch {
       ToastService.showToast('Could not disconnect. Please try again.', ToastTypeEnum.Error);
       await loadStatuses();
@@ -3035,6 +3159,119 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       onJane={onJane}
     >
       {/* Facebook page selection after OAuth callback */}
+      {igPendingToken && (
+        <div
+          style={{
+            background: '#F9FAFB',
+            border: '1.5px solid #E0DEF7',
+            borderRadius: 14,
+            padding: '20px 18px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', marginBottom: 6 }}>
+            Choose which Instagram account to connect
+          </div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
+            More than one of your Facebook Pages has a linked Instagram Business account — pick the one you want to use
+            here.
+          </div>
+          {igPickerLoading ? (
+            <div style={{ fontSize: 12.5, color: '#9CA3AF' }}>Loading accounts...</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {igCandidates.map((c) => {
+                const busy = igFinalizing === c.ig_user_id;
+                return (
+                  <div
+                    key={c.ig_user_id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '11px 14px',
+                      borderRadius: 10,
+                      border: '2px solid #edecea',
+                      background: '#fff',
+                    }}
+                  >
+                    {c.profile_picture_url ? (
+                      <img
+                        src={c.profile_picture_url}
+                        alt={c.username || c.page_name || 'Instagram account'}
+                        style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: '50%',
+                          background: '#FDF2F8',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 16,
+                        }}
+                      >
+                        📷
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                        {c.username ? `@${c.username}` : c.page_name || 'Instagram account'}
+                      </div>
+                      {c.page_name && c.username && (
+                        <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>via {c.page_name}</div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleFinalizeInstagramPending(c.ig_user_id)}
+                      disabled={busy || igFinalizing !== null}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: '#C2185B',
+                        color: '#fff',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: busy || igFinalizing !== null ? 'not-allowed' : 'pointer',
+                        opacity: igFinalizing !== null && !busy ? 0.5 : 1,
+                        fontFamily: 'var(--wf)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {busy ? 'Connecting...' : 'Connect'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setIgPendingToken(null);
+              setIgCandidates([]);
+            }}
+            style={{
+              marginTop: 14,
+              background: 'none',
+              border: 'none',
+              color: '#9CA3AF',
+              fontSize: 12,
+              cursor: 'pointer',
+              padding: 0,
+              fontFamily: 'var(--wf)',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {phase === 'pending' && (
         <div
           style={{
@@ -3551,6 +3788,88 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       // sub-state (choose/create account, check link status) is
                       // already surfaced by the panels below the card.
                       <></>
+                    ) : linked && (p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {(s?.accounts?.length ?? 0) > 0 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedAccountLists((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(p.id)) next.delete(p.id);
+                                else next.add(p.id);
+                                return next;
+                              })
+                            }
+                            aria-label={
+                              expandedAccountLists.has(p.id) ? 'Collapse connected pages' : 'Show connected pages'
+                            }
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: 6,
+                              border: '1px solid #edecea',
+                              background: '#fff',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <svg
+                              width={12}
+                              height={12}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="#888"
+                              strokeWidth="2.5"
+                              style={{
+                                transform: expandedAccountLists.has(p.id) ? 'rotate(180deg)' : 'none',
+                                transition: 'transform .15s',
+                              }}
+                            >
+                              <path d="M6 9l6 6 6-6" />
+                            </svg>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDisconnectAllPlatform(p.id)}
+                          disabled={isBusy}
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #edecea',
+                            background: '#fff',
+                            fontSize: 12,
+                            color: '#888',
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {disconnecting === `${p.id}:all` ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <span
+                                style={{
+                                  width: 10,
+                                  height: 10,
+                                  border: '2px solid #ccc',
+                                  borderTopColor: '#888',
+                                  borderRadius: '50%',
+                                  display: 'inline-block',
+                                  animation: 'spin 0.7s linear infinite',
+                                }}
+                              />
+                              Disconnecting...
+                            </span>
+                          ) : (
+                            'Disconnect All'
+                          )}
+                        </button>
+                      </div>
                     ) : linked ? (
                       <button
                         type="button"
@@ -3627,6 +3946,67 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     )}
                   </div>
                 </div>
+                {(p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') &&
+                  linked &&
+                  expandedAccountLists.has(p.id) &&
+                  (s?.accounts?.length ?? 0) > 0 && (
+                    <div
+                      style={{
+                        padding: '8px',
+                        background: '#fafafa',
+                        borderRadius: '0 0 12px 12px',
+                        border: '1.5px solid #edecea',
+                        borderTop: 'none',
+                        marginTop: -8,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                      }}
+                    >
+                      {(s?.accounts ?? []).map((account, idx) => {
+                        const accountKey = account.outstand_account_id || account.id || String(idx);
+                        const rowBusy = disconnecting === `${p.id}:${accountKey}`;
+                        return (
+                          <div
+                            key={accountKey}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 10,
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              background: '#fff',
+                              border: '1px solid #edecea',
+                            }}
+                          >
+                            <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
+                              {account.account_name || account.username || 'Connected page'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDisconnectAccount(p.id, account)}
+                              disabled={rowBusy}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                border: '1px solid #edecea',
+                                background: '#fff',
+                                fontSize: 11.5,
+                                color: '#888',
+                                cursor: 'pointer',
+                                fontFamily: 'var(--wf)',
+                                opacity: rowBusy ? 0.5 : 1,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {rowBusy ? 'Disconnecting...' : 'Disconnect'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 {(p.id === 'facebook_ads' || p.id === 'google_ads') && adsWaLoaded && (
                   // The number Jane's ads route to on WhatsApp — separate from
                   // whether a Facebook Page is connected above: launches always
