@@ -418,11 +418,11 @@ export class SocialMediaAgentService {
 
   static async finalizeInstagramDirectPending(
     token: string,
-    igUserId: string
-  ): Promise<UriResponse<{ ig_user_id: string; username?: string }>> {
+    igUserIds: string[]
+  ): Promise<UriResponse<{ connected: Array<{ ig_user_id: string; username?: string }>; total: number }>> {
     const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.instagramDirectFinalizePending, {
       token,
-      ig_user_id: igUserId,
+      ig_user_ids: igUserIds,
     });
     return response.data;
   }

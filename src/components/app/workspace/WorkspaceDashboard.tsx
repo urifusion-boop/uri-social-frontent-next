@@ -2439,7 +2439,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     Array<{ ig_user_id: string; page_name?: string; username?: string; profile_picture_url?: string }>
   >([]);
   const [igPickerLoading, setIgPickerLoading] = useState(false);
-  const [igFinalizing, setIgFinalizing] = useState<string | null>(null);
+  const [igFinalizing, setIgFinalizing] = useState(false);
+  const [igSelected, setIgSelected] = useState<Set<string>>(new Set());
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -2640,7 +2641,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         SocialMediaAgentService.getInstagramDirectPending(igToken)
           .then((res) => {
             if (res.status && res.responseData) {
-              setIgCandidates(res.responseData.candidates ?? []);
+              const candidates = res.responseData.candidates ?? [];
+              setIgCandidates(candidates);
+              setIgSelected(new Set(candidates.map((c) => c.ig_user_id)));
             } else {
               ToastService.showToast(
                 res.responseMessage || 'Could not load Instagram accounts. Please try again.',
@@ -2821,19 +2824,22 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }
   };
 
-  const handleFinalizeInstagramPending = async (igUserId: string) => {
-    if (!igPendingToken) return;
-    setIgFinalizing(igUserId);
+  const handleFinalizeInstagramPending = async () => {
+    if (!igPendingToken || igSelected.size === 0) return;
+    setIgFinalizing(true);
     try {
-      const res = await SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, igUserId);
+      const ids = Array.from(igSelected);
+      const res = await SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids);
       if (res.status) {
+        const count = res.responseData?.total ?? ids.length;
         ToastService.showToast(
-          `Instagram @${res.responseData?.username || igUserId} connected!`,
+          count > 1 ? `${count} Instagram accounts connected!` : 'Instagram account connected!',
           ToastTypeEnum.Success
         );
-        posthog.capture('social_account_connected', { platform: 'instagram', username: res.responseData?.username });
+        posthog.capture('social_account_connected', { platform: 'instagram', count });
         setIgPendingToken(null);
         setIgCandidates([]);
+        setIgSelected(new Set());
         try {
           sessionStorage.removeItem('social_connections_cache');
         } catch {
@@ -2842,14 +2848,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         loadStatuses();
       } else {
         ToastService.showToast(
-          res.responseMessage || 'Could not connect that account. Please try again.',
+          res.responseMessage || 'Could not connect those accounts. Please try again.',
           ToastTypeEnum.Error
         );
       }
     } catch {
-      ToastService.showToast('Could not connect that account. Please try again.', ToastTypeEnum.Error);
+      ToastService.showToast('Could not connect those accounts. Please try again.', ToastTypeEnum.Error);
     } finally {
-      setIgFinalizing(null);
+      setIgFinalizing(false);
     }
   };
 
@@ -3182,20 +3188,20 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           }}
         >
           <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', marginBottom: 6 }}>
-            Choose which Instagram account to connect
+            Choose which Instagram account(s) to connect
           </div>
           <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
-            More than one of your Facebook Pages has a linked Instagram Business account — pick the one you want to use
-            here.
+            More than one of your Facebook Pages has a linked Instagram Business account — select one or more to
+            connect, just like when connecting Facebook Pages.
           </div>
           {igPickerLoading ? (
             <div style={{ fontSize: 12.5, color: '#9CA3AF' }}>Loading accounts...</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {igCandidates.map((c) => {
-                const busy = igFinalizing === c.ig_user_id;
+                const checked = igSelected.has(c.ig_user_id);
                 return (
-                  <div
+                  <label
                     key={c.ig_user_id}
                     style={{
                       display: 'flex',
@@ -3203,10 +3209,26 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       gap: 12,
                       padding: '11px 14px',
                       borderRadius: 10,
-                      border: '2px solid #edecea',
+                      border: `2px solid ${checked ? '#C2185B' : '#edecea'}`,
                       background: '#fff',
+                      cursor: igFinalizing ? 'not-allowed' : 'pointer',
+                      opacity: igFinalizing ? 0.6 : 1,
                     }}
                   >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={igFinalizing}
+                      onChange={() =>
+                        setIgSelected((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(c.ig_user_id)) next.delete(c.ig_user_id);
+                          else next.add(c.ig_user_id);
+                          return next;
+                        })
+                      }
+                      style={{ width: 16, height: 16, accentColor: '#C2185B', flexShrink: 0, cursor: 'pointer' }}
+                    />
                     {c.profile_picture_url ? (
                       <img
                         src={c.profile_picture_url}
@@ -3237,50 +3259,52 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>via {c.page_name}</div>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleFinalizeInstagramPending(c.ig_user_id)}
-                      disabled={busy || igFinalizing !== null}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: '#C2185B',
-                        color: '#fff',
-                        fontSize: 12.5,
-                        fontWeight: 700,
-                        cursor: busy || igFinalizing !== null ? 'not-allowed' : 'pointer',
-                        opacity: igFinalizing !== null && !busy ? 0.5 : 1,
-                        fontFamily: 'var(--wf)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {busy ? 'Connecting...' : 'Connect'}
-                    </button>
-                  </div>
+                  </label>
                 );
               })}
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              setIgPendingToken(null);
-              setIgCandidates([]);
-            }}
-            style={{
-              marginTop: 14,
-              background: 'none',
-              border: 'none',
-              color: '#9CA3AF',
-              fontSize: 12,
-              cursor: 'pointer',
-              padding: 0,
-              fontFamily: 'var(--wf)',
-            }}
-          >
-            Cancel
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 14 }}>
+            <button
+              type="button"
+              onClick={handleFinalizeInstagramPending}
+              disabled={igFinalizing || igSelected.size === 0}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#C2185B',
+                color: '#fff',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: igFinalizing || igSelected.size === 0 ? 'not-allowed' : 'pointer',
+                opacity: igFinalizing || igSelected.size === 0 ? 0.5 : 1,
+                fontFamily: 'var(--wf)',
+              }}
+            >
+              {igFinalizing ? 'Connecting...' : igSelected.size > 1 ? `Connect ${igSelected.size} accounts` : 'Connect'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIgPendingToken(null);
+                setIgCandidates([]);
+                setIgSelected(new Set());
+              }}
+              disabled={igFinalizing}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#9CA3AF',
+                fontSize: 12,
+                cursor: igFinalizing ? 'not-allowed' : 'pointer',
+                padding: 0,
+                fontFamily: 'var(--wf)',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
