@@ -68,6 +68,7 @@ import JaneWelcomeCard from '@/src/components/app/workspace/JaneWelcomeCard';
 import { hexToColorName } from '@/src/utils/colorNamer';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
 import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
+import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
@@ -2376,6 +2377,12 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [statuses, setStatuses] = useState<Record<string, PlatformStatus>>({});
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    confirmText: string;
+    run: () => void;
+  } | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
   // Which platforms' connected-accounts dropdown is expanded (facebook,
   // instagram, tiktok — the platforms that can have more than one page/
@@ -3566,7 +3573,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         )}
                         <button
                           type="button"
-                          onClick={() => handleDisconnectAllPlatform(p.id)}
+                          onClick={() =>
+                            setConfirmAction({
+                              title: `Disconnect all ${p.label} accounts?`,
+                              message: `This disconnects every ${p.label} page/account currently connected. You can reconnect them later, but any scheduled posts tied to them may be affected.`,
+                              confirmText: 'Disconnect All',
+                              run: () => handleDisconnectAllPlatform(p.id),
+                            })
+                          }
                           disabled={isBusy}
                           style={{
                             padding: '5px 12px',
@@ -3604,7 +3618,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     ) : linked ? (
                       <button
                         type="button"
-                        onClick={() => handleDisconnect(p.id)}
+                        onClick={() =>
+                          setConfirmAction({
+                            title: `Disconnect ${p.label}?`,
+                            message: `This disconnects your ${p.label} account. You can reconnect it again at any time.`,
+                            confirmText: 'Disconnect',
+                            run: () => handleDisconnect(p.id),
+                          })
+                        }
                         disabled={isBusy}
                         style={{
                           padding: '5px 12px',
@@ -3716,7 +3737,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                             </span>
                             <button
                               type="button"
-                              onClick={() => handleDisconnectAccount(p.id, account)}
+                              onClick={() =>
+                                setConfirmAction({
+                                  title: 'Disconnect this account?',
+                                  message: `This disconnects "${account.account_name || account.username || 'this account'}" from ${p.label}. You can reconnect it again at any time.`,
+                                  confirmText: 'Disconnect',
+                                  run: () => handleDisconnectAccount(p.id, account),
+                                })
+                              }
                               disabled={rowBusy}
                               style={{
                                 padding: '4px 10px',
@@ -3893,6 +3921,16 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           background: #fff;
         }
       `}</style>
+      <ConfirmDialog
+        isOpen={!!confirmAction}
+        title={confirmAction?.title || ''}
+        message={confirmAction?.message || ''}
+        confirmText={confirmAction?.confirmText || 'Disconnect'}
+        cancelText="Cancel"
+        confirmColor="#EF4444"
+        onConfirm={() => confirmAction?.run()}
+        onCancel={() => setConfirmAction(null)}
+      />
     </SubPage>
   );
 };
