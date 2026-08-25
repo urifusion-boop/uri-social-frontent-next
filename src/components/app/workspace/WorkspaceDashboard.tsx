@@ -2737,6 +2737,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }
     if (flow === 'instagram_direct') {
       setConnecting(id);
+      // Recorded so the connected=false error-redirect handler (see the
+      // useEffect above) knows to show Instagram's specific fix guide rather
+      // than the generic fallback — the outstand_oauth branch already does
+      // this for its own flows, this path just never had.
+      localStorage.setItem('outstand_connect_platform', id);
       // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
       window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
