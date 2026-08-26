@@ -3565,7 +3565,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
 
         const addBrollFiles = (files: File[]) => {
           const valid = files.filter(
-            (f) => ['video/mp4', 'video/quicktime', 'video/webm'].includes(f.type) || /\.(mp4|mov|webm)$/i.test(f.name)
+            (f) =>
+              ['video/mp4', 'video/quicktime', 'video/webm', 'image/jpeg', 'image/png', 'image/webp'].includes(
+                f.type
+              ) || /\.(mp4|mov|webm|jpe?g|png|webp)$/i.test(f.name)
           );
           if (valid.length === 0) return;
           setBrollClips((prev) => [
@@ -3596,13 +3599,13 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
                 addBrollFiles(Array.from(e.dataTransfer.files));
               }}
             >
-              <div style={{ fontSize: 13, color: GRAY }}>Drop clips here or tap to browse</div>
-              <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>MP4 · MOV · WebM</div>
+              <div style={{ fontSize: 13, color: GRAY }}>Drop clips or photos here or tap to browse</div>
+              <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>MP4 · MOV · WebM · JPG · PNG · WebP</div>
             </div>
             <input
               ref={brollInputRef}
               type="file"
-              accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
+              accept="video/mp4,video/quicktime,video/webm,image/jpeg,image/png,image/webp,.mp4,.mov,.webm,.jpg,.jpeg,.png,.webp"
               multiple
               style={{ display: 'none' }}
               onChange={(e) => addBrollFiles(Array.from(e.target.files ?? []))}
@@ -3624,12 +3627,20 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
                       background: '#fff',
                     }}
                   >
-                    <video
-                      src={entry.previewUrl}
-                      style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
-                      muted
-                      playsInline
-                    />
+                    {entry.file.type.startsWith('image/') ? (
+                      <img
+                        src={entry.previewUrl}
+                        alt=""
+                        style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                      />
+                    ) : (
+                      <video
+                        src={entry.previewUrl}
+                        style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                        muted
+                        playsInline
+                      />
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
