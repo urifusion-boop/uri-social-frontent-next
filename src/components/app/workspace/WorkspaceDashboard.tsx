@@ -43,6 +43,7 @@ import CustomGuideV2PreviewCard from '@/src/components/app/social-media/CustomGu
 import { CustomVisualGuide, CustomVisualGuideService } from '@/src/api/CustomVisualGuideService';
 import { CustomVisualGuideV2, CustomVisualGuideV2Service } from '@/src/api/CustomVisualGuideV2Service';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
+import BusinessPulsePanel from '@/src/components/app/workspace/BusinessPulsePanel';
 import AgencyDashboard from '@/src/components/app/agency/AgencyDashboard';
 import { AgencyService, BrandAccount, getActiveBrandId, setActiveBrandId } from '@/src/api/AgencyService';
 import { getStyle } from '@/src/data/styleLibrary';
@@ -5798,6 +5799,11 @@ const PlaybookPage = ({
   const [website, setWebsite] = useState('');
   const [description, setDescription] = useState('');
   const [, setTagline] = useState('');
+  // Business Details
+  const [priceRange, setPriceRange] = useState('');
+  const [usp, setUsp] = useState('');
+  const [businessStage, setBusinessStage] = useState('');
+  const [businessPriorities, setBusinessPriorities] = useState<string[]>([]);
   const [voiceSample, setVoiceSample] = useState('');
   const [colors, setColors] = useState<string[]>([]);
   const [newColor, setNewColor] = useState('#CD1B78');
@@ -5820,6 +5826,16 @@ const PlaybookPage = ({
   const [primaryGoal, setPrimaryGoal] = useState('');
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
   const [idealCustomerProfile, setIdealCustomerProfile] = useState('');
+  // Target Customer Detail — additive to idealCustomerProfile above
+  const [customerGender, setCustomerGender] = useState('');
+  const [customerLocation, setCustomerLocation] = useState('');
+  const [customerOccupation, setCustomerOccupation] = useState('');
+  const [customerIncomeLevel, setCustomerIncomeLevel] = useState('');
+  const [customerInterests, setCustomerInterests] = useState<string[]>([]);
+  const [customerPainPoints, setCustomerPainPoints] = useState<string[]>([]);
+  const [customerNeeds, setCustomerNeeds] = useState<string[]>([]);
+  const [customerObjections, setCustomerObjections] = useState<string[]>([]);
+  const [whyChooseUs, setWhyChooseUs] = useState('');
   const [competitors, setCompetitors] = useState(['', '', '']);
   const [languages, setLanguages] = useState<string[]>([]);
   const [region, setRegion] = useState<string[]>([]);
@@ -5963,6 +5979,10 @@ const PlaybookPage = ({
     setWebsite(profile.website ?? '');
     setDescription(profile.product_description ?? '');
     setTagline((profile as BrandProfileData & { tagline?: string }).tagline ?? '');
+    setPriceRange(profile.price_range ?? '');
+    setUsp(profile.unique_selling_proposition ?? '');
+    setBusinessStage(profile.business_stage ?? '');
+    setBusinessPriorities([...(profile.business_priorities ?? [])]);
     setVoiceSample(profile.voice_sample ?? '');
     setColors([...(profile.brand_colors ?? [])]);
     setPillars([...(profile.content_pillars ?? [])]);
@@ -6001,6 +6021,15 @@ const PlaybookPage = ({
     setPrimaryGoal(profile.primary_goal ?? '');
     setTargetPlatforms([...(profile.target_platforms ?? [])]);
     setIdealCustomerProfile(profile.ideal_customer_profile ?? '');
+    setCustomerGender(profile.customer_gender ?? '');
+    setCustomerLocation(profile.customer_location ?? '');
+    setCustomerOccupation(profile.customer_occupation ?? '');
+    setCustomerIncomeLevel(profile.customer_income_level ?? '');
+    setCustomerInterests([...(profile.customer_interests ?? [])]);
+    setCustomerPainPoints([...(profile.customer_pain_points ?? [])]);
+    setCustomerNeeds([...(profile.customer_needs ?? [])]);
+    setCustomerObjections([...(profile.customer_objections ?? [])]);
+    setWhyChooseUs(profile.why_customers_choose_us ?? '');
     const comps = profile.competitor_handles ?? [];
     setCompetitors([comps[0] ?? '', comps[1] ?? '', comps[2] ?? '']);
     setLanguages([...(profile.languages ?? [])]);
@@ -6044,6 +6073,10 @@ const PlaybookPage = ({
         industry,
         website,
         product_description: description,
+        price_range: priceRange,
+        unique_selling_proposition: usp,
+        business_stage: (businessStage || '') as BrandProfileData['business_stage'],
+        business_priorities: businessPriorities,
         voice_sample: voiceSample,
         brand_colors: colors,
         content_pillars: pillars,
@@ -6062,6 +6095,15 @@ const PlaybookPage = ({
         primary_goal: primaryGoal,
         target_platforms: targetPlatforms,
         ideal_customer_profile: idealCustomerProfile,
+        customer_gender: customerGender,
+        customer_location: customerLocation,
+        customer_occupation: customerOccupation,
+        customer_income_level: customerIncomeLevel,
+        customer_interests: customerInterests,
+        customer_pain_points: customerPainPoints,
+        customer_needs: customerNeeds,
+        customer_objections: customerObjections,
+        why_customers_choose_us: whyChooseUs,
         competitor_handles: competitors.filter(Boolean),
         languages,
         region: region.join(', '),
@@ -6464,6 +6506,73 @@ const PlaybookPage = ({
             <PbInput value={description} onChange={setDescription} placeholder="What does your business do?" textarea />
           }
           tooltip="A short summary of what your business does — the AI reads this to keep every post on-brand and accurate"
+        />
+      </PbSection>
+
+      {/* Business Details */}
+      <PbSection title="Business Details">
+        <PbRow
+          label="Price range"
+          value={p?.price_range}
+          editing={editing}
+          input={
+            <PbInput
+              value={priceRange}
+              onChange={setPriceRange}
+              placeholder="e.g. Budget-friendly / Mid-range / Premium"
+            />
+          }
+          tooltip="Helps the AI match tone and vocabulary to your price tier"
+        />
+        <PbRow
+          label="What makes you different"
+          value={p?.unique_selling_proposition}
+          editing={editing}
+          input={
+            <PbInput value={usp} onChange={setUsp} placeholder="e.g. Only same-day delivery bakery in Lekki" textarea />
+          }
+          tooltip="Your unique selling proposition — the AI weaves this into hooks and CTAs"
+        />
+        <PbRow
+          label="Business stage"
+          value={p?.business_stage}
+          editing={editing}
+          input={
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { v: 'new', l: 'Just starting out' },
+                { v: 'growing', l: 'Growing' },
+                { v: 'established', l: 'Established' },
+                { v: 'market_leader', l: 'Market leader' },
+              ].map((s) => (
+                <PbChip key={s.v} label={s.l} active={businessStage === s.v} onClick={() => setBusinessStage(s.v)} />
+              ))}
+            </div>
+          }
+          tooltip="Shapes calendar tone — e.g. trust-building for a new business vs. authority for an established one"
+        />
+        <PbRow
+          label="Current business priorities"
+          value={p?.business_priorities}
+          editing={editing}
+          input={
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                'Growing revenue',
+                'Building brand awareness',
+                'Launching new offerings',
+                'Retaining customers',
+                'Expanding to new markets',
+              ].map((pr) => (
+                <PbChip
+                  key={pr}
+                  label={pr}
+                  active={businessPriorities.includes(pr)}
+                  onClick={() => pbTgl(businessPriorities, setBusinessPriorities, pr)}
+                />
+              ))}
+            </div>
+          }
         />
       </PbSection>
 
@@ -7193,6 +7302,133 @@ const PlaybookPage = ({
             />
           )}
         </div>
+        <PbRow
+          label="Customer gender"
+          value={p?.customer_gender}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerGender}
+              onChange={setCustomerGender}
+              placeholder="e.g. Primarily women (only if relevant)"
+            />
+          }
+        />
+        <PbRow
+          label="Customer location"
+          value={p?.customer_location}
+          editing={editing}
+          input={<PbInput value={customerLocation} onChange={setCustomerLocation} placeholder="e.g. Lagos, Nigeria" />}
+        />
+        <PbRow
+          label="Customer occupation"
+          value={p?.customer_occupation}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerOccupation}
+              onChange={setCustomerOccupation}
+              placeholder="e.g. Young professionals"
+            />
+          }
+        />
+        <PbRow
+          label="Customer income level"
+          value={p?.customer_income_level}
+          editing={editing}
+          input={
+            <PbInput value={customerIncomeLevel} onChange={setCustomerIncomeLevel} placeholder="e.g. Middle income" />
+          }
+        />
+        <PbRow
+          label="Customer interests"
+          value={p?.customer_interests}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerInterests.join(', ')}
+              onChange={(v) =>
+                setCustomerInterests(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. fitness, wellness, personal finance (comma-separated)"
+            />
+          }
+        />
+        <PbRow
+          label="Customer pain points"
+          value={p?.customer_pain_points}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerPainPoints.join(', ')}
+              onChange={(v) =>
+                setCustomerPainPoints(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. no time to cook, hard to find reliable delivery"
+            />
+          }
+        />
+        <PbRow
+          label="Customer needs"
+          value={p?.customer_needs}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerNeeds.join(', ')}
+              onChange={(v) =>
+                setCustomerNeeds(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. fast turnaround, transparent pricing"
+            />
+          }
+        />
+        <PbRow
+          label="Common objections"
+          value={p?.customer_objections}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerObjections.join(', ')}
+              onChange={(v) =>
+                setCustomerObjections(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. too expensive, not sure it works"
+            />
+          }
+        />
+        <PbRow
+          label="Why customers choose you"
+          value={p?.why_customers_choose_us}
+          editing={editing}
+          input={
+            <PbInput
+              value={whyChooseUs}
+              onChange={setWhyChooseUs}
+              placeholder="e.g. We deliver same-day, still warm from the oven"
+              textarea
+            />
+          }
+        />
         <div>
           <div
             style={{
@@ -8928,6 +9164,13 @@ const NAV = [
     tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
   },
   {
+    id: 'business-pulse',
+    icon: 'heart',
+    label: 'Business Pulse',
+    tooltip:
+      "What's happening in your business right now — promotions, campaigns, news. Feeds directly into your content calendar.",
+  },
+  {
     id: 'settings',
     icon: 'settings',
     label: 'Settings',
@@ -8961,6 +9204,7 @@ const MOBILE_TABS = [
 const MORE_NAV = [
   { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
   { id: 'blog', icon: 'book', label: 'Blog' },
+  { id: 'business-pulse', icon: 'heart', label: 'Business Pulse' },
   { id: 'connections', icon: 'share', label: 'Connected Accounts' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
@@ -9454,6 +9698,7 @@ export default function WorkspaceDashboard() {
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
+    'business-pulse': <BusinessPulsePanel />,
     settings: (
       <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
     ),
