@@ -411,7 +411,7 @@ function LoginContent() {
             {/* Name fields for signup */}
             {tab === 'signup' && (
               <Fade in timeout={300}>
-                <Box display="flex" gap={1.5} mb={1.5}>
+                <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} gap={1.5} mb={1.5}>
                   <TextField
                     label="First Name"
                     fullWidth

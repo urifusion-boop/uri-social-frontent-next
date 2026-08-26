@@ -6,10 +6,12 @@ import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { markdownToHtml } from '@/src/utils/markdown.util';
 import { FiCopy, FiCheck, FiDownload } from 'react-icons/fi';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
 
 const URI_PINK = '#CD1B78';
 
 export default function BlogDraftsTab() {
+  const isMobile = useIsMobile();
   const [posts, setPosts] = useState<BlogPostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<BlogPostData | null>(null);
@@ -103,7 +105,14 @@ export default function BlogDraftsTab() {
     const sc = statusColors(selected.status);
 
     return (
-      <div style={{ padding: '20px 30px 100px', maxWidth: '860px', margin: '0 auto', minHeight: '100vh' }}>
+      <div
+        style={{
+          padding: isMobile ? '16px 12px 100px' : '20px 30px 100px',
+          maxWidth: '860px',
+          margin: '0 auto',
+          minHeight: '100vh',
+        }}
+      >
         <button
           onClick={() => setSelected(null)}
           style={{
@@ -279,7 +288,14 @@ export default function BlogDraftsTab() {
   // ── List view ────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: '20px 30px 100px', maxWidth: '1200px', margin: '0 auto', minHeight: '100vh' }}>
+    <div
+      style={{
+        padding: isMobile ? '16px 12px 100px' : '20px 30px 100px',
+        maxWidth: '1200px',
+        margin: '0 auto',
+        minHeight: '100vh',
+      }}
+    >
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '4px', color: '#111' }}>Blog Posts</h2>
         <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>All your generated and published blog posts</p>
@@ -304,7 +320,13 @@ export default function BlogDraftsTab() {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '18px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))',
+            gap: '18px',
+          }}
+        >
           {posts.map((post) => {
             const title = post.current_title || post.generated_title;
             const sc = statusColors(post.status);

@@ -10,13 +10,22 @@ const MAX_MB = 500;
 
 interface Props {
   onPolishComplete: () => void;
+  // Jane Ads hand-off: seed the picker with an already-chosen file (skips the
+  // 2-minute minimum below — that gate exists for this tool's original use case
+  // of extracting several short clips from one long raw recording, which doesn't
+  // apply to a single short ad clip someone already has and just wants cleaned up).
+  initialFile?: File;
+  // Shown as an extra action alongside Download once a clip is ready, only when
+  // this form was opened from that hand-off — calls back with the finished
+  // clip's URL so the caller can resume wherever the video came from.
+  onUseInCampaign?: (url: string) => void;
 }
 
 type Phase = 'pick' | 'uploading' | 'processing' | 'ready' | 'failed';
 
 const ENERGY_ICONS = ['', '🔹', '🔸', '🔶', '⚡', '🔥'];
 
-export default function VideoPolishForm({ onPolishComplete }: Props) {
+export default function VideoPolishForm({ onPolishComplete, initialFile, onUseInCampaign }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -68,7 +77,7 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
     };
   }, [videoPreviewUrl]);
 
-  const acceptFile = (file: File) => {
+  const acceptFile = (file: File, skipDurationCheck = false) => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
       ToastService.showToast('Please upload an MP4 or MOV video.', ToastTypeEnum.Error);
       return;
@@ -82,7 +91,11 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
     vid.preload = 'metadata';
     vid.onloadedmetadata = () => {
       URL.revokeObjectURL(url);
-      if (vid.duration < 120) {
+      // The 2-minute floor exists for this tool's original job — pulling several
+      // short clips out of one long raw recording. A video handed off from
+      // elsewhere (already a single short clip someone just wants cleaned up)
+      // doesn't fit that job, so it skips this check.
+      if (!skipDurationCheck && vid.duration < 120) {
         ToastService.showToast(
           `Video is too short (${Math.round(vid.duration)}s). Minimum is 2 minutes for AI polishing.`,
           ToastTypeEnum.Error
@@ -94,6 +107,13 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
     };
     vid.src = url;
   };
+
+  // Jane Ads hand-off — the file arrives already chosen, so skip straight past
+  // the picker phase. Runs once; initialFile never changes for a mounted form.
+  useEffect(() => {
+    if (initialFile) acceptFile(initialFile, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -744,6 +764,29 @@ export default function VideoPolishForm({ onPolishComplete }: Props) {
             >
               ⬇ Download
             </a>
+            {onUseInCampaign && (
+              <button
+                onClick={() => {
+                  const url =
+                    actionResult[selectedClipIdx] ||
+                    job.output_clips[selectedClipIdx]?.captioned_clip_url ||
+                    job.output_clips[selectedClipIdx]?.clip_url;
+                  if (url) onUseInCampaign(url);
+                }}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  border: 'none',
+                  background: 'linear-gradient(135deg,#CD1B78,#8E1545)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                ↩ Use in my ad
+              </button>
+            )}
           </div>
 
           {/* Reframe panel */}

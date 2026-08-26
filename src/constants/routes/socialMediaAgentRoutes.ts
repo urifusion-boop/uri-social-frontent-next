@@ -10,6 +10,9 @@ type ISocialMediaAgentApi =
   | 'finalizeConnection'
   | 'getConnections'
   | 'disconnectPlatform'
+  | 'disconnectAllForPlatform'
+  | 'instagramDirectPending'
+  | 'instagramDirectFinalizePending'
   | 'generateContent'
   | 'uploadUserContent'
   | 'generateStoryboard'
@@ -90,7 +93,11 @@ type ISocialMediaAgentApi =
   | 'zapcapProduce'
   | 'zapcapJob'
   | 'zapcapTemplates'
-  | 'multiClipAnalyze';
+  | 'multiClipAnalyze'
+  | 'videoVoiceoverScript'
+  | 'videoVoiceoverProduce'
+  | 'videoBrandOverlayAdjust'
+  | 'videoFrame';
 
 const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   connectFacebookToken: '/connect/facebook/token',
@@ -99,6 +106,9 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   finalizeConnection: '/connect/finalize',
   getConnections: '/connections',
   disconnectPlatform: '/connections/account',
+  disconnectAllForPlatform: '/connections/platform',
+  instagramDirectPending: '/connect/instagram-direct/pending',
+  instagramDirectFinalizePending: '/connect/instagram-direct/finalize-pending',
   generateContent: '/generate-content',
   uploadUserContent: '/upload-user-content',
   generateStoryboard: '/generate-storyboard',
@@ -180,6 +190,10 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   submagicJob: '/submagic-job',
   zapcapProduce: '/zapcap-produce',
   zapcapJob: '/zapcap-job',
+  videoVoiceoverScript: '/video-voiceover/script',
+  videoVoiceoverProduce: '/video-voiceover/produce',
+  videoBrandOverlayAdjust: '/video-brand-overlay/adjust',
+  videoFrame: '/video-frame',
   zapcapTemplates: '/zapcap-templates',
   multiClipAnalyze: '/multi-clip/job',
 };

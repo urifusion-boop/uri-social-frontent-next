@@ -27,6 +27,9 @@ class UriHttpClient {
     instance.interceptors.request.use(
       (config) => {
         console.log(`🌐 [HTTP Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+        if (config.url?.includes('brand-profile') && config.method === 'post') {
+          console.log('📤 [HTTP Request Body - Brand Profile]:', config.data);
+        }
         const tokens = this.getStoredTokens();
         if (tokens?.accessToken) {
           config.headers.Authorization = `Bearer ${tokens.accessToken}`;

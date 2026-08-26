@@ -40,7 +40,16 @@ const TYPE_STYLE: Record<string, { bg: string; color: string; label: string }> =
 };
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const CONNECTED_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'x'];
+const CONNECTED_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'x', 'tiktok'];
+
+const VIDEO_FORMAT_LABELS: Record<string, string> = {
+  talking_head: 'Talking Head',
+  product_demo: 'Product Demo',
+  testimonial: 'Testimonial',
+  tutorial: 'Tutorial',
+  behind_the_scenes: 'Behind the Scenes',
+  trend_based: 'Trend-Based',
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -395,6 +404,316 @@ const DayDetailModal = ({
         >
           {day.description}
         </div>
+
+        {/* Hook */}
+        {day.hook && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              🪝 Hook
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: '#111',
+                background: '#fafaf8',
+                borderRadius: 6,
+                padding: '8px 10px',
+                lineHeight: 1.6,
+                fontStyle: 'italic',
+              }}
+            >
+              &ldquo;{day.hook}&rdquo;
+            </div>
+          </div>
+        )}
+
+        {/* Key Points */}
+        {day.key_points && day.key_points.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              📌 Key Points
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: '#444', lineHeight: 1.7 }}>
+              {day.key_points.map((point, idx) => (
+                <li key={idx}>{point}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Recommended CTA */}
+        {day.cta && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              💬 Recommended CTA
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: '#C2185B',
+                background: 'rgba(194, 24, 91, 0.05)',
+                borderRadius: 6,
+                padding: '8px 10px',
+                fontWeight: 600,
+              }}
+            >
+              {day.cta}
+            </div>
+          </div>
+        )}
+
+        {/* Caption Writing Direction */}
+        {day.caption_direction && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              ✍️ Caption Direction
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: '#555',
+                background: '#fafaf8',
+                borderRadius: 6,
+                padding: '8px 10px',
+                lineHeight: 1.6,
+              }}
+            >
+              {day.caption_direction}
+            </div>
+          </div>
+        )}
+
+        {/* Keywords */}
+        {day.keywords && day.keywords.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              🏷️ Keywords
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {day.keywords.map((kw, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    fontSize: 11,
+                    color: '#6d28d9',
+                    background: 'rgba(109, 40, 217, 0.08)',
+                    borderRadius: 4,
+                    padding: '4px 8px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {kw}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Video Idea */}
+        {day.video_idea && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              🎬 Video Idea
+            </div>
+            <div
+              style={{
+                background: 'rgba(37, 99, 235, 0.05)',
+                border: '1px solid rgba(37, 99, 235, 0.15)',
+                borderRadius: 8,
+                padding: '10px 12px',
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#2563eb',
+                  background: 'rgba(37, 99, 235, 0.1)',
+                  borderRadius: 4,
+                  padding: '2px 6px',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.3,
+                  marginBottom: 8,
+                }}
+              >
+                {VIDEO_FORMAT_LABELS[day.video_idea.format] ?? day.video_idea.format}
+              </span>
+              <div style={{ fontSize: 12.5, color: '#111', fontStyle: 'italic', marginBottom: 8 }}>
+                &ldquo;{day.video_idea.hook}&rdquo;
+              </div>
+              {day.video_idea.talking_points?.length > 0 && (
+                <ul style={{ margin: '0 0 8px', paddingLeft: 16, fontSize: 12, color: '#444', lineHeight: 1.6 }}>
+                  {day.video_idea.talking_points.map((tp, idx) => (
+                    <li key={idx}>{tp}</li>
+                  ))}
+                </ul>
+              )}
+              {day.video_idea.scenes?.length > 0 && (
+                <div style={{ fontSize: 11.5, color: '#555', marginBottom: 8 }}>
+                  <strong>Scenes:</strong> {day.video_idea.scenes.join(' · ')}
+                </div>
+              )}
+              {day.video_idea.cta && (
+                <div style={{ fontSize: 12, color: '#2563eb', fontWeight: 600 }}>{day.video_idea.cta}</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Upcoming Holidays */}
+        {day.upcoming_holidays && day.upcoming_holidays.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              🎉 Holiday Opportunity
+            </div>
+            {day.upcoming_holidays.map((holiday, idx) => (
+              <div
+                key={idx}
+                style={{
+                  fontSize: 12,
+                  color: '#111',
+                  background: 'rgba(109, 40, 217, 0.08)',
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  marginBottom: idx < day.upcoming_holidays!.length - 1 ? 6 : 0,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 3 }}>{holiday.name}</div>
+                <div style={{ fontSize: 11, color: '#666' }}>{holiday.content_angle}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Trending Topics */}
+        {day.trending_topics && day.trending_topics.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              🔥 Trending Now
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {day.trending_topics.map((topic, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    fontSize: 11,
+                    color: '#0a66c2',
+                    background: 'rgba(10, 102, 194, 0.08)',
+                    borderRadius: 4,
+                    padding: '4px 8px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {topic}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Why This Content (Enhanced Reason) */}
+        {day.reason && (
+          <div style={{ marginBottom: 20 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: '#bbb',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              💡 Why This Content
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: '#555',
+                background: 'rgba(22, 163, 74, 0.06)',
+                borderRadius: 6,
+                padding: '10px 12px',
+                lineHeight: 1.65,
+                borderLeft: '3px solid rgba(22, 163, 74, 0.3)',
+              }}
+            >
+              {day.reason}
+            </div>
+          </div>
+        )}
 
         {/* Platforms */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>

@@ -50,8 +50,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isPending, setIsPending] = useState(true);
   // Defaults to false (hide-until-confirmed) — admin status is DB-driven
-  // (see AdminService.checkIsAdmin) and can't be inferred client-side, unlike
-  // the old hardcoded-email check this replaces.
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isAdminStatusPending, setIsAdminStatusPending] = useState(true);
   // The axios interceptor clears localStorage's tokens SYNCHRONOUSLY, before it
@@ -170,20 +168,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [isAuthenticated, isPending]);
 
-  // Poll credit balance and trial status every 60s so a server-side change
-  // (e.g. an admin adjustment) reaches an already-open session without
-  // waiting for the user's next login — mirrors NotificationProvider's
-  // unread-count polling, the only existing "stay fresh" precedent in this
-  // codebase (no websocket/SSE push infrastructure exists here).
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    const interval = setInterval(() => {
-      refreshCreditBalance();
-      refreshTrialStatus();
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, refreshCreditBalance, refreshTrialStatus]);
-
   // Listen for credit consumption events from other components
   useEffect(() => {
     const unsubscribe = EventBus.on(EVENTS.CREDIT_CONSUMED, () => {
@@ -218,7 +202,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUserDetails(null);
     setTokenDetails(null);
     setIsAuthenticated(false);
-    setIsAdminUser(false);
     router.push('/login');
   }, [router]);
 

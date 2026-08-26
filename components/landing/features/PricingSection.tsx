@@ -135,7 +135,10 @@ const PricingSection = () => {
                     backgroundColor: plan.popular ? 'hsl(340, 74%, 42%)' : 'white',
                     color: plan.popular ? 'white' : 'black',
                   }}
-                  onClick={() => trackEvent('landing_pricing_cta_click', { plan: plan.name.toLowerCase(), cta: plan.cta })}
+                  onClick={() => {
+                    trackEvent('landing_pricing_cta_click', { plan: plan.name.toLowerCase(), cta: plan.cta });
+                    if (plan.cta !== 'Contact Sales') window.location.href = '/login?tab=signup';
+                  }}
                 >
                   {plan.cta}
                 </button>

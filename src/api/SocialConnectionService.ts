@@ -2,6 +2,21 @@ import { UriHttpClient } from '@/src/configs/http.config';
 import { UriResponse } from '@/src/models/responses/UriResponse';
 import { AxiosResponse } from 'axios';
 
+// One connected page/account for a platform that can have more than one
+// (Facebook, Instagram, TikTok — anything routed through Outstand or a
+// direct flow that supports multiple pages). `outstand_account_id` is
+// present for Outstand-managed accounts; direct-OAuth accounts (Facebook
+// direct, Instagram direct) key on `id` instead, surfaced here the same way
+// so the Connected Accounts dropdown can treat both uniformly.
+export interface ConnectedAccountEntry {
+  outstand_account_id?: string;
+  id?: string;
+  username?: string;
+  account_name?: string;
+  connected_via?: string;
+  profile_picture_url?: string;
+}
+
 export interface PlatformStatus {
   linked: boolean;
   username?: string;
@@ -14,6 +29,20 @@ export interface PlatformStatus {
   connected_via?: string;
   active_author_urn?: string;
   pages?: LinkedInPage[];
+  // Every connected page/account for this platform — the single fields above
+  // (outstand_account_id, account_name, etc.) mirror accounts[0] for anything
+  // that hasn't been updated to render the full list yet. Empty/absent when
+  // the platform doesn't support multiple accounts.
+  accounts?: ConnectedAccountEntry[];
+  // facebook_ads only — the Per-Brand Page Connection plan's six-state gate
+  // (none/content_only/ads_no_whatsapp/ready/expired/no_page), so Connected
+  // Accounts can show a state-specific reason instead of just linked/not.
+  meta_connection_state?: string;
+  // google_ads only — mirrors meta_connection_state's role, but Google's state
+  // machine has an extra step Meta's doesn't (needs_account_selection).
+  google_connection_state?: string;
+  google_customer_id?: string;
+  google_whatsapp_number?: string;
 }
 
 export interface LinkedInPage {

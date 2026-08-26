@@ -227,6 +227,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const isCarousel = postType === 'carousel' && slides.length > 0;
   const isStory = postType === 'story';
   const isReel = postType === 'reel' || !!draft.video_url;
+  // A generic video upload isn't necessarily Reels-shaped footage — only force
+  // the 9:16 portrait frame (and the "REEL" label) when the post is actually
+  // post_type 'reel'. Anything else with a video just gets sized to its own
+  // aspect ratio, so a landscape/square upload doesn't get letterboxed inside
+  // a tall box it was never shot for.
+  const isPortraitReel = postType === 'reel';
   const totalSlides = slides.length;
   const currentSlide = isCarousel ? slides[slideIndex] : null;
 
@@ -893,7 +899,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         </Box>
       )}
 
-      {/* ── Reel video (9:16) ── */}
+      {/* ── Video (portrait 9:16 box only for actual Reels; natural size otherwise) ── */}
       {!editing && isReel && draft.video_url && (
         <Box
           mb={1.5}
@@ -901,38 +907,39 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             borderRadius: '8px',
             overflow: 'hidden',
             border: '1px solid #E5E7EB',
-            aspectRatio: '9 / 16',
-            width: '50%',
-            background: '#000',
+            ...(isPortraitReel
+              ? { aspectRatio: '9 / 16', width: '50%', background: '#000' }
+              : { width: '100%', maxWidth: 420 }),
             position: 'relative',
           }}
         >
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 8,
-              left: 8,
-              background: 'rgba(0,0,0,0.6)',
-              borderRadius: '6px',
-              px: 0.75,
-              py: 0.25,
-              zIndex: 2,
-            }}
-          >
-            <Typography fontSize="10px" fontWeight={700} color="#fff" letterSpacing={0.5}>
-              REEL
-            </Typography>
-          </Box>
+          {isPortraitReel && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 8,
+                left: 8,
+                background: 'rgba(0,0,0,0.6)',
+                borderRadius: '6px',
+                px: 0.75,
+                py: 0.25,
+                zIndex: 2,
+              }}
+            >
+              <Typography fontSize="10px" fontWeight={700} color="#fff" letterSpacing={0.5}>
+                REEL
+              </Typography>
+            </Box>
+          )}
           <video
             src={resolveUrl(draft.video_url)}
             controls
             playsInline
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              display: 'block',
-            }}
+            style={
+              isPortraitReel
+                ? { width: '100%', height: '100%', objectFit: 'contain', display: 'block' }
+                : { width: '100%', height: 'auto', display: 'block' }
+            }
           />
         </Box>
       )}
