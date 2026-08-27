@@ -62,6 +62,23 @@ const timeAgo = (iso?: string | null): string | null => {
   return `${days} days ago`;
 };
 
+// Same field-row shape as Brand Playbook's PbRow/PbInput (WorkspaceDashboard.tsx) —
+// duplicated in this file rather than imported since those are local, non-exported
+// helpers and importing them here would create a circular import (WorkspaceDashboard
+// already imports this component).
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 11px',
+  borderRadius: 8,
+  border: '1.5px solid #e5e3df',
+  fontSize: 13,
+  fontFamily: 'var(--wf, inherit)',
+  outline: 'none',
+  background: '#fafaf8',
+  color: '#111',
+  boxSizing: 'border-box',
+};
+
 /**
  * A separate, always-editable surface from the main 21-step Brand Playbook —
  * these fields are time-sensitive (current promotions/campaigns/news/
@@ -73,6 +90,8 @@ const timeAgo = (iso?: string | null): string | null => {
 export default function BusinessPulsePanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({
     current_period_goal: '',
@@ -97,9 +116,14 @@ export default function BusinessPulsePanel() {
             business_news_announcements: (d.business_news_announcements ?? []).join(', '),
           });
           setUpdatedAt(d.updated_at ?? null);
+        } else {
+          setLoadError(true);
         }
       })
-      .catch(() => ToastService.showToast('Could not load Business Pulse. Please try again.', ToastTypeEnum.Error))
+      .catch(() => {
+        setLoadError(true);
+        ToastService.showToast('Could not load Business Pulse. Please try again.', ToastTypeEnum.Error);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -122,7 +146,9 @@ export default function BusinessPulsePanel() {
       const res = await BrandProfileService.saveBusinessPulse(payload);
       if (!res.status) throw new Error(res.responseMessage || 'Save failed');
       setUpdatedAt(res.responseData?.business_pulse_updated_at ?? new Date().toISOString());
-      ToastService.showToast('Business Pulse saved.', ToastTypeEnum.Success);
+      setLoadError(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
     } catch {
       ToastService.showToast('Could not save. Please try again.', ToastTypeEnum.Error);
     } finally {
@@ -130,100 +156,142 @@ export default function BusinessPulsePanel() {
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '10px 13px',
-    borderRadius: 8,
-    border: '1.5px solid #e5e3df',
-    fontSize: 13.5,
-    fontFamily: 'var(--wf, inherit)',
-    outline: 'none',
-    background: '#fafaf8',
-    color: '#111',
-    boxSizing: 'border-box',
-  };
+  const freshness = timeAgo(updatedAt);
 
   return (
-    <div style={{ padding: 24, maxWidth: 720, margin: '0 auto', minHeight: '100vh' }}>
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={URI_PINK} strokeWidth="2">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Header — matches SubPage's chrome (WorkspaceDashboard.tsx) used by every other page */}
+      <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid #edecea' }}>
+        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={URI_PINK} strokeWidth="2">
             <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
           </svg>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: '#111' }}>Business Pulse</h1>
-        </div>
-        <p style={{ fontSize: 13.5, color: '#6b7280', margin: 0 }}>
-          What&rsquo;s happening in your business right now. Keep this current — it feeds directly into your content
-          calendar, so a stale promotion here means stale content in your posts.
+          Business Pulse
+        </h2>
+        <p style={{ fontSize: 12.5, color: '#999', marginTop: 2 }}>
+          What&rsquo;s happening in your business right now &mdash; feeds directly into your content calendar
         </p>
       </div>
 
-      <div
-        style={{
-          margin: '14px 0 20px',
-          fontSize: 12,
-          color: updatedAt ? '#9CA3AF' : '#C2185B',
-          fontWeight: 500,
-        }}
-      >
-        {updatedAt
-          ? `Last updated ${timeAgo(updatedAt)}`
-          : "Never updated — fill this in so your calendar reflects what's current"}
-      </div>
-
-      {loading ? (
-        <div style={{ fontSize: 13, color: '#9CA3AF' }}>Loading...</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {FIELDS.map((f) => (
-            <div key={f.key}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: '#999',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  marginBottom: 6,
-                }}
-              >
-                {f.label}
-                {f.list && <span style={{ textTransform: 'none', fontWeight: 400 }}> (comma-separated)</span>}
-              </label>
-              <input
-                value={values[f.key as string] ?? ''}
-                onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                placeholder={f.placeholder}
-                style={inputStyle}
-                onFocus={(e) => (e.currentTarget.style.borderColor = URI_PINK)}
-                onBlur={(e) => (e.currentTarget.style.borderColor = '#e5e3df')}
-              />
-            </div>
-          ))}
-
+      <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+        {/* Action bar — mirrors Brand Playbook's sticky save bar */}
+        <div
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 16,
+            paddingBottom: 12,
+            backgroundColor: '#fff',
+          }}
+        >
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: updatedAt ? '#999' : URI_PINK }}>
+            {saved
+              ? '✓ Changes saved'
+              : freshness
+                ? `Last updated ${freshness}`
+                : loadError
+                  ? ''
+                  : "Never updated — fill this in so your calendar reflects what's current"}
+          </span>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || loading}
             style={{
-              alignSelf: 'flex-start',
-              marginTop: 8,
-              padding: '10px 22px',
+              padding: '7px 16px',
               borderRadius: 8,
               border: 'none',
               background: URI_PINK,
               color: '#fff',
-              fontSize: 13.5,
-              fontWeight: 600,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.6 : 1,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: saving || loading ? 'not-allowed' : 'pointer',
+              opacity: saving || loading ? 0.7 : 1,
               fontFamily: 'var(--wf, inherit)',
             }}
           >
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
-      )}
+
+        {loading ? (
+          <div style={{ fontSize: 13, color: '#9CA3AF' }}>Loading...</div>
+        ) : (
+          <>
+            {loadError && (
+              <div
+                style={{
+                  background: '#fdf0f6',
+                  border: `1px solid ${URI_PINK}33`,
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  fontSize: 12.5,
+                  color: URI_PINK,
+                  marginBottom: 12,
+                }}
+              >
+                Couldn&rsquo;t load your saved Business Pulse. You can still fill this in and save — just double-check
+                it after your next visit.
+              </div>
+            )}
+
+            {/* Section card — matches PbSection styling from Brand Playbook */}
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 12,
+                border: '1px solid #edecea',
+                padding: '16px 18px',
+                marginBottom: 10,
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: URI_PINK,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.8,
+                  marginBottom: 12,
+                }}
+              >
+                What&rsquo;s current
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {FIELDS.map((f) => (
+                  <div key={f.key}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: '#999',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                        marginBottom: 4,
+                      }}
+                    >
+                      {f.label}
+                      {f.list && <span style={{ textTransform: 'none', fontWeight: 400 }}> (comma-separated)</span>}
+                    </div>
+                    <input
+                      value={values[f.key as string] ?? ''}
+                      onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                      placeholder={f.placeholder}
+                      style={inputStyle}
+                      onFocus={(e) => (e.currentTarget.style.borderColor = URI_PINK)}
+                      onBlur={(e) => (e.currentTarget.style.borderColor = '#e5e3df')}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
