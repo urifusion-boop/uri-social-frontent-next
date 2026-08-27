@@ -1539,6 +1539,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
     fd.append('quality', 'standard');
     fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
     fd.append('caption_style', 'bold');
+    fd.append('captions_enabled', String(plan.captionsEnabled));
     const musicActive = plan.musicEnabled && (plan.musicSource === 'auto' || !!musicFile);
     fd.append('enable_music', String(musicActive));
     if (musicActive) {
@@ -1661,9 +1662,14 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
       },
       onReady: async (outputUrl) => {
         if (willRerender) {
-          // Fix Something path — pipe the silence-cut URL back through ZapCap
-          // so captions and b-roll are re-applied on the tighter edit.
-          addMsg('jane', 'Silences cut — re-applying captions and b-roll…');
+          // Fix Something path — pipe the silence-cut URL back through the
+          // same pipeline as the original render, respecting the user's
+          // captions choice instead of always forcing captions back on.
+          const captionsWanted = plan?.captionsEnabled ?? true;
+          addMsg(
+            'jane',
+            captionsWanted ? 'Silences cut — re-applying captions and b-roll…' : 'Silences cut — re-applying b-roll…'
+          );
           setRenderProgress(5);
           setRenderStatus('pending');
           const fd2 = new FormData();
@@ -1673,6 +1679,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
           fd2.append('output_mode', 'composited');
           fd2.append('quality', 'standard');
           fd2.append('enable_broll', String(plan?.brollEnabled ?? false));
+          fd2.append('captions_enabled', String(captionsWanted));
           fd2.append('enable_music', 'false');
           try {
             const res = await SocialMediaAgentService.produceWithZapCap(fd2);
@@ -2918,8 +2925,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
               value={planLabels.captionLabel}
               field="captions"
               onAdjust={setAdjustField}
-              disabled={plan.classification === 'product' && !plan.captionsEnabled}
-              tooltip="Burned-in subtitles synced to your speech. Off by default for silent product videos since there's no speech to caption."
+              tooltip="Burned-in subtitles synced to your speech. Off by default for product videos, which are usually silent — turn on if yours has narration."
             />
             <PlanRow
               label="Trim"
@@ -3559,7 +3565,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
 
         const addBrollFiles = (files: File[]) => {
           const valid = files.filter(
-            (f) => ['video/mp4', 'video/quicktime', 'video/webm'].includes(f.type) || /\.(mp4|mov|webm)$/i.test(f.name)
+            (f) =>
+              ['video/mp4', 'video/quicktime', 'video/webm', 'image/jpeg', 'image/png', 'image/webp'].includes(
+                f.type
+              ) || /\.(mp4|mov|webm|jpe?g|png|webp)$/i.test(f.name)
           );
           if (valid.length === 0) return;
           setBrollClips((prev) => [
@@ -3590,13 +3599,13 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
                 addBrollFiles(Array.from(e.dataTransfer.files));
               }}
             >
-              <div style={{ fontSize: 13, color: GRAY }}>Drop clips here or tap to browse</div>
-              <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>MP4 · MOV · WebM</div>
+              <div style={{ fontSize: 13, color: GRAY }}>Drop clips or photos here or tap to browse</div>
+              <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>MP4 · MOV · WebM · JPG · PNG · WebP</div>
             </div>
             <input
               ref={brollInputRef}
               type="file"
-              accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
+              accept="video/mp4,video/quicktime,video/webm,image/jpeg,image/png,image/webp,.mp4,.mov,.webm,.jpg,.jpeg,.png,.webp"
               multiple
               style={{ display: 'none' }}
               onChange={(e) => addBrollFiles(Array.from(e.target.files ?? []))}
@@ -3618,12 +3627,20 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
                       background: '#fff',
                     }}
                   >
-                    <video
-                      src={entry.previewUrl}
-                      style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
-                      muted
-                      playsInline
-                    />
+                    {entry.file.type.startsWith('image/') ? (
+                      <img
+                        src={entry.previewUrl}
+                        alt=""
+                        style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                      />
+                    ) : (
+                      <video
+                        src={entry.previewUrl}
+                        style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                        muted
+                        playsInline
+                      />
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
