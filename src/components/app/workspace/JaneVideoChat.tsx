@@ -1513,6 +1513,28 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
     throw new Error('Upload failed');
   };
 
+  const produceWithZapCapRetry = async (
+    fd: FormData,
+    onRetry?: (attempt: number, maxAttempts: number) => void,
+    maxAttempts = 3
+  ) => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await SocialMediaAgentService.produceWithZapCap(fd);
+      } catch (err) {
+        const axiosErr = err as { response?: unknown };
+        // Only retry a genuine dropped-connection failure (no response at all —
+        // common on weak mobile signal mid-upload of a large video file). A
+        // real HTTP error (402 insufficient credits, 4xx/5xx) means the server
+        // was reached and responded — retrying won't change that outcome.
+        if (axiosErr?.response || attempt === maxAttempts) throw err;
+        onRetry?.(attempt, maxAttempts);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+    throw new Error('Upload failed');
+  };
+
   const handleRender = async () => {
     if ((!videoFile && !stitchedUrl) || !plan) return;
     if (insufficientCredits) {
@@ -1571,7 +1593,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
     }
 
     try {
-      const res = await SocialMediaAgentService.produceWithZapCap(fd);
+      const res = await produceWithZapCapRetry(fd, (attempt, maxAttempts) => {
+        setRenderStatus(`Connection dropped — retrying upload (${attempt}/${maxAttempts - 1})…`);
+      });
       const id = res?.responseData?.job_id;
       if (!id) throw new Error('No job ID returned');
       setZapCapJobId(id);
