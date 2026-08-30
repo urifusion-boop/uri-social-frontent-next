@@ -1079,6 +1079,20 @@ function AdjustPanel({
   );
 }
 
+// Chrome's native <video controls> download button just fetches the raw src
+// URL, so whatever filename lives on our CDN leaks straight through — e.g. a
+// Cloudinary public_id like "submagic-mixed-eb198feb6217.mp4", exposing an
+// internal service name. Cloudinary's fl_attachment flag forces a real
+// Content-Disposition header with a filename we choose, which is the only
+// way to control this (the HTML `download` attribute is ignored for
+// cross-origin URLs and for the browser's own native video-controls button
+// either way — only a server-driven header actually works here).
+function downloadUrlFor(url: string, label: string): string {
+  if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return url;
+  const safeLabel = label.replace(/[^a-zA-Z0-9_-]/g, '');
+  return url.replace('/upload/', `/upload/fl_attachment:Uri-${safeLabel}/`);
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initialFile, onUseInCampaign }: Props) {
@@ -2696,6 +2710,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
             <video
               src={stitchedUrl}
               controls
+              controlsList="nodownload"
               playsInline
               style={{
                 width: '100%',
@@ -3081,18 +3096,35 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
       return (
         <div>
           {outputUrl && (
-            <video
-              src={outputUrl}
-              controls
-              playsInline
-              style={{
-                width: '100%',
-                maxHeight: 340,
-                borderRadius: 12,
-                background: '#000',
-                marginBottom: 14,
-              }}
-            />
+            <>
+              <video
+                src={outputUrl}
+                controls
+                controlsList="nodownload"
+                playsInline
+                style={{
+                  width: '100%',
+                  maxHeight: 340,
+                  borderRadius: 12,
+                  background: '#000',
+                  marginBottom: 8,
+                }}
+              />
+              <a
+                href={downloadUrlFor(outputUrl, `Video-${zapCapJobId ? zapCapJobId.slice(0, 8) : Date.now()}`)}
+                download
+                style={{
+                  display: 'inline-block',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: PINK,
+                  textDecoration: 'none',
+                  marginBottom: 14,
+                }}
+              >
+                ⬇ Download video
+              </a>
+            </>
           )}
 
           {/* Custom b-roll nudge */}
