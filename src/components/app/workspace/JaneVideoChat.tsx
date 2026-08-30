@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SocialMediaAgentService, MultiClipJob, MultiClipClip } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
+import { downloadUrlFor } from '@/src/utils/cloudinaryDownload.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
 import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
@@ -1077,20 +1078,6 @@ function AdjustPanel({
       </button>
     </div>
   );
-}
-
-// Chrome's native <video controls> download button just fetches the raw src
-// URL, so whatever filename lives on our CDN leaks straight through — e.g. a
-// Cloudinary public_id like "submagic-mixed-eb198feb6217.mp4", exposing an
-// internal service name. Cloudinary's fl_attachment flag forces a real
-// Content-Disposition header with a filename we choose, which is the only
-// way to control this (the HTML `download` attribute is ignored for
-// cross-origin URLs and for the browser's own native video-controls button
-// either way — only a server-driven header actually works here).
-function downloadUrlFor(url: string, label: string): string {
-  if (!url.includes('res.cloudinary.com') || !url.includes('/upload/')) return url;
-  const safeLabel = label.replace(/[^a-zA-Z0-9_-]/g, '');
-  return url.replace('/upload/', `/upload/fl_attachment:Uri-${safeLabel}/`);
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────

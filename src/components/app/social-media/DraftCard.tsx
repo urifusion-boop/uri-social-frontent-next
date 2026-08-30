@@ -15,6 +15,7 @@ import { UriHttpClient } from '@/src/configs/http.config';
 import { useRouter } from 'next/navigation';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
+import { downloadUrlFor } from '@/src/utils/cloudinaryDownload.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import {
   Box,
@@ -36,6 +37,7 @@ import {
 } from '@mui/material';
 import { useEffect, useRef, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
+import { MdFileDownload } from 'react-icons/md';
 import {
   MdChevronLeft,
   MdChevronRight,
@@ -934,6 +936,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           <video
             src={resolveUrl(draft.video_url)}
             controls
+            controlsList="nodownload"
             playsInline
             style={
               isPortraitReel
@@ -941,6 +944,34 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 : { width: '100%', height: 'auto', display: 'block' }
             }
           />
+          {/* Explicit download link — the native video-controls download button
+              (and its right-click context-menu equivalent) can't be renamed away
+              from a leaked internal Cloudinary filename, and neither is reachable
+              at all on mobile the same way, so this is the only reliable way to
+              download on every device. */}
+          <Box
+            component="a"
+            href={downloadUrlFor(resolveUrl(draft.video_url), `Video-${draft.id?.slice(0, 8) || Date.now()}`)}
+            download
+            onClick={(e) => e.stopPropagation()}
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              zIndex: 2,
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              background: 'rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              textDecoration: 'none',
+            }}
+          >
+            <MdFileDownload size={16} />
+          </Box>
         </Box>
       )}
 
