@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SocialMediaAgentService, MultiClipJob, MultiClipClip } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
+import { downloadUrlFor } from '@/src/utils/cloudinaryDownload.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
 import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
@@ -1167,10 +1168,12 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
   const [voiceoverFileName, setVoiceoverFileName] = useState('');
   const [voiceoverKeepOriginal, setVoiceoverKeepOriginal] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [voiceoverError, setVoiceoverError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceoverChunksRef = useRef<Blob[]>([]);
   const voiceoverInputRef = useRef<HTMLInputElement>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // A fresh object URL must NOT be created inline in render — any unrelated
   // re-render (this file polls several things in the background) would swap the
@@ -1186,6 +1189,12 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
     setVoiceoverPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [voiceoverBlob]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, []);
 
   const [history, setHistory] = useState<HistMsg[]>([]);
   const [zapCapTemplates, setZapCapTemplates] = useState<
@@ -1505,6 +1514,28 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
     throw new Error('Upload failed');
   };
 
+  const produceWithZapCapRetry = async (
+    fd: FormData,
+    onRetry?: (attempt: number, maxAttempts: number) => void,
+    maxAttempts = 3
+  ) => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await SocialMediaAgentService.produceWithZapCap(fd);
+      } catch (err) {
+        const axiosErr = err as { response?: unknown };
+        // Only retry a genuine dropped-connection failure (no response at all —
+        // common on weak mobile signal mid-upload of a large video file). A
+        // real HTTP error (402 insufficient credits, 4xx/5xx) means the server
+        // was reached and responded — retrying won't change that outcome.
+        if (axiosErr?.response || attempt === maxAttempts) throw err;
+        onRetry?.(attempt, maxAttempts);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+    throw new Error('Upload failed');
+  };
+
   const handleRender = async () => {
     if ((!videoFile && !stitchedUrl) || !plan) return;
     if (insufficientCredits) {
@@ -1531,6 +1562,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
     fd.append('quality', 'standard');
     fd.append('enable_broll', String(plan.brollEnabled && plan.classification !== 'product'));
     fd.append('caption_style', 'bold');
+    fd.append('captions_enabled', String(plan.captionsEnabled));
     const musicActive = plan.musicEnabled && (plan.musicSource === 'auto' || !!musicFile);
     fd.append('enable_music', String(musicActive));
     if (musicActive) {
@@ -1562,7 +1594,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
     }
 
     try {
-      const res = await SocialMediaAgentService.produceWithZapCap(fd);
+      const res = await produceWithZapCapRetry(fd, (attempt, maxAttempts) => {
+        setRenderStatus(`Connection dropped — retrying upload (${attempt}/${maxAttempts - 1})…`);
+      });
       const id = res?.responseData?.job_id;
       if (!id) throw new Error('No job ID returned');
       setZapCapJobId(id);
@@ -1653,9 +1687,14 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
       },
       onReady: async (outputUrl) => {
         if (willRerender) {
-          // Fix Something path — pipe the silence-cut URL back through ZapCap
-          // so captions and b-roll are re-applied on the tighter edit.
-          addMsg('jane', 'Silences cut — re-applying captions and b-roll…');
+          // Fix Something path — pipe the silence-cut URL back through the
+          // same pipeline as the original render, respecting the user's
+          // captions choice instead of always forcing captions back on.
+          const captionsWanted = plan?.captionsEnabled ?? true;
+          addMsg(
+            'jane',
+            captionsWanted ? 'Silences cut — re-applying captions and b-roll…' : 'Silences cut — re-applying b-roll…'
+          );
           setRenderProgress(5);
           setRenderStatus('pending');
           const fd2 = new FormData();
@@ -1665,6 +1704,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
           fd2.append('output_mode', 'composited');
           fd2.append('quality', 'standard');
           fd2.append('enable_broll', String(plan?.brollEnabled ?? false));
+          fd2.append('captions_enabled', String(captionsWanted));
           fd2.append('enable_music', 'false');
           try {
             const res = await SocialMediaAgentService.produceWithZapCap(fd2);
@@ -2022,6 +2062,9 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
       mediaRecorderRef.current = recorder;
       recorder.start();
       setIsRecordingVoice(true);
+      setRecordingSeconds(0);
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
     } catch {
       setVoiceoverError(
         "Couldn't access your microphone — check your browser permissions, or upload a voice note instead."
@@ -2032,6 +2075,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
   const stopVoiceRecording = () => {
     mediaRecorderRef.current?.stop();
     setIsRecordingVoice(false);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
   };
 
   const handleSubmitVoiceover = async () => {
@@ -2650,6 +2697,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
             <video
               src={stitchedUrl}
               controls
+              controlsList="nodownload"
               playsInline
               style={{
                 width: '100%',
@@ -2903,8 +2951,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
               value={planLabels.captionLabel}
               field="captions"
               onAdjust={setAdjustField}
-              disabled={plan.classification === 'product' && !plan.captionsEnabled}
-              tooltip="Burned-in subtitles synced to your speech. Off by default for silent product videos since there's no speech to caption."
+              tooltip="Burned-in subtitles synced to your speech. Off by default for product videos, which are usually silent — turn on if yours has narration."
             />
             <PlanRow
               label="Trim"
@@ -3036,18 +3083,35 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
       return (
         <div>
           {outputUrl && (
-            <video
-              src={outputUrl}
-              controls
-              playsInline
-              style={{
-                width: '100%',
-                maxHeight: 340,
-                borderRadius: 12,
-                background: '#000',
-                marginBottom: 14,
-              }}
-            />
+            <>
+              <video
+                src={outputUrl}
+                controls
+                controlsList="nodownload"
+                playsInline
+                style={{
+                  width: '100%',
+                  maxHeight: 340,
+                  borderRadius: 12,
+                  background: '#000',
+                  marginBottom: 8,
+                }}
+              />
+              <a
+                href={downloadUrlFor(outputUrl, `Video-${zapCapJobId ? zapCapJobId.slice(0, 8) : Date.now()}`)}
+                download
+                style={{
+                  display: 'inline-block',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: PINK,
+                  textDecoration: 'none',
+                  marginBottom: 14,
+                }}
+              >
+                ⬇ Download video
+              </a>
+            </>
           )}
 
           {/* Custom b-roll nudge */}
@@ -3544,7 +3608,10 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
 
         const addBrollFiles = (files: File[]) => {
           const valid = files.filter(
-            (f) => ['video/mp4', 'video/quicktime', 'video/webm'].includes(f.type) || /\.(mp4|mov|webm)$/i.test(f.name)
+            (f) =>
+              ['video/mp4', 'video/quicktime', 'video/webm', 'image/jpeg', 'image/png', 'image/webp'].includes(
+                f.type
+              ) || /\.(mp4|mov|webm|jpe?g|png|webp)$/i.test(f.name)
           );
           if (valid.length === 0) return;
           setBrollClips((prev) => [
@@ -3575,13 +3642,13 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
                 addBrollFiles(Array.from(e.dataTransfer.files));
               }}
             >
-              <div style={{ fontSize: 13, color: GRAY }}>Drop clips here or tap to browse</div>
-              <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>MP4 · MOV · WebM</div>
+              <div style={{ fontSize: 13, color: GRAY }}>Drop clips or photos here or tap to browse</div>
+              <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>MP4 · MOV · WebM · JPG · PNG · WebP</div>
             </div>
             <input
               ref={brollInputRef}
               type="file"
-              accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
+              accept="video/mp4,video/quicktime,video/webm,image/jpeg,image/png,image/webp,.mp4,.mov,.webm,.jpg,.jpeg,.png,.webp"
               multiple
               style={{ display: 'none' }}
               onChange={(e) => addBrollFiles(Array.from(e.target.files ?? []))}
@@ -3603,12 +3670,20 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
                       background: '#fff',
                     }}
                   >
-                    <video
-                      src={entry.previewUrl}
-                      style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
-                      muted
-                      playsInline
-                    />
+                    {entry.file.type.startsWith('image/') ? (
+                      <img
+                        src={entry.previewUrl}
+                        alt=""
+                        style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                      />
+                    ) : (
+                      <video
+                        src={entry.previewUrl}
+                        style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                        muted
+                        playsInline
+                      />
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
@@ -3995,6 +4070,54 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
           <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {!voiceoverBlob ? (
               <>
+                <style>{`
+                  @keyframes recPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(0.7); } }
+                  @keyframes recBar { 0%, 100% { height: 4px; } 50% { height: 16px; } }
+                `}</style>
+                {isRecordingVoice && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 10,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      background: '#FEF2F2',
+                      border: '1.5px solid #FCA5A5',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: '#DC2626',
+                        flexShrink: 0,
+                        animation: 'recPulse 1.2s ease-in-out infinite',
+                      }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 16 }}>
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <span
+                          key={i}
+                          style={{
+                            width: 3,
+                            height: 4,
+                            borderRadius: 2,
+                            background: '#DC2626',
+                            animation: `recBar 0.9s ease-in-out ${i * 0.12}s infinite`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span
+                      style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      Recording… {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')}
+                    </span>
+                  </div>
+                )}
                 <button
                   onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
                   style={{

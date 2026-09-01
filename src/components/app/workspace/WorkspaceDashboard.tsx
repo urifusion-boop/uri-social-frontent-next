@@ -20,7 +20,12 @@ import {
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import ContentCalendarTab from '@/src/components/app/social-media/ContentCalendarTab';
-import { LinkedInPagesData, PlatformStatus, SocialConnectionService } from '@/src/api/SocialConnectionService';
+import {
+  ConnectedAccountEntry,
+  LinkedInPagesData,
+  PlatformStatus,
+  SocialConnectionService,
+} from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
 import { CampaignService, PlanVariant } from '@/src/api/CampaignService';
 import { useAuth } from '@/src/providers/AuthProvider';
@@ -38,6 +43,7 @@ import CustomGuideV2PreviewCard from '@/src/components/app/social-media/CustomGu
 import { CustomVisualGuide, CustomVisualGuideService } from '@/src/api/CustomVisualGuideService';
 import { CustomVisualGuideV2, CustomVisualGuideV2Service } from '@/src/api/CustomVisualGuideV2Service';
 import BlogGeneratorTab from '@/src/components/app/social-media/BlogGeneratorTab';
+import BusinessPulsePanel from '@/src/components/app/workspace/BusinessPulsePanel';
 import AgencyDashboard from '@/src/components/app/agency/AgencyDashboard';
 import { AgencyService, BrandAccount, getActiveBrandId, setActiveBrandId } from '@/src/api/AgencyService';
 import { getStyle } from '@/src/data/styleLibrary';
@@ -62,6 +68,7 @@ import JaneWelcomeCard from '@/src/components/app/workspace/JaneWelcomeCard';
 import { hexToColorName } from '@/src/utils/colorNamer';
 import DraftCard from '@/src/components/app/social-media/DraftCard';
 import SyncImageDialog from '@/src/components/app/social-media/SyncImageDialog';
+import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
@@ -2360,6 +2367,11 @@ const PLATFORMS = [
     label: 'TikTok',
     color: '#010101',
     bg: '#F0F0F0',
+    // Direct (FILE_UPLOAD) OAuth exists (tiktok_direct_service.py,
+    // /connect/tiktok-direct/*) but is hidden here for now — it's blocked on
+    // TikTok's redirect_uri review, and a real customer's Outstand-mediated
+    // connect surfaced a more pressing bug (no local finalize step) that
+    // needs fixing before adding a second connect path back into the UI.
     flow: 'outstand_oauth',
     tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
   },
@@ -2371,7 +2383,17 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [statuses, setStatuses] = useState<Record<string, PlatformStatus>>({});
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    confirmText: string;
+    run: () => void;
+  } | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
+  // Which platforms' connected-accounts dropdown is expanded (facebook,
+  // instagram, tiktok — the platforms that can have more than one page/
+  // account connected at once).
+  const [expandedAccountLists, setExpandedAccountLists] = useState<Set<string>>(new Set());
   const [waPhone, setWaPhone] = useState('');
   const [waExpanded, setWaExpanded] = useState(false);
   const [waError, setWaError] = useState('');
@@ -2406,6 +2428,20 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [pendingPlatform, setPendingPlatform] = useState<string>('');
   // Set when Meta OAuth rejects or returns empty pages — shows platform-specific fix guide
   const [connectError, setConnectError] = useState<{ platform: string; error: string } | null>(null);
+
+  // Instagram-direct picker — separate from the Outstand pending-connection
+  // state above on purpose. The direct-OAuth flow never touches Outstand, so
+  // reusing sessionToken/availablePages/phase here would mean threading a
+  // second, structurally different data shape through logic (multi-select,
+  // auto-pages, network filtering) that's specific to Outstand's picker. A
+  // non-null token is what shows this panel.
+  const [igPendingToken, setIgPendingToken] = useState<string | null>(null);
+  const [igCandidates, setIgCandidates] = useState<
+    Array<{ ig_user_id: string; page_name?: string; username?: string; profile_picture_url?: string }>
+  >([]);
+  const [igPickerLoading, setIgPickerLoading] = useState(false);
+  const [igFinalizing, setIgFinalizing] = useState(false);
+  const [igSelected, setIgSelected] = useState<Set<string>>(new Set());
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -2498,11 +2534,17 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         const fbConn = conns.facebook?.[0];
         const igConn = conns.instagram?.[0];
         const ttConn = conns.tiktok?.[0];
+        // accounts carries the FULL list — previously only conns.<platform>[0]
+        // was ever read, so a second connected page for the same platform was
+        // invisible and unreachable (no way to see it, let alone disconnect
+        // it). The single fields below still mirror accounts[0] for anything
+        // that only needs "is something connected" rather than the full list.
         next.facebook = {
           linked: !!conns.facebook?.length,
           account_name: fbConn?.account_name || fbConn?.page_name || fbConn?.username,
           outstand_account_id: fbConn?.outstand_account_id,
           connected_via: fbConn?.connected_via,
+          accounts: conns.facebook ?? [],
         };
         next.instagram = {
           linked: !!conns.instagram?.length,
@@ -2510,12 +2552,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           outstand_account_id: igConn?.outstand_account_id,
           ig_user_id: igConn?.ig_user_id,
           connected_via: igConn?.connected_via,
+          accounts: conns.instagram ?? [],
         };
         next.tiktok = {
           linked: !!conns.tiktok?.length,
           account_name: ttConn?.account_name || ttConn?.username,
           outstand_account_id: ttConn?.outstand_account_id,
           connected_via: ttConn?.connected_via,
+          accounts: conns.tiktok ?? [],
         };
       } else {
         next.facebook = { linked: false };
@@ -2586,6 +2630,35 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           })
           .catch(() => ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error));
       }
+    } else if (connected === 'instagram_pending') {
+      // More than one Facebook Page had a linked Instagram Business Account —
+      // let the user pick which one instead of silently connecting whichever
+      // came first.
+      const igToken = searchParams.get('token');
+      router.replace('/workspace?tab=connections');
+      if (igToken) {
+        setIgPendingToken(igToken);
+        setIgPickerLoading(true);
+        SocialMediaAgentService.getInstagramDirectPending(igToken)
+          .then((res) => {
+            if (res.status && res.responseData) {
+              const candidates = res.responseData.candidates ?? [];
+              setIgCandidates(candidates);
+              setIgSelected(new Set(candidates.map((c) => c.ig_user_id)));
+            } else {
+              ToastService.showToast(
+                res.responseMessage || 'Could not load Instagram accounts. Please try again.',
+                ToastTypeEnum.Error
+              );
+              setIgPendingToken(null);
+            }
+          })
+          .catch(() => {
+            ToastService.showToast('Could not load Instagram accounts. Please try again.', ToastTypeEnum.Error);
+            setIgPendingToken(null);
+          })
+          .finally(() => setIgPickerLoading(false));
+      }
     } else if (connected === 'facebook_direct') {
       const fbPageId = searchParams.get('fb_page_id') ?? '';
       const pageName = searchParams.get('page_name') ?? 'Facebook Page';
@@ -2602,6 +2675,30 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             }
           })
           .catch(() => ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error));
+      }
+    } else if (connected === 'tiktok_direct') {
+      const ttOpenId = searchParams.get('tt_open_id') ?? '';
+      const accountName = searchParams.get('account_name')
+        ? decodeURIComponent(searchParams.get('account_name')!)
+        : 'TikTok';
+      router.replace('/workspace?tab=connections');
+      if (ttOpenId) {
+        SocialAccountService.finalizeTikTokDirect(ttOpenId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`${accountName} connected!`, ToastTypeEnum.Success);
+              posthog.capture('social_account_connected', { platform: 'tiktok', account_name: accountName });
+              try {
+                sessionStorage.removeItem('social_connections_cache');
+              } catch {
+                /* noop */
+              }
+              loadStatuses();
+            } else {
+              ToastService.showToast('TikTok connection failed. Please try again.', ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => ToastService.showToast('TikTok connection failed. Please try again.', ToastTypeEnum.Error));
       }
     } else if (connected === 'facebook_ads') {
       // Ads-scoped grant (Per-Brand Page Connection plan) — separate from facebook_direct
@@ -2623,6 +2720,34 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           .catch(() =>
             ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error)
           );
+      }
+    } else if (connected === 'direct') {
+      // Outstand's "direct" callback shape — account_id/username/network
+      // returned immediately (TikTok, X), no session-token page-selection
+      // step. Previously unhandled here entirely, so the connection never
+      // got saved until someone tried to publish.
+      const accountId = searchParams.get('account_id') ?? '';
+      const network = searchParams.get('network') ?? '';
+      const username = searchParams.get('username') ?? '';
+      const networkUniqueId = searchParams.get('network_unique_id') ?? '';
+      router.replace('/workspace?tab=connections');
+      if (accountId && network) {
+        SocialAccountService.finalizeOutstandDirect(accountId, network, username, networkUniqueId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`${username || network} connected!`, ToastTypeEnum.Success);
+              posthog.capture('social_account_connected', { platform: network, username });
+              try {
+                sessionStorage.removeItem('social_connections_cache');
+              } catch {
+                /* noop */
+              }
+              loadStatuses();
+            } else {
+              ToastService.showToast(`${network} connection failed. Please try again.`, ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => ToastService.showToast(`${network} connection failed. Please try again.`, ToastTypeEnum.Error));
       }
     } else if (connected === 'pending' && token) {
       setSessionToken(token);
@@ -2700,6 +2825,41 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }
   };
 
+  const handleFinalizeInstagramPending = async () => {
+    if (!igPendingToken || igSelected.size === 0) return;
+    setIgFinalizing(true);
+    try {
+      const ids = Array.from(igSelected);
+      const res = await SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids);
+      if (res.status) {
+        const count = res.responseData?.total ?? ids.length;
+        ToastService.showToast(
+          count > 1 ? `${count} Instagram accounts connected!` : 'Instagram account connected!',
+          ToastTypeEnum.Success
+        );
+        posthog.capture('social_account_connected', { platform: 'instagram', count });
+        setIgPendingToken(null);
+        setIgCandidates([]);
+        setIgSelected(new Set());
+        try {
+          sessionStorage.removeItem('social_connections_cache');
+        } catch {
+          /* noop */
+        }
+        loadStatuses();
+      } else {
+        ToastService.showToast(
+          res.responseMessage || 'Could not connect those accounts. Please try again.',
+          ToastTypeEnum.Error
+        );
+      }
+    } catch {
+      ToastService.showToast('Could not connect those accounts. Please try again.', ToastTypeEnum.Error);
+    } finally {
+      setIgFinalizing(false);
+    }
+  };
+
   const openOAuthPopup = (authUrl: string, onClose: () => void) => {
     const popup = window.open(authUrl, 'uri-oauth', 'width=620,height=700,left=200,top=80');
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
@@ -2737,9 +2897,22 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }
     if (flow === 'instagram_direct') {
       setConnecting(id);
+      // Recorded so the connected=false error-redirect handler (see the
+      // useEffect above) knows to show Instagram's specific fix guide rather
+      // than the generic fallback — the outstand_oauth branch already does
+      // this for its own flows, this path just never had.
+      localStorage.setItem('outstand_connect_platform', id);
       // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
       window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      return;
+    }
+    if (flow === 'tiktok_direct_oauth') {
+      setConnecting(id);
+      // Direct TikTok Login Kit flow (FILE_UPLOAD posting, bypasses Outstand) —
+      // same full-page redirect shape as Instagram/Facebook direct above.
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+      window.location.href = `${apiBase}/social-media/connect/tiktok-direct/initiate?source=settings`;
       return;
     }
     if (flow === 'facebook_ads_oauth') {
@@ -2884,48 +3057,86 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         await SocialConnectionService.xDisconnect();
       } else if (id === 'whatsapp') {
         await SocialConnectionService.whatsappDisconnect();
-      } else if (id === 'instagram') {
-        const s = statuses[id];
-        // Try direct disconnect first (direct OAuth connection)
-        if (s?.ig_user_id) {
-          await SocialMediaAgentService.disconnectInstagramDirect(s.ig_user_id);
-        } else if (s?.outstand_account_id) {
-          await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
-        } else {
-          ToastService.showToast('Could not disconnect Instagram. Please try again.', ToastTypeEnum.Error);
-          return;
-        }
-      } else if (id === 'facebook') {
-        const s = statuses[id];
-        if (s?.connected_via?.startsWith('facebook_direct')) {
-          const res = await SocialMediaAgentService.disconnectFacebookDirect();
-          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
-        } else if (s?.outstand_account_id) {
-          const res = await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
-          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
-        } else {
-          ToastService.showToast('Could not disconnect Facebook. Please try again.', ToastTypeEnum.Error);
-          return;
-        }
-      } else if (id === 'tiktok') {
-        const s = statuses[id];
-        if (s?.outstand_account_id) {
-          const res = await SocialMediaAgentService.disconnectPlatform(s.outstand_account_id);
-          if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
-        } else {
-          ToastService.showToast('Could not disconnect TikTok. Please try again.', ToastTypeEnum.Error);
-          return;
-        }
       }
-      // Invalidate DraftCard's connection cache so it re-fetches after a disconnect.
+      // facebook/instagram/tiktok no longer disconnect from here — they can
+      // have more than one connected page/account, so they go through the
+      // per-account dropdown (handleDisconnectAccount) or "Disconnect All"
+      // (handleDisconnectAllPlatform) below instead.
       try {
         sessionStorage.removeItem('social_connections_cache');
       } catch {
         /* noop */
       }
-      // Reload from server to confirm disconnect — do not optimistically set linked: false
       await loadStatuses();
       ToastService.showToast('Account disconnected.', ToastTypeEnum.Success);
+    } catch {
+      ToastService.showToast('Could not disconnect. Please try again.', ToastTypeEnum.Error);
+      await loadStatuses();
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
+  // Disconnects ONE specific page/account for a platform that can have more
+  // than one connected at a time (Facebook, Instagram, TikTok) — used by each
+  // row inside that platform's "connected accounts" dropdown. Previously the
+  // single Disconnect button could only ever target statuses[id]'s one
+  // account, so a second connected page for the same platform had no way to
+  // be reached at all — this is the fix for that.
+  const handleDisconnectAccount = async (platform: string, account: ConnectedAccountEntry) => {
+    const disconnectKey = `${platform}:${account.outstand_account_id || account.id}`;
+    setDisconnecting(disconnectKey);
+    try {
+      if (account.connected_via?.startsWith('facebook_direct')) {
+        const res = await SocialMediaAgentService.disconnectFacebookDirect();
+        if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+      } else if (account.connected_via?.startsWith('tiktok_direct')) {
+        const res = await SocialMediaAgentService.disconnectTikTokDirect();
+        if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+      } else if (platform === 'instagram' && account.connected_via?.startsWith('instagram_direct')) {
+        const igId = account.id || account.outstand_account_id;
+        if (!igId) throw new Error('Missing account id');
+        await SocialMediaAgentService.disconnectInstagramDirect(igId);
+      } else if (account.outstand_account_id) {
+        const res = await SocialMediaAgentService.disconnectPlatform(account.outstand_account_id);
+        if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+      } else {
+        throw new Error('Could not identify this account to disconnect');
+      }
+      try {
+        sessionStorage.removeItem('social_connections_cache');
+      } catch {
+        /* noop */
+      }
+      await loadStatuses();
+      ToastService.showToast(
+        `${account.account_name || account.username || 'Account'} disconnected.`,
+        ToastTypeEnum.Success
+      );
+    } catch {
+      ToastService.showToast('Could not disconnect. Please try again.', ToastTypeEnum.Error);
+      await loadStatuses();
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
+  // "Disconnect All" — the main row's button once at least one page/account is
+  // connected. One backend call handles every connected account for this
+  // platform (Outstand-managed and direct-OAuth alike), rather than looping
+  // individual disconnect calls client-side.
+  const handleDisconnectAllPlatform = async (platform: string) => {
+    setDisconnecting(`${platform}:all`);
+    try {
+      const res = await SocialMediaAgentService.disconnectAllForPlatform(platform);
+      if (!res.status) throw new Error(res.responseMessage || 'Disconnect failed');
+      try {
+        sessionStorage.removeItem('social_connections_cache');
+      } catch {
+        /* noop */
+      }
+      await loadStatuses();
+      ToastService.showToast('All accounts disconnected.', ToastTypeEnum.Success);
     } catch {
       ToastService.showToast('Could not disconnect. Please try again.', ToastTypeEnum.Error);
       await loadStatuses();
@@ -2967,6 +3178,137 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       onJane={onJane}
     >
       {/* Facebook page selection after OAuth callback */}
+      {igPendingToken && (
+        <div
+          style={{
+            background: '#F9FAFB',
+            border: '1.5px solid #E0DEF7',
+            borderRadius: 14,
+            padding: '20px 18px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', marginBottom: 6 }}>
+            Choose which Instagram account(s) to connect
+          </div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
+            More than one of your Facebook Pages has a linked Instagram Business account — select one or more to
+            connect, just like when connecting Facebook Pages.
+          </div>
+          {igPickerLoading ? (
+            <div style={{ fontSize: 12.5, color: '#9CA3AF' }}>Loading accounts...</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {igCandidates.map((c) => {
+                const checked = igSelected.has(c.ig_user_id);
+                return (
+                  <label
+                    key={c.ig_user_id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '11px 14px',
+                      borderRadius: 10,
+                      border: `2px solid ${checked ? '#C2185B' : '#edecea'}`,
+                      background: '#fff',
+                      cursor: igFinalizing ? 'not-allowed' : 'pointer',
+                      opacity: igFinalizing ? 0.6 : 1,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={igFinalizing}
+                      onChange={() =>
+                        setIgSelected((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(c.ig_user_id)) next.delete(c.ig_user_id);
+                          else next.add(c.ig_user_id);
+                          return next;
+                        })
+                      }
+                      style={{ width: 16, height: 16, accentColor: '#C2185B', flexShrink: 0, cursor: 'pointer' }}
+                    />
+                    {c.profile_picture_url ? (
+                      <img
+                        src={c.profile_picture_url}
+                        alt={c.username || c.page_name || 'Instagram account'}
+                        style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: '50%',
+                          background: '#FDF2F8',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 16,
+                        }}
+                      >
+                        📷
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                        {c.username ? `@${c.username}` : c.page_name || 'Instagram account'}
+                      </div>
+                      {c.page_name && c.username && (
+                        <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>via {c.page_name}</div>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 14 }}>
+            <button
+              type="button"
+              onClick={handleFinalizeInstagramPending}
+              disabled={igFinalizing || igSelected.size === 0}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#C2185B',
+                color: '#fff',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: igFinalizing || igSelected.size === 0 ? 'not-allowed' : 'pointer',
+                opacity: igFinalizing || igSelected.size === 0 ? 0.5 : 1,
+                fontFamily: 'var(--wf)',
+              }}
+            >
+              {igFinalizing ? 'Connecting...' : igSelected.size > 1 ? `Connect ${igSelected.size} accounts` : 'Connect'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIgPendingToken(null);
+                setIgCandidates([]);
+                setIgSelected(new Set());
+              }}
+              disabled={igFinalizing}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#9CA3AF',
+                fontSize: 12,
+                cursor: igFinalizing ? 'not-allowed' : 'pointer',
+                padding: 0,
+                fontFamily: 'var(--wf)',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {phase === 'pending' && (
         <div
           style={{
@@ -3483,10 +3825,106 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       // sub-state (choose/create account, check link status) is
                       // already surfaced by the panels below the card.
                       <></>
+                    ) : linked && (p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {(s?.accounts?.length ?? 0) > 0 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedAccountLists((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(p.id)) next.delete(p.id);
+                                else next.add(p.id);
+                                return next;
+                              })
+                            }
+                            aria-label={
+                              expandedAccountLists.has(p.id) ? 'Collapse connected pages' : 'Show connected pages'
+                            }
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: 6,
+                              border: '1px solid #edecea',
+                              background: '#fff',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <svg
+                              width={12}
+                              height={12}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="#888"
+                              strokeWidth="2.5"
+                              style={{
+                                transform: expandedAccountLists.has(p.id) ? 'rotate(180deg)' : 'none',
+                                transition: 'transform .15s',
+                              }}
+                            >
+                              <path d="M6 9l6 6 6-6" />
+                            </svg>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setConfirmAction({
+                              title: `Disconnect all ${p.label} accounts?`,
+                              message: `This disconnects every ${p.label} page/account currently connected. You can reconnect them later, but any scheduled posts tied to them may be affected.`,
+                              confirmText: 'Disconnect All',
+                              run: () => handleDisconnectAllPlatform(p.id),
+                            })
+                          }
+                          disabled={isBusy}
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #edecea',
+                            background: '#fff',
+                            fontSize: 12,
+                            color: '#888',
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {disconnecting === `${p.id}:all` ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <span
+                                style={{
+                                  width: 10,
+                                  height: 10,
+                                  border: '2px solid #ccc',
+                                  borderTopColor: '#888',
+                                  borderRadius: '50%',
+                                  display: 'inline-block',
+                                  animation: 'spin 0.7s linear infinite',
+                                }}
+                              />
+                              Disconnecting...
+                            </span>
+                          ) : (
+                            'Disconnect All'
+                          )}
+                        </button>
+                      </div>
                     ) : linked ? (
                       <button
                         type="button"
-                        onClick={() => handleDisconnect(p.id)}
+                        onClick={() =>
+                          setConfirmAction({
+                            title: `Disconnect ${p.label}?`,
+                            message: `This disconnects your ${p.label} account. You can reconnect it again at any time.`,
+                            confirmText: 'Disconnect',
+                            run: () => handleDisconnect(p.id),
+                          })
+                        }
                         disabled={isBusy}
                         style={{
                           padding: '5px 12px',
@@ -3559,6 +3997,74 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     )}
                   </div>
                 </div>
+                {(p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') &&
+                  linked &&
+                  expandedAccountLists.has(p.id) &&
+                  (s?.accounts?.length ?? 0) > 0 && (
+                    <div
+                      style={{
+                        padding: '8px',
+                        background: '#fafafa',
+                        borderRadius: '0 0 12px 12px',
+                        border: '1.5px solid #edecea',
+                        borderTop: 'none',
+                        marginTop: -8,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                      }}
+                    >
+                      {(s?.accounts ?? []).map((account, idx) => {
+                        const accountKey = account.outstand_account_id || account.id || String(idx);
+                        const rowBusy = disconnecting === `${p.id}:${accountKey}`;
+                        return (
+                          <div
+                            key={accountKey}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 10,
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              background: '#fff',
+                              border: '1px solid #edecea',
+                            }}
+                          >
+                            <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
+                              {account.account_name || account.username || 'Connected page'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setConfirmAction({
+                                  title: 'Disconnect this account?',
+                                  message: `This disconnects "${account.account_name || account.username || 'this account'}" from ${p.label}. You can reconnect it again at any time.`,
+                                  confirmText: 'Disconnect',
+                                  run: () => handleDisconnectAccount(p.id, account),
+                                })
+                              }
+                              disabled={rowBusy}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                border: '1px solid #edecea',
+                                background: '#fff',
+                                fontSize: 11.5,
+                                color: '#888',
+                                cursor: 'pointer',
+                                fontFamily: 'var(--wf)',
+                                opacity: rowBusy ? 0.5 : 1,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {rowBusy ? 'Disconnecting...' : 'Disconnect'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 {(p.id === 'facebook_ads' || p.id === 'google_ads') && adsWaLoaded && (
                   // The number Jane's ads route to on WhatsApp — separate from
                   // whether a Facebook Page is connected above: launches always
@@ -3969,6 +4475,16 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           })}
         </div>
       )}
+      <ConfirmDialog
+        isOpen={!!confirmAction}
+        title={confirmAction?.title || ''}
+        message={confirmAction?.message || ''}
+        confirmText={confirmAction?.confirmText || 'Disconnect'}
+        cancelText="Cancel"
+        confirmColor="#EF4444"
+        onConfirm={() => confirmAction?.run()}
+        onCancel={() => setConfirmAction(null)}
+      />
     </SubPage>
   );
 };
@@ -5283,6 +5799,11 @@ const PlaybookPage = ({
   const [website, setWebsite] = useState('');
   const [description, setDescription] = useState('');
   const [, setTagline] = useState('');
+  // Business Details
+  const [priceRange, setPriceRange] = useState('');
+  const [usp, setUsp] = useState('');
+  const [businessStage, setBusinessStage] = useState('');
+  const [businessPriorities, setBusinessPriorities] = useState<string[]>([]);
   const [voiceSample, setVoiceSample] = useState('');
   const [colors, setColors] = useState<string[]>([]);
   const [newColor, setNewColor] = useState('#CD1B78');
@@ -5305,6 +5826,16 @@ const PlaybookPage = ({
   const [primaryGoal, setPrimaryGoal] = useState('');
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
   const [idealCustomerProfile, setIdealCustomerProfile] = useState('');
+  // Target Customer Detail — additive to idealCustomerProfile above
+  const [customerGender, setCustomerGender] = useState('');
+  const [customerLocation, setCustomerLocation] = useState('');
+  const [customerOccupation, setCustomerOccupation] = useState('');
+  const [customerIncomeLevel, setCustomerIncomeLevel] = useState('');
+  const [customerInterests, setCustomerInterests] = useState<string[]>([]);
+  const [customerPainPoints, setCustomerPainPoints] = useState<string[]>([]);
+  const [customerNeeds, setCustomerNeeds] = useState<string[]>([]);
+  const [customerObjections, setCustomerObjections] = useState<string[]>([]);
+  const [whyChooseUs, setWhyChooseUs] = useState('');
   const [competitors, setCompetitors] = useState(['', '', '']);
   const [languages, setLanguages] = useState<string[]>([]);
   const [region, setRegion] = useState<string[]>([]);
@@ -5448,6 +5979,10 @@ const PlaybookPage = ({
     setWebsite(profile.website ?? '');
     setDescription(profile.product_description ?? '');
     setTagline((profile as BrandProfileData & { tagline?: string }).tagline ?? '');
+    setPriceRange(profile.price_range ?? '');
+    setUsp(profile.unique_selling_proposition ?? '');
+    setBusinessStage(profile.business_stage ?? '');
+    setBusinessPriorities([...(profile.business_priorities ?? [])]);
     setVoiceSample(profile.voice_sample ?? '');
     setColors([...(profile.brand_colors ?? [])]);
     setPillars([...(profile.content_pillars ?? [])]);
@@ -5486,6 +6021,15 @@ const PlaybookPage = ({
     setPrimaryGoal(profile.primary_goal ?? '');
     setTargetPlatforms([...(profile.target_platforms ?? [])]);
     setIdealCustomerProfile(profile.ideal_customer_profile ?? '');
+    setCustomerGender(profile.customer_gender ?? '');
+    setCustomerLocation(profile.customer_location ?? '');
+    setCustomerOccupation(profile.customer_occupation ?? '');
+    setCustomerIncomeLevel(profile.customer_income_level ?? '');
+    setCustomerInterests([...(profile.customer_interests ?? [])]);
+    setCustomerPainPoints([...(profile.customer_pain_points ?? [])]);
+    setCustomerNeeds([...(profile.customer_needs ?? [])]);
+    setCustomerObjections([...(profile.customer_objections ?? [])]);
+    setWhyChooseUs(profile.why_customers_choose_us ?? '');
     const comps = profile.competitor_handles ?? [];
     setCompetitors([comps[0] ?? '', comps[1] ?? '', comps[2] ?? '']);
     setLanguages([...(profile.languages ?? [])]);
@@ -5529,6 +6073,10 @@ const PlaybookPage = ({
         industry,
         website,
         product_description: description,
+        price_range: priceRange,
+        unique_selling_proposition: usp,
+        business_stage: (businessStage || '') as BrandProfileData['business_stage'],
+        business_priorities: businessPriorities,
         voice_sample: voiceSample,
         brand_colors: colors,
         content_pillars: pillars,
@@ -5547,6 +6095,15 @@ const PlaybookPage = ({
         primary_goal: primaryGoal,
         target_platforms: targetPlatforms,
         ideal_customer_profile: idealCustomerProfile,
+        customer_gender: customerGender,
+        customer_location: customerLocation,
+        customer_occupation: customerOccupation,
+        customer_income_level: customerIncomeLevel,
+        customer_interests: customerInterests,
+        customer_pain_points: customerPainPoints,
+        customer_needs: customerNeeds,
+        customer_objections: customerObjections,
+        why_customers_choose_us: whyChooseUs,
         competitor_handles: competitors.filter(Boolean),
         languages,
         region: region.join(', '),
@@ -5949,6 +6506,73 @@ const PlaybookPage = ({
             <PbInput value={description} onChange={setDescription} placeholder="What does your business do?" textarea />
           }
           tooltip="A short summary of what your business does — the AI reads this to keep every post on-brand and accurate"
+        />
+      </PbSection>
+
+      {/* Business Details */}
+      <PbSection title="Business Details">
+        <PbRow
+          label="Price range"
+          value={p?.price_range}
+          editing={editing}
+          input={
+            <PbInput
+              value={priceRange}
+              onChange={setPriceRange}
+              placeholder="e.g. Budget-friendly / Mid-range / Premium"
+            />
+          }
+          tooltip="Helps the AI match tone and vocabulary to your price tier"
+        />
+        <PbRow
+          label="What makes you different"
+          value={p?.unique_selling_proposition}
+          editing={editing}
+          input={
+            <PbInput value={usp} onChange={setUsp} placeholder="e.g. Only same-day delivery bakery in Lekki" textarea />
+          }
+          tooltip="Your unique selling proposition — the AI weaves this into hooks and CTAs"
+        />
+        <PbRow
+          label="Business stage"
+          value={p?.business_stage}
+          editing={editing}
+          input={
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { v: 'new', l: 'Just starting out' },
+                { v: 'growing', l: 'Growing' },
+                { v: 'established', l: 'Established' },
+                { v: 'market_leader', l: 'Market leader' },
+              ].map((s) => (
+                <PbChip key={s.v} label={s.l} active={businessStage === s.v} onClick={() => setBusinessStage(s.v)} />
+              ))}
+            </div>
+          }
+          tooltip="Shapes calendar tone — e.g. trust-building for a new business vs. authority for an established one"
+        />
+        <PbRow
+          label="Current business priorities"
+          value={p?.business_priorities}
+          editing={editing}
+          input={
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                'Growing revenue',
+                'Building brand awareness',
+                'Launching new offerings',
+                'Retaining customers',
+                'Expanding to new markets',
+              ].map((pr) => (
+                <PbChip
+                  key={pr}
+                  label={pr}
+                  active={businessPriorities.includes(pr)}
+                  onClick={() => pbTgl(businessPriorities, setBusinessPriorities, pr)}
+                />
+              ))}
+            </div>
+          }
         />
       </PbSection>
 
@@ -6678,6 +7302,133 @@ const PlaybookPage = ({
             />
           )}
         </div>
+        <PbRow
+          label="Customer gender"
+          value={p?.customer_gender}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerGender}
+              onChange={setCustomerGender}
+              placeholder="e.g. Primarily women (only if relevant)"
+            />
+          }
+        />
+        <PbRow
+          label="Customer location"
+          value={p?.customer_location}
+          editing={editing}
+          input={<PbInput value={customerLocation} onChange={setCustomerLocation} placeholder="e.g. Lagos, Nigeria" />}
+        />
+        <PbRow
+          label="Customer occupation"
+          value={p?.customer_occupation}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerOccupation}
+              onChange={setCustomerOccupation}
+              placeholder="e.g. Young professionals"
+            />
+          }
+        />
+        <PbRow
+          label="Customer income level"
+          value={p?.customer_income_level}
+          editing={editing}
+          input={
+            <PbInput value={customerIncomeLevel} onChange={setCustomerIncomeLevel} placeholder="e.g. Middle income" />
+          }
+        />
+        <PbRow
+          label="Customer interests"
+          value={p?.customer_interests}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerInterests.join(', ')}
+              onChange={(v) =>
+                setCustomerInterests(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. fitness, wellness, personal finance (comma-separated)"
+            />
+          }
+        />
+        <PbRow
+          label="Customer pain points"
+          value={p?.customer_pain_points}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerPainPoints.join(', ')}
+              onChange={(v) =>
+                setCustomerPainPoints(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. no time to cook, hard to find reliable delivery"
+            />
+          }
+        />
+        <PbRow
+          label="Customer needs"
+          value={p?.customer_needs}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerNeeds.join(', ')}
+              onChange={(v) =>
+                setCustomerNeeds(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. fast turnaround, transparent pricing"
+            />
+          }
+        />
+        <PbRow
+          label="Common objections"
+          value={p?.customer_objections}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerObjections.join(', ')}
+              onChange={(v) =>
+                setCustomerObjections(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. too expensive, not sure it works"
+            />
+          }
+        />
+        <PbRow
+          label="Why customers choose you"
+          value={p?.why_customers_choose_us}
+          editing={editing}
+          input={
+            <PbInput
+              value={whyChooseUs}
+              onChange={setWhyChooseUs}
+              placeholder="e.g. We deliver same-day, still warm from the oven"
+              textarea
+            />
+          }
+        />
         <div>
           <div
             style={{
@@ -8413,6 +9164,13 @@ const NAV = [
     tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
   },
   {
+    id: 'business-pulse',
+    icon: 'heart',
+    label: 'Business Pulse',
+    tooltip:
+      "What's happening in your business right now — promotions, campaigns, news. Feeds directly into your content calendar.",
+  },
+  {
     id: 'settings',
     icon: 'settings',
     label: 'Settings',
@@ -8446,6 +9204,7 @@ const MOBILE_TABS = [
 const MORE_NAV = [
   { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
   { id: 'blog', icon: 'book', label: 'Blog' },
+  { id: 'business-pulse', icon: 'heart', label: 'Business Pulse' },
   { id: 'connections', icon: 'share', label: 'Connected Accounts' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
@@ -8939,6 +9698,7 @@ export default function WorkspaceDashboard() {
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
+    'business-pulse': <BusinessPulsePanel />,
     settings: (
       <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
     ),

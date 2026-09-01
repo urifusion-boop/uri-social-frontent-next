@@ -18,7 +18,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useRef, useState, useEffect } from 'react';
-import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
+import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { MdChevronLeft, MdChevronRight, MdClose, MdImage, MdInfoOutline, MdUpload, MdVideocam } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import LowCreditWarning from '../atoms/LowCreditWarning';
@@ -28,6 +28,7 @@ const PLATFORMS = [
   { key: 'instagram', label: 'Instagram', icon: <FaInstagram size={16} color="#E1306C" /> },
   { key: 'twitter', label: 'Twitter / X', icon: <FaTwitter size={16} color="#1DA1F2" /> },
   { key: 'linkedin', label: 'LinkedIn', icon: <FaLinkedin size={16} color="#0A66C2" /> },
+  { key: 'tiktok', label: 'TikTok', icon: <FaTiktok size={16} color="#010101" /> },
 ];
 
 const POST_TYPES: Array<{
@@ -45,6 +46,19 @@ interface UploadContentFormProps {
   onGenerated: () => void;
   requireEmailVerification: (callback?: () => void) => boolean;
 }
+
+// Video uploads skip vision analysis entirely on the backend (no per-frame
+// understanding, just the caption model working from whatever context text
+// was typed), so "analysing" isn't true for video — only images actually get
+// looked at. Two separate sequences so the wording stays honest either way.
+const IMAGE_STATUS_MSGS = [
+  'Uploading your content...',
+  'Analysing your image...',
+  'Understanding the details...',
+  'Writing your caption...',
+  'Almost done...',
+];
+const VIDEO_STATUS_MSGS = ['Uploading your video...', 'Writing your caption...', 'Almost done...'];
 
 function _friendlyGenerationError(msg?: string): string {
   if (!msg) return 'Something went wrong — if the issue persists, contact support.';
@@ -65,6 +79,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   const [contextText, setContextText] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
   const [loading, setLoading] = useState(false);
+  const [statusIdx, setStatusIdx] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ file: File; preview: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [postType, setPostType] = useState<'feed' | 'carousel' | 'story'>('feed');
@@ -81,7 +96,27 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   const [lowCreditWarningOpen, setLowCreditWarningOpen] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number>(0);
 
-  const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook' || p === 'linkedin');
+  const hasVideo = uploadedFiles.length > 0 && uploadedFiles[0].file.type.startsWith('video/');
+  const statusMsgs = hasVideo ? VIDEO_STATUS_MSGS : IMAGE_STATUS_MSGS;
+
+  // Generation is one blocking request with no real progress events from the
+  // backend, so this doesn't track actual state — it's a timed succession
+  // that gives the wait a shape instead of a single static "Generating..."
+  // label sitting there the whole time. Restarts fresh on every submit.
+  useEffect(() => {
+    if (!loading) {
+      setStatusIdx(0);
+      return;
+    }
+    const iv = setInterval(() => {
+      setStatusIdx((i) => Math.min(i + 1, statusMsgs.length - 1));
+    }, 2500);
+    return () => clearInterval(iv);
+  }, [loading, statusMsgs.length]);
+
+  const showPostTypeSelector = selectedPlatforms.some(
+    (p) => p === 'instagram' || p === 'facebook' || p === 'linkedin' || p === 'tiktok'
+  );
 
   // Reset post type to feed if selector is hidden
   useEffect(() => {
@@ -301,8 +336,6 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
     console.log('✅ Starting content generation...');
     await doGenerate();
   };
-
-  const hasVideo = uploadedFiles.length > 0 && uploadedFiles[0].file.type.startsWith('video/');
 
   return (
     <Box>
@@ -718,7 +751,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
         {loading ? (
           <>
             <CircularProgress size={20} sx={{ color: '#fff', marginRight: 1 }} />
-            Generating Caption...
+            {statusMsgs[statusIdx]}
           </>
         ) : (
           'Generate Caption'

@@ -57,6 +57,22 @@ export class SocialAccountService {
     return response.data;
   }
 
+  // Outstand's "direct" callback shape (account_id returned immediately —
+  // TikTok, X) skips the session-token/page-selection step entirely, so
+  // this is the only thing that actually persists the connection locally.
+  static async finalizeOutstandDirect(
+    accountId: string,
+    network: string,
+    username?: string,
+    networkUniqueId?: string
+  ): Promise<UriResponse<{ outstand_account_id: string; platform: string; username?: string }>> {
+    const response: AxiosResponse<UriResponse<{ outstand_account_id: string; platform: string; username?: string }>> =
+      await UriHttpClient.getClient().post('/social-media/connect/finalize-outstand-direct', null, {
+        params: { account_id: accountId, network, username, network_unique_id: networkUniqueId },
+      });
+    return response.data;
+  }
+
   static async finalizeInstagramDirect(igUserId: string): Promise<UriResponse<{ ig_user_id: string }>> {
     const response: AxiosResponse<UriResponse<{ ig_user_id: string }>> = await UriHttpClient.getClient().post(
       '/social-media/connect/instagram-direct/finalize',
@@ -83,6 +99,17 @@ export class SocialAccountService {
       '/social-media/connect/facebook-ads/finalize',
       null,
       { params: { fb_page_id: fbPageId } }
+    );
+    return response.data;
+  }
+
+  // Direct TikTok OAuth (FILE_UPLOAD posting, bypasses Outstand) — same
+  // pending-then-finalize shape as finalizeFacebookDirect above.
+  static async finalizeTikTokDirect(ttOpenId: string): Promise<UriResponse<{ tt_open_id: string }>> {
+    const response: AxiosResponse<UriResponse<{ tt_open_id: string }>> = await UriHttpClient.getClient().post(
+      '/social-media/connect/tiktok-direct/finalize',
+      null,
+      { params: { tt_open_id: ttOpenId } }
     );
     return response.data;
   }

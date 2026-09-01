@@ -25,6 +25,7 @@ import posthog from 'posthog-js';
 const STEPS = [
   'welcome',
   'basics',
+  'businessDetails',
   'identity',
   'personality',
   'visualStyle',
@@ -36,6 +37,7 @@ const STEPS = [
   'guardrails',
   'cta',
   'audience',
+  'targetCustomerDetail',
   'competitors',
   'calendar',
   'cadence',
@@ -591,6 +593,11 @@ function BrandSetupPageContent() {
   const [industry, setIndustry] = useState('');
   const [website, setWebsite] = useState('');
   const [productDesc, setProductDesc] = useState('');
+  // Business Details
+  const [priceRange, setPriceRange] = useState('');
+  const [usp, setUsp] = useState('');
+  const [businessStage, setBusinessStage] = useState('');
+  const [businessPriorities, setBusinessPriorities] = useState<string[]>([]);
 
   // ── Identity ──────────────────────────────────────────────────
   const [logoUrl, setLogoUrl] = useState('');
@@ -726,6 +733,16 @@ function BrandSetupPageContent() {
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
   const [goal, setGoal] = useState('');
   const [idealCustomerProfile, setIdealCustomerProfile] = useState('');
+  // Target Customer Detail — additive to idealCustomerProfile above
+  const [customerGender, setCustomerGender] = useState('');
+  const [customerLocation, setCustomerLocation] = useState('');
+  const [customerOccupation, setCustomerOccupation] = useState('');
+  const [customerIncomeLevel, setCustomerIncomeLevel] = useState('');
+  const [customerInterests, setCustomerInterests] = useState<string[]>([]);
+  const [customerPainPoints, setCustomerPainPoints] = useState<string[]>([]);
+  const [customerNeeds, setCustomerNeeds] = useState<string[]>([]);
+  const [customerObjections, setCustomerObjections] = useState<string[]>([]);
+  const [whyChooseUs, setWhyChooseUs] = useState('');
 
   // ── Competitors ───────────────────────────────────────────────
   const [competitors, setCompetitors] = useState(['', '', '']);
@@ -799,6 +816,10 @@ function BrandSetupPageContent() {
       industry,
       website,
       product_description: productDesc,
+      price_range: priceRange,
+      unique_selling_proposition: usp,
+      business_stage: (businessStage || '') as BrandProfileData['business_stage'],
+      business_priorities: businessPriorities,
       logo_url: logoUrl || undefined,
       logo_position: logoPosition,
       logo_size: logoSize,
@@ -824,6 +845,15 @@ function BrandSetupPageContent() {
       target_platforms: targetPlatforms,
       primary_goal: goal,
       ideal_customer_profile: idealCustomerProfile,
+      customer_gender: customerGender,
+      customer_location: customerLocation,
+      customer_occupation: customerOccupation,
+      customer_income_level: customerIncomeLevel,
+      customer_interests: customerInterests,
+      customer_pain_points: customerPainPoints,
+      customer_needs: customerNeeds,
+      customer_objections: customerObjections,
+      why_customers_choose_us: whyChooseUs,
       competitor_handles: competitors.filter(Boolean),
       key_dates: keyDates,
       posting_cadence: cadence,
@@ -993,6 +1023,97 @@ function BrandSetupPageContent() {
               <Grid item xs={12}>
                 <Box display="flex" gap={1.5} alignItems="center">
                   <CustomButton mode="primary" onClick={next} disabled={!brandName} style={{ padding: '10px 24px' }}>
+                    Continue →
+                  </CustomButton>
+                  <Typography
+                    component="button"
+                    onClick={next}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                      p: 0,
+                    }}
+                  >
+                    I'll do this later
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </Box>
+        );
+
+      // ══ BUSINESS DETAILS ═════════════════════════════════════════
+      case 'businessDetails':
+        return (
+          <Box>
+            <AgentBubble primary={primary}>
+              A few more business fundamentals — these help me pitch and position your content correctly.
+            </AgentBubble>
+            <Grid container spacing={2.5} mt={0}>
+              <Grid item xs={12} md={6}>
+                <FieldLabel sub="(optional)">Price range</FieldLabel>
+                <UriInput
+                  value={priceRange}
+                  onChange={setPriceRange}
+                  placeholder="e.g. Budget-friendly / Mid-range / Premium"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(1–2 sentences, optional)">What makes you different?</FieldLabel>
+                <UriTextarea
+                  value={usp}
+                  onChange={setUsp}
+                  placeholder="e.g. Only same-day delivery bakery in Lekki"
+                  rows={2}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(optional)">Business stage</FieldLabel>
+                <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
+                  {[
+                    { v: 'new', l: 'Just starting out' },
+                    { v: 'growing', l: 'Growing' },
+                    { v: 'established', l: 'Established' },
+                    { v: 'market_leader', l: 'Market leader' },
+                  ].map((s) => (
+                    <Chip
+                      key={s.v}
+                      label={s.l}
+                      active={businessStage === s.v}
+                      onClick={() => setBusinessStage(s.v)}
+                      primary={primary}
+                    />
+                  ))}
+                </Box>
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(select all that apply, optional)">Current business priorities</FieldLabel>
+                <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
+                  {[
+                    'Growing revenue',
+                    'Building brand awareness',
+                    'Launching new offerings',
+                    'Retaining customers',
+                    'Expanding to new markets',
+                  ].map((p) => (
+                    <Chip
+                      key={p}
+                      label={p}
+                      active={businessPriorities.includes(p)}
+                      onClick={() => toggle(businessPriorities, setBusinessPriorities, p)}
+                      primary={primary}
+                    />
+                  ))}
+                </Box>
+              </Grid>
+              <Grid item xs={12}>
+                <Box display="flex" gap={1.5} alignItems="center">
+                  <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
                     Continue →
                   </CustomButton>
                   <Typography
@@ -2178,6 +2299,134 @@ function BrandSetupPageContent() {
           </Box>
         );
 
+      // ══ TARGET CUSTOMER DETAIL ═══════════════════════════════════
+      case 'targetCustomerDetail':
+        return (
+          <Box>
+            <AgentBubble primary={primary}>
+              Let's go deeper on who you're actually selling to — this sharpens every idea I generate for you.
+            </AgentBubble>
+            <Grid container spacing={2.5} mt={0}>
+              <Grid item xs={12} md={6}>
+                <FieldLabel sub="(optional, only if relevant)">Gender</FieldLabel>
+                <UriInput value={customerGender} onChange={setCustomerGender} placeholder="e.g. Primarily women" />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FieldLabel sub="(optional)">Location</FieldLabel>
+                <UriInput value={customerLocation} onChange={setCustomerLocation} placeholder="e.g. Lagos, Nigeria" />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FieldLabel sub="(optional)">Occupation</FieldLabel>
+                <UriInput
+                  value={customerOccupation}
+                  onChange={setCustomerOccupation}
+                  placeholder="e.g. Young professionals, small business owners"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FieldLabel sub="(optional)">Income level</FieldLabel>
+                <UriInput
+                  value={customerIncomeLevel}
+                  onChange={setCustomerIncomeLevel}
+                  placeholder="e.g. Middle income"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(comma-separated, optional)">Interests</FieldLabel>
+                <UriInput
+                  value={customerInterests.join(', ')}
+                  onChange={(v) =>
+                    setCustomerInterests(
+                      v
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  placeholder="e.g. fitness, wellness, personal finance"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(comma-separated, optional)">Pain points</FieldLabel>
+                <UriInput
+                  value={customerPainPoints.join(', ')}
+                  onChange={(v) =>
+                    setCustomerPainPoints(
+                      v
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  placeholder="e.g. no time to cook, hard to find reliable delivery"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(comma-separated, optional)">Needs</FieldLabel>
+                <UriInput
+                  value={customerNeeds.join(', ')}
+                  onChange={(v) =>
+                    setCustomerNeeds(
+                      v
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  placeholder="e.g. fast turnaround, transparent pricing"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(comma-separated, optional)">Common objections</FieldLabel>
+                <UriInput
+                  value={customerObjections.join(', ')}
+                  onChange={(v) =>
+                    setCustomerObjections(
+                      v
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  placeholder="e.g. too expensive, not sure it works"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(1–2 sentences, optional)">Why do customers choose you?</FieldLabel>
+                <UriTextarea
+                  value={whyChooseUs}
+                  onChange={setWhyChooseUs}
+                  placeholder="e.g. We're the only ones who deliver same-day"
+                  rows={2}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <Box display="flex" gap={1.5} alignItems="center">
+                  <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
+                    Continue →
+                  </CustomButton>
+                  <Typography
+                    component="button"
+                    onClick={next}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                      p: 0,
+                    }}
+                  >
+                    I'll do this later
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </Box>
+        );
+
       // ══ COMPETITORS ══════════════════════════════════════════════
       case 'competitors':
         return (
@@ -3040,6 +3289,7 @@ function BrandSetupPageContent() {
                       welcome: '',
                       connectAccounts: '🔗 Connect Accounts',
                       basics: '🏢 Brand Basics',
+                      businessDetails: '🎯 Business Details',
                       identity: '🎨 Visual Identity',
                       personality: '🗣️ Brand Personality',
                       visualStyle: '🎨 Visual Style',
@@ -3051,6 +3301,7 @@ function BrandSetupPageContent() {
                       guardrails: '🚧 Guardrails',
                       cta: '🎯 Call to Action',
                       audience: '👥 Target Audience',
+                      targetCustomerDetail: '🧑‍🤝‍🧑 Target Customer Detail',
                       competitors: '🔍 Competitors',
                       calendar: '📅 Key Dates',
                       cadence: '🔄 Posting Cadence',

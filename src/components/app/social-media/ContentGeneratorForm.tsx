@@ -24,7 +24,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useRef, useState, useEffect } from 'react';
-import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
+import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { MdAdd, MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import LowCreditWarning from '../atoms/LowCreditWarning';
@@ -35,6 +35,7 @@ const PLATFORMS = [
   { key: 'instagram', label: 'Instagram', icon: <FaInstagram size={16} color="#E1306C" /> },
   { key: 'twitter', label: 'Twitter / X', icon: <FaTwitter size={16} color="#1DA1F2" /> },
   { key: 'linkedin', label: 'LinkedIn', icon: <FaLinkedin size={16} color="#0A66C2" /> },
+  { key: 'tiktok', label: 'TikTok', icon: <FaTiktok size={16} color="#010101" /> },
 ];
 
 const POST_TYPES: Array<{
@@ -122,7 +123,9 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     can_proceed?: boolean;
   } | null>(null);
 
-  const showPostTypeSelector = selectedPlatforms.some((p) => p === 'instagram' || p === 'facebook' || p === 'linkedin');
+  const showPostTypeSelector = selectedPlatforms.some(
+    (p) => p === 'instagram' || p === 'facebook' || p === 'linkedin' || p === 'tiktok'
+  );
 
   // Reset post type to feed if selector is hidden (no Instagram/Facebook selected)
   useEffect(() => {

@@ -42,12 +42,27 @@ export interface CustomFontEntry {
   directive?: string;
 }
 
+export interface BusinessPulseData {
+  current_period_goal?: string;
+  current_promotions?: string[];
+  current_campaigns?: string[];
+  business_news_announcements?: string[];
+  recent_milestones?: string[];
+  new_products_services?: string[];
+  updated_at?: string | null;
+}
+
 export interface BrandProfileData {
   id?: string;
   brand_name?: string;
   industry?: string;
   website?: string;
   product_description?: string;
+  // Business Details
+  price_range?: string;
+  unique_selling_proposition?: string;
+  business_stage?: '' | 'new' | 'growing' | 'established' | 'market_leader';
+  business_priorities?: string[];
   logo_url?: string;
   logo_position?: string;
   logo_size?: string;
@@ -67,6 +82,16 @@ export interface BrandProfileData {
   target_platforms?: string[];
   primary_goal?: string;
   ideal_customer_profile?: string;
+  // Target Customer Detail — additive to ideal_customer_profile above
+  customer_gender?: string;
+  customer_location?: string;
+  customer_occupation?: string;
+  customer_income_level?: string;
+  customer_interests?: string[];
+  customer_pain_points?: string[];
+  customer_needs?: string[];
+  customer_objections?: string[];
+  why_customers_choose_us?: string;
   competitor_handles?: string[];
   key_dates?: BrandKeyDate[];
   posting_cadence?: string;
@@ -101,6 +126,10 @@ export interface BrandProfileData {
   use_v3_prompts?: boolean; // V3 enhanced prompt system toggle
   canvas_editor_enabled?: boolean; // Canvas Editor feature flag
   onboarding_completed?: boolean;
+  // Business Pulse — read-only here (mirrors the backend passthrough); write
+  // through BrandProfileService.saveBusinessPulse(), not the main save().
+  business_pulse?: BusinessPulseData;
+  business_pulse_updated_at?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -167,5 +196,23 @@ export class BrandProfileService {
     } catch {
       return null;
     }
+  }
+
+  // Business Pulse — a separate, higher-frequency surface from the main
+  // profile save above, so it can never accidentally touch the other ~50
+  // profile fields. See BusinessPulsePanel.
+  static async getBusinessPulse(): Promise<UriResponse<BusinessPulseData>> {
+    const res: AxiosResponse<UriResponse<BusinessPulseData>> = await UriHttpClient.getClient().get(
+      `${BASE}/business-pulse`
+    );
+    return res.data;
+  }
+
+  static async saveBusinessPulse(data: Partial<BusinessPulseData>): Promise<UriResponse<BrandProfileData>> {
+    const res: AxiosResponse<UriResponse<BrandProfileData>> = await UriHttpClient.getClient().post(
+      `${BASE}/business-pulse`,
+      data
+    );
+    return res.data;
   }
 }

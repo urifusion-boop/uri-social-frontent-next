@@ -392,6 +392,41 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  // Disconnects every connected account for one platform in a single call —
+  // the "Disconnect All" action when more than one page/account is connected.
+  static async disconnectAllForPlatform(platform: string): Promise<UriResponse<string>> {
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
+      `${socialMediaAgentRoutes.disconnectAllForPlatform}/${platform}`
+    );
+    return response.data;
+  }
+
+  static async getInstagramDirectPending(token: string): Promise<
+    UriResponse<{
+      token: string;
+      candidates: Array<{
+        ig_user_id: string;
+        page_name?: string;
+        username?: string;
+        profile_picture_url?: string;
+      }>;
+    }>
+  > {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.instagramDirectPending}/${token}`);
+    return response.data;
+  }
+
+  static async finalizeInstagramDirectPending(
+    token: string,
+    igUserIds: string[]
+  ): Promise<UriResponse<{ connected: Array<{ ig_user_id: string; username?: string }>; total: number }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.instagramDirectFinalizePending, {
+      token,
+      ig_user_ids: igUserIds,
+    });
+    return response.data;
+  }
+
   static async disconnectInstagramDirect(igUserId: string): Promise<UriResponse<string>> {
     const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
       `/social-media/connections/instagram-direct/${igUserId}`
@@ -402,6 +437,13 @@ export class SocialMediaAgentService {
   static async disconnectFacebookDirect(): Promise<UriResponse<string>> {
     const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
       `/social-media/connections/facebook-direct`
+    );
+    return response.data;
+  }
+
+  static async disconnectTikTokDirect(): Promise<UriResponse<string>> {
+    const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
+      `/social-media/connections/tiktok-direct`
     );
     return response.data;
   }

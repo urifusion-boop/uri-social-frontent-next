@@ -10,6 +10,9 @@ type ISocialMediaAgentApi =
   | 'finalizeConnection'
   | 'getConnections'
   | 'disconnectPlatform'
+  | 'disconnectAllForPlatform'
+  | 'instagramDirectPending'
+  | 'instagramDirectFinalizePending'
   | 'generateContent'
   | 'uploadUserContent'
   | 'generateStoryboard'
@@ -102,6 +105,9 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   finalizeConnection: '/connect/finalize',
   getConnections: '/connections',
   disconnectPlatform: '/connections/account',
+  disconnectAllForPlatform: '/connections/platform',
+  instagramDirectPending: '/connect/instagram-direct/pending',
+  instagramDirectFinalizePending: '/connect/instagram-direct/finalize-pending',
   generateContent: '/generate-content',
   uploadUserContent: '/upload-user-content',
   generateStoryboard: '/generate-storyboard',
