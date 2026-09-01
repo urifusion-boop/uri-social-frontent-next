@@ -33,6 +33,9 @@ export interface CampaignEstimates {
   audience_size_low?: number | null;
   audience_size_high?: number | null;
   estimated_clicks?: number | null;
+  // What to call estimated_clicks, e.g. "Est. website clicks" — the server owns it so
+  // the label always matches where the ad actually sends people.
+  clicks_label?: string;
   estimated_leads?: number | null;
   cost_per_result_ngn?: number | null;
   note: string;

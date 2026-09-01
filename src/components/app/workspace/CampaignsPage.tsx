@@ -1661,7 +1661,9 @@ function CampaignReview({ summary }: { summary: CampaignSummary }) {
   const estItems: { label: string; value: string }[] = [];
   if (audience) estItems.push({ label: 'Audience you could reach', value: audience });
   if (e.estimated_clicks != null)
-    estItems.push({ label: 'Est. WhatsApp clicks', value: `~${e.estimated_clicks.toLocaleString()}` });
+    // The server names this after the ad's real destination — hard-coding "WhatsApp"
+    // here mislabelled the figure on every website/Instagram/custom campaign.
+    estItems.push({ label: e.clicks_label || 'Est. clicks', value: `~${e.estimated_clicks.toLocaleString()}` });
   if (e.estimated_leads != null)
     estItems.push({ label: 'Est. leads', value: `~${e.estimated_leads.toLocaleString()}` });
   if (e.cost_per_result_ngn != null)
