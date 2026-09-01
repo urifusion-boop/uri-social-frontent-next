@@ -29,6 +29,11 @@ export interface GenerateContentPayload {
   /** @deprecated use reference_images */
   reference_image?: string;
   reference_images?: string[];
+  /** Parallel to reference_images (same length/order). More than one entry in
+   * reference_images switches the backend to combining them into one image —
+   * this is where each one's optional role label and background-removal
+   * override live. */
+  reference_image_meta?: Array<{ label?: string; remove_background?: boolean }>;
   /** Carousel only: per-slide index into reference_images (or null for no image). Omit to cycle images across slides (image 1 -> slide 1, image 2 -> slide 2, ...). */
   slide_image_map?: (number | null)[];
   post_type?: 'feed' | 'carousel' | 'story';

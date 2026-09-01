@@ -55,6 +55,20 @@ const MAX_REFERENCE_IMAGES = 10;
 interface ReferenceImage {
   dataUrl: string;
   name: string;
+  // Whether this upload is actually sent when generating — lets someone upload
+  // several images but only use a subset (see the "Include" checkbox on each
+  // thumbnail). Defaults true so existing behaviour (every upload gets used
+  // somehow) is unchanged unless the user deliberately unticks one.
+  included: boolean;
+  // Optional role description ("product", "background", "logo", ...), only
+  // shown/used when 2+ images are included for a single (non-carousel) post —
+  // feeds directly into the backend's multi-reference combine prompt so the
+  // model knows what each image is for instead of guessing.
+  label?: string;
+  // undefined = let the backend apply its own mode-based default (strip for a
+  // single image, keep as-is when combining several); true/false is an
+  // explicit per-image override from the "Remove background" toggle.
+  removeBackground?: boolean;
 }
 
 interface ContentGeneratorFormProps {
@@ -168,7 +182,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     }
     const reader = new FileReader();
     reader.onload = () => {
-      setReferenceImages((prev) => [...prev, { dataUrl: reader.result as string, name: file.name }]);
+      setReferenceImages((prev) => [...prev, { dataUrl: reader.result as string, name: file.name, included: true }]);
       if (showSuccessToast) {
         ToastService.showToast('Image uploaded successfully', ToastTypeEnum.Success);
       }
@@ -234,6 +248,15 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     // auto-cycle assignment rather than risk a stale/incorrect slide mapping.
     setSlideImageOverrides({});
   };
+
+  const updateReferenceImageAt = (index: number, patch: Partial<ReferenceImage>) => {
+    setReferenceImages((prev) => prev.map((img, i) => (i === index ? { ...img, ...patch } : img)));
+  };
+
+  // How many uploads are actually going out determines the mode — no separate
+  // "single vs combine" toggle to keep in sync, it's just the tick count.
+  const includedCount = referenceImages.filter((img) => img.included).length;
+  const isCombineMode = postType !== 'carousel' && includedCount > 1;
 
   // Add paste event listener
   useEffect(() => {
@@ -304,9 +327,24 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
         ...(useStyleOverride && selectedOverrideStyles.length > 0 ? { style_override: selectedOverrideStyles } : {}),
       };
       if (referenceImages.length > 0) {
-        payload.reference_images = referenceImages.map((img) => img.dataUrl);
         if (postType === 'carousel') {
+          // Carousel keeps its own existing per-slide assignment system
+          // untouched — every upload stays available to the slide picker
+          // regardless of the "Include" tick, which is specifically for the
+          // single/combine case below.
+          payload.reference_images = referenceImages.map((img) => img.dataUrl);
           payload.slide_image_map = Array.from({ length: numSlides }, (_, i) => slideImageIndex(i));
+        } else {
+          const included = referenceImages.filter((img) => img.included);
+          payload.reference_images = included.map((img) => img.dataUrl);
+          if (included.length > 1) {
+            // Combine mode: only meaningful with 2+ images, so only send
+            // per-image meta then — a single image behaves exactly as before.
+            payload.reference_image_meta = included.map((img) => ({
+              ...(img.label?.trim() ? { label: img.label.trim() } : {}),
+              ...(img.removeBackground !== undefined ? { remove_background: img.removeBackground } : {}),
+            }));
+          }
         }
       }
       const response = await SocialMediaAgentService.generateContent(payload);
@@ -488,7 +526,35 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
                 >
                   {index + 1}
                 </Box>
+                {!img.included && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(255,255,255,0.6)',
+                    }}
+                  />
+                )}
               </Box>
+              {postType !== 'carousel' && (
+                <Checkbox
+                  size="small"
+                  checked={img.included}
+                  onChange={(e) => updateReferenceImageAt(index, { included: e.target.checked })}
+                  title={img.included ? 'Included in generation — click to exclude' : 'Excluded — click to include'}
+                  sx={{
+                    position: 'absolute',
+                    bottom: -6,
+                    left: -6,
+                    p: 0.25,
+                    background: '#fff',
+                    borderRadius: '4px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                    '& .MuiSvgIcon-root': { fontSize: 16 },
+                    '&.Mui-checked': { color: '#CD1B78' },
+                  }}
+                />
+              )}
               <IconButton
                 size="small"
                 onClick={() => removeReferenceImageAt(index)}
@@ -530,6 +596,70 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
               }}
             >
               <MdAdd size={22} color={isDragging ? '#CD1B78' : '#9CA3AF'} />
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {postType !== 'carousel' && referenceImages.length > 1 && (
+        <Box
+          sx={{
+            background: isCombineMode ? '#FDF2F8' : '#F9FAFB',
+            border: `1px solid ${isCombineMode ? '#F3D9E8' : '#E5E7EB'}`,
+            borderRadius: '8px',
+            px: 1.5,
+            py: 1.25,
+            mb: 1.5,
+          }}
+        >
+          <Typography
+            fontSize="12px"
+            fontWeight={600}
+            color={isCombineMode ? '#9D174D' : '#4B5563'}
+            mb={isCombineMode ? 1 : 0}
+          >
+            {isCombineMode
+              ? `Combining ${includedCount} images into one generation`
+              : includedCount === 1
+                ? '1 image selected — used as the main reference'
+                : 'Tick the images you want used, or leave more than one ticked to combine them'}
+          </Typography>
+          {isCombineMode && (
+            <Box display="flex" flexDirection="column" gap={1}>
+              {referenceImages.map((img, index) =>
+                img.included ? (
+                  <Box key={index} display="flex" alignItems="center" gap={1}>
+                    <Box
+                      component="img"
+                      src={img.dataUrl}
+                      alt={img.name}
+                      sx={{ width: 32, height: 32, borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }}
+                    />
+                    <TextField
+                      size="small"
+                      placeholder={`What is image ${index + 1}? (optional — e.g. product, background, logo)`}
+                      value={img.label ?? ''}
+                      onChange={(e) => updateReferenceImageAt(index, { label: e.target.value })}
+                      sx={{ flex: 1, '& .MuiInputBase-input': { fontSize: '12px', py: 0.75 } }}
+                    />
+                    <Box
+                      component="label"
+                      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', flexShrink: 0 }}
+                      title="Cuts this image down to just its main subject, dropping its own background — useful for a product shot, not for a background/scene image"
+                    >
+                      <Checkbox
+                        size="small"
+                        checked={img.removeBackground ?? false}
+                        onChange={(e) => updateReferenceImageAt(index, { removeBackground: e.target.checked })}
+                        sx={{ p: 0.25, '& .MuiSvgIcon-root': { fontSize: 16 }, '&.Mui-checked': { color: '#CD1B78' } }}
+                      />
+                      <Typography fontSize="11px" color="#6B7280" sx={{ whiteSpace: 'nowrap' }}>
+                        Remove background
+                      </Typography>
+                    </Box>
+                  </Box>
+                ) : null
+              )}
             </Box>
           )}
         </Box>
