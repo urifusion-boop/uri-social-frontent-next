@@ -177,28 +177,16 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
             },
           }}
         >
-          <MenuItem
-            onClick={() => handleExport('1:1')}
-            sx={{ '&:hover': { backgroundColor: '#3a3a3a' } }}
-          >
+          <MenuItem onClick={() => handleExport('1:1')} sx={{ '&:hover': { backgroundColor: '#3a3a3a' } }}>
             📱 Square (1:1) - Instagram/Facebook
           </MenuItem>
-          <MenuItem
-            onClick={() => handleExport('9:16')}
-            sx={{ '&:hover': { backgroundColor: '#3a3a3a' } }}
-          >
+          <MenuItem onClick={() => handleExport('9:16')} sx={{ '&:hover': { backgroundColor: '#3a3a3a' } }}>
             📲 Story (9:16) - Instagram/Facebook
           </MenuItem>
-          <MenuItem
-            onClick={() => handleExport('4:5')}
-            sx={{ '&:hover': { backgroundColor: '#3a3a3a' } }}
-          >
+          <MenuItem onClick={() => handleExport('4:5')} sx={{ '&:hover': { backgroundColor: '#3a3a3a' } }}>
             🖼️ Portrait (4:5) - Instagram
           </MenuItem>
-          <MenuItem
-            onClick={() => handleExport('16:9')}
-            sx={{ '&:hover': { backgroundColor: '#3a3a3a' } }}
-          >
+          <MenuItem onClick={() => handleExport('16:9')} sx={{ '&:hover': { backgroundColor: '#3a3a3a' } }}>
             🖥️ Landscape (16:9) - YouTube/LinkedIn
           </MenuItem>
         </Menu>

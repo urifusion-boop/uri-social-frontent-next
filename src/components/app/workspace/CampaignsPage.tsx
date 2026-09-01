@@ -895,9 +895,7 @@ export default function CampaignsPage({
             background: '#f4f2f0',
             padding: 3,
             borderRadius: 10,
-            ...(isMobile
-              ? ({ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' } as const)
-              : {}),
+            ...(isMobile ? ({ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' } as const) : {}),
           }}
         >
           {(
@@ -1029,7 +1027,10 @@ export default function CampaignsPage({
               {pendingVideoQualityCheck && (
                 <div>
                   <JaneBubble>Want to improve this video&apos;s quality before using it?</JaneBubble>
-                  <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
+                  <div
+                    className="camp-indent"
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}
+                  >
                     <button
                       onClick={requestVideoPolishForPending}
                       style={{
@@ -1397,10 +1398,7 @@ function ThreadRail({
   return (
     <>
       {isMobile && (
-        <div
-          onClick={onClose}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.38)', zIndex: 40 }}
-        />
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.38)', zIndex: 40 }} />
       )}
       <div
         style={{
@@ -1449,129 +1447,129 @@ function ThreadRail({
             </button>
           </div>
         )}
-      <div style={{ padding: '12px 12px 8px' }}>
-        <button
-          onClick={onNew}
-          disabled={busy}
-          style={{
-            width: '100%',
-            background: PINK,
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            padding: '9px 12px',
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: busy ? 'default' : 'pointer',
-          }}
-        >
-          + New campaign
-        </button>
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
-        {threads.length === 0 ? (
-          <p style={{ fontSize: 11.5, color: '#aaa', padding: '8px 6px', lineHeight: 1.5 }}>
-            Your campaigns will show up here as you create them.
-          </p>
-        ) : (
-          threads.map((t) => {
-            const active = t.thread_id === activeThreadId;
-            return (
-              <div
-                key={t.thread_id}
-                onClick={() => onSelect(t.thread_id)}
-                style={{
-                  padding: '9px 10px',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  marginBottom: 4,
-                  background: active ? '#fce4ec' : 'transparent',
-                  border: active ? `1px solid ${PINK}` : '1px solid transparent',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 8, color: statusColor[t.status] || '#999' }}>●</span>
-                  <span
-                    style={{
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      color: '#1a0a12',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flex: 1,
-                    }}
-                  >
-                    {t.title || 'New campaign'}
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (
-                        window.confirm(
-                          'Delete this conversation? Any launched campaign keeps running — this only removes the chat.'
-                        )
-                      ) {
-                        onDelete(t.thread_id);
-                      }
-                    }}
-                    disabled={busy}
-                    aria-label="Delete conversation"
-                    title="Delete conversation"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#bbb',
-                      fontSize: 14,
-                      lineHeight: 1,
-                      cursor: busy ? 'default' : 'pointer',
-                      padding: '0 2px',
-                      flexShrink: 0,
-                    }}
-                  >
-                    ✕
-                  </button>
+        <div style={{ padding: '12px 12px 8px' }}>
+          <button
+            onClick={onNew}
+            disabled={busy}
+            style={{
+              width: '100%',
+              background: PINK,
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '9px 12px',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: busy ? 'default' : 'pointer',
+            }}
+          >
+            + New campaign
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
+          {threads.length === 0 ? (
+            <p style={{ fontSize: 11.5, color: '#aaa', padding: '8px 6px', lineHeight: 1.5 }}>
+              Your campaigns will show up here as you create them.
+            </p>
+          ) : (
+            threads.map((t) => {
+              const active = t.thread_id === activeThreadId;
+              return (
+                <div
+                  key={t.thread_id}
+                  onClick={() => onSelect(t.thread_id)}
+                  style={{
+                    padding: '9px 10px',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    marginBottom: 4,
+                    background: active ? '#fce4ec' : 'transparent',
+                    border: active ? `1px solid ${PINK}` : '1px solid transparent',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 8, color: statusColor[t.status] || '#999' }}>●</span>
+                    <span
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        color: '#1a0a12',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flex: 1,
+                      }}
+                    >
+                      {t.title || 'New campaign'}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (
+                          window.confirm(
+                            'Delete this conversation? Any launched campaign keeps running — this only removes the chat.'
+                          )
+                        ) {
+                          onDelete(t.thread_id);
+                        }
+                      }}
+                      disabled={busy}
+                      aria-label="Delete conversation"
+                      title="Delete conversation"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#bbb',
+                        fontSize: 14,
+                        lineHeight: 1,
+                        cursor: busy ? 'default' : 'pointer',
+                        padding: '0 2px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {t.preview && (
+                    <p
+                      style={{
+                        margin: '2px 0 0 14px',
+                        fontSize: 11,
+                        color: '#999',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {t.preview}
+                    </p>
+                  )}
+                  {t.status === 'launched' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDuplicate(t.thread_id);
+                      }}
+                      disabled={busy}
+                      style={{
+                        marginTop: 4,
+                        marginLeft: 14,
+                        background: 'none',
+                        border: 'none',
+                        color: PINK,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: busy ? 'default' : 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      ⧉ Duplicate
+                    </button>
+                  )}
                 </div>
-                {t.preview && (
-                  <p
-                    style={{
-                      margin: '2px 0 0 14px',
-                      fontSize: 11,
-                      color: '#999',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {t.preview}
-                  </p>
-                )}
-                {t.status === 'launched' && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDuplicate(t.thread_id);
-                    }}
-                    disabled={busy}
-                    style={{
-                      marginTop: 4,
-                      marginLeft: 14,
-                      background: 'none',
-                      border: 'none',
-                      color: PINK,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: busy ? 'default' : 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    ⧉ Duplicate
-                  </button>
-                )}
-              </div>
-            );
-          })
-        )}
+              );
+            })
+          )}
         </div>
       </div>
     </>
@@ -1906,7 +1904,10 @@ function ChooseCreativeSource({
         )}
       </div>
       {showDrafts && drafts.length > 0 && (
-        <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, marginLeft: 40, maxWidth: 560 }}>
+        <div
+          className="camp-indent"
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, marginLeft: 40, maxWidth: 560 }}
+        >
           {drafts.map((d) => (
             <button
               key={d.draft_id}
@@ -2003,7 +2004,10 @@ function PlanVariantCards({
           {variantSet.selection_rule_reason}
         </p>
       )}
-      <div className="camp-indent" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginLeft: 40, maxWidth: 560 }}>
+      <div
+        className="camp-indent"
+        style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginLeft: 40, maxWidth: 560 }}
+      >
         {variantSet.variants.map((v) => {
           const isExpanded = expandedRanks.has(v.rank);
           const isSelected = selectedRanks.includes(v.rank);

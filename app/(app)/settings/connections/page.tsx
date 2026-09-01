@@ -2,46 +2,24 @@
 
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
 import DashboardLayout from '@/src/components/app/atoms/DashboardLayout';
-import {
-  Box,
-  Button,
-  CircularProgress,
-  MenuItem,
-  Select,
-  TextField,
-  Typography,
-} from '@mui/material';
-import { useEffect, useState } from 'react';
+import { Box, Button, CircularProgress, Typography } from '@mui/material';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { FaCheckCircle, FaWhatsapp } from 'react-icons/fa';
+import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 
 type PageState = 'loading' | 'idle' | 'connected' | 'submitting' | 'disconnecting';
 
-const COUNTRY_CODES = [
-  { code: '+1',   flag: '🇺🇸', label: 'US' },
-  { code: '+44',  flag: '🇬🇧', label: 'GB' },
-  { code: '+234', flag: '🇳🇬', label: 'NG' },
-  { code: '+27',  flag: '🇿🇦', label: 'ZA' },
-  { code: '+254', flag: '🇰🇪', label: 'KE' },
-  { code: '+233', flag: '🇬🇭', label: 'GH' },
-  { code: '+49',  flag: '🇩🇪', label: 'DE' },
-  { code: '+33',  flag: '🇫🇷', label: 'FR' },
-  { code: '+91',  flag: '🇮🇳', label: 'IN' },
-  { code: '+86',  flag: '🇨🇳', label: 'CN' },
-  { code: '+55',  flag: '🇧🇷', label: 'BR' },
-  { code: '+52',  flag: '🇲🇽', label: 'MX' },
-  { code: '+971', flag: '🇦🇪', label: 'AE' },
-  { code: '+966', flag: '🇸🇦', label: 'SA' },
-];
-
 export default function WhatsAppConnectionPage() {
   const [pageState, setPageState] = useState<PageState>('loading');
-  const [countryCode, setCountryCode] = useState('+234');
-  const [localNumber, setLocalNumber] = useState('');
+  // E.164 string (e.g. "+2348012345678") or undefined while empty — the shape
+  // react-phone-number-input's <PhoneInput> value/onChange expects. Real
+  // per-country validation via libphonenumber-js (Google's own metadata),
+  // not a hand-maintained country list/regex.
+  const [phone, setPhone] = useState<string | undefined>(undefined);
   const [connectedPhone, setConnectedPhone] = useState('');
   const [connectedAt, setConnectedAt] = useState('');
   const [error, setError] = useState('');
-
-  const fullPhone = `${countryCode}${localNumber.replace(/^0+/, '')}`;
 
   useEffect(() => {
     const check = async () => {
@@ -62,21 +40,28 @@ export default function WhatsAppConnectionPage() {
   }, []);
 
   const handleConnect = async () => {
-    if (!localNumber.trim()) return;
+    if (!phone) return;
+    if (!isValidPhoneNumber(phone)) {
+      setError("That doesn't look like a valid phone number — double-check the digits.");
+      return;
+    }
     setError('');
     setPageState('submitting');
     try {
-      const res = await SocialConnectionService.whatsappConnect(fullPhone);
+      const res = await SocialConnectionService.whatsappConnect(phone);
       const detail = (res as unknown as { detail?: string }).detail;
 
       if (res.status) {
-        const phone = res.responseData?.phone ?? fullPhone;
-        setConnectedPhone(phone);
-        setPageState('connected');
-      } else if (detail?.toLowerCase().includes('already linked') || detail?.toLowerCase().includes('already connected')) {
-        setConnectedPhone(fullPhone);
+        const connected = res.responseData?.phone ?? phone;
+        setConnectedPhone(connected);
         setPageState('connected');
       } else {
+        // /whatsapp/connect only returns a "linked" conflict when the number
+        // belongs to a DIFFERENT account — resubmitting your own already-linked
+        // number succeeds normally (res.status true) instead of hitting this
+        // branch at all, so there's no case here that should be treated as
+        // success (this used to match "already linked"/"already connected" and
+        // silently show Connected for a number that was actually rejected).
         const msg = detail?.toLowerCase().includes('another account')
           ? 'This number is already linked to another account.'
           : detail || res.responseMessage || 'Failed to connect. Please try again.';
@@ -96,7 +81,7 @@ export default function WhatsAppConnectionPage() {
     } finally {
       setConnectedPhone('');
       setConnectedAt('');
-      setLocalNumber('');
+      setPhone(undefined);
       setPageState('idle');
     }
   };
@@ -140,9 +125,27 @@ export default function WhatsAppConnectionPage() {
 
           {/* ── CONNECTED STATE ── */}
           {(pageState === 'connected' || pageState === 'disconnecting') && (
-            <Box sx={{ background: '#fff', borderRadius: '16px', p: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB' }}>
+            <Box
+              sx={{
+                background: '#fff',
+                borderRadius: '16px',
+                p: 3,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                border: '1px solid #E5E7EB',
+              }}
+            >
               <Box display="flex" alignItems="center" gap={1.5} mb={2.5}>
-                <Box sx={{ width: 48, height: 48, borderRadius: '12px', background: '#E8F9EF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: '12px',
+                    background: '#E8F9EF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
                   <FaWhatsapp size={26} color="#25D366" />
                 </Box>
                 <Box flex={1}>
@@ -150,9 +153,21 @@ export default function WhatsAppConnectionPage() {
                     <Typography fontWeight={700} fontSize="15px" color="#111827">
                       {connectedPhone}
                     </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, background: '#ECFDF5', px: 1, py: 0.25, borderRadius: '6px' }}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        background: '#ECFDF5',
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: '6px',
+                      }}
+                    >
                       <FaCheckCircle size={11} color="#10B981" />
-                      <Typography fontSize="11px" fontWeight={600} color="#10B981">Connected</Typography>
+                      <Typography fontSize="11px" fontWeight={600} color="#10B981">
+                        Connected
+                      </Typography>
                     </Box>
                   </Box>
                   {connectedAt && (
@@ -165,7 +180,7 @@ export default function WhatsAppConnectionPage() {
 
               <Box sx={{ background: '#F0FDF4', borderRadius: '10px', p: 2, mb: 2.5, border: '1px solid #BBF7D0' }}>
                 <Typography fontSize="13px" color="#166534" fontWeight={500}>
-                  Message <strong>+1 415 523 8886</strong> on WhatsApp to interact with your URI Agent.
+                  Message <strong>+234 707 630 7855</strong> on WhatsApp to interact with your URI Agent.
                 </Typography>
               </Box>
 
@@ -192,7 +207,15 @@ export default function WhatsAppConnectionPage() {
 
           {/* ── IDLE / SUBMITTING STATE ── */}
           {(pageState === 'idle' || pageState === 'submitting') && (
-            <Box sx={{ background: '#fff', borderRadius: '16px', p: 3, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid #E5E7EB' }}>
+            <Box
+              sx={{
+                background: '#fff',
+                borderRadius: '16px',
+                p: 3,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                border: '1px solid #E5E7EB',
+              }}
+            >
               <Typography fontWeight={700} fontSize="15px" color="#111827" mb={0.5}>
                 Connect your WhatsApp number
               </Typography>
@@ -200,56 +223,59 @@ export default function WhatsAppConnectionPage() {
                 Enter your WhatsApp phone number to receive notifications and interact with your URI Agent.
               </Typography>
 
-              <Box display="flex" gap={1} mb={1.5}>
-                <Select
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  size="small"
-                  disabled={pageState === 'submitting'}
-                  sx={{
-                    width: 110,
+              <Box
+                mb={1.5}
+                sx={{
+                  '& .PhoneInput': { display: 'flex', alignItems: 'center', gap: 1 },
+                  '& .PhoneInputCountry': {
+                    padding: '0 8px',
                     borderRadius: '10px',
+                    border: `1px solid ${error ? '#EF4444' : '#E5E7EB'}`,
+                    background: '#fff',
+                  },
+                  '& .PhoneInputInput': {
+                    flex: 1,
+                    minWidth: 0,
+                    padding: '8.5px 12px',
+                    borderRadius: '10px',
+                    border: `1px solid ${error ? '#EF4444' : '#E5E7EB'}`,
                     fontSize: '13px',
-                    flexShrink: 0,
-                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
-                  }}
-                  renderValue={(v) => {
-                    const c = COUNTRY_CODES.find((x) => x.code === v);
-                    return c ? `${c.flag} ${c.code}` : v;
-                  }}
-                >
-                  {COUNTRY_CODES.map((c) => (
-                    <MenuItem key={c.code} value={c.code} sx={{ fontSize: '13px' }}>
-                      {c.flag} {c.code} {c.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-
-                <TextField
-                  placeholder="8012345678"
-                  value={localNumber}
-                  onChange={(e) => {
-                    setLocalNumber(e.target.value.replace(/[^\d]/g, ''));
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                  },
+                }}
+              >
+                <PhoneInput
+                  international
+                  defaultCountry="NG"
+                  value={phone}
+                  onChange={(value: string | undefined) => {
+                    setPhone(value);
                     setError('');
                   }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
                   disabled={pageState === 'submitting'}
-                  size="small"
-                  fullWidth
-                  inputProps={{ inputMode: 'tel' }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '10px',
-                      fontSize: '13px',
-                      '& fieldset': { borderColor: error ? '#EF4444' : '#E5E7EB' },
-                    },
+                  placeholder="Enter phone number"
+                  numberInputProps={{
+                    onKeyDown: (e: KeyboardEvent) => e.key === 'Enter' && handleConnect(),
+                    'aria-label': 'WhatsApp phone number',
                   }}
                 />
               </Box>
 
               {error && (
-                <Box sx={{ background: '#FEF2F2', borderRadius: '8px', px: 1.5, py: 1, mb: 1.5, border: '1px solid #FECACA' }}>
-                  <Typography fontSize="12.5px" color="#DC2626">{error}</Typography>
+                <Box
+                  sx={{
+                    background: '#FEF2F2',
+                    borderRadius: '8px',
+                    px: 1.5,
+                    py: 1,
+                    mb: 1.5,
+                    border: '1px solid #FECACA',
+                  }}
+                >
+                  <Typography fontSize="12.5px" color="#DC2626">
+                    {error}
+                  </Typography>
                 </Box>
               )}
 
@@ -257,8 +283,10 @@ export default function WhatsAppConnectionPage() {
                 variant="contained"
                 fullWidth
                 onClick={handleConnect}
-                disabled={!localNumber.trim() || pageState === 'submitting'}
-                startIcon={pageState === 'submitting' ? <CircularProgress size={14} color="inherit" /> : <FaWhatsapp size={15} />}
+                disabled={!phone || pageState === 'submitting'}
+                startIcon={
+                  pageState === 'submitting' ? <CircularProgress size={14} color="inherit" /> : <FaWhatsapp size={15} />
+                }
                 sx={{
                   background: 'linear-gradient(135deg, #25D366 0%, #1DA851 100%)',
                   textTransform: 'none',

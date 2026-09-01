@@ -13,7 +13,10 @@ async function fakeAuth(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('@URI@AUTHENTICATED', 'true');
     localStorage.setItem('@URI@USER_TOKENS', JSON.stringify({ accessToken: 'test', refreshToken: 'test' }));
-    localStorage.setItem('@URI@USER_DETAILS', JSON.stringify({ userId: 'u_test', email: 'test@uri', firstName: 'Test' }));
+    localStorage.setItem(
+      '@URI@USER_DETAILS',
+      JSON.stringify({ userId: 'u_test', email: 'test@uri', firstName: 'Test' })
+    );
     localStorage.setItem('@URI@ACTIVE_BRAND_ID', 'brnd_personal_u_test');
   });
 }
@@ -21,13 +24,27 @@ async function fakeAuth(page: Page) {
 async function mockJaneAds(page: Page) {
   // Non-critical reads.
   await page.route('**/jane-ads/admin/access', (r) => r.fulfill({ json: { allowed: false } }));
-  await page.route('**/jane-ads/wallet', (r) => r.fulfill({ json: { balance_ngn: 50000, currency: 'NGN', min_topup_ngn: 1000, transactions: [] } }));
+  await page.route('**/jane-ads/wallet', (r) =>
+    r.fulfill({ json: { balance_ngn: 50000, currency: 'NGN', min_topup_ngn: 1000, transactions: [] } })
+  );
   await page.route('**/jane-ads/threads', (r) =>
     r.request().method() === 'POST'
-      ? r.fulfill({ json: { thread_id: 'thr_test', title: 'New campaign', status: 'draft', preview: '', created_at: '', updated_at: '' } })
-      : r.fulfill({ json: { threads: [] } }));
+      ? r.fulfill({
+          json: {
+            thread_id: 'thr_test',
+            title: 'New campaign',
+            status: 'draft',
+            preview: '',
+            created_at: '',
+            updated_at: '',
+          },
+        })
+      : r.fulfill({ json: { threads: [] } })
+  );
   await page.route('**/jane-ads/threads/*/history', (r) => r.fulfill({ json: { messages: [] } }));
-  await page.route('**/jane-ads/chat/history**', (r) => r.fulfill({ json: r.request().method() === 'GET' ? { messages: [] } : { ok: true } }));
+  await page.route('**/jane-ads/chat/history**', (r) =>
+    r.fulfill({ json: r.request().method() === 'GET' ? { messages: [] } : { ok: true } })
+  );
   await page.route('**/jane-ads/creative/drafts**', (r) => r.fulfill({ json: { drafts: [] } }));
 
   // The plan flow — step through the stages based on the request body.
@@ -36,19 +53,45 @@ async function mockJaneAds(page: Page) {
     const body = JSON.parse(route.request().postData() || '{}');
     const src = body.creative_source;
     if (src === 'generate' || src === 'upload' || src === 'draft') {
-      return route.fulfill({ json: {
-        stage: 'planned', plan_id: 'plan_test',
-        plan: { goal: 'messages', behaviour: 'discover', explanation: 'why', platforms: [{ platform: 'meta', budget_ngn: 5000, days: 3, variants: 1, test_scope: 'none' }] },
-        creative: { image_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', headline: 'Fresh Lunch', primary_text: 'Hot meals near you.', cta: 'Send WhatsApp Message' },
-        whatsapp_number: '2348031234567',
-        wallet: { balance_ngn: 50000, budget_ngn: 5000, service_fee_ngn: 500, total_due_ngn: 5500, sufficient: true },
-      } });
+      return route.fulfill({
+        json: {
+          stage: 'planned',
+          plan_id: 'plan_test',
+          plan: {
+            goal: 'messages',
+            behaviour: 'discover',
+            explanation: 'why',
+            platforms: [{ platform: 'meta', budget_ngn: 5000, days: 3, variants: 1, test_scope: 'none' }],
+          },
+          creative: {
+            image_url:
+              'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+            headline: 'Fresh Lunch',
+            primary_text: 'Hot meals near you.',
+            cta: 'Send WhatsApp Message',
+          },
+          whatsapp_number: '2348031234567',
+          wallet: { balance_ngn: 50000, budget_ngn: 5000, service_fee_ngn: 500, total_due_ngn: 5500, sufficient: true },
+        },
+      });
     }
     // creative_source === 'ask' (or unset): walk objective → budget → choose.
     step += 1;
-    if (step === 1) return route.fulfill({ json: { stage: 'need_more', understood: { missing: ['offer_type'] }, question: 'What are you advertising — a product, a service…?' } });
-    if (step === 2) return route.fulfill({ json: { stage: 'need_more', understood: { missing: ['budget_ngn'] }, question: 'What budget would you like?' } });
-    return route.fulfill({ json: { stage: 'choose_creative_source', understood: {}, creative_options: { can_generate: true, drafts: [] } } });
+    if (step === 1)
+      return route.fulfill({
+        json: {
+          stage: 'need_more',
+          understood: { missing: ['offer_type'] },
+          question: 'What are you advertising — a product, a service…?',
+        },
+      });
+    if (step === 2)
+      return route.fulfill({
+        json: { stage: 'need_more', understood: { missing: ['budget_ngn'] }, question: 'What budget would you like?' },
+      });
+    return route.fulfill({
+      json: { stage: 'choose_creative_source', understood: {}, creative_options: { can_generate: true, drafts: [] } },
+    });
   });
 }
 

@@ -1,24 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  SocialMediaAgentService,
-  WritingDNAData,
-  BlogPostGenerateResult,
-} from '@/src/api/SocialMediaAgentService';
+import { SocialMediaAgentService, WritingDNAData, BlogPostGenerateResult } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import {
-  FiBook,
-  FiDownload,
-  FiCopy,
-  FiCheck,
-  FiLoader,
-  FiThumbsUp,
-  FiThumbsDown,
-  FiX,
-  FiZap,
-} from 'react-icons/fi';
+import { FiBook, FiDownload, FiCopy, FiCheck, FiLoader, FiThumbsUp, FiThumbsDown, FiX, FiZap } from 'react-icons/fi';
 import WritingDNAQuiz from './WritingDNAQuiz';
 import BlogDraftsTab from './BlogDraftsTab';
 import { markdownToHtml } from '@/src/utils/markdown.util';
@@ -33,7 +19,7 @@ const FEEDBACK_ISSUES = [
   { value: 'too_formal', label: 'Too formal' },
   { value: 'too_casual', label: 'Too casual' },
   { value: 'too_generic', label: 'Too generic' },
-  { value: 'not_my_style', label: "Not my style" },
+  { value: 'not_my_style', label: 'Not my style' },
 ];
 
 export default function BlogGeneratorTab() {
@@ -250,7 +236,6 @@ export default function BlogGeneratorTab() {
 
   return (
     <div style={{ padding: pad, maxWidth: '900px', margin: '0 auto', minHeight: '100vh' }}>
-
       {/* Header */}
       <div style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
@@ -279,7 +264,11 @@ export default function BlogGeneratorTab() {
         <button
           onClick={() => setMode('generate')}
           style={{
-            padding: '8px 18px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+            padding: '8px 18px',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer',
             border: `2px solid ${mode === 'generate' ? URI_PINK : '#e5e7eb'}`,
             background: mode === 'generate' ? `${URI_PINK}10` : 'white',
             color: mode === 'generate' ? URI_PINK : '#6b7280',
@@ -290,7 +279,11 @@ export default function BlogGeneratorTab() {
         <button
           onClick={() => setMode('drafts')}
           style={{
-            padding: '8px 18px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+            padding: '8px 18px',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer',
             border: `2px solid ${mode === 'drafts' ? URI_PINK : '#e5e7eb'}`,
             background: mode === 'drafts' ? `${URI_PINK}10` : 'white',
             color: mode === 'drafts' ? URI_PINK : '#6b7280',
@@ -304,168 +297,167 @@ export default function BlogGeneratorTab() {
       {mode === 'drafts' && <BlogDraftsTab />}
 
       {/* DNA Status card (generate mode only) */}
-      {mode === 'generate' && !dnaLoading && (
-        dna ? (
+      {mode === 'generate' &&
+        !dnaLoading &&
+        (dna ? (
           <DNAActiveCard dna={dna} onRetake={() => setView('quiz')} />
         ) : (
           <DNASetupCard onSetup={() => setView('quiz')} />
-        )
-      )}
+        ))}
 
       {/* Generation form */}
       {mode === 'generate' && (
-      <div
-        style={{
-          background: 'white',
-          borderRadius: '14px',
-          border: '1px solid #e5e7eb',
-          padding: '24px',
-          marginTop: '20px',
-        }}
-      >
-        <h2 style={{ fontSize: '17px', fontWeight: '700', margin: '0 0 20px', color: '#111' }}>
-          Blog Brief
-        </h2>
-
-        {/* Topic */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={labelStyle}>Topic *</label>
-          <input
-            type="text"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="e.g. Why Nigerian SMEs fail at social media (and how to fix it)"
-            maxLength={200}
-            style={inputStyle(!!topic)}
-            onFocus={(e) => (e.target.style.borderColor = URI_PINK)}
-            onBlur={(e) => (e.target.style.borderColor = topic ? URI_PINK : '#e5e7eb')}
-          />
-        </div>
-
-        {/* Primary keyword */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={labelStyle}>Primary keyword *</label>
-          <input
-            type="text"
-            value={primaryKeyword}
-            onChange={(e) => setPrimaryKeyword(e.target.value)}
-            placeholder="e.g. social media for Nigerian businesses"
-            maxLength={100}
-            style={inputStyle(!!primaryKeyword)}
-            onFocus={(e) => (e.target.style.borderColor = URI_PINK)}
-            onBlur={(e) => (e.target.style.borderColor = primaryKeyword ? URI_PINK : '#e5e7eb')}
-          />
-        </div>
-
-        {/* Secondary keywords */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={labelStyle}>Secondary keywords <span style={{ color: '#9ca3af', fontWeight: '400' }}>(optional · press Enter to add · max 5)</span></label>
-          <input
-            type="text"
-            value={kwInput}
-            onChange={(e) => setKwInput(e.target.value)}
-            onKeyDown={handleKwKeyDown}
-            placeholder="e.g. Instagram marketing"
-            style={inputStyle(false)}
-            onFocus={(e) => (e.target.style.borderColor = URI_PINK)}
-            onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
-          />
-          {secondaryKeywords.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-              {secondaryKeywords.map((kw) => (
-                <span
-                  key={kw}
-                  style={{
-                    background: `${URI_PINK}15`,
-                    color: URI_PINK,
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    fontSize: '13px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontWeight: '500',
-                  }}
-                >
-                  {kw}
-                  <FiX
-                    size={12}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setSecondaryKeywords((p) => p.filter((k) => k !== kw))}
-                  />
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Word count */}
-        <div style={{ marginBottom: '24px' }}>
-          <label style={labelStyle}>Target length</label>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {WORD_COUNT_OPTIONS.map((wc) => (
-              <button
-                key={wc}
-                onClick={() => setWordCount(wc)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: `2px solid ${wordCount === wc ? URI_PINK : '#e5e7eb'}`,
-                  background: wordCount === wc ? `${URI_PINK}10` : 'white',
-                  color: wordCount === wc ? URI_PINK : '#6b7280',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {wc} words
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Generate button */}
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating || !topic.trim() || !primaryKeyword.trim()}
+        <div
           style={{
-            width: '100%',
-            padding: '14px',
-            borderRadius: '10px',
-            border: 'none',
-            background:
-              isGenerating || !topic.trim() || !primaryKeyword.trim()
-                ? '#e5e7eb'
-                : `linear-gradient(135deg, ${URI_PINK} 0%, #E94396 100%)`,
-            color: isGenerating || !topic.trim() || !primaryKeyword.trim() ? '#9ca3af' : 'white',
-            fontSize: '15px',
-            fontWeight: '700',
-            cursor: isGenerating || !topic.trim() || !primaryKeyword.trim() ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '10px',
-            transition: 'all 0.15s',
-            boxShadow:
-              isGenerating || !topic.trim() || !primaryKeyword.trim()
-                ? 'none'
-                : '0 4px 14px rgba(205, 27, 120, 0.3)',
+            background: 'white',
+            borderRadius: '14px',
+            border: '1px solid #e5e7eb',
+            padding: '24px',
+            marginTop: '20px',
           }}
         >
-          {isGenerating ? (
-            <>
-              <FiLoader className="animate-spin" size={18} />
-              Writing your blog... (30-60 seconds)
-            </>
-          ) : (
-            <>
-              <FiZap size={18} />
-              {dna ? 'Generate Blog with Your Voice' : 'Generate Blog'}
-            </>
-          )}
-        </button>
-      </div>
+          <h2 style={{ fontSize: '17px', fontWeight: '700', margin: '0 0 20px', color: '#111' }}>Blog Brief</h2>
+
+          {/* Topic */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={labelStyle}>Topic *</label>
+            <input
+              type="text"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="e.g. Why Nigerian SMEs fail at social media (and how to fix it)"
+              maxLength={200}
+              style={inputStyle(!!topic)}
+              onFocus={(e) => (e.target.style.borderColor = URI_PINK)}
+              onBlur={(e) => (e.target.style.borderColor = topic ? URI_PINK : '#e5e7eb')}
+            />
+          </div>
+
+          {/* Primary keyword */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={labelStyle}>Primary keyword *</label>
+            <input
+              type="text"
+              value={primaryKeyword}
+              onChange={(e) => setPrimaryKeyword(e.target.value)}
+              placeholder="e.g. social media for Nigerian businesses"
+              maxLength={100}
+              style={inputStyle(!!primaryKeyword)}
+              onFocus={(e) => (e.target.style.borderColor = URI_PINK)}
+              onBlur={(e) => (e.target.style.borderColor = primaryKeyword ? URI_PINK : '#e5e7eb')}
+            />
+          </div>
+
+          {/* Secondary keywords */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={labelStyle}>
+              Secondary keywords{' '}
+              <span style={{ color: '#9ca3af', fontWeight: '400' }}>(optional · press Enter to add · max 5)</span>
+            </label>
+            <input
+              type="text"
+              value={kwInput}
+              onChange={(e) => setKwInput(e.target.value)}
+              onKeyDown={handleKwKeyDown}
+              placeholder="e.g. Instagram marketing"
+              style={inputStyle(false)}
+              onFocus={(e) => (e.target.style.borderColor = URI_PINK)}
+              onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+            />
+            {secondaryKeywords.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                {secondaryKeywords.map((kw) => (
+                  <span
+                    key={kw}
+                    style={{
+                      background: `${URI_PINK}15`,
+                      color: URI_PINK,
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontWeight: '500',
+                    }}
+                  >
+                    {kw}
+                    <FiX
+                      size={12}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setSecondaryKeywords((p) => p.filter((k) => k !== kw))}
+                    />
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Word count */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={labelStyle}>Target length</label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {WORD_COUNT_OPTIONS.map((wc) => (
+                <button
+                  key={wc}
+                  onClick={() => setWordCount(wc)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: `2px solid ${wordCount === wc ? URI_PINK : '#e5e7eb'}`,
+                    background: wordCount === wc ? `${URI_PINK}10` : 'white',
+                    color: wordCount === wc ? URI_PINK : '#6b7280',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {wc} words
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Generate button */}
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating || !topic.trim() || !primaryKeyword.trim()}
+            style={{
+              width: '100%',
+              padding: '14px',
+              borderRadius: '10px',
+              border: 'none',
+              background:
+                isGenerating || !topic.trim() || !primaryKeyword.trim()
+                  ? '#e5e7eb'
+                  : `linear-gradient(135deg, ${URI_PINK} 0%, #E94396 100%)`,
+              color: isGenerating || !topic.trim() || !primaryKeyword.trim() ? '#9ca3af' : 'white',
+              fontSize: '15px',
+              fontWeight: '700',
+              cursor: isGenerating || !topic.trim() || !primaryKeyword.trim() ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              transition: 'all 0.15s',
+              boxShadow:
+                isGenerating || !topic.trim() || !primaryKeyword.trim() ? 'none' : '0 4px 14px rgba(205, 27, 120, 0.3)',
+            }}
+          >
+            {isGenerating ? (
+              <>
+                <FiLoader className="animate-spin" size={18} />
+                Writing your blog... (30-60 seconds)
+              </>
+            ) : (
+              <>
+                <FiZap size={18} />
+                {dna ? 'Generate Blog with Your Voice' : 'Generate Blog'}
+              </>
+            )}
+          </button>
+        </div>
       )}
 
       {/* Result */}
@@ -664,9 +656,7 @@ function BlogResult({
   const wordCount = editedContent.trim().split(/\s+/).filter(Boolean).length;
 
   const toggleIssue = (v: string) => {
-    setFeedbackIssues(
-      feedbackIssues.includes(v) ? feedbackIssues.filter((i) => i !== v) : [...feedbackIssues, v]
-    );
+    setFeedbackIssues(feedbackIssues.includes(v) ? feedbackIssues.filter((i) => i !== v) : [...feedbackIssues, v]);
   };
 
   return (
@@ -707,10 +697,7 @@ function BlogResult({
           <span style={{ fontSize: '12px', color: '#9ca3af' }}>{wordCount} words</span>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            onClick={onExportMarkdown}
-            style={ghostButtonStyle}
-          >
+          <button onClick={onExportMarkdown} style={ghostButtonStyle}>
             <FiDownload size={14} />
             Export .md
           </button>
@@ -742,7 +729,15 @@ function BlogResult({
 
       <div style={{ padding: '24px' }}>
         {/* Title */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px', gap: '12px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            marginBottom: '12px',
+            gap: '12px',
+          }}
+        >
           <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#111', lineHeight: '1.3', flex: 1 }}>
             {result.title}
           </h1>
@@ -764,7 +759,17 @@ function BlogResult({
           }}
         >
           <div style={{ flex: 1 }}>
-            <p style={{ margin: 0, fontSize: '11px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: '11px',
+                fontWeight: '600',
+                color: '#9ca3af',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginBottom: '4px',
+              }}
+            >
               Meta Description
             </p>
             <p style={{ margin: 0, fontSize: '13px', color: '#374151', lineHeight: '1.5' }}>{result.meta}</p>
@@ -815,7 +820,13 @@ function BlogResult({
                   gap: '6px',
                 }}
               >
-                {isSaving ? <><FiLoader className="animate-spin" size={14} /> Saving...</> : 'Save changes'}
+                {isSaving ? (
+                  <>
+                    <FiLoader className="animate-spin" size={14} /> Saving...
+                  </>
+                ) : (
+                  'Save changes'
+                )}
               </button>
               <button onClick={() => setIsEditing(false)} style={ghostButtonStyle}>
                 Cancel

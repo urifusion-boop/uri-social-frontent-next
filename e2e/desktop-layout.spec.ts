@@ -15,7 +15,12 @@ test('desktop keeps the inline thread rail and full sidebar nav', async ({ page 
   });
   await page.route('**://localhost:9003/**', (r: Route) => {
     const u = r.request().url();
-    const ok = (d: unknown) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: true, responseData: d }) });
+    const ok = (d: unknown) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: true, responseData: d }),
+      });
     if (u.includes('brand-profile')) return ok({ brand_name: 'E2E', onboarding_completed: true });
     return ok([]);
   });
@@ -38,7 +43,8 @@ test('desktop keeps the inline thread rail and full sidebar nav', async ({ page 
   await expect(page.getByRole('button', { name: '+ New campaign' })).toBeVisible();
 
   const overflow = await page.evaluate(() => ({
-    s: document.documentElement.scrollWidth, c: document.documentElement.clientWidth,
+    s: document.documentElement.scrollWidth,
+    c: document.documentElement.clientWidth,
   }));
   expect(overflow.s).toBeLessThanOrEqual(overflow.c + 1);
 });

@@ -112,4 +112,10 @@ export class AuthService {
     );
     return response.data;
   }
+
+  static async verifyMagicLink(token: string): Promise<UriResponse<AuthResponseData & { redirect_url?: string }>> {
+    const response: AxiosResponse<UriResponse<AuthResponseData & { redirect_url?: string }>> =
+      await UriHttpClient.getClient().get(`/social-media/auth/magic-link/verify?token=${token}`);
+    return response.data;
+  }
 }

@@ -16,7 +16,8 @@ export interface Notification {
     | 'inactivity'
     | 'trial_start'
     | 'trial_ending'
-    | 'trial_expired';
+    | 'trial_expired'
+    | 'connection_disconnected';
   channel: 'email' | 'whatsapp';
   status: 'pending' | 'sent' | 'failed' | 'rate_limited';
   subject: string;
