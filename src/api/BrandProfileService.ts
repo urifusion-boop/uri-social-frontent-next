@@ -126,6 +126,13 @@ export interface BrandProfileData {
   use_v3_prompts?: boolean; // V3 enhanced prompt system toggle
   canvas_editor_enabled?: boolean; // Canvas Editor feature flag
   onboarding_completed?: boolean;
+  // Onboarding save-and-resume — the wizard step's NAME (e.g.
+  // "targetCustomerDetail"), not a numeric index; see the backend's
+  // BrandProfileService.save() for why. Read back on mount to resume the
+  // wizard where the user left off instead of restarting from step 0.
+  onboarding_current_step?: string;
+  onboarding_started_at?: string;
+  onboarding_last_saved_at?: string;
   // Business Pulse — read-only here (mirrors the backend passthrough); write
   // through BrandProfileService.saveBusinessPulse(), not the main save().
   business_pulse?: BusinessPulseData;
@@ -140,7 +147,13 @@ export class BrandProfileService {
     return res.data;
   }
 
-  static async save(data: BrandProfileData): Promise<UriResponse<BrandProfileData>> {
+  // Partial<> because the backend genuinely treats this as a partial merge —
+  // it only ever $sets a field the payload actually included (see the
+  // backend's BrandProfileService.save()) — so callers that only want to
+  // save a subset (onboarding's per-step autosave, saveBusinessPulse below)
+  // don't need to fabricate the rest of the object. A full BrandProfileData
+  // object still satisfies this type, so no existing call site is affected.
+  static async save(data: Partial<BrandProfileData>): Promise<UriResponse<BrandProfileData>> {
     console.log('🎨 BrandProfileService.save() called with data:', {
       canvas_editor_enabled: data.canvas_editor_enabled,
       use_v3_prompts: data.use_v3_prompts,

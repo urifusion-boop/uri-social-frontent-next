@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SocialMediaAgentService, MultiClipJob, MultiClipClip } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
+import { downloadUrlFor } from '@/src/utils/cloudinaryDownload.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { probeVideoDuration, estimateVideoCost, VideoCostEstimate } from '@/src/utils/videoBilling';
 import { useVideoBillingStatus } from '@/src/hooks/useVideoBillingStatus';
@@ -2696,6 +2697,7 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
             <video
               src={stitchedUrl}
               controls
+              controlsList="nodownload"
               playsInline
               style={{
                 width: '100%',
@@ -3081,18 +3083,35 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
       return (
         <div>
           {outputUrl && (
-            <video
-              src={outputUrl}
-              controls
-              playsInline
-              style={{
-                width: '100%',
-                maxHeight: 340,
-                borderRadius: 12,
-                background: '#000',
-                marginBottom: 14,
-              }}
-            />
+            <>
+              <video
+                src={outputUrl}
+                controls
+                controlsList="nodownload"
+                playsInline
+                style={{
+                  width: '100%',
+                  maxHeight: 340,
+                  borderRadius: 12,
+                  background: '#000',
+                  marginBottom: 8,
+                }}
+              />
+              <a
+                href={downloadUrlFor(outputUrl, `Video-${zapCapJobId ? zapCapJobId.slice(0, 8) : Date.now()}`)}
+                download
+                style={{
+                  display: 'inline-block',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: PINK,
+                  textDecoration: 'none',
+                  marginBottom: 14,
+                }}
+              >
+                ⬇ Download video
+              </a>
+            </>
           )}
 
           {/* Custom b-roll nudge */}
