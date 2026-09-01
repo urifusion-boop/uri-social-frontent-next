@@ -71,6 +71,30 @@ export interface PlanVariantSet {
   selection_rule_reason: string;
 }
 
+/** One option on the choose_destination card. The backend owns the copy AND the
+ * validation for each, so the picker never drifts from what the server will accept.
+ * `field` is which stored value the single answer belongs to — the UI needs only one
+ * input box whatever the user picks. `takes_cta` says whether that option offers a
+ * button picker — true for every destination now that WhatsApp ships a plain link ad
+ * rather than Meta's native WhatsApp button. */
+export interface DestinationOption {
+  value: 'whatsapp' | 'website' | 'instagram_dm' | 'custom';
+  label: string;
+  hint: string;
+  field: string;
+  input_label: string;
+  placeholder: string;
+  takes_cta: boolean;
+  current: string; // what this brand already has on file — prefills the input
+}
+
+/** A button the ad can show ("Shop Now", "Book Now"). Closed set: Meta rejects an
+ * unknown call_to_action type outright, so this is never free text. */
+export interface CtaChoice {
+  value: string;
+  label: string;
+}
+
 export interface LaunchFromMessageResult {
   stage:
     | 'need_more'
@@ -79,6 +103,10 @@ export interface LaunchFromMessageResult {
     | 'need_facebook_page'
     | 'choose_creative_source'
     | 'choose_plan_variant'
+    // Where a tap on this ad lands. Asked just BEFORE choose_creative_source, because
+    // the answer changes the ad itself — the button, and the CTA baked into the
+    // generated image — so choosing afterwards would mean regenerating it.
+    | 'choose_destination'
     | 'planned'
     | 'launched'
     // Per-Brand Page Connection plan — checked before a campaign is even built, so a
@@ -105,6 +133,14 @@ export interface LaunchFromMessageResult {
   // pick from, plus the group id to echo back on every follow-up selection call
   plan_variants?: PlanVariantSet;
   variant_group_id?: string;
+  // present when stage === 'choose_destination' — where the ad can send people, the
+  // buttons it can show, and what's already selected/saved for this brand
+  destination_options?: DestinationOption[];
+  cta_choices?: CtaChoice[];
+  selected?: { destination_type: string; destination_cta: string };
+  // set when an answer came back unusable (a handle that isn't one, a link that isn't
+  // a link) — the picker reopens showing this rather than the request failing
+  error?: string;
   // present on 'planned'/'launched' — which audience this specific build used, if any
   selected_plan_variant?: PlanVariant | null;
   plan?: {
@@ -123,6 +159,9 @@ export interface LaunchFromMessageResult {
     is_video?: boolean;
   };
   whatsapp_number?: string; // where ad leads route (wa.me/<this>); shown on the plan card
+  destination_type?: string; // whatsapp | website | instagram_dm | custom
+  destination_link?: string; // the actual link the ad carries — shown on the plan card
+  destination_cta?: string; // which button was chosen (a CtaChoice value)
   summary?: CampaignSummary; // Tier C — each choice + its why, plus estimates
   wallet?: {
     balance_ngn: number;
@@ -304,6 +343,13 @@ export class CampaignService {
     // choose_plan_variant to confirm a selection
     variant_group_id?: string; // echo back the id from choose_plan_variant so
     // multiple selected variants' builds are tied together
+    // Answering choose_destination. 'ask' opens the picker; a concrete type uses it for
+    // this campaign AND saves it as the brand's default, so a returning brand is never
+    // re-asked. destination_value is read per type — the number, the domain, the handle,
+    // or the pasted URL; blank keeps whatever the brand already has for that type.
+    destination_type?: 'ask' | 'whatsapp' | 'website' | 'instagram_dm' | 'custom';
+    destination_value?: string;
+    destination_cta?: string;
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;

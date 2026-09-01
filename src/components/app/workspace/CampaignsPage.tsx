@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CampaignService,
   CampaignRow,
+  CtaChoice,
+  DestinationOption,
   DraftSummary,
   LaunchFromMessageResult,
   PlanAskResult,
@@ -614,6 +616,48 @@ export default function CampaignsPage({
     }
   };
 
+  // Answer a choose_destination prompt: tell the backend where this ad should send
+  // people, then re-run the SAME brief — no new user bubble, so this reads as
+  // "progress not restart". The backend saves the answer as the brand's destination,
+  // so every later call in this build (and the next campaign) resolves it from storage
+  // and the picker doesn't reappear.
+  const continueWithDestination = async (answer: {
+    destination_type: string;
+    destination_value: string;
+    destination_cta: string;
+  }) => {
+    if (busy || !briefSoFar) return;
+    setBusy(true);
+    try {
+      const result = await CampaignService.planFromMessage({
+        message: briefSoFar,
+        thread_id: activeThreadRef.current ?? undefined,
+        creative_source: 'ask',
+        // Carry the audience choice, exactly as continueWithSource does — without it
+        // the backend has no way to know one was made and regenerates the whole
+        // variant set, dropping the user back to "pick an audience".
+        ...(chosenVariantRef.current
+          ? {
+              selected_plan_variant: chosenVariantRef.current.variant,
+              variant_group_id: chosenVariantRef.current.variantGroupId,
+            }
+          : {}),
+        ...answer,
+      } as Parameters<typeof CampaignService.planFromMessage>[0]);
+      const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+      setMessages((m) => [...m, resultMsg]);
+      saveMsg(resultMsg);
+      refreshThreads();
+    } catch (e) {
+      const msg = extractErrorMessage(e, "That didn't save — please try again.");
+      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
+      setMessages((m) => [...m, errMsg]);
+      saveMsg(errMsg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Multi-Plan Audience Variants — the client picked one or more ranked audience
   // strategies from a choose_plan_variant card set. Ask how to source the image for
   // them, same as every other path gets (upload / past post / let Jane generate) —
@@ -787,6 +831,18 @@ export default function CampaignsPage({
     saveMsg({ id, role: 'jane', kind: 'result', result });
   };
 
+  // The newest result card is the only live one. Everything above it is a question
+  // Jane has already moved past, and a stale card's buttons must not fire — see the
+  // `stale` prop below.
+  let lastResultIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i];
+    if (msg.role === 'jane' && msg.kind === 'result') {
+      lastResultIndex = i;
+      break;
+    }
+  }
+
   return (
     <div
       style={{
@@ -897,7 +953,7 @@ export default function CampaignsPage({
           />
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <div ref={scrollRef} className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
-              {messages.map((m) => (
+              {messages.map((m, i) => (
                 <div key={m.id} style={{ marginBottom: 16 }}>
                   {m.role === 'user' ? (
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -920,6 +976,11 @@ export default function CampaignsPage({
                   ) : (
                     <ResultCard
                       result={m.result}
+                      // A question Jane already moved past is history: readable, but its
+                      // buttons must not fire. Live-reported: a rejected link left TWO
+                      // destination pickers on screen, the stale one still holding the bad
+                      // value and still submittable. Only the newest result card is live.
+                      stale={i !== lastResultIndex}
                       onResultChange={(r) => updateResultMessage(m.id, r)}
                       onLaunched={() => {
                         // Campaign is live — this brief is done. Clear it so the next message
@@ -947,6 +1008,7 @@ export default function CampaignsPage({
                       }}
                       onChooseDraft={(draftId) => continueWithSource({ creative_source: 'draft', draft_id: draftId })}
                       onChooseVariants={(variants, groupId) => continueWithVariants(variants, groupId)}
+                      onChooseDestination={continueWithDestination}
                     />
                   )}
                 </div>
@@ -1646,6 +1708,152 @@ function CampaignReview({ summary }: { summary: CampaignSummary }) {
 
 // The image-source choice Jane offers after budget: upload your own, reuse a past post,
 // or let Jane generate one. Rendered inside a Jane bubble so it reads as her asking.
+// Where a tap on this ad lands (the choose_destination stage). Asked just BEFORE the
+// image step, because the answer changes the ad itself — the button, and the CTA baked
+// into the generated image. Every option's copy, placeholder and validation come from
+// the backend (destination.py), so this card never drifts from what the server accepts:
+// one input box whatever they pick, plus a button picker for any option whose
+// `takes_cta` is set (all of them, since WhatsApp stopped using Meta's native button).
+function ChooseDestination({
+  options,
+  ctaChoices,
+  selected,
+  error,
+  onSubmit,
+}: {
+  options: DestinationOption[];
+  ctaChoices: CtaChoice[];
+  selected?: { destination_type: string; destination_cta: string };
+  error?: string;
+  onSubmit: (answer: { destination_type: string; destination_value: string; destination_cta: string }) => void;
+}) {
+  const [type, setType] = useState(selected?.destination_type || options[0]?.value || 'whatsapp');
+  const active = options.find((o) => o.value === type) || options[0];
+  // Prefill with what the brand already has for THIS type, so switching options shows
+  // their real saved value instead of an empty box they'd have to retype.
+  const [value, setValue] = useState(active?.current || '');
+  const [cta, setCta] = useState(selected?.destination_cta || 'learn_more');
+
+  const pick = (next: string) => {
+    setType(next);
+    setValue(options.find((o) => o.value === next)?.current || '');
+  };
+  // A blank input is allowed only when the brand already has a value saved for this
+  // type — that's "keep what I have, just change the button".
+  const canSubmit = Boolean(value.trim() || active?.current);
+  const submit = () => {
+    if (canSubmit) onSubmit({ destination_type: type, destination_value: value.trim(), destination_cta: cta });
+  };
+
+  const optionBtn = (isActive: boolean): React.CSSProperties => ({
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 2,
+    background: isActive ? PINK : '#fff',
+    border: `1.5px solid ${PINK}`,
+    color: isActive ? '#fff' : PINK,
+    borderRadius: 12,
+    padding: '10px 14px',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    textAlign: 'left',
+  });
+  const sub = (isActive: boolean): React.CSSProperties => ({
+    fontSize: 11,
+    fontWeight: 500,
+    color: isActive ? 'rgba(255,255,255,0.85)' : '#a06',
+    opacity: isActive ? 1 : 0.85,
+  });
+
+  return (
+    <div>
+      <JaneBubble>Where should people who tap your ad end up?</JaneBubble>
+      <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
+        {options.map((opt) => (
+          <button key={opt.value} onClick={() => pick(opt.value)} style={optionBtn(opt.value === type)}>
+            {opt.label}
+            <span style={sub(opt.value === type)}>{opt.hint}</span>
+          </button>
+        ))}
+      </div>
+
+      {active && (
+        <div className="camp-indent" style={{ marginTop: 10, marginLeft: 40, maxWidth: 420 }}>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 4 }}>
+            {active.input_label}
+          </label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+              placeholder={active.placeholder}
+              aria-label={active.input_label}
+              inputMode={active.value === 'whatsapp' ? 'tel' : 'url'}
+              style={{
+                flex: 1,
+                border: '1.5px solid #e0dcd9',
+                borderRadius: 20,
+                padding: '8px 14px',
+                fontSize: 13,
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={submit}
+              disabled={!canSubmit}
+              style={{
+                background: PINK,
+                border: 'none',
+                color: '#fff',
+                borderRadius: 20,
+                padding: '8px 18px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: canSubmit ? 'pointer' : 'default',
+                opacity: canSubmit ? 1 : 0.5,
+              }}
+            >
+              Use this
+            </button>
+          </div>
+
+          {active.takes_cta && ctaChoices.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 4 }}>
+                What should the button say?
+              </label>
+              <select
+                value={cta}
+                onChange={(e) => setCta(e.target.value)}
+                aria-label="What should the button say?"
+                style={{
+                  border: '1.5px solid #e0dcd9',
+                  borderRadius: 20,
+                  padding: '8px 14px',
+                  fontSize: 13,
+                  outline: 'none',
+                  background: '#fff',
+                }}
+              >
+                {ctaChoices.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {error && <div style={{ marginTop: 8, fontSize: 12, color: '#c0392b' }}>{error}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChooseCreativeSource({
   drafts,
   onGenerate,
@@ -2233,6 +2441,25 @@ function TypingDots() {
   );
 }
 
+// A question card Jane asked. Once she's moved past it, it stays on screen (the thread
+// reads as a real conversation, so nothing is rewritten or removed) but goes
+// non-interactive — `inert` takes it out of the tab order and makes the browser swallow
+// clicks, which plain pointer-events:none does not. Live-reported: a rejected link left
+// two destination pickers on screen and tapping the older one resubmitted the bad value
+// over the new answer. Only prompt stages go inert; a planned/launched card stays usable.
+//
+// The wrapper is ALWAYS rendered, never conditionally: adding a div around the card the
+// moment it goes stale changes the element tree, so React remounts the card and it loses
+// its own state — caught in e2e as a stale picker silently reverting from the link the
+// user had typed back to the default WhatsApp option. History must not rewrite itself.
+function PromptCard({ stale, children }: { stale?: boolean; children: React.ReactNode }) {
+  return (
+    <div inert={stale || undefined} style={{ opacity: stale ? 0.5 : 1 }}>
+      {children}
+    </div>
+  );
+}
+
 function ResultCard({
   result,
   onResultChange,
@@ -2246,6 +2473,8 @@ function ResultCard({
   onChooseRecomposite,
   onChooseDraft,
   onChooseVariants,
+  onChooseDestination,
+  stale,
 }: {
   result: LaunchFromMessageResult;
   onResultChange: (result: LaunchFromMessageResult) => void;
@@ -2259,6 +2488,13 @@ function ResultCard({
   onChooseRecomposite: () => void;
   onChooseDraft: (draftId: string) => void;
   onChooseVariants: (variants: PlanVariant[], variantGroupId: string) => void;
+  onChooseDestination: (answer: {
+    destination_type: string;
+    destination_value: string;
+    destination_cta: string;
+  }) => void;
+  // True for every result card except the newest — see PromptCard above.
+  stale?: boolean;
 }) {
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
@@ -2269,139 +2505,166 @@ function ResultCard({
   const [fixingWhatsapp, setFixingWhatsapp] = useState(false);
   const [whatsappFix, setWhatsappFix] = useState('');
 
-  if (result.stage === 'need_whatsapp') {
-    return <NeedWhatsapp question={result.question} onSubmit={onSubmitWhatsapp} />;
-  }
-  if (result.stage === 'choose_creative_source') {
-    return (
-      <div>
-        {/* Jane's geography/audience call (jane-strategy-extraction §7.6) is required to be
-            confirmed back to the client, never silently decided — this is the point she'd
-            otherwise reach "ready" and skip straight to image selection with the client never
-            seeing (or able to correct) where she's decided to target. */}
-        {result.explanation && <JaneBubble>{result.explanation}</JaneBubble>}
-        <ChooseCreativeSource
-          drafts={result.creative_options?.drafts || []}
-          onGenerate={onChooseGenerate}
-          onUpload={onChooseUpload}
-          onRecomposite={onChooseRecomposite}
-          onPickDraft={onChooseDraft}
+  // Every stage below is a QUESTION Jane asked, as opposed to the plan/launch card
+  // further down. Gathered into one function so a superseded one can be rendered
+  // inert in a single place (PromptCard) instead of each card growing its own
+  // disabled state — and so a new prompt stage gets that behaviour for free.
+  const renderPrompt = (): React.ReactNode => {
+    if (result.stage === 'need_whatsapp') {
+      return <NeedWhatsapp question={result.question} onSubmit={onSubmitWhatsapp} />;
+    }
+    if (result.stage === 'choose_destination' && result.destination_options) {
+      return (
+        <div>
+          {/* Same reason choose_creative_source shows it: Jane's geography/audience call is
+              confirmed back to the client before they commit, never silently decided. */}
+          {result.explanation && <JaneBubble>{result.explanation}</JaneBubble>}
+          <ChooseDestination
+            options={result.destination_options}
+            ctaChoices={result.cta_choices || []}
+            selected={result.selected}
+            error={result.error}
+            onSubmit={onChooseDestination}
+          />
+        </div>
+      );
+    }
+
+    if (result.stage === 'choose_creative_source') {
+      return (
+        <div>
+          {/* Jane's geography/audience call (jane-strategy-extraction §7.6) is required to be
+              confirmed back to the client, never silently decided — this is the point she'd
+              otherwise reach "ready" and skip straight to image selection with the client never
+              seeing (or able to correct) where she's decided to target. */}
+          {result.explanation && <JaneBubble>{result.explanation}</JaneBubble>}
+          <ChooseCreativeSource
+            drafts={result.creative_options?.drafts || []}
+            onGenerate={onChooseGenerate}
+            onUpload={onChooseUpload}
+            onRecomposite={onChooseRecomposite}
+            onPickDraft={onChooseDraft}
+          />
+        </div>
+      );
+    }
+
+    if (result.stage === 'choose_plan_variant' && result.plan_variants) {
+      const groupId = result.variant_group_id || '';
+      return (
+        <PlanVariantCards
+          variantSet={result.plan_variants}
+          onConfirm={(variants) => onChooseVariants(variants, groupId)}
         />
-      </div>
-    );
-  }
+      );
+    }
 
-  if (result.stage === 'choose_plan_variant' && result.plan_variants) {
-    const groupId = result.variant_group_id || '';
-    return (
-      <PlanVariantCards
-        variantSet={result.plan_variants}
-        onConfirm={(variants) => onChooseVariants(variants, groupId)}
-      />
-    );
-  }
+    if (result.stage === 'need_more') {
+      // need_more now covers three distinct questions (nl.py asks business identity, THEN
+      // the objective/offer_type, THEN budget — in that order) — chips only make sense for
+      // the objective and budget questions, so gate on what's actually missing instead of
+      // assuming. Nothing to suggest for "what would you like to promote?" — that needs
+      // free text, not a quick reply.
+      const asksForObjective = result.understood?.missing?.includes('offer_type');
+      const asksForBudget = result.understood?.missing?.includes('budget_ngn');
+      return (
+        <div>
+          <JaneBubble>{result.question || 'Could you tell me a bit more, especially your budget?'}</JaneBubble>
+          {asksForObjective && <QuickReplyChips chips={OBJECTIVE_REPLY_CHIPS} onPick={onQuickReply} />}
+          {asksForBudget && <QuickReplyChips chips={BUDGET_REPLY_CHIPS} onPick={onQuickReply} />}
+        </div>
+      );
+    }
+    if (result.stage === 'advise') {
+      return (
+        <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>
+      );
+    }
+    if (result.stage === 'need_facebook_page') {
+      // Legacy stage — only ever rendered from an OLD saved thread message; the
+      // backend no longer emits it (superseded by the meta_connection_* states below).
+      return (
+        <div>
+          <JaneBubble>
+            {result.question ||
+              "Connect your Facebook Page (with WhatsApp linked to it) so leads reach you, then come back and I'll launch."}
+          </JaneBubble>
+          <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
+            <ConnectMetaAdsLink>Connect Facebook Page →</ConnectMetaAdsLink>
+          </div>
+        </div>
+      );
+    }
 
-  if (result.stage === 'need_more') {
-    // need_more now covers three distinct questions (nl.py asks business identity, THEN
-    // the objective/offer_type, THEN budget — in that order) — chips only make sense for
-    // the objective and budget questions, so gate on what's actually missing instead of
-    // assuming. Nothing to suggest for "what would you like to promote?" — that needs
-    // free text, not a quick reply.
-    const asksForObjective = result.understood?.missing?.includes('offer_type');
-    const asksForBudget = result.understood?.missing?.includes('budget_ngn');
-    return (
-      <div>
-        <JaneBubble>{result.question || 'Could you tell me a bit more, especially your budget?'}</JaneBubble>
-        {asksForObjective && <QuickReplyChips chips={OBJECTIVE_REPLY_CHIPS} onPick={onQuickReply} />}
-        {asksForBudget && <QuickReplyChips chips={BUDGET_REPLY_CHIPS} onPick={onQuickReply} />}
-      </div>
-    );
-  }
-  if (result.stage === 'advise') {
-    return (
-      <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>
-    );
-  }
-  if (result.stage === 'need_facebook_page') {
-    // Legacy stage — only ever rendered from an OLD saved thread message; the
-    // backend no longer emits it (superseded by the meta_connection_* states below).
-    return (
-      <div>
-        <JaneBubble>
-          {result.question ||
-            "Connect your Facebook Page (with WhatsApp linked to it) so leads reach you, then come back and I'll launch."}
-        </JaneBubble>
-        <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
-          <ConnectMetaAdsLink>Connect Facebook Page →</ConnectMetaAdsLink>
+    // Per-Brand Page Connection plan — six explicit states (never inferred from one
+    // boolean), checked before Jane even builds a plan. Each state below is framed
+    // as "progress not restart": what's already true stays true, one reason, one tap.
+    if (result.stage === 'meta_connection_none') {
+      return (
+        <div>
+          <JaneBubble>
+            To run real ads, I need your Facebook Page connected with ads permission — this makes sure the ad runs from
+            YOUR Page, not a shared one, so followers and replies come to you.
+          </JaneBubble>
+          <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
+            <ConnectMetaAdsLink>Connect Facebook Page →</ConnectMetaAdsLink>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
+    if (result.stage === 'meta_connection_content_only') {
+      return (
+        <div>
+          <JaneBubble>
+            You&rsquo;re already connected for posting — running ads just needs one more permission from Facebook
+            (advertising access), on top of what you&rsquo;ve already granted.
+          </JaneBubble>
+          <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
+            <ConnectMetaAdsLink>Add ads permission →</ConnectMetaAdsLink>
+          </div>
+        </div>
+      );
+    }
+    if (result.stage === 'meta_connection_expired') {
+      return (
+        <div>
+          <JaneBubble>
+            {result.page_name ? `Your connection to ${result.page_name} needs` : 'Your Facebook connection needs'}{' '}
+            refreshing — a permission may have been changed or revoked. Reconnect and I&rsquo;ll pick up right where we
+            left off.
+          </JaneBubble>
+          <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
+            <ConnectMetaAdsLink>Reconnect Facebook Page →</ConnectMetaAdsLink>
+          </div>
+        </div>
+      );
+    }
+    if (result.stage === 'meta_connection_no_page') {
+      return (
+        <JaneBubble>
+          Ads need a Facebook Page behind them, and your account doesn&rsquo;t have one yet. Create a Page in Facebook
+          first, then come back and reconnect.
+        </JaneBubble>
+      );
+    }
+    if (result.stage === 'meta_connection_ads_no_whatsapp') {
+      return (
+        <NeedWhatsapp
+          question={
+            `${result.page_name ? `${result.page_name} is` : 'Your ads permission is'} connected — ` +
+            "just need the WhatsApp number leads should message. That's it — ads route through a plain " +
+            'WhatsApp link, so there is no separate Facebook Page linking step to do afterward.'
+          }
+          onSubmit={onSubmitMetaConnectionWhatsapp}
+          showConnectedAccountsLink
+        />
+      );
+    }
+    return null;
+  };
 
-  // Per-Brand Page Connection plan — six explicit states (never inferred from one
-  // boolean), checked before Jane even builds a plan. Each state below is framed
-  // as "progress not restart": what's already true stays true, one reason, one tap.
-  if (result.stage === 'meta_connection_none') {
-    return (
-      <div>
-        <JaneBubble>
-          To run real ads, I need your Facebook Page connected with ads permission — this makes sure the ad runs from
-          YOUR Page, not a shared one, so followers and replies come to you.
-        </JaneBubble>
-        <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
-          <ConnectMetaAdsLink>Connect Facebook Page →</ConnectMetaAdsLink>
-        </div>
-      </div>
-    );
-  }
-  if (result.stage === 'meta_connection_content_only') {
-    return (
-      <div>
-        <JaneBubble>
-          You&rsquo;re already connected for posting — running ads just needs one more permission from Facebook
-          (advertising access), on top of what you&rsquo;ve already granted.
-        </JaneBubble>
-        <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
-          <ConnectMetaAdsLink>Add ads permission →</ConnectMetaAdsLink>
-        </div>
-      </div>
-    );
-  }
-  if (result.stage === 'meta_connection_expired') {
-    return (
-      <div>
-        <JaneBubble>
-          {result.page_name ? `Your connection to ${result.page_name} needs` : 'Your Facebook connection needs'}{' '}
-          refreshing — a permission may have been changed or revoked. Reconnect and I&rsquo;ll pick up right where we
-          left off.
-        </JaneBubble>
-        <div className="camp-indent" style={{ marginLeft: 40, marginTop: 8 }}>
-          <ConnectMetaAdsLink>Reconnect Facebook Page →</ConnectMetaAdsLink>
-        </div>
-      </div>
-    );
-  }
-  if (result.stage === 'meta_connection_no_page') {
-    return (
-      <JaneBubble>
-        Ads need a Facebook Page behind them, and your account doesn&rsquo;t have one yet. Create a Page in Facebook
-        first, then come back and reconnect.
-      </JaneBubble>
-    );
-  }
-  if (result.stage === 'meta_connection_ads_no_whatsapp') {
-    return (
-      <NeedWhatsapp
-        question={
-          `${result.page_name ? `${result.page_name} is` : 'Your ads permission is'} connected — ` +
-          "just need the WhatsApp number leads should message. That's it — ads route through a plain " +
-          'WhatsApp link, so there is no separate Facebook Page linking step to do afterward.'
-        }
-        onSubmit={onSubmitMetaConnectionWhatsapp}
-        showConnectedAccountsLink
-      />
-    );
-  }
+  const prompt = renderPrompt();
+  if (prompt) return <PromptCard stale={stale}>{prompt}</PromptCard>;
 
   const confirmLaunch = async () => {
     if (launching || !result.plan_id) return;
