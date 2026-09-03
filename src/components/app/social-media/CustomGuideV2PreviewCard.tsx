@@ -10,12 +10,7 @@ interface CustomGuideV2PreviewCardProps {
   compact?: boolean;
 }
 
-export default function CustomGuideV2PreviewCard({
-  guide,
-  onRemove,
-  compact = false,
-}: CustomGuideV2PreviewCardProps) {
-
+export default function CustomGuideV2PreviewCard({ guide, onRemove, compact = false }: CustomGuideV2PreviewCardProps) {
   return (
     <Box
       sx={{

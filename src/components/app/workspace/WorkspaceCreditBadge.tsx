@@ -7,6 +7,7 @@
 
 import { useAuth } from '@/src/providers/AuthProvider';
 import { Tooltip } from '@mui/material';
+import { hasActiveSubscription } from '@/src/utils/subscription.util';
 
 interface WorkspaceCreditBadgeProps {
   onClick: () => void;
@@ -17,8 +18,12 @@ export default function WorkspaceCreditBadge({ onClick }: WorkspaceCreditBadgePr
 
   if (!userDetails) return null;
 
-  // Trial users show trial credits instead
-  if (userDetails.trialActive) return null;
+  // Pure trial users (no subscription) see TrialBanner instead — but a
+  // subscriber's trial keeps running on its own clock and doesn't get cut
+  // short by subscribing, so trialActive can still be true for them even
+  // though they should see their real (combined) balance here, not be
+  // treated as if they're not paying.
+  if (userDetails.trialActive && !hasActiveSubscription(userDetails.subscriptionTier)) return null;
 
   const creditsRemaining = userDetails.creditsRemaining ?? 0;
   const lowCreditWarning = userDetails.lowCreditWarning ?? false;

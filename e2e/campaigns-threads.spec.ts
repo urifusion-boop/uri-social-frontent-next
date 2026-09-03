@@ -29,8 +29,11 @@ async function mockJaneAds(page: Page, threads: Array<Record<string, unknown>> =
     if (route.request().method() === 'POST') {
       const t = {
         thread_id: 'thr_' + Math.random().toString(36).slice(2, 10),
-        title: 'New campaign', status: 'draft', preview: '',
-        created_at: '', updated_at: '',
+        title: 'New campaign',
+        status: 'draft',
+        preview: '',
+        created_at: '',
+        updated_at: '',
       };
       store.threads.unshift(t);
       return route.fulfill({ json: t });
@@ -38,8 +41,7 @@ async function mockJaneAds(page: Page, threads: Array<Record<string, unknown>> =
     return route.fulfill({ json: { threads: store.threads } });
   });
 
-  await page.route('**/jane-ads/threads/*/history', (route) =>
-    route.fulfill({ json: { messages: [] } }));
+  await page.route('**/jane-ads/threads/*/history', (route) => route.fulfill({ json: { messages: [] } }));
 
   await page.route('**/jane-ads/meta/plan-from-message', (route) =>
     route.fulfill({
@@ -48,7 +50,8 @@ async function mockJaneAds(page: Page, threads: Array<Record<string, unknown>> =
         understood: { missing: ['offer_type'] },
         question: 'What are you advertising — a product, a service, a promotion…?',
       },
-    }));
+    })
+  );
 
   await page.route('**/jane-ads/chat/history/**', (route) => route.fulfill({ json: { ok: true } }));
   await page.route('**/jane-ads/admin/access', (route) => route.fulfill({ json: { allowed: false } }));

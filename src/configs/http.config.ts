@@ -3,6 +3,7 @@ import { STORE_KEYS } from './store.config';
 
 class UriHttpClient {
   private static client: AxiosInstance;
+  private static whatsappAgentClient: AxiosInstance;
 
   private static getApiBaseUrl(): string {
     // Use NEXT_PUBLIC_URI_API_BASE_URL set by Azure workflow (different per environment)
@@ -15,18 +16,15 @@ class UriHttpClient {
     return apiUrl;
   }
 
-  static initialize() {
-    this.client = axios.create({
-      baseURL: this.getApiBaseUrl(),
-      withCredentials: false,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      validateStatus: (status) => status >= 200 && status < 300,
-      timeout: 120000, // 2 minutes - increased for image generation/editing operations
-    });
+  // whatsapp-agent is a separate service (its own Twilio WhatsApp Business number,
+  // own deploy) — everything WhatsApp connect/status/disconnect routes here instead
+  // of the main backend. Single production URL, so a hardcoded fallback is fine.
+  private static getWhatsAppAgentBaseUrl(): string {
+    return process.env.NEXT_PUBLIC_WHATSAPP_AGENT_BASE_URL || 'https://whatsapp.urisocial.com';
+  }
 
-    this.client.interceptors.request.use(
+  private static attachInterceptors(instance: AxiosInstance): void {
+    instance.interceptors.request.use(
       (config) => {
         console.log(`🌐 [HTTP Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
         if (config.url?.includes('brand-profile') && config.method === 'post') {
@@ -52,7 +50,7 @@ class UriHttpClient {
       }
     );
 
-    this.client.interceptors.response.use(
+    instance.interceptors.response.use(
       (response: AxiosResponse) => {
         console.log(`✅ [HTTP Response] ${response.config.method?.toUpperCase()} ${response.config.url} - Status: ${response.status}`);
         console.log(`📦 [HTTP Response Data]`, response.data);
@@ -65,11 +63,40 @@ class UriHttpClient {
     );
   }
 
+  static initialize() {
+    this.client = axios.create({
+      baseURL: this.getApiBaseUrl(),
+      withCredentials: false,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      validateStatus: (status) => status >= 200 && status < 300,
+      timeout: 120000, // 2 minutes - increased for image generation/editing operations
+    });
+    this.attachInterceptors(this.client);
+  }
+
   static getClient(): AxiosInstance {
     if (!this.client) {
       this.initialize();
     }
     return this.client;
+  }
+
+  static getWhatsAppAgentClient(): AxiosInstance {
+    if (!this.whatsappAgentClient) {
+      this.whatsappAgentClient = axios.create({
+        baseURL: this.getWhatsAppAgentBaseUrl(),
+        withCredentials: false,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        validateStatus: (status) => status >= 200 && status < 300,
+        timeout: 30000,
+      });
+      this.attachInterceptors(this.whatsappAgentClient);
+    }
+    return this.whatsappAgentClient;
   }
 
   private static getStoredTokens() {

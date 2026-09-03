@@ -28,7 +28,7 @@ const FAQSection = () => {
     {
       question: 'How does the free trial work?',
       answer:
-        'Your 14-day free trial includes full access to all features in your chosen plan. No credit card required. Cancel anytime during the trial with no charges.',
+        'Your 7-day free trial includes 10 credits to create content. No credit card required. You can upgrade to a paid plan anytime during the trial.',
     },
     {
       question: 'Can I change plans later?',

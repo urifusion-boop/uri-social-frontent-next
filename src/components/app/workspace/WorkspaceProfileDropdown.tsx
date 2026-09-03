@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/src/providers/AuthProvider';
+import { hasActiveSubscription } from '@/src/utils/subscription.util';
 
 // Icon component
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -158,7 +159,7 @@ export default function WorkspaceProfileDropdown({ onNavigate, onLogout }: Works
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 5, fontWeight: 600 }}>CREDITS</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <span style={{ fontSize: 20, fontWeight: 900, color: '#C2185B' }}>
-                    {userDetails.trialActive
+                    {userDetails.trialActive && !hasActiveSubscription(userDetails.subscriptionTier)
                       ? (userDetails.trialCreditsRemaining ?? 0)
                       : (userDetails.creditsRemaining ?? 0)}
                   </span>
@@ -177,7 +178,7 @@ export default function WorkspaceProfileDropdown({ onNavigate, onLogout }: Works
                   </div>
                 )}
                 {/* Upgrade button for free trial users */}
-                {(!userDetails.subscriptionTier || userDetails.subscriptionTier === 'free') && (
+                {!hasActiveSubscription(userDetails.subscriptionTier) && (
                   <button
                     onClick={() => handleNavigate('billing')}
                     style={{

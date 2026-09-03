@@ -113,14 +113,17 @@ export class CustomVisualGuideService {
     name: string,
     brandId?: string
   ): Promise<UriResponse<CustomVisualGuide>> {
-    const res: AxiosResponse<UriResponse<CustomVisualGuide>> = await UriHttpClient.getClient().post(
-      `${BASE}/upload`,
-      { image_url: imageUrl, name, brand_id: brandId }
-    );
+    const res: AxiosResponse<UriResponse<CustomVisualGuide>> = await UriHttpClient.getClient().post(`${BASE}/upload`, {
+      image_url: imageUrl,
+      name,
+      brand_id: brandId,
+    });
     return res.data;
   }
 
-  static async getUserGuides(status: 'active' | 'archived' = 'active'): Promise<UriResponse<{ guides: CustomVisualGuide[] }>> {
+  static async getUserGuides(
+    status: 'active' | 'archived' = 'active'
+  ): Promise<UriResponse<{ guides: CustomVisualGuide[] }>> {
     const res: AxiosResponse<UriResponse<{ guides: CustomVisualGuide[] }>> = await UriHttpClient.getClient().get(BASE, {
       params: { status },
     });

@@ -5,6 +5,7 @@ import { ITokenDetails, UserDto } from '@/src/types';
 import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { BillingService } from '@/src/api/BillingService';
+import { AdminService } from '@/src/api/AdminService';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -14,6 +15,8 @@ interface IAuthContext {
   tokenDetails: ITokenDetails | null;
   isAuthenticated: boolean;
   isPending: boolean;
+  isAdminUser: boolean;
+  isAdminStatusPending: boolean; // true until checkIsAdmin() resolves — distinguishes "still checking" from "confirmed not admin"
   saveUserDetails: (data: UserDto) => void;
   saveUserTokens: (data: ITokenDetails) => void;
   logoutUser: () => void;
@@ -46,6 +49,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [tokenDetails, setTokenDetails] = useState<ITokenDetails | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isPending, setIsPending] = useState(true);
+  // Defaults to false (hide-until-confirmed) — admin status is DB-driven
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [isAdminStatusPending, setIsAdminStatusPending] = useState(true);
   // The axios interceptor clears localStorage's tokens SYNCHRONOUSLY, before it
   // ever dispatches 'unauthorized' — so by the time that event's handler runs,
   // localStorage.getItem(STORE_KEYS.USER_TOKENS) is already null even for a real,
@@ -141,6 +147,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isAuthenticated, isPending, refreshCreditBalance, refreshTrialStatus]);
 
+  // Resolve admin status against the backend on the same auth-transition —
+  // infrequent enough (unlike credits/trial) that it doesn't need the 60s
+  // poll below, just a correct answer once the session is live.
+  useEffect(() => {
+    if (!isAuthenticated || isPending) {
+      setIsAdminUser(false);
+      setIsAdminStatusPending(true);
+      return;
+    }
+    let cancelled = false;
+    setIsAdminStatusPending(true);
+    AdminService.checkIsAdmin().then((result) => {
+      if (cancelled) return;
+      setIsAdminUser(result);
+      setIsAdminStatusPending(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isPending]);
+
   // Listen for credit consumption events from other components
   useEffect(() => {
     const unsubscribe = EventBus.on(EVENTS.CREDIT_CONSUMED, () => {
@@ -219,6 +246,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         tokenDetails,
         isAuthenticated,
         isPending,
+        isAdminUser,
+        isAdminStatusPending,
         saveUserDetails,
         saveUserTokens,
         logoutUser,

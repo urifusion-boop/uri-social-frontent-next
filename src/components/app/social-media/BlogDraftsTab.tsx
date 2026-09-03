@@ -94,9 +94,7 @@ export default function BlogDraftsTab() {
 
   if (loadingDetail) {
     return (
-      <div style={{ padding: '60px', textAlign: 'center', color: '#9ca3af', fontSize: '15px' }}>
-        Loading post...
-      </div>
+      <div style={{ padding: '60px', textAlign: 'center', color: '#9ca3af', fontSize: '15px' }}>Loading post...</div>
     );
   }
 
@@ -107,7 +105,14 @@ export default function BlogDraftsTab() {
     const sc = statusColors(selected.status);
 
     return (
-      <div style={{ padding: isMobile ? '16px 12px 100px' : '20px 30px 100px', maxWidth: '860px', margin: '0 auto', minHeight: '100vh' }}>
+      <div
+        style={{
+          padding: isMobile ? '16px 12px 100px' : '20px 30px 100px',
+          maxWidth: '860px',
+          margin: '0 auto',
+          minHeight: '100vh',
+        }}
+      >
         <button
           onClick={() => setSelected(null)}
           style={{
@@ -124,7 +129,15 @@ export default function BlogDraftsTab() {
           ← Back to Drafts
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '14px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '12px',
+            marginBottom: '14px',
+          }}
+        >
           <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111', lineHeight: '1.3', margin: 0, flex: 1 }}>
             {title}
           </h1>
@@ -183,7 +196,16 @@ export default function BlogDraftsTab() {
             }}
           >
             <div style={{ flex: 1 }}>
-              <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <p
+                style={{
+                  margin: '0 0 4px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  color: '#9ca3af',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
                 Meta Description
               </p>
               <p style={{ margin: 0, fontSize: '13px', color: '#374151', lineHeight: '1.5' }}>
@@ -224,7 +246,7 @@ export default function BlogDraftsTab() {
           <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '20px' }}>
             {selected.feedback.rating === 'up'
               ? '👍 You said this sounded like you'
-              : '👎 You said this didn\'t sound quite right'}
+              : "👎 You said this didn't sound quite right"}
           </p>
         )}
 
@@ -249,7 +271,12 @@ export default function BlogDraftsTab() {
             }}
           >
             Published at:{' '}
-            <a href={selected.published_url} target="_blank" rel="noreferrer" style={{ color: '#16a34a', fontWeight: '600' }}>
+            <a
+              href={selected.published_url}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: '#16a34a', fontWeight: '600' }}
+            >
               {selected.published_url}
             </a>
           </div>
@@ -261,16 +288,21 @@ export default function BlogDraftsTab() {
   // ── List view ────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: isMobile ? '16px 12px 100px' : '20px 30px 100px', maxWidth: '1200px', margin: '0 auto', minHeight: '100vh' }}>
+    <div
+      style={{
+        padding: isMobile ? '16px 12px 100px' : '20px 30px 100px',
+        maxWidth: '1200px',
+        margin: '0 auto',
+        minHeight: '100vh',
+      }}
+    >
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '4px', color: '#111' }}>Blog Posts</h2>
         <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>All your generated and published blog posts</p>
       </div>
 
       {loading ? (
-        <div style={{ padding: '60px', textAlign: 'center', color: '#9ca3af', fontSize: '15px' }}>
-          Loading posts...
-        </div>
+        <div style={{ padding: '60px', textAlign: 'center', color: '#9ca3af', fontSize: '15px' }}>Loading posts...</div>
       ) : posts.length === 0 ? (
         <div
           style={{
@@ -288,7 +320,13 @@ export default function BlogDraftsTab() {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: '18px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))',
+            gap: '18px',
+          }}
+        >
           {posts.map((post) => {
             const title = post.current_title || post.generated_title;
             const sc = statusColors(post.status);
@@ -314,14 +352,41 @@ export default function BlogDraftsTab() {
                   e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
                 }}
               >
-                <div style={{ width: '100%', height: '6px', borderRadius: '4px', background: `linear-gradient(90deg, ${URI_PINK}30, ${URI_PINK}08)`, marginBottom: '14px' }} />
+                <div
+                  style={{
+                    width: '100%',
+                    height: '6px',
+                    borderRadius: '4px',
+                    background: `linear-gradient(90deg, ${URI_PINK}30, ${URI_PINK}08)`,
+                    marginBottom: '14px',
+                  }}
+                />
 
                 <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                  <span style={{ background: sc.bg, color: sc.color, padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', textTransform: 'capitalize' }}>
+                  <span
+                    style={{
+                      background: sc.bg,
+                      color: sc.color,
+                      padding: '2px 8px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      textTransform: 'capitalize',
+                    }}
+                  >
                     {post.status}
                   </span>
                   {post.has_writing_dna && (
-                    <span style={{ background: `${URI_PINK}10`, color: URI_PINK, padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>
+                    <span
+                      style={{
+                        background: `${URI_PINK}10`,
+                        color: URI_PINK,
+                        padding: '2px 8px',
+                        borderRadius: '20px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                      }}
+                    >
                       ✓ Your Voice
                     </span>
                   )}
@@ -361,7 +426,16 @@ export default function BlogDraftsTab() {
                   </p>
                 )}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#9ca3af', paddingTop: '10px', borderTop: '1px solid #f3f4f6' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '12px',
+                    color: '#9ca3af',
+                    paddingTop: '10px',
+                    borderTop: '1px solid #f3f4f6',
+                  }}
+                >
                   <span>{post.primary_keyword}</span>
                   <span>{formatDate(post.created_at)}</span>
                 </div>
