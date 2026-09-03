@@ -41,6 +41,7 @@ const PLATFORMS = [
   { key: 'facebook', label: 'Facebook' },
   { key: 'instagram', label: 'Instagram' },
   { key: 'linkedin', label: 'LinkedIn' },
+  { key: 'tiktok', label: 'TikTok' },
 ];
 
 function formatPeriodLabel(start: string, end: string): string {
