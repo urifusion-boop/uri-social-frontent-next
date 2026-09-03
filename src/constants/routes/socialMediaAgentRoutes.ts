@@ -31,6 +31,10 @@ type ISocialMediaAgentApi =
   | 'calendarPlanGenerate'
   | 'calendarDayBase'
   | 'calendarToday'
+  // Content Calendar V2 — staging-only, fully isolated from the v1 routes above
+  | 'calendarV2Plan'
+  | 'calendarV2PlanGenerate'
+  | 'calendarV2ItemBase'
   | 'mergeVideoJob'
   | 'videoDrafts'
   | 'generateStoryboardFrames'
@@ -126,6 +130,9 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   calendarPlanGenerate: '/content-calendar/plan/generate',
   calendarDayBase: '/content-calendar/plan',
   calendarToday: '/content-calendar/today',
+  calendarV2Plan: '/content-calendar-v2/plan',
+  calendarV2PlanGenerate: '/content-calendar-v2/plan/generate',
+  calendarV2ItemBase: '/content-calendar-v2/plan',
   mergeVideoJob: '/merge-video-job',
   videoDrafts: '/video-drafts',
   generateStoryboardFrames: '/generate-storyboard-frames',

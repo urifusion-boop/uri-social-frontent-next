@@ -678,6 +678,76 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  // ── Content Calendar V2 ──────────────────────────────────────────────────
+
+  static async getCalendarPlanV2(): Promise<UriResponse<ContentCalendarV2Plan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarV2Plan>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.calendarV2Plan
+    );
+    return response.data;
+  }
+
+  static async generateCalendarPlanV2(platforms: string[], force = false): Promise<UriResponse<ContentCalendarV2Plan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarV2Plan>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.calendarV2PlanGenerate,
+      { platforms, force_regenerate: force },
+      { timeout: 300000 } // 30-day generation runs 5 chunked LLM calls — needs real headroom
+    );
+    return response.data;
+  }
+
+  static async regenerateCalendarItemV2(
+    planId: string,
+    itemIndex: number,
+    reason = ''
+  ): Promise<UriResponse<ContentCalendarV2Plan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarV2Plan>>> = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/regenerate`,
+      { reason },
+      { timeout: 60000 }
+    );
+    return response.data;
+  }
+
+  static async getCalendarItemVersionsV2(
+    planId: string,
+    itemIndex: number
+  ): Promise<UriResponse<{ versions: CalendarV2VersionEntry[] }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ versions: CalendarV2VersionEntry[] }>>> =
+      await UriHttpClient.getClient().get(
+        `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/versions`
+      );
+    return response.data;
+  }
+
+  static async approveCalendarItemV2(planId: string, itemIndex: number): Promise<UriResponse<ContentCalendarV2Plan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarV2Plan>>> = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/approve`
+    );
+    return response.data;
+  }
+
+  static async createDraftFromCalendarItemV2(
+    planId: string,
+    itemIndex: number,
+    platforms: string[],
+    includeImages = false
+  ): Promise<UriResponse<{ drafts: ContentDraft[] }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ drafts: ContentDraft[] }>>> =
+      await UriHttpClient.getClient().post(
+        `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/create-draft`,
+        { platforms, include_images: includeImages },
+        { timeout: 300000 }
+      );
+    return response.data;
+  }
+
+  static async syncCalendarPerformanceV2(planId: string): Promise<UriResponse<{ synced_items: number }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ synced_items: number }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/sync-performance`);
+    return response.data;
+  }
+
   static async generateStoryboard(payload: StoryboardPayload): Promise<UriResponse<Storyboard>> {
     const response: Awaited<AxiosResponse<UriResponse<Storyboard>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.generateStoryboard,
@@ -1604,6 +1674,100 @@ export interface TodaySuggestion {
   plan_id?: string;
   day_index?: number;
   today?: CalendarDayItem;
+}
+
+// ── Content Calendar V2 — staging-only, 30-day engine. Distinct types from
+// the v1 ones above (never extended from them) so the two systems' shapes
+// can never silently couple. See CalendarV2Tab.tsx for the isolation note. ──
+
+export interface CarouselSlideV2 {
+  slide_index: number;
+  headline: string;
+  body: string;
+  visual_note: string;
+}
+
+export interface AdCopyV2 {
+  headline: string;
+  primary_text: string;
+  short_copy: string;
+  cta: string;
+  image_prompt: string;
+}
+
+export interface AdOpportunityV2 {
+  is_ad_candidate: boolean;
+  score: number;
+  angle:
+    | 'problem_first'
+    | 'outcome_first'
+    | 'social_proof'
+    | 'offer'
+    | 'urgency'
+    | 'comparison'
+    | 'objection_handling'
+    | null;
+  ad_copy: AdCopyV2 | null;
+  reason: string;
+}
+
+export interface CalendarV2VersionEntry {
+  snapshot: Record<string, unknown>;
+  edited_at: string;
+  reason: string;
+}
+
+export interface CalendarV2Item {
+  item_id: string;
+  day_index: number;
+  date: string;
+  title: string;
+  description: string;
+  hook: string;
+  key_points: string[];
+  caption_direction: string;
+  keywords: string[];
+  cta: string;
+  video_idea?: VideoIdea;
+  upcoming_holidays: Array<{ date: string; name: string; type: string; content_angle?: string }>;
+  format: string;
+  content_type: 'educational' | 'relatable' | 'promotional' | 'behind_the_scenes' | 'engagement';
+  carousel: { slides: CarouselSlideV2[] } | null;
+  creative_direction: { visual_style?: string; mood?: string; color_note?: string; composition_note?: string };
+  ai_image_prompt: string;
+  exact_copy: { headline?: string; caption?: string; hashtags?: string[] };
+  reasoning: string;
+  data_provenance: Record<string, 'known' | 'inferred' | 'unknown'>;
+  ad_opportunity: AdOpportunityV2 | null;
+  primary_kpi: 'reach' | 'engagement' | 'leads' | 'sales' | 'awareness';
+  diversity_check: { passed: boolean; similarity_score: number; flagged_against_item_id: string | null };
+  version_history: CalendarV2VersionEntry[];
+  regenerated_count: number;
+  acted_on: boolean;
+  acted_on_draft_ids: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  performance: { draft_id: string; metrics_snapshot: Record<string, unknown>; last_synced_at: string } | null;
+}
+
+export interface ContentCalendarV2Plan {
+  plan_id: string;
+  status: 'active' | 'archived';
+  period_start: string;
+  period_end: string;
+  generation_method: 'data_driven' | 'trend_driven' | 'ai';
+  platforms: string[];
+  carousel_slots: number[];
+  intelligence_snapshot: {
+    performance_summary?: { has_data: boolean; top_topics: string[] };
+    trend_keywords?: string[];
+    holidays?: Array<{ date: string; name: string }>;
+    cultural_moments?: unknown[];
+    industry_best_practices?: unknown;
+  };
+  content_mix: Record<string, number>;
+  items: CalendarV2Item[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AccountMetricItem {

@@ -20,6 +20,7 @@ import {
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import ContentCalendarTab from '@/src/components/app/social-media/ContentCalendarTab';
+import ContentCalendarV2Tab from '@/src/components/app/social-media/content-calendar-v2/ContentCalendarV2Tab';
 import {
   ConnectedAccountEntry,
   LinkedInPagesData,
@@ -768,7 +769,7 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'video';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'calendar-v2' | 'video';
 
 // A chosen (but not yet built) multi-plan audience selection from CampaignsPage —
 // mirrors that file's own PendingVariants type. Threaded through here because it
@@ -1224,6 +1225,12 @@ const ContentManagerPage = ({
     },
     { key: 'calendar', label: 'Calendar', tooltip: 'Visualise your content schedule in a monthly calendar view' },
     {
+      key: 'calendar-v2',
+      label: '🧪 Calendar V2',
+      tooltip:
+        'Beta: a 30-day content intelligence engine with ad-opportunity detection and creative-diversity validation — isolated from the Calendar tab, staging only',
+    },
+    {
       key: 'auto',
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
@@ -1322,6 +1329,7 @@ const ContentManagerPage = ({
               saved: 'bookmark',
               scheduled: 'clock',
               calendar: 'calendar',
+              'calendar-v2': 'calendar',
               auto: 'sparkle',
               video: 'video',
             };
@@ -2094,6 +2102,8 @@ const ContentManagerPage = ({
         )}
 
         {activeTab === 'calendar' && <ContentCalendarTab onGenerated={handleGenerated} />}
+
+        {activeTab === 'calendar-v2' && <ContentCalendarV2Tab onGenerated={handleGenerated} />}
 
         {activeTab === 'auto' && (
           <>
