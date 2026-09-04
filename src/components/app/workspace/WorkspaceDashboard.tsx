@@ -5860,9 +5860,17 @@ const PlaybookPage = ({
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
+  // These three hold whichever tab (activeStyleTab) is currently being
+  // edited — 'default' loads/saves the flat fields exactly as before;
+  // any other key loads/saves that platform's slot in the *_by_platform
+  // maps instead. Switching tabs swaps what's in these three, via
+  // loadStyleTab below — the picker component itself (StylePickerGallery)
+  // and its change handlers don't need to know a platform dimension
+  // exists at all.
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
   const [selectedCustomGuides, setSelectedCustomGuides] = useState<string[]>([]);
   const [selectedCustomGuidesV2, setSelectedCustomGuidesV2] = useState<string[]>([]);
+  const [activeStyleTab, setActiveStyleTab] = useState<string>('default');
   const [fontStyle, setFontStyle] = useState<string>('');
   const [primaryFont, setPrimaryFont] = useState<string>('');
   const [secondaryFont, setSecondaryFont] = useState<string>('');
@@ -5926,54 +5934,95 @@ const PlaybookPage = ({
     }
   }, [profile?.logo_size]);
 
-  // Auto-save custom guide selections
-  const handleCustomGuideChange = async (guideIds: string[]) => {
-    setSelectedCustomGuides(guideIds);
-
-    // Auto-save to backend
-    if (profile) {
-      try {
-        const updatedProfile = {
-          ...profile,
-          selected_custom_guides: guideIds,
-          style_rotation_index: 0, // Reset rotation when guides change
-        };
-        const response = await BrandProfileService.save(updatedProfile);
-        if (response.status) {
-          onProfileUpdate({ ...profile, selected_custom_guides: guideIds, style_rotation_index: 0 });
-          console.log('🎨 Custom guides auto-saved:', guideIds);
-        } else {
-          console.error('🎨 Auto-save failed:', response);
-        }
-      } catch (error) {
-        console.error('🎨 Error auto-saving custom guides:', error);
-      }
+  // Loads whichever tab's saved data into the three visible state vars —
+  // 'default' reads the flat fields, any platform key reads that platform's
+  // slot in the *_by_platform maps (empty/unset reads as "no override yet",
+  // not an error). Called on tab switch and when entering edit mode.
+  const loadStyleTab = (tabKey: string, src?: BrandProfileData | null) => {
+    const p2 = src ?? profile;
+    if (tabKey === 'default') {
+      setStyleSelections([...(p2?.style_selections ?? [])]);
+      setSelectedCustomGuides(p2?.selected_custom_guides ?? []);
+      setSelectedCustomGuidesV2(p2?.selected_custom_guides_v2 ?? []);
+    } else {
+      setStyleSelections([...(p2?.style_selections_by_platform?.[tabKey] ?? [])]);
+      setSelectedCustomGuides(p2?.selected_custom_guides_by_platform?.[tabKey] ?? []);
+      setSelectedCustomGuidesV2(p2?.selected_custom_guides_v2_by_platform?.[tabKey] ?? []);
     }
   };
 
-  // Auto-save V2 custom guide selections — mirrors handleCustomGuideChange (V1)
-  // above so both versions behave consistently instead of V2 silently only
-  // updating local state until the separate main Save button is clicked.
+  const handleStyleTabSwitch = (tabKey: string) => {
+    setActiveStyleTab(tabKey);
+    loadStyleTab(tabKey);
+  };
+
+  // Auto-save custom guide selections — writes to the flat fields when the
+  // Default tab is active (unchanged behaviour), or into that platform's
+  // slot in the *_by_platform maps otherwise. Either way this is a full
+  // profile object (built from ...profile), so BrandProfileService.save
+  // round-trips every other field back unchanged — only the tab actually
+  // being edited's own fields carry a real change.
+  const handleCustomGuideChange = async (guideIds: string[]) => {
+    setSelectedCustomGuides(guideIds);
+    if (!profile) return;
+
+    const isDefault = activeStyleTab === 'default';
+    const updatedProfile: BrandProfileData = isDefault
+      ? { ...profile, selected_custom_guides: guideIds, style_rotation_index: 0 }
+      : {
+          ...profile,
+          selected_custom_guides_by_platform: {
+            ...(profile.selected_custom_guides_by_platform ?? {}),
+            [activeStyleTab]: guideIds,
+          },
+          style_rotation_index_by_platform: {
+            ...(profile.style_rotation_index_by_platform ?? {}),
+            [activeStyleTab]: 0,
+          },
+        };
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      if (response.status) {
+        onProfileUpdate(updatedProfile);
+        console.log(`🎨 Custom guides auto-saved [${activeStyleTab}]:`, guideIds);
+      } else {
+        console.error('🎨 Auto-save failed:', response);
+      }
+    } catch (error) {
+      console.error('🎨 Error auto-saving custom guides:', error);
+    }
+  };
+
+  // Auto-save V2 custom guide selections — mirrors handleCustomGuideChange
+  // (V1) above, same tab-aware save target.
   const handleCustomGuideV2Change = async (guideIds: string[]) => {
     setSelectedCustomGuidesV2(guideIds);
+    if (!profile) return;
 
-    if (profile) {
-      try {
-        const updatedProfile = {
+    const isDefault = activeStyleTab === 'default';
+    const updatedProfile: BrandProfileData = isDefault
+      ? { ...profile, selected_custom_guides_v2: guideIds, style_rotation_index: 0 }
+      : {
           ...profile,
-          selected_custom_guides_v2: guideIds,
-          style_rotation_index: 0,
+          selected_custom_guides_v2_by_platform: {
+            ...(profile.selected_custom_guides_v2_by_platform ?? {}),
+            [activeStyleTab]: guideIds,
+          },
+          style_rotation_index_by_platform: {
+            ...(profile.style_rotation_index_by_platform ?? {}),
+            [activeStyleTab]: 0,
+          },
         };
-        const response = await BrandProfileService.save(updatedProfile);
-        if (response.status) {
-          onProfileUpdate({ ...profile, selected_custom_guides_v2: guideIds, style_rotation_index: 0 });
-          console.log('🎨 V2 custom guides auto-saved:', guideIds);
-        } else {
-          console.error('🎨 V2 auto-save failed:', response);
-        }
-      } catch (error) {
-        console.error('🎨 Error auto-saving V2 custom guides:', error);
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      if (response.status) {
+        onProfileUpdate(updatedProfile);
+        console.log(`🎨 V2 custom guides auto-saved [${activeStyleTab}]:`, guideIds);
+      } else {
+        console.error('🎨 V2 auto-save failed:', response);
       }
+    } catch (error) {
+      console.error('🎨 Error auto-saving V2 custom guides:', error);
     }
   };
 
@@ -6051,9 +6100,8 @@ const PlaybookPage = ({
     setLogoPosition(profile.logo_position ?? 'bottom_right');
     setLogoSize((profile.logo_size ?? 'small') as 'small' | 'medium' | 'large');
     setLogoError('');
-    setStyleSelections([...(profile.style_selections ?? [])]);
-    setSelectedCustomGuides(profile.selected_custom_guides ?? []);
-    setSelectedCustomGuidesV2(profile.selected_custom_guides_v2 ?? []);
+    setActiveStyleTab('default');
+    loadStyleTab('default', profile);
     setFontStyle(profile.font_style ?? '');
     setPrimaryFont(profile.primary_font ?? '');
     setSecondaryFont(profile.secondary_font ?? '');
@@ -6077,6 +6125,35 @@ const PlaybookPage = ({
 
     setSaving(true);
     try {
+      // Library styles (style_selections) are only ever persisted here, on
+      // the main Save button — unlike custom guides, nothing auto-saves
+      // them. So which slot they land in has to follow the active tab the
+      // same way the auto-save handlers above do: the flat fields for
+      // Default, or that platform's entry in the *_by_platform maps
+      // otherwise, leaving every other platform's own override untouched.
+      const isDefaultStyleTab = activeStyleTab === 'default';
+      const visualStyleFields: Partial<BrandProfileData> = isDefaultStyleTab
+        ? {
+            style_selections: styleSelections,
+            style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+            selected_custom_guides: selectedCustomGuides,
+            selected_custom_guides_v2: selectedCustomGuidesV2,
+          }
+        : {
+            style_selections_by_platform: {
+              ...(profile?.style_selections_by_platform ?? {}),
+              [activeStyleTab]: styleSelections,
+            },
+            selected_custom_guides_by_platform: {
+              ...(profile?.selected_custom_guides_by_platform ?? {}),
+              [activeStyleTab]: selectedCustomGuides,
+            },
+            selected_custom_guides_v2_by_platform: {
+              ...(profile?.selected_custom_guides_v2_by_platform ?? {}),
+              [activeStyleTab]: selectedCustomGuidesV2,
+            },
+          };
+
       const updated: BrandProfileData = {
         ...profile,
         brand_name: brandName,
@@ -6123,10 +6200,7 @@ const PlaybookPage = ({
         logo_url: logoUrl || undefined,
         logo_position: logoPosition,
         logo_size: logoSize,
-        style_selections: styleSelections,
-        style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
-        selected_custom_guides: selectedCustomGuides,
-        selected_custom_guides_v2: selectedCustomGuidesV2,
+        ...visualStyleFields,
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
         primary_font: primaryFont,
@@ -6206,6 +6280,20 @@ const PlaybookPage = ({
     'Website Traffic',
   ];
   const ALL_PLATFORMS = ['Instagram', 'Facebook', 'X / Twitter', 'LinkedIn', 'TikTok', 'Pinterest', 'YouTube'];
+  // Per-platform Visual Style tabs — 'default' is the brand-wide fallback
+  // (the flat style_selections/selected_custom_guides(_v2) fields, unchanged
+  // behaviour for anyone who never touches the other tabs). The other four
+  // keys match ContentGeneratorForm.tsx's PLATFORMS list exactly — those are
+  // the literal `platform` values _generate_image_bg receives, so a tab here
+  // only ever has an effect if it uses the same key that generation itself
+  // will look up.
+  const STYLE_PLATFORM_TABS: { key: string; label: string }[] = [
+    { key: 'default', label: 'Default' },
+    { key: 'facebook', label: 'Facebook' },
+    { key: 'instagram', label: 'Instagram' },
+    { key: 'twitter', label: 'Twitter / X' },
+    { key: 'linkedin', label: 'LinkedIn' },
+  ];
   const ALL_LANGS = ['English', 'Yoruba', 'Pidgin', 'French', 'Hausa', 'Igbo', 'Swahili', 'Other'];
   const ALL_REGIONS = [
     'Nigeria',
@@ -7799,33 +7887,133 @@ const PlaybookPage = ({
           Up to 3 styles — Uri rotates through them when generating images.
         </div>
         {!editing ? (
-          // Custom guides (V1 or V2) take priority over library styles at
-          // generation time — if either is selected, the library styles below
-          // are never actually used, so show the guides here instead, not the
-          // stale library-style cards from before a guide was selected.
-          (p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {previewGuidesV2.map((g) => (
-                <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
-              ))}
-              {previewGuidesV1.map((g) => (
-                <CustomGuidePreviewCard key={g.id} guide={g} compact />
-              ))}
-            </div>
-          ) : p?.style_selections && p.style_selections.length > 0 ? (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {p.style_selections.map((slug) => {
-                const s = getStyle(slug);
-                if (!s) return null;
-                const [from, to] = s.gradient;
-                return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
-              })}
-            </div>
-          ) : (
-            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
-          )
+          <>
+            {/* Custom guides (V1 or V2) take priority over library styles at
+                generation time — if either is selected, the library styles below
+                are never actually used, so show the guides here instead, not the
+                stale library-style cards from before a guide was selected. This
+                is always the Default (brand-wide fallback) — see the summary
+                line below for which platforms, if any, use something else. */}
+            {(p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {previewGuidesV2.map((g) => (
+                  <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
+                ))}
+                {previewGuidesV1.map((g) => (
+                  <CustomGuidePreviewCard key={g.id} guide={g} compact />
+                ))}
+              </div>
+            ) : p?.style_selections && p.style_selections.length > 0 ? (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {p.style_selections.map((slug) => {
+                  const s = getStyle(slug);
+                  if (!s) return null;
+                  const [from, to] = s.gradient;
+                  return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+            )}
+            {(() => {
+              const customizedPlatforms = STYLE_PLATFORM_TABS.filter(
+                (t) =>
+                  t.key !== 'default' &&
+                  ((p?.style_selections_by_platform?.[t.key]?.length ?? 0) > 0 ||
+                    (p?.selected_custom_guides_by_platform?.[t.key]?.length ?? 0) > 0 ||
+                    (p?.selected_custom_guides_v2_by_platform?.[t.key]?.length ?? 0) > 0)
+              );
+              if (customizedPlatforms.length === 0) return null;
+              return (
+                <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                  {customizedPlatforms.map((t) => t.label).join(', ')} — using a different style than the Default shown
+                  above. Edit to see or change.
+                </div>
+              );
+            })()}
+          </>
         ) : (
           <div>
+            {/* Per-platform tabs — 'default' is the brand-wide fallback used
+                by any platform below that has nothing of its own. Switching
+                tabs swaps what styleSelections/selectedCustomGuides(V2) hold
+                (see loadStyleTab) — everything below (the badge, the
+                gallery) is already reading whichever tab is active, no
+                further wiring needed. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {STYLE_PLATFORM_TABS.map((tab) => {
+                const hasOverride =
+                  tab.key !== 'default' &&
+                  ((profile?.style_selections_by_platform?.[tab.key]?.length ?? 0) > 0 ||
+                    (profile?.selected_custom_guides_by_platform?.[tab.key]?.length ?? 0) > 0 ||
+                    (profile?.selected_custom_guides_v2_by_platform?.[tab.key]?.length ?? 0) > 0);
+                return (
+                  <div key={tab.key} style={{ position: 'relative' }}>
+                    <PbChip
+                      label={tab.label}
+                      active={activeStyleTab === tab.key}
+                      onClick={() => handleStyleTabSwitch(tab.key)}
+                    />
+                    {hasOverride && (
+                      <span
+                        title={`${tab.label} has its own style, different from your Default`}
+                        style={{
+                          position: 'absolute',
+                          top: -3,
+                          right: -3,
+                          width: 8,
+                          height: 8,
+                          borderRadius: 99,
+                          background: '#C2185B',
+                          border: '1.5px solid #fff',
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 10, lineHeight: 1.5 }}>
+              {activeStyleTab === 'default' ? (
+                'Your Default — used for any platform below that hasn’t been customized.'
+              ) : (
+                <>
+                  {styleSelections.length > 0 ||
+                  selectedCustomGuides.length > 0 ||
+                  selectedCustomGuidesV2.length > 0 ? (
+                    <>
+                      {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label} uses its own style below,
+                      instead of your Default.{' '}
+                      <button
+                        onClick={() => {
+                          setStyleSelections([]);
+                          handleCustomGuideChange([]);
+                          handleCustomGuideV2Change([]);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#C2185B',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          padding: 0,
+                          fontSize: 12,
+                        }}
+                      >
+                        Remove override, use Default instead
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      Not customized — {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label} currently uses
+                      your Default. Pick styles or guides below to use something different just for{' '}
+                      {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label}.
+                    </>
+                  )}
+                </>
+              )}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span
                 style={{
