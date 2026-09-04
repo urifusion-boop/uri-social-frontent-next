@@ -231,7 +231,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAuthenticated(false);
     setIsAdminUser(false);
     setIsSupportUser(false);
-    router.push('/login');
+    router.push('/login/');
   }, [router]);
 
   // Listen for unauthorized events from HTTP interceptor (401/403 errors)

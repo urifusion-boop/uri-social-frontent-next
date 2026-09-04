@@ -18,7 +18,7 @@ const TrialExpiredModal = ({ open, onClose }: TrialExpiredModalProps) => {
 
   const handleUpgrade = () => {
     onClose();
-    router.push('/pricing');
+    router.push('/pricing/');
   };
 
   return (

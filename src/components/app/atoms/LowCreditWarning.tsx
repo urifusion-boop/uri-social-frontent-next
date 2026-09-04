@@ -19,7 +19,7 @@ const LowCreditWarning = ({ open, onClose, creditsRemaining }: LowCreditWarningP
 
   const handleUpgrade = () => {
     onClose();
-    router.push('/pricing');
+    router.push('/pricing/');
   };
 
   return (

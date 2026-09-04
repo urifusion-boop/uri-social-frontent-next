@@ -44,7 +44,7 @@ export default function PricingPage() {
 
   const handleSelectPlan = async (tierId: string) => {
     if (!isAuthenticated) {
-      router.push('/login?redirect=/pricing');
+      router.push('/login/?redirect=/pricing/');
       return;
     }
 
@@ -363,7 +363,7 @@ export default function PricingPage() {
         {/* Back to Dashboard */}
         {isAuthenticated && (
           <div className="text-center mt-12">
-            <Button onClick={() => router.push('/workspace')} variant="outline" className="px-8">
+            <Button onClick={() => router.push('/workspace/')} variant="outline" className="px-8">
               Back to Dashboard
             </Button>
           </div>

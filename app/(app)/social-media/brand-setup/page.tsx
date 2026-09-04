@@ -762,7 +762,7 @@ function BrandSetupPageContent() {
     if (!userDetails?.userId) return;
 
     BrandProfileService.isOnboardingDone().then((done) => {
-      if (done) router.replace('/workspace');
+      if (done) router.replace('/workspace/');
       else setCheckingExisting(false);
     });
   }, [userDetails, router, searchParams]);
@@ -852,7 +852,7 @@ function BrandSetupPageContent() {
     try {
       await BrandProfileService.complete(profile);
       posthog.capture('onboarding_complete');
-      router.push('/workspace');
+      router.push('/workspace/');
     } catch {
       setSaving(false);
     }

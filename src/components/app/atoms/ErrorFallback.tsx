@@ -8,7 +8,16 @@ const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
   const router = useRouter();
 
   return (
-    <Box height="100vh" width="100%" display="flex" flexDirection="column" alignItems="center" justifyContent="center" gap={3} px={3}>
+    <Box
+      height="100vh"
+      width="100%"
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      gap={3}
+      px={3}
+    >
       <Typography fontSize={80} fontWeight={800} color="#721c24">
         Oops!
       </Typography>
@@ -24,7 +33,7 @@ const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
         <Button variant="contained" onClick={resetErrorBoundary} sx={{ background: '#cd1b78' }}>
           Try Again
         </Button>
-        <Button variant="outlined" onClick={() => router.push('/social-media')}>
+        <Button variant="outlined" onClick={() => router.push('/social-media/')}>
           Go to Dashboard
         </Button>
       </Box>

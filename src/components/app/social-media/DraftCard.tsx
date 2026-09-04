@@ -2027,7 +2027,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             variant="contained"
             onClick={() => {
               setConnectPromptOpen(false);
-              router.push('/workspace?tab=connections');
+              router.push('/workspace/?tab=connections');
             }}
             sx={{ background: '#CD1B78', '&:hover': { background: '#a8155f' }, textTransform: 'none' }}
           >

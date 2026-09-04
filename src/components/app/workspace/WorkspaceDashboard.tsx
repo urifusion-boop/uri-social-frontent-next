@@ -1218,7 +1218,7 @@ const ContentManagerPage = ({
   }, [fetchDrafts]);
 
   const handleConnectAccounts = () => {
-    router.push('/workspace?tab=connections');
+    router.push('/workspace/?tab=connections');
   };
 
   const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
@@ -1957,7 +1957,7 @@ const ContentManagerPage = ({
                             setScheduleAllOpen(false);
                             setScheduleProgress({});
                             setScheduleUnconnectedIds(new Set());
-                            router.push('/workspace?tab=connections');
+                            router.push('/workspace/?tab=connections');
                           }}
                           style={{
                             padding: '5px 12px',
@@ -2537,7 +2537,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     if (connected === 'instagram_direct') {
       const igUserId = searchParams.get('ig_user_id') ?? '';
       const igUsername = searchParams.get('username') ?? 'Instagram';
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (igUserId) {
         SocialAccountService.finalizeInstagramDirect(igUserId)
           .then((res) => {
@@ -2561,7 +2561,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       // let the user pick which one instead of silently connecting whichever
       // came first.
       const igToken = searchParams.get('token');
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (igToken) {
         setIgPendingToken(igToken);
         setIgPickerLoading(true);
@@ -2588,7 +2588,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     } else if (connected === 'facebook_direct') {
       const fbPageId = searchParams.get('fb_page_id') ?? '';
       const pageName = searchParams.get('page_name') ?? 'Facebook Page';
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (fbPageId) {
         SocialAccountService.finalizeFacebookDirect(fbPageId)
           .then((res) => {
@@ -2610,7 +2610,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         setPendingPlatform(storedPlatform);
         localStorage.removeItem('outstand_connect_platform');
       }
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       SocialAccountService.getPendingConnection(token)
         .then((res) => {
           if (res.status && res.responseData) {
@@ -2625,7 +2625,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     } else if (connected === 'true') {
       const platform = searchParams.get('platform') ?? '';
       const username = searchParams.get('username') ? decodeURIComponent(searchParams.get('username')!) : platform;
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (platform) {
         ToastService.showToast(`${username} connected successfully!`, ToastTypeEnum.Success);
         posthog.capture('social_account_connected', { platform, username });
@@ -2643,7 +2643,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       const storedPlatform = localStorage.getItem('outstand_connect_platform') ?? '';
       localStorage.removeItem('outstand_connect_platform');
       setConnectError({ platform: storedPlatform, error: err });
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (typeof window !== 'undefined' && window.opener) window.close();
     }
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -7978,7 +7978,7 @@ const SettingsPage = ({
             Brand Profile
           </h3>
           <button
-            onClick={() => router.push('/social-media/brand-setup')}
+            onClick={() => router.push('/social-media/brand-setup/')}
             style={{
               padding: '6px 12px',
               borderRadius: 7,
@@ -8321,8 +8321,8 @@ const MOBILE_TABS = [
 const MORE_NAV = [
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
-  { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts' },
-  { id: 'brand-setup', icon: 'edit', label: 'Edit Brand Setup', href: '/social-media/brand-setup' },
+  { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts/' },
+  { id: 'brand-setup', icon: 'edit', label: 'Edit Brand Setup', href: '/social-media/brand-setup/' },
 ];
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -8380,7 +8380,7 @@ export default function WorkspaceDashboard() {
       // failed (expired token, network error, etc.), and the global 401
       // handler already logs the user out to /login in the auth case, so
       // this must not race it with a wrong redirect to brand-setup.
-      if (done === false) router.replace('/social-media/brand-setup');
+      if (done === false) router.replace('/social-media/brand-setup/');
     });
     BrandProfileService.get().then((res) => {
       if (res.status && res.responseData) setProfile(res.responseData);
@@ -8400,7 +8400,7 @@ export default function WorkspaceDashboard() {
       .catch(() => setSwitcherBrands([]));
   }, []);
 
-  // Keep nav in sync with the ?tab= URL param so that router.push('/workspace?tab=connections')
+  // Keep nav in sync with the ?tab= URL param so that router.push('/workspace/?tab=connections')
   // from child components (DraftCard, Schedule All dialog) actually switches the visible section.
   useEffect(() => {
     const tab = searchParams?.get('tab');
@@ -8414,11 +8414,11 @@ export default function WorkspaceDashboard() {
     }
   }, []);
 
-  // Keep URL in sync with nav so that router.push('/workspace?tab=X') always triggers a URL change.
+  // Keep URL in sync with nav so that router.push('/workspace/?tab=X') always triggers a URL change.
   const goTo = useCallback(
     (id: string) => {
       setNav(id);
-      router.replace(`/workspace?tab=${id}`, { scroll: false } as Parameters<typeof router.replace>[1]);
+      router.replace(`/workspace/?tab=${id}`, { scroll: false } as Parameters<typeof router.replace>[1]);
     },
     [router]
   );
@@ -9129,7 +9129,7 @@ export default function WorkspaceDashboard() {
                 }}
               >
                 <button
-                  onClick={() => router.push('/settings/social-accounts')}
+                  onClick={() => router.push('/settings/social-accounts/')}
                   title="Social Accounts"
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
@@ -9149,7 +9149,7 @@ export default function WorkspaceDashboard() {
                   <I n="settings" s={14} c="#666" />
                 </button>
                 <button
-                  onClick={() => router.push('/social-media/brand-setup')}
+                  onClick={() => router.push('/social-media/brand-setup/')}
                   title="Edit Brand Setup"
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
