@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 export default function NotificationsRedirect() {
   const router = useRouter();
   useEffect(() => {
-    router.replace('/workspace?tab=notifications');
+    router.replace('/workspace/?tab=notifications');
   }, [router]);
   return null;
 }

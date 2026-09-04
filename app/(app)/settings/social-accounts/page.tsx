@@ -9,7 +9,7 @@ function SocialAccountsRedirect() {
 
   useEffect(() => {
     const params = searchParams.toString();
-    router.replace(`/workspace?tab=connections${params ? `&${params}` : ''}`);
+    router.replace(`/workspace/?tab=connections${params ? `&${params}` : ''}`);
   }, [router, searchParams]);
 
   return null;

@@ -51,7 +51,7 @@ export default function ForgotPasswordPage() {
 
       // Redirect to reset password page after 2 seconds
       setTimeout(() => {
-        router.push(`/reset-password?email=${encodeURIComponent(email)}`);
+        router.push(`/reset-password/?email=${encodeURIComponent(email)}`);
       }, 2000);
     } catch (err: unknown) {
       const e = err as {
@@ -250,7 +250,7 @@ export default function ForgotPasswordPage() {
               color="#CD1B78"
               fontWeight={600}
               sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-              onClick={() => router.push('/login')}
+              onClick={() => router.push('/login/')}
             >
               Sign in
             </Typography>

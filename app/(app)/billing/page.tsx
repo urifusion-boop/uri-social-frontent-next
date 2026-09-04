@@ -32,7 +32,7 @@ export default function BillingPage() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      router.push('/login');
+      router.push('/login/');
       return;
     }
 
@@ -204,7 +204,7 @@ export default function BillingPage() {
                 </p>
               </div>
               <button
-                onClick={() => router.push('/pricing')}
+                onClick={() => router.push('/pricing/')}
                 className="self-start sm:self-auto px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold hover:scale-105 active:scale-95 transition-all shadow-lg"
               >
                 Change Plan
@@ -226,7 +226,7 @@ export default function BillingPage() {
           <div className="bg-white rounded-2xl border-4 border-black p-8 mb-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-center">
             <p className="text-gray-700 font-medium mb-4">You don't have an active subscription</p>
             <button
-              onClick={() => router.push('/pricing')}
+              onClick={() => router.push('/pricing/')}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold hover:scale-105 active:scale-95 transition-all shadow-lg"
             >
               Subscribe Now

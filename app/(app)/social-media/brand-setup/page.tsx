@@ -928,7 +928,7 @@ function BrandSetupPageContent() {
       .then((res) => {
         const profile = res.status ? res.responseData : null;
         if (profile?.onboarding_completed) {
-          router.replace('/workspace');
+          router.replace('/workspace/');
           return;
         }
         if (profile) {
@@ -1130,7 +1130,7 @@ function BrandSetupPageContent() {
     try {
       await BrandProfileService.complete(profile);
       posthog.capture('onboarding_complete');
-      router.push('/workspace');
+      router.push('/workspace/');
     } catch {
       setSaving(false);
     }

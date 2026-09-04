@@ -79,13 +79,13 @@ export default function NotificationBell({
     // Navigate based on type
     if (n.type === 'content_created' || n.type === 'daily_suggestion') {
       setOpen(false);
-      router.push('/workspace?tab=content');
+      router.push('/workspace/?tab=content');
     } else if (n.type === 'content_posted') {
       setOpen(false);
-      router.push('/workspace?tab=calendar');
+      router.push('/workspace/?tab=calendar');
     } else if (n.type === 'trial_ending' || n.type === 'trial_expired') {
       setOpen(false);
-      router.push('/workspace?tab=billing');
+      router.push('/workspace/?tab=billing');
     }
   };
 
@@ -383,7 +383,7 @@ export default function NotificationBell({
                 if (onViewAll) {
                   onViewAll();
                 } else {
-                  router.push('/workspace?tab=notifications');
+                  router.push('/workspace/?tab=notifications');
                 }
               }}
               style={{

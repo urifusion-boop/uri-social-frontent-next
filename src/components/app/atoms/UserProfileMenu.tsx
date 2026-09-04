@@ -21,12 +21,12 @@ const UserProfileMenu = () => {
   };
 
   const handleProfile = () => {
-    router.push('/profile');
+    router.push('/profile/');
     handleClose();
   };
 
   const handleSettings = () => {
-    router.push('/workspace?tab=settings');
+    router.push('/workspace/?tab=settings');
     handleClose();
   };
 
