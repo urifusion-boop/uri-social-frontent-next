@@ -191,6 +191,10 @@ export default function CampaignsPage({
   // subsequent call now carries the choice, exactly like briefSoFar carries the brief,
   // and it's cleared in the same places briefSoFar is.
   const chosenVariantRef = useRef<{ variant: PlanVariant; variantGroupId: string } | null>(null);
+  // The client's OWN audience ("none of these — describe your own"), kept for the whole
+  // campaign for exactly the same reason chosenVariantRef is: it IS the choice, so every
+  // later call has to carry it or the backend re-offers the picker it already answered.
+  const ownAudienceRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -301,6 +305,7 @@ export default function CampaignsPage({
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
+    ownAudienceRef.current = null;
     setMessages([makeGreeting()]);
     let rebuiltBrief = '';
     try {
@@ -345,6 +350,7 @@ export default function CampaignsPage({
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
+    ownAudienceRef.current = null;
     setMessages([makeGreeting()]);
     try {
       const t = await CampaignService.createThread();
@@ -365,6 +371,7 @@ export default function CampaignsPage({
       setMedia(null);
       setBriefSoFar('');
       chosenVariantRef.current = null;
+      ownAudienceRef.current = null;
       setMessages([makeGreeting()]);
       await send(seed_message);
     } catch (e) {
@@ -385,6 +392,7 @@ export default function CampaignsPage({
         lastCreativeRef.current = '';
         creativeChoiceRef.current = null;
         chosenVariantRef.current = null;
+        ownAudienceRef.current = null;
         setMessages([makeGreeting()]);
       }
     } catch (e) {
@@ -452,6 +460,9 @@ export default function CampaignsPage({
               variant_group_id: chosenVariantRef.current.variantGroupId,
             }
           : {}),
+        // Same reason as the variant above: the client's own audience IS their answer
+        // to the picker, so it has to ride along or the backend re-asks.
+        ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
         ...(attachedMedia?.source === 'upload'
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
           : attachedMedia?.source === 'draft'
@@ -642,6 +653,9 @@ export default function CampaignsPage({
               variant_group_id: chosenVariantRef.current.variantGroupId,
             }
           : {}),
+        // Same reason as the variant above: the client's own audience IS their answer
+        // to the picker, so it has to ride along or the backend re-asks.
+        ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
         ...answer,
       } as Parameters<typeof CampaignService.planFromMessage>[0]);
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
@@ -690,6 +704,40 @@ export default function CampaignsPage({
       saveMsg(resultMsg);
     } catch (e) {
       pendingVariantsRef.current = null;
+      const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
+      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
+      setMessages((m) => [...m, errMsg]);
+      saveMsg(errMsg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // "None of these — describe your own audience": the client knows their customers
+  // better than any generated variant does. Same shape as continueWithVariants, but the
+  // choice is their sentence rather than a card — the backend treats it as having
+  // chosen (so the picker isn't re-presented) and it outranks both the variants and the
+  // brand profile for the Meta targeting AND the ad's own copy.
+  const continueWithOwnAudience = async (text: string) => {
+    const audience = text.trim();
+    if (busy || !briefSoFar || !audience) return;
+    ownAudienceRef.current = audience;
+    // No variant was chosen, so nothing should keep claiming one was.
+    chosenVariantRef.current = null;
+    pendingVariantsRef.current = null;
+    setBusy(true);
+    try {
+      const result = await CampaignService.planFromMessage({
+        message: briefSoFar,
+        thread_id: activeThreadRef.current ?? undefined,
+        creative_source: 'ask',
+        target_audience: audience,
+      });
+      const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+      setMessages((m) => [...m, resultMsg]);
+      saveMsg(resultMsg);
+    } catch (e) {
+      ownAudienceRef.current = null;
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
       const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
       setMessages((m) => [...m, errMsg]);
@@ -988,6 +1036,7 @@ export default function CampaignsPage({
                         lastCreativeRef.current = '';
                         creativeChoiceRef.current = null;
                         chosenVariantRef.current = null;
+                        ownAudienceRef.current = null;
                         loadCampaigns();
                         refreshThreads();
                       }}
@@ -1006,6 +1055,7 @@ export default function CampaignsPage({
                       }}
                       onChooseDraft={(draftId) => continueWithSource({ creative_source: 'draft', draft_id: draftId })}
                       onChooseVariants={(variants, groupId) => continueWithVariants(variants, groupId)}
+                      onChooseOwnAudience={(audience) => continueWithOwnAudience(audience)}
                       onChooseDestination={continueWithDestination}
                     />
                   )}
@@ -1946,9 +1996,11 @@ function ChooseCreativeSource({
 function PlanVariantCards({
   variantSet,
   onConfirm,
+  onConfirmOwnAudience,
 }: {
   variantSet: PlanVariantSet;
   onConfirm: (variants: PlanVariant[]) => void;
+  onConfirmOwnAudience: (audience: string) => void;
 }) {
   // Every variant's full reasoning (why it could work, its trade-off, creative fit,
   // budget) is shown from the start, not just the recommended one — the whole point
@@ -1961,6 +2013,10 @@ function PlanVariantCards({
   const [selectedRanks, setSelectedRanks] = useState<number[]>([]);
   // Guards against a duplicate build from a second tap (see the Build button below).
   const [confirmed, setConfirmed] = useState(false);
+  // "None of these" — the client's own audience, in their words. Picking a card and
+  // typing an audience are mutually exclusive answers to the same question, so each
+  // clears the other rather than leaving two conflicting choices on screen.
+  const [ownAudience, setOwnAudience] = useState('');
 
   const toggleExpanded = (rank: number) => {
     setExpandedRanks((prev) => {
@@ -1973,6 +2029,7 @@ function PlanVariantCards({
   const maxSelectable = variantSet.max_selectable;
 
   const toggleSelect = (rank: number) => {
+    setOwnAudience('');   // a card and a typed audience are competing answers
     setSelectedRanks((prev) => {
       if (prev.includes(rank)) return prev.filter((r) => r !== rank);
       if (maxSelectable === 1) return [rank];
@@ -2095,6 +2152,69 @@ function PlanVariantCards({
           {selectedRanks.length === 1 ? '' : 's'}.
         </p>
       )}
+      {/* None of these — the business knows its own customers better than any generated
+          variant does, so there has to be a way to say so without fighting the picker. */}
+      <div
+        style={{
+          margin: '14px 0 0 40px',
+          maxWidth: 520,
+          borderTop: '1px solid #eee',
+          paddingTop: 12,
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.3, color: '#888', textTransform: 'uppercase' }}>
+          None of these
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#333', margin: '4px 0 8px' }}>
+          Describe your own audience
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            value={ownAudience}
+            onChange={(e) => {
+              setOwnAudience(e.target.value);
+              if (e.target.value.trim()) setSelectedRanks([]);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && ownAudience.trim() && !confirmed) {
+                setConfirmed(true);
+                onConfirmOwnAudience(ownAudience.trim());
+              }
+            }}
+            placeholder="e.g. gym owners in Lekki aged 25-40"
+            aria-label="Describe your own audience"
+            style={{
+              flex: 1,
+              minWidth: 240,
+              border: '1.5px solid #e0dcd9',
+              borderRadius: 20,
+              padding: '8px 14px',
+              fontSize: 13,
+              outline: 'none',
+            }}
+          />
+          <button
+            onClick={() => {
+              if (confirmed || !ownAudience.trim()) return;
+              setConfirmed(true);
+              onConfirmOwnAudience(ownAudience.trim());
+            }}
+            disabled={!ownAudience.trim() || confirmed}
+            style={{
+              border: 'none',
+              borderRadius: 20,
+              padding: '8px 18px',
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: ownAudience.trim() && !confirmed ? 'pointer' : 'default',
+              background: ownAudience.trim() && !confirmed ? PINK : '#eee',
+              color: ownAudience.trim() && !confirmed ? '#fff' : '#999',
+            }}
+          >
+            Use this instead
+          </button>
+        </div>
+      </div>
       <button
         onClick={() => {
           if (confirmed) return;
@@ -2479,6 +2599,7 @@ function ResultCard({
   onChooseRecomposite,
   onChooseDraft,
   onChooseVariants,
+  onChooseOwnAudience,
   onChooseDestination,
   stale,
 }: {
@@ -2494,6 +2615,7 @@ function ResultCard({
   onChooseRecomposite: () => void;
   onChooseDraft: (draftId: string) => void;
   onChooseVariants: (variants: PlanVariant[], variantGroupId: string) => void;
+  onChooseOwnAudience: (audience: string) => void;
   onChooseDestination: (answer: {
     destination_type: string;
     destination_value: string;
@@ -2561,6 +2683,7 @@ function ResultCard({
         <PlanVariantCards
           variantSet={result.plan_variants}
           onConfirm={(variants) => onChooseVariants(variants, groupId)}
+          onConfirmOwnAudience={onChooseOwnAudience}
         />
       );
     }

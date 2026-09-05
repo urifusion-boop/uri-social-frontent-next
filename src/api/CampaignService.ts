@@ -353,6 +353,10 @@ export class CampaignService {
     destination_type?: 'ask' | 'whatsapp' | 'website' | 'instagram_dm' | 'custom';
     destination_value?: string;
     destination_cta?: string;
+    // The client's OWN audience, in their words — the "none of these" answer to the
+    // plan picker. Outranks selected_plan_variant and the brand profile, and counts
+    // as having chosen, so the picker isn't presented again.
+    target_audience?: string;
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
