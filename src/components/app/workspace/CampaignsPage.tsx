@@ -515,6 +515,7 @@ export default function CampaignsPage({
         message: briefSoFar || clean,
         whatsapp_number: clean,
         thread_id: threadId,
+        ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
         ...(attachedMedia?.source === 'upload'
           ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
           : attachedMedia?.source === 'draft'
@@ -556,6 +557,7 @@ export default function CampaignsPage({
       const result = await CampaignService.planFromMessage({
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
+        ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
@@ -608,6 +610,10 @@ export default function CampaignsPage({
           message: brief,
           thread_id: activeThreadRef.current ?? undefined,
           ...(variant ? { selected_plan_variant: variant, variant_group_id: pendingVariants!.variantGroupId } : {}),
+          // Live-reported loop: without this, answering the image-source question threw
+          // away a typed audience, so the backend regenerated the whole variant set and
+          // put the plan picker back up — the same failure the destination answer had.
+          ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
           ...choice,
         });
         const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
@@ -680,6 +686,8 @@ export default function CampaignsPage({
   const continueWithVariants = async (variants: PlanVariant[], variantGroupId: string) => {
     if (busy || !briefSoFar || variants.length === 0) return;
     pendingVariantsRef.current = { variants, variantGroupId };
+    // Picking a card and typing an audience are competing answers to one question.
+    ownAudienceRef.current = null;
     // Remember the choice for the REST of the campaign, so a typed reply after this
     // point never drops back to "pick an audience" (see chosenVariantRef above).
     chosenVariantRef.current = { variant: variants[0], variantGroupId };
