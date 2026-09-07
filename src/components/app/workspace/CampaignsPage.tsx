@@ -176,6 +176,16 @@ export default function CampaignsPage({
     url: string;
     forChoice: false | 'upload';
   } | null>(null);
+  // A real photo (upload or recomposite, never video — VSG-01's ad formats only
+  // composite still images) was just hosted and is waiting on one question before
+  // it continues into the plan: what does this photo actually show? Answering
+  // lets the backend safely offer format-selection formats that need a genuine
+  // product/customer photo (Review Card, Text on a Face, etc.) instead of a
+  // generic image — "Skip" proceeds exactly as this flow always has.
+  const [pendingAssetAttestation, setPendingAssetAttestation] = useState<{
+    url: string;
+    forChoice: 'upload' | 'recomposite';
+  } | null>(null);
   // Multi-Plan Audience Variants — set while waiting for the user to pick an image
   // source for one or more selected variants (continueWithVariants asks first,
   // same as the normal flow, instead of silently auto-generating). Consumed and
@@ -586,12 +596,24 @@ export default function CampaignsPage({
   const continueWithSource = async (
     choice:
       | { creative_source: 'generate' }
-      | { creative_source: 'upload'; reference_image_url: string; is_video: boolean }
+      | {
+          creative_source: 'upload';
+          reference_image_url: string;
+          is_video: boolean;
+          // VSG-01 v3 (§1.2/§6) — what this real photo actually shows, per the
+          // user's own confirmation ("Skip" sends undefined): "product_photo" |
+          // "real_customer_photo" | undefined. Never asked/sent for a video.
+          asset_attestation?: 'product_photo' | 'real_customer_photo';
+        }
       | { creative_source: 'draft'; draft_id: string }
       // Recomposite (creative brief spec §7.2): the real product photo, background
       // regenerated around it via the same content-engine pipeline organic posts
       // use — image-only, no is_video (the backend has no video recomposite path).
-      | { creative_source: 'recomposite'; reference_image_url: string },
+      | {
+          creative_source: 'recomposite';
+          reference_image_url: string;
+          asset_attestation?: 'product_photo' | 'real_customer_photo';
+        },
     // Explicit override for callers that just rebuilt the brief via openThread's
     // return value and can't wait for that setBriefSoFar to flush into a re-render —
     // reading the briefSoFar closure here would still see its pre-openThread value.
@@ -773,14 +795,17 @@ export default function CampaignsPage({
           setUploadError('Recompositing works with a photo, not a video — please choose an image.');
           return;
         }
-        await continueWithSource({ creative_source: 'recomposite', reference_image_url: url });
+        setPendingAssetAttestation({ url, forChoice: 'recomposite' });
       } else if (is_video && onRequestVideoPolish) {
         // Ask before committing to this video — Video Polish (upscale/stabilise/
         // captions) is one redirect away, and most raw phone footage benefits from
         // it. "Use as-is" below falls through to exactly what used to happen here.
         setPendingVideoQualityCheck({ file, url, forChoice: forChoice === 'upload' ? 'upload' : false });
+      } else if (forChoice === 'upload' && !is_video) {
+        // Came from the choose card with a real photo — ask what it actually shows
+        // before continuing (a video skips straight through, same as before).
+        setPendingAssetAttestation({ url, forChoice: 'upload' });
       } else if (forChoice === 'upload') {
-        // Came from the choose card — go straight on with the plan using this upload.
         await continueWithSource({ creative_source: 'upload', reference_image_url: url, is_video });
       } else {
         setMedia({ source: 'upload', url, isVideo: is_video, label: file.name });
@@ -789,6 +814,29 @@ export default function CampaignsPage({
       setUploadError('Upload failed, please try again.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Answer the "what does this photo actually show?" prompt — value is undefined
+  // for "Skip", which proceeds exactly as this flow always has (no format-selection
+  // attempt on the backend, the photo is just used as-is).
+  const resolveAssetAttestation = async (value?: 'product_photo' | 'real_customer_photo') => {
+    const pending = pendingAssetAttestation;
+    if (!pending) return;
+    setPendingAssetAttestation(null);
+    if (pending.forChoice === 'recomposite') {
+      await continueWithSource({
+        creative_source: 'recomposite',
+        reference_image_url: pending.url,
+        asset_attestation: value,
+      });
+    } else {
+      await continueWithSource({
+        creative_source: 'upload',
+        reference_image_url: pending.url,
+        is_video: false,
+        asset_attestation: value,
+      });
     }
   };
 
@@ -1118,6 +1166,61 @@ export default function CampaignsPage({
                       }}
                     >
                       Use as-is
+                    </button>
+                  </div>
+                </div>
+              )}
+              {pendingAssetAttestation && (
+                <div>
+                  <JaneBubble>What does this photo actually show?</JaneBubble>
+                  <div
+                    className="camp-indent"
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}
+                  >
+                    <button
+                      onClick={() => resolveAssetAttestation('product_photo')}
+                      style={{
+                        background: `linear-gradient(135deg,${PINK},#8E1545)`,
+                        border: 'none',
+                        color: '#fff',
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      📦 My real product
+                    </button>
+                    <button
+                      onClick={() => resolveAssetAttestation('real_customer_photo')}
+                      style={{
+                        background: `linear-gradient(135deg,${PINK},#8E1545)`,
+                        border: 'none',
+                        color: '#fff',
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🙋 A real customer (I have their permission)
+                    </button>
+                    <button
+                      onClick={() => resolveAssetAttestation(undefined)}
+                      style={{
+                        background: '#fff',
+                        border: `1.5px solid ${PINK}`,
+                        color: PINK,
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Skip
                     </button>
                   </div>
                 </div>
@@ -2714,7 +2817,9 @@ function ResultCard({
     }
     if (result.stage === 'advise') {
       return (
-        <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>
+        <JaneBubble>
+          {result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}
+        </JaneBubble>
       );
     }
     if (result.stage === 'need_facebook_page') {
