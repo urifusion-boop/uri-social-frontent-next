@@ -339,6 +339,10 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
+    // VSG-01 v3 (§1.2/§6) — what reference_image_url actually shows, per the user's own
+    // confirmation collected right after upload/recomposite. Undefined ("Skip") means
+    // exactly what it always meant: use the photo as-is, no format-selection attempt.
+    asset_attestation?: 'product_photo' | 'real_customer_photo';
     reuse_image_url?: string; // refinement — keep the prior plan's image (no regen/credit)
     whatsapp_number?: string; // where leads route; sent when answering need_whatsapp
     thread_id?: string; // which campaign thread this plan belongs to (Tier E)
