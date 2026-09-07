@@ -214,7 +214,10 @@ export interface CampaignRow {
   budget_ngn: number | null;
   goal: string;
   city: string;
-  whatsapp_number?: string; // where this campaign's leads land; empty for legacy campaigns
+  whatsapp_number?: string; // where WhatsApp leads land; empty for every non-WhatsApp
+  // destination too, so it alone can't tell a legacy campaign from a website one
+  destination_type?: string; // whatsapp | website | instagram_dm | custom
+  destination_link?: string; // the actual link the ad carries
   status: string;
   created_at: string | null;
   ads_manager_url: string;
@@ -364,7 +367,12 @@ export class CampaignService {
 
   /** Plan-before-launch, step 2 — the only call that actually creates a real (paused) Meta campaign. */
   static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
-    const res = await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/launch`, {}, { timeout: 120000 });
+    // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
+    // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was
+    // not always enough: the request timed out client-side and showed a network error
+    // while the server went on to publish the campaign successfully — so the user was
+    // told it failed when it hadn't. Live-reported.
+    const res = await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/launch`, {}, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
   }
 
