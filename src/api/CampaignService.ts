@@ -169,7 +169,10 @@ export interface LaunchFromMessageResult {
   wallet?: {
     balance_ngn: number;
     budget_ngn: number; // the ad spend that goes to Meta
-    service_fee_ngn?: number; // URI's markup
+    // service_fee_ngn is gone: URI's fee now comes OUT of the budget the client
+    // states rather than being added on top, so total_due_ngn === that budget and
+    // there is no separate fee to show. Kept optional for older cached payloads.
+    service_fee_ngn?: number;
     total_due_ngn?: number; // budget + fee — what the wallet must cover
     sufficient: boolean;
   };

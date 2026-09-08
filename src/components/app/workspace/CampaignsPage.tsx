@@ -3040,9 +3040,13 @@ function ResultCard({
           {result.summary && <CampaignReview summary={result.summary} />}
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
-              {wallet && (wallet.service_fee_ngn ?? 0) > 0 && (
+              {/* One number: what actually leaves the wallet, which IS the budget the
+                  client stated. URI's fee is taken out of that budget before the
+                  campaign is planned, so there is nothing to add on and nothing to
+                  itemise. This used to read "X ad spend + Y service fee = Z from your
+                  wallet", which asked them to fund more than the figure they gave. */}
+              {wallet && (
                 <p style={{ margin: '0 0 8px', fontSize: 12, color: '#777' }}>
-                  {naira(wallet.budget_ngn)} ad spend + {naira(wallet.service_fee_ngn)} service fee ={' '}
                   <strong>{naira(wallet.total_due_ngn ?? wallet.budget_ngn)}</strong> from your wallet
                 </p>
               )}
