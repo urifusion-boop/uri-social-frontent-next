@@ -926,12 +926,16 @@ const ContentManagerPage = ({
     );
     setScheduleUnconnectedIds(unconnected);
 
-    // Pre-validate: Instagram requires an image — mark those as failed upfront.
+    // Pre-validate: Instagram requires an image OR a video — mark those as failed upfront.
+    // A video-uploaded draft correctly has video_url set and image_url null (see
+    // upload_user_content on the backend) — checking image_url/has_image alone incorrectly
+    // flagged every valid uploaded video as "no image" here, matching the backend's own
+    // identical bug in ApprovalWorkflowService.approve_content (fixed alongside this).
     const instagramNoImage = new Set(
       ids.filter((id) => {
         if (unconnected.has(id)) return false; // already caught above
         const d = drafts.find((dr) => (dr.draft_id ?? dr.id ?? '') === id);
-        return d?.platform?.toLowerCase() === 'instagram' && !d?.image_url && !d?.has_image;
+        return d?.platform?.toLowerCase() === 'instagram' && !d?.image_url && !d?.has_image && !d?.video_url;
       })
     );
 
@@ -986,7 +990,7 @@ const ContentManagerPage = ({
       // All failures were unconnected accounts — don't show generic error toast (dialog explains it)
     } else if (instagramNoImage.size > 0 && succeeded === 0 && failed === instagramNoImage.size) {
       ToastService.showToast(
-        `${instagramNoImage.size} Instagram post${instagramNoImage.size !== 1 ? 's' : ''} skipped — add an image first`,
+        `${instagramNoImage.size} Instagram post${instagramNoImage.size !== 1 ? 's' : ''} skipped — add an image or video first`,
         ToastTypeEnum.Warning
       );
     } else if (succeeded > 0) {
