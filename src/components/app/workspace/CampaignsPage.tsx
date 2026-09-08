@@ -51,6 +51,10 @@ interface SelectedMedia {
   isVideo: boolean;
   draftId?: string;
   label: string;
+  // VSG-01 v3 (§1.2/§6) — set only for a real (non-video) photo attached directly in
+  // the composer, once the user has confirmed what it actually shows. Undefined for a
+  // draft, a video, or a photo attached without answering (treated as "skip").
+  assetAttestation?: 'product_photo' | 'real_customer_photo';
 }
 
 const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
@@ -184,7 +188,11 @@ export default function CampaignsPage({
   // generic image — "Skip" proceeds exactly as this flow always has.
   const [pendingAssetAttestation, setPendingAssetAttestation] = useState<{
     url: string;
-    forChoice: 'upload' | 'recomposite';
+    // 'compose' — a photo attached directly in the message box (the paperclip icon),
+    // not through the choose-card — sits on `media` once answered, rather than
+    // continuing the plan immediately (the user hasn't necessarily finished typing).
+    forChoice: 'upload' | 'recomposite' | 'compose';
+    label?: string;
   } | null>(null);
   // Multi-Plan Audience Variants — set while waiting for the user to pick an image
   // source for one or more selected variants (continueWithVariants asks first,
@@ -474,7 +482,12 @@ export default function CampaignsPage({
         // to the picker, so it has to ride along or the backend re-asks.
         ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
         ...(attachedMedia?.source === 'upload'
-          ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+            }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
             : // No media attached. If a plan already produced an image, this is a refinement →
@@ -527,7 +540,12 @@ export default function CampaignsPage({
         thread_id: threadId,
         ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
         ...(attachedMedia?.source === 'upload'
-          ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+            }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
             : {}),
@@ -807,6 +825,11 @@ export default function CampaignsPage({
         setPendingAssetAttestation({ url, forChoice: 'upload' });
       } else if (forChoice === 'upload') {
         await continueWithSource({ creative_source: 'upload', reference_image_url: url, is_video });
+      } else if (!is_video) {
+        // Attached directly in the composer (the paperclip icon), not through the
+        // choose-card — ask what it actually shows before it sits on the message
+        // as media, same as every other real-photo entry point in this flow.
+        setPendingAssetAttestation({ url, forChoice: 'compose', label: file.name });
       } else {
         setMedia({ source: 'upload', url, isVideo: is_video, label: file.name });
       }
@@ -830,12 +853,22 @@ export default function CampaignsPage({
         reference_image_url: pending.url,
         asset_attestation: value,
       });
-    } else {
+    } else if (pending.forChoice === 'upload') {
       await continueWithSource({
         creative_source: 'upload',
         reference_image_url: pending.url,
         is_video: false,
         asset_attestation: value,
+      });
+    } else {
+      // Composer attach — the photo sits on the message as media; the user keeps
+      // typing/sends whenever they're ready, same as the pre-existing attach flow.
+      setMedia({
+        source: 'upload',
+        url: pending.url,
+        isVideo: false,
+        label: pending.label ?? 'Photo',
+        assetAttestation: value,
       });
     }
   };
@@ -2140,7 +2173,7 @@ function PlanVariantCards({
   const maxSelectable = variantSet.max_selectable;
 
   const toggleSelect = (rank: number) => {
-    setOwnAudience('');   // a card and a typed audience are competing answers
+    setOwnAudience(''); // a card and a typed audience are competing answers
     setSelectedRanks((prev) => {
       if (prev.includes(rank)) return prev.filter((r) => r !== rank);
       if (maxSelectable === 1) return [rank];

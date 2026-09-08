@@ -908,12 +908,16 @@ const ContentManagerPage = ({
     );
     setScheduleUnconnectedIds(unconnected);
 
-    // Pre-validate: Instagram requires an image — mark those as failed upfront.
+    // Pre-validate: Instagram requires an image OR a video — mark those as failed upfront.
+    // A video-uploaded draft correctly has video_url set and image_url null (see
+    // upload_user_content on the backend) — checking image_url/has_image alone incorrectly
+    // flagged every valid uploaded video as "no image" here, matching the backend's own
+    // identical bug in ApprovalWorkflowService.approve_content (fixed alongside this).
     const instagramNoImage = new Set(
       ids.filter((id) => {
         if (unconnected.has(id)) return false; // already caught above
         const d = drafts.find((dr) => (dr.draft_id ?? dr.id ?? '') === id);
-        return d?.platform?.toLowerCase() === 'instagram' && !d?.image_url && !d?.has_image;
+        return d?.platform?.toLowerCase() === 'instagram' && !d?.image_url && !d?.has_image && !d?.video_url;
       })
     );
 
@@ -968,7 +972,7 @@ const ContentManagerPage = ({
       // All failures were unconnected accounts — don't show generic error toast (dialog explains it)
     } else if (instagramNoImage.size > 0 && succeeded === 0 && failed === instagramNoImage.size) {
       ToastService.showToast(
-        `${instagramNoImage.size} Instagram post${instagramNoImage.size !== 1 ? 's' : ''} skipped — add an image first`,
+        `${instagramNoImage.size} Instagram post${instagramNoImage.size !== 1 ? 's' : ''} skipped — add an image or video first`,
         ToastTypeEnum.Warning
       );
     } else if (succeeded > 0) {
@@ -5993,6 +5997,52 @@ const PlaybookPage = ({
     }
   };
 
+  // Auto-save library style selections — mirrors handleCustomGuideChange below
+  // exactly. Added because style_selections was the one visual-style field with
+  // NO auto-save: it only ever persisted via the main Save button, which also
+  // calls setEditing(false) on success — so switching tabs (handleStyleTabSwitch
+  // calls loadStyleTab, which overwrites this same shared styleSelections state
+  // from `profile`) silently discarded whatever was picked-but-not-yet-saved for
+  // the tab being left. Live-reported: "I have to click save, then click edit
+  // before picking another platform, otherwise the previous one doesn't save."
+  // Auto-saving on every pick, same as the two custom-guide handlers already do,
+  // means `profile` is always current by the time a tab switch happens.
+  const handleStyleSelectionChange = async (slugs: string[]) => {
+    setStyleSelections(slugs);
+    if (!profile) return;
+
+    const isDefault = activeStyleTab === 'default';
+    const updatedProfile: BrandProfileData = isDefault
+      ? {
+          ...profile,
+          style_selections: slugs,
+          style_prompt_fragments: slugs.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+          style_rotation_index: 0,
+        }
+      : {
+          ...profile,
+          style_selections_by_platform: {
+            ...(profile.style_selections_by_platform ?? {}),
+            [activeStyleTab]: slugs,
+          },
+          style_rotation_index_by_platform: {
+            ...(profile.style_rotation_index_by_platform ?? {}),
+            [activeStyleTab]: 0,
+          },
+        };
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      if (response.status) {
+        onProfileUpdate(response.responseData ?? updatedProfile);
+        console.log(`🎨 Style selections auto-saved [${activeStyleTab}]:`, slugs);
+      } else {
+        console.error('🎨 Style selection auto-save failed:', response);
+      }
+    } catch (error) {
+      console.error('🎨 Error auto-saving style selections:', error);
+    }
+  };
+
   // Auto-save V2 custom guide selections — mirrors handleCustomGuideChange
   // (V1) above, same tab-aware save target.
   const handleCustomGuideV2Change = async (guideIds: string[]) => {
@@ -8057,7 +8107,7 @@ const PlaybookPage = ({
             <StylePickerGallery
               industry={industry || p?.industry || 'general_other'}
               selected={styleSelections}
-              onChange={setStyleSelections}
+              onChange={handleStyleSelectionChange}
               selectedCustomGuides={selectedCustomGuides}
               onCustomGuideChange={handleCustomGuideChange}
               selectedCustomGuidesV2={selectedCustomGuidesV2}
