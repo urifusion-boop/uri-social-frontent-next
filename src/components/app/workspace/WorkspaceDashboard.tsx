@@ -4145,6 +4145,40 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         Not set yet — Jane will ask for this the first time you build an ad.
                       </div>
                     )}
+                    {/* Saving the number above only records where leads should land. Meta
+                        separately requires the number to be LINKED to the Page before an ad
+                        can receive messages, and that is a manual step in Meta's own Page
+                        settings with no API. Without it a launch is blocked, and an ad that
+                        did run could never report a single conversation — so the real state
+                        (from Meta, not from our own record) belongs here, before anyone
+                        builds an ad. `undefined`/null means Meta couldn't tell us, which is
+                        deliberately not reported as a problem. */}
+                    {adsWaNumber && s?.whatsapp_linked_to_page === false && (
+                      <div style={{ fontSize: 11.5, color: '#a15c00', lineHeight: 1.5 }}>
+                        Saved — but this number isn&rsquo;t linked to your{' '}
+                        <strong>{s?.account_name || 'Facebook'}</strong> Page in Meta yet, so ads
+                        can&rsquo;t receive messages on it.{' '}
+                        {s?.whatsapp_link_url ? (
+                          <a
+                            href={s.whatsapp_link_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#C2185B', fontWeight: 600 }}
+                          >
+                            Link it in Meta
+                          </a>
+                        ) : (
+                          <>Add it under your Page&rsquo;s WhatsApp settings in Meta</>
+                        )}
+                        , confirm the code they send you, then come back.
+                      </div>
+                    )}
+                    {adsWaNumber && s?.whatsapp_linked_to_page === true && (
+                      <div style={{ fontSize: 11.5, color: '#1a7f37' }}>
+                        Linked to your {s?.account_name || 'Facebook'} Page — ads can receive
+                        messages and report conversations.
+                      </div>
+                    )}
                   </div>
                 )}
                 {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
