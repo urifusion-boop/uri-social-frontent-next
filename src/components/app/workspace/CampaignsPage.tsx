@@ -2947,6 +2947,8 @@ function ResultCard({
     setLaunching(true);
     try {
       const launched = await CampaignService.launchPlan(result.plan_id);
+      // Launching debits the ad wallet in full, so the header badge is now stale.
+      window.dispatchEvent(new Event('ad-wallet-changed'));
       onResultChange(launched);
       onLaunched();
     } catch (e) {
@@ -2977,6 +2979,7 @@ function ResultCard({
       setFixingWhatsapp(false);
       setWhatsappFix('');
       const launched = await CampaignService.launchPlan(result.plan_id!);
+      window.dispatchEvent(new Event('ad-wallet-changed'));
       onResultChange(launched);
       onLaunched();
     } catch (e) {

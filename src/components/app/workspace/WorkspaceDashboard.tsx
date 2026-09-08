@@ -75,6 +75,7 @@ import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
+import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
 import TrialEndingBanner from '@/src/components/app/atoms/TrialEndingBanner';
@@ -10397,6 +10398,12 @@ export default function WorkspaceDashboard() {
 
               {/* Credit Balance Badge — already compact enough for mobile as-is */}
               {!userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => goTo('billing')} />}
+
+              {/* Ad wallet balance — a different currency from credits (this funds real
+                  ad spend), and it now moves during normal use because launching a
+                  campaign debits it. Hidden on mobile, where header room is tight and
+                  the credit badge is the one that must survive. */}
+              {!isMobile && <WorkspaceAdWalletBadge onClick={() => goTo('campaigns')} />}
 
               {/* Profile Dropdown */}
               <WorkspaceProfileDropdown onNavigate={goTo} onLogout={logoutUser} />
