@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AdFormat,
   CampaignService,
   CampaignRow,
   CtaChoice,
@@ -16,11 +17,59 @@ import {
   CampaignSummary,
   ThreadSummary,
 } from '@/src/api/CampaignService';
+import { AdFormatChip } from '@/src/components/app/workspace/AdFormatGallery';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 const PINK = '#C2185B';
+
+// A wallet top-up handed off to Squad but not yet settled.
+//
+// Squad's checkout can charge a card and still render its own "Payment Failed"
+// screen — their ValidateOTP endpoint returned 504 on a genuinely successful,
+// receipted, webhook-delivered payment on 2026-09-09. The customer then closes the
+// popup and never returns to our callback URL, so without this the successful
+// payment is never settled here and the only thing they ever saw was a lie.
+//
+// Keyed per-reference with an expiry so an abandoned checkout can't nag forever.
+const PENDING_TOPUP_KEY = 'jane_ads_pending_topup';
+const PENDING_TOPUP_TTL_MS = 6 * 60 * 60 * 1000;
+
+type PendingTopup = { reference: string; amountNgn: number; startedAt: number };
+
+function writePendingTopup(reference: string, amountNgn: number): void {
+  try {
+    const val: PendingTopup = { reference, amountNgn, startedAt: Date.now() };
+    window.localStorage.setItem(PENDING_TOPUP_KEY, JSON.stringify(val));
+  } catch {
+    // Private mode / blocked storage: the ?reference= callback still covers the
+    // normal path, so this is a lost safety net rather than a broken flow.
+  }
+}
+
+function readPendingTopup(): PendingTopup | null {
+  try {
+    const raw = window.localStorage.getItem(PENDING_TOPUP_KEY);
+    if (!raw) return null;
+    const val = JSON.parse(raw) as PendingTopup;
+    if (!val?.reference || Date.now() - val.startedAt > PENDING_TOPUP_TTL_MS) {
+      window.localStorage.removeItem(PENDING_TOPUP_KEY);
+      return null;
+    }
+    return val;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingTopup(): void {
+  try {
+    window.localStorage.removeItem(PENDING_TOPUP_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}
 
 // A chosen (but not yet built) multi-plan audience selection — see pendingVariantsRef
 // below. Threaded through the video hand-off below because it lives in a ref that
@@ -40,10 +89,38 @@ interface CampaignsPageProps {
   onResumeVideoConsumed?: () => void;
 }
 
+type ContinueChoice =
+  | { creative_source: 'generate' }
+  | {
+      creative_source: 'upload';
+      reference_image_url: string;
+      is_video: boolean;
+      asset_attestation?: 'product_photo' | 'real_customer_photo';
+    }
+  | { creative_source: 'draft'; draft_id: string }
+  | {
+      creative_source: 'recomposite';
+      reference_image_url: string;
+      asset_attestation?: 'product_photo' | 'real_customer_photo';
+    };
+
 type ChatMsg =
   | { id: string; role: 'user'; text: string }
   | { id: string; role: 'jane'; kind: 'text'; text: string }
-  | { id: string; role: 'jane'; kind: 'result'; result: LaunchFromMessageResult };
+  | {
+      id: string;
+      role: 'jane';
+      kind: 'result';
+      result: LaunchFromMessageResult;
+      // The pre-generation ranking computed alongside this specific result (mirrors
+      // JaneVideoChat.tsx's plan.style + alternatives) — undefined for a video, for a
+      // request where nothing was eligible, or if the suggest call itself failed
+      // (never blocks generation). Lets ResultCard offer "change" for THIS result.
+      adSuggestion?: { suggested: AdFormat | null; alternatives: AdFormat[] };
+      // The exact creative-source choice that produced this result — replayed with a
+      // different vsg01_format_id when the user picks an alternative via "change".
+      sourceChoice?: ContinueChoice;
+    };
 
 interface SelectedMedia {
   source: 'upload' | 'draft';
@@ -51,6 +128,10 @@ interface SelectedMedia {
   isVideo: boolean;
   draftId?: string;
   label: string;
+  // VSG-01 v3 (§1.2/§6) — set only for a real (non-video) photo attached directly in
+  // the composer, once the user has confirmed what it actually shows. Undefined for a
+  // draft, a video, or a photo attached without answering (treated as "skip").
+  assetAttestation?: 'product_photo' | 'real_customer_photo';
 }
 
 const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
@@ -150,6 +231,16 @@ export default function CampaignsPage({
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [loadingWallet, setLoadingWallet] = useState(false);
+  // Visual Styles — Ads library, for the "Style: {name}" chip on a generated ad
+  // (only ever shown when a result's creative.vsg01_format_id is non-empty — the
+  // common case today is no format, since JANE_ADS_VSG01_ENABLED defaults off).
+  // Fetched once here, same source as the Brand Playbook's gallery, no duplicate copy.
+  const [adFormats, setAdFormats] = useState<AdFormat[]>([]);
+  useEffect(() => {
+    CampaignService.getAdFormats()
+      .then((res) => setAdFormats(res.formats))
+      .catch(() => setAdFormats([]));
+  }, []);
   // Tier E — campaign threads (the left rail). activeThreadRef mirrors the state so the
   // async send/save handlers always read the current thread without a stale closure.
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
@@ -176,6 +267,20 @@ export default function CampaignsPage({
     url: string;
     forChoice: false | 'upload';
   } | null>(null);
+  // A real photo (upload or recomposite, never video — VSG-01's ad formats only
+  // composite still images) was just hosted and is waiting on one question before
+  // it continues into the plan: what does this photo actually show? Answering
+  // lets the backend safely offer format-selection formats that need a genuine
+  // product/customer photo (Review Card, Text on a Face, etc.) instead of a
+  // generic image — "Skip" proceeds exactly as this flow always has.
+  const [pendingAssetAttestation, setPendingAssetAttestation] = useState<{
+    url: string;
+    // 'compose' — a photo attached directly in the message box (the paperclip icon),
+    // not through the choose-card — sits on `media` once answered, rather than
+    // continuing the plan immediately (the user hasn't necessarily finished typing).
+    forChoice: 'upload' | 'recomposite' | 'compose';
+    label?: string;
+  } | null>(null);
   // Multi-Plan Audience Variants — set while waiting for the user to pick an image
   // source for one or more selected variants (continueWithVariants asks first,
   // same as the normal flow, instead of silently auto-generating). Consumed and
@@ -191,6 +296,10 @@ export default function CampaignsPage({
   // subsequent call now carries the choice, exactly like briefSoFar carries the brief,
   // and it's cleared in the same places briefSoFar is.
   const chosenVariantRef = useRef<{ variant: PlanVariant; variantGroupId: string } | null>(null);
+  // The client's OWN audience ("none of these — describe your own"), kept for the whole
+  // campaign for exactly the same reason chosenVariantRef is: it IS the choice, so every
+  // later call has to carry it or the backend re-offers the picker it already answered.
+  const ownAudienceRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -301,6 +410,7 @@ export default function CampaignsPage({
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
+    ownAudienceRef.current = null;
     setMessages([makeGreeting()]);
     let rebuiltBrief = '';
     try {
@@ -345,6 +455,7 @@ export default function CampaignsPage({
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
+    ownAudienceRef.current = null;
     setMessages([makeGreeting()]);
     try {
       const t = await CampaignService.createThread();
@@ -365,6 +476,7 @@ export default function CampaignsPage({
       setMedia(null);
       setBriefSoFar('');
       chosenVariantRef.current = null;
+      ownAudienceRef.current = null;
       setMessages([makeGreeting()]);
       await send(seed_message);
     } catch (e) {
@@ -385,6 +497,7 @@ export default function CampaignsPage({
         lastCreativeRef.current = '';
         creativeChoiceRef.current = null;
         chosenVariantRef.current = null;
+        ownAudienceRef.current = null;
         setMessages([makeGreeting()]);
       }
     } catch (e) {
@@ -392,35 +505,59 @@ export default function CampaignsPage({
     }
   };
 
-  // Returning from a Squad checkout: the callback lands here with ?reference=<ref>.
-  // Verify it (credits the wallet idempotently), tell the user, and jump to the
-  // wallet tab so they see the new balance. Runs once on mount.
+  // Settling a Squad checkout.
+  //
+  // Two ways in, and the second is the one that matters: Squad's callback returns here
+  // with ?reference=<ref> on a clean payment, but when their own checkout breaks the
+  // user never gets back here at all. Live-confirmed 2026-09-09: Squad's ValidateOTP
+  // returned 504 on a card payment that had ALREADY succeeded — charged, receipted,
+  // webhook delivered — and their popup showed "Payment Failed". The customer saw a
+  // failure for money they had genuinely paid, and nothing on our side ever ran.
+  //
+  // So the reference is persisted before the redirect and settled from storage on the
+  // next load too. We own the reference, so we can always ask Squad the truth rather
+  // than relaying their popup's wrong answer.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const reference = params.get('reference');
+    const fromUrl = params.get('reference');
+    const pending = readPendingTopup();
+    const reference = fromUrl || pending?.reference;
     if (!reference) return;
-    // Strip the ref from the URL so a refresh doesn't re-verify.
-    window.history.replaceState({}, document.title, window.location.pathname + '?tab=campaigns');
+    if (fromUrl) {
+      // Strip the ref from the URL so a refresh doesn't re-verify.
+      window.history.replaceState({}, document.title, window.location.pathname + '?tab=campaigns');
+    }
     (async () => {
-      try {
-        const res = await CampaignService.verifyTopup(reference);
-        if (res.status === 'completed') {
-          ToastService.showToast('Wallet topped up successfully.', ToastTypeEnum.Success);
-        } else {
-          ToastService.showToast(
-            "We couldn't confirm that payment. If you were charged, it'll reflect shortly.",
-            ToastTypeEnum.Error
-          );
+      // A payment can be genuinely in flight for a few seconds (3DS, or Squad's
+      // webhook still landing), so an inconclusive answer is retried rather than
+      // reported as a failure.
+      let status = '';
+      for (const waitMs of [0, 2000, 4000, 6000]) {
+        if (waitMs) await new Promise((r) => setTimeout(r, waitMs));
+        try {
+          status = (await CampaignService.verifyTopup(reference)).status;
+        } catch {
+          status = 'pending';
         }
-      } catch {
-        ToastService.showToast(
-          "We couldn't confirm that payment. If you were charged, it'll reflect shortly.",
-          ToastTypeEnum.Error
-        );
-      } finally {
-        setTab('wallet');
-        loadWallet();
+        if (status === 'completed' || status === 'failed') break;
       }
+
+      if (status === 'completed') {
+        clearPendingTopup();
+        ToastService.showToast('Wallet topped up successfully.', ToastTypeEnum.Success);
+      } else if (status === 'failed') {
+        clearPendingTopup();
+        ToastService.showToast('That payment did not go through — you were not charged.', ToastTypeEnum.Error);
+      } else {
+        // Still unknown. KEEP the pending reference so the next visit settles it,
+        // and never tell someone their payment failed when we don't know that.
+        ToastService.showToast(
+          "We're still confirming that payment. If you were charged it'll appear here shortly — don't pay again.",
+          ToastTypeEnum.Warning
+        );
+      }
+      if (fromUrl) setTab('wallet');
+      loadWallet();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -452,8 +589,16 @@ export default function CampaignsPage({
               variant_group_id: chosenVariantRef.current.variantGroupId,
             }
           : {}),
+        // Same reason as the variant above: the client's own audience IS their answer
+        // to the picker, so it has to ride along or the backend re-asks.
+        ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
         ...(attachedMedia?.source === 'upload'
-          ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+            }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
             : // No media attached. If a plan already produced an image, this is a refinement →
@@ -504,8 +649,14 @@ export default function CampaignsPage({
         message: briefSoFar || clean,
         whatsapp_number: clean,
         thread_id: threadId,
+        ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
         ...(attachedMedia?.source === 'upload'
-          ? { creative_source: 'upload', reference_image_url: attachedMedia.url, is_video: attachedMedia.isVideo }
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+            }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
             : {}),
@@ -545,6 +696,7 @@ export default function CampaignsPage({
       const result = await CampaignService.planFromMessage({
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
+        ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
@@ -571,18 +723,14 @@ export default function CampaignsPage({
   // single call. Live-caught 2026-08-04: continueWithVariants used to skip this
   // ask entirely and silently auto-generate, dropping the upload/draft choice.
   const continueWithSource = async (
-    choice:
-      | { creative_source: 'generate' }
-      | { creative_source: 'upload'; reference_image_url: string; is_video: boolean }
-      | { creative_source: 'draft'; draft_id: string }
-      // Recomposite (creative brief spec §7.2): the real product photo, background
-      // regenerated around it via the same content-engine pipeline organic posts
-      // use — image-only, no is_video (the backend has no video recomposite path).
-      | { creative_source: 'recomposite'; reference_image_url: string },
+    choice: ContinueChoice,
     // Explicit override for callers that just rebuilt the brief via openThread's
     // return value and can't wait for that setBriefSoFar to flush into a re-render —
     // reading the briefSoFar closure here would still see its pre-openThread value.
-    briefOverride?: string
+    briefOverride?: string,
+    // The user's pick from a previous result's "change" list (AdFormatChip) — replays
+    // the exact same choice with a specific format forced instead of best-ranked.
+    formatOverride?: string
   ) => {
     const brief = briefOverride ?? briefSoFar;
     if (busy || !brief) return;
@@ -591,15 +739,38 @@ export default function CampaignsPage({
     pendingVariantsRef.current = null;
     setBusy(true);
     try {
+      // Pre-generation suggestion (mirrors JaneVideoChat.tsx's plan.style): computed
+      // alongside generation, not blocking it — a failure here just means this
+      // result's Style row won't offer "change", generation proceeds regardless.
+      const isVideo = choice.creative_source === 'upload' && choice.is_video;
+      const assetAttestation = 'asset_attestation' in choice ? choice.asset_attestation : undefined;
+      const adSuggestion = await CampaignService.suggestAdFormat({
+        asset_attestation: assetAttestation,
+        recomposite: choice.creative_source === 'recomposite',
+        is_video: isVideo,
+      }).catch(() => undefined);
+
       const variants = pendingVariants ? pendingVariants.variants : [null];
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
           message: brief,
           thread_id: activeThreadRef.current ?? undefined,
           ...(variant ? { selected_plan_variant: variant, variant_group_id: pendingVariants!.variantGroupId } : {}),
+          // Live-reported loop: without this, answering the image-source question threw
+          // away a typed audience, so the backend regenerated the whole variant set and
+          // put the plan picker back up — the same failure the destination answer had.
+          ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
           ...choice,
+          ...(formatOverride ? { vsg01_format_id: formatOverride } : {}),
         });
-        const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+        const resultMsg: ChatMsg = {
+          id: uid(),
+          role: 'jane',
+          kind: 'result',
+          result,
+          adSuggestion,
+          sourceChoice: choice,
+        };
         setMessages((m) => [...m, resultMsg]);
         saveMsg(resultMsg);
         // Remember the produced image so later typed refinements reuse it (no regen/credit).
@@ -642,6 +813,9 @@ export default function CampaignsPage({
               variant_group_id: chosenVariantRef.current.variantGroupId,
             }
           : {}),
+        // Same reason as the variant above: the client's own audience IS their answer
+        // to the picker, so it has to ride along or the backend re-asks.
+        ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
         ...answer,
       } as Parameters<typeof CampaignService.planFromMessage>[0]);
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
@@ -666,6 +840,8 @@ export default function CampaignsPage({
   const continueWithVariants = async (variants: PlanVariant[], variantGroupId: string) => {
     if (busy || !briefSoFar || variants.length === 0) return;
     pendingVariantsRef.current = { variants, variantGroupId };
+    // Picking a card and typing an audience are competing answers to one question.
+    ownAudienceRef.current = null;
     // Remember the choice for the REST of the campaign, so a typed reply after this
     // point never drops back to "pick an audience" (see chosenVariantRef above).
     chosenVariantRef.current = { variant: variants[0], variantGroupId };
@@ -699,6 +875,40 @@ export default function CampaignsPage({
     }
   };
 
+  // "None of these — describe your own audience": the client knows their customers
+  // better than any generated variant does. Same shape as continueWithVariants, but the
+  // choice is their sentence rather than a card — the backend treats it as having
+  // chosen (so the picker isn't re-presented) and it outranks both the variants and the
+  // brand profile for the Meta targeting AND the ad's own copy.
+  const continueWithOwnAudience = async (text: string) => {
+    const audience = text.trim();
+    if (busy || !briefSoFar || !audience) return;
+    ownAudienceRef.current = audience;
+    // No variant was chosen, so nothing should keep claiming one was.
+    chosenVariantRef.current = null;
+    pendingVariantsRef.current = null;
+    setBusy(true);
+    try {
+      const result = await CampaignService.planFromMessage({
+        message: briefSoFar,
+        thread_id: activeThreadRef.current ?? undefined,
+        creative_source: 'ask',
+        target_audience: audience,
+      });
+      const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+      setMessages((m) => [...m, resultMsg]);
+      saveMsg(resultMsg);
+    } catch (e) {
+      ownAudienceRef.current = null;
+      const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
+      const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
+      setMessages((m) => [...m, errMsg]);
+      saveMsg(errMsg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -717,15 +927,23 @@ export default function CampaignsPage({
           setUploadError('Recompositing works with a photo, not a video — please choose an image.');
           return;
         }
-        await continueWithSource({ creative_source: 'recomposite', reference_image_url: url });
+        setPendingAssetAttestation({ url, forChoice: 'recomposite' });
       } else if (is_video && onRequestVideoPolish) {
         // Ask before committing to this video — Video Polish (upscale/stabilise/
         // captions) is one redirect away, and most raw phone footage benefits from
         // it. "Use as-is" below falls through to exactly what used to happen here.
         setPendingVideoQualityCheck({ file, url, forChoice: forChoice === 'upload' ? 'upload' : false });
+      } else if (forChoice === 'upload' && !is_video) {
+        // Came from the choose card with a real photo — ask what it actually shows
+        // before continuing (a video skips straight through, same as before).
+        setPendingAssetAttestation({ url, forChoice: 'upload' });
       } else if (forChoice === 'upload') {
-        // Came from the choose card — go straight on with the plan using this upload.
         await continueWithSource({ creative_source: 'upload', reference_image_url: url, is_video });
+      } else if (!is_video) {
+        // Attached directly in the composer (the paperclip icon), not through the
+        // choose-card — ask what it actually shows before it sits on the message
+        // as media, same as every other real-photo entry point in this flow.
+        setPendingAssetAttestation({ url, forChoice: 'compose', label: file.name });
       } else {
         setMedia({ source: 'upload', url, isVideo: is_video, label: file.name });
       }
@@ -733,6 +951,39 @@ export default function CampaignsPage({
       setUploadError('Upload failed, please try again.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Answer the "what does this photo actually show?" prompt — value is undefined
+  // for "Skip", which proceeds exactly as this flow always has (no format-selection
+  // attempt on the backend, the photo is just used as-is).
+  const resolveAssetAttestation = async (value?: 'product_photo' | 'real_customer_photo') => {
+    const pending = pendingAssetAttestation;
+    if (!pending) return;
+    setPendingAssetAttestation(null);
+    if (pending.forChoice === 'recomposite') {
+      await continueWithSource({
+        creative_source: 'recomposite',
+        reference_image_url: pending.url,
+        asset_attestation: value,
+      });
+    } else if (pending.forChoice === 'upload') {
+      await continueWithSource({
+        creative_source: 'upload',
+        reference_image_url: pending.url,
+        is_video: false,
+        asset_attestation: value,
+      });
+    } else {
+      // Composer attach — the photo sits on the message as media; the user keeps
+      // typing/sends whenever they're ready, same as the pre-existing attach flow.
+      setMedia({
+        source: 'upload',
+        url: pending.url,
+        isVideo: false,
+        label: pending.label ?? 'Photo',
+        assetAttestation: value,
+      });
     }
   };
 
@@ -974,6 +1225,13 @@ export default function CampaignsPage({
                   ) : (
                     <ResultCard
                       result={m.result}
+                      adFormats={adFormats}
+                      adSuggestion={m.adSuggestion}
+                      onChangeFormat={
+                        m.sourceChoice
+                          ? (formatId) => continueWithSource(m.sourceChoice!, undefined, formatId)
+                          : undefined
+                      }
                       // A question Jane already moved past is history: readable, but its
                       // buttons must not fire. Live-reported: a rejected link left TWO
                       // destination pickers on screen, the stale one still holding the bad
@@ -988,6 +1246,7 @@ export default function CampaignsPage({
                         lastCreativeRef.current = '';
                         creativeChoiceRef.current = null;
                         chosenVariantRef.current = null;
+                        ownAudienceRef.current = null;
                         loadCampaigns();
                         refreshThreads();
                       }}
@@ -1006,6 +1265,7 @@ export default function CampaignsPage({
                       }}
                       onChooseDraft={(draftId) => continueWithSource({ creative_source: 'draft', draft_id: draftId })}
                       onChooseVariants={(variants, groupId) => continueWithVariants(variants, groupId)}
+                      onChooseOwnAudience={(audience) => continueWithOwnAudience(audience)}
                       onChooseDestination={continueWithDestination}
                     />
                   )}
@@ -1060,6 +1320,61 @@ export default function CampaignsPage({
                       }}
                     >
                       Use as-is
+                    </button>
+                  </div>
+                </div>
+              )}
+              {pendingAssetAttestation && (
+                <div>
+                  <JaneBubble>What does this photo actually show?</JaneBubble>
+                  <div
+                    className="camp-indent"
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}
+                  >
+                    <button
+                      onClick={() => resolveAssetAttestation('product_photo')}
+                      style={{
+                        background: `linear-gradient(135deg,${PINK},#8E1545)`,
+                        border: 'none',
+                        color: '#fff',
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      📦 My real product
+                    </button>
+                    <button
+                      onClick={() => resolveAssetAttestation('real_customer_photo')}
+                      style={{
+                        background: `linear-gradient(135deg,${PINK},#8E1545)`,
+                        border: 'none',
+                        color: '#fff',
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🙋 A real customer (I have their permission)
+                    </button>
+                    <button
+                      onClick={() => resolveAssetAttestation(undefined)}
+                      style={{
+                        background: '#fff',
+                        border: `1.5px solid ${PINK}`,
+                        color: PINK,
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Skip
                     </button>
                   </div>
                 </div>
@@ -1946,9 +2261,11 @@ function ChooseCreativeSource({
 function PlanVariantCards({
   variantSet,
   onConfirm,
+  onConfirmOwnAudience,
 }: {
   variantSet: PlanVariantSet;
   onConfirm: (variants: PlanVariant[]) => void;
+  onConfirmOwnAudience: (audience: string) => void;
 }) {
   // Every variant's full reasoning (why it could work, its trade-off, creative fit,
   // budget) is shown from the start, not just the recommended one — the whole point
@@ -1961,6 +2278,10 @@ function PlanVariantCards({
   const [selectedRanks, setSelectedRanks] = useState<number[]>([]);
   // Guards against a duplicate build from a second tap (see the Build button below).
   const [confirmed, setConfirmed] = useState(false);
+  // "None of these" — the client's own audience, in their words. Picking a card and
+  // typing an audience are mutually exclusive answers to the same question, so each
+  // clears the other rather than leaving two conflicting choices on screen.
+  const [ownAudience, setOwnAudience] = useState('');
 
   const toggleExpanded = (rank: number) => {
     setExpandedRanks((prev) => {
@@ -1973,6 +2294,7 @@ function PlanVariantCards({
   const maxSelectable = variantSet.max_selectable;
 
   const toggleSelect = (rank: number) => {
+    setOwnAudience(''); // a card and a typed audience are competing answers
     setSelectedRanks((prev) => {
       if (prev.includes(rank)) return prev.filter((r) => r !== rank);
       if (maxSelectable === 1) return [rank];
@@ -2095,6 +2417,69 @@ function PlanVariantCards({
           {selectedRanks.length === 1 ? '' : 's'}.
         </p>
       )}
+      {/* None of these — the business knows its own customers better than any generated
+          variant does, so there has to be a way to say so without fighting the picker. */}
+      <div
+        style={{
+          margin: '14px 0 0 40px',
+          maxWidth: 520,
+          borderTop: '1px solid #eee',
+          paddingTop: 12,
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.3, color: '#888', textTransform: 'uppercase' }}>
+          None of these
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#333', margin: '4px 0 8px' }}>
+          Describe your own audience
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            value={ownAudience}
+            onChange={(e) => {
+              setOwnAudience(e.target.value);
+              if (e.target.value.trim()) setSelectedRanks([]);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && ownAudience.trim() && !confirmed) {
+                setConfirmed(true);
+                onConfirmOwnAudience(ownAudience.trim());
+              }
+            }}
+            placeholder="e.g. gym owners in Lekki aged 25-40"
+            aria-label="Describe your own audience"
+            style={{
+              flex: 1,
+              minWidth: 240,
+              border: '1.5px solid #e0dcd9',
+              borderRadius: 20,
+              padding: '8px 14px',
+              fontSize: 13,
+              outline: 'none',
+            }}
+          />
+          <button
+            onClick={() => {
+              if (confirmed || !ownAudience.trim()) return;
+              setConfirmed(true);
+              onConfirmOwnAudience(ownAudience.trim());
+            }}
+            disabled={!ownAudience.trim() || confirmed}
+            style={{
+              border: 'none',
+              borderRadius: 20,
+              padding: '8px 18px',
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: ownAudience.trim() && !confirmed ? 'pointer' : 'default',
+              background: ownAudience.trim() && !confirmed ? PINK : '#eee',
+              color: ownAudience.trim() && !confirmed ? '#fff' : '#999',
+            }}
+          >
+            Use this instead
+          </button>
+        </div>
+      </div>
       <button
         onClick={() => {
           if (confirmed) return;
@@ -2468,6 +2853,9 @@ function PromptCard({ stale, children }: { stale?: boolean; children: React.Reac
 
 function ResultCard({
   result,
+  adFormats,
+  adSuggestion,
+  onChangeFormat,
   onResultChange,
   onLaunched,
   onQuickReply,
@@ -2479,10 +2867,14 @@ function ResultCard({
   onChooseRecomposite,
   onChooseDraft,
   onChooseVariants,
+  onChooseOwnAudience,
   onChooseDestination,
   stale,
 }: {
   result: LaunchFromMessageResult;
+  adFormats: AdFormat[];
+  adSuggestion?: { suggested: AdFormat | null; alternatives: AdFormat[] };
+  onChangeFormat?: (formatId: string) => void;
   onResultChange: (result: LaunchFromMessageResult) => void;
   onLaunched: () => void;
   onQuickReply: (text: string) => void;
@@ -2494,6 +2886,7 @@ function ResultCard({
   onChooseRecomposite: () => void;
   onChooseDraft: (draftId: string) => void;
   onChooseVariants: (variants: PlanVariant[], variantGroupId: string) => void;
+  onChooseOwnAudience: (audience: string) => void;
   onChooseDestination: (answer: {
     destination_type: string;
     destination_value: string;
@@ -2561,6 +2954,7 @@ function ResultCard({
         <PlanVariantCards
           variantSet={result.plan_variants}
           onConfirm={(variants) => onChooseVariants(variants, groupId)}
+          onConfirmOwnAudience={onChooseOwnAudience}
         />
       );
     }
@@ -2583,7 +2977,9 @@ function ResultCard({
     }
     if (result.stage === 'advise') {
       return (
-        <JaneBubble>{result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}</JaneBubble>
+        <JaneBubble>
+          {result.advice?.reason || "That budget's a little low to run well, want to bump it up?"}
+        </JaneBubble>
       );
     }
     if (result.stage === 'need_facebook_page') {
@@ -2678,6 +3074,8 @@ function ResultCard({
     setLaunching(true);
     try {
       const launched = await CampaignService.launchPlan(result.plan_id);
+      // Launching debits the ad wallet in full, so the header badge is now stale.
+      window.dispatchEvent(new Event('ad-wallet-changed'));
       onResultChange(launched);
       onLaunched();
     } catch (e) {
@@ -2708,6 +3106,7 @@ function ResultCard({
       setFixingWhatsapp(false);
       setWhatsappFix('');
       const launched = await CampaignService.launchPlan(result.plan_id!);
+      window.dispatchEvent(new Event('ad-wallet-changed'));
       onResultChange(launched);
       onLaunched();
     } catch (e) {
@@ -2760,6 +3159,40 @@ function ResultCard({
         <div style={{ padding: 16 }}>
           <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 15, color: '#1a0a12' }}>{creative?.headline}</p>
           <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>{creative?.primary_text}</p>
+          {creative?.vsg01_format_id &&
+            (() => {
+              const candidates = adSuggestion
+                ? [adSuggestion.suggested, ...adSuggestion.alternatives].filter((f): f is AdFormat => f !== null)
+                : [];
+              const usedFormat =
+                candidates.find((f) => f.format_id === creative.vsg01_format_id) ??
+                adFormats.find((f) => f.format_id === creative.vsg01_format_id);
+              if (!usedFormat) return null;
+              const alternatives = candidates.filter((f) => f.format_id !== creative.vsg01_format_id);
+              return (
+                <>
+                  <AdFormatChip format={usedFormat} alternatives={alternatives} onSelect={onChangeFormat} />
+                  <button
+                    onClick={() => {
+                      window.location.href = '/workspace?tab=playbook';
+                    }}
+                    style={{
+                      display: 'block',
+                      marginTop: 6,
+                      background: 'none',
+                      border: 'none',
+                      color: '#888',
+                      fontSize: 11,
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    See all visual styles
+                  </button>
+                </>
+              );
+            })()}
           {plan?.explanation && (
             <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#888', fontStyle: 'italic', lineHeight: 1.5 }}>
               &ldquo;{plan.explanation}&rdquo;
@@ -2804,9 +3237,13 @@ function ResultCard({
           {result.summary && <CampaignReview summary={result.summary} />}
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
-              {wallet && (wallet.service_fee_ngn ?? 0) > 0 && (
+              {/* One number: what actually leaves the wallet, which IS the budget the
+                  client stated. URI's fee is taken out of that budget before the
+                  campaign is planned, so there is nothing to add on and nothing to
+                  itemise. This used to read "X ad spend + Y service fee = Z from your
+                  wallet", which asked them to fund more than the figure they gave. */}
+              {wallet && (
                 <p style={{ margin: '0 0 8px', fontSize: 12, color: '#777' }}>
-                  {naira(wallet.budget_ngn)} ad spend + {naira(wallet.service_fee_ngn)} service fee ={' '}
                   <strong>{naira(wallet.total_due_ngn ?? wallet.budget_ngn)}</strong> from your wallet
                 </p>
               )}
@@ -2960,10 +3397,14 @@ function WalletTab({
     setError('');
     setFunding(true);
     try {
-      const { checkout_url } = await CampaignService.fundWallet(amount);
+      const { checkout_url, reference } = await CampaignService.fundWallet(amount);
       if (checkout_url) {
-        // Hand off to Squad's hosted checkout; on payment it returns to
-        // ?tab=campaigns&reference=… which the page verifies on mount.
+        // Remember the reference BEFORE leaving. Squad's checkout can charge the card
+        // and still show its own failure screen (their ValidateOTP 504'd on a real,
+        // successful payment on 2026-09-09), in which case the customer closes it and
+        // never returns with ?reference= — this is the only record that lets us settle
+        // it from the truth instead of from their popup.
+        writePendingTopup(reference, amount);
         window.location.href = checkout_url;
       } else {
         setError('Could not start the payment. Please try again.');
@@ -3444,18 +3885,45 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
           {c.city && <Metric label="Area" value={c.city} />}
         </div>
-        {/* Where this campaign's leads land — so there's never "no way to tell where the
-            conversations went." Legacy campaigns (no number) routed to a shared inbox. */}
-        {c.whatsapp_number ? (
-          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#1a7f37' }}>
-            💬 Leads message <strong>+{c.whatsapp_number}</strong> on WhatsApp — open that chat to see them
-          </p>
-        ) : (
-          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#a15c00' }}>
-            ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number. Duplicate it from a chat
-            thread to relaunch with your number.
-          </p>
-        )}
+        {/* Where this campaign's taps land — so there's never "no way to tell where the
+            conversations went". Keyed off the campaign's REAL destination, not off
+            whatsapp_number: a website/Instagram/custom ad legitimately has no number,
+            and treating that as missing showed "leads went to a shared WhatsApp inbox"
+            on ads that never touched WhatsApp. Live-reported. Only a WhatsApp campaign
+            with no number on file is actually the legacy shared-inbox case. */}
+        {(() => {
+          const dest = c.destination_type || 'whatsapp';
+          const good = { margin: '8px 0 0', fontSize: 12, color: '#1a7f37' } as React.CSSProperties;
+          if (dest === 'whatsapp') {
+            return c.whatsapp_number ? (
+              <p style={good}>
+                💬 Leads message <strong>+{c.whatsapp_number}</strong> on WhatsApp — open that chat to see them
+              </p>
+            ) : (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#a15c00' }}>
+                ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number. Duplicate it from a chat
+                thread to relaunch with your number.
+              </p>
+            );
+          }
+          const label =
+            dest === 'website'
+              ? '🌐 Taps open your website'
+              : dest === 'instagram_dm'
+                ? '📩 Taps land in your Instagram DMs'
+                : '🔗 Taps open your link';
+          return (
+            <p style={good}>
+              {label}
+              {c.destination_link ? (
+                <>
+                  {' '}
+                  — <strong>{c.destination_link}</strong>
+                </>
+              ) : null}
+            </p>
+          );
+        })()}
         {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
       </div>
       {(canToggle || canDelete) && (

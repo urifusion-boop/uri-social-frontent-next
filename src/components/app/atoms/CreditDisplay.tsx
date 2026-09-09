@@ -69,7 +69,7 @@ const CreditDisplay = () => {
       leaveTouchDelay={3000}
     >
       <Box
-        onClick={() => router.push('/pricing')}
+        onClick={() => router.push('/pricing/')}
         sx={{
           display: 'flex',
           alignItems: 'center',

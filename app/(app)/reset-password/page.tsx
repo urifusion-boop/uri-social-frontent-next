@@ -107,7 +107,7 @@ function ResetPasswordContent() {
       posthog.capture('password_reset_completed', { email });
 
       setTimeout(() => {
-        router.push('/login');
+        router.push('/login/');
       }, 2000);
     } catch (err: unknown) {
       const e = err as {
@@ -362,7 +362,7 @@ function ResetPasswordContent() {
               color="#CD1B78"
               fontWeight={600}
               sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-              onClick={() => router.push('/login')}
+              onClick={() => router.push('/login/')}
             >
               Back to Sign In
             </Typography>

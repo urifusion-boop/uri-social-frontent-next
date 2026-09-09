@@ -38,6 +38,14 @@ export interface PlatformStatus {
   // (none/content_only/ads_no_whatsapp/ready/expired/no_page), so Connected
   // Accounts can show a state-specific reason instead of just linked/not.
   meta_connection_state?: string;
+  // facebook_ads only — whether META says the Page has WhatsApp connected, which is
+  // NOT the same as us having an ads number on file. Saving a number records where
+  // leads land; linking it to the Page is a manual OTP step in Meta with no API, and
+  // without it an ad can't receive messages or report a conversation. undefined/null
+  // means Meta couldn't tell us, and must not be shown as a problem.
+  whatsapp_linked_to_page?: boolean | null;
+  // Deep link to that Page's WhatsApp settings, so linking is one click.
+  whatsapp_link_url?: string;
   // google_ads only — mirrors meta_connection_state's role, but Google's state
   // machine has an extra step Meta's doesn't (needs_account_selection).
   google_connection_state?: string;

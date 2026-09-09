@@ -89,7 +89,7 @@ function VerifyEmailContent() {
       // Redirect to onboarding after verification
       setTimeout(async () => {
         const onboardingDone = await BrandProfileService.isOnboardingDone();
-        router.push(onboardingDone ? '/workspace' : '/social-media/brand-setup');
+        router.push(onboardingDone ? '/workspace/' : '/social-media/brand-setup/');
       }, 1500);
     } catch (err: unknown) {
       const e = err as {
@@ -371,7 +371,7 @@ function VerifyEmailContent() {
               color="#CD1B78"
               fontWeight={600}
               sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-              onClick={() => router.push('/login')}
+              onClick={() => router.push('/login/')}
             >
               Back to Sign In
             </Typography>

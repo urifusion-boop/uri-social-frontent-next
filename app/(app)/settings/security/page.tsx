@@ -65,7 +65,7 @@ export default function SecurityPage() {
       setLoading(false);
 
       setTimeout(() => {
-        router.push('/settings');
+        router.push('/settings/');
       }, 2000);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { detail?: string } } };
@@ -81,7 +81,7 @@ export default function SecurityPage() {
           {/* Header */}
           <div className="mb-8">
             <button
-              onClick={() => router.push('/settings')}
+              onClick={() => router.push('/settings/')}
               className="text-sm text-gray-600 hover:text-[#CD1B78] mb-4 flex items-center gap-2"
             >
               ← Back to Settings

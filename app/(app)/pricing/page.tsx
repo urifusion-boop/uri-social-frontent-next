@@ -53,7 +53,7 @@ export default function PricingPage() {
 
   const handleSelectPlan = async (tierId: string) => {
     if (!isAuthenticated) {
-      router.push('/login?redirect=/pricing');
+      router.push('/login/?redirect=/pricing/');
       return;
     }
 
@@ -82,7 +82,7 @@ export default function PricingPage() {
 
   const handleBuyCustomCredits = async () => {
     if (!isAuthenticated) {
-      router.push('/login?redirect=/pricing');
+      router.push('/login/?redirect=/pricing/');
       return;
     }
     if (customQty < CUSTOM_CREDIT_MIN_QUANTITY || buyingCustomCredits) return;
@@ -470,7 +470,7 @@ export default function PricingPage() {
         {/* Back to Dashboard */}
         {isAuthenticated && (
           <div className="text-center mt-12">
-            <Button onClick={() => router.push('/social-media')} variant="outline" className="px-8">
+            <Button onClick={() => router.push('/social-media/')} variant="outline" className="px-8">
               Back to Dashboard
             </Button>
           </div>

@@ -72,7 +72,7 @@ export default function ConnectionExpiredModal() {
       // shouldn't trap the user on a stale modal.
     }
     setPending(null);
-    router.push('/workspace?tab=connections');
+    router.push('/workspace/?tab=connections');
   }, [router]);
 
   // Countdown ticks every second; hitting zero triggers the same reconnect

@@ -160,6 +160,12 @@ export interface LaunchFromMessageResult {
     primary_text: string;
     cta: string;
     is_video?: boolean;
+    // Set only when a VSG-01 corpus format actually rendered this creative
+    // (JANE_ADS_VSG01_ENABLED, currently off by default) — matches an entry's
+    // format_id from CampaignService.getAdFormats(). Empty/absent means a
+    // plain generic generation, no format was used.
+    vsg01_format_id?: string;
+    vsg01_format_attributes?: Record<string, unknown>;
   };
   whatsapp_number?: string; // where ad leads route (wa.me/<this>); shown on the plan card
   destination_type?: string; // whatsapp | website | instagram_dm | custom
@@ -169,7 +175,10 @@ export interface LaunchFromMessageResult {
   wallet?: {
     balance_ngn: number;
     budget_ngn: number; // the ad spend that goes to Meta
-    service_fee_ngn?: number; // URI's markup
+    // service_fee_ngn is gone: URI's fee now comes OUT of the budget the client
+    // states rather than being added on top, so total_due_ngn === that budget and
+    // there is no separate fee to show. Kept optional for older cached payloads.
+    service_fee_ngn?: number;
     total_due_ngn?: number; // budget + fee — what the wallet must cover
     sufficient: boolean;
   };
@@ -179,6 +188,25 @@ export interface LaunchFromMessageResult {
     note: string;
     ads_manager_url: string;
   };
+}
+
+// VSG-01-PROMPTS v2's ad format library, served from GET /jane-ads/ad-formats —
+// read directly off each format's own AdFormatDef + corpus record on the backend,
+// not a hand-duplicated copy (see WorkspaceDashboard's organic Visual Style section,
+// which does duplicate its 147-entry library into styleLibrary.ts — deliberately not
+// repeating that here since this list is small and already has a real endpoint).
+export interface AdFormat {
+  format_id: string;
+  name: string;
+  claim: string; // one-line "use this when…" — the gallery card's front face
+  mechanism: string; // the "see more" detail
+  business_types: string[];
+  modification_required: string;
+  brand_mark: 'required' | 'optional' | 'prohibited';
+  asset_source: string | null;
+  layers_used: string | null;
+  requires: string[];
+  status: 'live' | 'built' | 'planned';
 }
 
 export interface PlanAskResult {
@@ -211,10 +239,14 @@ export interface CampaignRow {
   headline: string;
   primary_text: string;
   image_url: string;
-  budget_ngn: number | null;
+  budget_ngn: number | null; // the budget the CLIENT typed — the fee is taken out of it
+  ad_spend_ngn?: number | null; // what actually went to Meta (budget minus URI's fee)
   goal: string;
   city: string;
-  whatsapp_number?: string; // where this campaign's leads land; empty for legacy campaigns
+  whatsapp_number?: string; // where WhatsApp leads land; empty for every non-WhatsApp
+  // destination too, so it alone can't tell a legacy campaign from a website one
+  destination_type?: string; // whatsapp | website | instagram_dm | custom
+  destination_link?: string; // the actual link the ad carries
   status: string;
   created_at: string | null;
   ads_manager_url: string;
@@ -339,6 +371,13 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
+    // VSG-01 v3 (§1.2/§6) — what reference_image_url actually shows, per the user's own
+    // confirmation collected right after upload/recomposite. Undefined ("Skip") means
+    // exactly what it always meant: use the photo as-is, no format-selection attempt.
+    asset_attestation?: 'product_photo' | 'real_customer_photo';
+    // The user's own pick from suggestAdFormat()'s alternatives (the "change" link
+    // on the Style row). Undefined means "use whatever ranks best" (unchanged default).
+    vsg01_format_id?: string;
     reuse_image_url?: string; // refinement — keep the prior plan's image (no regen/credit)
     whatsapp_number?: string; // where leads route; sent when answering need_whatsapp
     thread_id?: string; // which campaign thread this plan belongs to (Tier E)
@@ -353,6 +392,10 @@ export class CampaignService {
     destination_type?: 'ask' | 'whatsapp' | 'website' | 'instagram_dm' | 'custom';
     destination_value?: string;
     destination_cta?: string;
+    // The client's OWN audience, in their words — the "none of these" answer to the
+    // plan picker. Outranks selected_plan_variant and the brand profile, and counts
+    // as having chosen, so the picker isn't presented again.
+    target_audience?: string;
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
@@ -360,7 +403,12 @@ export class CampaignService {
 
   /** Plan-before-launch, step 2 — the only call that actually creates a real (paused) Meta campaign. */
   static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
-    const res = await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/launch`, {}, { timeout: 120000 });
+    // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
+    // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was
+    // not always enough: the request timed out client-side and showed a network error
+    // while the server went on to publish the campaign successfully — so the user was
+    // told it failed when it hadn't. Live-reported.
+    const res = await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/launch`, {}, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
   }
 
@@ -398,6 +446,27 @@ export class CampaignService {
   static async listDrafts(limit = 10): Promise<{ drafts: DraftSummary[] }> {
     const res = await UriHttpClient.getClient().get('/jane-ads/creative/drafts', { params: { limit } });
     return res.data as { drafts: DraftSummary[] };
+  }
+
+  /** The Visual Styles — Ads library (Brand Playbook section + the "Style: {name}"
+   *  chip on a generated ad). Not brand-scoped — same list for everyone. */
+  static async getAdFormats(): Promise<{ formats: AdFormat[] }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/ad-formats');
+    return res.data as { formats: AdFormat[] };
+  }
+
+  /** The pre-generation "Style — {name} · change" moment — the same ranking a real
+   *  generation call would use, computed before generating so it can be shown and
+   *  overridden (pass the pick back as vsg01_format_id on planFromMessage/
+   *  continueWithSource). suggested/alternatives are both empty when nothing is
+   *  eligible (a plain video, no eligible format, or VSG-01 has nothing approved). */
+  static async suggestAdFormat(params: {
+    asset_attestation?: 'product_photo' | 'real_customer_photo';
+    recomposite?: boolean;
+    is_video?: boolean;
+  }): Promise<{ suggested: AdFormat | null; alternatives: AdFormat[] }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/creative/suggest-format', params);
+    return res.data as { suggested: AdFormat | null; alternatives: AdFormat[] };
   }
 
   /** Turn a campaign on (starts spending its budget) or off. */

@@ -18,7 +18,7 @@ const OutOfCreditsModal = ({ open, onClose }: OutOfCreditsModalProps) => {
 
   const handleUpgrade = () => {
     onClose();
-    router.push('/pricing');
+    router.push('/pricing/');
   };
 
   return (

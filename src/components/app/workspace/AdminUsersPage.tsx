@@ -162,7 +162,7 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
     // isAdminUser defaults to false while it's in flight, and redirecting on
     // that transient false would kick out a real admin on every page refresh.
     if (!isAdminStatusPending && !isAdminUser) {
-      router.push('/workspace');
+      router.push('/workspace/');
     }
   }, [isAdminUser, isAdminStatusPending, router]);
 

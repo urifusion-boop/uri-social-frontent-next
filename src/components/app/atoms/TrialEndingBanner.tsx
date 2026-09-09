@@ -45,7 +45,7 @@ const TrialEndingBanner = ({ hoursRemaining, creditsRemaining, onDismiss }: Tria
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Button
           size="small"
-          onClick={() => router.push('/pricing')}
+          onClick={() => router.push('/pricing/')}
           sx={{
             textTransform: 'none',
             fontSize: '12px',

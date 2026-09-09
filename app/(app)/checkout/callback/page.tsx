@@ -53,7 +53,7 @@ function CheckoutCallbackContent() {
 
           // Redirect to dashboard after 3 seconds
           setTimeout(() => {
-            router.push('/social-media?welcome=true');
+            router.push('/social-media/?welcome=true');
           }, 3000);
         } else if (attempt < 10) {
           // Still pending, retry after 2 seconds
@@ -203,7 +203,7 @@ function CheckoutCallbackContent() {
           {/* Action Buttons */}
           {status === 'success' && (
             <button
-              onClick={() => router.push('/social-media')}
+              onClick={() => router.push('/social-media/')}
               className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold hover:scale-105 active:scale-95 transition-all shadow-lg"
             >
               Go to Dashboard
@@ -213,13 +213,13 @@ function CheckoutCallbackContent() {
           {status === 'failed' && (
             <div className="space-y-3">
               <button
-                onClick={() => router.push('/pricing')}
+                onClick={() => router.push('/pricing/')}
                 className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold hover:scale-105 active:scale-95 transition-all shadow-lg"
               >
                 Try Again
               </button>
               <button
-                onClick={() => router.push('/billing')}
+                onClick={() => router.push('/billing/')}
                 className="w-full py-3 px-6 rounded-xl border-3 border-black bg-white font-bold hover:bg-gray-50 transition-all"
               >
                 View Billing History
@@ -236,7 +236,7 @@ function CheckoutCallbackContent() {
                 Check Status Again
               </button>
               <button
-                onClick={() => router.push('/billing')}
+                onClick={() => router.push('/billing/')}
                 className="w-full py-3 px-6 rounded-xl border-3 border-black bg-white font-bold hover:bg-gray-50 transition-all"
               >
                 View Billing History

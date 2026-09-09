@@ -107,8 +107,24 @@ export interface BrandProfileData {
   style_selections?: string[];
   style_prompt_fragments?: string[];
   style_rotation_index?: number;
+  // VSG-01 ad format preference (Brand Playbook "Visual Styles — Ads" section) —
+  // format_ids (e.g. "SEED-093"), same idea as style_selections above but for the
+  // ad corpus rather than the organic style library.
+  ad_format_selections?: string[];
+  ad_format_rotation_index?: number;
   selected_custom_guides?: string[];
   selected_custom_guides_v2?: string[];
+  // Per-platform overrides — additive, optional. A platform with no entry
+  // (or an empty list) falls back to the flat fields above unchanged; only
+  // present once a user explicitly customizes a specific platform via the
+  // Visual Style section's platform tabs. Keyed by the same platform
+  // strings ContentGeneratorForm.tsx's PLATFORMS list uses (facebook/
+  // instagram/twitter/linkedin), which are the literal `platform` values
+  // that reach the backend's _generate_image_bg.
+  style_selections_by_platform?: Record<string, string[]>;
+  selected_custom_guides_by_platform?: Record<string, string[]>;
+  selected_custom_guides_v2_by_platform?: Record<string, string[]>;
+  style_rotation_index_by_platform?: Record<string, number>;
   font_style?: string;
   font_style_prompt?: string;
   primary_font?: string;

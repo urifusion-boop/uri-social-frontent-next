@@ -20,7 +20,7 @@ function CheckoutContent() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      router.push('/login?redirect=/pricing');
+      router.push('/login/?redirect=/pricing/');
       return;
     }
 
@@ -73,13 +73,13 @@ function CheckoutContent() {
 
             <div className="flex gap-4">
               <button
-                onClick={() => router.push('/pricing')}
+                onClick={() => router.push('/pricing/')}
                 className="flex-1 py-3 px-6 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold hover:scale-105 active:scale-95 transition-all shadow-lg"
               >
                 Back to Pricing
               </button>
               <button
-                onClick={() => router.push('/social-media')}
+                onClick={() => router.push('/social-media/')}
                 className="flex-1 py-3 px-6 rounded-xl border-3 border-black bg-white font-bold hover:bg-gray-50 transition-all"
               >
                 Dashboard

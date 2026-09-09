@@ -111,7 +111,7 @@ function LoginContent() {
     googleCallbackFired.current = true;
     // Strip ?code= from the URL right away so a page refresh won't re-submit the spent code
     window.history.replaceState({}, document.title, window.location.pathname);
-    const redirectUri = window.location.origin + '/login';
+    const redirectUri = window.location.origin + '/login/';
     setGoogleLoading(true);
     AuthService.googleAuth(code, redirectUri)
       .then(async (res) => {
@@ -146,7 +146,7 @@ function LoginContent() {
         // New Google users fire signup; returning users fire login (mirrors the email flow)
         posthog.capture(isNewUser ? 'signup_completed' : 'login_completed', { method: 'google' });
         const onboardingDone = await BrandProfileService.isOnboardingDone();
-        setTimeout(() => router.push(onboardingDone ? '/workspace' : '/social-media/brand-setup'), 1000);
+        setTimeout(() => router.push(onboardingDone ? '/workspace/' : '/social-media/brand-setup/'), 1000);
       })
       .catch(() => setError('Google sign-in failed. Please try again.'))
       .finally(() => setGoogleLoading(false));
@@ -164,7 +164,7 @@ function LoginContent() {
     }
 
     setGoogleLoading(true);
-    const redirectUri = encodeURIComponent(window.location.origin + '/login');
+    const redirectUri = encodeURIComponent(window.location.origin + '/login/');
     const scope = encodeURIComponent('openid email profile');
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&access_type=offline&prompt=select_account`;
   };
@@ -231,7 +231,7 @@ function LoginContent() {
         if (requiresVerification) {
           setSuccess('Account created! Check your email for verification code.');
           setTimeout(() => {
-            router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+            router.push(`/verify-email/?email=${encodeURIComponent(email)}`);
           }, 1500);
           return;
         }
@@ -273,7 +273,7 @@ function LoginContent() {
 
       const onboardingDone = await BrandProfileService.isOnboardingDone();
       setTimeout(() => {
-        router.push(onboardingDone ? '/workspace' : '/social-media/brand-setup');
+        router.push(onboardingDone ? '/workspace/' : '/social-media/brand-setup/');
       }, 1000);
     } catch (err: unknown) {
       const e = err as {
@@ -292,7 +292,7 @@ function LoginContent() {
       if (detail.toLowerCase().includes('verify your email')) {
         setError('Please verify your email first.');
         setTimeout(() => {
-          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+          router.push(`/verify-email/?email=${encodeURIComponent(email)}`);
         }, 2000);
         return;
       }
@@ -507,7 +507,7 @@ function LoginContent() {
                   color="#CD1B78"
                   fontWeight={600}
                   sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                  onClick={() => router.push('/forgot-password')}
+                  onClick={() => router.push('/forgot-password/')}
                 >
                   Forgot password?
                 </Typography>

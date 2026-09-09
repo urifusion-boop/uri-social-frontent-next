@@ -28,7 +28,8 @@ import {
   SocialConnectionService,
 } from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
-import { CampaignService, PlanVariant } from '@/src/api/CampaignService';
+import { AdFormat, CampaignService, PlanVariant } from '@/src/api/CampaignService';
+import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -75,6 +76,7 @@ import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
+import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
 import TrialEndingBanner from '@/src/components/app/atoms/TrialEndingBanner';
@@ -908,12 +910,16 @@ const ContentManagerPage = ({
     );
     setScheduleUnconnectedIds(unconnected);
 
-    // Pre-validate: Instagram requires an image — mark those as failed upfront.
+    // Pre-validate: Instagram requires an image OR a video — mark those as failed upfront.
+    // A video-uploaded draft correctly has video_url set and image_url null (see
+    // upload_user_content on the backend) — checking image_url/has_image alone incorrectly
+    // flagged every valid uploaded video as "no image" here, matching the backend's own
+    // identical bug in ApprovalWorkflowService.approve_content (fixed alongside this).
     const instagramNoImage = new Set(
       ids.filter((id) => {
         if (unconnected.has(id)) return false; // already caught above
         const d = drafts.find((dr) => (dr.draft_id ?? dr.id ?? '') === id);
-        return d?.platform?.toLowerCase() === 'instagram' && !d?.image_url && !d?.has_image;
+        return d?.platform?.toLowerCase() === 'instagram' && !d?.image_url && !d?.has_image && !d?.video_url;
       })
     );
 
@@ -968,7 +974,7 @@ const ContentManagerPage = ({
       // All failures were unconnected accounts — don't show generic error toast (dialog explains it)
     } else if (instagramNoImage.size > 0 && succeeded === 0 && failed === instagramNoImage.size) {
       ToastService.showToast(
-        `${instagramNoImage.size} Instagram post${instagramNoImage.size !== 1 ? 's' : ''} skipped — add an image first`,
+        `${instagramNoImage.size} Instagram post${instagramNoImage.size !== 1 ? 's' : ''} skipped — add an image or video first`,
         ToastTypeEnum.Warning
       );
     } else if (succeeded > 0) {
@@ -1200,7 +1206,7 @@ const ContentManagerPage = ({
   }, [fetchDrafts]);
 
   const handleConnectAccounts = () => {
-    router.push('/workspace?tab=connections');
+    router.push('/workspace/?tab=connections');
   };
 
   const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
@@ -1952,7 +1958,7 @@ const ContentManagerPage = ({
                             setScheduleAllOpen(false);
                             setScheduleProgress({});
                             setScheduleUnconnectedIds(new Set());
-                            router.push('/workspace?tab=connections');
+                            router.push('/workspace/?tab=connections');
                           }}
                           style={{
                             padding: '5px 12px',
@@ -2621,7 +2627,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     if (connected === 'instagram_direct') {
       const igUserId = searchParams.get('ig_user_id') ?? '';
       const igUsername = searchParams.get('username') ?? 'Instagram';
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (igUserId) {
         SocialAccountService.finalizeInstagramDirect(igUserId)
           .then((res) => {
@@ -2645,7 +2651,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       // let the user pick which one instead of silently connecting whichever
       // came first.
       const igToken = searchParams.get('token');
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (igToken) {
         setIgPendingToken(igToken);
         setIgPickerLoading(true);
@@ -2672,7 +2678,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     } else if (connected === 'facebook_direct') {
       const fbPageId = searchParams.get('fb_page_id') ?? '';
       const pageName = searchParams.get('page_name') ?? 'Facebook Page';
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (fbPageId) {
         SocialAccountService.finalizeFacebookDirect(fbPageId)
           .then((res) => {
@@ -2691,7 +2697,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       const accountName = searchParams.get('account_name')
         ? decodeURIComponent(searchParams.get('account_name')!)
         : 'TikTok';
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (ttOpenId) {
         SocialAccountService.finalizeTikTokDirect(ttOpenId)
           .then((res) => {
@@ -2715,7 +2721,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       // above; this is what Jane's campaigns require to launch from the brand's own Page.
       const fbPageId = searchParams.get('fb_page_id') ?? '';
       const pageName = searchParams.get('page_name') ?? 'Facebook Page';
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (fbPageId) {
         SocialAccountService.finalizeFacebookAds(fbPageId)
           .then((res) => {
@@ -2740,7 +2746,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       const network = searchParams.get('network') ?? '';
       const username = searchParams.get('username') ?? '';
       const networkUniqueId = searchParams.get('network_unique_id') ?? '';
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (accountId && network) {
         SocialAccountService.finalizeOutstandDirect(accountId, network, username, networkUniqueId)
           .then((res) => {
@@ -2767,7 +2773,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         setPendingPlatform(storedPlatform);
         localStorage.removeItem('outstand_connect_platform');
       }
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       SocialAccountService.getPendingConnection(token)
         .then((res) => {
           if (res.status && res.responseData) {
@@ -2782,7 +2788,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     } else if (connected === 'true') {
       const platform = searchParams.get('platform') ?? '';
       const username = searchParams.get('username') ? decodeURIComponent(searchParams.get('username')!) : platform;
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (platform) {
         ToastService.showToast(`${username} connected successfully!`, ToastTypeEnum.Success);
         posthog.capture('social_account_connected', { platform, username });
@@ -2800,7 +2806,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       const storedPlatform = localStorage.getItem('outstand_connect_platform') ?? '';
       localStorage.removeItem('outstand_connect_platform');
       setConnectError({ platform: storedPlatform, error: err });
-      router.replace('/workspace?tab=connections');
+      router.replace('/workspace/?tab=connections');
       if (typeof window !== 'undefined' && window.opener) window.close();
     }
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -4138,6 +4144,40 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     {!adsWaNumber && !adsWaError && (
                       <div style={{ fontSize: 11.5, color: '#a15c00' }}>
                         Not set yet — Jane will ask for this the first time you build an ad.
+                      </div>
+                    )}
+                    {/* Saving the number above only records where leads should land. Meta
+                        separately requires the number to be LINKED to the Page before an ad
+                        can receive messages, and that is a manual step in Meta's own Page
+                        settings with no API. Without it a launch is blocked, and an ad that
+                        did run could never report a single conversation — so the real state
+                        (from Meta, not from our own record) belongs here, before anyone
+                        builds an ad. `undefined`/null means Meta couldn't tell us, which is
+                        deliberately not reported as a problem. */}
+                    {adsWaNumber && s?.whatsapp_linked_to_page === false && (
+                      <div style={{ fontSize: 11.5, color: '#a15c00', lineHeight: 1.5 }}>
+                        Saved — but this number isn&rsquo;t linked to your{' '}
+                        <strong>{s?.account_name || 'Facebook'}</strong> Page in Meta yet, so ads can&rsquo;t receive
+                        messages on it.{' '}
+                        {s?.whatsapp_link_url ? (
+                          <a
+                            href={s.whatsapp_link_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#C2185B', fontWeight: 600 }}
+                          >
+                            Link it in Meta
+                          </a>
+                        ) : (
+                          <>Add it under your Page&rsquo;s WhatsApp settings in Meta</>
+                        )}
+                        , confirm the code they send you, then come back.
+                      </div>
+                    )}
+                    {adsWaNumber && s?.whatsapp_linked_to_page === true && (
+                      <div style={{ fontSize: 11.5, color: '#1a7f37' }}>
+                        Linked to your {s?.account_name || 'Facebook'} Page — ads can receive messages and report
+                        conversations.
                       </div>
                     )}
                   </div>
@@ -5803,6 +5843,15 @@ const PlaybookPage = ({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Visual Styles — Ads: fetched once, read-only (format choice is a per-campaign
+  // retrieval decision, not a standing brand preference like organic's style_selections).
+  const [adFormats, setAdFormats] = useState<AdFormat[]>([]);
+  useEffect(() => {
+    CampaignService.getAdFormats()
+      .then((res) => setAdFormats(res.formats))
+      .catch(() => setAdFormats([]));
+  }, []);
+
   // editable state
   const [brandName, setBrandName] = useState('');
   const [industry, setIndustry] = useState('');
@@ -5860,9 +5909,17 @@ const PlaybookPage = ({
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
   const logoInputRef = useRef<HTMLInputElement>(null);
+  // These three hold whichever tab (activeStyleTab) is currently being
+  // edited — 'default' loads/saves the flat fields exactly as before;
+  // any other key loads/saves that platform's slot in the *_by_platform
+  // maps instead. Switching tabs swaps what's in these three, via
+  // loadStyleTab below — the picker component itself (StylePickerGallery)
+  // and its change handlers don't need to know a platform dimension
+  // exists at all.
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
   const [selectedCustomGuides, setSelectedCustomGuides] = useState<string[]>([]);
   const [selectedCustomGuidesV2, setSelectedCustomGuidesV2] = useState<string[]>([]);
+  const [activeStyleTab, setActiveStyleTab] = useState<string>('default');
   const [fontStyle, setFontStyle] = useState<string>('');
   const [primaryFont, setPrimaryFont] = useState<string>('');
   const [secondaryFont, setSecondaryFont] = useState<string>('');
@@ -5926,54 +5983,163 @@ const PlaybookPage = ({
     }
   }, [profile?.logo_size]);
 
-  // Auto-save custom guide selections
-  const handleCustomGuideChange = async (guideIds: string[]) => {
-    setSelectedCustomGuides(guideIds);
-
-    // Auto-save to backend
-    if (profile) {
-      try {
-        const updatedProfile = {
-          ...profile,
-          selected_custom_guides: guideIds,
-          style_rotation_index: 0, // Reset rotation when guides change
-        };
-        const response = await BrandProfileService.save(updatedProfile);
-        if (response.status) {
-          onProfileUpdate({ ...profile, selected_custom_guides: guideIds, style_rotation_index: 0 });
-          console.log('🎨 Custom guides auto-saved:', guideIds);
-        } else {
-          console.error('🎨 Auto-save failed:', response);
-        }
-      } catch (error) {
-        console.error('🎨 Error auto-saving custom guides:', error);
-      }
+  // Loads whichever tab's saved data into the three visible state vars —
+  // 'default' reads the flat fields, any platform key reads that platform's
+  // slot in the *_by_platform maps (empty/unset reads as "no override yet",
+  // not an error). Called on tab switch and when entering edit mode.
+  const loadStyleTab = (tabKey: string, src?: BrandProfileData | null) => {
+    const p2 = src ?? profile;
+    if (tabKey === 'default') {
+      setStyleSelections([...(p2?.style_selections ?? [])]);
+      setSelectedCustomGuides(p2?.selected_custom_guides ?? []);
+      setSelectedCustomGuidesV2(p2?.selected_custom_guides_v2 ?? []);
+    } else {
+      setStyleSelections([...(p2?.style_selections_by_platform?.[tabKey] ?? [])]);
+      setSelectedCustomGuides(p2?.selected_custom_guides_by_platform?.[tabKey] ?? []);
+      setSelectedCustomGuidesV2(p2?.selected_custom_guides_v2_by_platform?.[tabKey] ?? []);
     }
   };
 
-  // Auto-save V2 custom guide selections — mirrors handleCustomGuideChange (V1)
-  // above so both versions behave consistently instead of V2 silently only
-  // updating local state until the separate main Save button is clicked.
+  const handleStyleTabSwitch = (tabKey: string) => {
+    setActiveStyleTab(tabKey);
+    loadStyleTab(tabKey);
+  };
+
+  // Auto-save custom guide selections — writes to the flat fields when the
+  // Default tab is active (unchanged behaviour), or into that platform's
+  // slot in the *_by_platform maps otherwise. Either way this is a full
+  // profile object (built from ...profile), so BrandProfileService.save
+  // round-trips every other field back unchanged — only the tab actually
+  // being edited's own fields carry a real change.
+  const handleCustomGuideChange = async (guideIds: string[]) => {
+    setSelectedCustomGuides(guideIds);
+    if (!profile) return;
+
+    const isDefault = activeStyleTab === 'default';
+    const updatedProfile: BrandProfileData = isDefault
+      ? { ...profile, selected_custom_guides: guideIds, style_rotation_index: 0 }
+      : {
+          ...profile,
+          selected_custom_guides_by_platform: {
+            ...(profile.selected_custom_guides_by_platform ?? {}),
+            [activeStyleTab]: guideIds,
+          },
+          style_rotation_index_by_platform: {
+            ...(profile.style_rotation_index_by_platform ?? {}),
+            [activeStyleTab]: 0,
+          },
+        };
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      if (response.status) {
+        onProfileUpdate(updatedProfile);
+        console.log(`🎨 Custom guides auto-saved [${activeStyleTab}]:`, guideIds);
+      } else {
+        console.error('🎨 Auto-save failed:', response);
+      }
+    } catch (error) {
+      console.error('🎨 Error auto-saving custom guides:', error);
+    }
+  };
+
+  // Auto-save library style selections — mirrors handleCustomGuideChange below
+  // exactly. Added because style_selections was the one visual-style field with
+  // NO auto-save: it only ever persisted via the main Save button, which also
+  // calls setEditing(false) on success — so switching tabs (handleStyleTabSwitch
+  // calls loadStyleTab, which overwrites this same shared styleSelections state
+  // from `profile`) silently discarded whatever was picked-but-not-yet-saved for
+  // the tab being left. Live-reported: "I have to click save, then click edit
+  // before picking another platform, otherwise the previous one doesn't save."
+  // Auto-saving on every pick, same as the two custom-guide handlers already do,
+  // means `profile` is always current by the time a tab switch happens.
+  const handleStyleSelectionChange = async (slugs: string[]) => {
+    setStyleSelections(slugs);
+    if (!profile) return;
+
+    const isDefault = activeStyleTab === 'default';
+    const updatedProfile: BrandProfileData = isDefault
+      ? {
+          ...profile,
+          style_selections: slugs,
+          style_prompt_fragments: slugs.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+          style_rotation_index: 0,
+        }
+      : {
+          ...profile,
+          style_selections_by_platform: {
+            ...(profile.style_selections_by_platform ?? {}),
+            [activeStyleTab]: slugs,
+          },
+          style_rotation_index_by_platform: {
+            ...(profile.style_rotation_index_by_platform ?? {}),
+            [activeStyleTab]: 0,
+          },
+        };
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      if (response.status) {
+        onProfileUpdate(response.responseData ?? updatedProfile);
+        console.log(`🎨 Style selections auto-saved [${activeStyleTab}]:`, slugs);
+      } else {
+        console.error('🎨 Style selection auto-save failed:', response);
+      }
+    } catch (error) {
+      console.error('🎨 Error auto-saving style selections:', error);
+    }
+  };
+
+  // Auto-save the Visual Styles — Ads selection — same idea as
+  // handleStyleSelectionChange above, but flat (no per-platform tabs; a format
+  // choice isn't platform-specific the way an organic image style is) and
+  // capped at 3 to match that section's own selection limit.
+  const handleAdFormatToggle = async (formatId: string) => {
+    if (!profile) return;
+    const current = profile.ad_format_selections ?? [];
+    const next = current.includes(formatId)
+      ? current.filter((id) => id !== formatId)
+      : current.length >= 3
+        ? current
+        : [...current, formatId];
+    if (next === current) return;
+    const updatedProfile: BrandProfileData = { ...profile, ad_format_selections: next, ad_format_rotation_index: 0 };
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      onProfileUpdate(response.responseData ?? updatedProfile);
+    } catch (error) {
+      console.error('Ad format selection auto-save failed:', error);
+    }
+  };
+
+  // Auto-save V2 custom guide selections — mirrors handleCustomGuideChange
+  // (V1) above, same tab-aware save target.
   const handleCustomGuideV2Change = async (guideIds: string[]) => {
     setSelectedCustomGuidesV2(guideIds);
+    if (!profile) return;
 
-    if (profile) {
-      try {
-        const updatedProfile = {
+    const isDefault = activeStyleTab === 'default';
+    const updatedProfile: BrandProfileData = isDefault
+      ? { ...profile, selected_custom_guides_v2: guideIds, style_rotation_index: 0 }
+      : {
           ...profile,
-          selected_custom_guides_v2: guideIds,
-          style_rotation_index: 0,
+          selected_custom_guides_v2_by_platform: {
+            ...(profile.selected_custom_guides_v2_by_platform ?? {}),
+            [activeStyleTab]: guideIds,
+          },
+          style_rotation_index_by_platform: {
+            ...(profile.style_rotation_index_by_platform ?? {}),
+            [activeStyleTab]: 0,
+          },
         };
-        const response = await BrandProfileService.save(updatedProfile);
-        if (response.status) {
-          onProfileUpdate({ ...profile, selected_custom_guides_v2: guideIds, style_rotation_index: 0 });
-          console.log('🎨 V2 custom guides auto-saved:', guideIds);
-        } else {
-          console.error('🎨 V2 auto-save failed:', response);
-        }
-      } catch (error) {
-        console.error('🎨 Error auto-saving V2 custom guides:', error);
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      if (response.status) {
+        onProfileUpdate(updatedProfile);
+        console.log(`🎨 V2 custom guides auto-saved [${activeStyleTab}]:`, guideIds);
+      } else {
+        console.error('🎨 V2 auto-save failed:', response);
       }
+    } catch (error) {
+      console.error('🎨 Error auto-saving V2 custom guides:', error);
     }
   };
 
@@ -6051,9 +6217,8 @@ const PlaybookPage = ({
     setLogoPosition(profile.logo_position ?? 'bottom_right');
     setLogoSize((profile.logo_size ?? 'small') as 'small' | 'medium' | 'large');
     setLogoError('');
-    setStyleSelections([...(profile.style_selections ?? [])]);
-    setSelectedCustomGuides(profile.selected_custom_guides ?? []);
-    setSelectedCustomGuidesV2(profile.selected_custom_guides_v2 ?? []);
+    setActiveStyleTab('default');
+    loadStyleTab('default', profile);
     setFontStyle(profile.font_style ?? '');
     setPrimaryFont(profile.primary_font ?? '');
     setSecondaryFont(profile.secondary_font ?? '');
@@ -6077,6 +6242,35 @@ const PlaybookPage = ({
 
     setSaving(true);
     try {
+      // Library styles (style_selections) are only ever persisted here, on
+      // the main Save button — unlike custom guides, nothing auto-saves
+      // them. So which slot they land in has to follow the active tab the
+      // same way the auto-save handlers above do: the flat fields for
+      // Default, or that platform's entry in the *_by_platform maps
+      // otherwise, leaving every other platform's own override untouched.
+      const isDefaultStyleTab = activeStyleTab === 'default';
+      const visualStyleFields: Partial<BrandProfileData> = isDefaultStyleTab
+        ? {
+            style_selections: styleSelections,
+            style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+            selected_custom_guides: selectedCustomGuides,
+            selected_custom_guides_v2: selectedCustomGuidesV2,
+          }
+        : {
+            style_selections_by_platform: {
+              ...(profile?.style_selections_by_platform ?? {}),
+              [activeStyleTab]: styleSelections,
+            },
+            selected_custom_guides_by_platform: {
+              ...(profile?.selected_custom_guides_by_platform ?? {}),
+              [activeStyleTab]: selectedCustomGuides,
+            },
+            selected_custom_guides_v2_by_platform: {
+              ...(profile?.selected_custom_guides_v2_by_platform ?? {}),
+              [activeStyleTab]: selectedCustomGuidesV2,
+            },
+          };
+
       const updated: BrandProfileData = {
         ...profile,
         brand_name: brandName,
@@ -6123,10 +6317,7 @@ const PlaybookPage = ({
         logo_url: logoUrl || undefined,
         logo_position: logoPosition,
         logo_size: logoSize,
-        style_selections: styleSelections,
-        style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
-        selected_custom_guides: selectedCustomGuides,
-        selected_custom_guides_v2: selectedCustomGuidesV2,
+        ...visualStyleFields,
         font_style: fontStyle,
         font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
         primary_font: primaryFont,
@@ -6206,6 +6397,20 @@ const PlaybookPage = ({
     'Website Traffic',
   ];
   const ALL_PLATFORMS = ['Instagram', 'Facebook', 'X / Twitter', 'LinkedIn', 'TikTok', 'Pinterest', 'YouTube'];
+  // Per-platform Visual Style tabs — 'default' is the brand-wide fallback
+  // (the flat style_selections/selected_custom_guides(_v2) fields, unchanged
+  // behaviour for anyone who never touches the other tabs). The other four
+  // keys match ContentGeneratorForm.tsx's PLATFORMS list exactly — those are
+  // the literal `platform` values _generate_image_bg receives, so a tab here
+  // only ever has an effect if it uses the same key that generation itself
+  // will look up.
+  const STYLE_PLATFORM_TABS: { key: string; label: string }[] = [
+    { key: 'default', label: 'Default' },
+    { key: 'facebook', label: 'Facebook' },
+    { key: 'instagram', label: 'Instagram' },
+    { key: 'twitter', label: 'Twitter / X' },
+    { key: 'linkedin', label: 'LinkedIn' },
+  ];
   const ALL_LANGS = ['English', 'Yoruba', 'Pidgin', 'French', 'Hausa', 'Igbo', 'Swahili', 'Other'];
   const ALL_REGIONS = [
     'Nigeria',
@@ -7799,33 +8004,133 @@ const PlaybookPage = ({
           Up to 3 styles — Uri rotates through them when generating images.
         </div>
         {!editing ? (
-          // Custom guides (V1 or V2) take priority over library styles at
-          // generation time — if either is selected, the library styles below
-          // are never actually used, so show the guides here instead, not the
-          // stale library-style cards from before a guide was selected.
-          (p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {previewGuidesV2.map((g) => (
-                <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
-              ))}
-              {previewGuidesV1.map((g) => (
-                <CustomGuidePreviewCard key={g.id} guide={g} compact />
-              ))}
-            </div>
-          ) : p?.style_selections && p.style_selections.length > 0 ? (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {p.style_selections.map((slug) => {
-                const s = getStyle(slug);
-                if (!s) return null;
-                const [from, to] = s.gradient;
-                return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
-              })}
-            </div>
-          ) : (
-            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
-          )
+          <>
+            {/* Custom guides (V1 or V2) take priority over library styles at
+                generation time — if either is selected, the library styles below
+                are never actually used, so show the guides here instead, not the
+                stale library-style cards from before a guide was selected. This
+                is always the Default (brand-wide fallback) — see the summary
+                line below for which platforms, if any, use something else. */}
+            {(p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {previewGuidesV2.map((g) => (
+                  <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
+                ))}
+                {previewGuidesV1.map((g) => (
+                  <CustomGuidePreviewCard key={g.id} guide={g} compact />
+                ))}
+              </div>
+            ) : p?.style_selections && p.style_selections.length > 0 ? (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {p.style_selections.map((slug) => {
+                  const s = getStyle(slug);
+                  if (!s) return null;
+                  const [from, to] = s.gradient;
+                  return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+            )}
+            {(() => {
+              const customizedPlatforms = STYLE_PLATFORM_TABS.filter(
+                (t) =>
+                  t.key !== 'default' &&
+                  ((p?.style_selections_by_platform?.[t.key]?.length ?? 0) > 0 ||
+                    (p?.selected_custom_guides_by_platform?.[t.key]?.length ?? 0) > 0 ||
+                    (p?.selected_custom_guides_v2_by_platform?.[t.key]?.length ?? 0) > 0)
+              );
+              if (customizedPlatforms.length === 0) return null;
+              return (
+                <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                  {customizedPlatforms.map((t) => t.label).join(', ')} — using a different style than the Default shown
+                  above. Edit to see or change.
+                </div>
+              );
+            })()}
+          </>
         ) : (
           <div>
+            {/* Per-platform tabs — 'default' is the brand-wide fallback used
+                by any platform below that has nothing of its own. Switching
+                tabs swaps what styleSelections/selectedCustomGuides(V2) hold
+                (see loadStyleTab) — everything below (the badge, the
+                gallery) is already reading whichever tab is active, no
+                further wiring needed. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {STYLE_PLATFORM_TABS.map((tab) => {
+                const hasOverride =
+                  tab.key !== 'default' &&
+                  ((profile?.style_selections_by_platform?.[tab.key]?.length ?? 0) > 0 ||
+                    (profile?.selected_custom_guides_by_platform?.[tab.key]?.length ?? 0) > 0 ||
+                    (profile?.selected_custom_guides_v2_by_platform?.[tab.key]?.length ?? 0) > 0);
+                return (
+                  <div key={tab.key} style={{ position: 'relative' }}>
+                    <PbChip
+                      label={tab.label}
+                      active={activeStyleTab === tab.key}
+                      onClick={() => handleStyleTabSwitch(tab.key)}
+                    />
+                    {hasOverride && (
+                      <span
+                        title={`${tab.label} has its own style, different from your Default`}
+                        style={{
+                          position: 'absolute',
+                          top: -3,
+                          right: -3,
+                          width: 8,
+                          height: 8,
+                          borderRadius: 99,
+                          background: '#C2185B',
+                          border: '1.5px solid #fff',
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 10, lineHeight: 1.5 }}>
+              {activeStyleTab === 'default' ? (
+                'Your Default — used for any platform below that hasn’t been customized.'
+              ) : (
+                <>
+                  {styleSelections.length > 0 ||
+                  selectedCustomGuides.length > 0 ||
+                  selectedCustomGuidesV2.length > 0 ? (
+                    <>
+                      {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label} uses its own style below,
+                      instead of your Default.{' '}
+                      <button
+                        onClick={() => {
+                          setStyleSelections([]);
+                          handleCustomGuideChange([]);
+                          handleCustomGuideV2Change([]);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#C2185B',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          padding: 0,
+                          fontSize: 12,
+                        }}
+                      >
+                        Remove override, use Default instead
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      Not customized — {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label} currently uses
+                      your Default. Pick styles or guides below to use something different just for{' '}
+                      {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label}.
+                    </>
+                  )}
+                </>
+              )}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span
                 style={{
@@ -7869,13 +8174,44 @@ const PlaybookPage = ({
             <StylePickerGallery
               industry={industry || p?.industry || 'general_other'}
               selected={styleSelections}
-              onChange={setStyleSelections}
+              onChange={handleStyleSelectionChange}
               selectedCustomGuides={selectedCustomGuides}
               onCustomGuideChange={handleCustomGuideChange}
               selectedCustomGuidesV2={selectedCustomGuidesV2}
               onCustomGuideV2Change={handleCustomGuideV2Change}
               brandId={profile?.id}
             />
+          </div>
+        )}
+      </PbSection>
+
+      <PbSection title="Visual Styles — Ads">
+        <div style={{ marginBottom: 10, fontSize: 12.5, color: '#888' }}>
+          Pick up to 3 — Jane tries your picks first whenever they're eligible for the campaign, before falling back to
+          whatever the corpus ranks best.
+        </div>
+        {adFormats.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+        ) : (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {[...adFormats]
+              .sort((a, b) => {
+                const rank = { live: 0, built: 1, planned: 2 } as const;
+                return rank[a.status] - rank[b.status];
+              })
+              .map((f) => {
+                const adFormatSelections = profile?.ad_format_selections ?? [];
+                const isSelected = adFormatSelections.includes(f.format_id);
+                return (
+                  <AdFormatGalleryCard
+                    key={f.format_id}
+                    format={f}
+                    isSelected={isSelected}
+                    onToggleSelect={() => handleAdFormatToggle(f.format_id)}
+                    selectionDisabled={!isSelected && adFormatSelections.length >= 3}
+                  />
+                );
+              })}
           </div>
         )}
       </PbSection>
@@ -8882,7 +9218,7 @@ const SettingsPage = ({
             Brand Profile
           </h3>
           <button
-            onClick={() => router.push('/social-media/brand-setup')}
+            onClick={() => router.push('/social-media/brand-setup/')}
             style={{
               padding: '6px 12px',
               borderRadius: 7,
@@ -9218,8 +9554,8 @@ const MORE_NAV = [
   { id: 'connections', icon: 'share', label: 'Connected Accounts' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
-  { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts' },
-  { id: 'brand-setup', icon: 'edit', label: 'Edit Brand Setup', href: '/social-media/brand-setup' },
+  { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts/' },
+  { id: 'brand-setup', icon: 'edit', label: 'Edit Brand Setup', href: '/social-media/brand-setup/' },
   { id: 'visual-engine-v2', icon: 'grid', label: '🧪 Visual Engine V2' },
 ];
 
@@ -9278,7 +9614,7 @@ export default function WorkspaceDashboard() {
       // failed (expired token, network error, etc.), and the global 401
       // handler already logs the user out to /login in the auth case, so
       // this must not race it with a wrong redirect to brand-setup.
-      if (done === false) router.replace('/social-media/brand-setup');
+      if (done === false) router.replace('/social-media/brand-setup/');
     });
     BrandProfileService.get().then((res) => {
       if (res.status && res.responseData) setProfile(res.responseData);
@@ -9291,7 +9627,7 @@ export default function WorkspaceDashboard() {
       .catch(() => setSwitcherBrands([]));
   }, []);
 
-  // Keep nav in sync with the ?tab= URL param so that router.push('/workspace?tab=connections')
+  // Keep nav in sync with the ?tab= URL param so that router.push('/workspace/?tab=connections')
   // from child components (DraftCard, Schedule All dialog) actually switches the visible section.
   useEffect(() => {
     const tab = searchParams?.get('tab');
@@ -9315,11 +9651,11 @@ export default function WorkspaceDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep URL in sync with nav so that router.push('/workspace?tab=X') always triggers a URL change.
+  // Keep URL in sync with nav so that router.push('/workspace/?tab=X') always triggers a URL change.
   const goTo = useCallback(
     (id: string) => {
       setNav(id);
-      router.replace(`/workspace?tab=${id}`, { scroll: false } as Parameters<typeof router.replace>[1]);
+      router.replace(`/workspace/?tab=${id}`, { scroll: false } as Parameters<typeof router.replace>[1]);
     },
     [router]
   );
@@ -10079,7 +10415,7 @@ export default function WorkspaceDashboard() {
                 }}
               >
                 <button
-                  onClick={() => router.push('/settings/social-accounts')}
+                  onClick={() => router.push('/settings/social-accounts/')}
                   title="Social Accounts"
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
@@ -10099,7 +10435,7 @@ export default function WorkspaceDashboard() {
                   <I n="settings" s={14} c="#666" />
                 </button>
                 <button
-                  onClick={() => router.push('/social-media/brand-setup')}
+                  onClick={() => router.push('/social-media/brand-setup/')}
                   title="Edit Brand Setup"
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
@@ -10159,6 +10495,12 @@ export default function WorkspaceDashboard() {
 
               {/* Credit Balance Badge — already compact enough for mobile as-is */}
               {!userDetails?.trialActive && <WorkspaceCreditBadge onClick={() => goTo('billing')} />}
+
+              {/* Ad wallet balance — a different currency from credits (this funds real
+                  ad spend), and it now moves during normal use because launching a
+                  campaign debits it. Hidden on mobile, where header room is tight and
+                  the credit badge is the one that must survive. */}
+              {!isMobile && <WorkspaceAdWalletBadge onClick={() => goTo('campaigns')} />}
 
               {/* Profile Dropdown */}
               <WorkspaceProfileDropdown onNavigate={goTo} onLogout={logoutUser} />

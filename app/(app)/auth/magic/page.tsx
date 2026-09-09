@@ -15,7 +15,7 @@ function MagicLinkContent() {
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Authenticating...');
-  const [redirectUrl, setRedirectUrl] = useState('/dashboard');
+  const [redirectUrl, setRedirectUrl] = useState('/dashboard/');
   const [hasVerified, setHasVerified] = useState(false);
 
   useEffect(() => {
@@ -61,11 +61,11 @@ function MagicLinkContent() {
 
         setStatus('success');
         setMessage('Authentication successful! Redirecting...');
-        setRedirectUrl(redirect_url || '/dashboard');
+        setRedirectUrl(redirect_url || '/dashboard/');
 
         // Redirect after 1 second
         setTimeout(() => {
-          router.push(redirect_url || '/dashboard');
+          router.push(redirect_url || '/dashboard/');
         }, 1000);
       })
       .catch((error) => {
@@ -181,7 +181,7 @@ function MagicLinkContent() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Button
                 variant="contained"
-                onClick={() => router.push('/login')}
+                onClick={() => router.push('/login/')}
                 sx={{
                   bgcolor: '#CD1B78',
                   '&:hover': { bgcolor: '#A01560' },
