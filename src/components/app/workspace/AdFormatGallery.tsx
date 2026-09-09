@@ -24,9 +24,9 @@ const FORMAT_VISUALS: Record<string, { icon: string; from: string; to: string }>
   'SEED-083': { icon: '🙈', from: '#232526', to: '#0F0C29' }, // The Censored Item
   'SEED-088': { icon: '🧺', from: '#F7971E', to: '#FFD200' }, // Starter Pack
   'SEED-089': { icon: '😄', from: '#F857A6', to: '#FF5858' }, // Humour / Cartoon
-  'PLANNED-price-led-offer': { icon: '🏷️', from: '#CD1B78', to: '#8E1545' },
-  'PLANNED-text-only': { icon: '🔤', from: '#485563', to: '#29323C' },
-  'PLANNED-work-in-progress': { icon: '🛠️', from: '#F2994A', to: '#F2C94C' },
+  'SEED-096': { icon: '🏷️', from: '#CD1B78', to: '#8E1545' },
+  'SEED-097': { icon: '🔤', from: '#485563', to: '#29323C' },
+  'SEED-098': { icon: '🛠️', from: '#F2994A', to: '#F2C94C' },
 };
 const DEFAULT_VISUAL = { icon: '🎯', from: '#9CA3AF', to: '#6B7280' };
 
