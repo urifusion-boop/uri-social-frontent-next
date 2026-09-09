@@ -466,6 +466,11 @@ export class CampaignService {
     asset_attestation?: 'product_photo' | 'real_customer_photo';
     recomposite?: boolean;
     is_video?: boolean;
+    /** The user's own ad brief so far — lets the backend favor a format whose
+     *  content shape actually matches what's being said (a stated price, a
+     *  quoted testimonial, a comparison), on top of plain photo/eligibility
+     *  ranking. Optional — omitted just means eligibility-only ranking. */
+    description?: string;
   }): Promise<{ suggested: AdFormat | null; alternatives: AdFormat[] }> {
     const res = await UriHttpClient.getClient().post('/jane-ads/creative/suggest-format', params);
     return res.data as { suggested: AdFormat | null; alternatives: AdFormat[] };

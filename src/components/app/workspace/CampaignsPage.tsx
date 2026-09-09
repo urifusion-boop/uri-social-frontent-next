@@ -830,6 +830,7 @@ export default function CampaignsPage({
       asset_attestation: assetAttestation,
       recomposite: choice.creative_source === 'recomposite',
       is_video: isVideo,
+      description: brief,
     }).catch(() => ({ suggested: null, alternatives: [] }));
     setBusy(false);
 
@@ -2187,9 +2188,7 @@ function ChooseDestination({
               to warn about it afterwards (reading a Page's linked number needs
               whatsapp_business_management, a scope our token doesn't hold). */}
           {active.input_note && (
-            <div style={{ fontSize: 11, color: '#a15c00', lineHeight: 1.5, marginBottom: 6 }}>
-              {active.input_note}
-            </div>
+            <div style={{ fontSize: 11, color: '#a15c00', lineHeight: 1.5, marginBottom: 6 }}>{active.input_note}</div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
             <input
