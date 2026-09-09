@@ -4157,8 +4157,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     {adsWaNumber && s?.whatsapp_linked_to_page === false && (
                       <div style={{ fontSize: 11.5, color: '#a15c00', lineHeight: 1.5 }}>
                         Saved — but this number isn&rsquo;t linked to your{' '}
-                        <strong>{s?.account_name || 'Facebook'}</strong> Page in Meta yet, so ads
-                        can&rsquo;t receive messages on it.{' '}
+                        <strong>{s?.account_name || 'Facebook'}</strong> Page in Meta yet, so ads can&rsquo;t receive
+                        messages on it.{' '}
                         {s?.whatsapp_link_url ? (
                           <a
                             href={s.whatsapp_link_url}
@@ -4176,8 +4176,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     )}
                     {adsWaNumber && s?.whatsapp_linked_to_page === true && (
                       <div style={{ fontSize: 11.5, color: '#1a7f37' }}>
-                        Linked to your {s?.account_name || 'Facebook'} Page — ads can receive
-                        messages and report conversations.
+                        Linked to your {s?.account_name || 'Facebook'} Page — ads can receive messages and report
+                        conversations.
                       </div>
                     )}
                   </div>
@@ -6085,6 +6085,28 @@ const PlaybookPage = ({
       }
     } catch (error) {
       console.error('🎨 Error auto-saving style selections:', error);
+    }
+  };
+
+  // Auto-save the Visual Styles — Ads selection — same idea as
+  // handleStyleSelectionChange above, but flat (no per-platform tabs; a format
+  // choice isn't platform-specific the way an organic image style is) and
+  // capped at 3 to match that section's own selection limit.
+  const handleAdFormatToggle = async (formatId: string) => {
+    if (!profile) return;
+    const current = profile.ad_format_selections ?? [];
+    const next = current.includes(formatId)
+      ? current.filter((id) => id !== formatId)
+      : current.length >= 3
+        ? current
+        : [...current, formatId];
+    if (next === current) return;
+    const updatedProfile: BrandProfileData = { ...profile, ad_format_selections: next, ad_format_rotation_index: 0 };
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      onProfileUpdate(response.responseData ?? updatedProfile);
+    } catch (error) {
+      console.error('Ad format selection auto-save failed:', error);
     }
   };
 
@@ -8165,21 +8187,31 @@ const PlaybookPage = ({
 
       <PbSection title="Visual Styles — Ads">
         <div style={{ marginBottom: 10, fontSize: 12.5, color: '#888' }}>
-          The ad format library Jane picks from when building a campaign — browse what each one is for and when a logo
-          belongs in frame.
+          Pick up to 3 — Jane tries your picks first whenever they're eligible for the campaign, before falling back to
+          whatever the corpus ranks best.
         </div>
         {adFormats.length === 0 ? (
           <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
         ) : (
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             {[...adFormats]
               .sort((a, b) => {
                 const rank = { live: 0, built: 1, planned: 2 } as const;
                 return rank[a.status] - rank[b.status];
               })
-              .map((f) => (
-                <AdFormatGalleryCard key={f.format_id} format={f} />
-              ))}
+              .map((f) => {
+                const adFormatSelections = profile?.ad_format_selections ?? [];
+                const isSelected = adFormatSelections.includes(f.format_id);
+                return (
+                  <AdFormatGalleryCard
+                    key={f.format_id}
+                    format={f}
+                    isSelected={isSelected}
+                    onToggleSelect={() => handleAdFormatToggle(f.format_id)}
+                    selectionDisabled={!isSelected && adFormatSelections.length >= 3}
+                  />
+                );
+              })}
           </div>
         )}
       </PbSection>

@@ -107,6 +107,11 @@ export interface BrandProfileData {
   style_selections?: string[];
   style_prompt_fragments?: string[];
   style_rotation_index?: number;
+  // VSG-01 ad format preference (Brand Playbook "Visual Styles — Ads" section) —
+  // format_ids (e.g. "SEED-093"), same idea as style_selections above but for the
+  // ad corpus rather than the organic style library.
+  ad_format_selections?: string[];
+  ad_format_rotation_index?: number;
   selected_custom_guides?: string[];
   selected_custom_guides_v2?: string[];
   // Per-platform overrides — additive, optional. A platform with no entry
