@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AdFormat,
   CampaignService,
   CampaignRow,
   CtaChoice,
@@ -16,6 +17,7 @@ import {
   CampaignSummary,
   ThreadSummary,
 } from '@/src/api/CampaignService';
+import { AdFormatChip } from '@/src/components/app/workspace/AdFormatGallery';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -40,10 +42,38 @@ interface CampaignsPageProps {
   onResumeVideoConsumed?: () => void;
 }
 
+type ContinueChoice =
+  | { creative_source: 'generate' }
+  | {
+      creative_source: 'upload';
+      reference_image_url: string;
+      is_video: boolean;
+      asset_attestation?: 'product_photo' | 'real_customer_photo';
+    }
+  | { creative_source: 'draft'; draft_id: string }
+  | {
+      creative_source: 'recomposite';
+      reference_image_url: string;
+      asset_attestation?: 'product_photo' | 'real_customer_photo';
+    };
+
 type ChatMsg =
   | { id: string; role: 'user'; text: string }
   | { id: string; role: 'jane'; kind: 'text'; text: string }
-  | { id: string; role: 'jane'; kind: 'result'; result: LaunchFromMessageResult };
+  | {
+      id: string;
+      role: 'jane';
+      kind: 'result';
+      result: LaunchFromMessageResult;
+      // The pre-generation ranking computed alongside this specific result (mirrors
+      // JaneVideoChat.tsx's plan.style + alternatives) — undefined for a video, for a
+      // request where nothing was eligible, or if the suggest call itself failed
+      // (never blocks generation). Lets ResultCard offer "change" for THIS result.
+      adSuggestion?: { suggested: AdFormat | null; alternatives: AdFormat[] };
+      // The exact creative-source choice that produced this result — replayed with a
+      // different vsg01_format_id when the user picks an alternative via "change".
+      sourceChoice?: ContinueChoice;
+    };
 
 interface SelectedMedia {
   source: 'upload' | 'draft';
@@ -154,6 +184,16 @@ export default function CampaignsPage({
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [loadingWallet, setLoadingWallet] = useState(false);
+  // Visual Styles — Ads library, for the "Style: {name}" chip on a generated ad
+  // (only ever shown when a result's creative.vsg01_format_id is non-empty — the
+  // common case today is no format, since JANE_ADS_VSG01_ENABLED defaults off).
+  // Fetched once here, same source as the Brand Playbook's gallery, no duplicate copy.
+  const [adFormats, setAdFormats] = useState<AdFormat[]>([]);
+  useEffect(() => {
+    CampaignService.getAdFormats()
+      .then((res) => setAdFormats(res.formats))
+      .catch(() => setAdFormats([]));
+  }, []);
   // Tier E — campaign threads (the left rail). activeThreadRef mirrors the state so the
   // async send/save handlers always read the current thread without a stale closure.
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
@@ -612,30 +652,14 @@ export default function CampaignsPage({
   // single call. Live-caught 2026-08-04: continueWithVariants used to skip this
   // ask entirely and silently auto-generate, dropping the upload/draft choice.
   const continueWithSource = async (
-    choice:
-      | { creative_source: 'generate' }
-      | {
-          creative_source: 'upload';
-          reference_image_url: string;
-          is_video: boolean;
-          // VSG-01 v3 (§1.2/§6) — what this real photo actually shows, per the
-          // user's own confirmation ("Skip" sends undefined): "product_photo" |
-          // "real_customer_photo" | undefined. Never asked/sent for a video.
-          asset_attestation?: 'product_photo' | 'real_customer_photo';
-        }
-      | { creative_source: 'draft'; draft_id: string }
-      // Recomposite (creative brief spec §7.2): the real product photo, background
-      // regenerated around it via the same content-engine pipeline organic posts
-      // use — image-only, no is_video (the backend has no video recomposite path).
-      | {
-          creative_source: 'recomposite';
-          reference_image_url: string;
-          asset_attestation?: 'product_photo' | 'real_customer_photo';
-        },
+    choice: ContinueChoice,
     // Explicit override for callers that just rebuilt the brief via openThread's
     // return value and can't wait for that setBriefSoFar to flush into a re-render —
     // reading the briefSoFar closure here would still see its pre-openThread value.
-    briefOverride?: string
+    briefOverride?: string,
+    // The user's pick from a previous result's "change" list (AdFormatChip) — replays
+    // the exact same choice with a specific format forced instead of best-ranked.
+    formatOverride?: string
   ) => {
     const brief = briefOverride ?? briefSoFar;
     if (busy || !brief) return;
@@ -644,6 +668,17 @@ export default function CampaignsPage({
     pendingVariantsRef.current = null;
     setBusy(true);
     try {
+      // Pre-generation suggestion (mirrors JaneVideoChat.tsx's plan.style): computed
+      // alongside generation, not blocking it — a failure here just means this
+      // result's Style row won't offer "change", generation proceeds regardless.
+      const isVideo = choice.creative_source === 'upload' && choice.is_video;
+      const assetAttestation = 'asset_attestation' in choice ? choice.asset_attestation : undefined;
+      const adSuggestion = await CampaignService.suggestAdFormat({
+        asset_attestation: assetAttestation,
+        recomposite: choice.creative_source === 'recomposite',
+        is_video: isVideo,
+      }).catch(() => undefined);
+
       const variants = pendingVariants ? pendingVariants.variants : [null];
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
@@ -655,8 +690,16 @@ export default function CampaignsPage({
           // put the plan picker back up — the same failure the destination answer had.
           ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
           ...choice,
+          ...(formatOverride ? { vsg01_format_id: formatOverride } : {}),
         });
-        const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+        const resultMsg: ChatMsg = {
+          id: uid(),
+          role: 'jane',
+          kind: 'result',
+          result,
+          adSuggestion,
+          sourceChoice: choice,
+        };
         setMessages((m) => [...m, resultMsg]);
         saveMsg(resultMsg);
         // Remember the produced image so later typed refinements reuse it (no regen/credit).
@@ -1111,6 +1154,13 @@ export default function CampaignsPage({
                   ) : (
                     <ResultCard
                       result={m.result}
+                      adFormats={adFormats}
+                      adSuggestion={m.adSuggestion}
+                      onChangeFormat={
+                        m.sourceChoice
+                          ? (formatId) => continueWithSource(m.sourceChoice!, undefined, formatId)
+                          : undefined
+                      }
                       // A question Jane already moved past is history: readable, but its
                       // buttons must not fire. Live-reported: a rejected link left TWO
                       // destination pickers on screen, the stale one still holding the bad
@@ -2732,6 +2782,9 @@ function PromptCard({ stale, children }: { stale?: boolean; children: React.Reac
 
 function ResultCard({
   result,
+  adFormats,
+  adSuggestion,
+  onChangeFormat,
   onResultChange,
   onLaunched,
   onQuickReply,
@@ -2748,6 +2801,9 @@ function ResultCard({
   stale,
 }: {
   result: LaunchFromMessageResult;
+  adFormats: AdFormat[];
+  adSuggestion?: { suggested: AdFormat | null; alternatives: AdFormat[] };
+  onChangeFormat?: (formatId: string) => void;
   onResultChange: (result: LaunchFromMessageResult) => void;
   onLaunched: () => void;
   onQuickReply: (text: string) => void;
@@ -3032,6 +3088,40 @@ function ResultCard({
         <div style={{ padding: 16 }}>
           <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 15, color: '#1a0a12' }}>{creative?.headline}</p>
           <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>{creative?.primary_text}</p>
+          {creative?.vsg01_format_id &&
+            (() => {
+              const candidates = adSuggestion
+                ? [adSuggestion.suggested, ...adSuggestion.alternatives].filter((f): f is AdFormat => f !== null)
+                : [];
+              const usedFormat =
+                candidates.find((f) => f.format_id === creative.vsg01_format_id) ??
+                adFormats.find((f) => f.format_id === creative.vsg01_format_id);
+              if (!usedFormat) return null;
+              const alternatives = candidates.filter((f) => f.format_id !== creative.vsg01_format_id);
+              return (
+                <>
+                  <AdFormatChip format={usedFormat} alternatives={alternatives} onSelect={onChangeFormat} />
+                  <button
+                    onClick={() => {
+                      window.location.href = '/workspace?tab=playbook';
+                    }}
+                    style={{
+                      display: 'block',
+                      marginTop: 6,
+                      background: 'none',
+                      border: 'none',
+                      color: '#888',
+                      fontSize: 11,
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    See all visual styles
+                  </button>
+                </>
+              );
+            })()}
           {plan?.explanation && (
             <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#888', fontStyle: 'italic', lineHeight: 1.5 }}>
               &ldquo;{plan.explanation}&rdquo;
@@ -3736,19 +3826,26 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               </p>
             ) : (
               <p style={{ margin: '8px 0 0', fontSize: 12, color: '#a15c00' }}>
-                ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number. Duplicate it from a
-                chat thread to relaunch with your number.
+                ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number. Duplicate it from a chat
+                thread to relaunch with your number.
               </p>
             );
           }
           const label =
-            dest === 'website' ? '🌐 Taps open your website'
-            : dest === 'instagram_dm' ? '📩 Taps land in your Instagram DMs'
-            : '🔗 Taps open your link';
+            dest === 'website'
+              ? '🌐 Taps open your website'
+              : dest === 'instagram_dm'
+                ? '📩 Taps land in your Instagram DMs'
+                : '🔗 Taps open your link';
           return (
             <p style={good}>
               {label}
-              {c.destination_link ? <> — <strong>{c.destination_link}</strong></> : null}
+              {c.destination_link ? (
+                <>
+                  {' '}
+                  — <strong>{c.destination_link}</strong>
+                </>
+              ) : null}
             </p>
           );
         })()}

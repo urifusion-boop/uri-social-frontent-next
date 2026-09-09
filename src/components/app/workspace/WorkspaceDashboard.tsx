@@ -28,7 +28,8 @@ import {
   SocialConnectionService,
 } from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
-import { CampaignService, PlanVariant } from '@/src/api/CampaignService';
+import { AdFormat, CampaignService, PlanVariant } from '@/src/api/CampaignService';
+import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -5842,6 +5843,15 @@ const PlaybookPage = ({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Visual Styles — Ads: fetched once, read-only (format choice is a per-campaign
+  // retrieval decision, not a standing brand preference like organic's style_selections).
+  const [adFormats, setAdFormats] = useState<AdFormat[]>([]);
+  useEffect(() => {
+    CampaignService.getAdFormats()
+      .then((res) => setAdFormats(res.formats))
+      .catch(() => setAdFormats([]));
+  }, []);
+
   // editable state
   const [brandName, setBrandName] = useState('');
   const [industry, setIndustry] = useState('');
@@ -8149,6 +8159,27 @@ const PlaybookPage = ({
               onCustomGuideV2Change={handleCustomGuideV2Change}
               brandId={profile?.id}
             />
+          </div>
+        )}
+      </PbSection>
+
+      <PbSection title="Visual Styles — Ads">
+        <div style={{ marginBottom: 10, fontSize: 12.5, color: '#888' }}>
+          The ad format library Jane picks from when building a campaign — browse what each one is for and when a logo
+          belongs in frame.
+        </div>
+        {adFormats.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+        ) : (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {[...adFormats]
+              .sort((a, b) => {
+                const rank = { live: 0, built: 1, planned: 2 } as const;
+                return rank[a.status] - rank[b.status];
+              })
+              .map((f) => (
+                <AdFormatGalleryCard key={f.format_id} format={f} />
+              ))}
           </div>
         )}
       </PbSection>

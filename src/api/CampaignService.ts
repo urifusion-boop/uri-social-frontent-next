@@ -160,6 +160,12 @@ export interface LaunchFromMessageResult {
     primary_text: string;
     cta: string;
     is_video?: boolean;
+    // Set only when a VSG-01 corpus format actually rendered this creative
+    // (JANE_ADS_VSG01_ENABLED, currently off by default) — matches an entry's
+    // format_id from CampaignService.getAdFormats(). Empty/absent means a
+    // plain generic generation, no format was used.
+    vsg01_format_id?: string;
+    vsg01_format_attributes?: Record<string, unknown>;
   };
   whatsapp_number?: string; // where ad leads route (wa.me/<this>); shown on the plan card
   destination_type?: string; // whatsapp | website | instagram_dm | custom
@@ -182,6 +188,25 @@ export interface LaunchFromMessageResult {
     note: string;
     ads_manager_url: string;
   };
+}
+
+// VSG-01-PROMPTS v2's ad format library, served from GET /jane-ads/ad-formats —
+// read directly off each format's own AdFormatDef + corpus record on the backend,
+// not a hand-duplicated copy (see WorkspaceDashboard's organic Visual Style section,
+// which does duplicate its 147-entry library into styleLibrary.ts — deliberately not
+// repeating that here since this list is small and already has a real endpoint).
+export interface AdFormat {
+  format_id: string;
+  name: string;
+  claim: string; // one-line "use this when…" — the gallery card's front face
+  mechanism: string; // the "see more" detail
+  business_types: string[];
+  modification_required: string;
+  brand_mark: 'required' | 'optional' | 'prohibited';
+  asset_source: string | null;
+  layers_used: string | null;
+  requires: string[];
+  status: 'live' | 'built' | 'planned';
 }
 
 export interface PlanAskResult {
@@ -349,6 +374,9 @@ export class CampaignService {
     // confirmation collected right after upload/recomposite. Undefined ("Skip") means
     // exactly what it always meant: use the photo as-is, no format-selection attempt.
     asset_attestation?: 'product_photo' | 'real_customer_photo';
+    // The user's own pick from suggestAdFormat()'s alternatives (the "change" link
+    // on the Style row). Undefined means "use whatever ranks best" (unchanged default).
+    vsg01_format_id?: string;
     reuse_image_url?: string; // refinement — keep the prior plan's image (no regen/credit)
     whatsapp_number?: string; // where leads route; sent when answering need_whatsapp
     thread_id?: string; // which campaign thread this plan belongs to (Tier E)
@@ -417,6 +445,27 @@ export class CampaignService {
   static async listDrafts(limit = 10): Promise<{ drafts: DraftSummary[] }> {
     const res = await UriHttpClient.getClient().get('/jane-ads/creative/drafts', { params: { limit } });
     return res.data as { drafts: DraftSummary[] };
+  }
+
+  /** The Visual Styles — Ads library (Brand Playbook section + the "Style: {name}"
+   *  chip on a generated ad). Not brand-scoped — same list for everyone. */
+  static async getAdFormats(): Promise<{ formats: AdFormat[] }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/ad-formats');
+    return res.data as { formats: AdFormat[] };
+  }
+
+  /** The pre-generation "Style — {name} · change" moment — the same ranking a real
+   *  generation call would use, computed before generating so it can be shown and
+   *  overridden (pass the pick back as vsg01_format_id on planFromMessage/
+   *  continueWithSource). suggested/alternatives are both empty when nothing is
+   *  eligible (a plain video, no eligible format, or VSG-01 has nothing approved). */
+  static async suggestAdFormat(params: {
+    asset_attestation?: 'product_photo' | 'real_customer_photo';
+    recomposite?: boolean;
+    is_video?: boolean;
+  }): Promise<{ suggested: AdFormat | null; alternatives: AdFormat[] }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/creative/suggest-format', params);
+    return res.data as { suggested: AdFormat | null; alternatives: AdFormat[] };
   }
 
   /** Turn a campaign on (starts spending its budget) or off. */
