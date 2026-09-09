@@ -24,6 +24,53 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 const PINK = '#C2185B';
 
+// A wallet top-up handed off to Squad but not yet settled.
+//
+// Squad's checkout can charge a card and still render its own "Payment Failed"
+// screen — their ValidateOTP endpoint returned 504 on a genuinely successful,
+// receipted, webhook-delivered payment on 2026-09-09. The customer then closes the
+// popup and never returns to our callback URL, so without this the successful
+// payment is never settled here and the only thing they ever saw was a lie.
+//
+// Keyed per-reference with an expiry so an abandoned checkout can't nag forever.
+const PENDING_TOPUP_KEY = 'jane_ads_pending_topup';
+const PENDING_TOPUP_TTL_MS = 6 * 60 * 60 * 1000;
+
+type PendingTopup = { reference: string; amountNgn: number; startedAt: number };
+
+function writePendingTopup(reference: string, amountNgn: number): void {
+  try {
+    const val: PendingTopup = { reference, amountNgn, startedAt: Date.now() };
+    window.localStorage.setItem(PENDING_TOPUP_KEY, JSON.stringify(val));
+  } catch {
+    // Private mode / blocked storage: the ?reference= callback still covers the
+    // normal path, so this is a lost safety net rather than a broken flow.
+  }
+}
+
+function readPendingTopup(): PendingTopup | null {
+  try {
+    const raw = window.localStorage.getItem(PENDING_TOPUP_KEY);
+    if (!raw) return null;
+    const val = JSON.parse(raw) as PendingTopup;
+    if (!val?.reference || Date.now() - val.startedAt > PENDING_TOPUP_TTL_MS) {
+      window.localStorage.removeItem(PENDING_TOPUP_KEY);
+      return null;
+    }
+    return val;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingTopup(): void {
+  try {
+    window.localStorage.removeItem(PENDING_TOPUP_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}
+
 // A chosen (but not yet built) multi-plan audience selection — see pendingVariantsRef
 // below. Threaded through the video hand-off below because it lives in a ref that
 // gets wiped when this component unmounts for the hand-off and remounts on return.
@@ -458,35 +505,59 @@ export default function CampaignsPage({
     }
   };
 
-  // Returning from a Squad checkout: the callback lands here with ?reference=<ref>.
-  // Verify it (credits the wallet idempotently), tell the user, and jump to the
-  // wallet tab so they see the new balance. Runs once on mount.
+  // Settling a Squad checkout.
+  //
+  // Two ways in, and the second is the one that matters: Squad's callback returns here
+  // with ?reference=<ref> on a clean payment, but when their own checkout breaks the
+  // user never gets back here at all. Live-confirmed 2026-09-09: Squad's ValidateOTP
+  // returned 504 on a card payment that had ALREADY succeeded — charged, receipted,
+  // webhook delivered — and their popup showed "Payment Failed". The customer saw a
+  // failure for money they had genuinely paid, and nothing on our side ever ran.
+  //
+  // So the reference is persisted before the redirect and settled from storage on the
+  // next load too. We own the reference, so we can always ask Squad the truth rather
+  // than relaying their popup's wrong answer.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const reference = params.get('reference');
+    const fromUrl = params.get('reference');
+    const pending = readPendingTopup();
+    const reference = fromUrl || pending?.reference;
     if (!reference) return;
-    // Strip the ref from the URL so a refresh doesn't re-verify.
-    window.history.replaceState({}, document.title, window.location.pathname + '?tab=campaigns');
+    if (fromUrl) {
+      // Strip the ref from the URL so a refresh doesn't re-verify.
+      window.history.replaceState({}, document.title, window.location.pathname + '?tab=campaigns');
+    }
     (async () => {
-      try {
-        const res = await CampaignService.verifyTopup(reference);
-        if (res.status === 'completed') {
-          ToastService.showToast('Wallet topped up successfully.', ToastTypeEnum.Success);
-        } else {
-          ToastService.showToast(
-            "We couldn't confirm that payment. If you were charged, it'll reflect shortly.",
-            ToastTypeEnum.Error
-          );
+      // A payment can be genuinely in flight for a few seconds (3DS, or Squad's
+      // webhook still landing), so an inconclusive answer is retried rather than
+      // reported as a failure.
+      let status = '';
+      for (const waitMs of [0, 2000, 4000, 6000]) {
+        if (waitMs) await new Promise((r) => setTimeout(r, waitMs));
+        try {
+          status = (await CampaignService.verifyTopup(reference)).status;
+        } catch {
+          status = 'pending';
         }
-      } catch {
-        ToastService.showToast(
-          "We couldn't confirm that payment. If you were charged, it'll reflect shortly.",
-          ToastTypeEnum.Error
-        );
-      } finally {
-        setTab('wallet');
-        loadWallet();
+        if (status === 'completed' || status === 'failed') break;
       }
+
+      if (status === 'completed') {
+        clearPendingTopup();
+        ToastService.showToast('Wallet topped up successfully.', ToastTypeEnum.Success);
+      } else if (status === 'failed') {
+        clearPendingTopup();
+        ToastService.showToast('That payment did not go through — you were not charged.', ToastTypeEnum.Error);
+      } else {
+        // Still unknown. KEEP the pending reference so the next visit settles it,
+        // and never tell someone their payment failed when we don't know that.
+        ToastService.showToast(
+          "We're still confirming that payment. If you were charged it'll appear here shortly — don't pay again.",
+          ToastTypeEnum.Warning
+        );
+      }
+      if (fromUrl) setTab('wallet');
+      loadWallet();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -3326,10 +3397,14 @@ function WalletTab({
     setError('');
     setFunding(true);
     try {
-      const { checkout_url } = await CampaignService.fundWallet(amount);
+      const { checkout_url, reference } = await CampaignService.fundWallet(amount);
       if (checkout_url) {
-        // Hand off to Squad's hosted checkout; on payment it returns to
-        // ?tab=campaigns&reference=… which the page verifies on mount.
+        // Remember the reference BEFORE leaving. Squad's checkout can charge the card
+        // and still show its own failure screen (their ValidateOTP 504'd on a real,
+        // successful payment on 2026-09-09), in which case the customer closes it and
+        // never returns with ?reference= — this is the only record that lets us settle
+        // it from the truth instead of from their popup.
+        writePendingTopup(reference, amount);
         window.location.href = checkout_url;
       } else {
         setError('Could not start the payment. Please try again.');

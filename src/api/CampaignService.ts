@@ -239,7 +239,8 @@ export interface CampaignRow {
   headline: string;
   primary_text: string;
   image_url: string;
-  budget_ngn: number | null;
+  budget_ngn: number | null; // the budget the CLIENT typed — the fee is taken out of it
+  ad_spend_ngn?: number | null; // what actually went to Meta (budget minus URI's fee)
   goal: string;
   city: string;
   whatsapp_number?: string; // where WhatsApp leads land; empty for every non-WhatsApp
