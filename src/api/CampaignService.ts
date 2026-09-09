@@ -86,6 +86,8 @@ export interface DestinationOption {
   hint: string;
   field: string;
   input_label: string;
+  input_note?: string; // extra requirement shown under the box (e.g. WhatsApp must be
+  // the number linked to the Facebook Page, or the ad can't report conversations)
   placeholder: string;
   takes_cta: boolean;
   current: string; // what this brand already has on file — prefills the input

@@ -2181,6 +2181,16 @@ function ChooseDestination({
           <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 4 }}>
             {active.input_label}
           </label>
+          {/* Said BEFORE the number is typed, not as a later warning: a number that
+              isn't linked to the Page still launches, just as a plain wa.me link ad
+              that can never report a conversation — and we can't detect the mismatch
+              to warn about it afterwards (reading a Page's linked number needs
+              whatsapp_business_management, a scope our token doesn't hold). */}
+          {active.input_note && (
+            <div style={{ fontSize: 11, color: '#a15c00', lineHeight: 1.5, marginBottom: 6 }}>
+              {active.input_note}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               value={value}

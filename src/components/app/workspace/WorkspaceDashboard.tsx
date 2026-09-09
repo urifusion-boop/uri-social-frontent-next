@@ -4146,19 +4146,25 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         Not set yet — Jane will ask for this the first time you build an ad.
                       </div>
                     )}
-                    {/* Saving the number above only records where leads should land. Meta
-                        separately requires the number to be LINKED to the Page before an ad
-                        can receive messages, and that is a manual step in Meta's own Page
-                        settings with no API. Without it a launch is blocked, and an ad that
-                        did run could never report a single conversation — so the real state
-                        (from Meta, not from our own record) belongs here, before anyone
-                        builds an ad. `undefined`/null means Meta couldn't tell us, which is
-                        deliberately not reported as a problem. */}
-                    {adsWaNumber && s?.whatsapp_linked_to_page === false && (
-                      <div style={{ fontSize: 11.5, color: '#a15c00', lineHeight: 1.5 }}>
-                        Saved — but this number isn&rsquo;t linked to your{' '}
-                        <strong>{s?.account_name || 'Facebook'}</strong> Page in Meta yet, so ads can&rsquo;t receive
-                        messages on it.{' '}
+                    {/* This requirement is shown UNCONDITIONALLY, not only when we detect a
+                        problem, because we cannot detect it. Reading whether a number is
+                        linked to a Page needs whatsapp_business_management, a scope our
+                        token doesn't hold, and Meta omits what a token can't see rather than
+                        erroring — so whatsapp_linked_to_page is almost always null, and the
+                        old `=== false` warning never rendered.
+
+                        Getting this wrong is silent and expensive: the ad still launches,
+                        but as a plain wa.me link ad that can never report a conversation
+                        (Meta fires messaging_conversation_started only for native
+                        destinations). A real campaign ran to 180 link clicks and zero
+                        attributed conversations exactly this way. Saying it up front is the
+                        only reliable place to catch it. */}
+                    {adsWaNumber && s?.whatsapp_linked_to_page !== true && (
+                      <div style={{ fontSize: 11.5, color: '#a15c00', lineHeight: 1.55 }}>
+                        This must be the <strong>same number linked to your{' '}
+                        {s?.account_name || 'Facebook'} Page</strong> in Meta — not just any
+                        number you own. If it isn&rsquo;t, ads still run, but as a plain
+                        WhatsApp link that can&rsquo;t report conversations.{' '}
                         {s?.whatsapp_link_url ? (
                           <a
                             href={s.whatsapp_link_url}
@@ -4166,12 +4172,12 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                             rel="noopener noreferrer"
                             style={{ color: '#C2185B', fontWeight: 600 }}
                           >
-                            Link it in Meta
+                            Check or link it in Meta
                           </a>
                         ) : (
                           <>Add it under your Page&rsquo;s WhatsApp settings in Meta</>
                         )}
-                        , confirm the code they send you, then come back.
+                        , confirm the code they send you, then save it here.
                       </div>
                     )}
                     {adsWaNumber && s?.whatsapp_linked_to_page === true && (
