@@ -1700,20 +1700,43 @@ export interface AdCopyV2 {
   image_prompt: string;
 }
 
+export type AdAngleV2 =
+  | 'problem'
+  | 'outcome'
+  | 'proof'
+  | 'offer'
+  | 'objection'
+  | 'comparison'
+  | 'urgency'
+  | 'convenience'
+  | 'transformation'
+  | 'product_demonstration';
+
 export interface AdOpportunityV2 {
   is_ad_candidate: boolean;
   score: number;
-  angle:
-    | 'problem_first'
-    | 'outcome_first'
-    | 'social_proof'
-    | 'offer'
-    | 'urgency'
-    | 'comparison'
-    | 'objection_handling'
-    | null;
+  angle: AdAngleV2 | null;
   ad_copy: AdCopyV2 | null;
   reason: string;
+}
+
+export interface SelectionScoreV2 {
+  strategic_relevance: number;
+  audience_relevance: number;
+  creative_strength: number;
+  distinctiveness: number;
+  brand_fit: number;
+  commercial_relevance: number;
+  asset_feasibility: number;
+  context_relevance: number;
+  repetition_risk: number;
+  diversity_gain: number;
+}
+
+export interface CreativeDeviceV2 {
+  category: string; // story | visual | conversational | psychological | structural
+  device: string;
+  label: string;
 }
 
 export interface CalendarV2VersionEntry {
@@ -1737,17 +1760,45 @@ export interface CalendarV2Item {
   upcoming_holidays: Array<{ date: string; name: string; type: string; content_angle?: string }>;
   format: string;
   content_type: 'educational' | 'relatable' | 'promotional' | 'behind_the_scenes' | 'engagement';
+  // Creative Intelligence Engine fields (Territory + Subject + Angle + Creative
+  // Device -> Content Idea) — content_type above is derived from territory
+  // purely so the existing badge keeps rendering; territory is the real
+  // selection dimension now.
+  territory: string;
+  subject: string;
+  creative_angle: string; // distinct from ad_opportunity.angle — this is the ORGANIC angle
+  creative_device: CreativeDeviceV2;
+  content_pillar: string;
+  customer_journey_stage: string;
+  promised_business_outcome: string;
+  creative_concept_name: string;
   carousel: { slides: CarouselSlideV2[] } | null;
-  creative_direction: { visual_style?: string; mood?: string; color_note?: string; composition_note?: string };
+  creative_direction: {
+    visual_style?: string;
+    mood?: string;
+    color_note?: string;
+    composition_note?: string;
+    central_visual_idea?: string;
+  };
+  design_style: string;
+  layout_direction: string;
+  visual_metaphor: string;
+  required_assets: string[];
+  designer_execution_notes: string;
   ai_image_prompt: string;
   exact_copy: { headline?: string; caption?: string; hashtags?: string[] };
   reasoning: string;
   data_provenance: Record<string, 'known' | 'inferred' | 'unknown'>;
   ad_opportunity: AdOpportunityV2 | null;
   primary_kpi: 'reach' | 'engagement' | 'leads' | 'sales' | 'awareness';
+  selection_score: SelectionScoreV2;
+  series_id: string | null;
+  series_name: string | null;
+  creative_quality_review_note?: string | null;
   diversity_check: { passed: boolean; similarity_score: number; flagged_against_item_id: string | null };
   version_history: CalendarV2VersionEntry[];
   regenerated_count: number;
+  last_regenerated_reason?: 'manual' | 'diversity_auto' | null;
   acted_on: boolean;
   acted_on_draft_ids: string[];
   status: 'pending' | 'approved' | 'rejected';
@@ -1759,16 +1810,17 @@ export interface ContentCalendarV2Plan {
   status: 'active' | 'archived';
   period_start: string;
   period_end: string;
-  generation_method: 'data_driven' | 'trend_driven' | 'ai';
+  generation_method: string; // "framework_driven" — replaces the old data/trend-driven values
+  framework_version?: string;
+  pipeline_version?: string;
   platforms: string[];
   carousel_slots: number[];
   intelligence_snapshot: {
-    performance_summary?: { has_data: boolean; top_topics: string[] };
-    trend_keywords?: string[];
     holidays?: Array<{ date: string; name: string }>;
     cultural_moments?: unknown[];
     industry_best_practices?: unknown;
   };
+  territory_mix?: Record<string, number>;
   content_mix: Record<string, number>;
   items: CalendarV2Item[];
   created_at: string;

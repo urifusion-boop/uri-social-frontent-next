@@ -94,6 +94,37 @@ const AdBadge = ({ score }: { score: number }) => (
   </span>
 );
 
+// PRD territory label — a short human-readable form of the "A_PROBLEM" style
+// key, e.g. "Problem". Falls back to the raw key if it doesn't match the
+// expected "X_LABEL" shape.
+function territoryLabel(territory: string): string {
+  const withoutPrefix = territory.replace(/^[A-Z]_/, '');
+  return withoutPrefix
+    .split('_')
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+const TerritoryBadge = ({ territory }: { territory: string }) => {
+  if (!territory) return null;
+  return (
+    <span
+      title="Content territory (PRD Layer 1)"
+      style={{
+        display: 'inline-block',
+        padding: '2px 8px',
+        borderRadius: 20,
+        fontSize: 10.5,
+        fontWeight: 700,
+        background: 'rgba(107,114,128,.12)',
+        color: '#374151',
+      }}
+    >
+      {territoryLabel(territory)}
+    </span>
+  );
+};
+
 // ── Item card (30-day grid cell) ────────────────────────────────────────────
 
 const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void }) => {
@@ -121,14 +152,15 @@ const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void
           {today && ' · TODAY'}
         </span>
         {item.format === 'carousel' && (
-          <span style={{ fontSize: 11 }} title="Carousel (3 slides)">
-            🖼️🖼️🖼️
+          <span style={{ fontSize: 11 }} title={`Carousel (${item.carousel?.slides.length ?? '?'} slides)`}>
+            {'🖼️'.repeat(item.carousel?.slides.length || 3)}
           </span>
         )}
       </div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: '#111827', lineHeight: 1.3 }}>{item.title}</div>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 'auto' }}>
         <TypeBadge type={item.content_type} />
+        <TerritoryBadge territory={item.territory} />
         {item.ad_opportunity?.is_ad_candidate && <AdBadge score={item.ad_opportunity.score} />}
         {!item.diversity_check.passed && (
           <span title="Flagged as similar to another idea in this plan" style={{ fontSize: 10.5, color: '#B45309' }}>
@@ -143,13 +175,24 @@ const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void
 
 // ── Ad opportunity panel ────────────────────────────────────────────────────
 
-const AdOpportunityPanel = ({ score, adCopy }: { score: number; adCopy: AdCopyV2 | null }) => {
+const AdOpportunityPanel = ({
+  score,
+  angle,
+  reason,
+  adCopy,
+}: {
+  score: number;
+  angle: string | null;
+  reason: string;
+  adCopy: AdCopyV2 | null;
+}) => {
   if (!adCopy) return null;
   return (
     <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: 14, marginTop: 14 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: '#059669', marginBottom: 8 }}>
-        💰 Ad opportunity — scored {score}/100
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#059669', marginBottom: 4 }}>
+        💰 Ad opportunity — scored {score}/100{angle && ` · ${territoryLabel(angle)} angle`}
       </div>
+      {reason && <div style={{ fontSize: 11, color: '#15803d', marginBottom: 8 }}>{reason}</div>}
       <div style={{ fontSize: 12.5, color: '#111827', marginBottom: 4 }}>
         <strong>Headline:</strong> {adCopy.headline}
       </div>
@@ -157,7 +200,10 @@ const AdOpportunityPanel = ({ score, adCopy }: { score: number; adCopy: AdCopyV2
       <div style={{ fontSize: 11.5, color: GRAY, marginBottom: 4 }}>
         <em>Short: {adCopy.short_copy}</em>
       </div>
-      <div style={{ fontSize: 12, color: PINK, fontWeight: 600 }}>CTA: {adCopy.cta}</div>
+      <div style={{ fontSize: 12, color: PINK, fontWeight: 600, marginBottom: 4 }}>CTA: {adCopy.cta}</div>
+      {adCopy.image_prompt && (
+        <div style={{ fontSize: 11, color: GRAY, fontStyle: 'italic' }}>Ad visual: {adCopy.image_prompt}</div>
+      )}
     </div>
   );
 };
@@ -290,7 +336,10 @@ const ItemDetailModal = ({
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <div>
-            <TypeBadge type={item.content_type} />
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              <TypeBadge type={item.content_type} />
+              <TerritoryBadge territory={item.territory} />
+            </div>
             <h3 style={{ fontSize: 17, fontWeight: 700, color: '#111827', margin: '8px 0 2px' }}>{item.title}</h3>
             <div style={{ fontSize: 12, color: GRAY }}>
               {new Date(item.date + 'T00:00:00').toLocaleDateString(undefined, {
@@ -307,6 +356,82 @@ const ItemDetailModal = ({
             ×
           </button>
         </div>
+
+        {!item.diversity_check.passed && (
+          <div
+            style={{
+              fontSize: 11,
+              color: '#B45309',
+              background: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              borderRadius: 8,
+              padding: '6px 10px',
+              marginBottom: 10,
+            }}
+          >
+            ⚠️ Flagged as similar to another idea in this plan (similarity score{' '}
+            {item.diversity_check.similarity_score.toFixed(1)})
+            {item.last_regenerated_reason === 'diversity_auto' &&
+              ' — already auto-regenerated once, still flagged for manual review'}
+          </div>
+        )}
+        {item.last_regenerated_reason === 'diversity_auto' && item.diversity_check.passed && (
+          <div style={{ fontSize: 11, color: '#059669', marginBottom: 10 }}>
+            ↻ Automatically regenerated after a creative-diversity review
+          </div>
+        )}
+        {item.creative_quality_review_note && (
+          <div
+            style={{
+              fontSize: 11,
+              color: '#374151',
+              background: '#F9FAFB',
+              border: `1px solid ${BORDER}`,
+              borderRadius: 8,
+              padding: '6px 10px',
+              marginBottom: 10,
+            }}
+          >
+            📝 Creative quality review: {item.creative_quality_review_note}
+          </div>
+        )}
+
+        {(item.creative_concept_name || item.subject || item.creative_angle || item.creative_device?.label) && (
+          <div
+            style={{
+              background: '#FDF4F9',
+              border: `1px solid ${BORDER}`,
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 6 }}>CREATIVE CONCEPT</div>
+            {item.creative_concept_name && (
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
+                {item.creative_concept_name}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11.5, color: '#374151' }}>
+              {item.subject && (
+                <span>
+                  <strong>Subject:</strong> {item.subject}
+                </span>
+              )}
+              {item.creative_angle && (
+                <span>
+                  <strong>Angle:</strong> {territoryLabel(item.creative_angle)}
+                </span>
+              )}
+              {item.creative_device?.label && (
+                <span>
+                  <strong>Device:</strong> {territoryLabel(item.creative_device.label)} ({item.creative_device.category}
+                  )
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         <div
           style={{
@@ -340,6 +465,11 @@ const ItemDetailModal = ({
         {item.exact_copy?.caption && (
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>PUBLISH-READY CAPTION</div>
+            {item.exact_copy.headline && (
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
+                {item.exact_copy.headline}
+              </div>
+            )}
             <div
               style={{
                 fontSize: 12.5,
@@ -355,7 +485,7 @@ const ItemDetailModal = ({
             </div>
             {!!item.exact_copy.hashtags?.length && (
               <div style={{ fontSize: 11.5, color: PINK, marginTop: 4 }}>
-                {item.exact_copy.hashtags.map((h) => `#${h}`).join(' ')}
+                {item.exact_copy.hashtags.map((h) => `#${h.replace(/^#+/, '')}`).join(' ')}
               </div>
             )}
           </div>
@@ -363,7 +493,9 @@ const ItemDetailModal = ({
 
         {item.carousel && (
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 6 }}>CAROUSEL — 3 SLIDES</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 6 }}>
+              CAROUSEL — {item.carousel.slides.length} SLIDE{item.carousel.slides.length === 1 ? '' : 'S'}
+            </div>
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
               {item.carousel.slides.map((s) => (
                 <div
@@ -380,7 +512,10 @@ const ItemDetailModal = ({
                     Slide {s.slide_index + 1}
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', marginBottom: 4 }}>{s.headline}</div>
-                  <div style={{ fontSize: 11, color: '#374151' }}>{s.body}</div>
+                  <div style={{ fontSize: 11, color: '#374151', marginBottom: 4 }}>{s.body}</div>
+                  {s.visual_note && (
+                    <div style={{ fontSize: 10, color: GRAY, fontStyle: 'italic' }}>{s.visual_note}</div>
+                  )}
                 </div>
               ))}
             </div>
@@ -392,8 +527,72 @@ const ItemDetailModal = ({
           <div style={{ fontSize: 12, color: '#374151', fontStyle: 'italic' }}>{item.ai_image_prompt}</div>
         </div>
 
+        {(item.creative_direction?.central_visual_idea ||
+          item.design_style ||
+          item.layout_direction ||
+          item.visual_metaphor) && (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>VISUAL DIRECTION</div>
+            <div style={{ fontSize: 12, color: '#374151', display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {item.creative_direction?.central_visual_idea && <div>{item.creative_direction.central_visual_idea}</div>}
+              {item.design_style && (
+                <div>
+                  <strong>Style:</strong> {item.design_style}
+                </div>
+              )}
+              {item.layout_direction && (
+                <div>
+                  <strong>Layout:</strong> {item.layout_direction}
+                </div>
+              )}
+              {item.visual_metaphor && (
+                <div>
+                  <strong>Metaphor:</strong> {item.visual_metaphor}
+                </div>
+              )}
+              {item.creative_direction?.mood && (
+                <div>
+                  <strong>Mood:</strong> {item.creative_direction.mood}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {(item.required_assets?.length > 0 || item.designer_execution_notes) && (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>PRODUCTION NOTES</div>
+            {item.required_assets?.length > 0 && (
+              <ul style={{ margin: '0 0 4px', paddingLeft: 18, fontSize: 11.5, color: '#374151' }}>
+                {item.required_assets.map((a, i) => (
+                  <li key={i}>{a}</li>
+                ))}
+              </ul>
+            )}
+            {item.designer_execution_notes && (
+              <div style={{ fontSize: 11.5, color: '#374151' }}>{item.designer_execution_notes}</div>
+            )}
+          </div>
+        )}
+
+        {item.data_provenance && Object.values(item.data_provenance).includes('unknown') && (
+          <div style={{ fontSize: 10.5, color: '#B45309', marginBottom: 10 }}>
+            ⚠️ Verify before publishing —{' '}
+            {Object.entries(item.data_provenance)
+              .filter(([, v]) => v === 'unknown')
+              .map(([k]) => k.replace(/_/g, ' '))
+              .join(', ')}{' '}
+            not sourced from the brand profile.
+          </div>
+        )}
+
         {item.ad_opportunity?.is_ad_candidate && (
-          <AdOpportunityPanel score={item.ad_opportunity.score} adCopy={item.ad_opportunity.ad_copy} />
+          <AdOpportunityPanel
+            score={item.ad_opportunity.score}
+            angle={item.ad_opportunity.angle}
+            reason={item.ad_opportunity.reason}
+            adCopy={item.ad_opportunity.ad_copy}
+          />
         )}
 
         <div style={{ marginTop: 14 }}>
@@ -610,7 +809,9 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
               opacity: generating ? 0.6 : 1,
             }}
           >
-            {generating ? 'Generating 30-day plan… (~2-3 min)' : 'Generate 30-Day Plan'}
+            {generating
+              ? 'Generating 30-day plan… (~4-6 min — candidates, scoring, then copy)'
+              : 'Generate 30-Day Plan'}
           </button>
         </div>
       ) : (
@@ -630,9 +831,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
                 {formatPeriodLabel(plan.period_start, plan.period_end)}
               </div>
               <div style={{ fontSize: 11.5, color: GRAY, marginTop: 2 }}>
-                {plan.generation_method === 'data_driven' && '📊 Data-driven'}
-                {plan.generation_method === 'trend_driven' && '📈 Trend-driven'}
-                {plan.generation_method === 'ai' && '✨ AI-generated'}
+                🧠 Framework-driven{plan.framework_version && ` · v${plan.framework_version}`}
                 {' · '}
                 {plan.items.filter((i) => i.ad_opportunity?.is_ad_candidate).length} ad candidates
                 {' · '}
