@@ -858,6 +858,49 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
 
           <div
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+              marginBottom: 14,
+              padding: '8px 12px',
+              background: '#F9FAFB',
+              border: `1px solid ${BORDER}`,
+              borderRadius: 8,
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: GRAY }}>PLATFORMS</span>
+            {PLATFORMS.map((p) => {
+              const on = platforms.includes(p.key);
+              return (
+                <button
+                  key={p.key}
+                  onClick={() => togglePlatform(p.key)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 20,
+                    border: `1.5px solid ${on ? PINK : BORDER}`,
+                    background: on ? '#FCE7F3' : '#fff',
+                    color: on ? PINK : '#9CA3AF',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {on ? '✓ ' : ''}
+                  {p.label}
+                </button>
+              );
+            })}
+            {JSON.stringify([...platforms].sort()) !== JSON.stringify([...plan.platforms].sort()) && (
+              <span style={{ fontSize: 11, color: '#B45309' }}>
+                — changed from {plan.platforms.join(', ')}; regenerate to apply
+              </span>
+            )}
+          </div>
+
+          <div
+            style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
               gap: 10,
