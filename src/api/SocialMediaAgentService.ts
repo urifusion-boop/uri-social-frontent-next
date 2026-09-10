@@ -1807,7 +1807,10 @@ export interface CalendarV2Item {
 
 export interface ContentCalendarV2Plan {
   plan_id: string;
-  status: 'active' | 'archived';
+  // 'generating' — pipeline running as a background job; poll GET /plan.
+  // 'failed' — pipeline errored; `error` holds the reason, offer Regenerate.
+  status: 'active' | 'archived' | 'generating' | 'failed';
+  error?: string | null;
   period_start: string;
   period_end: string;
   generation_method: string; // "framework_driven" — replaces the old data/trend-driven values

@@ -709,6 +709,39 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
     })();
   }, []);
 
+  // The pipeline runs 4-6 min as a background job; while the newest plan is
+  // still 'generating', poll GET /plan until it flips to 'active' or 'failed'.
+  useEffect(() => {
+    if (plan?.status !== 'generating') {
+      setGenerating(false);
+      return;
+    }
+    setGenerating(true);
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await SocialMediaAgentService.getCalendarPlanV2();
+        if (cancelled) return;
+        if (res.status && res.responseData) {
+          setPlan(res.responseData);
+          if (res.responseData.status === 'active') {
+            ToastService.showToast('Plan ready', ToastTypeEnum.Success);
+            onGenerated();
+          } else if (res.responseData.status === 'failed') {
+            ToastService.showToast(res.responseData.error || 'Generation failed — try again', ToastTypeEnum.Error);
+          }
+        }
+      } catch {
+        // transient — keep polling
+      }
+    };
+    const id = setInterval(tick, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [plan?.status, onGenerated]);
+
   const togglePlatform = (key: string) =>
     setPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
 
@@ -722,16 +755,20 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
       const res = await SocialMediaAgentService.generateCalendarPlanV2(platforms, force);
       if (res.status && res.responseData) {
         setPlan(res.responseData);
-        ToastService.showToast(force ? 'Plan regenerated' : 'Plan generated', ToastTypeEnum.Success);
+        // A 'generating' placeholder comes back near-instantly; the polling
+        // effect (keyed on plan.status) takes over from here. An 'active'
+        // plan means one already existed and force was false.
+        if (res.responseData.status === 'generating') {
+          ToastService.showToast('Building your 30-day plan — this takes a few minutes', ToastTypeEnum.Success);
+        } else {
+          setGenerating(false);
+        }
       } else {
         ToastService.showToast(res.responseMessage || 'Generation failed', ToastTypeEnum.Error);
+        setGenerating(false);
       }
     } catch {
-      ToastService.showToast(
-        'Generation failed — this can take up to a few minutes for 30 days, try again',
-        ToastTypeEnum.Error
-      );
-    } finally {
+      ToastService.showToast('Could not start generation — try again', ToastTypeEnum.Error);
       setGenerating(false);
     }
   };
@@ -758,7 +795,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
         here affects it.
       </div>
 
-      {!plan ? (
+      {!plan || plan.status === 'generating' || plan.status === 'failed' ? (
         <div
           style={{
             background: '#fff',
@@ -768,17 +805,34 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
             textAlign: 'center',
           }}
         >
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🗓️</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>No 30-day plan yet</div>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>
+            {plan?.status === 'generating' ? '⏳' : plan?.status === 'failed' ? '⚠️' : '🗓️'}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+            {plan?.status === 'generating'
+              ? 'Building your 30-day plan…'
+              : plan?.status === 'failed'
+                ? 'Generation didn’t finish'
+                : 'No 30-day plan yet'}
+          </div>
           <div style={{ fontSize: 12.5, color: GRAY, marginBottom: 16 }}>
-            Generate a 30-day content plan tailored to your brand — including ad-ready posts and exact copy.
+            {plan?.status === 'generating' ? (
+              'The engine is drafting a candidate pool, scoring it, then writing copy for the 30 selected ideas. This runs in the background and takes about 4-6 minutes — you can leave this tab and come back.'
+            ) : plan?.status === 'failed' ? (
+              <>
+                {plan.error || 'Something went wrong during generation.'} Adjust your platforms if needed and try again.
+              </>
+            ) : (
+              'Generate a 30-day content plan tailored to your brand — including ad-ready posts and exact copy.'
+            )}
           </div>
           <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 6 }}>PLATFORMS</div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
             {PLATFORMS.map((p) => (
               <button
                 key={p.key}
-                onClick={() => togglePlatform(p.key)}
+                onClick={() => !generating && togglePlatform(p.key)}
+                disabled={generating}
                 style={{
                   padding: '8px 14px',
                   borderRadius: 20,
@@ -787,7 +841,8 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
                   color: platforms.includes(p.key) ? PINK : '#374151',
                   fontSize: 12.5,
                   fontWeight: 600,
-                  cursor: 'pointer',
+                  cursor: generating ? 'default' : 'pointer',
+                  opacity: generating ? 0.6 : 1,
                 }}
               >
                 {p.label}
@@ -811,7 +866,9 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
           >
             {generating
               ? 'Generating 30-day plan… (~4-6 min — candidates, scoring, then copy)'
-              : 'Generate 30-Day Plan'}
+              : plan?.status === 'failed'
+                ? 'Try again'
+                : 'Generate 30-Day Plan'}
           </button>
         </div>
       ) : (
