@@ -17,7 +17,7 @@ import {
   CampaignSummary,
   ThreadSummary,
 } from '@/src/api/CampaignService';
-import { AdFormatChip } from '@/src/components/app/workspace/AdFormatGallery';
+import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/workspace/AdFormatGallery';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -112,14 +112,29 @@ type ChatMsg =
       role: 'jane';
       kind: 'result';
       result: LaunchFromMessageResult;
-      // The pre-generation ranking computed alongside this specific result (mirrors
-      // JaneVideoChat.tsx's plan.style + alternatives) — undefined for a video, for a
-      // request where nothing was eligible, or if the suggest call itself failed
-      // (never blocks generation). Lets ResultCard offer "change" for THIS result.
-      adSuggestion?: { suggested: AdFormat | null; alternatives: AdFormat[] };
-      // The exact creative-source choice that produced this result — replayed with a
-      // different vsg01_format_id when the user picks an alternative via "change".
-      sourceChoice?: ContinueChoice;
+      // Set only when the user explicitly picked a format (style_choice below)
+      // and what actually rendered came out different — its own content step
+      // failed and generation fell through to the next-ranked format. Lets
+      // ResultCard say so honestly instead of silently showing "Style: {X}"
+      // for a format the user didn't ask for.
+      formatFallbackFrom?: string;
+    }
+  | {
+      id: string;
+      role: 'jane';
+      kind: 'style_choice';
+      // The real pre-generation ranking (mirrors JaneVideoChat.tsx's plan.style),
+      // computed BEFORE anything is generated — this step exists specifically so
+      // the user sees and can override it first, not after the fact.
+      suggested: AdFormat;
+      alternatives: AdFormat[];
+      sourceChoice: ContinueChoice;
+      briefOverride?: string;
+      // The format_id the user actually confirmed (the suggestion's own id, or
+      // a listed alternative's) — undefined while the step is still awaiting
+      // an answer. Once set, this step renders as resolved history, exactly
+      // like a stale plan-variant card never re-opens after being answered.
+      resolved?: string;
     };
 
 interface SelectedMedia {
@@ -218,6 +233,13 @@ export default function CampaignsPage({
   const [tab, setTab] = useState<'chat' | 'manage' | 'wallet' | 'billing'>('chat');
   const [isAdmin, setIsAdmin] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([makeGreeting()]);
+  // Mirrors `messages` for the rare case a handler needs to read the CURRENT
+  // list inside a callback without risking a stale closure (resolveStyleChoice
+  // below) — same pattern as activeThreadRef mirroring activeThreadId.
+  const messagesRef = useRef<ChatMsg[]>(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
@@ -365,6 +387,10 @@ export default function CampaignsPage({
   // Fire-and-forget save — the chat must keep working locally even if this fails. Every
   // message is tagged with the active thread (Tier E) so it lands in the right conversation.
   const saveMsg = (msg: ChatMsg) => {
+    // A pending style_choice is transient UI state, not history — it either
+    // resolves into a real 'result' message (which IS saved) or the user
+    // never answers it and a reload has nothing useful to restore anyway.
+    if (msg.role === 'jane' && msg.kind === 'style_choice') return;
     const thread_id = activeThreadRef.current || undefined;
     CampaignService.saveChatMessage(
       msg.role === 'user'
@@ -722,16 +748,12 @@ export default function CampaignsPage({
   // using this same chosen source (spec §7 "one creative per plan"), instead of a
   // single call. Live-caught 2026-08-04: continueWithVariants used to skip this
   // ask entirely and silently auto-generate, dropping the upload/draft choice.
-  const continueWithSource = async (
-    choice: ContinueChoice,
-    // Explicit override for callers that just rebuilt the brief via openThread's
-    // return value and can't wait for that setBriefSoFar to flush into a re-render —
-    // reading the briefSoFar closure here would still see its pre-openThread value.
-    briefOverride?: string,
-    // The user's pick from a previous result's "change" list (AdFormatChip) — replays
-    // the exact same choice with a specific format forced instead of best-ranked.
-    formatOverride?: string
-  ) => {
+  // The actual generation call — always the SAME request shape whether it
+  // was reached straight (no format to choose from) or after the user
+  // resolved a style_choice step. formatOverride, once given, rides on
+  // EVERY variant's request exactly as typed — never silently dropped for
+  // a later variant in the same fan-out.
+  const runGeneration = async (choice: ContinueChoice, briefOverride?: string, formatOverride?: string) => {
     const brief = briefOverride ?? briefSoFar;
     if (busy || !brief) return;
     creativeChoiceRef.current = choice.creative_source;
@@ -739,17 +761,6 @@ export default function CampaignsPage({
     pendingVariantsRef.current = null;
     setBusy(true);
     try {
-      // Pre-generation suggestion (mirrors JaneVideoChat.tsx's plan.style): computed
-      // alongside generation, not blocking it — a failure here just means this
-      // result's Style row won't offer "change", generation proceeds regardless.
-      const isVideo = choice.creative_source === 'upload' && choice.is_video;
-      const assetAttestation = 'asset_attestation' in choice ? choice.asset_attestation : undefined;
-      const adSuggestion = await CampaignService.suggestAdFormat({
-        asset_attestation: assetAttestation,
-        recomposite: choice.creative_source === 'recomposite',
-        is_video: isVideo,
-      }).catch(() => undefined);
-
       const variants = pendingVariants ? pendingVariants.variants : [null];
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
@@ -768,8 +779,15 @@ export default function CampaignsPage({
           role: 'jane',
           kind: 'result',
           result,
-          adSuggestion,
-          sourceChoice: choice,
+          // Honest disclosure, not a silent swap: if the user picked a specific
+          // format and what actually rendered is something else (its own content
+          // step failed — e.g. no real quote for Review Card — and generation
+          // fell through to the next-ranked format), say so on the result rather
+          // than letting a generic "Style: X" line look like nothing happened.
+          formatFallbackFrom:
+            formatOverride && result.creative?.vsg01_format_id && result.creative.vsg01_format_id !== formatOverride
+              ? formatOverride
+              : undefined,
         };
         setMessages((m) => [...m, resultMsg]);
         saveMsg(resultMsg);
@@ -784,6 +802,68 @@ export default function CampaignsPage({
       saveMsg(errMsg);
     } finally {
       setBusy(false);
+    }
+  };
+
+  // The real entry point for "generate an ad": computes what format Jane
+  // would suggest BEFORE anything is generated, and — when there's a real
+  // suggestion to show — pauses on a style_choice step instead of firing
+  // generation immediately. The user either confirms it or picks a listed
+  // alternative; either way runGeneration only ever fires once a format
+  // choice (possibly "none, just use your best judgement") is actually
+  // settled, mirroring how choose_plan_variant already pauses this same
+  // chat for an audience pick before building anything.
+  const continueWithSource = async (choice: ContinueChoice, briefOverride?: string) => {
+    const brief = briefOverride ?? briefSoFar;
+    if (busy || !brief) return;
+    const isVideo = choice.creative_source === 'upload' && choice.is_video;
+    const assetAttestation = 'asset_attestation' in choice ? choice.asset_attestation : undefined;
+    if (choice.creative_source === 'draft' || isVideo) {
+      // No format concept applies on these paths — go straight to generation,
+      // matching the backend's own eligibility (suggest-format would return
+      // nothing here anyway).
+      await runGeneration(choice, briefOverride);
+      return;
+    }
+    setBusy(true);
+    const adSuggestion = await CampaignService.suggestAdFormat({
+      asset_attestation: assetAttestation,
+      recomposite: choice.creative_source === 'recomposite',
+      is_video: isVideo,
+      description: brief,
+    }).catch(() => ({ suggested: null, alternatives: [] }));
+    setBusy(false);
+
+    if (!adSuggestion.suggested) {
+      await runGeneration(choice, briefOverride);
+      return;
+    }
+    const choiceMsg: ChatMsg = {
+      id: uid(),
+      role: 'jane',
+      kind: 'style_choice',
+      suggested: adSuggestion.suggested,
+      alternatives: adSuggestion.alternatives,
+      sourceChoice: choice,
+      briefOverride,
+    };
+    setMessages((m) => [...m, choiceMsg]);
+  };
+
+  // Called once the user resolves a style_choice step — either its "Use this
+  // style" button (formatId = the suggestion's own id) or picking a listed
+  // alternative. Marks the step resolved (so its UI stops offering choices —
+  // it's history now, like a stale plan card) and fires the real generation
+  // with that format forced.
+  const resolveStyleChoice = (msgId: string, formatId: string) => {
+    setMessages((m) =>
+      m.map((msg) =>
+        msg.role === 'jane' && msg.kind === 'style_choice' && msg.id === msgId ? { ...msg, resolved: formatId } : msg
+      )
+    );
+    const msg = messagesRef.current.find((m) => m.id === msgId);
+    if (msg && msg.role === 'jane' && msg.kind === 'style_choice') {
+      runGeneration(msg.sourceChoice, msg.briefOverride, formatId);
     }
   };
 
@@ -1222,16 +1302,19 @@ export default function CampaignsPage({
                     </div>
                   ) : m.kind === 'text' ? (
                     <JaneBubble>{m.text}</JaneBubble>
+                  ) : m.kind === 'style_choice' ? (
+                    <AdFormatSuggestionCard
+                      suggested={m.suggested}
+                      alternatives={m.alternatives}
+                      resolved={m.resolved}
+                      stale={i !== messages.length - 1}
+                      onChoose={(formatId) => resolveStyleChoice(m.id, formatId)}
+                    />
                   ) : (
                     <ResultCard
                       result={m.result}
                       adFormats={adFormats}
-                      adSuggestion={m.adSuggestion}
-                      onChangeFormat={
-                        m.sourceChoice
-                          ? (formatId) => continueWithSource(m.sourceChoice!, undefined, formatId)
-                          : undefined
-                      }
+                      formatFallbackFrom={m.formatFallbackFrom}
                       // A question Jane already moved past is history: readable, but its
                       // buttons must not fire. Live-reported: a rejected link left TWO
                       // destination pickers on screen, the stale one still holding the bad
@@ -2099,6 +2182,14 @@ function ChooseDestination({
           <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 4 }}>
             {active.input_label}
           </label>
+          {/* Said BEFORE the number is typed, not as a later warning: a number that
+              isn't linked to the Page still launches, just as a plain wa.me link ad
+              that can never report a conversation — and we can't detect the mismatch
+              to warn about it afterwards (reading a Page's linked number needs
+              whatsapp_business_management, a scope our token doesn't hold). */}
+          {active.input_note && (
+            <div style={{ fontSize: 11, color: '#a15c00', lineHeight: 1.5, marginBottom: 6 }}>{active.input_note}</div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               value={value}
@@ -2854,8 +2945,7 @@ function PromptCard({ stale, children }: { stale?: boolean; children: React.Reac
 function ResultCard({
   result,
   adFormats,
-  adSuggestion,
-  onChangeFormat,
+  formatFallbackFrom,
   onResultChange,
   onLaunched,
   onQuickReply,
@@ -2873,8 +2963,11 @@ function ResultCard({
 }: {
   result: LaunchFromMessageResult;
   adFormats: AdFormat[];
-  adSuggestion?: { suggested: AdFormat | null; alternatives: AdFormat[] };
-  onChangeFormat?: (formatId: string) => void;
+  // Set only when the user picked a specific format up front (the new
+  // style_choice step) and generation actually fell through to a different
+  // one — see runGeneration's own comment for why that can legitimately
+  // happen (the chosen format's content step failed for this specific ad).
+  formatFallbackFrom?: string;
   onResultChange: (result: LaunchFromMessageResult) => void;
   onLaunched: () => void;
   onQuickReply: (text: string) => void;
@@ -3161,37 +3254,12 @@ function ResultCard({
           <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>{creative?.primary_text}</p>
           {creative?.vsg01_format_id &&
             (() => {
-              const candidates = adSuggestion
-                ? [adSuggestion.suggested, ...adSuggestion.alternatives].filter((f): f is AdFormat => f !== null)
-                : [];
-              const usedFormat =
-                candidates.find((f) => f.format_id === creative.vsg01_format_id) ??
-                adFormats.find((f) => f.format_id === creative.vsg01_format_id);
+              const usedFormat = adFormats.find((f) => f.format_id === creative.vsg01_format_id);
               if (!usedFormat) return null;
-              const alternatives = candidates.filter((f) => f.format_id !== creative.vsg01_format_id);
-              return (
-                <>
-                  <AdFormatChip format={usedFormat} alternatives={alternatives} onSelect={onChangeFormat} />
-                  <button
-                    onClick={() => {
-                      window.location.href = '/workspace?tab=playbook';
-                    }}
-                    style={{
-                      display: 'block',
-                      marginTop: 6,
-                      background: 'none',
-                      border: 'none',
-                      color: '#888',
-                      fontSize: 11,
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    See all visual styles
-                  </button>
-                </>
-              );
+              const fallbackFrom = formatFallbackFrom
+                ? adFormats.find((f) => f.format_id === formatFallbackFrom)
+                : undefined;
+              return <UsedStyleTag format={usedFormat} fallbackFrom={fallbackFrom} />;
             })()}
           {plan?.explanation && (
             <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#888', fontStyle: 'italic', lineHeight: 1.5 }}>

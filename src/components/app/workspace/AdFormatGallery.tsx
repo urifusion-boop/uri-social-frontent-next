@@ -24,9 +24,9 @@ const FORMAT_VISUALS: Record<string, { icon: string; from: string; to: string }>
   'SEED-083': { icon: '🙈', from: '#232526', to: '#0F0C29' }, // The Censored Item
   'SEED-088': { icon: '🧺', from: '#F7971E', to: '#FFD200' }, // Starter Pack
   'SEED-089': { icon: '😄', from: '#F857A6', to: '#FF5858' }, // Humour / Cartoon
-  'PLANNED-price-led-offer': { icon: '🏷️', from: '#CD1B78', to: '#8E1545' },
-  'PLANNED-text-only': { icon: '🔤', from: '#485563', to: '#29323C' },
-  'PLANNED-work-in-progress': { icon: '🛠️', from: '#F2994A', to: '#F2C94C' },
+  'SEED-096': { icon: '🏷️', from: '#CD1B78', to: '#8E1545' },
+  'SEED-097': { icon: '🔤', from: '#485563', to: '#29323C' },
+  'SEED-098': { icon: '🛠️', from: '#F2994A', to: '#F2C94C' },
 };
 const DEFAULT_VISUAL = { icon: '🎯', from: '#9CA3AF', to: '#6B7280' };
 
@@ -219,92 +219,221 @@ export const AdFormatGalleryCard = ({
   );
 };
 
-/** The in-flow "Style — {name} · change" row shown next to a generated ad — only
- *  ever rendered when the backend actually used a VSG-01 format (vsg01_format_id
- *  non-empty). Modeled directly on JaneVideoChat.tsx's plan.style row: a compact
- *  line with an info toggle for the current pick, plus a separate "change" link
- *  that reveals the OTHER real ranked candidates (from the same pre-generation
- *  suggest-format call) — picking one calls onSelect, which replays this exact
- *  generation with that format forced (see CampaignsPage's continueWithSource). */
-export const AdFormatChip = ({
-  format,
-  alternatives = [],
-  onSelect,
-}: {
-  format: AdFormat;
-  alternatives?: AdFormat[];
-  onSelect?: (formatId: string) => void;
-}) => {
-  const [infoOpen, setInfoOpen] = useState(false);
-  const [changing, setChanging] = useState(false);
+const IconBadge = ({ format, size = 52 }: { format: AdFormat; size?: number }) => {
   const visual = FORMAT_VISUALS[format.format_id] ?? DEFAULT_VISUAL;
   return (
-    <div style={{ marginTop: 10, border: '1px solid #f0ede8', borderRadius: 10, overflow: 'hidden' }}>
+    <div
+      style={{
+        flexShrink: 0,
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: `linear-gradient(135deg, ${visual.from}, ${visual.to})`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: size * 0.46,
+        boxShadow: '0 1px 4px rgba(20,15,10,0.18)',
+      }}
+    >
+      {visual.icon}
+    </div>
+  );
+};
+
+/** The real "pick a style before generating" step — a chat card, not an
+ *  afterthought chip. Jane's own suggestion is shown with the reason it fits
+ *  (the format's own corpus claim — genuinely why it's eligible, not a
+ *  fabricated per-request explanation), a clear primary action to accept it,
+ *  and a plain-language way to browse the other real candidates instead.
+ *  Whatever the user picks here is what CampaignsPage.resolveStyleChoice
+ *  forces on the actual generation call — never re-ranked afterward. */
+export const AdFormatSuggestionCard = ({
+  suggested,
+  alternatives,
+  resolved,
+  stale,
+  onChoose,
+}: {
+  suggested: AdFormat;
+  alternatives: AdFormat[];
+  resolved?: string;
+  stale?: boolean;
+  onChoose: (formatId: string) => void;
+}) => {
+  const [browsing, setBrowsing] = useState(false);
+
+  if (resolved) {
+    const chosen = [suggested, ...alternatives].find((f) => f.format_id === resolved) ?? suggested;
+    return (
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          padding: '6px 10px',
-          background: `linear-gradient(135deg, ${visual.from}22, ${visual.to}22)`,
+          gap: 10,
+          padding: '10px 16px',
+          borderRadius: 999,
+          border: '1.5px solid #f0ede8',
+          background: '#fbfaf8',
+          width: 'fit-content',
         }}
       >
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={() => setInfoOpen((v) => !v)}
-          onKeyDown={(e) => e.key === 'Enter' && setInfoOpen((v) => !v)}
-          style={{ fontSize: 11.5, fontWeight: 700, color: PINK, cursor: 'pointer' }}
-        >
-          {visual.icon} Style: {format.name} <span style={{ opacity: 0.6 }}>ⓘ</span>
+        <IconBadge format={chosen} size={28} />
+        <span style={{ fontSize: 13, color: '#3a3733' }}>
+          Using <strong style={{ color: '#1a1614' }}>{chosen.name}</strong>
         </span>
-        {onSelect && alternatives.length > 0 && (
+      </div>
+    );
+  }
+
+  return (
+    <div inert={stale || undefined} style={{ opacity: stale ? 0.5 : 1 }}>
+      <div
+        style={{
+          maxWidth: 480,
+          background: '#fff',
+          border: '1.5px solid #f0ede8',
+          borderRadius: 18,
+          padding: '22px 24px',
+          boxShadow: '0 2px 14px rgba(20,15,10,0.07)',
+        }}
+      >
+        <div
+          style={{ fontSize: 10.5, fontWeight: 700, color: '#a39c92', textTransform: 'uppercase', letterSpacing: 0.9 }}
+        >
+          Suggested visual style
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 14 }}>
+          <IconBadge format={suggested} />
+          <div style={{ fontSize: 19, fontWeight: 800, color: '#1a1614', letterSpacing: -0.2 }}>{suggested.name}</div>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <div
+            style={{ fontSize: 10, fontWeight: 700, color: '#a39c92', textTransform: 'uppercase', letterSpacing: 0.8 }}
+          >
+            Why this fits
+          </div>
+          <p style={{ margin: '4px 0 0', fontSize: 13.5, color: '#4a453f', lineHeight: 1.6 }}>{suggested.claim}</p>
+        </div>
+
+        <div style={{ height: 1, background: '#f5f2ee', margin: '20px 0' }} />
+
+        <button
+          onClick={() => onChoose(suggested.format_id)}
+          style={{
+            width: '100%',
+            padding: '13px 0',
+            borderRadius: 12,
+            border: 'none',
+            background: PINK,
+            color: '#fff',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          Use this style
+        </button>
+
+        {alternatives.length > 0 && (
           <button
-            onClick={() => setChanging((v) => !v)}
+            onClick={() => setBrowsing((v) => !v)}
             style={{
-              marginLeft: 'auto',
+              display: 'block',
+              width: '100%',
+              textAlign: 'center',
+              marginTop: 12,
               background: 'none',
               border: 'none',
               color: PINK,
-              fontSize: 11,
-              fontWeight: 700,
+              fontSize: 12.5,
+              fontWeight: 600,
               cursor: 'pointer',
               padding: 0,
             }}
           >
-            {changing ? 'cancel' : 'change'}
+            {browsing
+              ? 'Hide other options'
+              : `See ${alternatives.length} other option${alternatives.length > 1 ? 's' : ''}`}
           </button>
         )}
+
+        {browsing && (
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {alternatives.map((alt) => (
+              <button
+                key={alt.format_id}
+                onClick={() => onChoose(alt.format_id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  textAlign: 'left',
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  border: '1.5px solid #f0ede8',
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#fdf9fb')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '#fff')}
+              >
+                <IconBadge format={alt} size={38} />
+                <span>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: '#1a1614' }}>{alt.name}</div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 2, lineHeight: 1.4 }}>{alt.claim}</div>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      {infoOpen && <AdFormatDetailPanel format={format} />}
-      {changing && (
-        <div style={{ padding: 10, borderTop: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {alternatives.map((alt) => (
-            <button
-              key={alt.format_id}
-              onClick={() => {
-                setChanging(false);
-                onSelect?.(alt.format_id);
-              }}
-              style={{
-                textAlign: 'left',
-                padding: '8px 10px',
-                borderRadius: 8,
-                border: '1.5px solid #f0ede8',
-                background: '#fff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 8,
-              }}
-            >
-              <span style={{ fontSize: 15 }}>{(FORMAT_VISUALS[alt.format_id] ?? DEFAULT_VISUAL).icon}</span>
-              <span>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#111' }}>{alt.name}</div>
-                <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{alt.claim}</div>
-              </span>
-            </button>
-          ))}
+    </div>
+  );
+};
+
+/** A simple, read-only label under a generated ad naming the format actually
+ *  used — the choice already happened up front (AdFormatSuggestionCard,
+ *  above), so this is reference, not another interactive control. Clicking
+ *  it opens the same detail panel the Playbook gallery uses. `fallbackFrom`
+ *  renders an honest note when the user's own pick couldn't be honored for
+ *  this specific ad (its content step failed) rather than silently showing
+ *  a format they didn't choose with no explanation. */
+export const UsedStyleTag = ({ format, fallbackFrom }: { format: AdFormat; fallbackFrom?: AdFormat }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => e.key === 'Enter' && setOpen((v) => !v)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '6px 12px 6px 6px',
+          borderRadius: 999,
+          border: '1.5px solid #f0ede8',
+          cursor: 'pointer',
+        }}
+      >
+        <IconBadge format={format} size={24} />
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#1a1614' }}>{format.name}</span>
+        <span style={{ fontSize: 11, color: PINK, fontWeight: 700 }}>{open ? 'See less' : 'See more'}</span>
+      </div>
+      {fallbackFrom && (
+        <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#9a6a00', lineHeight: 1.4 }}>
+          Couldn&apos;t build {fallbackFrom.name} for this one, so we used {format.name} instead.
+        </p>
+      )}
+      {open && (
+        <div
+          style={{ marginTop: 6, border: '1.5px solid #f0ede8', borderRadius: 12, overflow: 'hidden', maxWidth: 420 }}
+        >
+          <AdFormatDetailPanel format={format} />
         </div>
       )}
     </div>

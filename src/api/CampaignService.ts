@@ -86,6 +86,8 @@ export interface DestinationOption {
   hint: string;
   field: string;
   input_label: string;
+  input_note?: string; // extra requirement shown under the box (e.g. WhatsApp must be
+  // the number linked to the Facebook Page, or the ad can't report conversations)
   placeholder: string;
   takes_cta: boolean;
   current: string; // what this brand already has on file — prefills the input
@@ -464,6 +466,11 @@ export class CampaignService {
     asset_attestation?: 'product_photo' | 'real_customer_photo';
     recomposite?: boolean;
     is_video?: boolean;
+    /** The user's own ad brief so far — lets the backend favor a format whose
+     *  content shape actually matches what's being said (a stated price, a
+     *  quoted testimonial, a comparison), on top of plain photo/eligibility
+     *  ranking. Optional — omitted just means eligibility-only ranking. */
+    description?: string;
   }): Promise<{ suggested: AdFormat | null; alternatives: AdFormat[] }> {
     const res = await UriHttpClient.getClient().post('/jane-ads/creative/suggest-format', params);
     return res.data as { suggested: AdFormat | null; alternatives: AdFormat[] };
