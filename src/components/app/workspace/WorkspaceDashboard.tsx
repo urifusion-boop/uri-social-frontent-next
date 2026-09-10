@@ -4161,10 +4161,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         only reliable place to catch it. */}
                     {adsWaNumber && s?.whatsapp_linked_to_page !== true && (
                       <div style={{ fontSize: 11.5, color: '#a15c00', lineHeight: 1.55 }}>
-                        This must be the <strong>same number linked to your{' '}
-                        {s?.account_name || 'Facebook'} Page</strong> in Meta — not just any
-                        number you own. If it isn&rsquo;t, ads still run, but as a plain
-                        WhatsApp link that can&rsquo;t report conversations.{' '}
+                        This must be the{' '}
+                        <strong>same number linked to your {s?.account_name || 'Facebook'} Page</strong> in Meta — not
+                        just any number you own. If it isn&rsquo;t, ads still run, but as a plain WhatsApp link that
+                        can&rsquo;t report conversations.{' '}
                         {s?.whatsapp_link_url ? (
                           <a
                             href={s.whatsapp_link_url}
@@ -5906,9 +5906,6 @@ const PlaybookPage = ({
   const [region, setRegion] = useState<string[]>([]);
   const [cadence, setCadence] = useState('');
   const [approval, setApproval] = useState('');
-  const [templateUrls, setTemplateUrls] = useState<string[]>([]);
-  const [uploadingTemplate, setUploadingTemplate] = useState(false);
-  const templateInputRef = useRef<HTMLInputElement>(null);
   const [logoUrl, setLogoUrl] = useState('');
   const [logoPosition, setLogoPosition] = useState('bottom_right');
   const [logoSize, setLogoSize] = useState<'small' | 'medium' | 'large'>('small');
@@ -6218,7 +6215,6 @@ const PlaybookPage = ({
     setRegion(splitList(profile.region));
     setCadence(profile.posting_cadence ?? '');
     setApproval(profile.approval_workflow ?? '');
-    setTemplateUrls([...(profile.sample_template_urls ?? [])]);
     setLogoUrl(profile.logo_url ?? '');
     setLogoPosition(profile.logo_position ?? 'bottom_right');
     setLogoSize((profile.logo_size ?? 'small') as 'small' | 'medium' | 'large');
@@ -6319,7 +6315,6 @@ const PlaybookPage = ({
         region: region.join(', '),
         posting_cadence: cadence,
         approval_workflow: approval,
-        sample_template_urls: templateUrls,
         logo_url: logoUrl || undefined,
         logo_position: logoPosition,
         logo_size: logoSize,
@@ -6972,116 +6967,6 @@ const PlaybookPage = ({
                 + Add
               </button>
             </div>
-          </div>
-        )}
-      </PbSection>
-
-      {/* Sample Templates */}
-      <PbSection title="Sample Templates">
-        {!editing ? (
-          (p?.sample_template_urls ?? []).length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              {(p?.sample_template_urls ?? []).map((url, i) => (
-                <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                  <img
-                    src={url}
-                    alt={`Template ${i + 1}`}
-                    style={{
-                      width: 90,
-                      height: 90,
-                      objectFit: 'cover',
-                      borderRadius: 8,
-                      border: '1.5px solid #e5e3df',
-                    }}
-                  />
-                </a>
-              ))}
-            </div>
-          ) : (
-            <span style={{ fontSize: 13, color: '#bbb' }}>No sample templates uploaded yet.</span>
-          )
-        ) : (
-          <div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: templateUrls.length > 0 ? 12 : 0 }}>
-              {templateUrls.map((url, i) => (
-                <div key={i} style={{ position: 'relative' }}>
-                  <img
-                    src={url}
-                    alt={`Template ${i + 1}`}
-                    style={{
-                      width: 90,
-                      height: 90,
-                      objectFit: 'cover',
-                      borderRadius: 8,
-                      border: '1.5px solid #e5e3df',
-                      display: 'block',
-                    }}
-                  />
-                  <button
-                    onClick={() => setTemplateUrls(templateUrls.filter((_, j) => j !== i))}
-                    style={{
-                      position: 'absolute',
-                      top: -6,
-                      right: -6,
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      background: '#ef4444',
-                      border: 'none',
-                      color: '#fff',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      lineHeight: 1,
-                    }}
-                    title="Remove"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-            <input
-              ref={templateInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              style={{ display: 'none' }}
-              onChange={async (e) => {
-                const files = Array.from(e.target.files ?? []);
-                if (!files.length) return;
-                setUploadingTemplate(true);
-                try {
-                  const results = await Promise.all(files.map((f) => BrandProfileService.uploadSampleTemplate(f)));
-                  const urls = results.map((r) => r.responseData?.file_url).filter(Boolean) as string[];
-                  setTemplateUrls((prev) => [...prev, ...urls]);
-                } finally {
-                  setUploadingTemplate(false);
-                  if (templateInputRef.current) templateInputRef.current.value = '';
-                }
-              }}
-            />
-            <button
-              onClick={() => templateInputRef.current?.click()}
-              disabled={uploadingTemplate}
-              style={{
-                padding: '7px 14px',
-                borderRadius: 8,
-                border: '1.5px dashed #C2185B',
-                background: '#fff',
-                color: '#C2185B',
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: uploadingTemplate ? 'not-allowed' : 'pointer',
-                opacity: uploadingTemplate ? 0.6 : 1,
-                fontFamily: 'var(--wf)',
-              }}
-            >
-              {uploadingTemplate ? 'Uploading…' : '+ Add Template'}
-            </button>
           </div>
         )}
       </PbSection>
