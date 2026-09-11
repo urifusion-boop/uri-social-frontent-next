@@ -20,7 +20,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useState } from 'react';
-import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
+import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { MdAutoAwesome, MdInfoOutline, MdLinkOff, MdVerified } from 'react-icons/md';
 
 const PLATFORMS = [
@@ -28,6 +28,7 @@ const PLATFORMS = [
   { key: 'instagram', label: 'Instagram', icon: <FaInstagram size={15} color="#E1306C" /> },
   { key: 'twitter', label: 'Twitter / X', icon: <FaTwitter size={15} color="#1DA1F2" /> },
   { key: 'linkedin', label: 'LinkedIn', icon: <FaLinkedin size={15} color="#0A66C2" /> },
+  { key: 'tiktok', label: 'TikTok', icon: <FaTiktok size={15} color="#010101" /> },
 ];
 
 interface AutoGenerateTabProps {
@@ -168,27 +169,42 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
           Platforms
         </Typography>
         <FormGroup row sx={{ gap: 1, mb: 2.5 }}>
-          {PLATFORMS.map(({ key, label, icon }) => (
-            <FormControlLabel
-              key={key}
-              disabled={!enabled}
-              control={
-                <Checkbox
-                  checked={platforms.includes(key)}
-                  onChange={() => togglePlatform(key)}
-                  size="small"
-                  sx={{ '&.Mui-checked': { color: '#CD1B78' } }}
-                />
-              }
-              label={
-                <Box display="flex" alignItems="center" gap={0.5}>
-                  {icon}
-                  <Typography fontSize="13px">{label}</Typography>
-                </Box>
-              }
-              sx={{ mr: 0, border: '1px solid #E5E7EB', borderRadius: '8px', pl: 0.5, pr: 1.5, py: 0.25 }}
-            />
-          ))}
+          {PLATFORMS.map(({ key, label, icon }) => {
+            const item = (
+              <FormControlLabel
+                key={key}
+                disabled={!enabled}
+                control={
+                  <Checkbox
+                    checked={platforms.includes(key)}
+                    onChange={() => togglePlatform(key)}
+                    size="small"
+                    sx={{ '&.Mui-checked': { color: '#CD1B78' } }}
+                  />
+                }
+                label={
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    {icon}
+                    <Typography fontSize="13px">{label}</Typography>
+                  </Box>
+                }
+                sx={{ mr: 0, border: '1px solid #E5E7EB', borderRadius: '8px', pl: 0.5, pr: 1.5, py: 0.25 }}
+              />
+            );
+            return key === 'tiktok' ? (
+              <Tooltip
+                key={key}
+                title="Only generates TikTok drafts for accounts connected via Outstand — direct-connected TikTok needs video, which Auto doesn't generate yet, so no TikTok draft is created for those accounts."
+                arrow
+                enterTouchDelay={0}
+                leaveTouchDelay={3000}
+              >
+                <span>{item}</span>
+              </Tooltip>
+            ) : (
+              item
+            );
+          })}
         </FormGroup>
 
         {/* Frequency */}
