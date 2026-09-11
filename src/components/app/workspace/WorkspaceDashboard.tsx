@@ -2359,8 +2359,19 @@ const PLATFORMS = [
     tooltip:
       'Connect your Instagram Business account to publish feed posts, carousels, and stories directly from URI Social',
   },
-  // TikTok connect option hidden in main (production) for now — kept out of PLATFORMS
-  // rather than deleted so it's a one-line restore when it's ready to ship here.
+  {
+    id: 'tiktok',
+    label: 'TikTok',
+    color: '#010101',
+    bg: '#F0F0F0',
+    // Direct (FILE_UPLOAD) OAuth exists (tiktok_direct_service.py,
+    // /connect/tiktok-direct/*) but is hidden here for now — it's blocked on
+    // TikTok's redirect_uri review, and a real customer's Outstand-mediated
+    // connect surfaced a more pressing bug (no local finalize step) that
+    // needs fixing before adding a second connect path back into the UI.
+    flow: 'outstand_oauth',
+    tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
+  },
 ];
 
 // Real phone validation via libphonenumber-js (Google's own metadata for every
@@ -2605,6 +2616,34 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             }
           })
           .catch(() => ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error));
+      }
+    } else if (connected === 'direct') {
+      // Outstand's "direct" callback shape — account_id/username/network
+      // returned immediately (TikTok, X), no session-token page-selection
+      // step. Previously unhandled here entirely, so the connection never
+      // got saved until someone tried to publish.
+      const accountId = searchParams.get('account_id') ?? '';
+      const network = searchParams.get('network') ?? '';
+      const username = searchParams.get('username') ?? '';
+      const networkUniqueId = searchParams.get('network_unique_id') ?? '';
+      router.replace('/workspace/?tab=connections');
+      if (accountId && network) {
+        SocialAccountService.finalizeOutstandDirect(accountId, network, username, networkUniqueId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`${username || network} connected!`, ToastTypeEnum.Success);
+              posthog.capture('social_account_connected', { platform: network, username });
+              try {
+                sessionStorage.removeItem('social_connections_cache');
+              } catch {
+                /* noop */
+              }
+              loadStatuses();
+            } else {
+              ToastService.showToast(`${network} connection failed. Please try again.`, ToastTypeEnum.Error);
+            }
+          })
+          .catch(() => ToastService.showToast(`${network} connection failed. Please try again.`, ToastTypeEnum.Error));
       }
     } else if (connected === 'pending' && token) {
       setSessionToken(token);
