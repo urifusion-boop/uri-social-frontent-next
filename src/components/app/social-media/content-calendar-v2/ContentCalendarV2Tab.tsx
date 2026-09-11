@@ -192,7 +192,6 @@ const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 'auto' }}>
         <TypeBadge type={item.content_type} />
         <TerritoryBadge territory={item.territory} />
-        {isVideoFormat(item.format) && <VideoBadge />}
         {item.ad_opportunity?.is_ad_candidate && <AdBadge score={item.ad_opportunity.score} />}
         {!item.diversity_check.passed && (
           <span title="Flagged as similar to another idea in this plan" style={{ fontSize: 10.5, color: '#B45309' }}>
