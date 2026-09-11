@@ -44,6 +44,13 @@ const PLATFORMS = [
   { key: 'tiktok', label: 'TikTok' },
 ];
 
+// Formats the engine can assign that mean "this is a video idea, not a
+// ready-to-generate post" — there's no auto-draft path for these (no video
+// render pipeline is wired to the calendar). The item still carries a full
+// video_idea script; the user builds/edits the actual video in the Video tab.
+const VIDEO_FORMATS = new Set(['video', 'product_video', 'ai_video']);
+const isVideoFormat = (format: string) => VIDEO_FORMATS.has(format);
+
 function formatPeriodLabel(start: string, end: string): string {
   const s = new Date(start + 'T00:00:00');
   const e = new Date(end + 'T00:00:00');
@@ -105,6 +112,25 @@ function territoryLabel(territory: string): string {
     .join(' ');
 }
 
+const VideoBadge = () => (
+  <span
+    title="Video idea — no draft is auto-generated; build this in the Video tab"
+    style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 3,
+      padding: '2px 7px',
+      borderRadius: 20,
+      fontSize: 10.5,
+      fontWeight: 700,
+      background: 'rgba(109,40,217,.1)',
+      color: '#6d28d9',
+    }}
+  >
+    🎬 Video idea
+  </span>
+);
+
 const TerritoryBadge = ({ territory }: { territory: string }) => {
   if (!territory) return null;
   return (
@@ -156,11 +182,17 @@ const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void
             {'🖼️'.repeat(item.carousel?.slides.length || 3)}
           </span>
         )}
+        {isVideoFormat(item.format) && (
+          <span title="Video idea — build this in the Video tab" style={{ fontSize: 11 }}>
+            🎬
+          </span>
+        )}
       </div>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: '#111827', lineHeight: 1.3 }}>{item.title}</div>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 'auto' }}>
         <TypeBadge type={item.content_type} />
         <TerritoryBadge territory={item.territory} />
+        {isVideoFormat(item.format) && <VideoBadge />}
         {item.ad_opportunity?.is_ad_candidate && <AdBadge score={item.ad_opportunity.score} />}
         {!item.diversity_check.passed && (
           <span title="Flagged as similar to another idea in this plan" style={{ fontSize: 10.5, color: '#B45309' }}>
@@ -339,6 +371,7 @@ const ItemDetailModal = ({
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               <TypeBadge type={item.content_type} />
               <TerritoryBadge territory={item.territory} />
+              {isVideoFormat(item.format) && <VideoBadge />}
             </div>
             <h3 style={{ fontSize: 17, fontWeight: 700, color: '#111827', margin: '8px 0 2px' }}>{item.title}</h3>
             <div style={{ fontSize: 12, color: GRAY }}>
@@ -522,10 +555,57 @@ const ItemDetailModal = ({
           </div>
         )}
 
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>AI IMAGE PROMPT</div>
-          <div style={{ fontSize: 12, color: '#374151', fontStyle: 'italic' }}>{item.ai_image_prompt}</div>
-        </div>
+        {isVideoFormat(item.format) && item.video_idea && (
+          <div
+            style={{
+              background: '#F5F3FF',
+              border: '1px solid #DDD6FE',
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', marginBottom: 6 }}>
+              🎬 VIDEO PLAN — {territoryLabel(item.video_idea.format)}
+            </div>
+            <div style={{ fontSize: 12.5, color: '#111827', marginBottom: 6 }}>
+              <strong>Hook:</strong> {item.video_idea.hook}
+            </div>
+            {item.video_idea.talking_points.length > 0 && (
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: '#6d28d9', marginBottom: 2 }}>TALKING POINTS</div>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#374151' }}>
+                  {item.video_idea.talking_points.map((p, i) => (
+                    <li key={i}>{p}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {item.video_idea.scenes.length > 0 && (
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: '#6d28d9', marginBottom: 2 }}>SCENES</div>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#374151' }}>
+                  {item.video_idea.scenes.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div style={{ fontSize: 12.5, color: PINK, fontWeight: 600, marginBottom: 8 }}>
+              CTA: {item.video_idea.cta}
+            </div>
+            <div style={{ fontSize: 11, color: '#5b21b6', fontStyle: 'italic' }}>
+              This is a plan, not a generated draft — build and edit the actual video in the Video tab.
+            </div>
+          </div>
+        )}
+
+        {!isVideoFormat(item.format) && item.ai_image_prompt && (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 4 }}>AI IMAGE PROMPT</div>
+            <div style={{ fontSize: 12, color: '#374151', fontStyle: 'italic' }}>{item.ai_image_prompt}</div>
+          </div>
+        )}
 
         {(item.creative_direction?.central_visual_idea ||
           item.design_style ||
@@ -617,29 +697,35 @@ const ItemDetailModal = ({
           )}
         </div>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', marginTop: 16 }}>
-          <input type="checkbox" checked={includeImages} onChange={(e) => setIncludeImages(e.target.checked)} />
-          Include AI-generated image
-        </label>
+        {!isVideoFormat(item.format) && (
+          <label
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', marginTop: 16 }}
+          >
+            <input type="checkbox" checked={includeImages} onChange={(e) => setIncludeImages(e.target.checked)} />
+            Include AI-generated image
+          </label>
+        )}
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-          <button
-            onClick={handleCreateDraft}
-            disabled={creating}
-            style={{
-              background: PINK,
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              padding: '10px 16px',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              opacity: creating ? 0.6 : 1,
-            }}
-          >
-            {creating ? 'Creating…' : 'Create Draft'}
-          </button>
+          {!isVideoFormat(item.format) && (
+            <button
+              onClick={handleCreateDraft}
+              disabled={creating}
+              style={{
+                background: PINK,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '10px 16px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                opacity: creating ? 0.6 : 1,
+              }}
+            >
+              {creating ? 'Creating…' : 'Create Draft'}
+            </button>
+          )}
           <button
             onClick={handleRegenerate}
             disabled={regenerating}
