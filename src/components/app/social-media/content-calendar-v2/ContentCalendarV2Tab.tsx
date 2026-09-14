@@ -20,6 +20,7 @@ import {
 } from '@/src/api/SocialMediaAgentService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
+import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { useEffect, useState } from 'react';
 
 // ── Constants (deliberately a standalone copy, not shared with v1 — same
@@ -333,6 +334,15 @@ const ItemDetailModal = ({
       );
       if (res.status) {
         ToastService.showToast('Draft created — switching to Drafts', ToastTypeEnum.Success);
+        // The header credit badge (WorkspaceCreditBadge) reads from AuthProvider's
+        // userDetails, which only updates on this event — without it the balance
+        // stays stale until something else happens to trigger a refresh (e.g. a
+        // full page reload). Same pattern every other credit-consuming flow in
+        // the app already uses (ContentGeneratorForm, DraftCard, VideoProductionForm).
+        EventBus.emit(EVENTS.CREDIT_CONSUMED, {
+          amount: draftCreditCost,
+          operation: 'calendar_v2_create_draft',
+        });
         onClose();
         onGenerated();
       } else {
