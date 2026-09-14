@@ -1229,12 +1229,13 @@ const ContentManagerPage = ({
       count: scheduled.length,
       tooltip: 'Posts approved and queued to go live at a specific time',
     },
-    { key: 'calendar', label: 'Calendar', tooltip: 'Visualise your content schedule in a monthly calendar view' },
+    // v1's 'calendar' tab is hidden (not removed — see the render switch and
+    // ContentTab type below, both still handle it) now that the rewritten
+    // engine below has replaced it as the visible Calendar tab.
     {
       key: 'calendar-v2',
-      label: '🧪 Calendar V2',
-      tooltip:
-        'Beta: a 30-day content intelligence engine with ad-opportunity detection and creative-diversity validation — isolated from the Calendar tab, staging only',
+      label: 'Calendar',
+      tooltip: 'A 30-day content plan with ad-opportunity detection and creative-diversity validation',
     },
     {
       key: 'auto',
@@ -4154,8 +4155,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         with what the user has entered. */}
                     {adsWaNumber && s?.whatsapp_linked_to_page !== true && (
                       <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5 }}>
-                        Must match the WhatsApp number linked to your{' '}
-                        {s?.account_name || 'Facebook'} Page in Meta.{' '}
+                        Must match the WhatsApp number linked to your {s?.account_name || 'Facebook'} Page in Meta.{' '}
                         {s?.whatsapp_link_url && (
                           <a
                             href={s.whatsapp_link_url}

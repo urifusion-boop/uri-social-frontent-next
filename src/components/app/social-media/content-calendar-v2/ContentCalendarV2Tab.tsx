@@ -1,12 +1,13 @@
 'use client';
 
 /**
- * Content Calendar V2 — 30-day content intelligence engine.
- *
- * Deliberately separate from the production Content Calendar tab and its
- * /content-calendar/* backend — staging-only experimental build per the
- * user-supplied PRD ("URI Social — Live Content Calendar Engine"), scoped
- * to the PRD's own §48 MVP list. Not wired to v1's state, collection, or
+ * Content Calendar — 30-day content intelligence engine (the "Calendar V2"
+ * rewrite, now the tab shown as plain "Calendar"; the former engine's tab is
+ * hidden in WorkspaceDashboard.tsx's `tabs` array but its route/component
+ * are untouched). Built against the "Living Content Calendar & Creative
+ * Intelligence Engine" PRD, scoped to its §48 MVP list. Still a distinct
+ * backend (/content-calendar-v2/*, own Mongo collection) from the former
+ * engine's /content-calendar/* — not wired to its state, collection, or
  * component tree in any way — see the implementation plan this was built
  * against for the full isolation rationale.
  */
@@ -895,22 +896,6 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
 
   return (
     <div style={{ maxWidth: 900 }}>
-      <div
-        style={{
-          background: '#FFF7FB',
-          border: `1px solid ${BORDER}`,
-          borderRadius: 10,
-          padding: '10px 14px',
-          marginBottom: 16,
-          fontSize: 12,
-          color: '#831843',
-        }}
-      >
-        🧪 <strong>Beta — Content Calendar V2.</strong> A 30-day content intelligence engine (ad-opportunity detection,
-        creative-diversity validation, version history). Staging only, fully separate from the Calendar tab — nothing
-        here affects it.
-      </div>
-
       {!plan || plan.status === 'generating' || plan.status === 'failed' ? (
         <div
           style={{
