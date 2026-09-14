@@ -989,8 +989,6 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
                 {formatPeriodLabel(plan.period_start, plan.period_end)}
               </div>
               <div style={{ fontSize: 11.5, color: GRAY, marginTop: 2 }}>
-                🧠 Framework-driven{plan.framework_version && ` · v${plan.framework_version}`}
-                {' · '}
                 {plan.items.filter((i) => i.ad_opportunity?.is_ad_candidate).length} ad candidates
                 {' · '}
                 {plan.items.filter((i) => !i.diversity_check.passed).length} flagged for review
