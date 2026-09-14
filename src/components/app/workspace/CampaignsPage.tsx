@@ -3246,7 +3246,7 @@ function ResultCard({
             src={creative.image_url}
             alt="campaign visual"
             isVideo={creative.is_video}
-            style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'cover' }}
+            style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'contain', background: '#f5f5f5' }}
           />
         )}
         <div style={{ padding: 16 }}>
