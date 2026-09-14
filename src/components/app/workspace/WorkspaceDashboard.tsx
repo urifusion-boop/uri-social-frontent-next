@@ -4146,38 +4146,26 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         Not set yet — Jane will ask for this the first time you build an ad.
                       </div>
                     )}
-                    {/* This requirement is shown UNCONDITIONALLY, not only when we detect a
-                        problem, because we cannot detect it. Reading whether a number is
-                        linked to a Page needs whatsapp_business_management, a scope our
-                        token doesn't hold, and Meta omits what a token can't see rather than
-                        erroring — so whatsapp_linked_to_page is almost always null, and the
-                        old `=== false` warning never rendered.
-
-                        Getting this wrong is silent and expensive: the ad still launches,
-                        but as a plain wa.me link ad that can never report a conversation
-                        (Meta fires messaging_conversation_started only for native
-                        destinations). A real campaign ran to 180 link clicks and zero
-                        attributed conversations exactly this way. Saying it up front is the
-                        only reliable place to catch it. */}
+                    {/* Shown UNCONDITIONALLY, not only when we detect a mismatch, because we
+                        cannot detect one: reading whether a number is linked to a Page needs
+                        whatsapp_business_management, a scope our token doesn't hold, so
+                        whatsapp_linked_to_page is almost always null. Kept as plain helper
+                        text in the muted colour — it's a requirement to state, not a problem
+                        with what the user has entered. */}
                     {adsWaNumber && s?.whatsapp_linked_to_page !== true && (
-                      <div style={{ fontSize: 11.5, color: '#a15c00', lineHeight: 1.55 }}>
-                        This must be the{' '}
-                        <strong>same number linked to your {s?.account_name || 'Facebook'} Page</strong> in Meta — not
-                        just any number you own. If it isn&rsquo;t, ads still run, but as a plain WhatsApp link that
-                        can&rsquo;t report conversations.{' '}
-                        {s?.whatsapp_link_url ? (
+                      <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5 }}>
+                        Must match the WhatsApp number linked to your{' '}
+                        {s?.account_name || 'Facebook'} Page in Meta.{' '}
+                        {s?.whatsapp_link_url && (
                           <a
                             href={s.whatsapp_link_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ color: '#C2185B', fontWeight: 600 }}
+                            style={{ color: '#C2185B' }}
                           >
-                            Check or link it in Meta
+                            Check in Meta
                           </a>
-                        ) : (
-                          <>Add it under your Page&rsquo;s WhatsApp settings in Meta</>
                         )}
-                        , confirm the code they send you, then save it here.
                       </div>
                     )}
                     {adsWaNumber && s?.whatsapp_linked_to_page === true && (
@@ -9926,6 +9914,7 @@ export default function WorkspaceDashboard() {
     campaigns: (
       <CampaignsPage
         onJane={goWorkspace}
+        onNavigate={goTo}
         onRequestVideoPolish={handleRequestVideoPolish}
         pendingResumeVideo={pendingResumeVideo}
         onResumeVideoConsumed={() => setPendingResumeVideo(null)}

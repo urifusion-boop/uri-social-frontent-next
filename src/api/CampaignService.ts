@@ -319,6 +319,43 @@ export interface ThreadSummary {
   updated_at: string;
 }
 
+/** The Home surface (DASH-PRD-01 §4) — the four questions in one payload.
+ *
+ * `people_messaged` and a card's `people_messaged` are `null`, never 0, where the
+ * campaign cannot report conversations: Meta only counts them for native
+ * Click-to-WhatsApp, so a wa.me link ad reads 0 for its whole life. Rendering that
+ * as "0 people messaged you" tells a client their ad failed when we simply can't
+ * see it — always branch on the null. */
+export interface DashboardHome {
+  since_you_last_looked: {
+    since: string | null; // null on a first visit — there is no delta to show yet
+    people_messaged: number | null; // null = nothing measurable, NOT zero
+    countable_campaigns: number;
+    uncountable_campaigns: number; // running WhatsApp ads we genuinely can't measure
+  };
+  live_campaigns: {
+    campaign_id: string;
+    name: string;
+    status: string;
+    budget_ngn: number | null; // what the CLIENT stated, not the ad spend
+    spent_ngn: number | null;
+    ends_at: string | null;
+    people_messaged: number | null; // null = suppressed, omit the line entirely
+    conversations_reportable: boolean;
+    image_url: string;
+  }[];
+  money: { wallet_ngn: number; credits: number | null; low: boolean; min_topup_ngn: number };
+  suggestions: {
+    kind: string;
+    text: string;
+    detail: string;
+    action_label: string;
+    action: string;
+    campaign_id: string;
+  }[];
+  is_first_run: boolean;
+}
+
 export class CampaignService {
   /** Conversational planning: Jane parses a plain-English message and returns her plan
    * (or asks a follow-up). Does NOT create anything — used for the chat preview. */
@@ -491,6 +528,13 @@ export class CampaignService {
   static async getWallet(): Promise<WalletInfo> {
     const res = await UriHttpClient.getClient().get('/jane-ads/wallet');
     return res.data as WalletInfo;
+  }
+
+  /** The Home surface — one call, because §11 requires the delta to answer before
+   *  anything heavy renders on a mid-range phone. */
+  static async getDashboardHome(): Promise<DashboardHome> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/dashboard/home');
+    return res.data as DashboardHome;
   }
 
   /** Start a Squad checkout to fund the active brand's ad wallet. Returns the checkout
