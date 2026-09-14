@@ -283,10 +283,11 @@ const ItemDetailModal = ({
   const [includeImages, setIncludeImages] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
 
-  // Same cost math the backend actually charges (create_draft_from_item_v2 /
-  // v1's create_draft_from_calendar_day, PRD 7.2): 1 credit for a normal
-  // post, 1 credit per selected platform for a carousel.
-  const draftCreditCost = item.format === 'carousel' ? Math.max(plan.platforms.length, 1) : 1;
+  // Same cost math create_draft_from_item_v2 actually charges — a V2-only
+  // rule, deliberately diverging from v1 (which charges 1 credit per
+  // PLATFORM draft for a carousel): here it's 1 credit per SLIDE, flat
+  // across every platform selected.
+  const draftCreditCost = item.format === 'carousel' ? Math.max(item.carousel?.slides.length || 3, 1) : 1;
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -703,18 +704,18 @@ const ItemDetailModal = ({
 
         {!isVideoFormat(item.format) && (
           <>
-            {/* Mirrors the backend's own cost math exactly (create_draft_from_item_v2 /
-                complete_social_manager.py's create_draft_from_calendar_day, both PRD 7.2):
-                1 credit flat for a normal post, 1 credit per platform for a carousel
-                (each platform's carousel is its own draft/credit unit). Shown up front
-                so the user isn't surprised by the deduction or the eventual 402. */}
+            {/* Mirrors create_draft_from_item_v2's own cost math exactly: 1 credit flat
+                for a normal post, 1 credit per SLIDE for a carousel — flat across every
+                platform selected (V2-only rule; the former calendar charges per platform
+                instead). Shown up front so the user isn't surprised by the deduction or
+                the eventual 402. */}
             <div style={{ fontSize: 11.5, color: GRAY, marginTop: 16 }}>
               💳 Creating this draft will use{' '}
               <strong style={{ color: '#374151' }}>
                 {draftCreditCost} credit{draftCreditCost === 1 ? '' : 's'}
               </strong>
               {item.format === 'carousel' &&
-                ` (${plan.platforms.length} platform${plan.platforms.length === 1 ? '' : 's'} selected)`}
+                ` (${draftCreditCost} slide${draftCreditCost === 1 ? '' : 's'}, across ${plan.platforms.length} platform${plan.platforms.length === 1 ? '' : 's'})`}
             </div>
             <label
               style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', marginTop: 8 }}
