@@ -372,18 +372,32 @@ export default function CampaignsPage({
       .catch(() => setIsAdmin(false));
   }, []);
 
-  // On mount, load the brand's campaign threads (the rail) and reopen the most recent —
-  // so a reload lands back in the last conversation rather than a blank greeting. If the
-  // brand has no threads yet, we leave the greeting and create one lazily on first send.
-  // Skipped when a video hand-off is resuming (below): that effect owns which thread
-  // opens in that case, and racing both against each other let this one silently win
-  // and clobber the resumed thread back to whatever was most recently touched.
+  // On mount, load the brand's campaign threads (the rail) and reopen whichever thread
+  // THIS tab was last showing — so a reload lands back in the last conversation rather
+  // than a blank greeting. Falls back to the most recent thread only for a tab that's
+  // never opened one before (sessionStorage empty), not on every reload — that fallback
+  // was the actual bug: it made a reload always jump to whatever's globally newest,
+  // so starting a campaign in one tab made any OTHER tab snap to it on reload, looking
+  // like the same generation was running in both. If the brand has no threads yet, we
+  // leave the greeting and create one lazily on first send. Skipped when a video
+  // hand-off is resuming (below): that effect owns which thread opens in that case,
+  // and racing both against each other let this one silently win and clobber the
+  // resumed thread back to whatever this tab last had open.
   useEffect(() => {
     (async () => {
       try {
         const list = await CampaignService.listThreads();
         setThreads(list);
-        if (list.length && !pendingResumeVideo) await openThread(list[0].thread_id);
+        if (!list.length || pendingResumeVideo) return;
+        let rememberedId: string | null = null;
+        try {
+          rememberedId = sessionStorage.getItem(ACTIVE_THREAD_SESSION_KEY);
+        } catch {
+          /* private browsing / storage disabled */
+        }
+        const target =
+          rememberedId && list.some((t) => t.thread_id === rememberedId) ? rememberedId : list[0].thread_id;
+        await openThread(target);
       } catch {
         /* start fresh */
       }
@@ -411,9 +425,26 @@ export default function CampaignsPage({
   };
 
   // ── Threads (Tier E) ────────────────────────────────────────────────────────
+  // sessionStorage, not localStorage: it's genuinely scoped to THIS browser
+  // tab (a new tab, even to the same origin, gets its own empty
+  // sessionStorage), which is exactly what's needed here — this tab
+  // remembers which thread IT was showing across a reload, independent of
+  // whatever the newest thread happens to be globally. Using localStorage
+  // here was the root cause of a real, confusing bug: starting a new
+  // campaign in one tab made that thread "most recent", so any OTHER tab
+  // that reloaded jumped straight to it (see the mount effect below),
+  // making it look like the same generation was happening in both tabs.
+  const ACTIVE_THREAD_SESSION_KEY = 'uri_campaigns_active_thread_id';
+
   const selectThreadId = (id: string | null) => {
     activeThreadRef.current = id;
     setActiveThreadId(id);
+    try {
+      if (id) sessionStorage.setItem(ACTIVE_THREAD_SESSION_KEY, id);
+      else sessionStorage.removeItem(ACTIVE_THREAD_SESSION_KEY);
+    } catch {
+      /* private browsing / storage disabled — this tab just won't remember across a reload */
+    }
   };
 
   const refreshThreads = useCallback(async () => {
