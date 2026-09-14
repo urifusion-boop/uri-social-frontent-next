@@ -19,6 +19,7 @@ import {
 } from '@/src/api/CampaignService';
 import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/workspace/AdFormatGallery';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
+import HomePanel from '@/src/components/app/workspace/HomePanel';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -78,6 +79,11 @@ type PendingVariants = { variants: PlanVariant[]; variantGroupId: string };
 
 interface CampaignsPageProps {
   onJane?: () => void;
+  // Leave Campaigns entirely for another workspace surface. Home's suggestions can
+  // point at things this page doesn't own (Connected Accounts, for the WhatsApp
+  // number linking), and a suggestion whose button goes nowhere is worse than no
+  // suggestion at all.
+  onNavigate?: (surface: string) => void;
   // Video quality hand-off (redirect to Video Polish, come back with the result):
   // asks the parent to switch pages and start a polish job for this file, returning
   // to this exact thread when done. Optional — omitted entirely, this page just
@@ -224,13 +230,14 @@ function ConnectedAccountsWhatsappLink() {
 // pattern every workspace page uses (WorkspaceDashboard passes it to all of them) —
 // this page no longer shows a back link, so nothing here reads it.
 export default function CampaignsPage({
+  onNavigate,
   onRequestVideoPolish,
   pendingResumeVideo,
   onResumeVideoConsumed,
 }: CampaignsPageProps) {
   const isMobile = useIsMobile();
   const [railOpen, setRailOpen] = useState(false);
-  const [tab, setTab] = useState<'chat' | 'manage' | 'wallet' | 'billing'>('chat');
+  const [tab, setTab] = useState<'chat' | 'home' | 'manage' | 'wallet' | 'billing'>('chat');
   const [isAdmin, setIsAdmin] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([makeGreeting()]);
   // Mirrors `messages` for the rare case a handler needs to read the CURRENT
@@ -1232,6 +1239,7 @@ export default function CampaignsPage({
           {(
             [
               ['chat', 'Create with Jane'],
+              ['home', 'Home'],
               ['manage', 'My Campaigns'],
               ['wallet', 'Wallet'],
               ...(isAdmin ? [['billing', 'Revenue'] as const] : []),
@@ -1753,6 +1761,18 @@ export default function CampaignsPage({
             </div>
           )}
         </div>
+      ) : tab === 'home' ? (
+        // DASH-PRD-01 §4 — lives beside My Campaigns rather than in the sidebar:
+        // everything it answers is about campaigns, and its suggestions route into
+        // the tabs either side of it.
+        <HomePanel
+          onNavigate={(surface) => {
+            if (surface === 'wallet') setTab('wallet');
+            else if (surface === 'campaigns') setTab('chat');
+            else if (surface === 'ask_jane') setTab('chat');
+            else onNavigate?.(surface);
+          }}
+        />
       ) : tab === 'wallet' ? (
         <WalletTab wallet={wallet} loading={loadingWallet} onFunded={loadWallet} />
       ) : (

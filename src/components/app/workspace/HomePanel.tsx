@@ -133,17 +133,6 @@ export default function HomePanel({ onNavigate }: HomePanelProps) {
                 We can&rsquo;t count messages from your ads yet.
               </div>
             )}
-            {delta.uncountable_campaigns > 0 && (
-              <div style={{ fontSize: 11.5, color: AMBER, marginTop: 6, lineHeight: 1.5 }}>
-                {delta.uncountable_campaigns === 1
-                  ? "1 campaign isn't counted here"
-                  : `${delta.uncountable_campaigns} campaigns aren't counted here`}{' '}
-                — they send people to WhatsApp through a link, which we can&rsquo;t track.{' '}
-                <button type="button" onClick={() => onNavigate?.('connections')} style={linkBtn}>
-                  Fix this
-                </button>
-              </div>
-            )}
           </section>
 
           {/* §4.3 — what to DO. The most important block here, and deliberately

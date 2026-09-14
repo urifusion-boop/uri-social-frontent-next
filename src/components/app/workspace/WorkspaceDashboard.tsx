@@ -74,7 +74,6 @@ import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
-import HomePanel from '@/src/components/app/workspace/HomePanel';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
@@ -9366,10 +9365,10 @@ const NAV = [
     tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly',
   },
   {
-    id: 'home',
+    id: 'performance',
     icon: 'chart',
-    label: 'Home',
-    tooltip: 'Who messaged you, what your campaigns are doing, and what to do next',
+    label: 'Performance',
+    tooltip: 'Posts, accounts, and market intel — all your insights in one place',
   },
   {
     id: 'campaigns',
@@ -9911,14 +9910,11 @@ export default function WorkspaceDashboard() {
       />
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
-    // DASH-PRD-01 §3 — Home is the default surface and replaces Performance in the
-    // nav. Its suggestions route to real surfaces, so it needs the same navigator
-    // every other panel uses rather than its own links.
-    home: <HomePanel onNavigate={(surface) => goTo(surface === 'wallet' ? 'campaigns' : surface)} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     campaigns: (
       <CampaignsPage
         onJane={goWorkspace}
+        onNavigate={goTo}
         onRequestVideoPolish={handleRequestVideoPolish}
         pendingResumeVideo={pendingResumeVideo}
         onResumeVideoConsumed={() => setPendingResumeVideo(null)}
