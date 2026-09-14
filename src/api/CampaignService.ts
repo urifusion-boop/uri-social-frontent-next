@@ -1,0 +1,730 @@
+import { UriHttpClient } from '@/src/configs/http.config';
+
+// The jane-ads endpoints return plain JSON (not the UriResponse envelope), so these
+// methods return the raw response bodies. Auth + X-Brand-Id are attached automatically
+// by the UriHttpClient request interceptor.
+
+export interface UnderstoodFields {
+  business_name?: string;
+  category?: string;
+  goal?: string;
+  offer_type?: string;
+  budget_ngn?: number | null;
+  city?: string;
+  stated_behaviour?: string | null;
+  missing?: string[];
+  clarify?: string;
+}
+
+export interface CampaignPlatform {
+  platform: string;
+  budget_ngn: number;
+  days: number;
+  variants: number;
+  test_scope: string;
+}
+
+export interface ReasonedValue {
+  value: string;
+  reason: string;
+}
+
+export interface CampaignEstimates {
+  audience_size_low?: number | null;
+  audience_size_high?: number | null;
+  estimated_clicks?: number | null;
+  // What to call estimated_clicks, e.g. "Est. website clicks" — the server owns it so
+  // the label always matches where the ad actually sends people.
+  clicks_label?: string;
+  estimated_leads?: number | null;
+  cost_per_result_ngn?: number | null;
+  note: string;
+}
+
+export interface CampaignSummary {
+  objective: ReasonedValue;
+  audience: ReasonedValue;
+  platforms: ReasonedValue;
+  budget_allocation: ReasonedValue;
+  duration: ReasonedValue;
+  optimization: ReasonedValue;
+  estimates: CampaignEstimates;
+}
+
+// Multi-Plan Audience Variants — a candidate STRATEGY, not yet a plan (no platform/
+// budget decision made). Same shape as backend PlanVariant (models.py).
+export interface PlanVariant {
+  rank: number;
+  recommended: boolean;
+  who_its_for: string; // customer's own words — never a segment label
+  audience_segment: string; // internal targeting label — never shown as-is
+  geo_pockets: string[];
+  trigger: string; // the buying-moment hypothesis
+  why_this_could_work: string;
+  trade_off: string; // always present
+  needs_video: boolean;
+  budget_alone_ngn: number;
+  budget_shared_ngn?: number | null;
+}
+
+export interface PlanVariantSet {
+  variants: PlanVariant[];
+  recommendation_reason: string;
+  max_selectable: number; // computed from the real budget floors, never guessed
+  selection_rule_reason: string;
+}
+
+/** One option on the choose_destination card. The backend owns the copy AND the
+ * validation for each, so the picker never drifts from what the server will accept.
+ * `field` is which stored value the single answer belongs to — the UI needs only one
+ * input box whatever the user picks. `takes_cta` says whether that option offers a
+ * button picker — true for every destination now that WhatsApp ships a plain link ad
+ * rather than Meta's native WhatsApp button. */
+export interface DestinationOption {
+  value: 'whatsapp' | 'website' | 'instagram_dm' | 'custom';
+  label: string;
+  hint: string;
+  field: string;
+  input_label: string;
+  input_note?: string; // extra requirement shown under the box (e.g. WhatsApp must be
+  // the number linked to the Facebook Page, or the ad can't report conversations)
+  placeholder: string;
+  takes_cta: boolean;
+  current: string; // what this brand already has on file — prefills the input
+}
+
+/** A button the ad can show ("Shop Now", "Book Now"). Closed set: Meta rejects an
+ * unknown call_to_action type outright, so this is never free text. */
+export interface CtaChoice {
+  value: string;
+  label: string;
+}
+
+export interface LaunchFromMessageResult {
+  stage:
+    | 'need_more'
+    | 'advise'
+    | 'need_whatsapp'
+    | 'need_facebook_page'
+    | 'choose_creative_source'
+    | 'choose_plan_variant'
+    // Where a tap on this ad lands. Asked just BEFORE choose_creative_source, because
+    // the answer changes the ad itself — the button, and the CTA baked into the
+    // generated image — so choosing afterwards would mean regenerating it.
+    | 'choose_destination'
+    | 'planned'
+    | 'launched'
+    // Per-Brand Page Connection plan — checked before a campaign is even built, so a
+    // client never designs a whole campaign only to hit a wall. Six explicit states,
+    // never inferred from one boolean; each maps to its own prompt below.
+    | 'meta_connection_none'
+    | 'meta_connection_content_only'
+    | 'meta_connection_ads_no_whatsapp'
+    | 'meta_connection_expired'
+    | 'meta_connection_no_page';
+  plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
+  understood?: UnderstoodFields;
+  question?: string;
+  page_name?: string; // present on meta_connection_* stages, when a Page is already known
+  // present when stage === 'choose_creative_source' — the image-source options Jane offers
+  creative_options?: { can_generate: boolean; drafts: DraftSummary[] };
+  // present when stage === 'choose_creative_source' — Jane's geography/audience call,
+  // confirmed back to the client (never silently decided) before image selection
+  explanation?: string;
+  advice?: { reason: string; suggested_min_ngn?: number };
+  jane_recommended_platforms?: string[];
+  forced_to_meta?: boolean;
+  // present when stage === 'choose_plan_variant' — the ranked audience strategies to
+  // pick from, plus the group id to echo back on every follow-up selection call
+  plan_variants?: PlanVariantSet;
+  variant_group_id?: string;
+  // present when stage === 'choose_destination' — where the ad can send people, the
+  // buttons it can show, and what's already selected/saved for this brand
+  destination_options?: DestinationOption[];
+  cta_choices?: CtaChoice[];
+  selected?: { destination_type: string; destination_cta: string };
+  // set when an answer came back unusable (a handle that isn't one, a link that isn't
+  // a link) — the picker reopens showing this rather than the request failing
+  error?: string;
+  // present on 'planned'/'launched' — which audience this specific build used, if any
+  selected_plan_variant?: PlanVariant | null;
+  plan?: {
+    goal: string;
+    behaviour: string;
+    explanation: string;
+    platforms: CampaignPlatform[];
+    geo?: { pins?: { name: string; reason?: string }[]; explanation?: string } | null;
+    trace?: string[];
+  };
+  creative?: {
+    image_url: string;
+    headline: string;
+    primary_text: string;
+    cta: string;
+    is_video?: boolean;
+    // Set only when a VSG-01 corpus format actually rendered this creative
+    // (JANE_ADS_VSG01_ENABLED, currently off by default) — matches an entry's
+    // format_id from CampaignService.getAdFormats(). Empty/absent means a
+    // plain generic generation, no format was used.
+    vsg01_format_id?: string;
+    vsg01_format_attributes?: Record<string, unknown>;
+  };
+  whatsapp_number?: string; // where ad leads route (wa.me/<this>); shown on the plan card
+  destination_type?: string; // whatsapp | website | instagram_dm | custom
+  destination_link?: string; // the actual link the ad carries — shown on the plan card
+  destination_cta?: string; // which button was chosen (a CtaChoice value)
+  summary?: CampaignSummary; // Tier C — each choice + its why, plus estimates
+  wallet?: {
+    balance_ngn: number;
+    budget_ngn: number; // the ad spend that goes to Meta
+    // service_fee_ngn is gone: URI's fee now comes OUT of the budget the client
+    // states rather than being added on top, so total_due_ngn === that budget and
+    // there is no separate fee to show. Kept optional for older cached payloads.
+    service_fee_ngn?: number;
+    total_due_ngn?: number; // budget + fee — what the wallet must cover
+    sufficient: boolean;
+  };
+  launch?: {
+    campaign_id: string;
+    status: string;
+    note: string;
+    ads_manager_url: string;
+  };
+}
+
+// VSG-01-PROMPTS v2's ad format library, served from GET /jane-ads/ad-formats —
+// read directly off each format's own AdFormatDef + corpus record on the backend,
+// not a hand-duplicated copy (see WorkspaceDashboard's organic Visual Style section,
+// which does duplicate its 147-entry library into styleLibrary.ts — deliberately not
+// repeating that here since this list is small and already has a real endpoint).
+export interface AdFormat {
+  format_id: string;
+  name: string;
+  claim: string; // one-line "use this when…" — the gallery card's front face
+  mechanism: string; // the "see more" detail
+  business_types: string[];
+  modification_required: string;
+  brand_mark: 'required' | 'optional' | 'prohibited';
+  asset_source: string | null;
+  layers_used: string | null;
+  requires: string[];
+  status: 'live' | 'built' | 'planned';
+}
+
+export interface PlanAskResult {
+  kind: 'question' | 'challenge' | 'new_campaign';
+  answer?: string;
+  what_if?: { changed: string; original: CampaignSummary; hypothetical: CampaignSummary };
+  // present when kind === 'challenge' — the re-derived plan, shown as a preview until
+  // confirmed (askAboutPlan(planId, question, true)) replaces the stored one
+  stage?: 'challenge_preview' | 'planned';
+  plan_id?: string;
+  note?: string;
+  plan?: LaunchFromMessageResult['plan'];
+  creative?: LaunchFromMessageResult['creative'];
+  summary?: CampaignSummary;
+}
+
+export interface CampaignMetrics {
+  spend_ngn: number;
+  conversations: number; // real Click-to-WhatsApp conversations started
+  cost_per_conversation_ngn: number | null;
+  impressions: number;
+  reach: number;
+  delivery: string;
+  ends_at: string | null;
+}
+
+export interface CampaignRow {
+  campaign_id: string;
+  name: string;
+  headline: string;
+  primary_text: string;
+  image_url: string;
+  budget_ngn: number | null; // the budget the CLIENT typed — the fee is taken out of it
+  ad_spend_ngn?: number | null; // what actually went to Meta (budget minus URI's fee)
+  goal: string;
+  city: string;
+  whatsapp_number?: string; // where WhatsApp leads land; empty for every non-WhatsApp
+  // destination too, so it alone can't tell a legacy campaign from a website one
+  destination_type?: string; // whatsapp | website | instagram_dm | custom
+  destination_link?: string; // the actual link the ad carries
+  status: string;
+  created_at: string | null;
+  ads_manager_url: string;
+  metrics: CampaignMetrics | null;
+}
+
+export interface DraftSummary {
+  draft_id: string;
+  platform: string;
+  content: string;
+  image_url: string;
+  created_at: string;
+}
+
+export type CreativeSource = 'generate' | 'upload' | 'draft' | 'ask' | 'recomposite';
+
+export interface BillingRow {
+  business_id: string;
+  label?: string; // owning account email, best-effort
+  campaigns: number;
+  charges: number;
+  real_spend_ngn: number; // what Meta actually charged us
+  billed_ngn: number; // what we charged the customer's wallet
+  margin_ngn: number; // our service fee earned
+}
+
+export interface BillingSummary {
+  from_date: string | null;
+  to_date: string | null;
+  per_user: BillingRow[];
+  totals: { real_spend_ngn: number; billed_ngn: number; margin_ngn: number; charges: number; users: number };
+}
+
+export interface WalletTransaction {
+  transaction_id: string;
+  type: 'topup' | 'ad_spend' | 'conversation_charge' | 'refund' | 'adjustment';
+  amount_ngn: number; // signed: + credit, − debit
+  balance_after_ngn: number;
+  reference: string;
+  campaign_id: string;
+  created_at: string;
+}
+
+export interface WalletInfo {
+  balance_ngn: number;
+  currency: string;
+  min_topup_ngn: number;
+  transactions: WalletTransaction[];
+}
+
+export interface SavedChatMessage {
+  message_id: string;
+  role: 'user' | 'jane';
+  kind: 'text' | 'result';
+  text: string;
+  result: LaunchFromMessageResult | null;
+  thread_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThreadSummary {
+  thread_id: string;
+  title: string;
+  status: 'draft' | 'planned' | 'launched';
+  preview: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** The Home surface (DASH-PRD-01 §4) — the four questions in one payload.
+ *
+ * `people_messaged` and a card's `people_messaged` are `null`, never 0, where the
+ * campaign cannot report conversations: Meta only counts them for native
+ * Click-to-WhatsApp, so a wa.me link ad reads 0 for its whole life. Rendering that
+ * as "0 people messaged you" tells a client their ad failed when we simply can't
+ * see it — always branch on the null. */
+export interface DashboardHome {
+  since_you_last_looked: {
+    since: string | null; // null on a first visit — there is no delta to show yet
+    people_messaged: number | null; // null = nothing measurable, NOT zero
+    countable_campaigns: number;
+    uncountable_campaigns: number; // running WhatsApp ads we genuinely can't measure
+  };
+  live_campaigns: {
+    campaign_id: string;
+    name: string;
+    status: string;
+    budget_ngn: number | null; // what the CLIENT stated, not the ad spend
+    spent_ngn: number | null;
+    ends_at: string | null;
+    people_messaged: number | null; // null = suppressed, omit the line entirely
+    conversations_reportable: boolean;
+    image_url: string;
+  }[];
+  money: { wallet_ngn: number; credits: number | null; low: boolean; min_topup_ngn: number };
+  suggestions: {
+    kind: string;
+    text: string;
+    detail: string;
+    action_label: string;
+    action: string;
+    campaign_id: string;
+  }[];
+  is_first_run: boolean;
+}
+
+export class CampaignService {
+  /** Conversational planning: Jane parses a plain-English message and returns her plan
+   * (or asks a follow-up). Does NOT create anything — used for the chat preview. */
+  static async understand(message: string, businessName = '', category = '') {
+    const res = await UriHttpClient.getClient().post('/jane-ads/understand', {
+      message,
+      business_name: businessName,
+      category,
+    });
+    return res.data as {
+      decision?: string;
+      understood?: UnderstoodFields;
+      question?: string;
+      explanation?: string;
+      behaviour?: string;
+      platforms?: CampaignPlatform[];
+      geo?: { pins?: { name: string }[] } | null;
+    };
+  }
+
+  /** The full one-shot: message -> plan -> creative (generated, uploaded, or drafted) -> real (PAUSED) campaign,
+   * all in a single call. Superseded by planFromMessage()+launchPlan() below for the chat UI (plan-then-launch,
+   * reviewable before anything touches Meta) — kept for any caller that genuinely wants one-shot behavior. */
+  static async launchFromMessage(payload: {
+    message: string;
+    business_name?: string;
+    category?: string;
+    creative_source?: CreativeSource;
+    reference_image_url?: string;
+    is_video?: boolean;
+    draft_id?: string;
+    whatsapp_number?: string; // where leads route; sent when answering need_whatsapp
+  }): Promise<LaunchFromMessageResult> {
+    // NL parse + geo lookup + creative generation + the real Meta API calls have been
+    // observed taking 90-130s end to end — past the client's global 120s default,
+    // which was cutting off successful requests mid-flight. Give this one call room.
+    const res = await UriHttpClient.getClient().post('/jane-ads/meta/launch-from-message', payload, {
+      timeout: 240000,
+    });
+    return res.data as LaunchFromMessageResult;
+  }
+
+  /** Plan-before-launch, step 1: Jane understands the message, decides the platform,
+   * and generates the creative — nothing touches Meta yet. Returns a reviewable plan
+   * (plan_id) that can be launched later via launchPlan(), or just left alone —
+   * nothing is lost if the user never confirms it. */
+  static async planFromMessage(payload: {
+    message: string;
+    business_name?: string;
+    category?: string;
+    creative_source?: CreativeSource;
+    reference_image_url?: string;
+    is_video?: boolean;
+    draft_id?: string;
+    // VSG-01 v3 (§1.2/§6) — what reference_image_url actually shows, per the user's own
+    // confirmation collected right after upload/recomposite. Undefined ("Skip") means
+    // exactly what it always meant: use the photo as-is, no format-selection attempt.
+    asset_attestation?: 'product_photo' | 'real_customer_photo';
+    // The user's own pick from suggestAdFormat()'s alternatives (the "change" link
+    // on the Style row). Undefined means "use whatever ranks best" (unchanged default).
+    vsg01_format_id?: string;
+    reuse_image_url?: string; // refinement — keep the prior plan's image (no regen/credit)
+    whatsapp_number?: string; // where leads route; sent when answering need_whatsapp
+    thread_id?: string; // which campaign thread this plan belongs to (Tier E)
+    selected_plan_variant?: PlanVariant; // echo back the exact variant shown in
+    // choose_plan_variant to confirm a selection
+    variant_group_id?: string; // echo back the id from choose_plan_variant so
+    // multiple selected variants' builds are tied together
+    // Answering choose_destination. 'ask' opens the picker; a concrete type uses it for
+    // this campaign AND saves it as the brand's default, so a returning brand is never
+    // re-asked. destination_value is read per type — the number, the domain, the handle,
+    // or the pasted URL; blank keeps whatever the brand already has for that type.
+    destination_type?: 'ask' | 'whatsapp' | 'website' | 'instagram_dm' | 'custom';
+    destination_value?: string;
+    destination_cta?: string;
+    // The client's OWN audience, in their words — the "none of these" answer to the
+    // plan picker. Outranks selected_plan_variant and the brand profile, and counts
+    // as having chosen, so the picker isn't presented again.
+    target_audience?: string;
+  }): Promise<LaunchFromMessageResult> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
+    return res.data as LaunchFromMessageResult;
+  }
+
+  /** Plan-before-launch, step 2 — the only call that actually creates a real (paused) Meta campaign. */
+  static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
+    // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
+    // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was
+    // not always enough: the request timed out client-side and showed a network error
+    // while the server went on to publish the campaign successfully — so the user was
+    // told it failed when it hadn't. Live-reported.
+    const res = await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/launch`, {}, { timeout: 240000 });
+    return res.data as LaunchFromMessageResult;
+  }
+
+  /** Ask Jane about an existing plan — "why this budget?", "what if I spent half?", or
+   * a correction ("students aren't my main buyers"). Never fabricates a number: answers
+   * come from the plan's own persisted derivation, or a real re-run of the decision
+   * engine for a what-if. A correction ("challenge") comes back as a preview first —
+   * resend with confirmCorrection=true to actually replace the stored plan. */
+  static async askAboutPlan(planId: string, question: string, confirmCorrection = false): Promise<PlanAskResult> {
+    const res = await UriHttpClient.getClient().post(
+      `/jane-ads/meta/plan/${planId}/ask`,
+      { question, confirm_correction: confirmCorrection },
+      { timeout: 30000 }
+    );
+    return res.data as PlanAskResult;
+  }
+
+  /** The active brand's campaigns + live metrics, for the management view. */
+  static async listCampaigns(): Promise<{ campaigns: CampaignRow[] }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/meta/campaigns');
+    return res.data as { campaigns: CampaignRow[] };
+  }
+
+  /** Upload the user's own photo or video to use as the campaign media. */
+  static async uploadMedia(file: File): Promise<{ url: string; is_video: boolean }> {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await UriHttpClient.getClient().post('/jane-ads/creative/upload', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data as { url: string; is_video: boolean };
+  }
+
+  /** Recent drafts (with images) the user already created, to reuse as campaign media. */
+  static async listDrafts(limit = 10): Promise<{ drafts: DraftSummary[] }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/creative/drafts', { params: { limit } });
+    return res.data as { drafts: DraftSummary[] };
+  }
+
+  /** The Visual Styles — Ads library (Brand Playbook section + the "Style: {name}"
+   *  chip on a generated ad). Not brand-scoped — same list for everyone. */
+  static async getAdFormats(): Promise<{ formats: AdFormat[] }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/ad-formats');
+    return res.data as { formats: AdFormat[] };
+  }
+
+  /** The pre-generation "Style — {name} · change" moment — the same ranking a real
+   *  generation call would use, computed before generating so it can be shown and
+   *  overridden (pass the pick back as vsg01_format_id on planFromMessage/
+   *  continueWithSource). suggested/alternatives are both empty when nothing is
+   *  eligible (a plain video, no eligible format, or VSG-01 has nothing approved). */
+  static async suggestAdFormat(params: {
+    asset_attestation?: 'product_photo' | 'real_customer_photo';
+    recomposite?: boolean;
+    is_video?: boolean;
+    /** The user's own ad brief so far — lets the backend favor a format whose
+     *  content shape actually matches what's being said (a stated price, a
+     *  quoted testimonial, a comparison), on top of plain photo/eligibility
+     *  ranking. Optional — omitted just means eligibility-only ranking. */
+    description?: string;
+  }): Promise<{ suggested: AdFormat | null; alternatives: AdFormat[] }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/creative/suggest-format', params);
+    return res.data as { suggested: AdFormat | null; alternatives: AdFormat[] };
+  }
+
+  /** Turn a campaign on (starts spending its budget) or off. */
+  static async setCampaignStatus(campaignId: string, active: boolean): Promise<{ status: string }> {
+    const res = await UriHttpClient.getClient().post(`/jane-ads/meta/campaigns/${campaignId}/status`, { active });
+    return res.data as { status: string };
+  }
+
+  /** Permanently delete a campaign. */
+  static async deleteCampaign(campaignId: string): Promise<void> {
+    await UriHttpClient.getClient().delete(`/jane-ads/meta/campaigns/${campaignId}`);
+  }
+
+  /** The active brand's ad-wallet balance + recent ledger (brand-scoped; no id to pass). */
+  static async getWallet(): Promise<WalletInfo> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/wallet');
+    return res.data as WalletInfo;
+  }
+
+  /** The Home surface — one call, because §11 requires the delta to answer before
+   *  anything heavy renders on a mid-range phone. */
+  static async getDashboardHome(): Promise<DashboardHome> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/dashboard/home');
+    return res.data as DashboardHome;
+  }
+
+  /** Start a Squad checkout to fund the active brand's ad wallet. Returns the checkout
+   * URL to open; nothing is credited until the payment is confirmed on return. */
+  static async fundWallet(amountNgn: number): Promise<{ checkout_url: string; reference: string; amount_ngn: number }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/wallet/fund', { amount_ngn: amountNgn });
+    return res.data as { checkout_url: string; reference: string; amount_ngn: number };
+  }
+
+  /** Verify a top-up on return from Squad and credit the wallet (idempotent). */
+  static async verifyTopup(reference: string): Promise<{ status: string; balance_ngn?: number }> {
+    const res = await UriHttpClient.getClient().get(`/jane-ads/wallet/topup/${reference}/verify`);
+    return res.data as { status: string; balance_ngn?: number };
+  }
+
+  /** Whether the logged-in user may see the admin billing report. */
+  static async billingAccess(): Promise<boolean> {
+    try {
+      const res = await UriHttpClient.getClient().get('/jane-ads/admin/access');
+      return !!(res.data as { allowed?: boolean }).allowed;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Admin: per-customer ad spend / billed / margin, plus grand totals. */
+  static async billingSummary(fromDate?: string, toDate?: string): Promise<BillingSummary> {
+    const params: Record<string, string> = {};
+    if (fromDate) params.from_date = fromDate;
+    if (toDate) params.to_date = toDate;
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/billing-summary', { params });
+    return res.data as BillingSummary;
+  }
+
+  /** Admin: download the billing report as a CSV file (triggers a browser download). */
+  static async downloadBillingCsv(fromDate?: string, toDate?: string): Promise<void> {
+    const params: Record<string, string> = { format: 'csv' };
+    if (fromDate) params.from_date = fromDate;
+    if (toDate) params.to_date = toDate;
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/billing-summary', {
+      params,
+      responseType: 'blob',
+    });
+    const url = window.URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'jane-ads-billing.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
+  /** The active brand's saved Campaigns chat transcript, oldest first. */
+  static async getChatHistory(): Promise<SavedChatMessage[]> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/chat/history');
+    return (res.data as { messages: SavedChatMessage[] }).messages || [];
+  }
+
+  /** Save (or update in place, by the same message_id) one chat message. Fire-and-forget
+   * from the caller's side — a save failing shouldn't block the chat itself working. */
+  static async saveChatMessage(msg: {
+    message_id: string;
+    role: 'user' | 'jane';
+    kind: 'text' | 'result';
+    text?: string;
+    result?: LaunchFromMessageResult | null;
+    thread_id?: string;
+  }): Promise<void> {
+    await UriHttpClient.getClient().put(`/jane-ads/chat/history/${msg.message_id}`, msg);
+  }
+
+  /** The active brand's campaign threads (the rail), most-recently-active first. */
+  static async listThreads(): Promise<ThreadSummary[]> {
+    try {
+      const res = await UriHttpClient.getClient().get('/jane-ads/threads');
+      return (res.data as { threads: ThreadSummary[] }).threads || [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Start a fresh campaign thread ('+ New'). */
+  static async createThread(title = 'New campaign'): Promise<ThreadSummary> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/threads', { title });
+    return res.data as ThreadSummary;
+  }
+
+  /** One thread's saved messages, oldest first. */
+  static async getThreadHistory(threadId: string): Promise<SavedChatMessage[]> {
+    const res = await UriHttpClient.getClient().get(`/jane-ads/threads/${threadId}/history`);
+    return (res.data as { messages: SavedChatMessage[] }).messages || [];
+  }
+
+  /** Clone a launched campaign into a new draft thread; returns the new thread + the
+   * seed message the caller sends to rebuild the plan. */
+  static async duplicateThread(threadId: string): Promise<{ thread: ThreadSummary; seed_message: string }> {
+    const res = await UriHttpClient.getClient().post(`/jane-ads/threads/${threadId}/duplicate`, {});
+    return res.data as { thread: ThreadSummary; seed_message: string };
+  }
+
+  /** Remove a conversation from the thread rail. Never touches the brand's actual
+   * launched campaigns — those keep running in 'My Campaigns' regardless. */
+  static async deleteThread(threadId: string): Promise<void> {
+    await UriHttpClient.getClient().delete(`/jane-ads/threads/${threadId}`);
+  }
+
+  /** The active brand's saved WhatsApp number (where ad leads route), or '' if unset. */
+  static async getWhatsapp(): Promise<string> {
+    try {
+      const res = await UriHttpClient.getClient().get('/jane-ads/whatsapp');
+      return (res.data as { whatsapp_number?: string }).whatsapp_number || '';
+    } catch {
+      return '';
+    }
+  }
+
+  /** Set the brand's WhatsApp number. Returns the normalized number the backend stored. */
+  static async setWhatsapp(whatsappNumber: string): Promise<string> {
+    const res = await UriHttpClient.getClient().put('/jane-ads/whatsapp', { whatsapp_number: whatsappNumber });
+    return (res.data as { whatsapp_number: string }).whatsapp_number;
+  }
+
+  /** The active brand's per-brand Meta ads connection state (Per-Brand Page
+   * Connection plan) — used by the connections settings tab to show the same
+   * six states Jane's campaign flow gates on, outside of a chat. */
+  static async getMetaConnectionStatus(): Promise<{
+    state: string;
+    page_name: string;
+    whatsapp_number: string;
+    connect_url: string;
+  }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/meta-connection/status');
+    return res.data as { state: string; page_name: string; whatsapp_number: string; connect_url: string };
+  }
+
+  /** Link the brand's WhatsApp number to their ads connection — moves
+   * ADS_NO_WHATSAPP to READY. Returns the normalized number the backend stored. */
+  static async setMetaConnectionWhatsapp(whatsappNumber: string): Promise<string> {
+    const res = await UriHttpClient.getClient().put('/jane-ads/meta-connection/whatsapp', {
+      whatsapp_number: whatsappNumber,
+    });
+    return (res.data as { whatsapp_number: string }).whatsapp_number;
+  }
+
+  /** The active brand's Google Ads connection state — mirrors getMetaConnectionStatus's
+   * shape, but Google's state machine has an extra step Meta's doesn't (choosing/linking
+   * an actual Ads account), reflected in `state` and `customer_id`. */
+  static async getGoogleConnectionStatus(): Promise<{
+    state: string;
+    account_name: string;
+    customer_id: string;
+    whatsapp_number: string;
+  }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/google/connection/status');
+    return res.data as {
+      state: string;
+      account_name: string;
+      customer_id: string;
+      whatsapp_number: string;
+    };
+  }
+
+  /** Marks the brand as wanting Google Ads. No OAuth redirect — Google Ads API calls
+   * authenticate as URI's own admin identity, never the brand's own Google login, so
+   * there's nothing for the brand to personally authorize. Synchronous: the card can
+   * move straight to the account-selection state on success. */
+  static async connectGoogleAds(): Promise<{ status: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect');
+    return res.data as { status: string };
+  }
+
+  /** Path (a): the brand already has a Google Ads account — sends a manager-link
+   * invitation from URI's MCC. `detail` carries a specific, actionable message on the
+   * known "already linked to another manager" refusal — never a generic error. */
+  static async googleLinkExistingAccount(
+    customerId: string
+  ): Promise<{ manager_link_status: string; detail?: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect/link-existing-account', {
+      customer_id: customerId,
+    });
+    return res.data as { manager_link_status: string; detail?: string };
+  }
+
+  /** Path (b): the brand has no Google Ads account — creates one fresh under URI's MCC
+   * (auto-linked, no accept step needed). */
+  static async googleCreateAccount(accountName: string): Promise<{ customer_id: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect/create-account', {
+      account_name: accountName,
+    });
+    return res.data as { customer_id: string };
+  }
+}

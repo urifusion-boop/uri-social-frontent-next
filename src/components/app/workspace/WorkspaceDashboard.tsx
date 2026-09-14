@@ -27,6 +27,7 @@ import {
   SocialConnectionService,
 } from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
+import { CampaignService } from '@/src/api/CampaignService';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { hasActiveSubscription } from '@/src/utils/subscription.util';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -60,6 +61,8 @@ import VideoProductionForm from '@/src/components/app/workspace/VideoProductionF
 import SubmagicProductionForm from '@/src/components/app/workspace/SubmagicProductionForm';
 import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductionForm';
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
+import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
+import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -2372,6 +2375,24 @@ const PLATFORMS = [
     flow: 'outstand_oauth',
     tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
   },
+  {
+    id: 'facebook_ads',
+    label: 'Facebook Ads',
+    color: '#1877F2',
+    bg: '#E7F0FD',
+    flow: 'facebook_ads_oauth',
+    tooltip:
+      "The Facebook Page Jane's ad campaigns actually run from — separate from the Facebook connection above, which is only for organic posts. Requires its own ads-permission grant.",
+  },
+  {
+    id: 'google_ads',
+    label: 'Google Ads',
+    color: '#4285F4',
+    bg: '#E8F0FE',
+    flow: 'google_ads_direct',
+    tooltip:
+      "The Google Ads account Jane's Search campaigns run from — separate from any other Google connection. Links to (or creates) an account under URI's manager account.",
+  },
 ];
 
 // Real phone validation via libphonenumber-js (Google's own metadata for every
@@ -2617,6 +2638,27 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           })
           .catch(() => ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error));
       }
+    } else if (connected === 'facebook_ads') {
+      // Ads-scoped grant (Per-Brand Page Connection plan) — separate from facebook_direct
+      // above; this is what Jane's campaigns require to launch from the brand's own Page.
+      const fbPageId = searchParams.get('fb_page_id') ?? '';
+      const pageName = searchParams.get('page_name') ?? 'Facebook Page';
+      router.replace('/workspace/?tab=connections');
+      if (fbPageId) {
+        SocialAccountService.finalizeFacebookAds(fbPageId)
+          .then((res) => {
+            if (res.status) {
+              ToastService.showToast(`${pageName} connected for ads!`, ToastTypeEnum.Success);
+              posthog.capture('social_account_connected', { platform: 'facebook_ads', page_name: pageName });
+              loadStatuses();
+            } else {
+              ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error);
+            }
+          })
+          .catch(() =>
+            ToastService.showToast('Facebook ads connection failed. Please try again.', ToastTypeEnum.Error)
+          );
+      }
     } else if (connected === 'direct') {
       // Outstand's "direct" callback shape — account_id/username/network
       // returned immediately (TikTok, X), no session-token page-selection
@@ -2801,6 +2843,24 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
       window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      return;
+    }
+    if (flow === 'facebook_ads_oauth') {
+      setConnecting(id);
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+      window.location.href = `${apiBase}/social-media/connect/facebook-ads/initiate?source=settings`;
+      return;
+    }
+    if (flow === 'google_ads_direct') {
+      setConnecting(id);
+      try {
+        await CampaignService.connectGoogleAds();
+        await loadStatuses();
+      } catch {
+        ToastService.showToast('Could not connect Google Ads. Please try again.', ToastTypeEnum.Error);
+      } finally {
+        setConnecting(null);
+      }
       return;
     }
     if (flow === 'phone') {
@@ -8180,6 +8240,12 @@ const getNav = (isAdminUser: boolean, isSupportUser: boolean) => {
       label: 'Performance',
       tooltip: 'Posts, accounts, and market intel — all your insights in one place',
     },
+    {
+      id: 'campaigns',
+      icon: 'megaphone',
+      label: 'Campaigns',
+      tooltip: 'Tell Jane what to promote — she plans, designs, and runs it for you',
+    },
     // Blog tab hidden on main branch (develop-only feature)
     // {
     //   id: 'blog',
@@ -8247,6 +8313,7 @@ const MOBILE_TABS = [
 ];
 
 const MORE_NAV = [
+  { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
   { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts/' },
@@ -8682,6 +8749,7 @@ export default function WorkspaceDashboard() {
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
+    campaigns: <CampaignsPage onJane={goWorkspace} onNavigate={goTo} />,
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
@@ -9147,6 +9215,12 @@ export default function WorkspaceDashboard() {
               {(!userDetails?.trialActive || hasActiveSubscription(userDetails?.subscriptionTier)) && (
                 <WorkspaceCreditBadge onClick={() => goTo('billing')} />
               )}
+
+              {/* Ad wallet balance — a different currency from credits (this funds real
+                  ad spend), and it now moves during normal use because launching a
+                  campaign debits it. Hidden on mobile, where header room is tight and
+                  the credit badge is the one that must survive. */}
+              {!isMobile && <WorkspaceAdWalletBadge onClick={() => goTo('campaigns')} />}
 
               {/* Profile Dropdown */}
               <WorkspaceProfileDropdown onNavigate={goTo} onLogout={logoutUser} />
