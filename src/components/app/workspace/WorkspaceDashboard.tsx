@@ -2398,15 +2398,18 @@ const PLATFORMS = [
     tooltip:
       "The Facebook Page Jane's ad campaigns actually run from — separate from the Facebook connection above, which is only for organic posts. Requires its own ads-permission grant.",
   },
-  {
-    id: 'google_ads',
-    label: 'Google Ads',
-    color: '#4285F4',
-    bg: '#E8F0FE',
-    flow: 'google_ads_direct',
-    tooltip:
-      "The Google Ads account Jane's Search campaigns run from — separate from any other Google connection. Links to (or creates) an account under URI's manager account.",
-  },
+  // Google Ads connection card hidden here for now — the flow/backend still
+  // exist untouched (jane_ads/google_ads_connection.py, /jane-ads/google/*),
+  // this only removes it from the Connections page's visible platform list.
+  // {
+  //   id: 'google_ads',
+  //   label: 'Google Ads',
+  //   color: '#4285F4',
+  //   bg: '#E8F0FE',
+  //   flow: 'google_ads_direct',
+  //   tooltip:
+  //     "The Google Ads account Jane's Search campaigns run from — separate from any other Google connection. Links to (or creates) an account under URI's manager account.",
+  // },
 ];
 
 // Real phone validation via libphonenumber-js (Google's own metadata for every
