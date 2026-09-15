@@ -127,11 +127,18 @@ function LoginContent() {
           lastName: lName,
           trial,
           is_new_user: isNewUser,
+          hasPassword,
         } = res.responseData as unknown as Record<string, unknown>;
         // Reset any active brand from a previous session/user on this browser
         localStorage.removeItem('@URI@ACTIVE_BRAND_ID');
         saveUserTokens({ accessToken: accessToken as string, refreshToken: '' });
-        const userDto: Record<string, unknown> = { userId, email: userEmail, firstName: fName, lastName: lName };
+        const userDto: Record<string, unknown> = {
+          userId,
+          email: userEmail,
+          firstName: fName,
+          lastName: lName,
+          hasPassword,
+        };
         if (trial && typeof trial === 'object') {
           const t = trial as Record<string, unknown>;
           userDto.isTrial = t.is_trial;
@@ -246,6 +253,7 @@ function LoginContent() {
         lastName: lName,
         trial,
         emailVerified,
+        hasPassword,
       } = res.responseData as unknown as Record<string, unknown>;
       // Reset any active brand from a previous session/user on this browser
       localStorage.removeItem('@URI@ACTIVE_BRAND_ID');
@@ -256,6 +264,7 @@ function LoginContent() {
         firstName: fName,
         lastName: lName,
         emailVerified: emailVerified ?? false,
+        hasPassword,
       };
       if (trial && typeof trial === 'object') {
         const t = trial as Record<string, unknown>;

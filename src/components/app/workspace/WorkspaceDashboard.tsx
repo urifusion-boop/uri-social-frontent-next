@@ -8318,25 +8318,55 @@ const SettingsPage = ({
             <I n="lock" s={16} c="#C2185B" />
             Security
           </h3>
-          <button
-            onClick={() => setShowPasswordForm(!showPasswordForm)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 7,
-              border: '1px solid #e5e3df',
-              background: showPasswordForm ? '#FDF2F8' : '#fff',
-              cursor: 'pointer',
-              fontFamily: 'var(--wf)',
-              fontSize: 12,
-              fontWeight: 600,
-              color: '#C2185B',
-            }}
-          >
-            {showPasswordForm ? 'Cancel' : 'Change Password'}
-          </button>
+          {userDetails?.hasPassword === false ? (
+            // Signed up with Google — no password exists to "change" yet. The only
+            // path to creating one is the same Forgot Password flow anyone uses to
+            // reset an existing one; it works here too since it never checks whether
+            // a password already existed, only that the email is real.
+            <button
+              onClick={() => router.push(`/forgot-password/?email=${encodeURIComponent(userDetails?.email ?? '')}`)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 7,
+                border: '1px solid #e5e3df',
+                background: '#fff',
+                cursor: 'pointer',
+                fontFamily: 'var(--wf)',
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#C2185B',
+              }}
+            >
+              Set a Password
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowPasswordForm(!showPasswordForm)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 7,
+                border: '1px solid #e5e3df',
+                background: showPasswordForm ? '#FDF2F8' : '#fff',
+                cursor: 'pointer',
+                fontFamily: 'var(--wf)',
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#C2185B',
+              }}
+            >
+              {showPasswordForm ? 'Cancel' : 'Change Password'}
+            </button>
+          )}
         </div>
 
-        {showPasswordForm && (
+        {userDetails?.hasPassword === false && (
+          <div style={{ marginTop: 14, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
+            You signed up with Google, so there's no password on this account yet. Set one to also be able to sign in
+            with your email address — your Google sign-in keeps working either way.
+          </div>
+        )}
+
+        {showPasswordForm && userDetails?.hasPassword !== false && (
           <div
             style={{ marginTop: 14, background: '#FAFAFA', padding: 16, borderRadius: 10, border: '1px solid #F0F0F0' }}
           >
