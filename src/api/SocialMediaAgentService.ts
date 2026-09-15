@@ -333,6 +333,11 @@ export interface ContentDraft {
   error_message?: string;
   content_source?: 'ai_generated' | 'user_uploaded'; // NEW: Distinguish AI vs user content
   uploaded_media_urls?: string[]; // NEW: User-uploaded media URLs (images/videos)
+  // TikTok single-image/carousel only (Music PRD MUS-PRD-01 §2.2/§8) — TikTok's
+  // Content Posting API has no track-selection field for photo posts, just this
+  // boolean, which triggers TikTok's own automatic background-music pick.
+  // Ignored for video/reel drafts (both by TikTok/Outstand and by our own publish code).
+  tiktok_auto_add_music?: boolean;
 }
 
 export interface ContentCalendarResponse {
@@ -534,6 +539,18 @@ export class SocialMediaAgentService {
   ): Promise<UriResponse<{ image_url: string; version: number; message: string }>> {
     const response = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.deleteDraft}/${draftId}/undo-image`
+    );
+    return response.data;
+  }
+
+  // TikTok single-image/carousel only — see ContentDraft.tiktok_auto_add_music.
+  static async setTiktokAutoAddMusic(
+    draftId: string,
+    enabled: boolean
+  ): Promise<UriResponse<{ tiktok_auto_add_music: boolean }>> {
+    const response = await UriHttpClient.getClient().patch(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/tiktok-auto-add-music`,
+      { enabled }
     );
     return response.data;
   }

@@ -97,6 +97,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [tiktokAutoAddMusicSaving, setTiktokAutoAddMusicSaving] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null); // null = not yet loaded
   const [connectPromptOpen, setConnectPromptOpen] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -598,6 +599,28 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       ToastService.showToast(error instanceof Error ? error.message : 'Undo failed', ToastTypeEnum.Error);
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  // TikTok single-image/carousel only — see ContentDraft.tiktok_auto_add_music.
+  // TikTok's Content Posting API has no track-selection field for photo posts,
+  // just this on/off toggle that triggers TikTok's own automatic pick.
+  const handleToggleTiktokAutoAddMusic = async (enabled: boolean) => {
+    const draftId = draft.draft_id ?? draft.id ?? '';
+    const previous = draft.tiktok_auto_add_music;
+    setDraft({ ...draft, tiktok_auto_add_music: enabled }); // optimistic
+    setTiktokAutoAddMusicSaving(true);
+    try {
+      const response = await SocialMediaAgentService.setTiktokAutoAddMusic(draftId, enabled);
+      if (!response.status) {
+        setDraft({ ...draft, tiktok_auto_add_music: previous });
+        ToastService.showToast(response.responseMessage || 'Could not save', ToastTypeEnum.Error);
+      }
+    } catch {
+      setDraft({ ...draft, tiktok_auto_add_music: previous });
+      ToastService.showToast('Could not save', ToastTypeEnum.Error);
+    } finally {
+      setTiktokAutoAddMusicSaving(false);
     }
   };
 
@@ -1649,6 +1672,33 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               Redesign
             </Button>
           </Box>
+        </Box>
+      )}
+
+      {/* TikTok single-image/carousel only — TikTok has no track picker for
+          photo posts, just this on/off toggle for its own automatic pick
+          (see ContentDraft.tiktok_auto_add_music). */}
+      {!editing && draft.platform === 'tiktok' && !isReel && (
+        <Box mt={1}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              color: '#374151',
+              cursor: tiktokAutoAddMusicSaving ? 'default' : 'pointer',
+              opacity: tiktokAutoAddMusicSaving ? 0.6 : 1,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={!!draft.tiktok_auto_add_music}
+              disabled={tiktokAutoAddMusicSaving}
+              onChange={(e) => handleToggleTiktokAutoAddMusic(e.target.checked)}
+            />
+            Let TikTok auto-add background music (TikTok picks the track — no way to choose one for photo posts)
+          </label>
         </Box>
       )}
 
