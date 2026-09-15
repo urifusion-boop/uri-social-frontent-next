@@ -856,10 +856,15 @@ export default function CampaignsPage({
     if (busy || !brief) return;
     const isVideo = choice.creative_source === 'upload' && choice.is_video;
     const assetAttestation = 'asset_attestation' in choice ? choice.asset_attestation : undefined;
-    if (choice.creative_source === 'draft' || isVideo) {
-      // No format concept applies on these paths — go straight to generation,
-      // matching the backend's own eligibility (suggest-format would return
-      // nothing here anyway).
+    if (choice.creative_source === 'draft' || choice.creative_source === 'upload') {
+      // Nothing is being DESIGNED on these paths, so there is no style to choose.
+      // "Upload my own" means use the photo the user gave us — offering a visual
+      // style there implies Jane will redraw it, and picking one would replace the
+      // very image they chose to upload.
+      //
+      // "Use my product photo" (recomposite) is deliberately NOT here: that path
+      // keeps the real product and builds a new scene around it, so the style
+      // genuinely applies.
       await runGeneration(choice, briefOverride);
       return;
     }
