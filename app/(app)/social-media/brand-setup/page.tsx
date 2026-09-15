@@ -17,6 +17,8 @@ import StylePickerGallery from '@/src/components/app/social-media/StylePickerGal
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
 import { getFont } from '@/src/data/fontLibrary';
 import { getStyle } from '@/src/data/styleLibrary';
+import { CampaignService, AdFormat } from '@/src/api/CampaignService';
+import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { MdOutlineCampaign } from 'react-icons/md';
 import { HexColorPicker } from 'react-colorful';
 import Navbar from '@/components/Navbar';
@@ -31,6 +33,7 @@ const STEPS = [
   'identity',
   'personality',
   'visualStyle',
+  'adFormats',
   'fontStyle',
   'platformTone',
   'voiceSample',
@@ -63,7 +66,8 @@ const STEP_FIELDS: Record<Step, (keyof BrandProfileData)[]> = {
   businessDetails: ['price_range', 'unique_selling_proposition', 'business_stage', 'business_priorities'],
   identity: ['logo_url', 'logo_position', 'logo_size', 'brand_colors'],
   personality: ['personality_quiz', 'derived_voice'],
-  visualStyle: ['style_selections', 'style_prompt_fragments'],
+  visualStyle: ['style_selections', 'style_prompt_fragments', 'selected_custom_guides', 'selected_custom_guides_v2'],
+  adFormats: ['ad_format_selections'],
   fontStyle: [
     'font_style',
     'font_style_prompt',
@@ -667,6 +671,17 @@ function BrandSetupPageContent() {
 
   // ── Visual Style ──────────────────────────────────────────────
   const [styleSelections, setStyleSelections] = useState<string[]>([]);
+  const [selectedCustomGuides, setSelectedCustomGuides] = useState<string[]>([]);
+  const [selectedCustomGuidesV2, setSelectedCustomGuidesV2] = useState<string[]>([]);
+
+  // ── Visual Styles — Ads ───────────────────────────────────────
+  const [adFormatsList, setAdFormatsList] = useState<AdFormat[]>([]);
+  const [adFormatSelections, setAdFormatSelections] = useState<string[]>([]);
+  useEffect(() => {
+    CampaignService.getAdFormats()
+      .then((res) => setAdFormatsList(res.formats))
+      .catch(() => setAdFormatsList([]));
+  }, []);
 
   // ── Font Style ────────────────────────────────────────────────
   const [fontStyle, setFontStyle] = useState<string>('');
@@ -863,6 +878,9 @@ function BrandSetupPageContent() {
     if (profile.brand_colors?.length) setColors(profile.brand_colors);
     if (profile.personality_quiz && Object.keys(profile.personality_quiz).length) setQuiz(profile.personality_quiz);
     if (profile.style_selections?.length) setStyleSelections(profile.style_selections);
+    if (profile.selected_custom_guides?.length) setSelectedCustomGuides(profile.selected_custom_guides);
+    if (profile.selected_custom_guides_v2?.length) setSelectedCustomGuidesV2(profile.selected_custom_guides_v2);
+    if (profile.ad_format_selections?.length) setAdFormatSelections(profile.ad_format_selections);
     if (profile.font_style) setFontStyle(profile.font_style);
     if (profile.primary_font) setPrimaryFont(profile.primary_font);
     if (profile.secondary_font) setSecondaryFont(profile.secondary_font);
@@ -1061,6 +1079,9 @@ function BrandSetupPageContent() {
     region: region.join(', '),
     style_selections: styleSelections,
     style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+    selected_custom_guides: selectedCustomGuides,
+    selected_custom_guides_v2: selectedCustomGuidesV2,
+    ad_format_selections: adFormatSelections,
     font_style: fontStyle,
     font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
     primary_font: primaryFont,
@@ -1715,22 +1736,34 @@ function BrandSetupPageContent() {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                 <Box
                   sx={{
-                    background: styleSelections.length > 0 ? primary : '#E5E7EB',
+                    background:
+                      styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
+                        ? primary
+                        : '#E5E7EB',
                     borderRadius: 99,
                     px: 1.5,
                     py: 0.375,
                     fontSize: 11.5,
                     fontWeight: 600,
-                    color: styleSelections.length > 0 ? '#fff' : '#6B7280',
+                    color:
+                      styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
+                        ? '#fff'
+                        : '#6B7280',
                     transition: 'all 0.2s',
                   }}
                 >
-                  {styleSelections.length}/3 selected
+                  {styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length}/3 selected
                 </Box>
-                {styleSelections.length > 0 && (
+                {(styleSelections.length > 0 ||
+                  selectedCustomGuides.length > 0 ||
+                  selectedCustomGuidesV2.length > 0) && (
                   <Typography
                     component="button"
-                    onClick={() => setStyleSelections([])}
+                    onClick={() => {
+                      setStyleSelections([]);
+                      setSelectedCustomGuides([]);
+                      setSelectedCustomGuidesV2([]);
+                    }}
                     sx={{
                       background: 'none',
                       border: 'none',
@@ -1745,9 +1778,82 @@ function BrandSetupPageContent() {
                   </Typography>
                 )}
               </Box>
-              <StylePickerGallery industry={industry} selected={styleSelections} onChange={setStyleSelections} />
+              <StylePickerGallery
+                industry={industry}
+                selected={styleSelections}
+                onChange={setStyleSelections}
+                selectedCustomGuides={selectedCustomGuides}
+                onCustomGuideChange={setSelectedCustomGuides}
+                selectedCustomGuidesV2={selectedCustomGuidesV2}
+                onCustomGuideV2Change={setSelectedCustomGuidesV2}
+              />
             </Box>
 
+            <Box display="flex" gap={1.5} alignItems="center" mt={3}>
+              <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
+                Continue →
+              </CustomButton>
+              <Typography
+                component="button"
+                onClick={next}
+                sx={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#9CA3AF',
+                  fontSize: 12.5,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 3,
+                  p: 0,
+                }}
+              >
+                I'll choose later
+              </Typography>
+            </Box>
+          </Box>
+        );
+
+      // ══ VISUAL STYLES — ADS ══════════════════════════════════════
+      case 'adFormats':
+        return (
+          <Box>
+            <AgentBubble primary={primary}>
+              If you ever run ads, pick up to 3 ad formats you like — Jane tries these first whenever they fit the
+              campaign, before falling back to whatever ranks best on its own.
+            </AgentBubble>
+            <Box mt={1.5} mb={2}>
+              {adFormatsList.length === 0 ? (
+                <Box sx={{ fontSize: 13, color: '#bbb' }}>Loading formats…</Box>
+              ) : (
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                  {[...adFormatsList]
+                    .sort((a, b) => {
+                      const rank = { live: 0, built: 1, planned: 2 } as const;
+                      return rank[a.status] - rank[b.status];
+                    })
+                    .map((f) => {
+                      const isSelected = adFormatSelections.includes(f.format_id);
+                      return (
+                        <AdFormatGalleryCard
+                          key={f.format_id}
+                          format={f}
+                          isSelected={isSelected}
+                          onToggleSelect={() =>
+                            setAdFormatSelections((cur) =>
+                              cur.includes(f.format_id)
+                                ? cur.filter((id) => id !== f.format_id)
+                                : cur.length >= 3
+                                  ? cur
+                                  : [...cur, f.format_id]
+                            )
+                          }
+                          selectionDisabled={!isSelected && adFormatSelections.length >= 3}
+                        />
+                      );
+                    })}
+                </Box>
+              )}
+            </Box>
             <Box display="flex" gap={1.5} alignItems="center" mt={3}>
               <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
                 Continue →
@@ -3573,6 +3679,7 @@ function BrandSetupPageContent() {
                       identity: '🎨 Visual Identity',
                       personality: '🗣️ Brand Personality',
                       visualStyle: '🎨 Visual Style',
+                      adFormats: '📣 Ad Formats',
                       fontStyle: '✏️ Typography',
                       platformTone: '🎭 Platform Voice',
                       voiceSample: '✍️ Voice Sample',
