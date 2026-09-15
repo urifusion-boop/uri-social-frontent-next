@@ -9,7 +9,9 @@ import { Box, Checkbox, CircularProgress, Divider, LinearProgress, Typography } 
 import Grid from '@mui/material/GridLegacy';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { STORE_KEYS } from '@/src/configs/store.config';
+import { UriHttpClient } from '@/src/configs/http.config';
 import { FaArrowLeft, FaCheckCircle, FaImage, FaTimes } from 'react-icons/fa';
 import StylePickerGallery from '@/src/components/app/social-media/StylePickerGallery';
 import FontPickerGallery from '@/src/components/app/social-media/FontPickerGallery';
@@ -25,6 +27,7 @@ import posthog from 'posthog-js';
 const STEPS = [
   'welcome',
   'basics',
+  'businessDetails',
   'identity',
   'personality',
   'visualStyle',
@@ -36,6 +39,7 @@ const STEPS = [
   'guardrails',
   'cta',
   'audience',
+  'targetCustomerDetail',
   'competitors',
   'calendar',
   'cadence',
@@ -46,6 +50,59 @@ const STEPS = [
   'preview',
 ] as const;
 type Step = (typeof STEPS)[number];
+
+// Which BrandProfileData keys each step owns, for save-and-resume: leaving a
+// step fires a partial save of exactly these keys (via buildProfilePayload()
+// below) plus the new onboarding_current_step — never the whole form, so a
+// step's save can never accidentally overwrite a field it doesn't own with
+// stale local state. 'welcome' and 'preview' own no fields (intro screen /
+// final review — 'preview' is saved via handleComplete instead).
+const STEP_FIELDS: Record<Step, (keyof BrandProfileData)[]> = {
+  welcome: [],
+  basics: ['brand_name', 'industry', 'website', 'product_description'],
+  businessDetails: ['price_range', 'unique_selling_proposition', 'business_stage', 'business_priorities'],
+  identity: ['logo_url', 'logo_position', 'logo_size', 'brand_colors'],
+  personality: ['personality_quiz', 'derived_voice'],
+  visualStyle: ['style_selections', 'style_prompt_fragments'],
+  fontStyle: [
+    'font_style',
+    'font_style_prompt',
+    'primary_font',
+    'primary_font_prompt',
+    'secondary_font',
+    'secondary_font_prompt',
+    'primary_custom_fonts',
+    'primary_custom_font_selected_url',
+    'secondary_custom_fonts',
+    'secondary_custom_font_selected_url',
+  ],
+  platformTone: ['platform_tones', 'same_tone_everywhere'],
+  voiceSample: ['voice_sample', 'sample_template_urls'],
+  pillars: ['content_pillars'],
+  formats: ['preferred_formats'],
+  guardrails: ['guardrails'],
+  cta: ['cta_styles', 'default_link'],
+  audience: ['audience_age_range', 'target_platforms', 'primary_goal', 'ideal_customer_profile'],
+  targetCustomerDetail: [
+    'customer_gender',
+    'customer_location',
+    'customer_occupation',
+    'customer_income_level',
+    'customer_interests',
+    'customer_pain_points',
+    'customer_needs',
+    'customer_objections',
+    'why_customers_choose_us',
+  ],
+  competitors: ['competitor_handles'],
+  calendar: ['key_dates'],
+  cadence: ['posting_cadence'],
+  postingTimes: ['posting_time_mode', 'posting_time_prefs'],
+  approvalChannels: ['approval_workflow', 'approval_channels'],
+  notifications: ['notification_events', 'notification_channel'],
+  language: ['languages', 'region'],
+  preview: [],
+};
 
 // ─── Shared micro-components ─────────────────────────────────────────────────
 
@@ -591,6 +648,11 @@ function BrandSetupPageContent() {
   const [industry, setIndustry] = useState('');
   const [website, setWebsite] = useState('');
   const [productDesc, setProductDesc] = useState('');
+  // Business Details
+  const [priceRange, setPriceRange] = useState('');
+  const [usp, setUsp] = useState('');
+  const [businessStage, setBusinessStage] = useState('');
+  const [businessPriorities, setBusinessPriorities] = useState<string[]>([]);
 
   // ── Identity ──────────────────────────────────────────────────
   const [logoUrl, setLogoUrl] = useState('');
@@ -726,6 +788,16 @@ function BrandSetupPageContent() {
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
   const [goal, setGoal] = useState('');
   const [idealCustomerProfile, setIdealCustomerProfile] = useState('');
+  // Target Customer Detail — additive to idealCustomerProfile above
+  const [customerGender, setCustomerGender] = useState('');
+  const [customerLocation, setCustomerLocation] = useState('');
+  const [customerOccupation, setCustomerOccupation] = useState('');
+  const [customerIncomeLevel, setCustomerIncomeLevel] = useState('');
+  const [customerInterests, setCustomerInterests] = useState<string[]>([]);
+  const [customerPainPoints, setCustomerPainPoints] = useState<string[]>([]);
+  const [customerNeeds, setCustomerNeeds] = useState<string[]>([]);
+  const [customerObjections, setCustomerObjections] = useState<string[]>([]);
+  const [whyChooseUs, setWhyChooseUs] = useState('');
 
   // ── Competitors ───────────────────────────────────────────────
   const [competitors, setCompetitors] = useState(['', '', '']);
@@ -757,21 +829,157 @@ function BrandSetupPageContent() {
   // ── Feedback ──────────────────────────────────────────────────
   const [postFeedback, setPostFeedback] = useState('');
 
+  const [resumedFromStep, setResumedFromStep] = useState<Step | null>(null);
+
+  // A saved value can be a plain string ("a, b") from an older single-string
+  // save, or already an array — audience_age_range/region are both typed
+  // string | string[] on BrandProfileData for exactly this reason. Splitting
+  // on ', ' reverses the .join(', ') used when saving these two fields.
+  const toArray = (v: string | string[] | undefined): string[] => {
+    if (!v) return [];
+    if (Array.isArray(v)) return v;
+    return v
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+
+  // Populate every piece of wizard state from a previously (partially or
+  // fully) saved profile — the reverse of buildProfilePayload(). Only ever
+  // called with real saved data, so every setter here has something to set;
+  // fields the user never reached simply keep their already-blank defaults.
+  const hydrateFromProfile = (profile: BrandProfileData) => {
+    if (profile.brand_name) setBrandName(profile.brand_name);
+    if (profile.industry) setIndustry(profile.industry);
+    if (profile.website) setWebsite(profile.website);
+    if (profile.product_description) setProductDesc(profile.product_description);
+    if (profile.price_range) setPriceRange(profile.price_range);
+    if (profile.unique_selling_proposition) setUsp(profile.unique_selling_proposition);
+    if (profile.business_stage) setBusinessStage(profile.business_stage);
+    if (profile.business_priorities?.length) setBusinessPriorities(profile.business_priorities);
+    if (profile.logo_url) setLogoUrl(profile.logo_url);
+    if (profile.logo_position) setLogoPosition(profile.logo_position);
+    if (profile.logo_size) setLogoSize(profile.logo_size as 'small' | 'medium' | 'large');
+    if (profile.brand_colors?.length) setColors(profile.brand_colors);
+    if (profile.personality_quiz && Object.keys(profile.personality_quiz).length) setQuiz(profile.personality_quiz);
+    if (profile.style_selections?.length) setStyleSelections(profile.style_selections);
+    if (profile.font_style) setFontStyle(profile.font_style);
+    if (profile.primary_font) setPrimaryFont(profile.primary_font);
+    if (profile.secondary_font) setSecondaryFont(profile.secondary_font);
+    if (profile.primary_custom_fonts?.length) setPrimaryCustomFonts(profile.primary_custom_fonts);
+    if (profile.primary_custom_font_selected_url)
+      setPrimaryCustomFontSelectedUrl(profile.primary_custom_font_selected_url);
+    if (profile.secondary_custom_fonts?.length) setSecondaryCustomFonts(profile.secondary_custom_fonts);
+    if (profile.secondary_custom_font_selected_url)
+      setSecondaryCustomFontSelectedUrl(profile.secondary_custom_font_selected_url);
+    if (profile.platform_tones && Object.keys(profile.platform_tones).length) setPlatformTones(profile.platform_tones);
+    if (profile.same_tone_everywhere !== undefined) setSameTone(profile.same_tone_everywhere);
+    if (profile.voice_sample) setVoiceSample(profile.voice_sample);
+    if (profile.sample_template_urls?.length) setSampleTemplateUrls(profile.sample_template_urls);
+    if (profile.content_pillars?.length) setPillars(profile.content_pillars);
+    if (profile.preferred_formats?.length) setFormats(profile.preferred_formats);
+    if (profile.guardrails) {
+      const g = profile.guardrails;
+      if (g.avoid_topics) setAvoidTopics(g.avoid_topics);
+      if (g.banned_words) setBannedWords(g.banned_words);
+      if (g.emoji_usage) setUseEmoji(g.emoji_usage);
+      if (g.max_hashtags) setMaxHash(g.max_hashtags);
+      if (g.compliance_notes) setCompliance(g.compliance_notes);
+    }
+    if (profile.cta_styles?.length) setCtaStyle(profile.cta_styles);
+    if (profile.default_link) setDefaultLink(profile.default_link);
+    const ages = toArray(profile.audience_age_range);
+    if (ages.length) setAudienceAge(ages);
+    if (profile.target_platforms?.length) setTargetPlatforms(profile.target_platforms);
+    if (profile.primary_goal) setGoal(profile.primary_goal);
+    if (profile.ideal_customer_profile) setIdealCustomerProfile(profile.ideal_customer_profile);
+    if (profile.customer_gender) setCustomerGender(profile.customer_gender);
+    if (profile.customer_location) setCustomerLocation(profile.customer_location);
+    if (profile.customer_occupation) setCustomerOccupation(profile.customer_occupation);
+    if (profile.customer_income_level) setCustomerIncomeLevel(profile.customer_income_level);
+    if (profile.customer_interests?.length) setCustomerInterests(profile.customer_interests);
+    if (profile.customer_pain_points?.length) setCustomerPainPoints(profile.customer_pain_points);
+    if (profile.customer_needs?.length) setCustomerNeeds(profile.customer_needs);
+    if (profile.customer_objections?.length) setCustomerObjections(profile.customer_objections);
+    if (profile.why_customers_choose_us) setWhyChooseUs(profile.why_customers_choose_us);
+    if (profile.competitor_handles?.length) {
+      const padded = [...profile.competitor_handles, '', '', ''].slice(0, 3);
+      setCompetitors(padded);
+    }
+    if (profile.key_dates?.length) setKeyDates(profile.key_dates);
+    if (profile.posting_cadence) setCadence(profile.posting_cadence);
+    if (profile.posting_time_mode) setTimeMode(profile.posting_time_mode);
+    if (profile.posting_time_prefs && Object.keys(profile.posting_time_prefs).length)
+      setTimePrefs(profile.posting_time_prefs);
+    if (profile.approval_workflow) setApproval(profile.approval_workflow);
+    if (profile.approval_channels?.length) setApprovalChannels(profile.approval_channels);
+    if (profile.notification_events?.length) setNotifEvents(profile.notification_events);
+    if (profile.notification_channel) setNotifChannel(profile.notification_channel);
+    if (profile.languages?.length) setLanguages(profile.languages);
+    const regions = toArray(profile.region);
+    if (regions.length) setRegion(regions);
+  };
+
   // ─── Init ────────────────────────────────────────────────────
   useEffect(() => {
     if (!userDetails?.userId) return;
 
-    BrandProfileService.isOnboardingDone().then((done) => {
-      if (done) router.replace('/workspace/');
-      else setCheckingExisting(false);
-    });
+    BrandProfileService.get()
+      .then((res) => {
+        const profile = res.status ? res.responseData : null;
+        if (profile?.onboarding_completed) {
+          router.replace('/workspace/');
+          return;
+        }
+        if (profile) {
+          hydrateFromProfile(profile);
+          const savedStep = profile.onboarding_current_step as Step | undefined;
+          const stepIndex = savedStep ? STEPS.indexOf(savedStep) : -1;
+          if (stepIndex > 0) {
+            setStep(stepIndex);
+            setResumedFromStep(savedStep as Step);
+          }
+        }
+        setCheckingExisting(false);
+      })
+      .catch(() => {
+        // Couldn't determine onboarding status (network/auth) — fail open
+        // into a fresh wizard rather than blocking the page indefinitely;
+        // matches the prior isOnboardingDone() null-on-error behaviour.
+        setCheckingExisting(false);
+      });
   }, [userDetails, router, searchParams]);
 
+  // Fire-and-forget partial save of the step being LEFT, recording the step
+  // being ENTERED as the resume position — never awaited, so a slow/failed
+  // save can never block the user from moving through the wizard. Worst
+  // case on failure: the user resumes one step earlier than expected next
+  // time, never data loss beyond that single step.
+  const saveStepProgress = (leavingStep: Step, enteringStep: Step) => {
+    const fields = STEP_FIELDS[leavingStep];
+    const partial: Partial<BrandProfileData> = { onboarding_current_step: enteringStep };
+    if (fields.length > 0) {
+      const full = buildProfilePayload();
+      for (const key of fields) {
+        (partial as Record<string, unknown>)[key] = full[key];
+      }
+    }
+    BrandProfileService.save(partial).catch(() => {
+      // Best-effort — see comment above.
+    });
+  };
+
   const next = () => {
-    trackEvent('onboarding_step_complete', { step: step, step_name: STEPS[step] });
+    const leaving = STEPS[step];
+    const entering = STEPS[Math.min(step + 1, STEPS.length - 1)];
+    trackEvent('onboarding_step_complete', { step: step, step_name: leaving });
+    saveStepProgress(leaving, entering);
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
-  const prev = () => setStep((s) => Math.max(s - 1, 0));
+  const prev = () => {
+    saveStepProgress(STEPS[step], STEPS[Math.max(step - 1, 0)]);
+    setStep((s) => Math.max(s - 1, 0));
+  };
   const toggle = <T,>(arr: T[], setArr: (v: T[]) => void, val: T, max?: number) =>
     setArr(arr.includes(val) ? arr.filter((x) => x !== val) : max && arr.length >= max ? arr : [...arr, val]);
 
@@ -792,62 +1000,132 @@ function BrandSetupPageContent() {
   const progressPct = progressibleSteps > 0 ? (progressStep / progressibleSteps) * 100 : 0;
 
   // ─── Save & complete ─────────────────────────────────────────
+  // Single source of truth for "current wizard state as a BrandProfileData
+  // object" — used by both the final handleComplete save AND every partial
+  // per-step save (see saveStepProgress below), so a step's save-as-you-go
+  // payload can never drift from what the final save would have sent for
+  // that same field.
+  const buildProfilePayload = (): BrandProfileData => ({
+    brand_name: brandName,
+    industry,
+    website,
+    product_description: productDesc,
+    price_range: priceRange,
+    unique_selling_proposition: usp,
+    business_stage: (businessStage || '') as BrandProfileData['business_stage'],
+    business_priorities: businessPriorities,
+    logo_url: logoUrl || undefined,
+    logo_position: logoPosition,
+    logo_size: logoSize,
+    brand_colors: colors,
+    personality_quiz: quiz,
+    derived_voice: deriveVoice(),
+    voice_sample: voiceSample,
+    sample_template_urls: sampleTemplateUrls.length > 0 ? sampleTemplateUrls : undefined,
+    platform_tones: platformTones,
+    same_tone_everywhere: sameTone,
+    content_pillars: pillars,
+    preferred_formats: formats,
+    guardrails: {
+      avoid_topics: avoidTopics,
+      banned_words: bannedWords,
+      emoji_usage: useEmoji,
+      max_hashtags: maxHash,
+      compliance_notes: compliance,
+    },
+    cta_styles: ctaStyle,
+    default_link: defaultLink,
+    audience_age_range: audienceAge.join(', '),
+    target_platforms: targetPlatforms,
+    primary_goal: goal,
+    ideal_customer_profile: idealCustomerProfile,
+    customer_gender: customerGender,
+    customer_location: customerLocation,
+    customer_occupation: customerOccupation,
+    customer_income_level: customerIncomeLevel,
+    customer_interests: customerInterests,
+    customer_pain_points: customerPainPoints,
+    customer_needs: customerNeeds,
+    customer_objections: customerObjections,
+    why_customers_choose_us: whyChooseUs,
+    competitor_handles: competitors.filter(Boolean),
+    key_dates: keyDates,
+    posting_cadence: cadence,
+    posting_time_mode: timeMode,
+    posting_time_prefs: timePrefs,
+    approval_workflow: approval,
+    approval_channels: approvalChannels,
+    notification_events: notifEvents,
+    notification_channel: notifChannel,
+    languages,
+    region: region.join(', '),
+    style_selections: styleSelections,
+    style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
+    font_style: fontStyle,
+    font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
+    primary_font: primaryFont,
+    primary_font_prompt: getFont(primaryFont)?.promptFragment ?? '',
+    secondary_font: secondaryFont,
+    secondary_font_prompt: getFont(secondaryFont)?.promptFragment ?? '',
+    primary_custom_fonts: primaryCustomFonts,
+    primary_custom_font_selected_url: primaryCustomFontSelectedUrl,
+    secondary_custom_fonts: secondaryCustomFonts,
+    secondary_custom_font_selected_url: secondaryCustomFontSelectedUrl,
+  });
+
+  // Catches "closed the tab / switched apps mid-step without clicking
+  // Continue" — the one gap saveStepProgress can't cover, since that only
+  // fires on a step transition. Refs (not state) so this listener, which is
+  // registered once, always reads the LATEST step/payload instead of
+  // whatever they were on the render it was set up in.
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  const buildProfilePayloadRef = useRef(buildProfilePayload);
+  buildProfilePayloadRef.current = buildProfilePayload;
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'hidden') return;
+      const currentStep = STEPS[stepRef.current];
+      const fields = STEP_FIELDS[currentStep];
+      if (fields.length === 0) return;
+
+      const full = buildProfilePayloadRef.current();
+      const partial: Record<string, unknown> = { onboarding_current_step: currentStep };
+      for (const key of fields) partial[key] = (full as Record<string, unknown>)[key];
+
+      // navigator.sendBeacon can't set an Authorization header, and this
+      // endpoint requires one — fetch's keepalive flag is the
+      // header-capable equivalent, built for exactly this "survive the page
+      // unloading" case.
+      try {
+        const tokens = JSON.parse(localStorage.getItem(STORE_KEYS.USER_TOKENS) || '{}');
+        if (!tokens?.accessToken) return;
+        const brandId = localStorage.getItem(UriHttpClient.ACTIVE_BRAND_KEY);
+        fetch(`${process.env.NEXT_PUBLIC_URI_API_BASE_URL}/social-media/brand-profile`, {
+          method: 'POST',
+          keepalive: true,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${tokens.accessToken}`,
+            ...(brandId ? { 'X-Brand-Id': brandId } : {}),
+          },
+          body: JSON.stringify(partial),
+        }).catch(() => {});
+      } catch {
+        // Best-effort — never throw out of a visibilitychange handler.
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   const handleComplete = async () => {
     setSaving(true);
     const profile: BrandProfileData = {
-      brand_name: brandName,
-      industry,
-      website,
-      product_description: productDesc,
-      logo_url: logoUrl || undefined,
-      logo_position: logoPosition,
-      logo_size: logoSize,
-      brand_colors: colors,
-      personality_quiz: quiz,
-      derived_voice: deriveVoice(),
-      voice_sample: voiceSample,
-      sample_template_urls: sampleTemplateUrls.length > 0 ? sampleTemplateUrls : undefined,
-      platform_tones: platformTones,
-      same_tone_everywhere: sameTone,
-      content_pillars: pillars,
-      preferred_formats: formats,
-      guardrails: {
-        avoid_topics: avoidTopics,
-        banned_words: bannedWords,
-        emoji_usage: useEmoji,
-        max_hashtags: maxHash,
-        compliance_notes: compliance,
-      },
-      cta_styles: ctaStyle,
-      default_link: defaultLink,
-      audience_age_range: audienceAge.join(', '),
-      target_platforms: targetPlatforms,
-      primary_goal: goal,
-      ideal_customer_profile: idealCustomerProfile,
-      competitor_handles: competitors.filter(Boolean),
-      key_dates: keyDates,
-      posting_cadence: cadence,
-      posting_time_mode: timeMode,
-      posting_time_prefs: timePrefs,
-      approval_workflow: approval,
-      approval_channels: approvalChannels,
-      notification_events: notifEvents,
-      notification_channel: notifChannel,
-      languages,
-      region: region.join(', '),
-      style_selections: styleSelections,
-      style_prompt_fragments: styleSelections.map((slug) => getStyle(slug)?.promptFragment ?? ''),
-      font_style: fontStyle,
-      font_style_prompt: getFont(fontStyle)?.promptFragment ?? '',
-      primary_font: primaryFont,
-      primary_font_prompt: getFont(primaryFont)?.promptFragment ?? '',
-      secondary_font: secondaryFont,
-      secondary_font_prompt: getFont(secondaryFont)?.promptFragment ?? '',
-      primary_custom_fonts: primaryCustomFonts,
-      primary_custom_font_selected_url: primaryCustomFontSelectedUrl,
-      secondary_custom_fonts: secondaryCustomFonts,
-      secondary_custom_font_selected_url: secondaryCustomFontSelectedUrl,
+      ...buildProfilePayload(),
       onboarding_completed: true,
+      onboarding_current_step: 'preview',
     };
     try {
       await BrandProfileService.complete(profile);
@@ -993,6 +1271,97 @@ function BrandSetupPageContent() {
               <Grid item xs={12}>
                 <Box display="flex" gap={1.5} alignItems="center">
                   <CustomButton mode="primary" onClick={next} disabled={!brandName} style={{ padding: '10px 24px' }}>
+                    Continue →
+                  </CustomButton>
+                  <Typography
+                    component="button"
+                    onClick={next}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                      p: 0,
+                    }}
+                  >
+                    I'll do this later
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </Box>
+        );
+
+      // ══ BUSINESS DETAILS ═════════════════════════════════════════
+      case 'businessDetails':
+        return (
+          <Box>
+            <AgentBubble primary={primary}>
+              A few more business fundamentals — these help me pitch and position your content correctly.
+            </AgentBubble>
+            <Grid container spacing={2.5} mt={0}>
+              <Grid item xs={12} md={6}>
+                <FieldLabel sub="(optional)">Price range</FieldLabel>
+                <UriInput
+                  value={priceRange}
+                  onChange={setPriceRange}
+                  placeholder="e.g. Budget-friendly / Mid-range / Premium"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(1–2 sentences, optional)">What makes you different?</FieldLabel>
+                <UriTextarea
+                  value={usp}
+                  onChange={setUsp}
+                  placeholder="e.g. Only same-day delivery bakery in Lekki"
+                  rows={2}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(optional)">Business stage</FieldLabel>
+                <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
+                  {[
+                    { v: 'new', l: 'Just starting out' },
+                    { v: 'growing', l: 'Growing' },
+                    { v: 'established', l: 'Established' },
+                    { v: 'market_leader', l: 'Market leader' },
+                  ].map((s) => (
+                    <Chip
+                      key={s.v}
+                      label={s.l}
+                      active={businessStage === s.v}
+                      onClick={() => setBusinessStage(s.v)}
+                      primary={primary}
+                    />
+                  ))}
+                </Box>
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(select all that apply, optional)">Current business priorities</FieldLabel>
+                <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
+                  {[
+                    'Growing revenue',
+                    'Building brand awareness',
+                    'Launching new offerings',
+                    'Retaining customers',
+                    'Expanding to new markets',
+                  ].map((p) => (
+                    <Chip
+                      key={p}
+                      label={p}
+                      active={businessPriorities.includes(p)}
+                      onClick={() => toggle(businessPriorities, setBusinessPriorities, p)}
+                      primary={primary}
+                    />
+                  ))}
+                </Box>
+              </Grid>
+              <Grid item xs={12}>
+                <Box display="flex" gap={1.5} alignItems="center">
+                  <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
                     Continue →
                   </CustomButton>
                   <Typography
@@ -1174,7 +1543,7 @@ function BrandSetupPageContent() {
                 {/* Logo size picker */}
                 <Box mt={2}>
                   <FieldLabel sub="(how large should your logo be?)">Logo Size</FieldLabel>
-                  <Box display="flex" gap={0.75} mt={0.75}>
+                  <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                     {(['small', 'medium', 'large'] as const).map((size) => (
                       <Chip
                         key={size}
@@ -1920,7 +2289,7 @@ function BrandSetupPageContent() {
               </Grid>
               <Grid item xs={12}>
                 <FieldLabel>Emoji usage</FieldLabel>
-                <Box display="flex" gap={0.75} mt={0.75}>
+                <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                   {[
                     { l: 'Yes, love them 🎉', v: 'yes' },
                     { l: 'Sparingly', v: 'some' },
@@ -1938,7 +2307,7 @@ function BrandSetupPageContent() {
               </Grid>
               <Grid item xs={12}>
                 <FieldLabel>Max hashtags per post</FieldLabel>
-                <Box display="flex" gap={0.75} mt={0.75}>
+                <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.75}>
                   {['3', '5', '10', '15', 'No limit'].map((n) => (
                     <Chip key={n} label={n} active={maxHash === n} onClick={() => setMaxHash(n)} primary={primary} />
                   ))}
@@ -2178,6 +2547,134 @@ function BrandSetupPageContent() {
           </Box>
         );
 
+      // ══ TARGET CUSTOMER DETAIL ═══════════════════════════════════
+      case 'targetCustomerDetail':
+        return (
+          <Box>
+            <AgentBubble primary={primary}>
+              Let's go deeper on who you're actually selling to — this sharpens every idea I generate for you.
+            </AgentBubble>
+            <Grid container spacing={2.5} mt={0}>
+              <Grid item xs={12} md={6}>
+                <FieldLabel sub="(optional, only if relevant)">Gender</FieldLabel>
+                <UriInput value={customerGender} onChange={setCustomerGender} placeholder="e.g. Primarily women" />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FieldLabel sub="(optional)">Location</FieldLabel>
+                <UriInput value={customerLocation} onChange={setCustomerLocation} placeholder="e.g. Lagos, Nigeria" />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FieldLabel sub="(optional)">Occupation</FieldLabel>
+                <UriInput
+                  value={customerOccupation}
+                  onChange={setCustomerOccupation}
+                  placeholder="e.g. Young professionals, small business owners"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FieldLabel sub="(optional)">Income level</FieldLabel>
+                <UriInput
+                  value={customerIncomeLevel}
+                  onChange={setCustomerIncomeLevel}
+                  placeholder="e.g. Middle income"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(comma-separated, optional)">Interests</FieldLabel>
+                <UriInput
+                  value={customerInterests.join(', ')}
+                  onChange={(v) =>
+                    setCustomerInterests(
+                      v
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  placeholder="e.g. fitness, wellness, personal finance"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(comma-separated, optional)">Pain points</FieldLabel>
+                <UriInput
+                  value={customerPainPoints.join(', ')}
+                  onChange={(v) =>
+                    setCustomerPainPoints(
+                      v
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  placeholder="e.g. no time to cook, hard to find reliable delivery"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(comma-separated, optional)">Needs</FieldLabel>
+                <UriInput
+                  value={customerNeeds.join(', ')}
+                  onChange={(v) =>
+                    setCustomerNeeds(
+                      v
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  placeholder="e.g. fast turnaround, transparent pricing"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(comma-separated, optional)">Common objections</FieldLabel>
+                <UriInput
+                  value={customerObjections.join(', ')}
+                  onChange={(v) =>
+                    setCustomerObjections(
+                      v
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  placeholder="e.g. too expensive, not sure it works"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(1–2 sentences, optional)">Why do customers choose you?</FieldLabel>
+                <UriTextarea
+                  value={whyChooseUs}
+                  onChange={setWhyChooseUs}
+                  placeholder="e.g. We're the only ones who deliver same-day"
+                  rows={2}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <Box display="flex" gap={1.5} alignItems="center">
+                  <CustomButton mode="primary" onClick={next} style={{ padding: '10px 24px' }}>
+                    Continue →
+                  </CustomButton>
+                  <Typography
+                    component="button"
+                    onClick={next}
+                    sx={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                      p: 0,
+                    }}
+                  >
+                    I'll do this later
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </Box>
+        );
+
       // ══ COMPETITORS ══════════════════════════════════════════════
       case 'competitors':
         return (
@@ -2237,14 +2734,15 @@ function BrandSetupPageContent() {
             </AgentBubble>
             <Box mt={1.5}>
               <FieldLabel>Key dates</FieldLabel>
-              <Box display="flex" gap={1} mt={0.75} mb={1.5}>
+              <Box display="flex" flexWrap="wrap" gap={1} mt={0.75} mb={1.5}>
                 <Box
                   component="input"
                   type="date"
                   value={newDate}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewDate(e.target.value)}
                   sx={{
-                    flex: '0 0 150px',
+                    flex: { xs: '1 1 140px', sm: '0 0 150px' },
+                    minWidth: 0,
                     height: 40,
                     px: 1.5,
                     borderRadius: '10px',
@@ -2262,7 +2760,8 @@ function BrandSetupPageContent() {
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewDateLabel(e.target.value)}
                   placeholder="e.g. Summer Sale Launch"
                   sx={{
-                    flex: 1,
+                    flex: '1 1 160px',
+                    minWidth: 0,
                     height: 40,
                     px: 1.5,
                     borderRadius: '10px',
@@ -2818,6 +3317,7 @@ function BrandSetupPageContent() {
                   <Box
                     display="flex"
                     alignItems="center"
+                    flexWrap="wrap"
                     gap={1}
                     mt={2}
                     pt={1.5}
@@ -2830,6 +3330,7 @@ function BrandSetupPageContent() {
                         fontWeight: 600,
                         textTransform: 'uppercase',
                         letterSpacing: 0.5,
+                        flexShrink: 0,
                       }}
                     >
                       Brand colors
@@ -2837,7 +3338,14 @@ function BrandSetupPageContent() {
                     {colors.map((c) => (
                       <Box
                         key={c}
-                        sx={{ width: 18, height: 18, borderRadius: '5px', background: c, border: '1px solid #E0DEF7' }}
+                        sx={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: '5px',
+                          background: c,
+                          border: '1px solid #E0DEF7',
+                          flexShrink: 0,
+                        }}
                       />
                     ))}
                   </Box>
@@ -2923,6 +3431,38 @@ function BrandSetupPageContent() {
           pt: '64px',
         }}
       >
+        {resumedFromStep && (
+          <Box
+            sx={{
+              background: '#FDF0F6',
+              borderBottom: '1px solid #F3D9E8',
+              px: { xs: 2, md: 3 },
+              py: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 2,
+            }}
+          >
+            <Typography sx={{ fontSize: 13, color: '#6b1740', fontWeight: 500 }}>
+              Welcome back — continuing where you left off.
+            </Typography>
+            <Box
+              component="button"
+              onClick={() => setResumedFromStep(null)}
+              sx={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#6b1740',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              Dismiss
+            </Box>
+          </Box>
+        )}
         {/* Progress bar and back button */}
         {step > 0 && (
           <Box
@@ -3029,6 +3569,7 @@ function BrandSetupPageContent() {
                       welcome: '',
                       connectAccounts: '🔗 Connect Accounts',
                       basics: '🏢 Brand Basics',
+                      businessDetails: '🎯 Business Details',
                       identity: '🎨 Visual Identity',
                       personality: '🗣️ Brand Personality',
                       visualStyle: '🎨 Visual Style',
@@ -3040,6 +3581,7 @@ function BrandSetupPageContent() {
                       guardrails: '🚧 Guardrails',
                       cta: '🎯 Call to Action',
                       audience: '👥 Target Audience',
+                      targetCustomerDetail: '🧑‍🤝‍🧑 Target Customer Detail',
                       competitors: '🔍 Competitors',
                       calendar: '📅 Key Dates',
                       cadence: '🔄 Posting Cadence',
