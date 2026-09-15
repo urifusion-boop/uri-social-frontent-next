@@ -678,6 +678,76 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  // ── Content Calendar V2 ──────────────────────────────────────────────────
+
+  static async getCalendarPlanV2(): Promise<UriResponse<ContentCalendarV2Plan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarV2Plan>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.calendarV2Plan
+    );
+    return response.data;
+  }
+
+  static async generateCalendarPlanV2(platforms: string[], force = false): Promise<UriResponse<ContentCalendarV2Plan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarV2Plan>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.calendarV2PlanGenerate,
+      { platforms, force_regenerate: force },
+      { timeout: 300000 } // 30-day generation runs 5 chunked LLM calls — needs real headroom
+    );
+    return response.data;
+  }
+
+  static async regenerateCalendarItemV2(
+    planId: string,
+    itemIndex: number,
+    reason = ''
+  ): Promise<UriResponse<ContentCalendarV2Plan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarV2Plan>>> = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/regenerate`,
+      { reason },
+      { timeout: 60000 }
+    );
+    return response.data;
+  }
+
+  static async getCalendarItemVersionsV2(
+    planId: string,
+    itemIndex: number
+  ): Promise<UriResponse<{ versions: CalendarV2VersionEntry[] }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ versions: CalendarV2VersionEntry[] }>>> =
+      await UriHttpClient.getClient().get(
+        `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/versions`
+      );
+    return response.data;
+  }
+
+  static async approveCalendarItemV2(planId: string, itemIndex: number): Promise<UriResponse<ContentCalendarV2Plan>> {
+    const response: Awaited<AxiosResponse<UriResponse<ContentCalendarV2Plan>>> = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/approve`
+    );
+    return response.data;
+  }
+
+  static async createDraftFromCalendarItemV2(
+    planId: string,
+    itemIndex: number,
+    platforms: string[],
+    includeImages = false
+  ): Promise<UriResponse<{ drafts: ContentDraft[] }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ drafts: ContentDraft[] }>>> =
+      await UriHttpClient.getClient().post(
+        `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/create-draft`,
+        { platforms, include_images: includeImages },
+        { timeout: 300000 }
+      );
+    return response.data;
+  }
+
+  static async syncCalendarPerformanceV2(planId: string): Promise<UriResponse<{ synced_items: number }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ synced_items: number }>>> =
+      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/sync-performance`);
+    return response.data;
+  }
+
   static async generateStoryboard(payload: StoryboardPayload): Promise<UriResponse<Storyboard>> {
     const response: Awaited<AxiosResponse<UriResponse<Storyboard>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.generateStoryboard,
@@ -1552,6 +1622,156 @@ export interface TodaySuggestion {
   plan_id?: string;
   day_index?: number;
   today?: CalendarDayItem;
+}
+
+// ── Content Calendar V2 — a distinct, isolated 30-day engine now used in
+// production instead of the v1 types above (never extended from them) so the
+// two systems' shapes can never silently couple. See ContentCalendarV2Tab.tsx
+// for the isolation note. ──
+
+export interface CarouselSlideV2 {
+  slide_index: number;
+  headline: string;
+  body: string;
+  visual_note: string;
+}
+
+export interface AdCopyV2 {
+  headline: string;
+  primary_text: string;
+  short_copy: string;
+  cta: string;
+  image_prompt: string;
+}
+
+export type AdAngleV2 =
+  | 'problem'
+  | 'outcome'
+  | 'proof'
+  | 'offer'
+  | 'objection'
+  | 'comparison'
+  | 'urgency'
+  | 'convenience'
+  | 'transformation'
+  | 'product_demonstration';
+
+export interface AdOpportunityV2 {
+  is_ad_candidate: boolean;
+  score: number;
+  angle: AdAngleV2 | null;
+  ad_copy: AdCopyV2 | null;
+  reason: string;
+}
+
+export interface SelectionScoreV2 {
+  strategic_relevance: number;
+  audience_relevance: number;
+  creative_strength: number;
+  distinctiveness: number;
+  brand_fit: number;
+  commercial_relevance: number;
+  asset_feasibility: number;
+  context_relevance: number;
+  repetition_risk: number;
+  diversity_gain: number;
+}
+
+export interface CreativeDeviceV2 {
+  category: string; // story | visual | conversational | psychological | structural
+  device: string;
+  label: string;
+}
+
+export interface CalendarV2VersionEntry {
+  snapshot: Record<string, unknown>;
+  edited_at: string;
+  reason: string;
+}
+
+export interface CalendarV2Item {
+  item_id: string;
+  day_index: number;
+  date: string;
+  title: string;
+  description: string;
+  hook: string;
+  key_points: string[];
+  caption_direction: string;
+  keywords: string[];
+  cta: string;
+  video_idea?: VideoIdea;
+  upcoming_holidays: Array<{ date: string; name: string; type: string; content_angle?: string }>;
+  format: string;
+  content_type: 'educational' | 'relatable' | 'promotional' | 'behind_the_scenes' | 'engagement';
+  // Creative Intelligence Engine fields (Territory + Subject + Angle + Creative
+  // Device -> Content Idea) — content_type above is derived from territory
+  // purely so the existing badge keeps rendering; territory is the real
+  // selection dimension now.
+  territory: string;
+  subject: string;
+  creative_angle: string; // distinct from ad_opportunity.angle — this is the ORGANIC angle
+  creative_device: CreativeDeviceV2;
+  content_pillar: string;
+  customer_journey_stage: string;
+  promised_business_outcome: string;
+  creative_concept_name: string;
+  carousel: { slides: CarouselSlideV2[] } | null;
+  creative_direction: {
+    visual_style?: string;
+    mood?: string;
+    color_note?: string;
+    composition_note?: string;
+    central_visual_idea?: string;
+  };
+  design_style: string;
+  layout_direction: string;
+  visual_metaphor: string;
+  required_assets: string[];
+  designer_execution_notes: string;
+  ai_image_prompt: string;
+  exact_copy: { headline?: string; caption?: string; hashtags?: string[] };
+  reasoning: string;
+  data_provenance: Record<string, 'known' | 'inferred' | 'unknown'>;
+  ad_opportunity: AdOpportunityV2 | null;
+  primary_kpi: 'reach' | 'engagement' | 'leads' | 'sales' | 'awareness';
+  selection_score: SelectionScoreV2;
+  series_id: string | null;
+  series_name: string | null;
+  creative_quality_review_note?: string | null;
+  diversity_check: { passed: boolean; similarity_score: number; flagged_against_item_id: string | null };
+  version_history: CalendarV2VersionEntry[];
+  regenerated_count: number;
+  last_regenerated_reason?: 'manual' | 'diversity_auto' | null;
+  acted_on: boolean;
+  acted_on_draft_ids: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  performance: { draft_id: string; metrics_snapshot: Record<string, unknown>; last_synced_at: string } | null;
+}
+
+export interface ContentCalendarV2Plan {
+  plan_id: string;
+  // 'generating' — pipeline running as a background job; poll GET /plan.
+  // 'failed' — pipeline errored; `error` holds the reason, offer Regenerate.
+  status: 'active' | 'archived' | 'generating' | 'failed';
+  error?: string | null;
+  period_start: string;
+  period_end: string;
+  generation_method: string; // "framework_driven" — replaces the old data/trend-driven values
+  framework_version?: string;
+  pipeline_version?: string;
+  platforms: string[];
+  carousel_slots: number[];
+  intelligence_snapshot: {
+    holidays?: Array<{ date: string; name: string }>;
+    cultural_moments?: unknown[];
+    industry_best_practices?: unknown;
+  };
+  territory_mix?: Record<string, number>;
+  content_mix: Record<string, number>;
+  items: CalendarV2Item[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AccountMetricItem {
