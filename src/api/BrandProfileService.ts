@@ -92,6 +92,16 @@ export interface BrandProfileData {
   customer_needs?: string[];
   customer_objections?: string[];
   why_customers_choose_us?: string;
+  // URI Content Calendar Generation addendum §1-4 — customer psychology
+  // fields with no prior slot, distinct from pain_points/needs/objections above
+  customer_desires?: string[];
+  customer_fears?: string[];
+  customer_frustrations?: string[];
+  customer_aspirations?: string[];
+  customer_hesitations?: string[]; // reasons they stall, distinct from objections (reasons they refuse)
+  common_questions?: string[];
+  buying_triggers?: string[];
+  words_to_avoid?: string[];
   competitor_handles?: string[];
   key_dates?: BrandKeyDate[];
   posting_cadence?: string;

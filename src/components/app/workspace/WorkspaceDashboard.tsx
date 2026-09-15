@@ -5889,6 +5889,16 @@ const PlaybookPage = ({
   const [customerNeeds, setCustomerNeeds] = useState<string[]>([]);
   const [customerObjections, setCustomerObjections] = useState<string[]>([]);
   const [whyChooseUs, setWhyChooseUs] = useState('');
+  // URI Content Calendar Generation addendum §1-4 — customer psychology
+  // fields with no prior slot, distinct from pain points/needs/objections above
+  const [customerDesires, setCustomerDesires] = useState<string[]>([]);
+  const [customerFears, setCustomerFears] = useState<string[]>([]);
+  const [customerFrustrations, setCustomerFrustrations] = useState<string[]>([]);
+  const [customerAspirations, setCustomerAspirations] = useState<string[]>([]);
+  const [customerHesitations, setCustomerHesitations] = useState<string[]>([]);
+  const [commonQuestions, setCommonQuestions] = useState<string[]>([]);
+  const [buyingTriggers, setBuyingTriggers] = useState<string[]>([]);
+  const [wordsToAvoid, setWordsToAvoid] = useState<string[]>([]);
   const [competitors, setCompetitors] = useState(['', '', '']);
   const [languages, setLanguages] = useState<string[]>([]);
   const [region, setRegion] = useState<string[]>([]);
@@ -6197,6 +6207,14 @@ const PlaybookPage = ({
     setCustomerNeeds([...(profile.customer_needs ?? [])]);
     setCustomerObjections([...(profile.customer_objections ?? [])]);
     setWhyChooseUs(profile.why_customers_choose_us ?? '');
+    setCustomerDesires([...(profile.customer_desires ?? [])]);
+    setCustomerFears([...(profile.customer_fears ?? [])]);
+    setCustomerFrustrations([...(profile.customer_frustrations ?? [])]);
+    setCustomerAspirations([...(profile.customer_aspirations ?? [])]);
+    setCustomerHesitations([...(profile.customer_hesitations ?? [])]);
+    setCommonQuestions([...(profile.common_questions ?? [])]);
+    setBuyingTriggers([...(profile.buying_triggers ?? [])]);
+    setWordsToAvoid([...(profile.words_to_avoid ?? [])]);
     const comps = profile.competitor_handles ?? [];
     setCompetitors([comps[0] ?? '', comps[1] ?? '', comps[2] ?? '']);
     setLanguages([...(profile.languages ?? [])]);
@@ -6298,6 +6316,14 @@ const PlaybookPage = ({
         customer_needs: customerNeeds,
         customer_objections: customerObjections,
         why_customers_choose_us: whyChooseUs,
+        customer_desires: customerDesires,
+        customer_fears: customerFears,
+        customer_frustrations: customerFrustrations,
+        customer_aspirations: customerAspirations,
+        customer_hesitations: customerHesitations,
+        common_questions: commonQuestions,
+        buying_triggers: buyingTriggers,
+        words_to_avoid: wordsToAvoid,
         competitor_handles: competitors.filter(Boolean),
         languages,
         region: region.join(', '),
@@ -7520,6 +7546,160 @@ const PlaybookPage = ({
               onChange={setWhyChooseUs}
               placeholder="e.g. We deliver same-day, still warm from the oven"
               textarea
+            />
+          }
+        />
+        {/* URI Content Calendar Generation addendum §1-4 — customer psychology
+            fields with no prior slot, distinct from pain points/needs/objections above */}
+        <PbRow
+          label="Customer desires"
+          value={p?.customer_desires}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerDesires.join(', ')}
+              onChange={(v) =>
+                setCustomerDesires(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. glowing skin without a 10-step routine (comma-separated)"
+            />
+          }
+        />
+        <PbRow
+          label="Customer fears"
+          value={p?.customer_fears}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerFears.join(', ')}
+              onChange={(v) =>
+                setCustomerFears(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. wasting money on something that doesn't work (comma-separated)"
+            />
+          }
+        />
+        <PbRow
+          label="Customer frustrations"
+          value={p?.customer_frustrations}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerFrustrations.join(', ')}
+              onChange={(v) =>
+                setCustomerFrustrations(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. slow delivery times, confusing pricing (comma-separated)"
+            />
+          }
+        />
+        <PbRow
+          label="Customer aspirations"
+          value={p?.customer_aspirations}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerAspirations.join(', ')}
+              onChange={(v) =>
+                setCustomerAspirations(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. running a business that runs without them (comma-separated)"
+            />
+          }
+        />
+        <PbRow
+          label="Reasons customers hesitate"
+          value={p?.customer_hesitations}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerHesitations.join(', ')}
+              onChange={(v) =>
+                setCustomerHesitations(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. not sure it's worth the price, want to compare options first (comma-separated) — distinct from objections, these are reasons they stall rather than refuse"
+            />
+          }
+        />
+        <PbRow
+          label="Common questions customers ask"
+          value={p?.common_questions}
+          editing={editing}
+          input={
+            <PbInput
+              value={commonQuestions.join(', ')}
+              onChange={(v) =>
+                setCommonQuestions(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. is this safe for sensitive skin?, how long does shipping take? (comma-separated)"
+            />
+          }
+        />
+        <PbRow
+          label="Buying triggers"
+          value={p?.buying_triggers}
+          editing={editing}
+          input={
+            <PbInput
+              value={buyingTriggers.join(', ')}
+              onChange={(v) =>
+                setBuyingTriggers(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. seeing a visible result, a limited-time offer (comma-separated)"
+            />
+          }
+        />
+        <PbRow
+          label="Words/phrases to avoid"
+          value={p?.words_to_avoid}
+          editing={editing}
+          input={
+            <PbInput
+              value={wordsToAvoid.join(', ')}
+              onChange={(v) =>
+                setWordsToAvoid(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. cheap, miracle, revolutionary (comma-separated)"
             />
           }
         />
