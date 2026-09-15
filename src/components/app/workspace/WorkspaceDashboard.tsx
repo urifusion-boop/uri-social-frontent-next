@@ -27,7 +27,8 @@ import {
   SocialConnectionService,
 } from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
-import { CampaignService } from '@/src/api/CampaignService';
+import { AdFormat, CampaignService } from '@/src/api/CampaignService';
+import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { hasActiveSubscription } from '@/src/utils/subscription.util';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -5838,6 +5839,15 @@ const PlaybookPage = ({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Visual Styles — Ads: fetched once, read-only (format choice is a per-campaign
+  // retrieval decision, not a standing brand preference like organic's style_selections).
+  const [adFormats, setAdFormats] = useState<AdFormat[]>([]);
+  useEffect(() => {
+    CampaignService.getAdFormats()
+      .then((res) => setAdFormats(res.formats))
+      .catch(() => setAdFormats([]));
+  }, []);
+
   // editable state
   const [brandName, setBrandName] = useState('');
   const [industry, setIndustry] = useState('');
@@ -5962,6 +5972,28 @@ const PlaybookPage = ({
       } catch (error) {
         console.error('🎨 Error auto-saving custom guides:', error);
       }
+    }
+  };
+
+  // Auto-save the Visual Styles — Ads selection — same idea as
+  // handleStyleSelectionChange above, but flat (no per-platform tabs; a format
+  // choice isn't platform-specific the way an organic image style is) and
+  // capped at 3 to match that section's own selection limit.
+  const handleAdFormatToggle = async (formatId: string) => {
+    if (!profile) return;
+    const current = profile.ad_format_selections ?? [];
+    const next = current.includes(formatId)
+      ? current.filter((id) => id !== formatId)
+      : current.length >= 3
+        ? current
+        : [...current, formatId];
+    if (next === current) return;
+    const updatedProfile: BrandProfileData = { ...profile, ad_format_selections: next, ad_format_rotation_index: 0 };
+    try {
+      const response = await BrandProfileService.save(updatedProfile);
+      onProfileUpdate(response.responseData ?? updatedProfile);
+    } catch (error) {
+      console.error('Ad format selection auto-save failed:', error);
     }
   };
 
@@ -7428,6 +7460,37 @@ const PlaybookPage = ({
               onCustomGuideV2Change={handleCustomGuideV2Change}
               brandId={profile?.id}
             />
+          </div>
+        )}
+      </PbSection>
+
+      <PbSection title="Visual Styles — Ads">
+        <div style={{ marginBottom: 10, fontSize: 12.5, color: '#888' }}>
+          Pick up to 3 — Jane tries your picks first whenever they're eligible for the campaign, before falling back to
+          whatever the corpus ranks best.
+        </div>
+        {adFormats.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+        ) : (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {[...adFormats]
+              .sort((a, b) => {
+                const rank = { live: 0, built: 1, planned: 2 } as const;
+                return rank[a.status] - rank[b.status];
+              })
+              .map((f) => {
+                const adFormatSelections = profile?.ad_format_selections ?? [];
+                const isSelected = adFormatSelections.includes(f.format_id);
+                return (
+                  <AdFormatGalleryCard
+                    key={f.format_id}
+                    format={f}
+                    isSelected={isSelected}
+                    onToggleSelect={() => handleAdFormatToggle(f.format_id)}
+                    selectionDisabled={!isSelected && adFormatSelections.length >= 3}
+                  />
+                );
+              })}
           </div>
         )}
       </PbSection>
