@@ -42,12 +42,27 @@ export interface CustomFontEntry {
   directive?: string;
 }
 
+export interface BusinessPulseData {
+  current_period_goal?: string;
+  current_promotions?: string[];
+  current_campaigns?: string[];
+  business_news_announcements?: string[];
+  recent_milestones?: string[];
+  new_products_services?: string[];
+  updated_at?: string | null;
+}
+
 export interface BrandProfileData {
   id?: string;
   brand_name?: string;
   industry?: string;
   website?: string;
   product_description?: string;
+  // Business Details
+  price_range?: string;
+  unique_selling_proposition?: string;
+  business_stage?: '' | 'new' | 'growing' | 'established' | 'market_leader';
+  business_priorities?: string[];
   logo_url?: string;
   logo_position?: string;
   logo_size?: string;
@@ -67,6 +82,16 @@ export interface BrandProfileData {
   target_platforms?: string[];
   primary_goal?: string;
   ideal_customer_profile?: string;
+  // Target Customer Detail — additive to ideal_customer_profile above
+  customer_gender?: string;
+  customer_location?: string;
+  customer_occupation?: string;
+  customer_income_level?: string;
+  customer_interests?: string[];
+  customer_pain_points?: string[];
+  customer_needs?: string[];
+  customer_objections?: string[];
+  why_customers_choose_us?: string;
   competitor_handles?: string[];
   key_dates?: BrandKeyDate[];
   posting_cadence?: string;
@@ -89,6 +114,17 @@ export interface BrandProfileData {
   ad_format_rotation_index?: number;
   selected_custom_guides?: string[];
   selected_custom_guides_v2?: string[];
+  // Per-platform overrides — additive, optional. A platform with no entry
+  // (or an empty list) falls back to the flat fields above unchanged; only
+  // present once a user explicitly customizes a specific platform via the
+  // Visual Style section's platform tabs. Keyed by the same platform
+  // strings ContentGeneratorForm.tsx's PLATFORMS list uses (facebook/
+  // instagram/twitter/linkedin), which are the literal `platform` values
+  // that reach the backend's _generate_image_bg.
+  style_selections_by_platform?: Record<string, string[]>;
+  selected_custom_guides_by_platform?: Record<string, string[]>;
+  selected_custom_guides_v2_by_platform?: Record<string, string[]>;
+  style_rotation_index_by_platform?: Record<string, number>;
   font_style?: string;
   font_style_prompt?: string;
   primary_font?: string;
@@ -106,6 +142,17 @@ export interface BrandProfileData {
   use_v3_prompts?: boolean; // V3 enhanced prompt system toggle
   canvas_editor_enabled?: boolean; // Canvas Editor feature flag
   onboarding_completed?: boolean;
+  // Onboarding save-and-resume — the wizard step's NAME (e.g.
+  // "targetCustomerDetail"), not a numeric index; see the backend's
+  // BrandProfileService.save() for why. Read back on mount to resume the
+  // wizard where the user left off instead of restarting from step 0.
+  onboarding_current_step?: string;
+  onboarding_started_at?: string;
+  onboarding_last_saved_at?: string;
+  // Business Pulse — read-only here (mirrors the backend passthrough); write
+  // through BrandProfileService.saveBusinessPulse(), not the main save().
+  business_pulse?: BusinessPulseData;
+  business_pulse_updated_at?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -116,10 +163,18 @@ export class BrandProfileService {
     return res.data;
   }
 
-  static async save(data: BrandProfileData): Promise<UriResponse<BrandProfileData>> {
+  // Partial<> because the backend genuinely treats this as a partial merge —
+  // it only ever $sets a field the payload actually included (see the
+  // backend's BrandProfileService.save()) — so callers that only want to
+  // save a subset (onboarding's per-step autosave, saveBusinessPulse below)
+  // don't need to fabricate the rest of the object. A full BrandProfileData
+  // object still satisfies this type, so no existing call site is affected.
+  static async save(data: Partial<BrandProfileData>): Promise<UriResponse<BrandProfileData>> {
     console.log('🎨 BrandProfileService.save() called with data:', {
       canvas_editor_enabled: data.canvas_editor_enabled,
       use_v3_prompts: data.use_v3_prompts,
+      logo_position: data.logo_position,
+      logo_size: data.logo_size,
       keys: Object.keys(data),
       fullData: data,
     });
@@ -170,5 +225,23 @@ export class BrandProfileService {
     } catch {
       return null;
     }
+  }
+
+  // Business Pulse — a separate, higher-frequency surface from the main
+  // profile save above, so it can never accidentally touch the other ~50
+  // profile fields. See BusinessPulsePanel.
+  static async getBusinessPulse(): Promise<UriResponse<BusinessPulseData>> {
+    const res: AxiosResponse<UriResponse<BusinessPulseData>> = await UriHttpClient.getClient().get(
+      `${BASE}/business-pulse`
+    );
+    return res.data;
+  }
+
+  static async saveBusinessPulse(data: Partial<BusinessPulseData>): Promise<UriResponse<BrandProfileData>> {
+    const res: AxiosResponse<UriResponse<BrandProfileData>> = await UriHttpClient.getClient().post(
+      `${BASE}/business-pulse`,
+      data
+    );
+    return res.data;
   }
 }

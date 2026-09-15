@@ -2,7 +2,7 @@
 
 import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
+import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
 import {
   AccountMetricItem,
@@ -64,6 +64,7 @@ import SubmagicProductionForm from '@/src/components/app/workspace/SubmagicProdu
 import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductionForm';
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
+import BusinessPulsePanel from '@/src/components/app/workspace/BusinessPulsePanel';
 import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
@@ -5868,12 +5869,20 @@ const PlaybookPage = ({
   const [website, setWebsite] = useState('');
   const [description, setDescription] = useState('');
   const [, setTagline] = useState('');
+  // Business Details
+  const [priceRange, setPriceRange] = useState('');
+  const [usp, setUsp] = useState('');
+  const [businessStage, setBusinessStage] = useState('');
+  const [businessPriorities, setBusinessPriorities] = useState<string[]>([]);
   const [voiceSample, setVoiceSample] = useState('');
   const [colors, setColors] = useState<string[]>([]);
   const [newColor, setNewColor] = useState('#CD1B78');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pillars, setPillars] = useState<string[]>([]);
   const [newPillar, setNewPillar] = useState('');
+  const [keyDates, setKeyDates] = useState<BrandKeyDate[]>([]);
+  const [newKeyDate, setNewKeyDate] = useState('');
+  const [newKeyDateLabel, setNewKeyDateLabel] = useState('');
   const [formats, setFormats] = useState<string[]>([]);
   const [avoidTopics, setAvoidTopics] = useState('');
   const [bannedWords, setBannedWords] = useState('');
@@ -5887,6 +5896,16 @@ const PlaybookPage = ({
   const [primaryGoal, setPrimaryGoal] = useState('');
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>([]);
   const [idealCustomerProfile, setIdealCustomerProfile] = useState('');
+  // Target Customer Detail — additive to idealCustomerProfile above
+  const [customerGender, setCustomerGender] = useState('');
+  const [customerLocation, setCustomerLocation] = useState('');
+  const [customerOccupation, setCustomerOccupation] = useState('');
+  const [customerIncomeLevel, setCustomerIncomeLevel] = useState('');
+  const [customerInterests, setCustomerInterests] = useState<string[]>([]);
+  const [customerPainPoints, setCustomerPainPoints] = useState<string[]>([]);
+  const [customerNeeds, setCustomerNeeds] = useState<string[]>([]);
+  const [customerObjections, setCustomerObjections] = useState<string[]>([]);
+  const [whyChooseUs, setWhyChooseUs] = useState('');
   const [competitors, setCompetitors] = useState(['', '', '']);
   const [languages, setLanguages] = useState<string[]>([]);
   const [region, setRegion] = useState<string[]>([]);
@@ -6049,9 +6068,14 @@ const PlaybookPage = ({
     setWebsite(profile.website ?? '');
     setDescription(profile.product_description ?? '');
     setTagline((profile as BrandProfileData & { tagline?: string }).tagline ?? '');
+    setPriceRange(profile.price_range ?? '');
+    setUsp(profile.unique_selling_proposition ?? '');
+    setBusinessStage(profile.business_stage ?? '');
+    setBusinessPriorities([...(profile.business_priorities ?? [])]);
     setVoiceSample(profile.voice_sample ?? '');
     setColors([...(profile.brand_colors ?? [])]);
     setPillars([...(profile.content_pillars ?? [])]);
+    setKeyDates([...(profile.key_dates ?? [])]);
     setFormats([...(profile.preferred_formats ?? [])]);
     setAvoidTopics(profile.guardrails?.avoid_topics ?? '');
     setBannedWords(profile.guardrails?.banned_words ?? '');
@@ -6086,6 +6110,15 @@ const PlaybookPage = ({
     setPrimaryGoal(profile.primary_goal ?? '');
     setTargetPlatforms([...(profile.target_platforms ?? [])]);
     setIdealCustomerProfile(profile.ideal_customer_profile ?? '');
+    setCustomerGender(profile.customer_gender ?? '');
+    setCustomerLocation(profile.customer_location ?? '');
+    setCustomerOccupation(profile.customer_occupation ?? '');
+    setCustomerIncomeLevel(profile.customer_income_level ?? '');
+    setCustomerInterests([...(profile.customer_interests ?? [])]);
+    setCustomerPainPoints([...(profile.customer_pain_points ?? [])]);
+    setCustomerNeeds([...(profile.customer_needs ?? [])]);
+    setCustomerObjections([...(profile.customer_objections ?? [])]);
+    setWhyChooseUs(profile.why_customers_choose_us ?? '');
     const comps = profile.competitor_handles ?? [];
     setCompetitors([comps[0] ?? '', comps[1] ?? '', comps[2] ?? '']);
     setLanguages([...(profile.languages ?? [])]);
@@ -6128,9 +6161,14 @@ const PlaybookPage = ({
         industry,
         website,
         product_description: description,
+        price_range: priceRange,
+        unique_selling_proposition: usp,
+        business_stage: (businessStage || '') as BrandProfileData['business_stage'],
+        business_priorities: businessPriorities,
         voice_sample: voiceSample,
         brand_colors: colors,
         content_pillars: pillars,
+        key_dates: keyDates,
         preferred_formats: formats,
         guardrails: {
           avoid_topics: avoidTopics,
@@ -6145,6 +6183,15 @@ const PlaybookPage = ({
         primary_goal: primaryGoal,
         target_platforms: targetPlatforms,
         ideal_customer_profile: idealCustomerProfile,
+        customer_gender: customerGender,
+        customer_location: customerLocation,
+        customer_occupation: customerOccupation,
+        customer_income_level: customerIncomeLevel,
+        customer_interests: customerInterests,
+        customer_pain_points: customerPainPoints,
+        customer_needs: customerNeeds,
+        customer_objections: customerObjections,
+        why_customers_choose_us: whyChooseUs,
         competitor_handles: competitors.filter(Boolean),
         languages,
         region: region.join(', '),
@@ -6549,6 +6596,72 @@ const PlaybookPage = ({
         />
       </PbSection>
 
+      <PbSection title="Business Details">
+        <PbRow
+          label="Price range"
+          value={p?.price_range}
+          editing={editing}
+          input={
+            <PbInput
+              value={priceRange}
+              onChange={setPriceRange}
+              placeholder="e.g. Budget-friendly / Mid-range / Premium"
+            />
+          }
+          tooltip="Helps the AI match tone and vocabulary to your price tier"
+        />
+        <PbRow
+          label="What makes you different"
+          value={p?.unique_selling_proposition}
+          editing={editing}
+          input={
+            <PbInput value={usp} onChange={setUsp} placeholder="e.g. Only same-day delivery bakery in Lekki" textarea />
+          }
+          tooltip="Your unique selling proposition — the AI weaves this into hooks and CTAs"
+        />
+        <PbRow
+          label="Business stage"
+          value={p?.business_stage}
+          editing={editing}
+          input={
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { v: 'new', l: 'Just starting out' },
+                { v: 'growing', l: 'Growing' },
+                { v: 'established', l: 'Established' },
+                { v: 'market_leader', l: 'Market leader' },
+              ].map((s) => (
+                <PbChip key={s.v} label={s.l} active={businessStage === s.v} onClick={() => setBusinessStage(s.v)} />
+              ))}
+            </div>
+          }
+          tooltip="Shapes calendar tone — e.g. trust-building for a new business vs. authority for an established one"
+        />
+        <PbRow
+          label="Current business priorities"
+          value={p?.business_priorities}
+          editing={editing}
+          input={
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                'Growing revenue',
+                'Building brand awareness',
+                'Launching new offerings',
+                'Retaining customers',
+                'Expanding to new markets',
+              ].map((pr) => (
+                <PbChip
+                  key={pr}
+                  label={pr}
+                  active={businessPriorities.includes(pr)}
+                  onClick={() => pbTgl(businessPriorities, setBusinessPriorities, pr)}
+                />
+              ))}
+            </div>
+          }
+        />
+      </PbSection>
+
       {/* Brand Colors */}
       <PbSection title="Brand Colors">
         {!editing ? (
@@ -6905,6 +7018,133 @@ const PlaybookPage = ({
         </div>
       </PbSection>
 
+      <PbSection title="Important Dates">
+        <div>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#999',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              marginBottom: 8,
+            }}
+          >
+            Key dates
+            <BrandTooltip
+              title="Product launches, sales, anniversaries — the content calendar plans around these automatically when they fall in an upcoming week."
+              arrow
+              placement="right"
+            >
+              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
+              </span>
+            </BrandTooltip>
+          </div>
+          {!editing ? (
+            (p?.key_dates ?? []).length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(p?.key_dates ?? []).map((d, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                    <span style={{ fontWeight: 600, color: '#111' }}>{d.date}</span>
+                    <span style={{ color: '#ccc' }}>—</span>
+                    <span style={{ color: '#555' }}>{d.label}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span style={{ fontSize: 13, color: '#bbb' }}>—</span>
+            )
+          ) : (
+            <div>
+              {keyDates.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                  {keyDates.map((d, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        background: '#fafaf8',
+                        border: '1.5px solid #e5e3df',
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, fontSize: 12.5, color: '#111' }}>{d.date}</span>
+                      <span style={{ color: '#ccc', fontSize: 12.5 }}>—</span>
+                      <span style={{ flex: 1, fontSize: 12.5, color: '#555' }}>{d.label}</span>
+                      <button
+                        onClick={() => setKeyDates(keyDates.filter((_, j) => j !== i))}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#999',
+                          cursor: 'pointer',
+                          fontSize: 15,
+                          lineHeight: 1,
+                          padding: 0,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="date"
+                  value={newKeyDate}
+                  onChange={(e) => setNewKeyDate(e.target.value)}
+                  style={{
+                    flex: '0 0 150px',
+                    padding: '8px 11px',
+                    borderRadius: 8,
+                    border: '1.5px solid #e5e3df',
+                    fontSize: 13,
+                    fontFamily: 'var(--wf)',
+                    outline: 'none',
+                    background: '#fafaf8',
+                    color: '#111',
+                  }}
+                />
+                <PbInput value={newKeyDateLabel} onChange={setNewKeyDateLabel} placeholder="e.g. Summer Sale Launch" />
+                <button
+                  onClick={() => {
+                    if (newKeyDate && newKeyDateLabel.trim()) {
+                      setKeyDates([...keyDates, { date: newKeyDate, label: newKeyDateLabel.trim() }]);
+                      setNewKeyDate('');
+                      setNewKeyDateLabel('');
+                    }
+                  }}
+                  disabled={!newKeyDate || !newKeyDateLabel.trim()}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    border: '1.5px solid #C2185B',
+                    background: '#fff',
+                    color: '#C2185B',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: !newKeyDate || !newKeyDateLabel.trim() ? 'not-allowed' : 'pointer',
+                    opacity: !newKeyDate || !newKeyDateLabel.trim() ? 0.5 : 1,
+                    whiteSpace: 'nowrap',
+                    fontFamily: 'var(--wf)',
+                  }}
+                >
+                  + Add
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </PbSection>
+
       {/* Audience */}
       <PbSection title="Audience">
         <div style={{ marginBottom: 12 }}>
@@ -7037,6 +7277,133 @@ const PlaybookPage = ({
             />
           )}
         </div>
+        <PbRow
+          label="Customer gender"
+          value={p?.customer_gender}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerGender}
+              onChange={setCustomerGender}
+              placeholder="e.g. Primarily women (only if relevant)"
+            />
+          }
+        />
+        <PbRow
+          label="Customer location"
+          value={p?.customer_location}
+          editing={editing}
+          input={<PbInput value={customerLocation} onChange={setCustomerLocation} placeholder="e.g. Lagos, Nigeria" />}
+        />
+        <PbRow
+          label="Customer occupation"
+          value={p?.customer_occupation}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerOccupation}
+              onChange={setCustomerOccupation}
+              placeholder="e.g. Young professionals"
+            />
+          }
+        />
+        <PbRow
+          label="Customer income level"
+          value={p?.customer_income_level}
+          editing={editing}
+          input={
+            <PbInput value={customerIncomeLevel} onChange={setCustomerIncomeLevel} placeholder="e.g. Middle income" />
+          }
+        />
+        <PbRow
+          label="Customer interests"
+          value={p?.customer_interests}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerInterests.join(', ')}
+              onChange={(v) =>
+                setCustomerInterests(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. fitness, wellness, personal finance (comma-separated)"
+            />
+          }
+        />
+        <PbRow
+          label="Customer pain points"
+          value={p?.customer_pain_points}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerPainPoints.join(', ')}
+              onChange={(v) =>
+                setCustomerPainPoints(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. no time to cook, hard to find reliable delivery"
+            />
+          }
+        />
+        <PbRow
+          label="Customer needs"
+          value={p?.customer_needs}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerNeeds.join(', ')}
+              onChange={(v) =>
+                setCustomerNeeds(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. fast turnaround, transparent pricing"
+            />
+          }
+        />
+        <PbRow
+          label="Common objections"
+          value={p?.customer_objections}
+          editing={editing}
+          input={
+            <PbInput
+              value={customerObjections.join(', ')}
+              onChange={(v) =>
+                setCustomerObjections(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. too expensive, not sure it works"
+            />
+          }
+        />
+        <PbRow
+          label="Why customers choose you"
+          value={p?.why_customers_choose_us}
+          editing={editing}
+          input={
+            <PbInput
+              value={whyChooseUs}
+              onChange={setWhyChooseUs}
+              placeholder="e.g. We deliver same-day, still warm from the oven"
+              textarea
+            />
+          }
+        />
         <div>
           <div
             style={{
@@ -8839,6 +9206,13 @@ const getNav = (isAdminUser: boolean, isSupportUser: boolean) => {
       tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
     },
     {
+      id: 'business-pulse',
+      icon: 'heart',
+      label: 'Business Pulse',
+      tooltip:
+        "What's happening in your business right now — promotions, campaigns, news. Feeds directly into your content calendar.",
+    },
+    {
       id: 'settings',
       icon: 'settings',
       label: 'Settings',
@@ -8893,6 +9267,7 @@ const MOBILE_TABS = [
 
 const MORE_NAV = [
   { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
+  { id: 'business-pulse', icon: 'heart', label: 'Business Pulse' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
   { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts/' },
@@ -9329,6 +9704,7 @@ export default function WorkspaceDashboard() {
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     campaigns: <CampaignsPage onJane={goWorkspace} onNavigate={goTo} />,
+    'business-pulse': <BusinessPulsePanel />,
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
