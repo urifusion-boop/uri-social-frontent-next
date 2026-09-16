@@ -329,6 +329,16 @@ export default function CampaignsPage({
   // campaign for exactly the same reason chosenVariantRef is: it IS the choice, so every
   // later call has to carry it or the backend re-offers the picker it already answered.
   const ownAudienceRef = useRef<string | null>(null);
+  // Explicit "put this on TikTok" toggle — same "has to ride along on every call or
+  // the backend forgets it" reasoning as the refs above (_build_campaign_plan reads
+  // preferred_platform fresh off each request, with no server-side memory of an
+  // earlier turn's choice).
+  const preferredPlatformRef = useRef<'' | 'tiktok'>('');
+  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'tiktok'>('');
+  const setPreferredPlatform = (v: '' | 'tiktok') => {
+    preferredPlatformRef.current = v;
+    setPreferredPlatformUi(v);
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -475,6 +485,8 @@ export default function CampaignsPage({
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
     ownAudienceRef.current = null;
+    preferredPlatformRef.current = '';
+    setPreferredPlatformUi('');
     setMessages([makeGreeting()]);
     let rebuiltBrief = '';
     try {
@@ -520,6 +532,8 @@ export default function CampaignsPage({
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
     ownAudienceRef.current = null;
+    preferredPlatformRef.current = '';
+    setPreferredPlatformUi('');
     setMessages([makeGreeting()]);
     try {
       const t = await CampaignService.createThread();
@@ -541,6 +555,8 @@ export default function CampaignsPage({
       setBriefSoFar('');
       chosenVariantRef.current = null;
       ownAudienceRef.current = null;
+      preferredPlatformRef.current = '';
+      setPreferredPlatformUi('');
       setMessages([makeGreeting()]);
       await send(seed_message);
     } catch (e) {
@@ -562,6 +578,8 @@ export default function CampaignsPage({
         creativeChoiceRef.current = null;
         chosenVariantRef.current = null;
         ownAudienceRef.current = null;
+        preferredPlatformRef.current = '';
+        setPreferredPlatformUi('');
         setMessages([makeGreeting()]);
       }
     } catch (e) {
@@ -643,6 +661,7 @@ export default function CampaignsPage({
     saveMsg(userMsg);
     try {
       const result = await CampaignService.planFromMessage({
+        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
         message: combinedMessage,
         thread_id: threadId,
         // Keep the already-chosen audience attached to every follow-up, so typing a
@@ -710,6 +729,7 @@ export default function CampaignsPage({
     try {
       const attachedMedia = media;
       const result = await CampaignService.planFromMessage({
+        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
         message: briefSoFar || clean,
         whatsapp_number: clean,
         thread_id: threadId,
@@ -758,6 +778,7 @@ export default function CampaignsPage({
       // never reached the launch at all. Live-reported.
       await CampaignService.setWhatsapp(clean);
       const result = await CampaignService.planFromMessage({
+        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
@@ -802,6 +823,7 @@ export default function CampaignsPage({
       const variants = pendingVariants ? pendingVariants.variants : [null];
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
+          ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
           message: brief,
           thread_id: activeThreadRef.current ?? undefined,
           ...(variant ? { selected_plan_variant: variant, variant_group_id: pendingVariants!.variantGroupId } : {}),
@@ -919,6 +941,7 @@ export default function CampaignsPage({
     setBusy(true);
     try {
       const result = await CampaignService.planFromMessage({
+        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         creative_source: 'ask',
@@ -960,6 +983,8 @@ export default function CampaignsPage({
     pendingVariantsRef.current = { variants, variantGroupId };
     // Picking a card and typing an audience are competing answers to one question.
     ownAudienceRef.current = null;
+    preferredPlatformRef.current = '';
+    setPreferredPlatformUi('');
     // Remember the choice for the REST of the campaign, so a typed reply after this
     // point never drops back to "pick an audience" (see chosenVariantRef above).
     chosenVariantRef.current = { variant: variants[0], variantGroupId };
@@ -973,6 +998,7 @@ export default function CampaignsPage({
       // to signal "a choice was made" and skip regeneration) — continueWithSource
       // below still builds each pending variant with its own correct data.
       const result = await CampaignService.planFromMessage({
+        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         creative_source: 'ask',
@@ -1008,6 +1034,7 @@ export default function CampaignsPage({
     setBusy(true);
     try {
       const result = await CampaignService.planFromMessage({
+        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         creative_source: 'ask',
@@ -1018,6 +1045,8 @@ export default function CampaignsPage({
       saveMsg(resultMsg);
     } catch (e) {
       ownAudienceRef.current = null;
+      preferredPlatformRef.current = '';
+      setPreferredPlatformUi('');
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
       const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
       setMessages((m) => [...m, errMsg]);
@@ -1369,6 +1398,8 @@ export default function CampaignsPage({
                         creativeChoiceRef.current = null;
                         chosenVariantRef.current = null;
                         ownAudienceRef.current = null;
+                        preferredPlatformRef.current = '';
+                        setPreferredPlatformUi('');
                         loadCampaigns();
                         refreshThreads();
                       }}
@@ -1694,6 +1725,43 @@ export default function CampaignsPage({
                   )}
                 </div>
               )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#888' }}>PLATFORM</span>
+                <button
+                  type="button"
+                  onClick={() => setPreferredPlatform('')}
+                  title="Let Jane pick the best platform for this campaign"
+                  style={{
+                    padding: '3px 10px',
+                    borderRadius: 20,
+                    border: `1.5px solid ${preferredPlatformUi === '' ? PINK : '#e0dcd9'}`,
+                    background: preferredPlatformUi === '' ? '#FCE7F3' : '#fff',
+                    color: preferredPlatformUi === '' ? PINK : '#666',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Jane picks
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreferredPlatform('tiktok')}
+                  title="Run this campaign on TikTok — needs video creative"
+                  style={{
+                    padding: '3px 10px',
+                    borderRadius: 20,
+                    border: `1.5px solid ${preferredPlatformUi === 'tiktok' ? PINK : '#e0dcd9'}`,
+                    background: preferredPlatformUi === 'tiktok' ? '#FCE7F3' : '#fff',
+                    color: preferredPlatformUi === 'tiktok' ? PINK : '#666',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  🎵 TikTok
+                </button>
+              </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                 <textarea
                   value={input}
@@ -2239,9 +2307,7 @@ function ChooseDestination({
               to warn about it afterwards (reading a Page's linked number needs
               whatsapp_business_management, a scope our token doesn't hold). */}
           {active.input_note && (
-            <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5, marginBottom: 6 }}>
-              {active.input_note}
-            </div>
+            <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5, marginBottom: 6 }}>{active.input_note}</div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
             <input
@@ -3208,6 +3274,17 @@ function ResultCard({
         />
       );
     }
+    if (result.stage === 'tiktok_needs_video') {
+      return (
+        <JaneBubble>
+          TikTok only runs video ads. Attach a video (upload your own, or ask me to generate one), then send your
+          message again.
+        </JaneBubble>
+      );
+    }
+    if (result.stage === 'tiktok_not_configured') {
+      return <JaneBubble>TikTok Ads isn&rsquo;t connected right now — try again shortly.</JaneBubble>;
+    }
     return null;
   };
 
@@ -3974,6 +4051,19 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           >
             {displayStatus}
           </span>
+          <span
+            title={c.platform === 'tiktok' ? 'Running on TikTok' : 'Running on Meta (Facebook/Instagram)'}
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: 20,
+              background: c.platform === 'tiktok' ? 'rgba(0,0,0,.06)' : 'rgba(24,119,242,.1)',
+              color: c.platform === 'tiktok' ? '#111' : '#1877F2',
+            }}
+          >
+            {c.platform === 'tiktok' ? '🎵 TikTok' : 'Meta'}
+          </span>
         </div>
         <p
           style={{
@@ -4046,6 +4136,16 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           );
         })()}
         {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
+        {c.ads_manager_url && (
+          <a
+            href={c.ads_manager_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'inline-block', marginTop: 8, fontSize: 11.5, color: PINK, fontWeight: 600 }}
+          >
+            View in {c.platform === 'tiktok' ? 'TikTok' : 'Meta'} Ads Manager →
+          </a>
+        )}
       </div>
       {(canToggle || canDelete) && (
         <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>

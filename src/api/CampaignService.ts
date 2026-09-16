@@ -121,7 +121,11 @@ export interface LaunchFromMessageResult {
     | 'meta_connection_content_only'
     | 'meta_connection_ads_no_whatsapp'
     | 'meta_connection_expired'
-    | 'meta_connection_no_page';
+    | 'meta_connection_no_page'
+    // Explicit "put this on TikTok" request (preferred_platform: 'tiktok') that
+    // couldn't be honoured right now — see MetaLaunchFromMessageBody.preferred_platform.
+    | 'tiktok_needs_video'
+    | 'tiktok_not_configured';
   plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
   understood?: UnderstoodFields;
   question?: string;
@@ -189,6 +193,7 @@ export interface LaunchFromMessageResult {
     status: string;
     note: string;
     ads_manager_url: string;
+    platform?: 'tiktok' | 'meta'; // which platform this campaign actually launched on
   };
 }
 
@@ -237,6 +242,7 @@ export interface CampaignMetrics {
 
 export interface CampaignRow {
   campaign_id: string;
+  platform: 'tiktok' | 'meta';
   name: string;
   headline: string;
   primary_text: string;
@@ -435,6 +441,11 @@ export class CampaignService {
     // plan picker. Outranks selected_plan_variant and the brand profile, and counts
     // as having chosen, so the picker isn't presented again.
     target_audience?: string;
+    // Explicit user platform choice, additive on top of Jane's own silent pick —
+    // "" (default/omitted) keeps today's behaviour exactly as-is. "tiktok" asks for
+    // TikTok specifically; the backend returns a tiktok_not_configured or
+    // tiktok_needs_video early_return if that can't be honoured right now.
+    preferred_platform?: '' | 'tiktok';
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
