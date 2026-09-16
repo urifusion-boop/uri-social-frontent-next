@@ -235,6 +235,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const isPortraitReel = postType === 'reel';
   const totalSlides = slides.length;
   const currentSlide = isCarousel ? slides[slideIndex] : null;
+  // Edit Image panel's version badge/undo-availability — per-slide for a
+  // carousel (each slide has its own independent edit history), or the
+  // draft's own top-level version for a regular single-image post.
+  const currentImageVersion = isCarousel ? currentSlide?.image_version : draft.image_version;
 
   // Reset slide index and loaded cache when draft changes
   useEffect(() => {
@@ -507,7 +511,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     EventBus.emit(EVENTS.IMAGE_EDIT_STARTED, { draftId });
 
     try {
-      const response = await SocialMediaAgentService.editDraftImage(draftId, feedback, forceCategory);
+      const response = await SocialMediaAgentService.editDraftImage(
+        draftId,
+        feedback,
+        forceCategory,
+        isCarousel ? slideIndex : undefined
+      );
 
       if (response.status) {
         const data = response.responseData;
@@ -525,13 +534,23 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           return;
         }
 
-        // Success! Update the draft with new image
+        // Success! Update the draft with new image — a carousel edit only
+        // touches its own slide, never the top-level image_url/image_version
+        // (which don't even exist on a carousel draft).
         if (data) {
-          const updatedDraft = {
-            ...draft,
-            image_url: data.image_url,
-            image_version: data.version,
-          };
+          const updatedDraft =
+            isCarousel && data.slide_index != null
+              ? {
+                  ...draft,
+                  slides: (draft.slides ?? []).map((s, i) =>
+                    i === data.slide_index ? { ...s, image_url: data.image_url, image_version: data.version } : s
+                  ),
+                }
+              : {
+                  ...draft,
+                  image_url: data.image_url,
+                  image_version: data.version,
+                };
           setDraft(updatedDraft);
           setImageLoaded(false); // Trigger reload
           setEditFeedback('');
@@ -575,16 +594,25 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     setEditLoading(true);
     try {
       const draftId = draft.draft_id ?? draft.id ?? '';
-      const response = await SocialMediaAgentService.undoDraftImage(draftId);
+      const response = await SocialMediaAgentService.undoDraftImage(draftId, isCarousel ? slideIndex : undefined);
 
       if (response.status) {
         const data = response.responseData;
         if (data) {
-          setDraft({
-            ...draft,
-            image_url: data.image_url,
-            image_version: data.version,
-          });
+          const revertedDraft =
+            isCarousel && data.slide_index != null
+              ? {
+                  ...draft,
+                  slides: (draft.slides ?? []).map((s, i) =>
+                    i === data.slide_index ? { ...s, image_url: data.image_url, image_version: data.version } : s
+                  ),
+                }
+              : {
+                  ...draft,
+                  image_url: data.image_url,
+                  image_version: data.version,
+                };
+          setDraft(revertedDraft);
           setImageLoaded(false);
           ToastService.showToast(data.message || 'Reverted to previous version', ToastTypeEnum.Success);
         }
@@ -1243,7 +1271,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       )}
 
       {/* Image Edit Panel */}
-      {!editing && !isReel && draft.image_url && (
+      {!editing && !isReel && (isCarousel ? currentSlide?.image_url : draft.image_url) && (
         <Box
           sx={{
             mt: 1.5,
@@ -1279,9 +1307,9 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1.5, sm: 2.5 } }}
           >
             <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#7C3AED', letterSpacing: '0.3px' }}>
-              Edit Image {draft.image_version && draft.image_version > 1 ? `(v${draft.image_version})` : ''}
+              Edit Image {currentImageVersion && currentImageVersion > 1 ? `(v${currentImageVersion})` : ''}
             </Typography>
-            {draft.image_version && draft.image_version > 1 && (
+            {currentImageVersion && currentImageVersion > 1 && (
               <Button
                 size="small"
                 variant="text"
@@ -1316,7 +1344,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
                 // Extract actual text from the image using Vision API in background
                 try {
-                  const imageUrl = draft.image_url;
+                  const imageUrl = isCarousel ? currentSlide?.image_url : draft.image_url;
                   if (imageUrl) {
                     const response = await SocialMediaAgentService.extractImageText(imageUrl);
                     if (response.status && response.responseData?.text) {

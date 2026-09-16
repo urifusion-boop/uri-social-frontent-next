@@ -293,6 +293,11 @@ export interface CarouselSlide {
   body: string;
   image_url?: string;
   image_specs?: { width: number; height: number };
+  // Set once this slide's image has been edited via the Edit Image panel —
+  // mirrors the top-level image_version/content_edit_count a regular
+  // single-image draft carries, but scoped to this one slide.
+  image_version?: number;
+  content_edit_count?: number;
 }
 
 export interface ContentDraft {
@@ -503,12 +508,16 @@ export class SocialMediaAgentService {
   static async editDraftImage(
     draftId: string,
     feedback: string,
-    forceCategory?: 'text_edit' | 'style_edit' | 'content_edit' | 'full_redesign'
+    forceCategory?: 'text_edit' | 'style_edit' | 'content_edit' | 'full_redesign',
+    // 0-based slide to edit, for a carousel draft. Omitted for a regular
+    // single-image draft.
+    slideIndex?: number
   ): Promise<
     UriResponse<{
       image_url: string;
       version: number;
       edit_category: string;
+      slide_index?: number | null;
       message: string;
       credit_charged: boolean;
       credits_consumed?: number;
@@ -519,16 +528,19 @@ export class SocialMediaAgentService {
       {
         feedback,
         force_category: forceCategory,
+        slide_index: slideIndex,
       }
     );
     return response.data;
   }
 
   static async undoDraftImage(
-    draftId: string
-  ): Promise<UriResponse<{ image_url: string; version: number; message: string }>> {
+    draftId: string,
+    slideIndex?: number
+  ): Promise<UriResponse<{ image_url: string; version: number; slide_index?: number | null; message: string }>> {
     const response = await UriHttpClient.getClient().post(
-      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/undo-image`
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/undo-image`,
+      { slide_index: slideIndex }
     );
     return response.data;
   }
