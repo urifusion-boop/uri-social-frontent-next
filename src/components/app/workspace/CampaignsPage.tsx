@@ -878,10 +878,15 @@ export default function CampaignsPage({
     if (busy || !brief) return;
     const isVideo = choice.creative_source === 'upload' && choice.is_video;
     const assetAttestation = 'asset_attestation' in choice ? choice.asset_attestation : undefined;
-    if (choice.creative_source === 'draft' || isVideo) {
-      // No format concept applies on these paths — go straight to generation,
-      // matching the backend's own eligibility (suggest-format would return
-      // nothing here anyway).
+    if (choice.creative_source === 'draft' || choice.creative_source === 'upload') {
+      // Nothing is being DESIGNED on these paths, so there is no style to choose.
+      // "Upload my own" means use the photo the user gave us — offering a visual
+      // style there implies Jane will redraw it, and picking one would replace the
+      // very image they chose to upload.
+      //
+      // "Use my product photo" (recomposite) is deliberately NOT here: that path
+      // keeps the real product and builds a new scene around it, so the style
+      // genuinely applies.
       await runGeneration(choice, briefOverride);
       return;
     }
@@ -1229,17 +1234,26 @@ export default function CampaignsPage({
     saveMsg({ id, role: 'jane', kind: 'result', result });
   };
 
-  // The newest result card is the only live one. Everything above it is a question
-  // Jane has already moved past, and a stale card's buttons must not fire — see the
-  // `stale` prop below.
-  let lastResultIndex = -1;
+  // The newest interactive card (a 'result' choice/plan card OR a 'style_choice'
+  // suggestion card) is the only live one. Everything above it is a question Jane
+  // has already moved past, and a stale card's buttons must not fire — see the
+  // `stale` prop below. This used to track 'result' messages only, which missed
+  // a 'style_choice' message appended afterward (the result card stayed live
+  // instead of retiring) and, separately, needs to have moved past by the same
+  // measure once one of the transient pending prompts below opens — that's a live
+  // question the message list doesn't even contain yet, but it's still newer than
+  // every card above it. Live-reported: the original "how would you like to
+  // handle the image?" card stayed fully clickable while "what does this photo
+  // show?" opened underneath it, reading as the same options looping back.
+  let lastInteractiveIndex = -1;
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const msg = messages[i];
-    if (msg.role === 'jane' && msg.kind === 'result') {
-      lastResultIndex = i;
+    if (msg.role === 'jane' && (msg.kind === 'result' || msg.kind === 'style_choice')) {
+      lastInteractiveIndex = i;
       break;
     }
   }
+  const inTransientPrompt = Boolean(pendingAssetAttestation) || Boolean(pendingVideoQualityCheck);
 
   return (
     <div
@@ -1375,7 +1389,7 @@ export default function CampaignsPage({
                       suggested={m.suggested}
                       alternatives={m.alternatives}
                       resolved={m.resolved}
-                      stale={i !== messages.length - 1}
+                      stale={inTransientPrompt || i !== lastInteractiveIndex}
                       onChoose={(formatId) => resolveStyleChoice(m.id, formatId)}
                     />
                   ) : (
@@ -1386,8 +1400,11 @@ export default function CampaignsPage({
                       // A question Jane already moved past is history: readable, but its
                       // buttons must not fire. Live-reported: a rejected link left TWO
                       // destination pickers on screen, the stale one still holding the bad
-                      // value and still submittable. Only the newest result card is live.
-                      stale={i !== lastResultIndex}
+                      // value and still submittable. Only the newest interactive card is
+                      // live — and any open transient prompt (asset attestation, video
+                      // quality check) counts as newer still, even before it becomes a
+                      // message of its own.
+                      stale={inTransientPrompt || i !== lastInteractiveIndex}
                       onResultChange={(r) => updateResultMessage(m.id, r)}
                       onLaunched={() => {
                         // Campaign is live — this brief is done. Clear it so the next message
