@@ -54,6 +54,19 @@ import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
+// A rejected MI request (e.g. a 403 from require_mi_write_access when a
+// view-only teammate tries to act) is shaped like http.config.ts's
+// Promise.reject(error.response) — an AxiosResponse whose body carries
+// FastAPI's {detail}. Surface that real reason instead of a generic
+// "could not X" toast, matching the fallback chain already used for the
+// same shape elsewhere in the app (e.g. CustomGuideUploadModal).
+function mutationErrorMessage(err: unknown, fallback: string): string {
+  const detail =
+    (err as { data?: { detail?: string } })?.data?.detail ??
+    (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+  return typeof detail === 'string' && detail.length > 0 ? detail : fallback;
+}
+
 // ─── Design tokens (mapped onto the app's real CSS variables — no ad hoc
 // hex colours; band/status colour is the one place a fixed semantic palette
 // is intentional, since "high confidence" should read as unambiguously
@@ -238,6 +251,8 @@ function EvidenceDrawer({ insightId, onInsightRetracted }: { insightId: string; 
       } else {
         ToastService.showToast('Record removed.', ToastTypeEnum.Success);
       }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not remove this record'), ToastTypeEnum.Error);
     } finally {
       setRemovingId(null);
     }
@@ -378,6 +393,8 @@ function InsightDetail({
       } else {
         ToastService.showToast(res.responseMessage || 'Could not snooze this insight', ToastTypeEnum.Error);
       }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not snooze this insight'), ToastTypeEnum.Error);
     } finally {
       setSnoozing(false);
     }
@@ -509,6 +526,8 @@ function DevelopmentsPanel({ developments, onUpdated }: { developments: Developm
       } else {
         ToastService.showToast(res.responseMessage || 'Could not update this item', ToastTypeEnum.Error);
       }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not update this item'), ToastTypeEnum.Error);
     } finally {
       setUpdatingId(null);
     }
@@ -724,6 +743,8 @@ function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => vo
       } else {
         ToastService.showToast(res.responseMessage || 'Could not create topic', ToastTypeEnum.Error);
       }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not create topic'), ToastTypeEnum.Error);
     } finally {
       setCreating(false);
     }
@@ -1323,13 +1344,19 @@ export default function MarketIntelligencePage() {
 
   const handleToggleEmail = async () => {
     if (!preferences) return;
-    const res = await MarketIntelligenceService.updatePreferences({ email_enabled: !preferences.email_enabled });
-    if (res.status) {
-      setPreferences(res.responseData ?? null);
-      ToastService.showToast(
-        res.responseData?.email_enabled ? 'Email alerts turned on.' : 'Email alerts turned off.',
-        ToastTypeEnum.Success
-      );
+    try {
+      const res = await MarketIntelligenceService.updatePreferences({ email_enabled: !preferences.email_enabled });
+      if (res.status) {
+        setPreferences(res.responseData ?? null);
+        ToastService.showToast(
+          res.responseData?.email_enabled ? 'Email alerts turned on.' : 'Email alerts turned off.',
+          ToastTypeEnum.Success
+        );
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not update this preference', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not update this preference'), ToastTypeEnum.Error);
     }
   };
 
@@ -1447,9 +1474,9 @@ export default function MarketIntelligencePage() {
       }
 
       beginPolling(topicId, res.responseData.id);
-    } catch {
+    } catch (err) {
       setScanningTopicId(null);
-      ToastService.showToast('Could not start scan', ToastTypeEnum.Error);
+      ToastService.showToast(mutationErrorMessage(err, 'Could not start scan'), ToastTypeEnum.Error);
     }
   };
 
@@ -1478,16 +1505,22 @@ export default function MarketIntelligencePage() {
   };
 
   const handleFeedback = async (insightId: string, verdict: 'useful' | 'not_relevant') => {
-    const res = await MarketIntelligenceService.submitFeedback(insightId, verdict);
-    if (res.status) {
-      ToastService.showToast('Thanks for the feedback.', ToastTypeEnum.Success);
-      if (verdict === 'not_relevant') {
-        setInsights((prev) => {
-          const next = prev.filter((i) => i.id !== insightId);
-          setSelectedId((prevSelected) => (prevSelected === insightId ? (next[0]?.id ?? null) : prevSelected));
-          return next;
-        });
+    try {
+      const res = await MarketIntelligenceService.submitFeedback(insightId, verdict);
+      if (res.status) {
+        ToastService.showToast('Thanks for the feedback.', ToastTypeEnum.Success);
+        if (verdict === 'not_relevant') {
+          setInsights((prev) => {
+            const next = prev.filter((i) => i.id !== insightId);
+            setSelectedId((prevSelected) => (prevSelected === insightId ? (next[0]?.id ?? null) : prevSelected));
+            return next;
+          });
+        }
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not submit feedback', ToastTypeEnum.Error);
       }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not submit feedback'), ToastTypeEnum.Error);
     }
   };
 
