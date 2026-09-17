@@ -508,6 +508,10 @@ export default function MarketIntelligencePage() {
   const [question, setQuestion] = useState('');
   const [creating, setCreating] = useState(false);
   const [scanningTopicId, setScanningTopicId] = useState<string | null>(null);
+  // PRD §16: distinguishes the two empty-result copy blocks — "no strong
+  // findings, healthy coverage" vs "limited coverage" — from the real gaps
+  // reported by the most recently completed scan, not a guess.
+  const [lastScanHadGaps, setLastScanHadGaps] = useState(false);
 
   const loadDevelopments = async () => {
     const res = await MarketIntelligenceService.listDevelopments();
@@ -620,6 +624,7 @@ export default function MarketIntelligencePage() {
         const status = scanRes.responseData?.status;
         if (status === 'completed' || status === 'partial' || status === 'failed' || status === 'budget_limited') {
           setScanningTopicId(null);
+          setLastScanHadGaps(status === 'partial' || status === 'budget_limited');
           await loadAll();
           loadBudget();
           if (status === 'budget_limited') {
@@ -628,10 +633,8 @@ export default function MarketIntelligencePage() {
               ToastTypeEnum.Warning
             );
           } else if (status === 'partial') {
-            ToastService.showToast(
-              'Scan finished with some gaps — see insight cards for details.',
-              ToastTypeEnum.Success
-            );
+            // PRD §16 partial-history copy.
+            ToastService.showToast('Results cover the available period shown below.', ToastTypeEnum.Success);
           } else if (status === 'failed') {
             ToastService.showToast('Scan failed.', ToastTypeEnum.Error);
           } else {
@@ -751,24 +754,25 @@ export default function MarketIntelligencePage() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {topics.map((t) => (
-              <div
-                key={t.id}
-                style={{
-                  ...cardStyle,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 14px',
-                }}
-              >
-                <div style={{ fontSize: 13, color: '#333' }}>{t.question}</div>
-                <button
-                  style={{ ...secondaryButtonStyle, padding: '6px 12px', fontSize: 12 }}
-                  onClick={() => handleRunScan(t.id)}
-                  disabled={scanningTopicId === t.id}
-                >
-                  {scanningTopicId === t.id ? 'Scanning…' : 'Run scan'}
-                </button>
+              <div key={t.id} style={{ ...cardStyle, padding: '10px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 13, color: '#333' }}>{t.question}</div>
+                  <button
+                    style={{ ...secondaryButtonStyle, padding: '6px 12px', fontSize: 12 }}
+                    onClick={() => handleRunScan(t.id)}
+                    disabled={scanningTopicId === t.id}
+                  >
+                    {scanningTopicId === t.id ? 'Scanning…' : 'Run scan'}
+                  </button>
+                </div>
+                {scanningTopicId === t.id && (
+                  // PRD §16 loading copy — verbatim. No invented completion
+                  // percentage: the mock adapter (and any future real one)
+                  // has no reliable progress metric to show one honestly.
+                  <div style={{ fontSize: 11.5, color: '#999', marginTop: 6 }}>
+                    Collecting conversations from your selected sources. You can leave this page and return later.
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -787,7 +791,11 @@ export default function MarketIntelligencePage() {
         <div style={{ ...cardStyle, textAlign: 'center', color: '#999', fontSize: 13 }}>
           {topics.length === 0
             ? 'Create a topic above to start understanding your market.'
-            : 'No strong findings yet. Run a scan on a topic above, or try a broader question.'}
+            : lastScanHadGaps
+              ? // PRD §16 limited-coverage copy — verbatim.
+                'We found some relevant conversations, but there is not enough comparable data to assess a trend.'
+              : // PRD §16 healthy-coverage-but-empty copy — verbatim.
+                'No strong findings in this period. Try a broader question or keep tracking.'}
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
