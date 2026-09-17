@@ -45,9 +45,12 @@ import {
   InsightVersion,
   MarketIntelligenceService,
   MINotificationPreferences,
+  NotificationSensitivity,
   ScoreBreakdown,
+  SourceCapability,
   Topic,
 } from '@/src/api/MarketIntelligenceService';
+import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -398,7 +401,19 @@ function InsightDetail({
               {formatTypeLabel(insight.type)}
             </span>
           </div>
-          {insight.revision > 1 && <Badge variant="outline">Revision {insight.revision}</Badge>}
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className={
+                insight.action_readiness === 'ready_to_act'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-400'
+                  : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400'
+              }
+            >
+              {insight.action_readiness === 'ready_to_act' ? 'Ready to act' : 'Check suitability'}
+            </Badge>
+            {insight.revision > 1 && <Badge variant="outline">Revision {insight.revision}</Badge>}
+          </div>
         </div>
 
         <h3 className="mt-3 text-lg leading-snug font-semibold tracking-tight text-foreground">{insight.headline}</h3>
@@ -589,16 +604,299 @@ function DevelopmentsPanel({ developments, onUpdated }: { developments: Developm
 
 // ─── Topics & sources panel ─────────────────────────────────────────────────
 
+const DAY_PRESETS: { label: string; value: number }[] = [
+  { label: '7 days', value: 7 },
+  { label: '30 days', value: 30 },
+  { label: '90 days', value: 90 },
+];
+
+function ChipInput({
+  label,
+  values,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder: string;
+}) {
+  const [draft, setDraft] = useState('');
+
+  const addChip = () => {
+    const v = draft.trim();
+    if (v && !values.includes(v)) onChange([...values, v]);
+    setDraft('');
+  };
+
+  return (
+    <div>
+      <div className="mb-1 text-[11.5px] font-medium text-muted-foreground">{label}</div>
+      <div className="flex flex-wrap gap-1.5 rounded-lg border border-border p-2">
+        {values.map((v) => (
+          <Badge key={v} variant="secondary" className="gap-1 text-[11px]">
+            {v}
+            <button type="button" onClick={() => onChange(values.filter((x) => x !== v))} aria-label={`Remove ${v}`}>
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </Badge>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault();
+              addChip();
+            }
+          }}
+          onBlur={addChip}
+          placeholder={values.length === 0 ? placeholder : ''}
+          className="min-w-[100px] flex-1 border-none bg-transparent text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground"
+        />
+      </div>
+    </div>
+  );
+}
+
+function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => void; onCancel: () => void }) {
+  const [question, setQuestion] = useState('');
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [excludedKeywords, setExcludedKeywords] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [days, setDays] = useState(30);
+  const [customDays, setCustomDays] = useState('');
+  const [usingCustomDays, setUsingCustomDays] = useState(false);
+  const [geographicScope, setGeographicScope] = useState('');
+  const [competitors, setCompetitors] = useState<string[]>([]);
+  const [languages, setLanguages] = useState<string[]>(['en']);
+  const [sensitivity, setSensitivity] = useState<NotificationSensitivity>('normal');
+  const [sources, setSources] = useState<SourceCapability[]>([]);
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    MarketIntelligenceService.listSources().then((res) => {
+      if (res.status) {
+        const list = res.responseData ?? [];
+        setSources(list);
+        setSelectedSources(new Set(list.map((s) => s.provider)));
+      }
+    });
+  }, []);
+
+  const handleSuggestKeywords = async () => {
+    if (!question.trim()) return;
+    setSuggesting(true);
+    try {
+      const res = await MarketIntelligenceService.suggestKeywords(question.trim());
+      if (res.status && res.responseData) {
+        setKeywords(res.responseData.keywords);
+        setExcludedKeywords(res.responseData.excluded_keywords);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not suggest keywords', ToastTypeEnum.Error);
+      }
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!question.trim()) return;
+    setCreating(true);
+    try {
+      const requestedDays = usingCustomDays ? parseInt(customDays, 10) || 30 : days;
+      const res = await MarketIntelligenceService.createTopic({
+        question: question.trim(),
+        keywords: keywords.length > 0 ? keywords : undefined,
+        excluded_keywords: excludedKeywords,
+        sources: selectedSources.size > 0 ? Array.from(selectedSources) : ['mock'],
+        geographic_scope: geographicScope.trim() || undefined,
+        requested_days: requestedDays,
+        competitors,
+        languages,
+        notification_sensitivity: sensitivity,
+      });
+      if (res.status && res.responseData) {
+        onCreated(res.responseData);
+        ToastService.showToast('Topic created — click "Run scan" to collect evidence.', ToastTypeEnum.Success);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not create topic', ToastTypeEnum.Error);
+      }
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="space-y-3.5 p-4">
+        <div className="text-[12.5px] text-muted-foreground">
+          Ask a plain question, e.g. &ldquo;What stops Lagos customers from ordering ready-to-wear clothes
+          online?&rdquo;
+        </div>
+        <Textarea
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="What do you want to understand about your market?"
+          className="min-h-[72px]"
+        />
+
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-[11.5px] font-medium text-muted-foreground">Keywords</span>
+            <Button variant="ghost" size="xs" disabled={suggesting || !question.trim()} onClick={handleSuggestKeywords}>
+              {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Suggest keywords
+            </Button>
+          </div>
+          <ChipInput label="" values={keywords} onChange={setKeywords} placeholder="Add a keyword and press Enter…" />
+        </div>
+        <ChipInput
+          label="Exclude (negative keywords)"
+          values={excludedKeywords}
+          onChange={setExcludedKeywords}
+          placeholder="Add a term to exclude…"
+        />
+
+        <div>
+          <div className="mb-1 text-[11.5px] font-medium text-muted-foreground">Collection window</div>
+          <div className="flex flex-wrap gap-1.5">
+            {DAY_PRESETS.map((p) => (
+              <Button
+                key={p.value}
+                type="button"
+                size="sm"
+                variant={!usingCustomDays && days === p.value ? 'default' : 'outline'}
+                onClick={() => {
+                  setDays(p.value);
+                  setUsingCustomDays(false);
+                }}
+              >
+                {p.label}
+              </Button>
+            ))}
+            <Button
+              type="button"
+              size="sm"
+              variant={usingCustomDays ? 'default' : 'outline'}
+              onClick={() => setUsingCustomDays(true)}
+            >
+              Custom
+            </Button>
+            {usingCustomDays && (
+              <Input
+                type="number"
+                min={1}
+                value={customDays}
+                onChange={(e) => setCustomDays(e.target.value)}
+                placeholder="days"
+                className="h-8 w-20"
+              />
+            )}
+          </div>
+          <div className="mt-1 text-[11px] text-muted-foreground">
+            Shown against each source&apos;s real accessible period before the scan starts — a shorter window never
+            replaces this silently.
+          </div>
+        </div>
+
+        {sources.length > 0 && (
+          <div>
+            <div className="mb-1 text-[11.5px] font-medium text-muted-foreground">Sources</div>
+            <div className="flex flex-wrap gap-2">
+              {sources.map((s) => {
+                const active = selectedSources.has(s.provider);
+                return (
+                  <button
+                    key={s.provider}
+                    type="button"
+                    onClick={() =>
+                      setSelectedSources((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(s.provider)) next.delete(s.provider);
+                        else next.add(s.provider);
+                        return next;
+                      })
+                    }
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-[11.5px] transition-colors',
+                      active ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'
+                    )}
+                    title={s.notes}
+                  >
+                    {s.provider} · {s.verified_lookback_days}d lookback
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((s) => !s)}
+          className="flex items-center gap-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground"
+        >
+          <ChevronDown className={cn('h-3 w-3 transition-transform', showAdvanced && 'rotate-180')} />
+          Advanced
+        </button>
+
+        {showAdvanced && (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div>
+              <div className="mb-1 text-[11.5px] font-medium text-muted-foreground">Geographic scope</div>
+              <Input
+                value={geographicScope}
+                onChange={(e) => setGeographicScope(e.target.value)}
+                placeholder="e.g. Lagos, Nigeria"
+                className="h-8"
+              />
+            </div>
+            <ChipInput
+              label="Competitors"
+              values={competitors}
+              onChange={setCompetitors}
+              placeholder="Add a competitor…"
+            />
+            <ChipInput label="Languages" values={languages} onChange={setLanguages} placeholder="e.g. en, pcm, yo…" />
+            <div>
+              <div className="mb-1 text-[11.5px] font-medium text-muted-foreground">Notification sensitivity</div>
+              <select
+                value={sensitivity}
+                onChange={(e) => setSensitivity(e.target.value as NotificationSensitivity)}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-[12.5px] text-foreground"
+              >
+                <option value="low">Low — only very confident findings</option>
+                <option value="normal">Normal</option>
+                <option value="high">High — surface more, earlier</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <Button size="sm" disabled={creating || !question.trim()} onClick={handleCreate}>
+            {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            {creating ? 'Creating…' : 'Create topic'}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function TopicsPanel({
   topics,
   scanningTopicId,
   onRunScan,
   showNewTopic,
   setShowNewTopic,
-  question,
-  setQuestion,
-  creating,
-  onCreateTopic,
+  onTopicCreated,
   staleScan,
   checkingStale,
   onCheckStale,
@@ -608,10 +906,7 @@ function TopicsPanel({
   onRunScan: (topicId: string) => void;
   showNewTopic: boolean;
   setShowNewTopic: (v: boolean) => void;
-  question: string;
-  setQuestion: (v: string) => void;
-  creating: boolean;
-  onCreateTopic: () => void;
+  onTopicCreated: (topic: Topic) => void;
   staleScan: { topicId: string; scanId: string } | null;
   checkingStale: boolean;
   onCheckStale: () => void;
@@ -631,29 +926,13 @@ function TopicsPanel({
       </div>
 
       {showNewTopic && (
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <div className="text-[12.5px] text-muted-foreground">
-              Ask a plain question, e.g. &ldquo;What stops Lagos customers from ordering ready-to-wear clothes
-              online?&rdquo;
-            </div>
-            <Textarea
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="What do you want to understand about your market?"
-              className="min-h-[72px]"
-            />
-            <div className="flex gap-2">
-              <Button size="sm" disabled={creating || !question.trim()} onClick={onCreateTopic}>
-                {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                {creating ? 'Creating…' : 'Create topic'}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setShowNewTopic(false)}>
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <NewTopicForm
+          onCreated={(topic) => {
+            onTopicCreated(topic);
+            setShowNewTopic(false);
+          }}
+          onCancel={() => setShowNewTopic(false)}
+        />
       )}
 
       {topics.length === 0 ? (
@@ -829,6 +1108,128 @@ function SettingsPanel({
   );
 }
 
+// PRD §7: "Add optional stock availability, delivery capability, lead time,
+// budget ceiling and margin band." Feeds relevance scoring's
+// fulfilment_feasibility component directly — an unset field here means
+// "unknown," which scoring already treats as 0, never guessed.
+function BusinessContextPanel() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [stockAvailability, setStockAvailability] = useState('');
+  const [deliveryCapability, setDeliveryCapability] = useState('');
+  const [leadTime, setLeadTime] = useState('');
+  const [budgetCeiling, setBudgetCeiling] = useState('');
+  const [marginBand, setMarginBand] = useState('');
+
+  useEffect(() => {
+    BrandProfileService.get().then((res) => {
+      if (res.status && res.responseData) {
+        const p = res.responseData;
+        setStockAvailability(p.stock_availability ?? '');
+        setDeliveryCapability(p.delivery_capability ?? '');
+        setLeadTime(p.lead_time ?? '');
+        setBudgetCeiling(p.budget_ceiling != null ? String(p.budget_ceiling) : '');
+        setMarginBand(p.margin_band ?? '');
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await BrandProfileService.save({
+        stock_availability: stockAvailability,
+        delivery_capability: deliveryCapability,
+        lead_time: leadTime,
+        budget_ceiling: budgetCeiling ? parseFloat(budgetCeiling) : undefined,
+        margin_band: marginBand,
+      });
+      if (res.status) {
+        ToastService.showToast('Business context saved.', ToastTypeEnum.Success);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not save business context', ToastTypeEnum.Error);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Layers className="h-4 w-4 text-muted-foreground" /> Business context
+        </div>
+        <div className="mt-1 text-[11.5px] text-muted-foreground">
+          Unknown facts stay unknown — Uri never assumes stock or delivery, and recommendations are labelled
+          &ldquo;Check suitability&rdquo; until you fill these in.
+        </div>
+        {loading ? (
+          <div className="mt-3 text-[12.5px] text-muted-foreground">Loading…</div>
+        ) : (
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <div className="mb-1 text-[11.5px] font-medium text-muted-foreground">Stock availability</div>
+              <Input
+                value={stockAvailability}
+                onChange={(e) => setStockAvailability(e.target.value)}
+                placeholder="e.g. in stock"
+                className="h-8"
+              />
+            </div>
+            <div>
+              <div className="mb-1 text-[11.5px] font-medium text-muted-foreground">Delivery capability</div>
+              <Input
+                value={deliveryCapability}
+                onChange={(e) => setDeliveryCapability(e.target.value)}
+                placeholder="e.g. same-day in Lagos"
+                className="h-8"
+              />
+            </div>
+            <div>
+              <div className="mb-1 text-[11.5px] font-medium text-muted-foreground">Lead time</div>
+              <Input
+                value={leadTime}
+                onChange={(e) => setLeadTime(e.target.value)}
+                placeholder="e.g. 2-3 business days"
+                className="h-8"
+              />
+            </div>
+            <div>
+              <div className="mb-1 text-[11.5px] font-medium text-muted-foreground">Budget ceiling (₦)</div>
+              <Input
+                type="number"
+                value={budgetCeiling}
+                onChange={(e) => setBudgetCeiling(e.target.value)}
+                placeholder="e.g. 50000"
+                className="h-8"
+              />
+            </div>
+            <div>
+              <div className="mb-1 text-[11.5px] font-medium text-muted-foreground">Margin band</div>
+              <select
+                value={marginBand}
+                onChange={(e) => setMarginBand(e.target.value)}
+                className="h-8 w-full rounded-lg border border-border bg-background px-2 text-[12.5px] text-foreground"
+              >
+                <option value="">Unset</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+        )}
+        <Button size="sm" className="mt-3.5" disabled={saving || loading} onClick={handleSave}>
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main page ──────────────────────────────────────────────────────────────
 
 type TabId = 'overview' | 'topics' | 'upcoming' | 'settings';
@@ -884,8 +1285,6 @@ export default function MarketIntelligencePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTopic, setShowNewTopic] = useState(false);
-  const [question, setQuestion] = useState('');
-  const [creating, setCreating] = useState(false);
   const [scanningTopicId, setScanningTopicId] = useState<string | null>(null);
   const [staleScan, setStaleScan] = useState<{ topicId: string; scanId: string } | null>(null);
   const [checkingStale, setCheckingStale] = useState(false);
@@ -965,22 +1364,8 @@ export default function MarketIntelligencePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCreateTopic = async () => {
-    if (!question.trim()) return;
-    setCreating(true);
-    try {
-      const res = await MarketIntelligenceService.createTopic({ question: question.trim(), sources: ['mock'] });
-      if (res.status && res.responseData) {
-        setTopics((prev) => [res.responseData as Topic, ...prev]);
-        setQuestion('');
-        setShowNewTopic(false);
-        ToastService.showToast('Topic created — click "Run scan" to collect evidence.', ToastTypeEnum.Success);
-      } else {
-        ToastService.showToast(res.responseMessage || 'Could not create topic', ToastTypeEnum.Error);
-      }
-    } finally {
-      setCreating(false);
-    }
+  const handleTopicCreated = (topic: Topic) => {
+    setTopics((prev) => [topic, ...prev]);
   };
 
   // A poll sequence carries the token it was started with (mySeq). Every
@@ -1309,10 +1694,7 @@ export default function MarketIntelligencePage() {
               onRunScan={handleRunScan}
               showNewTopic={showNewTopic}
               setShowNewTopic={setShowNewTopic}
-              question={question}
-              setQuestion={setQuestion}
-              creating={creating}
-              onCreateTopic={handleCreateTopic}
+              onTopicCreated={handleTopicCreated}
               staleScan={staleScan}
               checkingStale={checkingStale}
               onCheckStale={handleCheckStale}
@@ -1322,7 +1704,10 @@ export default function MarketIntelligencePage() {
           {activeTab === 'upcoming' && <DevelopmentsPanel developments={developments} onUpdated={loadDevelopments} />}
 
           {activeTab === 'settings' && (
-            <SettingsPanel budget={budget} preferences={preferences} onToggleEmail={handleToggleEmail} />
+            <div className="space-y-4">
+              <SettingsPanel budget={budget} preferences={preferences} onToggleEmail={handleToggleEmail} />
+              <BusinessContextPanel />
+            </div>
           )}
         </div>
       </div>

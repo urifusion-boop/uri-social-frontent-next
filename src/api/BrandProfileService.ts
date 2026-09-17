@@ -114,6 +114,14 @@ export interface BrandProfileData {
   team_members?: BrandTeamMember[];
   languages?: string[];
   region?: string | string[];
+  // Fulfilment & operations (Uri Market Intelligence PRD §7) — feeds
+  // relevance scoring's fulfilment_feasibility component. An empty/unset
+  // value means "unknown," never treated as a real answer.
+  stock_availability?: string;
+  delivery_capability?: string;
+  lead_time?: string;
+  budget_ceiling?: number;
+  margin_band?: string;
   style_selections?: string[];
   style_prompt_fragments?: string[];
   style_rotation_index?: number;

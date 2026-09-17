@@ -100,6 +100,8 @@ export interface InsightVersion {
   lifecycle: Lifecycle;
   status: InsightStatus;
   coverage_note?: string | null;
+  language: string;
+  action_readiness: 'ready_to_act' | 'check_suitability';
   first_seen: string;
   last_updated: string;
 }
@@ -111,6 +113,19 @@ export interface SourceConfig {
   verified_lookback_days: number;
   refresh_cadence_hours: number;
 }
+
+export interface SourceCapability {
+  provider: string;
+  platform: string;
+  verified_lookback_days: number;
+  supports_date_filters: boolean;
+  supports_keyword_search: boolean;
+  accessible_languages: string[];
+  refresh_cadence_hours: number;
+  notes: string;
+}
+
+export type NotificationSensitivity = 'low' | 'normal' | 'high';
 
 export interface Topic {
   id: string;
@@ -125,6 +140,9 @@ export interface Topic {
   keep_updating: boolean;
   active: boolean;
   created_at: string;
+  competitors: string[];
+  languages: string[];
+  notification_sensitivity: NotificationSensitivity;
 }
 
 export interface CollectionRun {
@@ -247,11 +265,32 @@ export interface TopicCreateRequest {
   geographic_scope?: string;
   requested_days?: number;
   keep_updating?: boolean;
+  competitors?: string[];
+  languages?: string[];
+  notification_sensitivity?: NotificationSensitivity;
+}
+
+export interface KeywordSuggestion {
+  keywords: string[];
+  excluded_keywords: string[];
 }
 
 const BASE = '/market-intelligence';
 
 export class MarketIntelligenceService {
+  static async listSources(): Promise<UriResponse<SourceCapability[]>> {
+    const res: AxiosResponse<UriResponse<SourceCapability[]>> = await UriHttpClient.getClient().get(`${BASE}/sources`);
+    return res.data;
+  }
+
+  static async suggestKeywords(question: string): Promise<UriResponse<KeywordSuggestion>> {
+    const res: AxiosResponse<UriResponse<KeywordSuggestion>> = await UriHttpClient.getClient().post(
+      `${BASE}/topics/suggest-keywords`,
+      { question }
+    );
+    return res.data;
+  }
+
   static async createTopic(data: TopicCreateRequest): Promise<UriResponse<Topic>> {
     const res: AxiosResponse<UriResponse<Topic>> = await UriHttpClient.getClient().post(`${BASE}/topics`, data);
     return res.data;
@@ -321,6 +360,14 @@ export class MarketIntelligenceService {
 
   static async createBrief(insightId: string, proposedMessage?: string): Promise<UriResponse<ActionBrief>> {
     const res: AxiosResponse<UriResponse<ActionBrief>> = await UriHttpClient.getClient().post(
+      `${BASE}/insights/${insightId}/briefs`,
+      { proposed_message: proposedMessage }
+    );
+    return res.data;
+  }
+
+  static async updateBrief(insightId: string, proposedMessage: string): Promise<UriResponse<ActionBrief>> {
+    const res: AxiosResponse<UriResponse<ActionBrief>> = await UriHttpClient.getClient().patch(
       `${BASE}/insights/${insightId}/briefs`,
       { proposed_message: proposedMessage }
     );
