@@ -339,6 +339,18 @@ export default function MarketIntelligencePage() {
   const handleRunScan = async (topicId: string) => {
     setScanningTopicId(topicId);
     try {
+      // PRD §9: "Before running, show the accessible period... A shorter
+      // available period must never silently replace the requested one" —
+      // surfaced here, before the scan starts, not discovered afterward.
+      const previewRes = await MarketIntelligenceService.getCoveragePreview(topicId);
+      if (previewRes.status) {
+        for (const p of previewRes.responseData ?? []) {
+          if (p.capped && p.note) {
+            ToastService.showToast(p.note, ToastTypeEnum.Warning);
+          }
+        }
+      }
+
       const res = await MarketIntelligenceService.startScan(topicId);
       if (!res.status || !res.responseData) {
         ToastService.showToast(res.responseMessage || 'Could not start scan', ToastTypeEnum.Error);
