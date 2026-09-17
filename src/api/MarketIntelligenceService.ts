@@ -373,6 +373,13 @@ export class MarketIntelligenceService {
     return res.data;
   }
 
+  static async getBrief(insightId: string): Promise<UriResponse<ActionBrief>> {
+    const res: AxiosResponse<UriResponse<ActionBrief>> = await UriHttpClient.getClient().get(
+      `${BASE}/insights/${insightId}/briefs`
+    );
+    return res.data;
+  }
+
   static async createBrief(insightId: string, proposedMessage?: string): Promise<UriResponse<ActionBrief>> {
     const res: AxiosResponse<UriResponse<ActionBrief>> = await UriHttpClient.getClient().post(
       `${BASE}/insights/${insightId}/briefs`,

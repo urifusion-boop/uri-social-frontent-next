@@ -8,6 +8,7 @@ import {
   CalendarClock,
   CheckCircle2,
   ChevronDown,
+  FileText,
   Inbox,
   Layers,
   LayoutDashboard,
@@ -38,6 +39,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
   AccessGrant,
+  ActionBrief,
   BrandBudget,
   ConfidenceBand,
   Development,
@@ -493,10 +495,137 @@ function InsightDetail({
         </div>
 
         <div className="mt-4">
+          <ActionBriefPanel key={insight.id} insightId={insight.id} />
+        </div>
+
+        <div className="mt-4">
           <EvidenceDrawer key={insight.id} insightId={insight.id} onInsightRetracted={onInsightRetracted} />
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// PRD §9 "Concern to action" journey + §13. "Where a destination module is
+// unavailable, save an editable brief within Intelligence" — there's no
+// real Jane Ads/content-calendar handoff yet (deliberately not rushed, see
+// update_brief's own docstring), so this IS the complete action for now:
+// draft, edit, done. Re-fetches per insight.id via the `key` prop on the
+// parent, same pattern EvidenceDrawer already uses.
+function ActionBriefPanel({ insightId }: { insightId: string }) {
+  const [loading, setLoading] = useState(true);
+  const [brief, setBrief] = useState<ActionBrief | null>(null);
+  const [message, setMessage] = useState('');
+  const [dirty, setDirty] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    MarketIntelligenceService.getBrief(insightId)
+      .then((res) => {
+        if (res.status && res.responseData) {
+          setBrief(res.responseData);
+          setMessage(res.responseData.proposed_message);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [insightId]);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    try {
+      const res = await MarketIntelligenceService.createBrief(insightId);
+      if (res.status && res.responseData) {
+        setBrief(res.responseData);
+        setMessage(res.responseData.proposed_message);
+        ToastService.showToast('Action brief created.', ToastTypeEnum.Success);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not create brief', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not create brief'), ToastTypeEnum.Error);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await MarketIntelligenceService.updateBrief(insightId, message);
+      if (res.status && res.responseData) {
+        setBrief(res.responseData);
+        setDirty(false);
+        ToastService.showToast('Brief updated.', ToastTypeEnum.Success);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not save brief', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not save brief'), ToastTypeEnum.Error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-border bg-muted/30 p-4 text-[12.5px] text-muted-foreground">
+        Loading action brief…
+      </div>
+    );
+  }
+
+  if (!brief) {
+    return (
+      <div className="rounded-xl border border-dashed border-border p-4">
+        <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+          <FileText className="h-4 w-4 text-muted-foreground" /> No action brief yet
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          Draft a message for this insight — you can edit it before using it anywhere.
+        </div>
+        <Button size="sm" className="mt-3" disabled={creating} onClick={handleCreate}>
+          {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+          Create action brief
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+          <FileText className="h-4 w-4 text-muted-foreground" /> Action brief
+        </div>
+        <Badge variant="outline" className="text-[10.5px]">
+          {brief.destination === 'market_intelligence' ? 'Saved draft' : brief.destination}
+        </Badge>
+      </div>
+
+      <div className="mt-3 text-[11.5px] font-medium text-muted-foreground">Customer need</div>
+      <div className="text-[12.5px] text-foreground">{brief.customer_need || '—'}</div>
+
+      <div className="mt-3 text-[11.5px] font-medium text-muted-foreground">Proposed message</div>
+      <Textarea
+        value={message}
+        onChange={(e) => {
+          setMessage(e.target.value);
+          setDirty(true);
+        }}
+        className="mt-1 min-h-[88px] text-[13px]"
+      />
+
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted-foreground">
+          Backed by {brief.evidence_ids.length} evidence record{brief.evidence_ids.length === 1 ? '' : 's'}
+        </span>
+        <Button size="sm" disabled={!dirty || saving || !message.trim()} onClick={handleSave}>
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          Save changes
+        </Button>
+      </div>
+    </div>
   );
 }
 
