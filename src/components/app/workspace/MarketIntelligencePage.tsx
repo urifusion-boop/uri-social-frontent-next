@@ -104,25 +104,20 @@ function ScorePill({ label, score }: { label: string; score: ScoreBreakdown }) {
   );
 }
 
-function EvidenceDrawer({ insightId, onClose }: { insightId: string; onClose: () => void }) {
+function EvidenceDrawer({ insightId }: { insightId: string }) {
   const [evidence, setEvidence] = useState<Evidence[] | null>(null);
 
   useEffect(() => {
+    setEvidence(null);
     MarketIntelligenceService.getInsightEvidence(insightId).then((res) => {
       if (res.status) setEvidence(res.responseData ?? []);
     });
   }, [insightId]);
 
   return (
-    <div style={{ ...cardStyle, marginTop: 10, background: '#fafaf8' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase' }}>Evidence</div>
-        <button
-          onClick={onClose}
-          style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 12 }}
-        >
-          Close
-        </button>
+    <div style={{ ...cardStyle, marginTop: 14, background: '#fafaf8' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 8 }}>
+        Evidence
       </div>
       {evidence === null ? (
         <div style={{ fontSize: 12, color: '#999' }}>Loading…</div>
@@ -151,60 +146,117 @@ function EvidenceDrawer({ insightId, onClose }: { insightId: string; onClose: ()
   );
 }
 
-function InsightCard({
+/** Compact row for the insight list (master pane) — headline + type + date
+ * only, enough to scan and pick one. Full content lives in the detail pane. */
+function InsightListRow({
+  insight,
+  active,
+  onClick,
+}: {
+  insight: InsightVersion;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'block',
+        width: '100%',
+        textAlign: 'left',
+        background: active ? '#FDF2F8' : '#fff',
+        border: 'none',
+        borderLeft: `3px solid ${active ? PINK : 'transparent'}`,
+        borderBottom: '1px solid #f0f0f0',
+        padding: '12px 14px',
+        cursor: 'pointer',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+        <span
+          style={{ fontSize: 10.5, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: 0.4 }}
+        >
+          {insight.type.replace(/_/g, ' ')}
+        </span>
+        <span style={{ fontSize: 10.5, color: '#bbb', whiteSpace: 'nowrap' }}>
+          {new Date(insight.last_updated).toLocaleDateString()}
+        </span>
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#111', marginTop: 3, lineHeight: 1.35 }}>
+        {insight.headline}
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <span style={{ fontSize: 10.5, fontWeight: 600, color: bandColor(insight.confidence.band) }}>
+          {insight.confidence.total}/10 confidence
+        </span>
+        {insight.urgency.is_urgent && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#a33' }}>· urgent</span>}
+      </div>
+    </button>
+  );
+}
+
+/** Detail pane — the full picture for one insight (PRD §15 "Insight detail"
+ * as its own surface, separate from the list and the evidence drawer). */
+function InsightDetail({
   insight,
   onFeedback,
 }: {
   insight: InsightVersion;
   onFeedback: (id: string, verdict: 'useful' | 'not_relevant') => void;
 }) {
-  const [showEvidence, setShowEvidence] = useState(false);
-
   return (
     <div style={cardStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {insight.type.replace(/_/g, ' ')}
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#111', marginTop: 3 }}>{insight.headline}</div>
-        </div>
-        <div style={{ fontSize: 11, color: '#bbb', whiteSpace: 'nowrap' }}>
-          {new Date(insight.last_updated).toLocaleDateString()}
-        </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        {insight.type.replace(/_/g, ' ')}
       </div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: '#111', marginTop: 4 }}>{insight.headline}</div>
 
-      <p style={{ fontSize: 13, color: '#444', marginTop: 8, lineHeight: 1.5 }}>{insight.observed_change}</p>
-      <p style={{ fontSize: 13, color: '#666', marginTop: 4, lineHeight: 1.5, fontStyle: 'italic' }}>
+      <p style={{ fontSize: 13.5, color: '#444', marginTop: 12, lineHeight: 1.55 }}>{insight.observed_change}</p>
+      <p style={{ fontSize: 13.5, color: '#666', marginTop: 6, lineHeight: 1.55, fontStyle: 'italic' }}>
         {insight.business_implication}
       </p>
 
       {insight.coverage_note && (
-        <div style={{ fontSize: 11.5, color: '#c98a1f', marginTop: 6 }}>⚠ {insight.coverage_note}</div>
+        <div style={{ fontSize: 12, color: '#c98a1f', marginTop: 8 }}>⚠ {insight.coverage_note}</div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+      {insight.assumptions.length > 0 && (
+        <div style={{ fontSize: 11.5, color: '#999', marginTop: 8 }}>Assumptions: {insight.assumptions.join('; ')}</div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
         <ScorePill label="Confidence" score={insight.confidence} />
         <ScorePill label="Relevance" score={insight.relevance} />
+        {insight.urgency.is_urgent && (
+          <span
+            style={{
+              fontSize: 11.5,
+              fontWeight: 700,
+              color: '#a33',
+              border: '1px solid #a33',
+              borderRadius: 20,
+              padding: '3px 10px',
+            }}
+          >
+            Urgent{insight.urgency.deadline ? ` · by ${new Date(insight.urgency.deadline).toLocaleDateString()}` : ''}
+          </span>
+        )}
       </div>
 
       <div
         style={{
-          marginTop: 12,
-          padding: '8px 10px',
+          marginTop: 14,
+          padding: '10px 12px',
           background: '#FDF2F8',
           borderRadius: 8,
-          fontSize: 12.5,
+          fontSize: 13,
           color: '#7a1a4a',
         }}
       >
         <strong>Suggested next step:</strong> {insight.suggested_next_step}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-        <button style={secondaryButtonStyle} onClick={() => setShowEvidence((s) => !s)}>
-          {showEvidence ? 'Hide evidence' : `View evidence (${insight.evidence_ids.length})`}
-        </button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
         <button
           style={{ ...secondaryButtonStyle, padding: '9px 12px' }}
           onClick={() => onFeedback(insight.id, 'useful')}
@@ -219,39 +271,51 @@ function InsightCard({
         </button>
       </div>
 
-      {showEvidence && <EvidenceDrawer insightId={insight.id} onClose={() => setShowEvidence(false)} />}
+      <EvidenceDrawer key={insight.id} insightId={insight.id} />
     </div>
   );
 }
 
 /**
  * Uri Market Intelligence — first pass (PRD "Uri Market Intelligence" v1.0).
- * Global insight briefing (§15 "Intelligence home") + topic setup (§9). Scans
- * run against the mock adapter only until a real provider adapter lands in
- * uri-social-backend's scan_runner.ADAPTER_REGISTRY — see that file's own
- * module docstring for the current state of the pipeline.
+ * Master-detail layout: a scannable insight list (PRD §15 "Intelligence home")
+ * next to a full detail pane (§15 "Insight detail") with its evidence drawer
+ * nested inside — three distinct surfaces per the PRD, laid out side by side
+ * instead of stacked-and-expanding so switching between insights doesn't
+ * require re-scrolling past the ones already read. Scans run against the mock
+ * adapter only until a real provider adapter lands in uri-social-backend's
+ * scan_runner.ADAPTER_REGISTRY — see that file's own module docstring for the
+ * current state of the pipeline.
  */
 export default function MarketIntelligencePage() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [insights, setInsights] = useState<InsightVersion[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTopic, setShowNewTopic] = useState(false);
   const [question, setQuestion] = useState('');
   const [creating, setCreating] = useState(false);
   const [scanningTopicId, setScanningTopicId] = useState<string | null>(null);
 
-  const loadAll = async () => {
+  const loadAll = async (preserveSelection = true) => {
     const [topicsRes, insightsRes] = await Promise.all([
       MarketIntelligenceService.listTopics(),
       MarketIntelligenceService.listInsights(),
     ]);
     if (topicsRes.status) setTopics(topicsRes.responseData ?? []);
-    if (insightsRes.status) setInsights(insightsRes.responseData ?? []);
+    if (insightsRes.status) {
+      const list = insightsRes.responseData ?? [];
+      setInsights(list);
+      setSelectedId((prev) => {
+        if (preserveSelection && prev && list.some((i) => i.id === prev)) return prev;
+        return list[0]?.id ?? null;
+      });
+    }
     setLoading(false);
   };
 
   useEffect(() => {
-    loadAll();
+    loadAll(false);
   }, []);
 
   const handleCreateTopic = async () => {
@@ -323,13 +387,19 @@ export default function MarketIntelligencePage() {
     if (res.status) {
       ToastService.showToast('Thanks for the feedback.', ToastTypeEnum.Success);
       if (verdict === 'not_relevant') {
-        setInsights((prev) => prev.filter((i) => i.id !== insightId));
+        setInsights((prev) => {
+          const next = prev.filter((i) => i.id !== insightId);
+          setSelectedId((prevSelected) => (prevSelected === insightId ? (next[0]?.id ?? null) : prevSelected));
+          return next;
+        });
       }
     }
   };
 
+  const selectedInsight = insights.find((i) => i.id === selectedId) ?? null;
+
   return (
-    <div style={{ padding: 20, maxWidth: 760, margin: '0 auto' }}>
+    <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111', margin: 0 }}>Market Intelligence</h2>
         <button style={buttonStyle} onClick={() => setShowNewTopic((s) => !s)}>
@@ -407,10 +477,37 @@ export default function MarketIntelligencePage() {
             : 'No strong findings yet. Run a scan on a topic above, or try a broader question.'}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {insights.map((insight) => (
-            <InsightCard key={insight.id} insight={insight} onFeedback={handleFeedback} />
-          ))}
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div
+            style={{
+              flex: '1 1 320px',
+              minWidth: 280,
+              maxWidth: 380,
+              background: '#fff',
+              border: '1.5px solid #eee',
+              borderRadius: 12,
+              overflow: 'hidden',
+            }}
+          >
+            {insights.map((insight) => (
+              <InsightListRow
+                key={insight.id}
+                insight={insight}
+                active={insight.id === selectedId}
+                onClick={() => setSelectedId(insight.id)}
+              />
+            ))}
+          </div>
+
+          <div style={{ flex: '2 1 480px', minWidth: 320 }}>
+            {selectedInsight ? (
+              <InsightDetail insight={selectedInsight} onFeedback={handleFeedback} />
+            ) : (
+              <div style={{ ...cardStyle, textAlign: 'center', color: '#999', fontSize: 13 }}>
+                Select an insight to see the full detail.
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
