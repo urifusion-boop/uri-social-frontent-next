@@ -255,4 +255,11 @@ export class MarketIntelligenceService {
     );
     return res.data;
   }
+
+  static async deleteEvidence(evidenceId: string): Promise<UriResponse<Record<string, unknown>>> {
+    const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().delete(
+      `${BASE}/evidence/${evidenceId}`
+    );
+    return res.data;
+  }
 }

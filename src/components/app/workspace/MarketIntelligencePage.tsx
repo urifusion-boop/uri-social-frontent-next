@@ -104,8 +104,9 @@ function ScorePill({ label, score }: { label: string; score: ScoreBreakdown }) {
   );
 }
 
-function EvidenceDrawer({ insightId }: { insightId: string }) {
+function EvidenceDrawer({ insightId, onInsightRetracted }: { insightId: string; onInsightRetracted: () => void }) {
   const [evidence, setEvidence] = useState<Evidence[] | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   useEffect(() => {
     setEvidence(null);
@@ -113,6 +114,34 @@ function EvidenceDrawer({ insightId }: { insightId: string }) {
       if (res.status) setEvidence(res.responseData ?? []);
     });
   }, [insightId]);
+
+  const handleRemove = async (evidenceId: string) => {
+    if (!window.confirm('Remove this record? This cannot be undone.')) return;
+    setRemovingId(evidenceId);
+    try {
+      const res = await MarketIntelligenceService.deleteEvidence(evidenceId);
+      if (!res.status) {
+        ToastService.showToast(res.responseMessage || 'Could not remove this record', ToastTypeEnum.Error);
+        return;
+      }
+      setEvidence((prev) => (prev ?? []).filter((e) => e.id !== evidenceId));
+      const retracted = (res.responseData?.insights_retracted as string[] | undefined) ?? [];
+      if (retracted.includes(insightId)) {
+        // PRD §13: an insight with no evidence left is retracted, not shown
+        // with an empty list — the parent reloads so this insight vanishes
+        // from the list rather than lingering in a now-unsupported state.
+        ToastService.showToast(
+          'All evidence for this insight was removed — it has been retracted.',
+          ToastTypeEnum.Warning
+        );
+        onInsightRetracted();
+      } else {
+        ToastService.showToast('Record removed.', ToastTypeEnum.Success);
+      }
+    } finally {
+      setRemovingId(null);
+    }
+  };
 
   return (
     <div style={{ ...cardStyle, marginTop: 14, background: '#fafaf8' }}>
@@ -125,20 +154,48 @@ function EvidenceDrawer({ insightId }: { insightId: string }) {
         <div style={{ fontSize: 12, color: '#999' }}>No evidence found for this insight.</div>
       ) : (
         evidence.map((e) => (
-          <div key={e.id} style={{ borderBottom: '1px solid #eee', padding: '8px 0', fontSize: 12.5 }}>
-            <div style={{ color: '#111', marginBottom: 3 }}>{e.text}</div>
-            <div style={{ color: '#999', fontSize: 11 }}>
-              {e.author_handle ?? 'unknown author'} · {e.platform}
-              {e.published_at ? ` · ${new Date(e.published_at).toLocaleDateString()}` : ' · undated'}
-              {e.url && (
-                <>
-                  {' · '}
-                  <a href={e.url} target="_blank" rel="noreferrer" style={{ color: PINK }}>
-                    View original
-                  </a>
-                </>
-              )}
+          <div
+            key={e.id}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 8,
+              borderBottom: '1px solid #eee',
+              padding: '8px 0',
+              fontSize: 12.5,
+            }}
+          >
+            <div>
+              <div style={{ color: '#111', marginBottom: 3 }}>{e.text}</div>
+              <div style={{ color: '#999', fontSize: 11 }}>
+                {e.author_handle ?? 'unknown author'} · {e.platform}
+                {e.published_at ? ` · ${new Date(e.published_at).toLocaleDateString()}` : ' · undated'}
+                {e.url && (
+                  <>
+                    {' · '}
+                    <a href={e.url} target="_blank" rel="noreferrer" style={{ color: PINK }}>
+                      View original
+                    </a>
+                  </>
+                )}
+              </div>
             </div>
+            <button
+              onClick={() => handleRemove(e.id)}
+              disabled={removingId === e.id}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#999',
+                fontSize: 11,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                textDecoration: 'underline',
+              }}
+            >
+              {removingId === e.id ? 'Removing…' : 'Remove'}
+            </button>
           </div>
         ))
       )}
@@ -200,9 +257,11 @@ function InsightListRow({
 function InsightDetail({
   insight,
   onFeedback,
+  onInsightRetracted,
 }: {
   insight: InsightVersion;
   onFeedback: (id: string, verdict: 'useful' | 'not_relevant') => void;
+  onInsightRetracted: () => void;
 }) {
   return (
     <div style={cardStyle}>
@@ -271,7 +330,7 @@ function InsightDetail({
         </button>
       </div>
 
-      <EvidenceDrawer key={insight.id} insightId={insight.id} />
+      <EvidenceDrawer key={insight.id} insightId={insight.id} onInsightRetracted={onInsightRetracted} />
     </div>
   );
 }
@@ -408,6 +467,10 @@ export default function MarketIntelligencePage() {
     }
   };
 
+  const handleInsightRetracted = () => {
+    loadAll(false);
+  };
+
   const selectedInsight = insights.find((i) => i.id === selectedId) ?? null;
 
   return (
@@ -513,7 +576,11 @@ export default function MarketIntelligencePage() {
 
           <div style={{ flex: '2 1 480px', minWidth: 320 }}>
             {selectedInsight ? (
-              <InsightDetail insight={selectedInsight} onFeedback={handleFeedback} />
+              <InsightDetail
+                insight={selectedInsight}
+                onFeedback={handleFeedback}
+                onInsightRetracted={handleInsightRetracted}
+              />
             ) : (
               <div style={{ ...cardStyle, textAlign: 'center', color: '#999', fontSize: 13 }}>
                 Select an insight to see the full detail.
