@@ -183,6 +183,42 @@ export interface Development {
   last_updated: string;
 }
 
+export type NotificationCategory =
+  | 'act_soon'
+  | 'qualified_inquiry'
+  | 'prepare'
+  | 'useful_pattern'
+  | 'early_signal'
+  | 'material_update'
+  | 'cooling';
+
+export interface MINotificationPreferences {
+  user_id: string;
+  brand_id: string;
+  email_enabled: boolean;
+  timezone: string;
+  digest_hour_local: number;
+  quiet_hours_start_local: number;
+  quiet_hours_end_local: number;
+  urgent_override: boolean;
+  muted_topic_ids: string[];
+  muted_categories: NotificationCategory[];
+  snoozed_insight_ids: string[];
+}
+
+export interface PreferencesUpdateRequest {
+  email_enabled?: boolean;
+  timezone?: string;
+  digest_hour_local?: number;
+  quiet_hours_start_local?: number;
+  quiet_hours_end_local?: number;
+  urgent_override?: boolean;
+  mute_topic_id?: string;
+  unmute_topic_id?: string;
+  mute_category?: NotificationCategory;
+  unmute_category?: NotificationCategory;
+}
+
 export interface BrandBudget {
   brand_id: string;
   monthly_allowance_usd: number;
@@ -287,6 +323,28 @@ export class MarketIntelligenceService {
     const res: AxiosResponse<UriResponse<ActionBrief>> = await UriHttpClient.getClient().post(
       `${BASE}/insights/${insightId}/briefs`,
       { proposed_message: proposedMessage }
+    );
+    return res.data;
+  }
+
+  static async getPreferences(): Promise<UriResponse<MINotificationPreferences>> {
+    const res: AxiosResponse<UriResponse<MINotificationPreferences>> = await UriHttpClient.getClient().get(
+      `${BASE}/preferences`
+    );
+    return res.data;
+  }
+
+  static async updatePreferences(body: PreferencesUpdateRequest): Promise<UriResponse<MINotificationPreferences>> {
+    const res: AxiosResponse<UriResponse<MINotificationPreferences>> = await UriHttpClient.getClient().patch(
+      `${BASE}/preferences`,
+      body
+    );
+    return res.data;
+  }
+
+  static async snoozeInsight(insightId: string): Promise<UriResponse<{ snoozed_insight_ids: string[] }>> {
+    const res: AxiosResponse<UriResponse<{ snoozed_insight_ids: string[] }>> = await UriHttpClient.getClient().post(
+      `${BASE}/insights/${insightId}/snooze`
     );
     return res.data;
   }

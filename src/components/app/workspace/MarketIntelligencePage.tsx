@@ -9,6 +9,7 @@ import {
   Evidence,
   InsightVersion,
   MarketIntelligenceService,
+  MINotificationPreferences,
   ScoreBreakdown,
   Topic,
 } from '@/src/api/MarketIntelligenceService';
@@ -266,6 +267,31 @@ function InsightDetail({
   onFeedback: (id: string, verdict: 'useful' | 'not_relevant') => void;
   onInsightRetracted: () => void;
 }) {
+  const [snoozing, setSnoozing] = useState(false);
+  const [snoozed, setSnoozed] = useState(false);
+
+  useEffect(() => {
+    setSnoozed(false);
+  }, [insight.id]);
+
+  const handleSnooze = async () => {
+    setSnoozing(true);
+    try {
+      const res = await MarketIntelligenceService.snoozeInsight(insight.id);
+      if (res.status) {
+        setSnoozed(true);
+        // PRD §16: "Snoozing suppresses delivery, not evidence updates" —
+        // the insight itself stays exactly where it is; only future
+        // notifications for it stop.
+        ToastService.showToast('Notifications for this insight are snoozed.', ToastTypeEnum.Success);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not snooze this insight', ToastTypeEnum.Error);
+      }
+    } finally {
+      setSnoozing(false);
+    }
+  };
+
   return (
     <div style={cardStyle}>
       <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5 }}>
@@ -330,6 +356,13 @@ function InsightDetail({
           onClick={() => onFeedback(insight.id, 'not_relevant')}
         >
           Not relevant
+        </button>
+        <button
+          style={{ ...secondaryButtonStyle, padding: '9px 12px' }}
+          onClick={handleSnooze}
+          disabled={snoozing || snoozed}
+        >
+          {snoozed ? '🔕 Snoozed' : snoozing ? 'Snoozing…' : '🔕 Snooze notifications'}
         </button>
       </div>
 
@@ -468,6 +501,7 @@ export default function MarketIntelligencePage() {
   const [insights, setInsights] = useState<InsightVersion[]>([]);
   const [developments, setDevelopments] = useState<Development[]>([]);
   const [budget, setBudget] = useState<BrandBudget | null>(null);
+  const [preferences, setPreferences] = useState<MINotificationPreferences | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTopic, setShowNewTopic] = useState(false);
@@ -483,6 +517,23 @@ export default function MarketIntelligencePage() {
   const loadBudget = async () => {
     const res = await MarketIntelligenceService.getBudget();
     if (res.status) setBudget(res.responseData ?? null);
+  };
+
+  const loadPreferences = async () => {
+    const res = await MarketIntelligenceService.getPreferences();
+    if (res.status) setPreferences(res.responseData ?? null);
+  };
+
+  const handleToggleEmail = async () => {
+    if (!preferences) return;
+    const res = await MarketIntelligenceService.updatePreferences({ email_enabled: !preferences.email_enabled });
+    if (res.status) {
+      setPreferences(res.responseData ?? null);
+      ToastService.showToast(
+        res.responseData?.email_enabled ? 'Email alerts turned on.' : 'Email alerts turned off.',
+        ToastTypeEnum.Success
+      );
+    }
   };
 
   const loadAll = async (preserveSelection = true) => {
@@ -506,6 +557,7 @@ export default function MarketIntelligencePage() {
 
   useEffect(() => {
     loadAll(false);
+    loadPreferences();
   }, []);
 
   const handleCreateTopic = async () => {
@@ -633,11 +685,39 @@ export default function MarketIntelligencePage() {
         What customers want, what stops them buying, and what's changing in your market — with evidence, not guesses.
       </p>
 
-      {budget && (
-        <div style={{ fontSize: 11.5, color: '#999', marginBottom: 16 }}>
-          Budget this month: ${budget.spent_usd.toFixed(2)} spent
-          {budget.reserved_usd > 0 ? ` + $${budget.reserved_usd.toFixed(2)} reserved` : ''} of $
-          {budget.monthly_allowance_usd.toFixed(2)} allowance
+      {(budget || preferences) && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 16,
+            flexWrap: 'wrap',
+            gap: 8,
+          }}
+        >
+          {budget && (
+            <div style={{ fontSize: 11.5, color: '#999' }}>
+              Budget this month: ${budget.spent_usd.toFixed(2)} spent
+              {budget.reserved_usd > 0 ? ` + $${budget.reserved_usd.toFixed(2)} reserved` : ''} of $
+              {budget.monthly_allowance_usd.toFixed(2)} allowance
+            </div>
+          )}
+          {preferences && (
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 11.5,
+                color: '#666',
+                cursor: 'pointer',
+              }}
+            >
+              <input type="checkbox" checked={preferences.email_enabled} onChange={handleToggleEmail} />
+              Email me about important findings
+            </label>
+          )}
         </div>
       )}
 
