@@ -183,6 +183,15 @@ export interface Development {
   last_updated: string;
 }
 
+export interface BrandBudget {
+  brand_id: string;
+  monthly_allowance_usd: number;
+  period: string;
+  reserved_usd: number;
+  spent_usd: number;
+  updated_at: string;
+}
+
 export interface SourceCoveragePreview {
   provider: string;
   requested_days: number;
@@ -214,6 +223,11 @@ export class MarketIntelligenceService {
 
   static async listTopics(): Promise<UriResponse<Topic[]>> {
     const res: AxiosResponse<UriResponse<Topic[]>> = await UriHttpClient.getClient().get(`${BASE}/topics`);
+    return res.data;
+  }
+
+  static async getBudget(): Promise<UriResponse<BrandBudget>> {
+    const res: AxiosResponse<UriResponse<BrandBudget>> = await UriHttpClient.getClient().get(`${BASE}/budget`);
     return res.data;
   }
 

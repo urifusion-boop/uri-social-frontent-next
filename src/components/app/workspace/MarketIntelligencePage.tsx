@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import {
+  BrandBudget,
   ComponentScore,
   Development,
   DevelopmentStatus,
@@ -466,6 +467,7 @@ export default function MarketIntelligencePage() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [insights, setInsights] = useState<InsightVersion[]>([]);
   const [developments, setDevelopments] = useState<Development[]>([]);
+  const [budget, setBudget] = useState<BrandBudget | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTopic, setShowNewTopic] = useState(false);
@@ -478,12 +480,18 @@ export default function MarketIntelligencePage() {
     if (res.status) setDevelopments(res.responseData ?? []);
   };
 
+  const loadBudget = async () => {
+    const res = await MarketIntelligenceService.getBudget();
+    if (res.status) setBudget(res.responseData ?? null);
+  };
+
   const loadAll = async (preserveSelection = true) => {
     const [topicsRes, insightsRes] = await Promise.all([
       MarketIntelligenceService.listTopics(),
       MarketIntelligenceService.listInsights(),
     ]);
     loadDevelopments();
+    loadBudget();
     if (topicsRes.status) setTopics(topicsRes.responseData ?? []);
     if (insightsRes.status) {
       const list = insightsRes.responseData ?? [];
@@ -539,6 +547,17 @@ export default function MarketIntelligencePage() {
         setScanningTopicId(null);
         return;
       }
+      // PRD §16 budget-limited copy: a BUDGET_LIMITED run is created but
+      // never actually executed (see the backend's create_scan_run) — it
+      // will never progress through collecting/analysing, so this must be
+      // caught immediately rather than left to time out after 30 polls.
+      if (res.responseData.status === 'budget_limited') {
+        setScanningTopicId(null);
+        ToastService.showToast('This scan reached its collection limit. Results are partial.', ToastTypeEnum.Warning);
+        loadBudget();
+        return;
+      }
+
       const scanId = res.responseData.id;
       // Simple poll — a scan against the mock adapter finishes in well under a
       // second, but this holds for a real provider adapter too since status
@@ -547,10 +566,16 @@ export default function MarketIntelligencePage() {
       const poll = async (attempt: number) => {
         const scanRes = await MarketIntelligenceService.getScan(scanId);
         const status = scanRes.responseData?.status;
-        if (status === 'completed' || status === 'partial' || status === 'failed') {
+        if (status === 'completed' || status === 'partial' || status === 'failed' || status === 'budget_limited') {
           setScanningTopicId(null);
           await loadAll();
-          if (status === 'partial') {
+          loadBudget();
+          if (status === 'budget_limited') {
+            ToastService.showToast(
+              'This scan reached its collection limit. Results are partial.',
+              ToastTypeEnum.Warning
+            );
+          } else if (status === 'partial') {
             ToastService.showToast(
               'Scan finished with some gaps — see insight cards for details.',
               ToastTypeEnum.Success
@@ -607,6 +632,14 @@ export default function MarketIntelligencePage() {
       <p style={{ fontSize: 13, color: '#888', marginTop: 4, marginBottom: 16 }}>
         What customers want, what stops them buying, and what's changing in your market — with evidence, not guesses.
       </p>
+
+      {budget && (
+        <div style={{ fontSize: 11.5, color: '#999', marginBottom: 16 }}>
+          Budget this month: ${budget.spent_usd.toFixed(2)} spent
+          {budget.reserved_usd > 0 ? ` + $${budget.reserved_usd.toFixed(2)} reserved` : ''} of $
+          {budget.monthly_allowance_usd.toFixed(2)} allowance
+        </div>
+      )}
 
       {showNewTopic && (
         <div style={{ ...cardStyle, marginBottom: 16 }}>
