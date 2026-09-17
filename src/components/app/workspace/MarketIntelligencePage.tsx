@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Ban,
@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Plus,
   Radar,
+  RefreshCw,
   Search,
   Settings2,
   ShieldAlert,
@@ -598,6 +599,9 @@ function TopicsPanel({
   setQuestion,
   creating,
   onCreateTopic,
+  staleScan,
+  checkingStale,
+  onCheckStale,
 }: {
   topics: Topic[];
   scanningTopicId: string | null;
@@ -608,6 +612,9 @@ function TopicsPanel({
   setQuestion: (v: string) => void;
   creating: boolean;
   onCreateTopic: () => void;
+  staleScan: { topicId: string; scanId: string } | null;
+  checkingStale: boolean;
+  onCheckStale: () => void;
 }) {
   return (
     <div className="space-y-4">
@@ -678,6 +685,25 @@ function TopicsPanel({
                   {scanningTopicId === t.id && (
                     <div className="mt-1.5 text-[11px] text-muted-foreground">
                       Collecting conversations from your selected sources. You can leave this page and return later.
+                    </div>
+                  )}
+                  {staleScan?.topicId === t.id && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11.5px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+                      <span>Still working on this scan. It&apos;s safe to leave and come back — check anytime.</span>
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        className="ml-auto shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-300"
+                        disabled={checkingStale}
+                        onClick={onCheckStale}
+                      >
+                        {checkingStale ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Check now
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -807,6 +833,32 @@ function SettingsPanel({
 
 type TabId = 'overview' | 'topics' | 'upcoming' | 'settings';
 
+// Survives a component remount (switching workspace tabs and coming back)
+// within the same browser tab, so "leave and return" (PRD §9) actually
+// shows the real in-progress state instead of nothing.
+const ACTIVE_SCAN_STORAGE_KEY = 'mi_active_scan';
+
+type StoredScan = { topicId: string; scanId: string };
+
+function readStoredScan(): StoredScan | null {
+  try {
+    const raw = sessionStorage.getItem(ACTIVE_SCAN_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as StoredScan) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredScan(value: StoredScan | null) {
+  try {
+    if (value) sessionStorage.setItem(ACTIVE_SCAN_STORAGE_KEY, JSON.stringify(value));
+    else sessionStorage.removeItem(ACTIVE_SCAN_STORAGE_KEY);
+  } catch {
+    // Private browsing / storage disabled — polling still works within this
+    // page load, it just won't resume correctly after a remount. Non-fatal.
+  }
+}
+
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'topics', label: 'Topics & Sources', icon: Layers },
@@ -835,9 +887,25 @@ export default function MarketIntelligencePage() {
   const [question, setQuestion] = useState('');
   const [creating, setCreating] = useState(false);
   const [scanningTopicId, setScanningTopicId] = useState<string | null>(null);
+  const [staleScan, setStaleScan] = useState<{ topicId: string; scanId: string } | null>(null);
+  const [checkingStale, setCheckingStale] = useState(false);
   const [lastScanHadGaps, setLastScanHadGaps] = useState(false);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+
+  // Ties each poll() recursion to the sequence that started it, so a stray
+  // setTimeout from a poll loop that's no longer relevant (component
+  // unmounted, or a different scan started) can recognise that on its next
+  // tick and quietly stop instead of firing a stale toast out of nowhere —
+  // the exact bug behind "left the page, came back, saw a confusing
+  // timeout message with nothing actually running."
+  const pollSeqRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      pollSeqRef.current += 1;
+    };
+  }, []);
 
   const loadDevelopments = async () => {
     const res = await MarketIntelligenceService.listDevelopments();
@@ -888,6 +956,12 @@ export default function MarketIntelligencePage() {
   useEffect(() => {
     loadAll(false);
     loadPreferences();
+    // PRD §9: "Return a job identifier immediately, allow the user to leave
+    // and return." A scan started before a remount (switching workspace
+    // tabs and coming back) is resumed here instead of just vanishing from
+    // view with no indication it's still running.
+    const stored = readStoredScan();
+    if (stored) beginPolling(stored.topicId, stored.scanId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -907,6 +981,59 @@ export default function MarketIntelligencePage() {
     } finally {
       setCreating(false);
     }
+  };
+
+  // A poll sequence carries the token it was started with (mySeq). Every
+  // check — before AND after each await — compares against
+  // pollSeqRef.current: if a newer sequence has since started (a fresh scan
+  // kicked off) or the component unmounted (see the cleanup effect above,
+  // which bumps the ref), this one recognises it's stale and stops
+  // silently — no state update, no toast fired into a page the user isn't
+  // even looking at anymore.
+  const beginPolling = (topicId: string, scanId: string) => {
+    pollSeqRef.current += 1;
+    const mySeq = pollSeqRef.current;
+    writeStoredScan({ topicId, scanId });
+    setScanningTopicId(topicId);
+    setStaleScan(null);
+
+    const poll = async (attempt: number) => {
+      if (pollSeqRef.current !== mySeq) return;
+      const scanRes = await MarketIntelligenceService.getScan(scanId);
+      if (pollSeqRef.current !== mySeq) return;
+
+      const status = scanRes.responseData?.status;
+      if (status === 'completed' || status === 'partial' || status === 'failed' || status === 'budget_limited') {
+        setScanningTopicId(null);
+        writeStoredScan(null);
+        setLastScanHadGaps(status === 'partial' || status === 'budget_limited');
+        await loadAll();
+        loadBudget();
+        if (status === 'budget_limited') {
+          ToastService.showToast('This scan reached its collection limit. Results are partial.', ToastTypeEnum.Warning);
+        } else if (status === 'partial') {
+          ToastService.showToast('Results cover the available period shown below.', ToastTypeEnum.Success);
+        } else if (status === 'failed') {
+          ToastService.showToast('Scan failed. You can retry any time from Topics & Sources.', ToastTypeEnum.Error);
+        } else {
+          ToastService.showToast('Scan complete.', ToastTypeEnum.Success);
+        }
+        return;
+      }
+      if (attempt > 30) {
+        // Not a dead end: the scan may genuinely still be running (a real
+        // provider adapter can take longer than the mock one), and the
+        // backend now self-heals a run that's actually stuck after a few
+        // minutes. Stop auto-polling to avoid running forever in the
+        // background, but leave a real, checkable status instead of a
+        // one-shot toast that disappears and leaves no trace.
+        setScanningTopicId(null);
+        setStaleScan({ topicId, scanId });
+        return;
+      }
+      setTimeout(() => poll(attempt + 1), 1000);
+    };
+    poll(0);
   };
 
   const handleRunScan = async (topicId: string) => {
@@ -934,40 +1061,34 @@ export default function MarketIntelligencePage() {
         return;
       }
 
-      const scanId = res.responseData.id;
-      const poll = async (attempt: number) => {
-        const scanRes = await MarketIntelligenceService.getScan(scanId);
-        const status = scanRes.responseData?.status;
-        if (status === 'completed' || status === 'partial' || status === 'failed' || status === 'budget_limited') {
-          setScanningTopicId(null);
-          setLastScanHadGaps(status === 'partial' || status === 'budget_limited');
-          await loadAll();
-          loadBudget();
-          if (status === 'budget_limited') {
-            ToastService.showToast(
-              'This scan reached its collection limit. Results are partial.',
-              ToastTypeEnum.Warning
-            );
-          } else if (status === 'partial') {
-            ToastService.showToast('Results cover the available period shown below.', ToastTypeEnum.Success);
-          } else if (status === 'failed') {
-            ToastService.showToast('Scan failed.', ToastTypeEnum.Error);
-          } else {
-            ToastService.showToast('Scan complete.', ToastTypeEnum.Success);
-          }
-          return;
-        }
-        if (attempt > 30) {
-          setScanningTopicId(null);
-          ToastService.showToast('Scan is taking longer than expected — check back shortly.', ToastTypeEnum.Error);
-          return;
-        }
-        setTimeout(() => poll(attempt + 1), 1000);
-      };
-      poll(0);
+      beginPolling(topicId, res.responseData.id);
     } catch {
       setScanningTopicId(null);
       ToastService.showToast('Could not start scan', ToastTypeEnum.Error);
+    }
+  };
+
+  const handleCheckStale = async () => {
+    if (!staleScan) return;
+    setCheckingStale(true);
+    try {
+      const scanRes = await MarketIntelligenceService.getScan(staleScan.scanId);
+      const status = scanRes.responseData?.status;
+      if (status === 'completed' || status === 'partial' || status === 'failed' || status === 'budget_limited') {
+        setStaleScan(null);
+        writeStoredScan(null);
+        setLastScanHadGaps(status === 'partial' || status === 'budget_limited');
+        await loadAll();
+        loadBudget();
+        ToastService.showToast(
+          status === 'failed' ? 'Scan failed. You can retry any time.' : 'Scan finished — results updated.',
+          status === 'failed' ? ToastTypeEnum.Error : ToastTypeEnum.Success
+        );
+      } else {
+        ToastService.showToast('Still working — check again in a moment.', ToastTypeEnum.Warning);
+      }
+    } finally {
+      setCheckingStale(false);
     }
   };
 
@@ -1192,6 +1313,9 @@ export default function MarketIntelligencePage() {
               setQuestion={setQuestion}
               creating={creating}
               onCreateTopic={handleCreateTopic}
+              staleScan={staleScan}
+              checkingStale={checkingStale}
+              onCheckStale={handleCheckStale}
             />
           )}
 
