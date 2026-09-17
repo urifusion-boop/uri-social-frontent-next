@@ -62,6 +62,7 @@ import VideoProductionForm from '@/src/components/app/workspace/VideoProductionF
 import SubmagicProductionForm from '@/src/components/app/workspace/SubmagicProductionForm';
 import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductionForm';
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
+import MarketIntelligencePage from '@/src/components/app/workspace/MarketIntelligencePage';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -9581,6 +9582,12 @@ const NAV = [
     tooltip: 'Posts, accounts, and market intel — all your insights in one place',
   },
   {
+    id: 'market-intelligence',
+    icon: 'eye',
+    label: 'Market Intelligence',
+    tooltip: "What customers want, what stops them buying, and what's changing in your market — with evidence",
+  },
+  {
     id: 'campaigns',
     icon: 'megaphone',
     label: 'Campaigns',
@@ -9597,13 +9604,6 @@ const NAV = [
     icon: 'book',
     label: 'Brand Playbook',
     tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
-  },
-  {
-    id: 'business-pulse',
-    icon: 'heart',
-    label: 'Business Pulse',
-    tooltip:
-      "What's happening in your business right now — promotions, campaigns, news. Feeds directly into your content calendar.",
   },
   {
     id: 'settings',
@@ -9639,6 +9639,7 @@ const MOBILE_TABS = [
 const MORE_NAV = [
   { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
   { id: 'blog', icon: 'book', label: 'Blog' },
+  { id: 'market-intelligence', icon: 'eye', label: 'Market Intelligence' },
   { id: 'business-pulse', icon: 'heart', label: 'Business Pulse' },
   { id: 'connections', icon: 'share', label: 'Connected Accounts' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
@@ -10130,6 +10131,7 @@ export default function WorkspaceDashboard() {
         onResumeVideoConsumed={() => setPendingResumeVideo(null)}
       />
     ),
+    'market-intelligence': <MarketIntelligencePage />,
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
