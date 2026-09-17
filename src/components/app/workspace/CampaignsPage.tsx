@@ -777,11 +777,27 @@ export default function CampaignsPage({
       // such row, so saving here just 409'd with meta_connection_none and the number
       // never reached the launch at all. Live-reported.
       await CampaignService.setWhatsapp(clean);
+      // Same media-drop bug as continueWithOwnAudience/continueWithDestination/
+      // continueWithVariants below (confirmed live 2026-09-17) — this omitted
+      // media entirely, so a video attached before hitting this prompt vanished.
+      const attachedMedia = media;
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
+        ...(attachedMedia?.source === 'upload'
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+            }
+          : attachedMedia?.source === 'draft'
+            ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+            : lastCreativeRef.current
+              ? { reuse_image_url: lastCreativeRef.current }
+              : {}),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
@@ -944,12 +960,28 @@ export default function CampaignsPage({
   }) => {
     if (busy || !briefSoFar) return;
     setBusy(true);
+    // Same media-drop bug as continueWithOwnAudience/submitMetaConnectionWhatsapp/
+    // continueWithVariants (confirmed live 2026-09-17) — this hardcoded
+    // creative_source: 'ask' unconditionally, so an already-attached video/image
+    // vanished the moment the user answered the destination question.
+    const attachedMedia = media;
     try {
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
-        creative_source: 'ask',
+        ...(attachedMedia?.source === 'upload'
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+            }
+          : attachedMedia?.source === 'draft'
+            ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+            : lastCreativeRef.current
+              ? { reuse_image_url: lastCreativeRef.current }
+              : { creative_source: 'ask' as const }),
         // Carry the audience choice, exactly as continueWithSource does — without it
         // the backend has no way to know one was made and regenerates the whole
         // variant set, dropping the user back to "pick an audience".
@@ -994,6 +1026,11 @@ export default function CampaignsPage({
     // point never drops back to "pick an audience" (see chosenVariantRef above).
     chosenVariantRef.current = { variant: variants[0], variantGroupId };
     setBusy(true);
+    // Same media-drop bug as the other call sites (confirmed live 2026-09-17) —
+    // creative_source was hardcoded 'ask' here too, so has_video (and TikTok's
+    // requirement for it) got evaluated against nothing even with a video already
+    // attached.
+    const attachedMedia = media;
     try {
       // Live-reported bug: this call omitted selected_plan_variant entirely, so the
       // backend had no way to know a choice had already been made — it just
@@ -1006,7 +1043,18 @@ export default function CampaignsPage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
-        creative_source: 'ask',
+        ...(attachedMedia?.source === 'upload'
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+            }
+          : attachedMedia?.source === 'draft'
+            ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+            : lastCreativeRef.current
+              ? { reuse_image_url: lastCreativeRef.current }
+              : { creative_source: 'ask' as const }),
         selected_plan_variant: variants[0],
         variant_group_id: variantGroupId,
       });
@@ -1037,13 +1085,31 @@ export default function CampaignsPage({
     chosenVariantRef.current = null;
     pendingVariantsRef.current = null;
     setBusy(true);
+    // Confirmed live (2026-09-17): this always hardcoded creative_source: 'ask',
+    // silently dropping any media the user had already attached in the composer
+    // (the chip stays visible, but the backend never learns about it on this
+    // call) — a TikTok request would then get rejected as "needs video" even
+    // with a real video attached, and any campaign would lose the attachment
+    // entirely. Same media-forwarding logic send() already uses.
+    const attachedMedia = media;
     try {
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
-        creative_source: 'ask',
         target_audience: audience,
+        ...(attachedMedia?.source === 'upload'
+          ? {
+              creative_source: 'upload',
+              reference_image_url: attachedMedia.url,
+              is_video: attachedMedia.isVideo,
+              asset_attestation: attachedMedia.assetAttestation,
+            }
+          : attachedMedia?.source === 'draft'
+            ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
+            : lastCreativeRef.current
+              ? { reuse_image_url: lastCreativeRef.current }
+              : { creative_source: creativeChoiceRef.current ?? ('ask' as const) }),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
