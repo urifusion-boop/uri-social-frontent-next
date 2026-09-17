@@ -1018,10 +1018,15 @@ export default function CampaignsPage({
   const continueWithVariants = async (variants: PlanVariant[], variantGroupId: string) => {
     if (busy || !briefSoFar || variants.length === 0) return;
     pendingVariantsRef.current = { variants, variantGroupId };
-    // Picking a card and typing an audience are competing answers to one question.
+    // Picking a card and typing an audience are competing answers to one question —
+    // only ownAudienceRef is about that choice. Confirmed live (2026-09-17): an
+    // earlier blind find-and-replace across every ownAudienceRef.current = null
+    // site also inserted a preferredPlatformRef reset HERE, which has nothing to
+    // do with audience-vs-card — it silently wiped the TikTok choice the instant
+    // the user picked a plan card, so the very next call (the one that actually
+    // builds the creative) went out with no platform preference and Jane silently
+    // fell back to Meta.
     ownAudienceRef.current = null;
-    preferredPlatformRef.current = '';
-    setPreferredPlatformUi('');
     // Remember the choice for the REST of the campaign, so a typed reply after this
     // point never drops back to "pick an audience" (see chosenVariantRef above).
     chosenVariantRef.current = { variant: variants[0], variantGroupId };
