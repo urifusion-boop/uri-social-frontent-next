@@ -24,6 +24,7 @@ import {
   ThumbsUp,
   Trash2,
   TrendingUp,
+  Users,
   Wallet,
   X,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
+  AccessGrant,
   BrandBudget,
   ConfidenceBand,
   Development,
@@ -44,6 +46,7 @@ import {
   EvidenceType,
   InsightVersion,
   MarketIntelligenceService,
+  MIAccessLevel,
   MINotificationPreferences,
   NotificationSensitivity,
   ScoreBreakdown,
@@ -1251,6 +1254,126 @@ function BusinessContextPanel() {
   );
 }
 
+// PRD §21. Renders nothing for anyone who isn't the brand owner (or an
+// agency admin) — GET /access 403s for everyone else, and that's the
+// signal to just hide this card rather than show an error a regular
+// teammate has no use for.
+function AccessControlPanel() {
+  const [visible, setVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [grants, setGrants] = useState<AccessGrant[]>([]);
+  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
+  const load = () => {
+    MarketIntelligenceService.listAccessGrants()
+      .then((res) => {
+        if (res.status) {
+          setGrants(res.responseData ?? []);
+          setVisible(true);
+        }
+      })
+      .catch(() => {
+        // 403 — not a manager for this brand. Stay hidden, no error toast.
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const handleRestrict = async () => {
+    if (!email.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await MarketIntelligenceService.setAccessGrant(email.trim(), 'view_only');
+      if (res.status) {
+        ToastService.showToast(`${email.trim()} is now view-only for Market Intelligence.`, ToastTypeEnum.Success);
+        setEmail('');
+        load();
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not update access', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not update access'), ToastTypeEnum.Error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRestoreFull = async (grant: AccessGrant) => {
+    setRestoringId(grant.id);
+    try {
+      const res = await MarketIntelligenceService.setAccessGrant(grant.email ?? '', 'full' as MIAccessLevel);
+      if (res.status) {
+        ToastService.showToast('Full access restored.', ToastTypeEnum.Success);
+        load();
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not update access', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not update access'), ToastTypeEnum.Error);
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
+  if (loading || !visible) return null;
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Users className="h-4 w-4 text-muted-foreground" /> Team access
+        </div>
+        <div className="mt-1 text-[11.5px] text-muted-foreground">
+          Everyone with access to this brand can act on Market Intelligence by default. Restrict a teammate to view-only
+          if you don&apos;t want them running scans, creating topics or acting on insights.
+        </div>
+
+        {grants.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {grants.map((g) => (
+              <div key={g.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-2.5">
+                <div className="min-w-0">
+                  <div className="truncate text-[12.5px] font-medium text-foreground">
+                    {g.user_name || g.email || g.user_id}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">View-only</div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 text-[11.5px]"
+                  disabled={restoringId === g.id || !g.email}
+                  onClick={() => handleRestoreFull(g)}
+                >
+                  {restoringId === g.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  Restore full access
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center gap-2">
+          <Input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="teammate@example.com"
+            className="h-8"
+            type="email"
+          />
+          <Button size="sm" className="h-8 shrink-0" disabled={submitting || !email.trim()} onClick={handleRestrict}>
+            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            Restrict to view-only
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main page ──────────────────────────────────────────────────────────────
 
 type TabId = 'overview' | 'topics' | 'upcoming' | 'settings';
@@ -1740,6 +1863,7 @@ export default function MarketIntelligencePage() {
             <div className="space-y-4">
               <SettingsPanel budget={budget} preferences={preferences} onToggleEmail={handleToggleEmail} />
               <BusinessContextPanel />
+              <AccessControlPanel />
             </div>
           )}
         </div>

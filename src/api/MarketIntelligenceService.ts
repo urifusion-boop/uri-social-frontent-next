@@ -275,6 +275,21 @@ export interface KeywordSuggestion {
   excluded_keywords: string[];
 }
 
+export type MIAccessLevel = 'full' | 'view_only';
+
+export interface AccessGrant {
+  id: string;
+  brand_id: string;
+  user_id: string;
+  level: MIAccessLevel;
+  granted_by: string;
+  created_at: string;
+  // Best-effort display info, resolved server-side — absent if the user
+  // record couldn't be joined, never blocking the grant itself.
+  email?: string;
+  user_name?: string | null;
+}
+
 const BASE = '/market-intelligence';
 
 export class MarketIntelligenceService {
@@ -416,6 +431,22 @@ export class MarketIntelligenceService {
     const res: AxiosResponse<UriResponse<Development>> = await UriHttpClient.getClient().patch(
       `${BASE}/developments/${developmentId}`,
       { status, verification_note: verificationNote }
+    );
+    return res.data;
+  }
+
+  // Both silently 403 for anyone who isn't the brand owner (or an agency
+  // admin, for an agency-owned brand) — callers should treat that 403 as
+  // "hide this UI", not an error to surface.
+  static async listAccessGrants(): Promise<UriResponse<AccessGrant[]>> {
+    const res: AxiosResponse<UriResponse<AccessGrant[]>> = await UriHttpClient.getClient().get(`${BASE}/access`);
+    return res.data;
+  }
+
+  static async setAccessGrant(email: string, level: MIAccessLevel): Promise<UriResponse<Record<string, unknown>>> {
+    const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().post(
+      `${BASE}/access`,
+      { email, level }
     );
     return res.data;
   }
