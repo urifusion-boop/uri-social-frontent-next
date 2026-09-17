@@ -162,6 +162,15 @@ export interface FeedbackOutcome {
   created_at: string;
 }
 
+export interface SourceCoveragePreview {
+  provider: string;
+  requested_days: number;
+  accessible_days: number;
+  capped: boolean;
+  note?: string | null;
+  estimated_cost_usd: number;
+}
+
 export interface TopicCreateRequest {
   question: string;
   keywords?: string[];
@@ -184,6 +193,13 @@ export class MarketIntelligenceService {
 
   static async listTopics(): Promise<UriResponse<Topic[]>> {
     const res: AxiosResponse<UriResponse<Topic[]>> = await UriHttpClient.getClient().get(`${BASE}/topics`);
+    return res.data;
+  }
+
+  static async getCoveragePreview(topicId: string): Promise<UriResponse<SourceCoveragePreview[]>> {
+    const res: AxiosResponse<UriResponse<SourceCoveragePreview[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/topics/${topicId}/coverage-preview`
+    );
     return res.data;
   }
 
