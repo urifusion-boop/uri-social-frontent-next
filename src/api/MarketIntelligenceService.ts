@@ -162,6 +162,27 @@ export interface FeedbackOutcome {
   created_at: string;
 }
 
+export type DevelopmentStatus = 'date_to_confirm' | 'scheduled' | 'postponed' | 'cancelled' | 'occurred';
+
+export interface Development {
+  id: string;
+  brand_id: string;
+  topic_id: string;
+  evidence_id: string;
+  issuer?: string | null;
+  headline: string;
+  event_date?: string | null;
+  event_date_range_end?: string | null;
+  location?: string | null;
+  registration_deadline?: string | null;
+  preparation_action?: string | null;
+  source_url?: string | null;
+  status: DevelopmentStatus;
+  verification_note?: string | null;
+  first_seen: string;
+  last_updated: string;
+}
+
 export interface SourceCoveragePreview {
   provider: string;
   requested_days: number;
@@ -259,6 +280,23 @@ export class MarketIntelligenceService {
   static async deleteEvidence(evidenceId: string): Promise<UriResponse<Record<string, unknown>>> {
     const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().delete(
       `${BASE}/evidence/${evidenceId}`
+    );
+    return res.data;
+  }
+
+  static async listDevelopments(): Promise<UriResponse<Development[]>> {
+    const res: AxiosResponse<UriResponse<Development[]>> = await UriHttpClient.getClient().get(`${BASE}/developments`);
+    return res.data;
+  }
+
+  static async updateDevelopment(
+    developmentId: string,
+    status: DevelopmentStatus,
+    verificationNote?: string
+  ): Promise<UriResponse<Development>> {
+    const res: AxiosResponse<UriResponse<Development>> = await UriHttpClient.getClient().patch(
+      `${BASE}/developments/${developmentId}`,
+      { status, verification_note: verificationNote }
     );
     return res.data;
   }

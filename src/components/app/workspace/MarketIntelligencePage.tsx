@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   ComponentScore,
+  Development,
+  DevelopmentStatus,
   Evidence,
   InsightVersion,
   MarketIntelligenceService,
@@ -335,6 +337,120 @@ function InsightDetail({
   );
 }
 
+const DEV_STATUS_LABEL: Record<DevelopmentStatus, string> = {
+  date_to_confirm: 'Date to confirm',
+  scheduled: 'Scheduled',
+  postponed: 'Postponed',
+  cancelled: 'Cancelled',
+  occurred: 'Occurred',
+};
+
+const DEV_STATUS_COLOR: Record<DevelopmentStatus, string> = {
+  date_to_confirm: '#999',
+  scheduled: '#1a9c4a',
+  postponed: '#c98a1f',
+  cancelled: '#a33',
+  occurred: '#888',
+};
+
+/** PRD §15 "Upcoming items" surface — deadline, verification and preparation
+ * steps for developments extracted from evidence classified as
+ * upcoming_development. "Track development" here means marking postponed,
+ * cancelled or occurred; §13: this revises the same item, never creates a
+ * new one. */
+function DevelopmentsSection({ developments, onUpdated }: { developments: Development[]; onUpdated: () => void }) {
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  if (developments.length === 0) return null;
+
+  const handleUpdate = async (id: string, status: DevelopmentStatus) => {
+    setUpdatingId(id);
+    try {
+      const res = await MarketIntelligenceService.updateDevelopment(id, status);
+      if (res.status) {
+        ToastService.showToast(`Marked ${DEV_STATUS_LABEL[status].toLowerCase()}.`, ToastTypeEnum.Success);
+        onUpdated();
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not update this item', ToastTypeEnum.Error);
+      }
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>
+        Upcoming items
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {developments.map((d) => (
+          <div key={d.id} style={cardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>{d.headline}</div>
+                <div style={{ fontSize: 11.5, color: '#888', marginTop: 3 }}>
+                  {d.issuer ?? 'Unverified issuer'}
+                  {d.location ? ` · ${d.location}` : ''}
+                  {' · '}
+                  {d.event_date ? new Date(d.event_date).toLocaleDateString() : 'Date to confirm'}
+                </div>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: DEV_STATUS_COLOR[d.status], whiteSpace: 'nowrap' }}>
+                {DEV_STATUS_LABEL[d.status]}
+              </span>
+            </div>
+
+            {d.preparation_action && (
+              <div style={{ fontSize: 12.5, color: '#444', marginTop: 8 }}>
+                <strong>Prepare:</strong> {d.preparation_action}
+              </div>
+            )}
+            {d.registration_deadline && (
+              <div style={{ fontSize: 11.5, color: '#c98a1f', marginTop: 4 }}>
+                Registration deadline: {new Date(d.registration_deadline).toLocaleDateString()}
+              </div>
+            )}
+            {d.source_url && (
+              <div style={{ marginTop: 4 }}>
+                <a href={d.source_url} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, color: PINK }}>
+                  View source
+                </a>
+              </div>
+            )}
+
+            {(d.status === 'scheduled' || d.status === 'postponed') && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button
+                  style={{ ...secondaryButtonStyle, padding: '6px 12px', fontSize: 12 }}
+                  disabled={updatingId === d.id}
+                  onClick={() => handleUpdate(d.id, 'postponed')}
+                >
+                  Mark postponed
+                </button>
+                <button
+                  style={{ ...secondaryButtonStyle, padding: '6px 12px', fontSize: 12 }}
+                  disabled={updatingId === d.id}
+                  onClick={() => handleUpdate(d.id, 'cancelled')}
+                >
+                  Mark cancelled
+                </button>
+                <button
+                  style={{ ...secondaryButtonStyle, padding: '6px 12px', fontSize: 12 }}
+                  disabled={updatingId === d.id}
+                  onClick={() => handleUpdate(d.id, 'occurred')}
+                >
+                  Mark occurred
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Uri Market Intelligence — first pass (PRD "Uri Market Intelligence" v1.0).
  * Master-detail layout: a scannable insight list (PRD §15 "Intelligence home")
@@ -349,6 +465,7 @@ function InsightDetail({
 export default function MarketIntelligencePage() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [insights, setInsights] = useState<InsightVersion[]>([]);
+  const [developments, setDevelopments] = useState<Development[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTopic, setShowNewTopic] = useState(false);
@@ -356,11 +473,17 @@ export default function MarketIntelligencePage() {
   const [creating, setCreating] = useState(false);
   const [scanningTopicId, setScanningTopicId] = useState<string | null>(null);
 
+  const loadDevelopments = async () => {
+    const res = await MarketIntelligenceService.listDevelopments();
+    if (res.status) setDevelopments(res.responseData ?? []);
+  };
+
   const loadAll = async (preserveSelection = true) => {
     const [topicsRes, insightsRes] = await Promise.all([
       MarketIntelligenceService.listTopics(),
       MarketIntelligenceService.listInsights(),
     ]);
+    loadDevelopments();
     if (topicsRes.status) setTopics(topicsRes.responseData ?? []);
     if (insightsRes.status) {
       const list = insightsRes.responseData ?? [];
@@ -538,6 +661,8 @@ export default function MarketIntelligencePage() {
           </div>
         </div>
       )}
+
+      <DevelopmentsSection developments={developments} onUpdated={loadDevelopments} />
 
       <div style={{ fontSize: 12, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>
         Insights
