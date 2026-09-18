@@ -75,6 +75,7 @@ import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
+import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
@@ -9618,6 +9619,16 @@ const NAV = [
     tooltip: 'View your plan, content credits, and billing history',
   },
   {
+    // ADMIN ONLY — filtered out below unless /jane-ads/admin/access allows it. Shows
+    // other businesses' reasoning and performance, so it is never client-facing
+    // (CI-SPEC-01 §4.5). Hiding the item is convenience; every endpoint re-checks.
+    id: 'records',
+    icon: 'book',
+    label: 'Records',
+    tooltip: 'What Jane decided on each campaign, and what the buckets say',
+    adminOnly: true,
+  },
+  {
     id: 'visual-engine-v2',
     icon: 'grid',
     label: '🧪 Visual Engine V2',
@@ -9653,6 +9664,15 @@ const MORE_NAV = [
    MAIN DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function WorkspaceDashboard() {
+  // Same gate the Revenue tab uses (/jane-ads/admin/access). The Records item shows
+  // other businesses' reasoning and performance, so it is hidden for everyone else —
+  // and every endpoint behind it re-checks server-side regardless (CI-SPEC-01 §4.5).
+  const [isAdsAdmin, setIsAdsAdmin] = useState(false);
+
+  useEffect(() => {
+    CampaignService.billingAccess().then(setIsAdsAdmin).catch(() => setIsAdsAdmin(false));
+  }, []);
+
   const { logoutUser, userDetails } = useAuth();
   const { unreadCount } = useNotifications();
   const { showVerifyModal, setShowVerifyModal, requireEmailVerification } = useEmailVerification();
@@ -10121,6 +10141,7 @@ export default function WorkspaceDashboard() {
       />
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
+    records: <RecordsPanel />,
     performance: <PerformancePage onJane={goWorkspace} />,
     campaigns: (
       <CampaignsPage
@@ -10242,7 +10263,7 @@ export default function WorkspaceDashboard() {
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', paddingLeft: 37 }}>Active & ready</div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {NAV.map((n) => {
+              {NAV.filter((n) => !(n as { adminOnly?: boolean }).adminOnly || isAdsAdmin).map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
                 return (
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>

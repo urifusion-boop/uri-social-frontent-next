@@ -362,6 +362,75 @@ export interface DashboardHome {
   is_first_run: boolean;
 }
 
+/** A campaign's decision record (CI-SPEC-01 Part 1) — what Jane decided and why.
+ *  Admin-only: it carries other businesses' reasoning and is never client-facing. */
+export interface CampaignRecord {
+  campaign_id: string;
+  created_at: string | null;
+  exploration: boolean;
+  generated_count: number;
+  context: {
+    business_category: string;
+    city: string;
+    budget_tier: string;
+    platform: string;
+    area: string[];
+    conversion_location: string;
+    purchase_behaviour: string;
+    geo_strategy: string;
+  };
+  strategy: {
+    geo_pockets: string[];
+    platform_chosen: string[];
+    purchase_behaviour: string;
+    behaviour_source: string;
+    plans_generated: { rank: number; recommended: boolean; who_its_for: string; trigger: string }[];
+    plan_selected: { rank?: number; who_its_for?: string } | null;
+    plan_recommended: { rank?: number; who_its_for?: string } | null;
+    recommendation_diverged: boolean;
+    corpus_coverage: string;
+    corpus_records_cited: { strategy_id?: string; version?: number }[];
+  };
+  creative: { format_id: string; asset_source: string; media_type: string; headline: string };
+  budget: {
+    stated_ngn: number; effective_spend_ngn: number; service_fee_ngn: number;
+    duration_days: number; budget_tier: string; budget_source: string;
+  };
+  modifications: { field: string; from: unknown; to: unknown; changed_at: string }[];
+  results: Record<string, unknown> | null;
+}
+
+export interface BucketView {
+  bucket: Record<string, string>;
+  headline: {
+    campaigns: number;
+    threshold_state: string;
+    median_cost_per_conversation_ngn: number | null;
+    repeat_rate: number | null;
+    plan_acceptance_rate: number | null;
+    recommendation_divergence_rate: number | null;
+    exploration_share: number | null;
+  };
+  comparison: {
+    dimension: string;
+    campaigns: number;
+    threshold_state: string;
+    thresholds: { observe: number; bias: number; claim: number };
+    message?: string;
+    rows: {
+      value: string; campaigns: number;
+      median_cost_per_conversation_ngn: number | null;
+      with_results: number; sufficient: boolean;
+    }[];
+  };
+}
+
+export interface DigestView {
+  window_days: number;
+  campaigns: number;
+  items: { kind: string; text: string }[];
+}
+
 export class CampaignService {
   /** Conversational planning: Jane parses a plain-English message and returns her plan
    * (or asks a follow-up). Does NOT create anything — used for the chat preview. */
@@ -546,6 +615,43 @@ export class CampaignService {
   static async getDashboardHome(): Promise<DashboardHome> {
     const res = await UriHttpClient.getClient().get('/jane-ads/dashboard/home');
     return res.data as DashboardHome;
+  }
+
+  /** Admin-only intelligence surfaces (CI-SPEC-01 §4). Never reachable from a
+   *  client-facing screen — they hold other businesses' performance data. */
+  static async listCampaignRecords(limit = 50): Promise<{ records: CampaignRecord[] }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/intelligence/records', {
+      params: { limit },
+    });
+    return res.data as { records: CampaignRecord[] };
+  }
+
+  static async getCampaignRecord(campaignId: string): Promise<CampaignRecord> {
+    const res = await UriHttpClient.getClient().get(
+      `/jane-ads/admin/intelligence/campaign/${campaignId}`,
+    );
+    return res.data as CampaignRecord;
+  }
+
+  static async getBucket(params: {
+    business_category?: string; city?: string; budget_tier?: string; dimension?: string;
+  }): Promise<BucketView> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/intelligence/bucket', {
+      params,
+    });
+    return res.data as BucketView;
+  }
+
+  static async getDigest(): Promise<DigestView> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/intelligence/digest');
+    return res.data as DigestView;
+  }
+
+  static async backfillRecordResults(): Promise<{ filled: number; failed: number }> {
+    const res = await UriHttpClient.getClient().post(
+      '/jane-ads/admin/intelligence/backfill-results', {},
+    );
+    return res.data as { filled: number; failed: number };
   }
 
   /** Start a Squad checkout to fund the active brand's ad wallet. Returns the checkout
