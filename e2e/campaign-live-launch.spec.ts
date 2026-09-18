@@ -23,7 +23,23 @@ import { test, expect } from '@playwright/test';
 
 const CAMPAIGNS_URL = '/workspace/?tab=campaigns';
 
-test.describe.configure({ mode: 'serial', timeout: 1_200_000 });
+/** Close any onboarding tour / tooltip that would intercept pointer events. Prod
+ *  serves one the dev environment does not. */
+async function dismissOverlays(page: import('@playwright/test').Page) {
+  await page.keyboard.press('Escape').catch(() => undefined);
+  for (const name of [/Got it/i, /Skip/i, /Dismiss/i, /Close/i, /Next/i, /Finish/i]) {
+    const btn = page.getByRole('button', { name }).first();
+    for (let i = 0; i < 4; i += 1) {
+      if (!(await btn.isVisible().catch(() => false))) break;
+      await btn.click({ timeout: 5_000 }).catch(() => undefined);
+      await page.waitForTimeout(500);
+    }
+  }
+  await page.keyboard.press('Escape').catch(() => undefined);
+}
+
+
+test.describe.configure({ mode: 'serial', timeout: 2_400_000 });
 
 test.skip(!process.env.RUN_LIVE, 'live launch — set RUN_LIVE=1 to spend real balance');
 
@@ -47,12 +63,34 @@ test('a campaign launched from the chat UI targets named locations for the brief
     } catch { /* non-json response — ignore */ }
   });
 
+  // A launch that FAILS is silent otherwise, and that is exactly what needs seeing:
+  // the first prod run clicked launch and simply never got a success back.
+  page.on('response', async (r) => {
+    const url = r.url();
+    if (!url.includes('/jane-ads/meta/plan/') || !url.endsWith('/launch') || r.ok()) return;
+    let detail = '';
+    try { detail = (await r.text()).slice(0, 300); } catch { /* body gone */ }
+    console.log(`LAUNCH_FAILED status=${r.status()} ${detail}`);
+  });
+
+  page.on('console', (m) => {
+    if (m.type() === 'error') console.log('BROWSER_ERROR ' + m.text().slice(0, 200));
+  });
+
   await page.goto(CAMPAIGNS_URL, { waitUntil: 'networkidle' });
+
+  // Prod shows an onboarding tour ("Your AI social manager lives here — always
+  // active…") that dev does not, and its overlay swallows clicks on everything
+  // beneath it. Dismiss whatever is dismissible, then fall back to a forced click:
+  // the tour is chrome, not the thing under test.
+  await dismissOverlays(page);
 
   // A FRESH thread. Without this the page restores the last one, plan card and all.
   const newCampaign = page.getByRole('button', { name: /New campaign/i }).first();
   if (await newCampaign.isVisible().catch(() => false)) {
-    await newCampaign.click();
+    await newCampaign.click({ timeout: 10_000 }).catch(async () => {
+      await newCampaign.click({ force: true });
+    });
     await page.waitForTimeout(3_000);
   }
 
@@ -75,17 +113,20 @@ test('a campaign launched from the chat UI targets named locations for the brief
   // "Use this style" is the VSG-01 visual-style picker, which only appears while
   // JANE_ADS_VSG01_ENABLED is on — harmless to list when it is off, since the loop
   // only clicks what is actually on screen.
+  // Deliberately NOT /My WhatsApp/i: picking a destination SAVES it as the brand's
+  // default, and this brand's saved destination differs per environment (prod's is a
+  // website). Accepting whatever is prefilled via "Use this" exercises the same flow
+  // without rewriting a real brand's settings from a test.
   const STEP_NAMES = [
     /Build this ad/i,
     /Use this style/i,
     /^Use this$/,
     /Let Jane create one/i,
-    /My WhatsApp/i,
     /Choose this one/i,
   ];
 
   const launchBtn = page.getByText(/Looks good — launch it/i).first();
-  for (let turn = 0; turn < 24; turn += 1) {
+  for (let turn = 0; turn < 45; turn += 1) {
     if (ourPlanIds.size > 0 && (await launchBtn.isVisible().catch(() => false))) break;
 
     let target = null;
@@ -107,12 +148,19 @@ test('a campaign launched from the chat UI targets named locations for the brief
     }
 
     if (target) {
-      await target.click({ timeout: 15_000 }).catch(() => undefined);
+      await target
+        .click({ timeout: 15_000 })
+        .catch(async () => {
+          await dismissOverlays(page);
+          await target.click({ force: true }).catch(() => undefined);
+        });
     } else if (await composer.isEditable().catch(() => false)) {
       await composer.fill('Yes, that works — go ahead and build the plan.');
       await page.keyboard.press('Enter');
     }
-    await page.waitForTimeout(15_000);
+    // Generation runs 90-130s and is slower on prod, so a short turn just burns
+    // budget clicking nothing.
+    await page.waitForTimeout(20_000);
   }
 
   expect(ourPlanIds.size, 'Jane never produced a plan for the brief typed').toBeGreaterThan(0);
