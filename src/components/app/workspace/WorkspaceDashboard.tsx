@@ -9205,13 +9205,15 @@ const getNav = (isAdminUser: boolean, isSupportUser: boolean) => {
       label: 'Brand Playbook',
       tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
     },
-    {
-      id: 'business-pulse',
-      icon: 'heart',
-      label: 'Business Pulse',
-      tooltip:
-        "What's happening in your business right now — promotions, campaigns, news. Feeds directly into your content calendar.",
-    },
+    // Business Pulse hidden — shipped to production ahead of schedule inside
+    // the Brand Playbook release; not yet ready to be user-facing.
+    // {
+    //   id: 'business-pulse',
+    //   icon: 'heart',
+    //   label: 'Business Pulse',
+    //   tooltip:
+    //     "What's happening in your business right now — promotions, campaigns, news. Feeds directly into your content calendar.",
+    // },
     {
       id: 'settings',
       icon: 'settings',
@@ -9267,7 +9269,7 @@ const MOBILE_TABS = [
 
 const MORE_NAV = [
   { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
-  { id: 'business-pulse', icon: 'heart', label: 'Business Pulse' },
+  // Business Pulse hidden — see the matching comment on the main tab list above.
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
   { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts/' },
