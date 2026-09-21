@@ -6,7 +6,7 @@
  * Only accessible by: urisocialingsight@gmail.com
  */
 
-import { useEffect, useState, useCallback, Fragment } from 'react';
+import { useEffect, useState, useCallback, useRef, Fragment } from 'react';
 import { useAuth } from '@/src/providers/AuthProvider';
 import {
   AdminService,
@@ -1262,7 +1262,7 @@ function AccessCodesPanel() {
                           color: c.is_active ? '#2E7D32' : '#C62828',
                         }}
                       >
-                        {c.is_active ? 'Open' : 'Revoked'}
+                        {c.is_active ? 'Open' : 'Closed'}
                       </span>
                     </td>
                     <td style={{ padding: '12px 16px', color: '#666' }}>{c.label || '—'}</td>
@@ -1319,6 +1319,32 @@ function AccessCodeActionsMenu({
   emailing?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Positioned via `fixed` + a measured rect, not `absolute` relative to
+  // this button — an `absolute` menu gets silently clipped by ANY ancestor
+  // with `overflow: hidden` (the codes table's rounded-corner wrapper does
+  // exactly that for rows near the bottom), cutting off whichever items
+  // fall past the edge instead of just showing them.
+  const handleToggle = () => {
+    if (!isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+    }
+    setIsOpen((v) => !v);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = () => setIsOpen(false);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [isOpen]);
 
   const item = (opts: {
     key: string;
@@ -1360,9 +1386,10 @@ function AccessCodeActionsMenu({
   );
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
+    <div style={{ display: 'inline-block' }}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        ref={triggerRef}
+        onClick={handleToggle}
         aria-label="Actions"
         style={{
           width: 30,
@@ -1379,14 +1406,14 @@ function AccessCodeActionsMenu({
         <I n="more" s={16} c="#666" />
       </button>
 
-      {isOpen && (
+      {isOpen && menuPos && (
         <>
           <div onClick={() => setIsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
           <div
             style={{
-              position: 'absolute',
-              top: 'calc(100% + 6px)',
-              right: 0,
+              position: 'fixed',
+              top: menuPos.top,
+              right: menuPos.right,
               width: 200,
               background: '#fff',
               border: '1px solid #e5e3df',
@@ -1622,7 +1649,7 @@ function AccessCodeDetailPanel({
         </div>
 
         <div style={{ padding: '20px 22px', overflowY: 'auto', flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
             <span
               style={{
                 padding: '4px 12px',
@@ -1633,8 +1660,20 @@ function AccessCodeDetailPanel({
                 color: accessCode.is_active ? '#2E7D32' : '#C62828',
               }}
             >
-              {accessCode.is_active ? '● Open for redemption' : '● Revoked'}
+              {accessCode.is_active ? '● Open to new redemptions' : '● Closed to new redemptions'}
             </span>
+            {/* Revoking a code (below) DOES immediately cut off everyone
+                currently redeeming it too — that's the one-time side effect
+                of the action, not an ongoing state. Reopening it is NOT the
+                reverse of that: it only lets NEW people redeem again — it
+                does nothing for someone already cut off, which is why a
+                person's card below can still say Revoked even once this
+                says Open. Use "Restore access" on their card for that. */}
+            <div style={{ fontSize: 11, color: '#999', marginTop: 6, lineHeight: 1.5 }}>
+              {accessCode.is_active
+                ? "New people can redeem this code. If someone was cut off by an earlier revoke, reopening it doesn't bring them back — restore them individually below."
+                : 'Nobody new can redeem this code, and everyone currently redeeming it was just cut off too.'}
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
