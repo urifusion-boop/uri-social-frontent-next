@@ -132,6 +132,10 @@ export interface PlanFieldsSaveResult {
   plan_edited?: boolean;
   plan?: { platforms?: unknown[]; geo?: unknown };
   creative?: unknown;
+  /** Jane's reasoning re-derived from the edited plan — reach and cost per result
+   * re-fetched, every sentence rebuilt. Null when it could not be rebuilt, in which
+   * case the caller keeps the summary it already had. */
+  summary?: CampaignSummary | null;
 }
 
 export interface LaunchFromMessageResult {
@@ -161,9 +165,11 @@ export interface LaunchFromMessageResult {
     | 'tiktok_needs_video'
     | 'tiktok_not_configured';
   plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
-  /** Set once the client edits the plan in the review panel. Jane's reasoning block
-   * is not regenerated, so the card says so rather than contradicting the panel. */
+  /** Set once the client edits the plan in the review panel. */
   plan_edited?: boolean;
+  /** Set only when a save could NOT rebuild Jane's reasoning, so the block on screen
+   * is still her original proposal and has to say so. */
+  summary_stale?: boolean;
   understood?: UnderstoodFields;
   question?: string;
   page_name?: string; // present on meta_connection_* stages, when a Page is already known
