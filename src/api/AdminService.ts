@@ -283,6 +283,16 @@ export class AdminService {
     return response.data;
   }
 
+  /** Permanently remove a code — distinct from revoking (is_active: false),
+   * which keeps it around for its audit trail. Use this to clean up a
+   * mistake or a test code; anyone currently redeeming it is cut off first. */
+  static async deleteAccessCode(
+    code: string
+  ): Promise<{ deleted: boolean; code: string; revoked_active_users: number }> {
+    const response = await UriHttpClient.getClient().delete(`/api/admin/access-codes/${code}`);
+    return response.data;
+  }
+
   static async listAccessCodes(): Promise<{ codes: AccessCode[]; count: number }> {
     const response = await UriHttpClient.getClient().get('/api/admin/access-codes');
     return response.data;

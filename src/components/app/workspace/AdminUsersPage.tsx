@@ -730,9 +730,10 @@ function AccessCodesPanel() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-  const [expandedCode, setExpandedCode] = useState<string | null>(null);
+  const [detailCode, setDetailCode] = useState<AccessCode | null>(null);
   const [redemptions, setRedemptions] = useState<AccessCodeRedemption[]>([]);
   const [loadingRedemptions, setLoadingRedemptions] = useState(false);
+  const [deletingCode, setDeletingCode] = useState<string | null>(null);
 
   const [code, setCode] = useState('');
   const [planTierId, setPlanTierId] = useState('starter');
@@ -860,21 +861,52 @@ function AccessCodesPanel() {
     }
   };
 
-  const handleViewRedemptions = async (codeStr: string) => {
-    if (expandedCode === codeStr) {
-      setExpandedCode(null);
-      return;
-    }
-    setExpandedCode(codeStr);
+  const handleOpenDetail = async (target: AccessCode) => {
+    setDetailCode(target);
+    setRedemptions([]);
     setLoadingRedemptions(true);
     try {
-      const res = await AdminService.listAccessCodeRedemptions(codeStr);
+      const res = await AdminService.listAccessCodeRedemptions(target.code);
       setRedemptions(res.redemptions);
     } catch (error) {
       console.error('Failed to load redemptions:', error);
       setMessage({ type: 'err', text: 'Failed to load redemptions.' });
     } finally {
       setLoadingRedemptions(false);
+    }
+  };
+
+  const handleDelete = async (target: AccessCode) => {
+    if (
+      !window.confirm(
+        `Permanently delete code "${target.code}"? This can't be undone. Anyone currently redeeming it will lose access immediately — use Revoke instead if you just want to stop it while keeping the record.`
+      )
+    ) {
+      return;
+    }
+    setDeletingCode(target.code);
+    setMessage(null);
+    try {
+      const res = await AdminService.deleteAccessCode(target.code);
+      setMessage({
+        type: 'ok',
+        text:
+          res.revoked_active_users > 0
+            ? `Deleted "${target.code}" — also cut off ${res.revoked_active_users} ${
+                res.revoked_active_users === 1 ? 'person who was' : 'people who were'
+              } currently using it.`
+            : `Deleted "${target.code}".`,
+      });
+      if (detailCode?.code === target.code) setDetailCode(null);
+      await loadCodes();
+    } catch (error: unknown) {
+      const detail =
+        (error as { data?: { detail?: string }; response?: { data?: { detail?: string } } })?.data?.detail ??
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      console.error('Failed to delete access code:', error);
+      setMessage({ type: 'err', text: detail || 'Failed to delete code.' });
+    } finally {
+      setDeletingCode(null);
     }
   };
 
@@ -1047,7 +1079,7 @@ function AccessCodesPanel() {
                     <td style={{ padding: '12px 16px' }}>{c.duration_days}d</td>
                     <td style={{ padding: '12px 16px' }}>
                       <button
-                        onClick={() => handleViewRedemptions(c.code)}
+                        onClick={() => handleOpenDetail(c)}
                         style={{
                           background: 'none',
                           border: 'none',
@@ -1179,7 +1211,23 @@ function AccessCodesPanel() {
                       </span>
                     </td>
                     <td style={{ padding: '12px 16px', color: '#666' }}>{c.label || '—'}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button
+                        onClick={() => handleOpenDetail(c)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 6,
+                          border: '1px solid rgba(0,0,0,.1)',
+                          background: 'white',
+                          color: '#444',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          marginRight: 6,
+                        }}
+                      >
+                        Details
+                      </button>
                       <button
                         onClick={() => handleToggleActive(c)}
                         style={{
@@ -1191,72 +1239,218 @@ function AccessCodesPanel() {
                           fontSize: 12,
                           fontWeight: 600,
                           cursor: 'pointer',
+                          marginRight: 6,
                         }}
                       >
                         {c.is_active ? 'Revoke' : 'Reactivate'}
                       </button>
+                      <button
+                        onClick={() => handleDelete(c)}
+                        disabled={deletingCode === c.code}
+                        title="Permanently delete this code"
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 6,
+                          border: '1px solid rgba(198,40,40,.25)',
+                          background: 'white',
+                          color: deletingCode === c.code ? '#999' : '#C62828',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: deletingCode === c.code ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {deletingCode === c.code ? 'Deleting…' : 'Delete'}
+                      </button>
                     </td>
                   </tr>
-                  {expandedCode === c.code && (
-                    <tr key={`${c.code}-redemptions`}>
-                      <td colSpan={8} style={{ padding: '0 16px 16px', background: 'rgba(0,0,0,.015)' }}>
-                        {loadingRedemptions ? (
-                          <div style={{ padding: 16, color: '#888', fontSize: 12 }}>Loading redemptions…</div>
-                        ) : redemptions.length === 0 ? (
-                          <div style={{ padding: 16, color: '#888', fontSize: 12 }}>No redemptions yet.</div>
-                        ) : (
-                          <table style={{ width: '100%', fontSize: 12 }}>
-                            <thead>
-                              <tr style={{ textAlign: 'left', color: '#888' }}>
-                                <th style={{ padding: '8px 8px' }}>User</th>
-                                <th style={{ padding: '8px 8px' }}>Redeemed</th>
-                                <th style={{ padding: '8px 8px' }}>Access window</th>
-                                <th style={{ padding: '8px 8px' }}>Status</th>
-                                <th style={{ padding: '8px 8px' }}>Prior plan</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {redemptions.map((r) => (
-                                <tr key={`${r.code}-${r.user_id}`} style={{ borderTop: '1px solid rgba(0,0,0,.05)' }}>
-                                  <td style={{ padding: '8px 8px' }}>{r.email || r.user_id}</td>
-                                  <td style={{ padding: '8px 8px' }}>{new Date(r.redeemed_at).toLocaleDateString()}</td>
-                                  <td style={{ padding: '8px 8px' }}>
-                                    {new Date(r.access_start).toLocaleDateString()} –{' '}
-                                    {new Date(r.access_end).toLocaleDateString()}
-                                  </td>
-                                  <td style={{ padding: '8px 8px' }}>
-                                    {r.revoked_at ? (
-                                      <span
-                                        style={{ color: '#C62828', fontWeight: 600 }}
-                                        title={new Date(r.revoked_at).toLocaleString()}
-                                      >
-                                        Revoked —{' '}
-                                        {r.revocation_reason === 'credits_exhausted'
-                                          ? 'ran out of credits'
-                                          : r.revocation_reason}
-                                      </span>
-                                    ) : new Date(r.access_end) < new Date() ? (
-                                      <span style={{ color: '#888' }}>Lapsed (60 days)</span>
-                                    ) : (
-                                      <span style={{ color: '#2E7D32', fontWeight: 600 }}>Active</span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: '8px 8px' }}>{r.previous_subscription_tier || 'None'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                      </td>
-                    </tr>
-                  )}
                 </Fragment>
               ))}
             </tbody>
           </table>
         )}
       </div>
+      <AccessCodeDetailPanel
+        accessCode={detailCode}
+        redemptions={redemptions}
+        loading={loadingRedemptions}
+        onClose={() => setDetailCode(null)}
+      />
     </div>
+  );
+}
+
+function AccessCodeDetailPanel({
+  accessCode,
+  redemptions,
+  loading,
+  onClose,
+}: {
+  accessCode: AccessCode | null;
+  redemptions: AccessCodeRedemption[];
+  loading: boolean;
+  onClose: () => void;
+}) {
+  // Renders always (even while closed) so the slide-out transition can play
+  // on close instead of the panel just vanishing — `open` drives the
+  // transform/opacity, `accessCode` (the last one shown) drives content.
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (accessCode) {
+      const id = requestAnimationFrame(() => setOpen(true));
+      return () => cancelAnimationFrame(id);
+    }
+    setOpen(false);
+  }, [accessCode]);
+
+  if (!accessCode) return null;
+
+  const metaRow = (label: string, value: React.ReactNode) => (
+    <div>
+      <div
+        style={{ fontSize: 10.5, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '.04em' }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: 13.5, fontWeight: 600, color: '#222', marginTop: 3 }}>{value}</div>
+    </div>
+  );
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,.35)',
+          opacity: open ? 1 : 0,
+          transition: 'opacity 220ms ease',
+          zIndex: 1000,
+        }}
+      />
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          height: '100vh',
+          width: 'min(460px, 100vw)',
+          background: '#fff',
+          boxShadow: '-8px 0 28px rgba(0,0,0,.15)',
+          zIndex: 1001,
+          transform: open ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 280ms cubic-bezier(0.4, 0, 0.2, 1)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div
+          style={{
+            padding: '20px 22px',
+            borderBottom: '1px solid rgba(0,0,0,.08)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            flexShrink: 0,
+          }}
+        >
+          <div>
+            <div style={{ fontFamily: 'monospace', fontSize: 21, fontWeight: 800, letterSpacing: '.02em' }}>
+              {accessCode.code}
+            </div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 3 }}>{accessCode.label || 'No label'}</div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 22,
+              cursor: 'pointer',
+              color: '#999',
+              lineHeight: 1,
+              padding: 4,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ padding: '20px 22px', overflowY: 'auto', flex: 1 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+            {metaRow('Plan', accessCode.plan_tier_id)}
+            {metaRow('Duration', `${accessCode.duration_days} days`)}
+            {metaRow(
+              'Redemptions',
+              `${accessCode.redemption_count}${accessCode.max_redemptions ? ` / ${accessCode.max_redemptions}` : ' (unlimited)'}`
+            )}
+            {metaRow(
+              'Status',
+              <span style={{ color: accessCode.is_active ? '#2E7D32' : '#C62828' }}>
+                {accessCode.is_active ? 'Active' : 'Revoked'}
+              </span>
+            )}
+            {metaRow('Assigned to', accessCode.assigned_to_name || accessCode.assigned_to_email || 'Anyone (shared)')}
+            {metaRow('Created by', accessCode.created_by)}
+          </div>
+
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: '#333' }}>
+            Redeemed by ({redemptions.length})
+          </div>
+          {loading ? (
+            <div style={{ color: '#888', fontSize: 12.5 }}>Loading…</div>
+          ) : redemptions.length === 0 ? (
+            <div style={{ color: '#888', fontSize: 12.5 }}>No one has redeemed this code yet.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {redemptions.map((r) => (
+                <div
+                  key={`${r.code}-${r.user_id}`}
+                  style={{ border: '1px solid rgba(0,0,0,.08)', borderRadius: 10, padding: 13 }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#222' }}>{r.email || r.user_id}</div>
+                  <div style={{ fontSize: 11.5, color: '#888', marginTop: 5 }}>
+                    Redeemed {new Date(r.redeemed_at).toLocaleDateString()}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#888' }}>
+                    Access: {new Date(r.access_start).toLocaleDateString()} →{' '}
+                    {new Date(r.access_end).toLocaleDateString()}
+                  </div>
+                  <div style={{ marginTop: 7 }}>
+                    {r.revoked_at ? (
+                      <span
+                        style={{ fontSize: 11, fontWeight: 700, color: '#C62828' }}
+                        title={new Date(r.revoked_at).toLocaleString()}
+                      >
+                        Revoked —{' '}
+                        {r.revocation_reason === 'credits_exhausted'
+                          ? 'ran out of credits'
+                          : r.revocation_reason === 'admin_revoked'
+                            ? 'admin revoked the code'
+                            : r.revocation_reason}
+                      </span>
+                    ) : new Date(r.access_end) < new Date() ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#888' }}>
+                        Lapsed ({accessCode.duration_days} days)
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#2E7D32' }}>Active</span>
+                    )}
+                  </div>
+                  {r.previous_subscription_tier && (
+                    <div style={{ fontSize: 11, color: '#aaa', marginTop: 5 }}>
+                      Was on: {r.previous_subscription_tier}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
 
