@@ -115,6 +115,10 @@ export interface AccessCode {
   // whether the invite email was actually queued (true) or skipped, e.g.
   // send_email: false was passed. Not present on unassigned codes.
   email_sent?: boolean;
+  // Only meaningful on the response to a revoke (is_active: false) — how
+  // many people currently redeeming this code just had their access cut
+  // off immediately, not just blocked from future redemptions.
+  revoked_active_users?: number;
 }
 
 export interface AccessCodeRedemption {

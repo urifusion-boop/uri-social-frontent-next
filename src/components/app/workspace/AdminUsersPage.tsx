@@ -804,8 +804,17 @@ function AccessCodesPanel() {
   };
 
   const handleToggleActive = async (target: AccessCode) => {
+    setMessage(null);
     try {
-      await AdminService.updateAccessCode(target.code, { is_active: !target.is_active });
+      const updated = await AdminService.updateAccessCode(target.code, { is_active: !target.is_active });
+      if (!updated.is_active && (updated.revoked_active_users ?? 0) > 0) {
+        setMessage({
+          type: 'ok',
+          text: `Revoked "${target.code}" — immediately cut off ${updated.revoked_active_users} ${
+            updated.revoked_active_users === 1 ? 'person who was' : 'people who were'
+          } currently using it.`,
+        });
+      }
       await loadCodes();
     } catch (error) {
       console.error('Failed to update access code:', error);
