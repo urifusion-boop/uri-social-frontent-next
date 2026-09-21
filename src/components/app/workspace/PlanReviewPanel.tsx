@@ -20,7 +20,9 @@ import { CampaignService, PlanField } from '@/src/api/CampaignService';
 
 type Props = {
   planId: string;
-  onSaved?: () => void;
+  /** Hands the caller the refreshed plan payload so the card above can stop showing
+   * Jane's original numbers once the client has changed them. */
+  onSaved?: (refreshed: { plan_edited?: boolean; plan?: unknown; creative?: unknown }) => void;
 };
 
 const CARD: React.CSSProperties = {
@@ -112,7 +114,11 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
       setPending({});
       if (result.applied?.length) {
         setSavedNote(`Saved: ${result.applied.join(', ')}. This is what will launch.`);
-        onSaved?.();
+        onSaved?.({
+          plan_edited: result.plan_edited,
+          plan: result.plan,
+          creative: result.creative,
+        });
       }
     } catch {
       setRejected(['Could not save those changes. Nothing was changed.']);

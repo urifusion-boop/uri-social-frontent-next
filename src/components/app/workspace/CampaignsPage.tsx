@@ -2248,7 +2248,7 @@ function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: st
 // chat straight with this number, so it must be captured before a plan can be built.
 // Tier C/D — Jane's reasoning laid out: every choice + its why, plus estimates. Turns
 // the plan card from a black box into "here's what I'm doing and why," like a strategist.
-function CampaignReview({ summary }: { summary: CampaignSummary }) {
+function CampaignReview({ summary, edited }: { summary: CampaignSummary; edited?: boolean }) {
   const rows: { label: string; rv: { value: string; reason: string } }[] = [
     { label: 'Objective', rv: summary.objective },
     { label: 'Audience', rv: summary.audience },
@@ -2278,6 +2278,17 @@ function CampaignReview({ summary }: { summary: CampaignSummary }) {
       <div style={{ background: '#faf7f8', padding: '8px 12px', fontSize: 12, fontWeight: 800, color: PINK }}>
         Jane&rsquo;s plan — here&rsquo;s my thinking
       </div>
+      {edited && (
+        /* This block is Jane's ORIGINAL reasoning and its prose is not regenerated on
+           edit. Saying so is the honest option: silently leaving it would give two
+           contradictory answers to "what is about to launch". */
+        <div style={{ background: '#fff8ec', borderBottom: '1px solid #f0e0c0', padding: '7px 12px' }}>
+          <p style={{ margin: 0, fontSize: 11.5, color: '#8a5a00' }}>
+            You&rsquo;ve changed this plan. Jane&rsquo;s reasoning below was her original
+            proposal — the ad will launch with your saved values, shown underneath.
+          </p>
+        </div>
+      )}
       <div style={{ padding: '4px 12px' }}>
         {rows.map((r) => (
           <div key={r.label} style={{ padding: '8px 0', borderBottom: '1px solid #f2f0f0' }}>
@@ -3521,7 +3532,7 @@ function ResultCard({
               💬 Leads message <strong>+{result.whatsapp_number}</strong> on WhatsApp
             </p>
           )}
-          {result.summary && <CampaignReview summary={result.summary} />}
+          {result.summary && <CampaignReview summary={result.summary} edited={result.plan_edited} />}
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
               {/* One number: what actually leaves the wallet, which IS the budget the
@@ -3622,7 +3633,19 @@ function ResultCard({
           {result.stage === 'planned' && result.plan_id && (
             <PlanReviewPanel
               planId={result.plan_id}
-              onSaved={() => onResultChange({ ...result })}
+              onSaved={(refreshed) =>
+                onResultChange({
+                  ...result,
+                  plan_edited: refreshed.plan_edited,
+                  // Only the parts the save recomputed — never blow away the rest of
+                  // the planning payload the card still needs.
+                  plan:
+                    result.plan && refreshed.plan
+                      ? ({ ...result.plan, ...(refreshed.plan as object) } as typeof result.plan)
+                      : result.plan,
+                  creative: (refreshed.creative as typeof result.creative) ?? result.creative,
+                })
+              }
             />
           )}
           {result.stage === 'planned' && result.plan_id && (

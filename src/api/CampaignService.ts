@@ -126,6 +126,12 @@ export interface PlanFieldsSaveResult {
   applied: string[];
   rejected: string[];
   fields: PlanField[];
+  /** True when something actually changed. Jane's plan card above the panel renders
+   * from the planning payload, so it must be told the plan no longer matches what
+   * she originally proposed — otherwise the two disagree about what will launch. */
+  plan_edited?: boolean;
+  plan?: { platforms?: unknown[]; geo?: unknown };
+  creative?: unknown;
 }
 
 export interface LaunchFromMessageResult {
@@ -155,6 +161,9 @@ export interface LaunchFromMessageResult {
     | 'tiktok_needs_video'
     | 'tiktok_not_configured';
   plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
+  /** Set once the client edits the plan in the review panel. Jane's reasoning block
+   * is not regenerated, so the card says so rather than contradicting the panel. */
+  plan_edited?: boolean;
   understood?: UnderstoodFields;
   question?: string;
   page_name?: string; // present on meta_connection_* stages, when a Page is already known
