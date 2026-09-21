@@ -28,6 +28,10 @@ type Props = {
     creative?: unknown;
     summary?: unknown;
   }) => void;
+  /** Unsaved edits mean the STORED plan is still Jane's — launching now would run the
+   * un-edited ad while the panel shows the client's changes. The caller gates the
+   * launch button on this. */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 const CARD: React.CSSProperties = {
@@ -36,6 +40,27 @@ const CARD: React.CSSProperties = {
   borderRadius: 12,
   padding: '14px 16px',
 };
+
+const FIELD_WORDS: Record<string, string> = {
+  headline: 'the headline',
+  caption: 'the caption',
+  locations: 'the locations',
+  interests: 'the interests',
+  gender: 'the gender',
+  placement: 'where it shows',
+  age_min: 'the minimum age',
+  age_max: 'the maximum age',
+  budget_ngn: 'the budget',
+  days: 'the duration',
+};
+
+/** "the caption and the budget", "the caption, the budget and the duration" — Jane
+ * says what she changed in words, not as a list of field keys. */
+function spokenList(keys: string[]): string {
+  const words = keys.map((k) => FIELD_WORDS[k] ?? k);
+  if (words.length <= 1) return words[0] ?? '';
+  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+}
 
 function displayValue(field: PlanField): string {
   if (Array.isArray(field.value)) return field.value.length ? field.value.join(', ') : '—';
@@ -60,14 +85,17 @@ function parseEdit(field: PlanField, text: string): unknown {
   return text;
 }
 
-export default function PlanReviewPanel({ planId, onSaved }: Props) {
+export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Props) {
   const [fields, setFields] = useState<PlanField[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   const [rejected, setRejected] = useState<string[]>([]);
-  const [savedNote, setSavedNote] = useState('');
+  // After a save the panel steps OUT of the form and back into the conversation:
+  // Jane reports what she rebuilt and asks what's next, rather than silently
+  // updating a form the client then has to re-read to find their own changes.
+  const [justSaved, setJustSaved] = useState<string[] | null>(null);
   const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async () => {
@@ -87,7 +115,7 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
   const startEdit = (field: PlanField) => {
     setEditing(field.key);
     setDraft(toEditText(field));
-    setSavedNote('');
+    setJustSaved(null);
   };
 
   const stageEdit = (field: PlanField) => {
@@ -111,14 +139,14 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
     if (!Object.keys(pending).length) return;
     setSaving(true);
     setRejected([]);
-    setSavedNote('');
+    setJustSaved(null);
     try {
       const result = await CampaignService.savePlanFields(planId, pending);
       setFields(result.fields);
       setRejected(result.rejected || []);
       setPending({});
       if (result.applied?.length) {
-        setSavedNote(`Saved: ${result.applied.join(', ')}. This is what will launch.`);
+        setJustSaved(result.applied);
         onSaved?.({
           plan_edited: result.plan_edited,
           plan: result.plan,
@@ -152,6 +180,49 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
   }
 
   const dirty = Object.keys(pending).length > 0;
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  if (justSaved) {
+    return (
+      <div style={{ ...CARD, borderColor: '#cde9cd', background: '#f6fbf6' }}>
+        <p style={{ margin: '0 0 6px', fontSize: 13.5, fontWeight: 700, color: '#2e7d32' }}>
+          ✓ Rebuilt with your changes
+        </p>
+        <p style={{ margin: '0 0 4px', fontSize: 12.5, color: '#33691e' }}>
+          I&rsquo;ve redone the plan using {spokenList(justSaved)} you changed. The
+          reasoning and the reach estimate above are recalculated from your version —
+          that&rsquo;s the ad that will run.
+        </p>
+        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#33691e' }}>
+          Want to change anything else, or shall we launch it?
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setJustSaved(null)}
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              padding: '7px 14px',
+              borderRadius: 8,
+              border: '1px solid #cde9cd',
+              background: '#fff',
+              color: '#2e7d32',
+              cursor: 'pointer',
+            }}
+          >
+            Change something else
+          </button>
+          <span style={{ fontSize: 11.5, color: '#5a7a4a', alignSelf: 'center' }}>
+            …or use the launch button below when you&rsquo;re happy.
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={CARD}>
@@ -273,12 +344,6 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
             </p>
           ))}
         </div>
-      )}
-
-      {savedNote && (
-        <p style={{ margin: '10px 0 0', fontSize: 12, color: '#2e7d32', fontWeight: 600 }}>
-          {savedNote}
-        </p>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
