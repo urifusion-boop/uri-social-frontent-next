@@ -111,6 +111,9 @@ export interface PlanField {
   editable: boolean;
   help?: string;
   options?: string[];
+  /** Human labels for `options`, keyed by option value — a select whose values are
+   * wire-format keys ('instagram_only') must still read as English in the UI. */
+  option_labels?: Record<string, string>;
   max_length?: number;
   max_items?: number;
   min?: number;
