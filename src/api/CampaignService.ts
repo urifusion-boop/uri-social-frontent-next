@@ -100,6 +100,31 @@ export interface CtaChoice {
   label: string;
 }
 
+/** One editable line of a plan, as the review step renders it. `editable: false`
+ * lines (daily spend, destination) are shown for context but carry no pencil — they
+ * are derived from other fields, and offering an edit we would ignore is its own lie. */
+export interface PlanField {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'list' | 'select' | 'number' | 'derived';
+  value: string | number | string[] | null;
+  editable: boolean;
+  help?: string;
+  options?: string[];
+  max_length?: number;
+  max_items?: number;
+  min?: number;
+  max?: number;
+  prefix?: string;
+}
+
+export interface PlanFieldsSaveResult {
+  plan_id: string;
+  applied: string[];
+  rejected: string[];
+  fields: PlanField[];
+}
+
 export interface LaunchFromMessageResult {
   stage:
     | 'need_more'
@@ -441,6 +466,34 @@ export class CampaignService {
   }
 
   /** Plan-before-launch, step 2 — the only call that actually creates a real (paused) Meta campaign. */
+  /** The review step: the plan as individually editable lines.
+   *
+   * Sits between the plan card and the launch button so a client changes the ad
+   * before their wallet moves, rather than discovering it afterwards in Ads Manager.
+   */
+  static async getPlanFields(planId: string): Promise<{ plan_id: string; fields: PlanField[] }> {
+    const res = await UriHttpClient.getClient().get(`/jane-ads/meta/plan/${planId}/fields`);
+    return res.data as { plan_id: string; fields: PlanField[] };
+  }
+
+  /** Save edits. The backend validates each one against the same machinery the launch
+   * uses (Meta's location and interest catalogues, the policy scan, the brand's spend
+   * cap), so anything it accepts here cannot fail at launch. Rejections come back per
+   * field and do NOT discard the edits that were fine — never drop typed work. */
+  static async savePlanFields(
+    planId: string,
+    edits: Record<string, unknown>,
+  ): Promise<PlanFieldsSaveResult> {
+    // Location and interest edits each cost a round trip to Meta's search, so this is
+    // slower than a normal PATCH.
+    const res = await UriHttpClient.getClient().patch(
+      `/jane-ads/meta/plan/${planId}/fields`,
+      { edits },
+      { timeout: 90000 },
+    );
+    return res.data as PlanFieldsSaveResult;
+  }
+
   static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
     // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
     // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was

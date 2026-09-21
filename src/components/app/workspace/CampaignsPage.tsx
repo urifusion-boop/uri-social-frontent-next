@@ -20,6 +20,7 @@ import {
 import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/workspace/AdFormatGallery';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import HomePanel from '@/src/components/app/workspace/HomePanel';
+import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -3468,6 +3469,12 @@ function ResultCard({
               )}
             </div>
           ) : null}
+          {result.stage === 'planned' && result.plan_id && (
+            <PlanReviewPanel
+              planId={result.plan_id}
+              onSaved={() => onResultChange({ ...result })}
+            />
+          )}
           {result.stage === 'planned' && result.plan_id && (
             <PlanAskBox
               planId={result.plan_id}
