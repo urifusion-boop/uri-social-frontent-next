@@ -739,6 +739,13 @@ function AccessCodesPanel() {
   const [durationDays, setDurationDays] = useState('60');
   const [maxRedemptions, setMaxRedemptions] = useState('');
   const [label, setLabel] = useState('');
+  const [assignedToEmail, setAssignedToEmail] = useState('');
+
+  // Inline reassign/unassign editor — which code row (if any) has its
+  // assignment field open for editing, and the draft value being typed.
+  const [reassigningCode, setReassigningCode] = useState<string | null>(null);
+  const [reassignDraft, setReassignDraft] = useState('');
+  const [reassigning, setReassigning] = useState(false);
 
   const loadCodes = async () => {
     setLoading(true);
@@ -767,11 +774,18 @@ function AccessCodesPanel() {
         duration_days: parseInt(durationDays, 10) || 60,
         max_redemptions: maxRedemptions ? parseInt(maxRedemptions, 10) : undefined,
         label: label.trim() || undefined,
+        assigned_to_email: assignedToEmail.trim() || undefined,
       });
-      setMessage({ type: 'ok', text: `Created code "${created.code}".` });
+      setMessage({
+        type: 'ok',
+        text: created.assigned_to_email
+          ? `Created code "${created.code}" — reserved for ${created.assigned_to_name || created.assigned_to_email}.`
+          : `Created code "${created.code}".`,
+      });
       setCode('');
       setLabel('');
       setMaxRedemptions('');
+      setAssignedToEmail('');
       await loadCodes();
     } catch (error: unknown) {
       const detail =
@@ -791,6 +805,27 @@ function AccessCodesPanel() {
     } catch (error) {
       console.error('Failed to update access code:', error);
       setMessage({ type: 'err', text: 'Failed to update code.' });
+    }
+  };
+
+  const openReassign = (target: AccessCode) => {
+    setReassigningCode(target.code);
+    setReassignDraft(target.assigned_to_email || '');
+  };
+
+  const handleSaveReassign = async (codeStr: string) => {
+    setReassigning(true);
+    try {
+      // Empty draft clears the assignment (backend treats "" as "unassign",
+      // distinct from omitting the field, which would leave it untouched).
+      await AdminService.updateAccessCode(codeStr, { assigned_to_email: reassignDraft.trim() });
+      setReassigningCode(null);
+      await loadCodes();
+    } catch (error) {
+      console.error('Failed to reassign access code:', error);
+      setMessage({ type: 'err', text: 'Failed to update assignment.' });
+    } finally {
+      setReassigning(false);
     }
   };
 
@@ -833,8 +868,10 @@ function AccessCodesPanel() {
       >
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Create a new code</div>
         <div style={{ fontSize: 12, color: '#888', marginBottom: 14 }}>
-          Anyone who redeems this code gets the chosen plan free for the given number of days, starting from their own
-          redemption date — not a shared expiry for everyone who uses the code.
+          Whoever redeems a code gets the chosen plan free for the given number of days, starting from their own
+          redemption date — not a shared expiry for everyone who uses the code. Leave "Assign to" blank for a shared
+          code anyone can redeem, or set it to reserve this code for one specific person — only that email will be able
+          to redeem it, and you'll see it's theirs immediately below, before they ever act.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
           <div>
@@ -879,6 +916,18 @@ function AccessCodesPanel() {
               style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
             />
           </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>
+              Assign to (email, optional)
+            </div>
+            <input
+              type="email"
+              value={assignedToEmail}
+              onChange={(e) => setAssignedToEmail(e.target.value)}
+              placeholder="Leave blank for a shared code"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>
               Label (e.g. partnership name)
@@ -891,6 +940,11 @@ function AccessCodesPanel() {
             />
           </div>
         </div>
+        {assignedToEmail.trim() && (
+          <div style={{ marginTop: 8, fontSize: 11.5, color: '#888' }}>
+            Only <strong>{assignedToEmail.trim()}</strong> will be able to redeem this code.
+          </div>
+        )}
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             onClick={handleCreate}
@@ -926,7 +980,7 @@ function AccessCodesPanel() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'rgba(0,0,0,.02)', textAlign: 'left' }}>
-                {['Code', 'Plan', 'Duration', 'Redemptions', 'Status', 'Label', ''].map((h) => (
+                {['Code', 'Plan', 'Duration', 'Redemptions', 'Assigned to', 'Active', 'Label', ''].map((h) => (
                   <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: '#888' }}>
                     {h}
                   </th>
@@ -956,6 +1010,95 @@ function AccessCodesPanel() {
                         {c.redemption_count}
                         {c.max_redemptions ? ` / ${c.max_redemptions}` : ''}
                       </button>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {reassigningCode === c.code ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <input
+                            autoFocus
+                            type="email"
+                            value={reassignDraft}
+                            onChange={(e) => setReassignDraft(e.target.value)}
+                            placeholder="Anyone (shared)"
+                            style={{ ...inputStyle, padding: '5px 8px', fontSize: 12, width: 150 }}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSaveReassign(c.code)}
+                          />
+                          <button
+                            onClick={() => handleSaveReassign(c.code)}
+                            disabled={reassigning}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#2E7D32',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              fontSize: 16,
+                            }}
+                            title="Save"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => setReassigningCode(null)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#999',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                            }}
+                            title="Cancel"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : c.assigned_to_email ? (
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{c.assigned_to_name || c.assigned_to_email}</div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
+                            <span
+                              style={{
+                                padding: '1px 8px',
+                                borderRadius: 20,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                background: c.status === 'redeemed' ? 'rgba(46,125,50,.1)' : 'rgba(255,152,0,.12)',
+                                color: c.status === 'redeemed' ? '#2E7D32' : '#B26A00',
+                              }}
+                            >
+                              {c.status === 'redeemed' ? 'Redeemed' : 'Pending'}
+                            </span>
+                            <button
+                              onClick={() => openReassign(c)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#AD1457',
+                                cursor: 'pointer',
+                                fontSize: 11,
+                              }}
+                            >
+                              Change
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <span style={{ color: '#999' }}>Anyone (shared)</span>{' '}
+                          <button
+                            onClick={() => openReassign(c)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#AD1457',
+                              cursor: 'pointer',
+                              fontSize: 11,
+                            }}
+                          >
+                            Assign
+                          </button>
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <span
@@ -992,7 +1135,7 @@ function AccessCodesPanel() {
                   </tr>
                   {expandedCode === c.code && (
                     <tr key={`${c.code}-redemptions`}>
-                      <td colSpan={7} style={{ padding: '0 16px 16px', background: 'rgba(0,0,0,.015)' }}>
+                      <td colSpan={8} style={{ padding: '0 16px 16px', background: 'rgba(0,0,0,.015)' }}>
                         {loadingRedemptions ? (
                           <div style={{ padding: 16, color: '#888', fontSize: 12 }}>Loading redemptions…</div>
                         ) : redemptions.length === 0 ? (

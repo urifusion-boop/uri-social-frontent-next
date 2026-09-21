@@ -103,6 +103,14 @@ export interface AccessCode {
   label: string;
   created_by: string;
   created_at: string;
+  // Personal-invite mode: set means only this email can ever redeem this
+  // code (enforced server-side). assigned_to_name/status are resolved by
+  // the backend on every create/list/update — status is 'unassigned' (a
+  // shared code, anyone with it can redeem), 'pending' (assigned, not yet
+  // redeemed), or 'redeemed'.
+  assigned_to_email: string | null;
+  assigned_to_name: string | null;
+  status: 'unassigned' | 'pending' | 'redeemed';
 }
 
 export interface AccessCodeRedemption {
@@ -246,6 +254,8 @@ export class AdminService {
     max_redemptions?: number;
     expires_at?: string;
     label?: string;
+    /** Reserve this code for one specific person — omit for a shared code anyone can redeem. */
+    assigned_to_email?: string;
   }): Promise<AccessCode> {
     const response = await UriHttpClient.getClient().post('/api/admin/access-codes', params);
     return response.data;
@@ -264,7 +274,11 @@ export class AdminService {
   }
 
   /** Revoke a code early (is_active: false) or edit its label. */
-  static async updateAccessCode(code: string, updates: { is_active?: boolean; label?: string }): Promise<AccessCode> {
+  /** Pass assigned_to_email: '' to clear an existing assignment — distinct from omitting it, which leaves it untouched. */
+  static async updateAccessCode(
+    code: string,
+    updates: { is_active?: boolean; label?: string; assigned_to_email?: string }
+  ): Promise<AccessCode> {
     const response = await UriHttpClient.getClient().patch(`/api/admin/access-codes/${code}`, updates);
     return response.data;
   }
