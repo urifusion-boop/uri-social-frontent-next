@@ -3208,6 +3208,9 @@ function ResultCard({
   stale?: boolean;
 }) {
   const [launching, setLaunching] = useState(false);
+  // Edits sitting unsaved in the review panel are NOT on the stored plan, so a launch
+  // now would run Jane's original ad while the screen shows the client's version.
+  const [unsavedEdits, setUnsavedEdits] = useState(false);
   const [launchError, setLaunchError] = useState('');
   // Pre-existing rules-of-hooks bug: these two were declared after several early
   // returns below (meta_connection_ads_no_whatsapp, choose_creative_source, etc.),
@@ -3572,7 +3575,8 @@ function ResultCard({
               )}
               <button
                 onClick={confirmLaunch}
-                disabled={launching}
+                disabled={launching || unsavedEdits}
+                title={unsavedEdits ? 'Save your changes first — otherwise the original ad launches' : undefined}
                 style={{
                   width: '100%',
                   border: 'none',
@@ -3580,12 +3584,17 @@ function ResultCard({
                   padding: '10px 14px',
                   fontWeight: 700,
                   fontSize: 13,
-                  cursor: launching ? 'default' : 'pointer',
-                  background: launching ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
-                  color: launching ? '#999' : '#fff',
+                  cursor: launching || unsavedEdits ? 'default' : 'pointer',
+                  background:
+                    launching || unsavedEdits ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                  color: launching || unsavedEdits ? '#999' : '#fff',
                 }}
               >
-                {launching ? 'Launching…' : '✓ Looks good — launch it'}
+                {launching
+                  ? 'Launching…'
+                  : unsavedEdits
+                    ? 'Save your changes first'
+                    : '✓ Looks good — launch it'}
               </button>
               {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
               {fixingWhatsapp && (
@@ -3633,6 +3642,7 @@ function ResultCard({
           {result.stage === 'planned' && result.plan_id && (
             <PlanReviewPanel
               planId={result.plan_id}
+              onDirtyChange={setUnsavedEdits}
               onSaved={(refreshed) =>
                 onResultChange({
                   ...result,
