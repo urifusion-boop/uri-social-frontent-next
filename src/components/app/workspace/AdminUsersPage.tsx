@@ -740,6 +740,8 @@ function AccessCodesPanel() {
   const [maxRedemptions, setMaxRedemptions] = useState('');
   const [label, setLabel] = useState('');
   const [assignedToEmail, setAssignedToEmail] = useState('');
+  const [sendEmailOnCreate, setSendEmailOnCreate] = useState(true);
+  const [resendingCode, setResendingCode] = useState<string | null>(null);
 
   // Inline reassign/unassign editor — which code row (if any) has its
   // assignment field open for editing, and the draft value being typed.
@@ -775,11 +777,14 @@ function AccessCodesPanel() {
         max_redemptions: maxRedemptions ? parseInt(maxRedemptions, 10) : undefined,
         label: label.trim() || undefined,
         assigned_to_email: assignedToEmail.trim() || undefined,
+        send_email: sendEmailOnCreate,
       });
       setMessage({
         type: 'ok',
         text: created.assigned_to_email
-          ? `Created code "${created.code}" — reserved for ${created.assigned_to_name || created.assigned_to_email}.`
+          ? created.email_sent
+            ? `Created code "${created.code}" and emailed it to ${created.assigned_to_name || created.assigned_to_email}.`
+            : `Created code "${created.code}" — reserved for ${created.assigned_to_name || created.assigned_to_email}. (Not emailed — you can send it from the table below.)`
           : `Created code "${created.code}".`,
       });
       setCode('');
@@ -805,6 +810,23 @@ function AccessCodesPanel() {
     } catch (error) {
       console.error('Failed to update access code:', error);
       setMessage({ type: 'err', text: 'Failed to update code.' });
+    }
+  };
+
+  const handleResendEmail = async (target: AccessCode) => {
+    setResendingCode(target.code);
+    setMessage(null);
+    try {
+      const res = await AdminService.sendAccessCodeEmail(target.code);
+      setMessage({ type: 'ok', text: `Emailed "${target.code}" to ${res.to}.` });
+    } catch (error: unknown) {
+      const detail =
+        (error as { data?: { detail?: string }; response?: { data?: { detail?: string } } })?.data?.detail ??
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      console.error('Failed to send access code email:', error);
+      setMessage({ type: 'err', text: detail || 'Failed to send email.' });
+    } finally {
+      setResendingCode(null);
     }
   };
 
@@ -945,6 +967,26 @@ function AccessCodesPanel() {
             Only <strong>{assignedToEmail.trim()}</strong> will be able to redeem this code.
           </div>
         )}
+        {assignedToEmail.trim() && (
+          <label
+            style={{
+              marginTop: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              fontSize: 12.5,
+              color: '#444',
+              cursor: 'pointer',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={sendEmailOnCreate}
+              onChange={(e) => setSendEmailOnCreate(e.target.checked)}
+            />
+            Email the code to {assignedToEmail.trim()} right away
+          </label>
+        )}
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             onClick={handleCreate}
@@ -1079,6 +1121,19 @@ function AccessCodesPanel() {
                               }}
                             >
                               Change
+                            </button>
+                            <button
+                              onClick={() => handleResendEmail(c)}
+                              disabled={resendingCode === c.code}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: resendingCode === c.code ? '#999' : '#AD1457',
+                                cursor: resendingCode === c.code ? 'not-allowed' : 'pointer',
+                                fontSize: 11,
+                              }}
+                            >
+                              {resendingCode === c.code ? 'Sending…' : 'Email code'}
                             </button>
                           </div>
                         </div>

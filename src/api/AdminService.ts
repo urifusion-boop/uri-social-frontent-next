@@ -111,6 +111,10 @@ export interface AccessCode {
   assigned_to_email: string | null;
   assigned_to_name: string | null;
   status: 'unassigned' | 'pending' | 'redeemed';
+  // Only present in the response right after creating an assigned code —
+  // whether the invite email was actually queued (true) or skipped, e.g.
+  // send_email: false was passed. Not present on unassigned codes.
+  email_sent?: boolean;
 }
 
 export interface AccessCodeRedemption {
@@ -261,8 +265,17 @@ export class AdminService {
     label?: string;
     /** Reserve this code for one specific person — omit for a shared code anyone can redeem. */
     assigned_to_email?: string;
+    /** When assigned_to_email is set, email them the code immediately. Defaults to true server-side. */
+    send_email?: boolean;
   }): Promise<AccessCode> {
     const response = await UriHttpClient.getClient().post('/api/admin/access-codes', params);
+    return response.data;
+  }
+
+  /** (Re)send an already-assigned code to its recipient — e.g. it was created
+   * with the email skipped, or the recipient never got/lost it. */
+  static async sendAccessCodeEmail(code: string): Promise<{ sent: boolean; to: string }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/access-codes/${code}/send-email`);
     return response.data;
   }
 
