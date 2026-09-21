@@ -6375,6 +6375,25 @@ const PlaybookPage = ({
         )}
       </div>
 
+      {/* Business Pulse — a separate, always-editable surface (own save button,
+          own load/save calls) nested here rather than given its own top-level
+          nav destination. It renders its own header/subtitle, so it isn't
+          wrapped in a titled PbSection like the sections below (that would
+          duplicate the heading) — just contained so its internal
+          height:'100%' resolves against this box instead of the full page. */}
+      <div
+        style={{
+          border: '1px solid #edecea',
+          borderRadius: 14,
+          marginBottom: 20,
+          minHeight: 560,
+          background: '#fff',
+          overflow: 'hidden',
+        }}
+      >
+        <BusinessPulsePanel />
+      </div>
+
       {/* Brand Identity */}
       <PbSection title="Brand Identity">
         {/* Logo row */}
@@ -9205,15 +9224,7 @@ const getNav = (isAdminUser: boolean, isSupportUser: boolean) => {
       label: 'Brand Playbook',
       tooltip: 'Set your brand voice, visual style, and content guidelines for the AI',
     },
-    // Business Pulse hidden — shipped to production ahead of schedule inside
-    // the Brand Playbook release; not yet ready to be user-facing.
-    // {
-    //   id: 'business-pulse',
-    //   icon: 'heart',
-    //   label: 'Business Pulse',
-    //   tooltip:
-    //     "What's happening in your business right now — promotions, campaigns, news. Feeds directly into your content calendar.",
-    // },
+    // Business Pulse moved inside Brand Playbook — no longer its own destination.
     {
       id: 'settings',
       icon: 'settings',
@@ -9269,7 +9280,7 @@ const MOBILE_TABS = [
 
 const MORE_NAV = [
   { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
-  // Business Pulse hidden — see the matching comment on the main tab list above.
+  // Business Pulse moved inside Brand Playbook — see the matching comment on the main tab list above.
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
   { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts/' },
@@ -9706,7 +9717,6 @@ export default function WorkspaceDashboard() {
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
     campaigns: <CampaignsPage onJane={goWorkspace} onNavigate={goTo} />,
-    'business-pulse': <BusinessPulsePanel />,
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
