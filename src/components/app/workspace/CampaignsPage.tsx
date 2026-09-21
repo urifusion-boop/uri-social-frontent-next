@@ -3382,7 +3382,7 @@ function ResultCard({
               💬 Leads message <strong>+{result.whatsapp_number}</strong> on WhatsApp
             </p>
           )}
-          {result.summary && <CampaignReview summary={result.summary} edited={result.plan_edited} />}
+          {result.summary && <CampaignReview summary={result.summary} edited={result.plan_edited && result.summary_stale} />}
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
               {/* One number: what actually leaves the wallet, which IS the budget the
@@ -3494,6 +3494,10 @@ function ResultCard({
                       ? ({ ...result.plan, ...(refreshed.plan as object) } as typeof result.plan)
                       : result.plan,
                   creative: (refreshed.creative as typeof result.creative) ?? result.creative,
+                  // Rebuilt from the edited plan. Keep the old one only if the rebuild
+                  // failed — the banner below then says the reasoning is Jane's original.
+                  summary: (refreshed.summary as typeof result.summary) ?? result.summary,
+                  summary_stale: !refreshed.summary,
                 })
               }
             />

@@ -22,7 +22,12 @@ type Props = {
   planId: string;
   /** Hands the caller the refreshed plan payload so the card above can stop showing
    * Jane's original numbers once the client has changed them. */
-  onSaved?: (refreshed: { plan_edited?: boolean; plan?: unknown; creative?: unknown }) => void;
+  onSaved?: (refreshed: {
+    plan_edited?: boolean;
+    plan?: unknown;
+    creative?: unknown;
+    summary?: unknown;
+  }) => void;
 };
 
 const CARD: React.CSSProperties = {
@@ -118,6 +123,7 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
           plan_edited: result.plan_edited,
           plan: result.plan,
           creative: result.creative,
+          summary: result.summary,
         });
       }
     } catch {
