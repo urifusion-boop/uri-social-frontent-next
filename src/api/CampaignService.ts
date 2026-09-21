@@ -100,6 +100,44 @@ export interface CtaChoice {
   label: string;
 }
 
+/** One editable line of a plan, as the review step renders it. `editable: false`
+ * lines (daily spend, destination) are shown for context but carry no pencil — they
+ * are derived from other fields, and offering an edit we would ignore is its own lie. */
+export interface PlanField {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'list' | 'select' | 'number' | 'derived';
+  value: string | number | string[] | null;
+  editable: boolean;
+  help?: string;
+  options?: string[];
+  /** Human labels for `options`, keyed by option value — a select whose values are
+   * wire-format keys ('instagram_only') must still read as English in the UI. */
+  option_labels?: Record<string, string>;
+  max_length?: number;
+  max_items?: number;
+  min?: number;
+  max?: number;
+  prefix?: string;
+}
+
+export interface PlanFieldsSaveResult {
+  plan_id: string;
+  applied: string[];
+  rejected: string[];
+  fields: PlanField[];
+  /** True when something actually changed. Jane's plan card above the panel renders
+   * from the planning payload, so it must be told the plan no longer matches what
+   * she originally proposed — otherwise the two disagree about what will launch. */
+  plan_edited?: boolean;
+  plan?: { platforms?: unknown[]; geo?: unknown };
+  creative?: unknown;
+  /** Jane's reasoning re-derived from the edited plan — reach and cost per result
+   * re-fetched, every sentence rebuilt. Null when it could not be rebuilt, in which
+   * case the caller keeps the summary it already had. */
+  summary?: CampaignSummary | null;
+}
+
 export interface LaunchFromMessageResult {
   stage:
     | 'need_more'
@@ -127,6 +165,11 @@ export interface LaunchFromMessageResult {
     | 'tiktok_needs_video'
     | 'tiktok_not_configured';
   plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
+  /** Set once the client edits the plan in the review panel. */
+  plan_edited?: boolean;
+  /** Set only when a save could NOT rebuild Jane's reasoning, so the block on screen
+   * is still her original proposal and has to say so. */
+  summary_stale?: boolean;
   understood?: UnderstoodFields;
   question?: string;
   page_name?: string; // present on meta_connection_* stages, when a Page is already known
@@ -521,6 +564,34 @@ export class CampaignService {
   }
 
   /** Plan-before-launch, step 2 — the only call that actually creates a real (paused) Meta campaign. */
+  /** The review step: the plan as individually editable lines.
+   *
+   * Sits between the plan card and the launch button so a client changes the ad
+   * before their wallet moves, rather than discovering it afterwards in Ads Manager.
+   */
+  static async getPlanFields(planId: string): Promise<{ plan_id: string; fields: PlanField[] }> {
+    const res = await UriHttpClient.getClient().get(`/jane-ads/meta/plan/${planId}/fields`);
+    return res.data as { plan_id: string; fields: PlanField[] };
+  }
+
+  /** Save edits. The backend validates each one against the same machinery the launch
+   * uses (Meta's location and interest catalogues, the policy scan, the brand's spend
+   * cap), so anything it accepts here cannot fail at launch. Rejections come back per
+   * field and do NOT discard the edits that were fine — never drop typed work. */
+  static async savePlanFields(
+    planId: string,
+    edits: Record<string, unknown>,
+  ): Promise<PlanFieldsSaveResult> {
+    // Location and interest edits each cost a round trip to Meta's search, so this is
+    // slower than a normal PATCH.
+    const res = await UriHttpClient.getClient().patch(
+      `/jane-ads/meta/plan/${planId}/fields`,
+      { edits },
+      { timeout: 90000 },
+    );
+    return res.data as PlanFieldsSaveResult;
+  }
+
   static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
     // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
     // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was
