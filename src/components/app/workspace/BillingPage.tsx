@@ -583,6 +583,30 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
           </div>
         </div>
 
+        {/* Comp-grant status — a redeemed access code grants its plan's credits
+            ONCE (never refilled monthly). It ends whichever comes first: the
+            end_date below, or the credits running out (which auto-revokes the
+            grant server-side — see CreditService._revoke_exhausted_comp_grant). */}
+        {balance?.subscription_source === 'access_code' && balance?.subscription_tier && (
+          <div
+            style={{
+              background: 'rgba(194,24,91,.06)',
+              border: '1px solid rgba(194,24,91,.2)',
+              borderRadius: 10,
+              padding: '12px 16px',
+              marginBottom: 16,
+              fontSize: 13,
+              color: '#7a0f43',
+            }}
+          >
+            <strong>Complimentary access</strong> — you're on a free{' '}
+            {balance.subscription_tier.charAt(0).toUpperCase() + balance.subscription_tier.slice(1)} plan from a partner
+            code, with {balance.credits_remaining} credit{balance.credits_remaining === 1 ? '' : 's'} remaining. It ends{' '}
+            {balance.end_date ? `on ${new Date(balance.end_date).toLocaleDateString()}` : 'soon'}, or as soon as your
+            credits run out — whichever comes first. Subscribe to a paid plan anytime to avoid any interruption.
+          </div>
+        )}
+
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #edecea' }}>
           {['overview', 'plans', 'credits', 'payments'].map((tab) => (

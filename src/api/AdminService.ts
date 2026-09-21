@@ -122,6 +122,11 @@ export interface AccessCodeRedemption {
   access_end: string;
   previous_subscription_tier: string | null;
   redeemed_at: string;
+  // Set the moment their credits run out — a comp grant ends whichever
+  // comes first, end_date or exhausting its one-time credit allocation
+  // (it never refills mid-window like a real subscription does).
+  revoked_at: string | null;
+  revocation_reason: string | null;
 }
 
 export class AdminService {

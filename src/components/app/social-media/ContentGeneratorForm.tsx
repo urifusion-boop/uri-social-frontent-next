@@ -295,21 +295,22 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     return () => window.removeEventListener('paste', handleGlobalPaste);
   }, [referenceImages]);
 
+  const refreshCredits = async () => {
+    try {
+      const balance = await BillingService.getCreditBalance();
+      setCreditsRemaining(balance.credits_remaining);
+      // PRD 7.3: Show low credit warning when credits <= 3
+      if (balance.low_credit_warning && balance.credits_remaining > 0 && balance.credits_remaining <= 3) {
+        setLowCreditWarningOpen(true);
+      }
+    } catch (error) {
+      console.error('Failed to check credits:', error);
+    }
+  };
+
   // Check credits before generation
   useEffect(() => {
-    const checkCredits = async () => {
-      try {
-        const balance = await BillingService.getCreditBalance();
-        setCreditsRemaining(balance.credits_remaining);
-        // PRD 7.3: Show low credit warning when credits <= 3
-        if (balance.low_credit_warning && balance.credits_remaining > 0 && balance.credits_remaining <= 3) {
-          setLowCreditWarningOpen(true);
-        }
-      } catch (error) {
-        console.error('Failed to check credits:', error);
-      }
-    };
-    checkCredits();
+    refreshCredits();
   }, []);
 
   const doGenerate = async (acknowledgedIncomplete = false) => {
@@ -1295,7 +1296,11 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
       </Tooltip>
 
       {/* Billing Modals */}
-      <OutOfCreditsModal open={outOfCreditsOpen} onClose={() => setOutOfCreditsOpen(false)} />
+      <OutOfCreditsModal
+        open={outOfCreditsOpen}
+        onClose={() => setOutOfCreditsOpen(false)}
+        onRedeemed={refreshCredits}
+      />
       <LowCreditWarning
         open={lowCreditWarningOpen}
         onClose={() => setLowCreditWarningOpen(false)}

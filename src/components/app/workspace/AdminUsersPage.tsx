@@ -1147,6 +1147,7 @@ function AccessCodesPanel() {
                                 <th style={{ padding: '8px 8px' }}>User</th>
                                 <th style={{ padding: '8px 8px' }}>Redeemed</th>
                                 <th style={{ padding: '8px 8px' }}>Access window</th>
+                                <th style={{ padding: '8px 8px' }}>Status</th>
                                 <th style={{ padding: '8px 8px' }}>Prior plan</th>
                               </tr>
                             </thead>
@@ -1158,6 +1159,23 @@ function AccessCodesPanel() {
                                   <td style={{ padding: '8px 8px' }}>
                                     {new Date(r.access_start).toLocaleDateString()} –{' '}
                                     {new Date(r.access_end).toLocaleDateString()}
+                                  </td>
+                                  <td style={{ padding: '8px 8px' }}>
+                                    {r.revoked_at ? (
+                                      <span
+                                        style={{ color: '#C62828', fontWeight: 600 }}
+                                        title={new Date(r.revoked_at).toLocaleString()}
+                                      >
+                                        Revoked —{' '}
+                                        {r.revocation_reason === 'credits_exhausted'
+                                          ? 'ran out of credits'
+                                          : r.revocation_reason}
+                                      </span>
+                                    ) : new Date(r.access_end) < new Date() ? (
+                                      <span style={{ color: '#888' }}>Lapsed (60 days)</span>
+                                    ) : (
+                                      <span style={{ color: '#2E7D32', fontWeight: 600 }}>Active</span>
+                                    )}
                                   </td>
                                   <td style={{ padding: '8px 8px' }}>{r.previous_subscription_tier || 'None'}</td>
                                 </tr>

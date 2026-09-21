@@ -21,6 +21,10 @@ export interface CreditBalanceResponse {
   credits_used: number;
   credits_remaining: number;
   subscription_tier: string | null;
+  // 'access_code' when this tier came from a redeemed comp code — that grant
+  // is one-time (no monthly refill) and ends whichever comes first: end_date,
+  // or credits running out (auto-revoked server-side, see CreditService).
+  subscription_source?: string | null;
   billing_cycle?: BillingCycle; // PRD 8.1: Billing cycle selection
   start_date?: string | null; // PRD 8.3: Subscription lifecycle
   end_date?: string | null; // PRD 8.3: Auto-expire after end_date
