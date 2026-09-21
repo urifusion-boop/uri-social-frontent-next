@@ -170,17 +170,23 @@ function RedeemAccessCodeBox({ onRedeemed }: { onRedeemed: () => void | Promise<
       <button
         onClick={() => setExpanded(true)}
         style={{
-          background: 'none',
-          border: 'none',
-          color: '#C2185B',
-          fontSize: 12.5,
-          fontWeight: 600,
+          width: '100%',
+          textAlign: 'left',
+          border: '1.5px dashed rgba(205,27,120,0.4)',
+          borderRadius: 10,
+          padding: '12px 16px',
+          marginBottom: 16,
+          background: 'rgba(205,27,120,0.05)',
+          color: '#AD1457',
+          fontSize: 13.5,
+          fontWeight: 700,
           cursor: 'pointer',
-          margin: '0 0 16px',
-          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
         }}
       >
-        Have a code?
+        🎟️ Have a partner or promo code? Click here to redeem it
       </button>
     );
   }
