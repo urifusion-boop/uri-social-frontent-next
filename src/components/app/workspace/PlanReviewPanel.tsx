@@ -32,6 +32,9 @@ const CARD: React.CSSProperties = {
 
 function displayValue(field: PlanField): string {
   if (Array.isArray(field.value)) return field.value.length ? field.value.join(', ') : '—';
+  if (field.option_labels && typeof field.value === 'string') {
+    return field.option_labels[field.value] ?? field.value;
+  }
   if (field.value === null || field.value === '') return '—';
   const raw = typeof field.value === 'number' ? field.value.toLocaleString() : String(field.value);
   return field.prefix ? `${field.prefix}${raw}` : raw;
@@ -172,7 +175,9 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
                     style={{ width: '100%', fontSize: 13, padding: '6px 8px', borderRadius: 7, border: '1px solid #ccc' }}
                   >
                     {(field.options || []).map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
+                      <option key={opt} value={opt}>
+                        {field.option_labels?.[opt] ?? opt}
+                      </option>
                     ))}
                   </select>
                 ) : field.type === 'textarea' ? (
