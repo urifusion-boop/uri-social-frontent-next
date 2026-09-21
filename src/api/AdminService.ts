@@ -135,6 +135,13 @@ export interface AccessCodeRedemption {
   // (it never refills mid-window like a real subscription does).
   revoked_at: string | null;
   revocation_reason: string | null;
+  // The one field that tells the truth about THIS redemption regardless of
+  // revoked_at alone: 'active' (this is still the user's current grant),
+  // 'lapsed' (access_end passed), 'revoked' (revoked_at is set), or
+  // 'superseded' (not revoked, not lapsed, but the wallet has since moved
+  // on to something else without going through a tracked revoke — e.g. a
+  // code redeemed before the no-double-redeeming guard existed).
+  effective_status?: 'active' | 'lapsed' | 'revoked' | 'superseded';
 }
 
 export class AdminService {

@@ -89,6 +89,38 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
         <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
       </>
     ),
+    more: (
+      <>
+        <circle cx="12" cy="5" r="1.6" fill={c} stroke="none" />
+        <circle cx="12" cy="12" r="1.6" fill={c} stroke="none" />
+        <circle cx="12" cy="19" r="1.6" fill={c} stroke="none" />
+      </>
+    ),
+    ban: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <line x1="5.5" y1="5.5" x2="18.5" y2="18.5" />
+      </>
+    ),
+    trash: (
+      <>
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+      </>
+    ),
+    mail: (
+      <>
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <polyline points="2 7 12 13 22 7" />
+      </>
+    ),
+    ticket: (
+      <>
+        <path d="M3 9a2 2 0 100 6" />
+        <path d="M3 9V7a2 2 0 012-2h14a2 2 0 012 2v2a2 2 0 100 6v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2" />
+        <line x1="12" y1="6" x2="12" y2="18" strokeDasharray="2 2" />
+      </>
+    ),
   };
   return (
     <svg
@@ -1063,7 +1095,7 @@ function AccessCodesPanel() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'rgba(0,0,0,.02)', textAlign: 'left' }}>
-                {['Code', 'Plan', 'Duration', 'Redemptions', 'Assigned to', 'Active', 'Label', ''].map((h) => (
+                {['Code', 'Plan', 'Duration', 'Redemptions', 'Assigned to', 'Code status', 'Label', ''].map((h) => (
                   <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: '#888' }}>
                     {h}
                   </th>
@@ -1203,64 +1235,24 @@ function AccessCodesPanel() {
                           borderRadius: 20,
                           fontSize: 11,
                           fontWeight: 700,
-                          background: c.is_active ? 'rgba(46,125,50,.1)' : 'rgba(0,0,0,.06)',
-                          color: c.is_active ? '#2E7D32' : '#888',
+                          background: c.is_active ? 'rgba(46,125,50,.1)' : 'rgba(198,40,40,.08)',
+                          color: c.is_active ? '#2E7D32' : '#C62828',
                         }}
                       >
-                        {c.is_active ? 'Active' : 'Revoked'}
+                        {c.is_active ? 'Open' : 'Revoked'}
                       </span>
                     </td>
                     <td style={{ padding: '12px 16px', color: '#666' }}>{c.label || '—'}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button
-                        onClick={() => handleOpenDetail(c)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 6,
-                          border: '1px solid rgba(0,0,0,.1)',
-                          background: 'white',
-                          color: '#444',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          marginRight: 6,
-                        }}
-                      >
-                        Details
-                      </button>
-                      <button
-                        onClick={() => handleToggleActive(c)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 6,
-                          border: '1px solid rgba(0,0,0,.1)',
-                          background: 'white',
-                          color: c.is_active ? '#C62828' : '#2E7D32',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          marginRight: 6,
-                        }}
-                      >
-                        {c.is_active ? 'Revoke' : 'Reactivate'}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(c)}
-                        disabled={deletingCode === c.code}
-                        title="Permanently delete this code"
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 6,
-                          border: '1px solid rgba(198,40,40,.25)',
-                          background: 'white',
-                          color: deletingCode === c.code ? '#999' : '#C62828',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: deletingCode === c.code ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        {deletingCode === c.code ? 'Deleting…' : 'Delete'}
-                      </button>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <AccessCodeActionsMenu
+                        target={c}
+                        onViewDetails={() => handleOpenDetail(c)}
+                        onToggleActive={() => handleToggleActive(c)}
+                        onDelete={() => handleDelete(c)}
+                        onEmail={c.assigned_to_email ? () => handleResendEmail(c) : undefined}
+                        deleting={deletingCode === c.code}
+                        emailing={resendingCode === c.code}
+                      />
                     </td>
                   </tr>
                 </Fragment>
@@ -1274,21 +1266,186 @@ function AccessCodesPanel() {
         redemptions={redemptions}
         loading={loadingRedemptions}
         onClose={() => setDetailCode(null)}
+        onToggleActive={() => detailCode && handleToggleActive(detailCode)}
+        onDelete={() => detailCode && handleDelete(detailCode)}
+        onEmail={detailCode?.assigned_to_email ? () => handleResendEmail(detailCode) : undefined}
+        deleting={deletingCode === detailCode?.code}
+        emailing={resendingCode === detailCode?.code}
       />
     </div>
   );
 }
+
+function AccessCodeActionsMenu({
+  target,
+  onViewDetails,
+  onToggleActive,
+  onDelete,
+  onEmail,
+  deleting,
+  emailing,
+}: {
+  target: AccessCode;
+  onViewDetails?: () => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
+  onEmail?: () => void;
+  deleting?: boolean;
+  emailing?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const item = (opts: {
+    key: string;
+    icon: string;
+    iconColor: string;
+    label: string;
+    color: string;
+    disabled?: boolean;
+    onClick: () => void;
+  }) => (
+    <button
+      key={opts.key}
+      onClick={() => {
+        setIsOpen(false);
+        opts.onClick();
+      }}
+      disabled={opts.disabled}
+      style={{
+        width: '100%',
+        padding: '9px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 9,
+        background: 'none',
+        border: 'none',
+        cursor: opts.disabled ? 'not-allowed' : 'pointer',
+        fontSize: 13,
+        fontWeight: 500,
+        color: opts.disabled ? '#bbb' : opts.color,
+        textAlign: 'left',
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={(e) => !opts.disabled && (e.currentTarget.style.background = '#f9f9f9')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+    >
+      <I n={opts.icon} s={15} c={opts.disabled ? '#ccc' : opts.iconColor} />
+      {opts.label}
+    </button>
+  );
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        aria-label="Actions"
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 7,
+          border: '1px solid rgba(0,0,0,.1)',
+          background: isOpen ? '#f9f9f9' : '#fff',
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <I n="more" s={16} c="#666" />
+      </button>
+
+      {isOpen && (
+        <>
+          <div onClick={() => setIsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 6px)',
+              right: 0,
+              width: 200,
+              background: '#fff',
+              border: '1px solid #e5e3df',
+              borderRadius: 11,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+              zIndex: 1000,
+              overflow: 'hidden',
+              padding: '6px 0',
+            }}
+          >
+            {onViewDetails &&
+              item({
+                key: 'details',
+                icon: 'eye',
+                iconColor: '#666',
+                label: 'View details',
+                color: '#333',
+                onClick: onViewDetails,
+              })}
+            {item({
+              key: 'toggle',
+              icon: target.is_active ? 'ban' : 'refresh',
+              iconColor: target.is_active ? '#C62828' : '#2E7D32',
+              label: target.is_active ? 'Revoke' : 'Reactivate',
+              color: target.is_active ? '#C62828' : '#2E7D32',
+              onClick: onToggleActive,
+            })}
+            {onEmail &&
+              item({
+                key: 'email',
+                icon: 'mail',
+                iconColor: '#AD1457',
+                label: emailing ? 'Sending…' : 'Email code',
+                color: '#AD1457',
+                disabled: emailing,
+                onClick: onEmail,
+              })}
+            <div style={{ borderTop: '1px solid #f0f0f0', margin: '6px 0' }} />
+            {item({
+              key: 'delete',
+              icon: 'trash',
+              iconColor: '#dc2626',
+              label: deleting ? 'Deleting…' : 'Delete permanently',
+              color: '#dc2626',
+              disabled: deleting,
+              onClick: onDelete,
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const REDEMPTION_STATUS_STYLE: Record<
+  NonNullable<AccessCodeRedemption['effective_status']>,
+  { label: string; bg: string; fg: string }
+> = {
+  active: { label: 'Active', bg: 'rgba(46,125,50,.1)', fg: '#2E7D32' },
+  revoked: { label: 'Revoked', bg: 'rgba(198,40,40,.1)', fg: '#C62828' },
+  lapsed: { label: 'Lapsed', bg: 'rgba(0,0,0,.06)', fg: '#777' },
+  superseded: { label: 'Superseded', bg: 'rgba(237,108,2,.1)', fg: '#B26A00' },
+};
 
 function AccessCodeDetailPanel({
   accessCode,
   redemptions,
   loading,
   onClose,
+  onToggleActive,
+  onDelete,
+  onEmail,
+  deleting,
+  emailing,
 }: {
   accessCode: AccessCode | null;
   redemptions: AccessCodeRedemption[];
   loading: boolean;
   onClose: () => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
+  onEmail?: () => void;
+  deleting?: boolean;
+  emailing?: boolean;
 }) {
   // Renders always (even while closed) so the slide-out transition can play
   // on close instead of the panel just vanishing — `open` drives the
@@ -1305,14 +1462,30 @@ function AccessCodeDetailPanel({
 
   if (!accessCode) return null;
 
-  const metaRow = (label: string, value: React.ReactNode) => (
-    <div>
-      <div
-        style={{ fontSize: 10.5, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '.04em' }}
-      >
-        {label}
+  const metaCard = (icon: string, label: string, value: React.ReactNode) => (
+    <div
+      style={{
+        background: 'rgba(194,24,91,.045)',
+        border: '1px solid rgba(194,24,91,.12)',
+        borderRadius: 11,
+        padding: '11px 13px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+        <I n={icon} s={12.5} c="#AD1457" />
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#AD1457',
+            textTransform: 'uppercase',
+            letterSpacing: '.04em',
+          }}
+        >
+          {label}
+        </div>
       </div>
-      <div style={{ fontSize: 13.5, fontWeight: 600, color: '#222', marginTop: 3 }}>{value}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#222' }}>{value}</div>
     </div>
   );
 
@@ -1323,7 +1496,7 @@ function AccessCodeDetailPanel({
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,.35)',
+          background: 'rgba(0,0,0,.4)',
           opacity: open ? 1 : 0,
           transition: 'opacity 220ms ease',
           zIndex: 1000,
@@ -1337,7 +1510,7 @@ function AccessCodeDetailPanel({
           height: '100vh',
           width: 'min(460px, 100vw)',
           background: '#fff',
-          boxShadow: '-8px 0 28px rgba(0,0,0,.15)',
+          boxShadow: '-8px 0 28px rgba(0,0,0,.18)',
           zIndex: 1001,
           transform: open ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 280ms cubic-bezier(0.4, 0, 0.2, 1)',
@@ -1345,6 +1518,8 @@ function AccessCodeDetailPanel({
           flexDirection: 'column',
         }}
       >
+        <div style={{ height: 4, background: 'linear-gradient(90deg, #CD1B78 0%, #A01560 100%)', flexShrink: 0 }} />
+
         <div
           style={{
             padding: '20px 22px',
@@ -1353,99 +1528,217 @@ function AccessCodeDetailPanel({
             justifyContent: 'space-between',
             alignItems: 'flex-start',
             flexShrink: 0,
+            gap: 12,
           }}
         >
-          <div>
-            <div style={{ fontFamily: 'monospace', fontSize: 21, fontWeight: 800, letterSpacing: '.02em' }}>
-              {accessCode.code}
+          <div style={{ display: 'flex', gap: 12, minWidth: 0 }}>
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 11,
+                background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <I n="ticket" s={20} c="#fff" />
             </div>
-            <div style={{ fontSize: 12, color: '#888', marginTop: 3 }}>{accessCode.label || 'No label'}</div>
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily: 'monospace',
+                  fontSize: 20,
+                  fontWeight: 800,
+                  letterSpacing: '.02em',
+                  color: '#1a1a1a',
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {accessCode.code}
+              </div>
+              <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{accessCode.label || 'No label'}</div>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: 22,
-              cursor: 'pointer',
-              color: '#999',
-              lineHeight: 1,
-              padding: 4,
-            }}
-          >
-            ✕
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            <AccessCodeActionsMenu
+              target={accessCode}
+              onToggleActive={onToggleActive}
+              onDelete={onDelete}
+              onEmail={onEmail}
+              deleting={deleting}
+              emailing={emailing}
+            />
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 7,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#999',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <I n="x" s={17} c="#999" />
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: '20px 22px', overflowY: 'auto', flex: 1 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-            {metaRow('Plan', accessCode.plan_tier_id)}
-            {metaRow('Duration', `${accessCode.duration_days} days`)}
-            {metaRow(
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <span
+              style={{
+                padding: '4px 12px',
+                borderRadius: 20,
+                fontSize: 11.5,
+                fontWeight: 700,
+                background: accessCode.is_active ? 'rgba(46,125,50,.1)' : 'rgba(198,40,40,.1)',
+                color: accessCode.is_active ? '#2E7D32' : '#C62828',
+              }}
+            >
+              {accessCode.is_active ? '● Open for redemption' : '● Revoked'}
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
+            {metaCard('trending', 'Plan', accessCode.plan_tier_id)}
+            {metaCard('calendar', 'Duration', `${accessCode.duration_days} days`)}
+            {metaCard(
+              'users',
               'Redemptions',
               `${accessCode.redemption_count}${accessCode.max_redemptions ? ` / ${accessCode.max_redemptions}` : ' (unlimited)'}`
             )}
-            {metaRow(
-              'Status',
-              <span style={{ color: accessCode.is_active ? '#2E7D32' : '#C62828' }}>
-                {accessCode.is_active ? 'Active' : 'Revoked'}
-              </span>
+            {metaCard(
+              'mail',
+              'Assigned to',
+              accessCode.assigned_to_name || accessCode.assigned_to_email || 'Anyone (shared)'
             )}
-            {metaRow('Assigned to', accessCode.assigned_to_name || accessCode.assigned_to_email || 'Anyone (shared)')}
-            {metaRow('Created by', accessCode.created_by)}
           </div>
 
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: '#333' }}>
+          <div style={{ fontSize: 11, color: '#aaa', marginBottom: 20 }}>
+            Created by <strong style={{ color: '#888' }}>{accessCode.created_by}</strong>
+          </div>
+
+          <div
+            style={{
+              fontSize: 12.5,
+              fontWeight: 700,
+              marginBottom: 12,
+              color: '#333',
+              textTransform: 'uppercase',
+              letterSpacing: '.03em',
+            }}
+          >
             Redeemed by ({redemptions.length})
           </div>
           {loading ? (
             <div style={{ color: '#888', fontSize: 12.5 }}>Loading…</div>
           ) : redemptions.length === 0 ? (
-            <div style={{ color: '#888', fontSize: 12.5 }}>No one has redeemed this code yet.</div>
+            <div
+              style={{
+                color: '#999',
+                fontSize: 12.5,
+                textAlign: 'center',
+                padding: '28px 12px',
+                background: 'rgba(0,0,0,.02)',
+                borderRadius: 10,
+              }}
+            >
+              No one has redeemed this code yet.
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {redemptions.map((r) => (
-                <div
-                  key={`${r.code}-${r.user_id}`}
-                  style={{ border: '1px solid rgba(0,0,0,.08)', borderRadius: 10, padding: 13 }}
-                >
-                  <div style={{ fontWeight: 700, fontSize: 13, color: '#222' }}>{r.email || r.user_id}</div>
-                  <div style={{ fontSize: 11.5, color: '#888', marginTop: 5 }}>
-                    Redeemed {new Date(r.redeemed_at).toLocaleDateString()}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: '#888' }}>
-                    Access: {new Date(r.access_start).toLocaleDateString()} →{' '}
-                    {new Date(r.access_end).toLocaleDateString()}
-                  </div>
-                  <div style={{ marginTop: 7 }}>
-                    {r.revoked_at ? (
-                      <span
-                        style={{ fontSize: 11, fontWeight: 700, color: '#C62828' }}
-                        title={new Date(r.revoked_at).toLocaleString()}
-                      >
-                        Revoked —{' '}
-                        {r.revocation_reason === 'credits_exhausted'
-                          ? 'ran out of credits'
-                          : r.revocation_reason === 'admin_revoked'
-                            ? 'admin revoked the code'
-                            : r.revocation_reason}
-                      </span>
-                    ) : new Date(r.access_end) < new Date() ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#888' }}>
-                        Lapsed ({accessCode.duration_days} days)
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#2E7D32' }}>Active</span>
-                    )}
-                  </div>
-                  {r.previous_subscription_tier && (
-                    <div style={{ fontSize: 11, color: '#aaa', marginTop: 5 }}>
-                      Was on: {r.previous_subscription_tier}
+              {redemptions.map((r) => {
+                const identity = r.email || r.user_id;
+                const statusKey = r.effective_status ?? (r.revoked_at ? 'revoked' : 'active');
+                const status = REDEMPTION_STATUS_STYLE[statusKey];
+                return (
+                  <div
+                    key={`${r.code}-${r.user_id}`}
+                    style={{
+                      border: '1px solid rgba(0,0,0,.08)',
+                      borderRadius: 12,
+                      padding: 14,
+                      display: 'flex',
+                      gap: 11,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg,#880E4F,#C2185B)',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {identity[0]?.toUpperCase() || '?'}
                     </div>
-                  )}
-                </div>
-              ))}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
+                      >
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#222', overflowWrap: 'anywhere' }}>
+                          {identity}
+                        </div>
+                        <span
+                          style={{
+                            padding: '2px 9px',
+                            borderRadius: 20,
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            whiteSpace: 'nowrap',
+                            background: status.bg,
+                            color: status.fg,
+                          }}
+                          title={
+                            statusKey === 'superseded'
+                              ? "No longer this person's current plan — something else has taken over their wallet since"
+                              : undefined
+                          }
+                        >
+                          {status.label}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11.5, color: '#888', marginTop: 5 }}>
+                        Redeemed {new Date(r.redeemed_at).toLocaleDateString()}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: '#888' }}>
+                        Access: {new Date(r.access_start).toLocaleDateString()} →{' '}
+                        {new Date(r.access_end).toLocaleDateString()}
+                      </div>
+                      {statusKey === 'revoked' && r.revocation_reason && (
+                        <div style={{ fontSize: 11, color: '#C62828', marginTop: 4 }}>
+                          {r.revocation_reason === 'credits_exhausted'
+                            ? 'Ran out of credits'
+                            : r.revocation_reason === 'admin_revoked'
+                              ? 'Admin revoked the code'
+                              : r.revocation_reason}
+                        </div>
+                      )}
+                      {r.previous_subscription_tier && (
+                        <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
+                          Was on: {r.previous_subscription_tier}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
