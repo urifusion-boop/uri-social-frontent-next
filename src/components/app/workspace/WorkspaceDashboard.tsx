@@ -63,6 +63,7 @@ import SubmagicProductionForm from '@/src/components/app/workspace/SubmagicProdu
 import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductionForm';
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
 import MarketIntelligencePage from '@/src/components/app/workspace/MarketIntelligencePage';
+import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -9654,6 +9655,19 @@ const NAV = [
     tooltip:
       'Beta: isolated 4-layer compositing engine (content + imagery + brand + template-fill), not yet wired into the main Create Content flow',
   },
+  {
+    // Global platform admin (user management, credit/trial adjustment,
+    // access codes) — a DIFFERENT admin concept from `records` above's
+    // Jane-Ads-specific isAdsAdmin, deliberately not reusing that flag so
+    // the two permission systems stay distinct. AdminUsersPage.tsx also
+    // re-checks server-side and self-redirects non-admins away; hiding the
+    // nav item is convenience, not the real gate.
+    id: 'admin',
+    icon: 'settings',
+    label: 'Admin',
+    tooltip: 'User management, credit/trial adjustment, and partner access codes',
+    platformAdminOnly: true,
+  },
 ];
 
 const MOBILE_TABS = [
@@ -9689,10 +9703,12 @@ export default function WorkspaceDashboard() {
   const [isAdsAdmin, setIsAdsAdmin] = useState(false);
 
   useEffect(() => {
-    CampaignService.billingAccess().then(setIsAdsAdmin).catch(() => setIsAdsAdmin(false));
+    CampaignService.billingAccess()
+      .then(setIsAdsAdmin)
+      .catch(() => setIsAdsAdmin(false));
   }, []);
 
-  const { logoutUser, userDetails } = useAuth();
+  const { logoutUser, userDetails, isAdminUser } = useAuth();
   const { unreadCount } = useNotifications();
   const { showVerifyModal, setShowVerifyModal, requireEmailVerification } = useEmailVerification();
   const router = useRouter();
@@ -10172,6 +10188,7 @@ export default function WorkspaceDashboard() {
       />
     ),
     'market-intelligence': <MarketIntelligencePage />,
+    admin: <AdminUsersPage onBack={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
@@ -10281,7 +10298,12 @@ export default function WorkspaceDashboard() {
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', paddingLeft: 37 }}>Active & ready</div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {NAV.filter((n) => !(n as { adminOnly?: boolean }).adminOnly || isAdsAdmin).map((n) => {
+              {NAV.filter((n) => {
+                const item = n as { adminOnly?: boolean; platformAdminOnly?: boolean };
+                if (item.adminOnly) return isAdsAdmin;
+                if (item.platformAdminOnly) return isAdminUser;
+                return true;
+              }).map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
                 return (
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>

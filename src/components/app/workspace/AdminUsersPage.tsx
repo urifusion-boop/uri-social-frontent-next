@@ -6,9 +6,16 @@
  * Only accessible by: urisocialingsight@gmail.com
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Fragment } from 'react';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { AdminService, AdminUser, AdminUserDetails, AdminStats } from '@/src/api/AdminService';
+import {
+  AdminService,
+  AdminUser,
+  AdminUserDetails,
+  AdminStats,
+  AccessCode,
+  AccessCodeRedemption,
+} from '@/src/api/AdminService';
 import { useRouter } from 'next/navigation';
 
 // Icon components
@@ -142,7 +149,7 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
   const { isAdminUser, isAdminStatusPending } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<'stats' | 'all-users' | 'recent'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'all-users' | 'recent' | 'access-codes'>('stats');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [recentUsers, setRecentUsers] = useState<AdminUser[]>([]);
@@ -370,8 +377,13 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
           flexShrink: 0,
         }}
       >
-        {(['stats', 'all-users', 'recent'] as const).map((tab) => {
-          const labels = { stats: 'Overview', 'all-users': 'All Users', recent: 'Recent Signups' };
+        {(['stats', 'all-users', 'recent', 'access-codes'] as const).map((tab) => {
+          const labels = {
+            stats: 'Overview',
+            'all-users': 'All Users',
+            recent: 'Recent Signups',
+            'access-codes': 'Access Codes',
+          };
           const active = activeTab === tab;
           return (
             <button
@@ -676,6 +688,13 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
             <UserTable users={recentUsers} loading={loadingUsers} onViewUser={handleViewUser} formatDate={formatDate} />
           </div>
         )}
+
+        {/* Access Codes Tab */}
+        {activeTab === 'access-codes' && (
+          <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+            <AccessCodesPanel />
+          </div>
+        )}
       </div>
 
       {/* User Details Modal */}
@@ -687,6 +706,331 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
           onUserUpdated={handleUserUpdated}
         />
       )}
+    </div>
+  );
+}
+
+// Known subscription_tiers.tier_id values (SubscriptionService.py's
+// initialize_default_tiers) — hardcoded here rather than fetched, since
+// this list changes rarely and a fetch would need its own loading state
+// for a 5-item dropdown.
+const PLAN_TIER_OPTIONS = [
+  { id: 'starter', label: 'Starter' },
+  { id: 'growth', label: 'Growth' },
+  { id: 'pro', label: 'Pro' },
+  { id: 'agency', label: 'Agency' },
+];
+
+// Access Codes Tab — admin-generated partner/comp codes (e.g. "ASA26").
+// Generic and reusable: create a code for any plan/duration, hand it to
+// anybody, each redeemer gets their own access window from their own
+// redemption date. See app/routers/admin_router.py + billing_router.py.
+function AccessCodesPanel() {
+  const [codes, setCodes] = useState<AccessCode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [expandedCode, setExpandedCode] = useState<string | null>(null);
+  const [redemptions, setRedemptions] = useState<AccessCodeRedemption[]>([]);
+  const [loadingRedemptions, setLoadingRedemptions] = useState(false);
+
+  const [code, setCode] = useState('');
+  const [planTierId, setPlanTierId] = useState('starter');
+  const [durationDays, setDurationDays] = useState('60');
+  const [maxRedemptions, setMaxRedemptions] = useState('');
+  const [label, setLabel] = useState('');
+
+  const loadCodes = async () => {
+    setLoading(true);
+    try {
+      const res = await AdminService.listAccessCodes();
+      setCodes(res.codes);
+    } catch (error) {
+      console.error('Failed to load access codes:', error);
+      setMessage({ type: 'err', text: 'Failed to load access codes.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCodes();
+  }, []);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    setMessage(null);
+    try {
+      const created = await AdminService.createAccessCode({
+        code: code.trim() || undefined,
+        plan_tier_id: planTierId,
+        duration_days: parseInt(durationDays, 10) || 60,
+        max_redemptions: maxRedemptions ? parseInt(maxRedemptions, 10) : undefined,
+        label: label.trim() || undefined,
+      });
+      setMessage({ type: 'ok', text: `Created code "${created.code}".` });
+      setCode('');
+      setLabel('');
+      setMaxRedemptions('');
+      await loadCodes();
+    } catch (error: unknown) {
+      const detail =
+        (error as { data?: { detail?: string }; response?: { data?: { detail?: string } } })?.data?.detail ??
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      console.error('Failed to create access code:', error);
+      setMessage({ type: 'err', text: detail || 'Failed to create access code.' });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleToggleActive = async (target: AccessCode) => {
+    try {
+      await AdminService.updateAccessCode(target.code, { is_active: !target.is_active });
+      await loadCodes();
+    } catch (error) {
+      console.error('Failed to update access code:', error);
+      setMessage({ type: 'err', text: 'Failed to update code.' });
+    }
+  };
+
+  const handleViewRedemptions = async (codeStr: string) => {
+    if (expandedCode === codeStr) {
+      setExpandedCode(null);
+      return;
+    }
+    setExpandedCode(codeStr);
+    setLoadingRedemptions(true);
+    try {
+      const res = await AdminService.listAccessCodeRedemptions(codeStr);
+      setRedemptions(res.redemptions);
+    } catch (error) {
+      console.error('Failed to load redemptions:', error);
+      setMessage({ type: 'err', text: 'Failed to load redemptions.' });
+    } finally {
+      setLoadingRedemptions(false);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    padding: '9px 12px',
+    borderRadius: 8,
+    border: '1.5px solid rgba(0,0,0,.1)',
+    fontSize: 13,
+    outline: 'none',
+  };
+
+  return (
+    <div>
+      <div
+        style={{
+          background: 'white',
+          border: '1px solid rgba(0,0,0,.08)',
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Create a new code</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 14 }}>
+          Anyone who redeems this code gets the chosen plan free for the given number of days, starting from their own
+          redemption date — not a shared expiry for everyone who uses the code.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>Code (optional)</div>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Auto-generate"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>Plan</div>
+            <select
+              value={planTierId}
+              onChange={(e) => setPlanTierId(e.target.value)}
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            >
+              {PLAN_TIER_OPTIONS.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>Duration (days)</div>
+            <input
+              type="number"
+              value={durationDays}
+              onChange={(e) => setDurationDays(e.target.value)}
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>Max redemptions</div>
+            <input
+              type="number"
+              value={maxRedemptions}
+              onChange={(e) => setMaxRedemptions(e.target.value)}
+              placeholder="Unlimited"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>
+              Label (e.g. partnership name)
+            </div>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Africa SME Assembly partnership"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#AD1457',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: creating ? 'not-allowed' : 'pointer',
+              opacity: creating ? 0.7 : 1,
+            }}
+          >
+            {creating ? 'Creating…' : 'Create code'}
+          </button>
+          {message && (
+            <span style={{ fontSize: 12, fontWeight: 600, color: message.type === 'ok' ? '#2E7D32' : '#C62828' }}>
+              {message.text}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ background: 'white', border: '1px solid rgba(0,0,0,.08)', borderRadius: 12, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>Loading…</div>
+        ) : codes.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>No access codes yet.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(0,0,0,.02)', textAlign: 'left' }}>
+                {['Code', 'Plan', 'Duration', 'Redemptions', 'Status', 'Label', ''].map((h) => (
+                  <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: '#888' }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {codes.map((c) => (
+                <Fragment key={c.code}>
+                  <tr style={{ borderTop: '1px solid rgba(0,0,0,.06)' }}>
+                    <td style={{ padding: '12px 16px', fontWeight: 700, fontFamily: 'monospace' }}>{c.code}</td>
+                    <td style={{ padding: '12px 16px' }}>{c.plan_tier_id}</td>
+                    <td style={{ padding: '12px 16px' }}>{c.duration_days}d</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <button
+                        onClick={() => handleViewRedemptions(c.code)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#AD1457',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontSize: 13,
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        {c.redemption_count}
+                        {c.max_redemptions ? ` / ${c.max_redemptions}` : ''}
+                      </button>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span
+                        style={{
+                          padding: '3px 10px',
+                          borderRadius: 20,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: c.is_active ? 'rgba(46,125,50,.1)' : 'rgba(0,0,0,.06)',
+                          color: c.is_active ? '#2E7D32' : '#888',
+                        }}
+                      >
+                        {c.is_active ? 'Active' : 'Revoked'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px', color: '#666' }}>{c.label || '—'}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <button
+                        onClick={() => handleToggleActive(c)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 6,
+                          border: '1px solid rgba(0,0,0,.1)',
+                          background: 'white',
+                          color: c.is_active ? '#C62828' : '#2E7D32',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {c.is_active ? 'Revoke' : 'Reactivate'}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedCode === c.code && (
+                    <tr key={`${c.code}-redemptions`}>
+                      <td colSpan={7} style={{ padding: '0 16px 16px', background: 'rgba(0,0,0,.015)' }}>
+                        {loadingRedemptions ? (
+                          <div style={{ padding: 16, color: '#888', fontSize: 12 }}>Loading redemptions…</div>
+                        ) : redemptions.length === 0 ? (
+                          <div style={{ padding: 16, color: '#888', fontSize: 12 }}>No redemptions yet.</div>
+                        ) : (
+                          <table style={{ width: '100%', fontSize: 12 }}>
+                            <thead>
+                              <tr style={{ textAlign: 'left', color: '#888' }}>
+                                <th style={{ padding: '8px 8px' }}>User</th>
+                                <th style={{ padding: '8px 8px' }}>Redeemed</th>
+                                <th style={{ padding: '8px 8px' }}>Access window</th>
+                                <th style={{ padding: '8px 8px' }}>Prior plan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {redemptions.map((r) => (
+                                <tr key={`${r.code}-${r.user_id}`} style={{ borderTop: '1px solid rgba(0,0,0,.05)' }}>
+                                  <td style={{ padding: '8px 8px' }}>{r.email || r.user_id}</td>
+                                  <td style={{ padding: '8px 8px' }}>{new Date(r.redeemed_at).toLocaleDateString()}</td>
+                                  <td style={{ padding: '8px 8px' }}>
+                                    {new Date(r.access_start).toLocaleDateString()} –{' '}
+                                    {new Date(r.access_end).toLocaleDateString()}
+                                  </td>
+                                  <td style={{ padding: '8px 8px' }}>{r.previous_subscription_tier || 'None'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

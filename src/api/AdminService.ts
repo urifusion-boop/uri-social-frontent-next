@@ -92,6 +92,30 @@ export interface TrialAdjustResponse {
   low_credit_warning?: boolean;
 }
 
+export interface AccessCode {
+  code: string;
+  plan_tier_id: string;
+  duration_days: number;
+  max_redemptions: number | null;
+  redemption_count: number;
+  is_active: boolean;
+  expires_at: string | null;
+  label: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface AccessCodeRedemption {
+  code: string;
+  user_id: string;
+  email: string | null;
+  plan_tier_id: string;
+  access_start: string;
+  access_end: string;
+  previous_subscription_tier: string | null;
+  redeemed_at: string;
+}
+
 export class AdminService {
   /**
    * Get all users with pagination, search, and sorting
@@ -209,5 +233,39 @@ export class AdminService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Create a new redeemable access code (e.g. a partner comp like "ASA26").
+   * Omit `code` to have the server auto-generate one.
+   */
+  static async createAccessCode(params: {
+    code?: string;
+    plan_tier_id: string;
+    duration_days: number;
+    max_redemptions?: number;
+    expires_at?: string;
+    label?: string;
+  }): Promise<AccessCode> {
+    const response = await UriHttpClient.getClient().post('/api/admin/access-codes', params);
+    return response.data;
+  }
+
+  static async listAccessCodes(): Promise<{ codes: AccessCode[]; count: number }> {
+    const response = await UriHttpClient.getClient().get('/api/admin/access-codes');
+    return response.data;
+  }
+
+  static async listAccessCodeRedemptions(
+    code: string
+  ): Promise<{ code: string; redemptions: AccessCodeRedemption[]; count: number }> {
+    const response = await UriHttpClient.getClient().get(`/api/admin/access-codes/${code}/redemptions`);
+    return response.data;
+  }
+
+  /** Revoke a code early (is_active: false) or edit its label. */
+  static async updateAccessCode(code: string, updates: { is_active?: boolean; label?: string }): Promise<AccessCode> {
+    const response = await UriHttpClient.getClient().patch(`/api/admin/access-codes/${code}`, updates);
+    return response.data;
   }
 }

@@ -552,4 +552,28 @@ export class BillingService {
 
     return response.data.responseData!;
   }
+
+  /**
+   * Redeem an admin-generated access code (e.g. a partner comp like "ASA26")
+   * for free plan access. Each redeemer gets their own access window from
+   * their own redemption moment, not a shared expiry tied to the code.
+   */
+  static async redeemAccessCode(code: string): Promise<{
+    plan_tier_id: string;
+    plan_name: string;
+    access_start: string;
+    access_end: string;
+    duration_days: number;
+  }> {
+    const response: AxiosResponse<
+      UriResponse<{
+        plan_tier_id: string;
+        plan_name: string;
+        access_start: string;
+        access_end: string;
+        duration_days: number;
+      }>
+    > = await UriHttpClient.getClient().post('/social-media/billing/access-code/redeem', { code });
+    return response.data.responseData!;
+  }
 }

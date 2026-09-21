@@ -132,6 +132,113 @@ const Bd = ({
   );
 };
 
+// A partner/comp code (e.g. "ASA26") grants free plan access for a fixed
+// number of days from the moment it's redeemed — see admin_router.py /
+// billing_router.py's access-code endpoints. Kept as its own small,
+// always-visible box (not buried in a specific tab) since redeeming a code
+// is a one-time action most users will only ever do once, right after
+// getting a code from a partner — it shouldn't require knowing which
+// billing sub-tab to look under.
+function RedeemAccessCodeBox({ onRedeemed }: { onRedeemed: () => void | Promise<void> }) {
+  const [expanded, setExpanded] = useState(false);
+  const [code, setCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const handleRedeem = async () => {
+    if (!code.trim()) return;
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      const result = await BillingService.redeemAccessCode(code.trim());
+      const until = new Date(result.access_end).toLocaleDateString();
+      setMessage({ type: 'ok', text: `${result.plan_name} unlocked — free until ${until}.` });
+      setCode('');
+      await onRedeemed();
+    } catch (err: unknown) {
+      const detail =
+        (err as { data?: { detail?: string } })?.data?.detail ??
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setMessage({ type: 'err', text: detail || 'Could not redeem this code.' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#C2185B',
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: 'pointer',
+          margin: '0 0 16px',
+          padding: 0,
+        }}
+      >
+        Have a code?
+      </button>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        border: '1px solid #e5e3df',
+        borderRadius: 10,
+        padding: '14px 16px',
+        marginBottom: 16,
+        background: '#fafaf8',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        flexWrap: 'wrap',
+      }}
+    >
+      <input
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="Enter your code"
+        style={{
+          flex: '1 1 180px',
+          padding: '9px 12px',
+          borderRadius: 8,
+          border: '1.5px solid #e5e3df',
+          fontSize: 13,
+          outline: 'none',
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && handleRedeem()}
+      />
+      <button
+        onClick={handleRedeem}
+        disabled={submitting || !code.trim()}
+        style={{
+          padding: '9px 16px',
+          borderRadius: 8,
+          border: 'none',
+          background: '#CD1B78',
+          color: '#fff',
+          fontWeight: 700,
+          fontSize: 13,
+          cursor: submitting || !code.trim() ? 'not-allowed' : 'pointer',
+          opacity: submitting ? 0.7 : 1,
+        }}
+      >
+        {submitting ? 'Redeeming…' : 'Redeem'}
+      </button>
+      {message && (
+        <span style={{ fontSize: 12, fontWeight: 600, color: message.type === 'ok' ? '#2E7D32' : '#C62828' }}>
+          {message.text}
+        </span>
+      )}
+    </div>
+  );
+}
+
 interface BillingPageProps {
   onBack: () => void;
   initialTab?: 'overview' | 'credits' | 'payments' | 'plans';
@@ -498,6 +605,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
             </button>
           ))}
         </div>
+
+        <RedeemAccessCodeBox onRedeemed={handleRefresh} />
 
         {/* Tab Content */}
         {activeTab === 'plans' && (
