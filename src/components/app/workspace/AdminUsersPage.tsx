@@ -766,6 +766,7 @@ function AccessCodesPanel() {
   const [redemptions, setRedemptions] = useState<AccessCodeRedemption[]>([]);
   const [loadingRedemptions, setLoadingRedemptions] = useState(false);
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
+  const [restoringUserId, setRestoringUserId] = useState<string | null>(null);
 
   const [code, setCode] = useState('');
   const [planTierId, setPlanTierId] = useState('starter');
@@ -893,18 +894,40 @@ function AccessCodesPanel() {
     }
   };
 
-  const handleOpenDetail = async (target: AccessCode) => {
-    setDetailCode(target);
-    setRedemptions([]);
+  const loadRedemptions = async (codeStr: string) => {
     setLoadingRedemptions(true);
     try {
-      const res = await AdminService.listAccessCodeRedemptions(target.code);
+      const res = await AdminService.listAccessCodeRedemptions(codeStr);
       setRedemptions(res.redemptions);
     } catch (error) {
       console.error('Failed to load redemptions:', error);
       setMessage({ type: 'err', text: 'Failed to load redemptions.' });
     } finally {
       setLoadingRedemptions(false);
+    }
+  };
+
+  const handleOpenDetail = async (target: AccessCode) => {
+    setDetailCode(target);
+    setRedemptions([]);
+    await loadRedemptions(target.code);
+  };
+
+  const handleRestore = async (codeStr: string, userId: string) => {
+    setRestoringUserId(userId);
+    setMessage(null);
+    try {
+      await AdminService.restoreAccessCodeRedemption(codeStr, userId);
+      setMessage({ type: 'ok', text: `Restored access for this person.` });
+      await loadRedemptions(codeStr);
+    } catch (error: unknown) {
+      const detail =
+        (error as { data?: { detail?: string }; response?: { data?: { detail?: string } } })?.data?.detail ??
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      console.error('Failed to restore access:', error);
+      setMessage({ type: 'err', text: detail || 'Failed to restore access.' });
+    } finally {
+      setRestoringUserId(null);
     }
   };
 
@@ -1271,6 +1294,8 @@ function AccessCodesPanel() {
         onEmail={detailCode?.assigned_to_email ? () => handleResendEmail(detailCode) : undefined}
         deleting={deletingCode === detailCode?.code}
         emailing={resendingCode === detailCode?.code}
+        onRestore={(userId) => detailCode && handleRestore(detailCode.code, userId)}
+        restoringUserId={restoringUserId}
       />
     </div>
   );
@@ -1436,6 +1461,8 @@ function AccessCodeDetailPanel({
   onEmail,
   deleting,
   emailing,
+  onRestore,
+  restoringUserId,
 }: {
   accessCode: AccessCode | null;
   redemptions: AccessCodeRedemption[];
@@ -1446,6 +1473,8 @@ function AccessCodeDetailPanel({
   onEmail?: () => void;
   deleting?: boolean;
   emailing?: boolean;
+  onRestore: (userId: string) => void;
+  restoringUserId?: string | null;
 }) {
   // Renders always (even while closed) so the slide-out transition can play
   // on close instead of the panel just vanishing — `open` drives the
@@ -1734,6 +1763,25 @@ function AccessCodeDetailPanel({
                         <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
                           Was on: {r.previous_subscription_tier}
                         </div>
+                      )}
+                      {statusKey !== 'active' && (
+                        <button
+                          onClick={() => onRestore(r.user_id)}
+                          disabled={restoringUserId === r.user_id}
+                          style={{
+                            marginTop: 8,
+                            padding: '5px 11px',
+                            borderRadius: 7,
+                            border: '1px solid rgba(194,24,91,.3)',
+                            background: 'rgba(194,24,91,.05)',
+                            color: restoringUserId === r.user_id ? '#bbb' : '#AD1457',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: restoringUserId === r.user_id ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {restoringUserId === r.user_id ? 'Restoring…' : 'Restore access'}
+                        </button>
                       )}
                     </div>
                   </div>

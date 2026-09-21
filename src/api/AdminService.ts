@@ -300,6 +300,19 @@ export class AdminService {
     return response.data;
   }
 
+  /** Undo an earlier revoke/exhaustion for ONE specific redeemer — grants a
+   * fresh full-duration window of the code's plan and clears their
+   * redemption's revoked_at, without needing a whole new code. */
+  static async restoreAccessCodeRedemption(
+    code: string,
+    userId: string
+  ): Promise<{ restored: boolean; user_id: string; access_end: string }> {
+    const response = await UriHttpClient.getClient().post(
+      `/api/admin/access-codes/${code}/redemptions/${userId}/restore`
+    );
+    return response.data;
+  }
+
   static async listAccessCodes(): Promise<{ codes: AccessCode[]; count: number }> {
     const response = await UriHttpClient.getClient().get('/api/admin/access-codes');
     return response.data;
