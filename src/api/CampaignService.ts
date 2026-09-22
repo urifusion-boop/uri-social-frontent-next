@@ -446,6 +446,11 @@ export class CampaignService {
     // TikTok specifically; the backend returns a tiktok_not_configured or
     // tiktok_needs_video early_return if that can't be honoured right now.
     preferred_platform?: '' | 'tiktok';
+    // TikTok Carousel Ads (2+ photos, no video) — additive, TikTok-only. TikTok has
+    // no single-static-image ad unit at all (video or Carousel Ads only), so this is
+    // how a photo-only business reaches TikTok without shooting a video. Ignored
+    // entirely for a Meta-bound plan, and ignored here too unless there are 2+ URLs.
+    carousel_image_urls?: string[];
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;

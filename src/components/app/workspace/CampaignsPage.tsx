@@ -252,6 +252,16 @@ export default function CampaignsPage({
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [media, setMedia] = useState<SelectedMedia | null>(null);
+  // TikTok Carousel Ads (2+ photos, no video) — additive on top of `media` above,
+  // which is reused as carousel slide 1. TikTok has no single-static-image ad unit
+  // (video or Carousel Ads only), so this is how a photo-only business reaches
+  // TikTok without shooting a video. Never touches the Meta/video paths at all —
+  // only assembled into a real request when the user has both a base photo AND
+  // at least one of these (2+ total), same "additive, opt-in" shape as
+  // preferredPlatformRef.
+  const [carouselExtraUrls, setCarouselExtraUrls] = useState<string[]>([]);
+  const carouselExtraInputRef = useRef<HTMLInputElement>(null);
+  const [carouselUploading, setCarouselUploading] = useState(false);
   const [briefSoFar, setBriefSoFar] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -480,6 +490,7 @@ export default function CampaignsPage({
   const openThread = useCallback(async (threadId: string): Promise<string> => {
     selectThreadId(threadId);
     setMedia(null);
+    setCarouselExtraUrls([]);
     setBriefSoFar('');
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
@@ -527,6 +538,7 @@ export default function CampaignsPage({
   // '+ New' — start a fresh campaign thread and a clean chat.
   const startNewThread = async () => {
     setMedia(null);
+    setCarouselExtraUrls([]);
     setBriefSoFar('');
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
@@ -552,6 +564,7 @@ export default function CampaignsPage({
       selectThreadId(thread.thread_id);
       setThreads((prev) => [thread, ...prev]);
       setMedia(null);
+      setCarouselExtraUrls([]);
       setBriefSoFar('');
       chosenVariantRef.current = null;
       ownAudienceRef.current = null;
@@ -573,6 +586,7 @@ export default function CampaignsPage({
       if (activeThreadRef.current === threadId) {
         selectThreadId(null);
         setMedia(null);
+        setCarouselExtraUrls([]);
         setBriefSoFar('');
         lastCreativeRef.current = '';
         creativeChoiceRef.current = null;
@@ -649,6 +663,10 @@ export default function CampaignsPage({
     if (!text || busy) return;
     if (override == null) setInput('');
     const attachedMedia = media;
+    const carouselImageUrls =
+      attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+        ? [attachedMedia.url, ...carouselExtraUrls]
+        : [];
     // The backend parses each call fresh, with no memory of earlier turns — so a
     // follow-up like "use this draft" (no budget) would otherwise loop forever
     // asking for the same thing. Send the whole brief-so-far each time so Jane
@@ -662,6 +680,7 @@ export default function CampaignsPage({
     try {
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: combinedMessage,
         thread_id: threadId,
         // Keep the already-chosen audience attached to every follow-up, so typing a
@@ -728,8 +747,13 @@ export default function CampaignsPage({
     saveMsg(userMsg);
     try {
       const attachedMedia = media;
+      const carouselImageUrls =
+        attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+          ? [attachedMedia.url, ...carouselExtraUrls]
+          : [];
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar || clean,
         whatsapp_number: clean,
         thread_id: threadId,
@@ -781,8 +805,13 @@ export default function CampaignsPage({
       // continueWithVariants below (confirmed live 2026-09-17) — this omitted
       // media entirely, so a video attached before hitting this prompt vanished.
       const attachedMedia = media;
+      const carouselImageUrls =
+        attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+          ? [attachedMedia.url, ...carouselExtraUrls]
+          : [];
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
@@ -965,9 +994,14 @@ export default function CampaignsPage({
     // creative_source: 'ask' unconditionally, so an already-attached video/image
     // vanished the moment the user answered the destination question.
     const attachedMedia = media;
+    const carouselImageUrls =
+      attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+        ? [attachedMedia.url, ...carouselExtraUrls]
+        : [];
     try {
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         ...(attachedMedia?.source === 'upload'
@@ -1036,6 +1070,10 @@ export default function CampaignsPage({
     // requirement for it) got evaluated against nothing even with a video already
     // attached.
     const attachedMedia = media;
+    const carouselImageUrls =
+      attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+        ? [attachedMedia.url, ...carouselExtraUrls]
+        : [];
     try {
       // Live-reported bug: this call omitted selected_plan_variant entirely, so the
       // backend had no way to know a choice had already been made — it just
@@ -1046,6 +1084,7 @@ export default function CampaignsPage({
       // below still builds each pending variant with its own correct data.
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         ...(attachedMedia?.source === 'upload'
@@ -1097,9 +1136,14 @@ export default function CampaignsPage({
     // with a real video attached, and any campaign would lose the attachment
     // entirely. Same media-forwarding logic send() already uses.
     const attachedMedia = media;
+    const carouselImageUrls =
+      attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+        ? [attachedMedia.url, ...carouselExtraUrls]
+        : [];
     try {
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         target_audience: audience,
@@ -1174,6 +1218,30 @@ export default function CampaignsPage({
       setUploadError('Upload failed, please try again.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  // TikTok Carousel Ads — a second (third, ...) photo for the slides beyond the
+  // base `media` attachment. Deliberately a plain, direct upload with none of
+  // handleFileChosen's branches (recomposite/video-quality-check/attestation) —
+  // a carousel slide is just a photo, no format decision to make about it.
+  const handleCarouselExtraFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadError('');
+    setCarouselUploading(true);
+    try {
+      const { url, is_video } = await CampaignService.uploadMedia(file);
+      if (is_video) {
+        setUploadError('Carousel slides are photos, not a video — please choose an image.');
+        return;
+      }
+      setCarouselExtraUrls((prev) => [...prev, url]);
+    } catch {
+      setUploadError('Upload failed, please try again.');
+    } finally {
+      setCarouselUploading(false);
     }
   };
 
@@ -1482,6 +1550,7 @@ export default function CampaignsPage({
                         // starts a fresh campaign instead of appending to the launched one.
                         setBriefSoFar('');
                         setMedia(null);
+                        setCarouselExtraUrls([]);
                         lastCreativeRef.current = '';
                         creativeChoiceRef.current = null;
                         chosenVariantRef.current = null;
@@ -1724,7 +1793,12 @@ export default function CampaignsPage({
                       {media.source === 'draft' ? 'From drafts' : media.label}
                     </span>
                     <button
-                      onClick={() => setMedia(null)}
+                      onClick={() => {
+                        setMedia(null);
+                        // Removing the base photo invalidates any carousel slides
+                        // riding on it (media is reused as slide 1).
+                        setCarouselExtraUrls([]);
+                      }}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -1738,6 +1812,77 @@ export default function CampaignsPage({
                       ×
                     </button>
                   </div>
+                )}
+                {/* TikTok Carousel Ads — only offered once a real base photo is
+                    attached and TikTok is the chosen platform; a video makes this
+                    irrelevant (TikTok already accepts that directly), and Meta has
+                    no carousel path here at all. */}
+                {preferredPlatformUi === 'tiktok' && media?.source === 'upload' && !media.isVideo && (
+                  <>
+                    <input
+                      ref={carouselExtraInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      style={{ display: 'none' }}
+                      onChange={handleCarouselExtraFileChosen}
+                    />
+                    <button
+                      onClick={() => carouselExtraInputRef.current?.click()}
+                      disabled={busy || carouselUploading}
+                      title="TikTok Carousel Ads need 2+ photos — add another slide"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: '#f6f5f3',
+                        border: '1px solid #e0dcd9',
+                        borderRadius: 20,
+                        padding: '6px 12px',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: '#555',
+                        cursor: busy || carouselUploading ? 'default' : 'pointer',
+                      }}
+                    >
+                      + {carouselUploading ? 'Uploading…' : 'Add carousel photo'}
+                    </button>
+                    {carouselExtraUrls.map((url, i) => (
+                      <div
+                        key={url + i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: '#fce4ec',
+                          border: '1px solid #f5c2d8',
+                          borderRadius: 20,
+                          padding: '4px 6px 4px 4px',
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt=""
+                          style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }}
+                        />
+                        <span style={{ fontSize: 12, color: PINK, fontWeight: 600 }}>Slide {i + 2}</span>
+                        <button
+                          onClick={() => setCarouselExtraUrls((prev) => prev.filter((_, idx) => idx !== i))}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: PINK,
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            padding: '0 4px',
+                            lineHeight: 1,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </>
                 )}
               </div>
               {uploadError && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#c62828' }}>{uploadError}</p>}
@@ -3365,7 +3510,8 @@ function ResultCard({
     if (result.stage === 'tiktok_needs_video') {
       return (
         <JaneBubble>
-          TikTok only runs video ads. Attach a video (upload your own, or ask me to generate one), then send your
+          TikTok needs either a video, or at least 2 photos for a carousel ad. Attach a video (upload your own, or ask
+          me to generate one), or use &ldquo;Add carousel photo&rdquo; after attaching a first photo, then send your
           message again.
         </JaneBubble>
       );
