@@ -1200,10 +1200,14 @@ const ContentManagerPage = ({
     checkConnections();
   }, []);
 
-  const handleGenerated = () => {
+  // Memoized deliberately: passed down as a prop to components (e.g.
+  // ContentCalendarV2Tab) whose own effects key a poll interval on this
+  // callback's identity — an unmemoized version here recreated it on every
+  // WorkspaceDashboard re-render, silently restarting/breaking that poll.
+  const handleGenerated = useCallback(() => {
     setActiveTab('drafts');
     fetchDrafts();
-  };
+  }, [fetchDrafts]);
   const handleRefreshDrafts = useCallback(() => {
     if (activeTabRef.current === 'drafts') fetchDrafts();
   }, [fetchDrafts]);
