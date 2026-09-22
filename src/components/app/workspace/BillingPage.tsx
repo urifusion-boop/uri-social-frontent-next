@@ -132,6 +132,119 @@ const Bd = ({
   );
 };
 
+// A partner/comp code (e.g. "ASA26") grants free plan access for a fixed
+// number of days from the moment it's redeemed — see admin_router.py /
+// billing_router.py's access-code endpoints. Kept as its own small,
+// always-visible box (not buried in a specific tab) since redeeming a code
+// is a one-time action most users will only ever do once, right after
+// getting a code from a partner — it shouldn't require knowing which
+// billing sub-tab to look under.
+function RedeemAccessCodeBox({ onRedeemed }: { onRedeemed: () => void | Promise<void> }) {
+  const [expanded, setExpanded] = useState(false);
+  const [code, setCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const handleRedeem = async () => {
+    if (!code.trim()) return;
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      const result = await BillingService.redeemAccessCode(code.trim());
+      const until = new Date(result.access_end).toLocaleDateString();
+      setMessage({ type: 'ok', text: `${result.plan_name} unlocked — free until ${until}.` });
+      setCode('');
+      await onRedeemed();
+    } catch (err: unknown) {
+      const detail =
+        (err as { data?: { detail?: string } })?.data?.detail ??
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setMessage({ type: 'err', text: detail || 'Could not redeem this code.' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          border: '1.5px dashed rgba(205,27,120,0.4)',
+          borderRadius: 10,
+          padding: '12px 16px',
+          marginBottom: 16,
+          background: 'rgba(205,27,120,0.05)',
+          color: '#AD1457',
+          fontSize: 13.5,
+          fontWeight: 700,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        🎟️ Have a partner or promo code? Click here to redeem it
+      </button>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        border: '1px solid #e5e3df',
+        borderRadius: 10,
+        padding: '14px 16px',
+        marginBottom: 16,
+        background: '#fafaf8',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        flexWrap: 'wrap',
+      }}
+    >
+      <input
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="Enter your code"
+        style={{
+          flex: '1 1 180px',
+          padding: '9px 12px',
+          borderRadius: 8,
+          border: '1.5px solid #e5e3df',
+          fontSize: 13,
+          outline: 'none',
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && handleRedeem()}
+      />
+      <button
+        onClick={handleRedeem}
+        disabled={submitting || !code.trim()}
+        style={{
+          padding: '9px 16px',
+          borderRadius: 8,
+          border: 'none',
+          background: '#CD1B78',
+          color: '#fff',
+          fontWeight: 700,
+          fontSize: 13,
+          cursor: submitting || !code.trim() ? 'not-allowed' : 'pointer',
+          opacity: submitting ? 0.7 : 1,
+        }}
+      >
+        {submitting ? 'Redeeming…' : 'Redeem'}
+      </button>
+      {message && (
+        <span style={{ fontSize: 12, fontWeight: 600, color: message.type === 'ok' ? '#2E7D32' : '#C62828' }}>
+          {message.text}
+        </span>
+      )}
+    </div>
+  );
+}
+
 interface BillingPageProps {
   onBack: () => void;
   initialTab?: 'overview' | 'credits' | 'payments' | 'plans';
@@ -476,6 +589,30 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
           </div>
         </div>
 
+        {/* Comp-grant status — a redeemed access code grants its plan's credits
+            ONCE (never refilled monthly). It ends whichever comes first: the
+            end_date below, or the credits running out (which auto-revokes the
+            grant server-side — see CreditService._revoke_exhausted_comp_grant). */}
+        {balance?.subscription_source === 'access_code' && balance?.subscription_tier && (
+          <div
+            style={{
+              background: 'rgba(194,24,91,.06)',
+              border: '1px solid rgba(194,24,91,.2)',
+              borderRadius: 10,
+              padding: '12px 16px',
+              marginBottom: 16,
+              fontSize: 13,
+              color: '#7a0f43',
+            }}
+          >
+            <strong>Complimentary access</strong> — you're on a free{' '}
+            {balance.subscription_tier.charAt(0).toUpperCase() + balance.subscription_tier.slice(1)} plan from a partner
+            code, with {balance.credits_remaining} credit{balance.credits_remaining === 1 ? '' : 's'} remaining. It ends{' '}
+            {balance.end_date ? `on ${new Date(balance.end_date).toLocaleDateString()}` : 'soon'}, or as soon as your
+            credits run out — whichever comes first. Subscribe to a paid plan anytime to avoid any interruption.
+          </div>
+        )}
+
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #edecea' }}>
           {['overview', 'plans', 'credits', 'payments'].map((tab) => (
@@ -498,6 +635,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
             </button>
           ))}
         </div>
+
+        <RedeemAccessCodeBox onRedeemed={handleRefresh} />
 
         {/* Tab Content */}
         {activeTab === 'plans' && (
@@ -1038,71 +1177,79 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
 
         {activeTab === 'overview' && (
           <div>
-            {/* Trial Status Card */}
-            {userDetails?.isTrial && (
-              <div
-                style={{
-                  background: userDetails.trialActive
-                    ? 'linear-gradient(135deg, rgba(205,27,120,.04) 0%, rgba(160,21,96,.04) 100%)'
-                    : 'rgba(239,68,68,.04)',
-                  borderRadius: 12,
-                  border: `1px solid ${userDetails.trialActive ? 'rgba(205,27,120,.15)' : 'rgba(239,68,68,.15)'}`,
-                  padding: 18,
-                  marginBottom: 16,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 16,
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span
+            {/* Trial Status Card — irrelevant once any subscription (paid or
+                a redeemed comp code) is covering the account, so it must not
+                keep telling an already-subscribed user to "upgrade". And a
+                "your trial ended, upgrade to continue" message is simply
+                false while bonus credits still let them keep generating —
+                only nag once credits_remaining (which already folds bonus
+                credits in, see CreditBalanceResponse) has actually hit 0. */}
+            {userDetails?.isTrial &&
+              !userDetails?.subscriptionTier &&
+              (userDetails.trialActive || (userDetails.creditsRemaining ?? 0) <= 0) && (
+                <div
+                  style={{
+                    background: userDetails.trialActive
+                      ? 'linear-gradient(135deg, rgba(205,27,120,.04) 0%, rgba(160,21,96,.04) 100%)'
+                      : 'rgba(239,68,68,.04)',
+                    borderRadius: 12,
+                    border: `1px solid ${userDetails.trialActive ? 'rgba(205,27,120,.15)' : 'rgba(239,68,68,.15)'}`,
+                    padding: 18,
+                    marginBottom: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          color: userDetails.trialActive ? '#CD1B78' : '#DC2626',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        {userDetails.trialActive ? '✦ Free Trial Active' : '✦ Free Trial Expired'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 14, color: '#374151', fontWeight: 500 }}>
+                      {userDetails.trialActive ? (
+                        <>
+                          <strong>{userDetails.trialDaysRemaining ?? 0}</strong> day
+                          {(userDetails.trialDaysRemaining ?? 0) !== 1 ? 's' : ''} remaining
+                          {' · '}
+                          <strong>{userDetails.trialCreditsRemaining ?? 0}</strong> credit
+                          {(userDetails.trialCreditsRemaining ?? 0) !== 1 ? 's' : ''} left
+                        </>
+                      ) : (
+                        'Upgrade to a plan to continue creating content.'
+                      )}
+                    </div>
+                  </div>
+                  {!userDetails.subscriptionTier && (
+                    <button
+                      onClick={() => setActiveTab('plans')}
                       style={{
-                        fontSize: 11,
+                        background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '8px 20px',
+                        fontSize: 13,
                         fontWeight: 700,
-                        textTransform: 'uppercase',
-                        color: userDetails.trialActive ? '#CD1B78' : '#DC2626',
-                        letterSpacing: '0.05em',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      {userDetails.trialActive ? '✦ Free Trial Active' : '✦ Free Trial Expired'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 14, color: '#374151', fontWeight: 500 }}>
-                    {userDetails.trialActive ? (
-                      <>
-                        <strong>{userDetails.trialDaysRemaining ?? 0}</strong> day
-                        {(userDetails.trialDaysRemaining ?? 0) !== 1 ? 's' : ''} remaining
-                        {' · '}
-                        <strong>{userDetails.trialCreditsRemaining ?? 0}</strong> credit
-                        {(userDetails.trialCreditsRemaining ?? 0) !== 1 ? 's' : ''} left
-                      </>
-                    ) : (
-                      'Upgrade to a plan to continue creating content.'
-                    )}
-                  </div>
+                      {userDetails.trialActive ? 'View Plans' : 'Upgrade Now'}
+                    </button>
+                  )}
                 </div>
-                {!userDetails.subscriptionTier && (
-                  <button
-                    onClick={() => setActiveTab('plans')}
-                    style={{
-                      background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '8px 20px',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {userDetails.trialActive ? 'View Plans' : 'Upgrade Now'}
-                  </button>
-                )}
-              </div>
-            )}
+              )}
 
             {/* Credit Balance Cards */}
             <div

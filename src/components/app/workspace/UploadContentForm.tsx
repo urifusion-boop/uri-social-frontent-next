@@ -232,20 +232,21 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
     });
   };
 
+  const refreshCredits = async () => {
+    try {
+      const balance = await BillingService.getCreditBalance();
+      setCreditsRemaining(balance.credits_remaining);
+      if (balance.low_credit_warning && balance.credits_remaining > 0 && balance.credits_remaining <= 3) {
+        setLowCreditWarningOpen(true);
+      }
+    } catch (error) {
+      console.error('Failed to check credits:', error);
+    }
+  };
+
   // Check credits before generation
   useEffect(() => {
-    const checkCredits = async () => {
-      try {
-        const balance = await BillingService.getCreditBalance();
-        setCreditsRemaining(balance.credits_remaining);
-        if (balance.low_credit_warning && balance.credits_remaining > 0 && balance.credits_remaining <= 3) {
-          setLowCreditWarningOpen(true);
-        }
-      } catch (error) {
-        console.error('Failed to check credits:', error);
-      }
-    };
-    checkCredits();
+    refreshCredits();
   }, []);
 
   const doGenerate = async () => {
@@ -759,7 +760,11 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
       </Button>
 
       {/* Modals */}
-      <OutOfCreditsModal open={outOfCreditsOpen} onClose={() => setOutOfCreditsOpen(false)} />
+      <OutOfCreditsModal
+        open={outOfCreditsOpen}
+        onClose={() => setOutOfCreditsOpen(false)}
+        onRedeemed={refreshCredits}
+      />
       <LowCreditWarning
         open={lowCreditWarningOpen}
         onClose={() => setLowCreditWarningOpen(false)}

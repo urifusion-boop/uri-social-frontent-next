@@ -21,6 +21,10 @@ export interface CreditBalanceResponse {
   credits_used: number;
   credits_remaining: number;
   subscription_tier: string | null;
+  // 'access_code' when this tier came from a redeemed comp code — that grant
+  // is one-time (no monthly refill) and ends whichever comes first: end_date,
+  // or credits running out (auto-revoked server-side, see CreditService).
+  subscription_source?: string | null;
   billing_cycle?: BillingCycle; // PRD 8.1: Billing cycle selection
   start_date?: string | null; // PRD 8.3: Subscription lifecycle
   end_date?: string | null; // PRD 8.3: Auto-expire after end_date
@@ -550,6 +554,30 @@ export class BillingService {
       '/social-media/billing/trial/can-generate'
     );
 
+    return response.data.responseData!;
+  }
+
+  /**
+   * Redeem an admin-generated access code (e.g. a partner comp like "ASA26")
+   * for free plan access. Each redeemer gets their own access window from
+   * their own redemption moment, not a shared expiry tied to the code.
+   */
+  static async redeemAccessCode(code: string): Promise<{
+    plan_tier_id: string;
+    plan_name: string;
+    access_start: string;
+    access_end: string;
+    duration_days: number;
+  }> {
+    const response: AxiosResponse<
+      UriResponse<{
+        plan_tier_id: string;
+        plan_name: string;
+        access_start: string;
+        access_end: string;
+        duration_days: number;
+      }>
+    > = await UriHttpClient.getClient().post('/social-media/billing/access-code/redeem', { code });
     return response.data.responseData!;
   }
 }

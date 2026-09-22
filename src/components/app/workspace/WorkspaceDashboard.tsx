@@ -63,6 +63,7 @@ import SubmagicProductionForm from '@/src/components/app/workspace/SubmagicProdu
 import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductionForm';
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
 import MarketIntelligencePage from '@/src/components/app/workspace/MarketIntelligencePage';
+import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -75,6 +76,7 @@ import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
+import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
@@ -6519,6 +6521,25 @@ const PlaybookPage = ({
         )}
       </div>
 
+      {/* Business Pulse — a separate, always-editable surface (own save button,
+          own load/save calls) nested here rather than given its own top-level
+          nav destination. It renders its own header/subtitle, so it isn't
+          wrapped in a titled PbSection like the sections below (that would
+          duplicate the heading) — just contained so its internal
+          height:'100%' resolves against this box instead of the full page. */}
+      <div
+        style={{
+          border: '1px solid #edecea',
+          borderRadius: 14,
+          marginBottom: 20,
+          minHeight: 560,
+          background: '#fff',
+          overflow: 'hidden',
+        }}
+      >
+        <BusinessPulsePanel />
+      </div>
+
       {/* Brand Identity */}
       <PbSection title="Brand Identity">
         {/* Logo row */}
@@ -9618,11 +9639,34 @@ const NAV = [
     tooltip: 'View your plan, content credits, and billing history',
   },
   {
+    // ADMIN ONLY — filtered out below unless /jane-ads/admin/access allows it. Shows
+    // other businesses' reasoning and performance, so it is never client-facing
+    // (CI-SPEC-01 §4.5). Hiding the item is convenience; every endpoint re-checks.
+    id: 'records',
+    icon: 'book',
+    label: 'Records',
+    tooltip: 'What Jane decided on each campaign, and what the buckets say',
+    adminOnly: true,
+  },
+  {
     id: 'visual-engine-v2',
     icon: 'grid',
     label: '🧪 Visual Engine V2',
     tooltip:
       'Beta: isolated 4-layer compositing engine (content + imagery + brand + template-fill), not yet wired into the main Create Content flow',
+  },
+  {
+    // Global platform admin (user management, credit/trial adjustment,
+    // access codes) — a DIFFERENT admin concept from `records` above's
+    // Jane-Ads-specific isAdsAdmin, deliberately not reusing that flag so
+    // the two permission systems stay distinct. AdminUsersPage.tsx also
+    // re-checks server-side and self-redirects non-admins away; hiding the
+    // nav item is convenience, not the real gate.
+    id: 'admin',
+    icon: 'settings',
+    label: 'Admin',
+    tooltip: 'User management, credit/trial adjustment, and partner access codes',
+    platformAdminOnly: true,
   },
 ];
 
@@ -9640,7 +9684,7 @@ const MORE_NAV = [
   { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
   { id: 'blog', icon: 'book', label: 'Blog' },
   { id: 'market-intelligence', icon: 'eye', label: 'Market Intelligence' },
-  { id: 'business-pulse', icon: 'heart', label: 'Business Pulse' },
+  // Business Pulse moved inside Brand Playbook — no longer its own destination.
   { id: 'connections', icon: 'share', label: 'Connected Accounts' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
@@ -9653,7 +9697,18 @@ const MORE_NAV = [
    MAIN DASHBOARD
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function WorkspaceDashboard() {
-  const { logoutUser, userDetails } = useAuth();
+  // Same gate the Revenue tab uses (/jane-ads/admin/access). The Records item shows
+  // other businesses' reasoning and performance, so it is hidden for everyone else —
+  // and every endpoint behind it re-checks server-side regardless (CI-SPEC-01 §4.5).
+  const [isAdsAdmin, setIsAdsAdmin] = useState(false);
+
+  useEffect(() => {
+    CampaignService.billingAccess()
+      .then(setIsAdsAdmin)
+      .catch(() => setIsAdsAdmin(false));
+  }, []);
+
+  const { logoutUser, userDetails, isAdminUser } = useAuth();
   const { unreadCount } = useNotifications();
   const { showVerifyModal, setShowVerifyModal, requireEmailVerification } = useEmailVerification();
   const router = useRouter();
@@ -10121,6 +10176,7 @@ export default function WorkspaceDashboard() {
       />
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
+    records: <RecordsPanel />,
     performance: <PerformancePage onJane={goWorkspace} />,
     campaigns: (
       <CampaignsPage
@@ -10132,11 +10188,11 @@ export default function WorkspaceDashboard() {
       />
     ),
     'market-intelligence': <MarketIntelligencePage />,
+    admin: <AdminUsersPage onBack={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
     playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
-    'business-pulse': <BusinessPulsePanel />,
     settings: (
       <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
     ),
@@ -10242,7 +10298,12 @@ export default function WorkspaceDashboard() {
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', paddingLeft: 37 }}>Active & ready</div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {NAV.map((n) => {
+              {NAV.filter((n) => {
+                const item = n as { adminOnly?: boolean; platformAdminOnly?: boolean };
+                if (item.adminOnly) return isAdsAdmin;
+                if (item.platformAdminOnly) return isAdminUser;
+                return true;
+              }).map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
                 return (
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>

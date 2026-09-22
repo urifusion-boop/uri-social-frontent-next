@@ -100,6 +100,44 @@ export interface CtaChoice {
   label: string;
 }
 
+/** One editable line of a plan, as the review step renders it. `editable: false`
+ * lines (daily spend, destination) are shown for context but carry no pencil — they
+ * are derived from other fields, and offering an edit we would ignore is its own lie. */
+export interface PlanField {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'list' | 'select' | 'number' | 'derived';
+  value: string | number | string[] | null;
+  editable: boolean;
+  help?: string;
+  options?: string[];
+  /** Human labels for `options`, keyed by option value — a select whose values are
+   * wire-format keys ('instagram_only') must still read as English in the UI. */
+  option_labels?: Record<string, string>;
+  max_length?: number;
+  max_items?: number;
+  min?: number;
+  max?: number;
+  prefix?: string;
+}
+
+export interface PlanFieldsSaveResult {
+  plan_id: string;
+  applied: string[];
+  rejected: string[];
+  fields: PlanField[];
+  /** True when something actually changed. Jane's plan card above the panel renders
+   * from the planning payload, so it must be told the plan no longer matches what
+   * she originally proposed — otherwise the two disagree about what will launch. */
+  plan_edited?: boolean;
+  plan?: { platforms?: unknown[]; geo?: unknown };
+  creative?: unknown;
+  /** Jane's reasoning re-derived from the edited plan — reach and cost per result
+   * re-fetched, every sentence rebuilt. Null when it could not be rebuilt, in which
+   * case the caller keeps the summary it already had. */
+  summary?: CampaignSummary | null;
+}
+
 export interface LaunchFromMessageResult {
   stage:
     | 'need_more'
@@ -127,6 +165,11 @@ export interface LaunchFromMessageResult {
     | 'tiktok_needs_video'
     | 'tiktok_not_configured';
   plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
+  /** Set once the client edits the plan in the review panel. */
+  plan_edited?: boolean;
+  /** Set only when a save could NOT rebuild Jane's reasoning, so the block on screen
+   * is still her original proposal and has to say so. */
+  summary_stale?: boolean;
   understood?: UnderstoodFields;
   question?: string;
   page_name?: string; // present on meta_connection_* stages, when a Page is already known
@@ -362,6 +405,75 @@ export interface DashboardHome {
   is_first_run: boolean;
 }
 
+/** A campaign's decision record (CI-SPEC-01 Part 1) — what Jane decided and why.
+ *  Admin-only: it carries other businesses' reasoning and is never client-facing. */
+export interface CampaignRecord {
+  campaign_id: string;
+  created_at: string | null;
+  exploration: boolean;
+  generated_count: number;
+  context: {
+    business_category: string;
+    city: string;
+    budget_tier: string;
+    platform: string;
+    area: string[];
+    conversion_location: string;
+    purchase_behaviour: string;
+    geo_strategy: string;
+  };
+  strategy: {
+    geo_pockets: string[];
+    platform_chosen: string[];
+    purchase_behaviour: string;
+    behaviour_source: string;
+    plans_generated: { rank: number; recommended: boolean; who_its_for: string; trigger: string }[];
+    plan_selected: { rank?: number; who_its_for?: string } | null;
+    plan_recommended: { rank?: number; who_its_for?: string } | null;
+    recommendation_diverged: boolean;
+    corpus_coverage: string;
+    corpus_records_cited: { strategy_id?: string; version?: number }[];
+  };
+  creative: { format_id: string; asset_source: string; media_type: string; headline: string };
+  budget: {
+    stated_ngn: number; effective_spend_ngn: number; service_fee_ngn: number;
+    duration_days: number; budget_tier: string; budget_source: string;
+  };
+  modifications: { field: string; from: unknown; to: unknown; changed_at: string }[];
+  results: Record<string, unknown> | null;
+}
+
+export interface BucketView {
+  bucket: Record<string, string>;
+  headline: {
+    campaigns: number;
+    threshold_state: string;
+    median_cost_per_conversation_ngn: number | null;
+    repeat_rate: number | null;
+    plan_acceptance_rate: number | null;
+    recommendation_divergence_rate: number | null;
+    exploration_share: number | null;
+  };
+  comparison: {
+    dimension: string;
+    campaigns: number;
+    threshold_state: string;
+    thresholds: { observe: number; bias: number; claim: number };
+    message?: string;
+    rows: {
+      value: string; campaigns: number;
+      median_cost_per_conversation_ngn: number | null;
+      with_results: number; sufficient: boolean;
+    }[];
+  };
+}
+
+export interface DigestView {
+  window_days: number;
+  campaigns: number;
+  items: { kind: string; text: string }[];
+}
+
 export class CampaignService {
   /** Conversational planning: Jane parses a plain-English message and returns her plan
    * (or asks a follow-up). Does NOT create anything — used for the chat preview. */
@@ -457,6 +569,34 @@ export class CampaignService {
   }
 
   /** Plan-before-launch, step 2 — the only call that actually creates a real (paused) Meta campaign. */
+  /** The review step: the plan as individually editable lines.
+   *
+   * Sits between the plan card and the launch button so a client changes the ad
+   * before their wallet moves, rather than discovering it afterwards in Ads Manager.
+   */
+  static async getPlanFields(planId: string): Promise<{ plan_id: string; fields: PlanField[] }> {
+    const res = await UriHttpClient.getClient().get(`/jane-ads/meta/plan/${planId}/fields`);
+    return res.data as { plan_id: string; fields: PlanField[] };
+  }
+
+  /** Save edits. The backend validates each one against the same machinery the launch
+   * uses (Meta's location and interest catalogues, the policy scan, the brand's spend
+   * cap), so anything it accepts here cannot fail at launch. Rejections come back per
+   * field and do NOT discard the edits that were fine — never drop typed work. */
+  static async savePlanFields(
+    planId: string,
+    edits: Record<string, unknown>,
+  ): Promise<PlanFieldsSaveResult> {
+    // Location and interest edits each cost a round trip to Meta's search, so this is
+    // slower than a normal PATCH.
+    const res = await UriHttpClient.getClient().patch(
+      `/jane-ads/meta/plan/${planId}/fields`,
+      { edits },
+      { timeout: 90000 },
+    );
+    return res.data as PlanFieldsSaveResult;
+  }
+
   static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
     // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
     // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was
@@ -551,6 +691,43 @@ export class CampaignService {
   static async getDashboardHome(): Promise<DashboardHome> {
     const res = await UriHttpClient.getClient().get('/jane-ads/dashboard/home');
     return res.data as DashboardHome;
+  }
+
+  /** Admin-only intelligence surfaces (CI-SPEC-01 §4). Never reachable from a
+   *  client-facing screen — they hold other businesses' performance data. */
+  static async listCampaignRecords(limit = 50): Promise<{ records: CampaignRecord[] }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/intelligence/records', {
+      params: { limit },
+    });
+    return res.data as { records: CampaignRecord[] };
+  }
+
+  static async getCampaignRecord(campaignId: string): Promise<CampaignRecord> {
+    const res = await UriHttpClient.getClient().get(
+      `/jane-ads/admin/intelligence/campaign/${campaignId}`,
+    );
+    return res.data as CampaignRecord;
+  }
+
+  static async getBucket(params: {
+    business_category?: string; city?: string; budget_tier?: string; dimension?: string;
+  }): Promise<BucketView> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/intelligence/bucket', {
+      params,
+    });
+    return res.data as BucketView;
+  }
+
+  static async getDigest(): Promise<DigestView> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/intelligence/digest');
+    return res.data as DigestView;
+  }
+
+  static async backfillRecordResults(): Promise<{ filled: number; failed: number }> {
+    const res = await UriHttpClient.getClient().post(
+      '/jane-ads/admin/intelligence/backfill-results', {},
+    );
+    return res.data as { filled: number; failed: number };
   }
 
   /** Start a Squad checkout to fund the active brand's ad wallet. Returns the checkout

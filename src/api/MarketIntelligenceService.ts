@@ -100,6 +100,8 @@ export interface InsightVersion {
   lifecycle: Lifecycle;
   status: InsightStatus;
   coverage_note?: string | null;
+  language: string;
+  action_readiness: 'ready_to_act' | 'check_suitability';
   first_seen: string;
   last_updated: string;
 }
@@ -111,6 +113,19 @@ export interface SourceConfig {
   verified_lookback_days: number;
   refresh_cadence_hours: number;
 }
+
+export interface SourceCapability {
+  provider: string;
+  platform: string;
+  verified_lookback_days: number;
+  supports_date_filters: boolean;
+  supports_keyword_search: boolean;
+  accessible_languages: string[];
+  refresh_cadence_hours: number;
+  notes: string;
+}
+
+export type NotificationSensitivity = 'low' | 'normal' | 'high';
 
 export interface Topic {
   id: string;
@@ -125,6 +140,9 @@ export interface Topic {
   keep_updating: boolean;
   active: boolean;
   created_at: string;
+  competitors: string[];
+  languages: string[];
+  notification_sensitivity: NotificationSensitivity;
 }
 
 export interface CollectionRun {
@@ -162,6 +180,72 @@ export interface FeedbackOutcome {
   created_at: string;
 }
 
+export type DevelopmentStatus = 'date_to_confirm' | 'scheduled' | 'postponed' | 'cancelled' | 'occurred';
+
+export interface Development {
+  id: string;
+  brand_id: string;
+  topic_id: string;
+  evidence_id: string;
+  issuer?: string | null;
+  headline: string;
+  event_date?: string | null;
+  event_date_range_end?: string | null;
+  location?: string | null;
+  registration_deadline?: string | null;
+  preparation_action?: string | null;
+  source_url?: string | null;
+  status: DevelopmentStatus;
+  verification_note?: string | null;
+  first_seen: string;
+  last_updated: string;
+}
+
+export type NotificationCategory =
+  | 'act_soon'
+  | 'qualified_inquiry'
+  | 'prepare'
+  | 'useful_pattern'
+  | 'early_signal'
+  | 'material_update'
+  | 'cooling';
+
+export interface MINotificationPreferences {
+  user_id: string;
+  brand_id: string;
+  email_enabled: boolean;
+  timezone: string;
+  digest_hour_local: number;
+  quiet_hours_start_local: number;
+  quiet_hours_end_local: number;
+  urgent_override: boolean;
+  muted_topic_ids: string[];
+  muted_categories: NotificationCategory[];
+  snoozed_insight_ids: string[];
+}
+
+export interface PreferencesUpdateRequest {
+  email_enabled?: boolean;
+  timezone?: string;
+  digest_hour_local?: number;
+  quiet_hours_start_local?: number;
+  quiet_hours_end_local?: number;
+  urgent_override?: boolean;
+  mute_topic_id?: string;
+  unmute_topic_id?: string;
+  mute_category?: NotificationCategory;
+  unmute_category?: NotificationCategory;
+}
+
+export interface BrandBudget {
+  brand_id: string;
+  monthly_allowance_usd: number;
+  period: string;
+  reserved_usd: number;
+  spent_usd: number;
+  updated_at: string;
+}
+
 export interface SourceCoveragePreview {
   provider: string;
   requested_days: number;
@@ -181,11 +265,47 @@ export interface TopicCreateRequest {
   geographic_scope?: string;
   requested_days?: number;
   keep_updating?: boolean;
+  competitors?: string[];
+  languages?: string[];
+  notification_sensitivity?: NotificationSensitivity;
+}
+
+export interface KeywordSuggestion {
+  keywords: string[];
+  excluded_keywords: string[];
+}
+
+export type MIAccessLevel = 'full' | 'view_only';
+
+export interface AccessGrant {
+  id: string;
+  brand_id: string;
+  user_id: string;
+  level: MIAccessLevel;
+  granted_by: string;
+  created_at: string;
+  // Best-effort display info, resolved server-side — absent if the user
+  // record couldn't be joined, never blocking the grant itself.
+  email?: string;
+  user_name?: string | null;
 }
 
 const BASE = '/market-intelligence';
 
 export class MarketIntelligenceService {
+  static async listSources(): Promise<UriResponse<SourceCapability[]>> {
+    const res: AxiosResponse<UriResponse<SourceCapability[]>> = await UriHttpClient.getClient().get(`${BASE}/sources`);
+    return res.data;
+  }
+
+  static async suggestKeywords(question: string): Promise<UriResponse<KeywordSuggestion>> {
+    const res: AxiosResponse<UriResponse<KeywordSuggestion>> = await UriHttpClient.getClient().post(
+      `${BASE}/topics/suggest-keywords`,
+      { question }
+    );
+    return res.data;
+  }
+
   static async createTopic(data: TopicCreateRequest): Promise<UriResponse<Topic>> {
     const res: AxiosResponse<UriResponse<Topic>> = await UriHttpClient.getClient().post(`${BASE}/topics`, data);
     return res.data;
@@ -193,6 +313,11 @@ export class MarketIntelligenceService {
 
   static async listTopics(): Promise<UriResponse<Topic[]>> {
     const res: AxiosResponse<UriResponse<Topic[]>> = await UriHttpClient.getClient().get(`${BASE}/topics`);
+    return res.data;
+  }
+
+  static async getBudget(): Promise<UriResponse<BrandBudget>> {
+    const res: AxiosResponse<UriResponse<BrandBudget>> = await UriHttpClient.getClient().get(`${BASE}/budget`);
     return res.data;
   }
 
@@ -248,10 +373,87 @@ export class MarketIntelligenceService {
     return res.data;
   }
 
+  static async getBrief(insightId: string): Promise<UriResponse<ActionBrief>> {
+    const res: AxiosResponse<UriResponse<ActionBrief>> = await UriHttpClient.getClient().get(
+      `${BASE}/insights/${insightId}/briefs`
+    );
+    return res.data;
+  }
+
   static async createBrief(insightId: string, proposedMessage?: string): Promise<UriResponse<ActionBrief>> {
     const res: AxiosResponse<UriResponse<ActionBrief>> = await UriHttpClient.getClient().post(
       `${BASE}/insights/${insightId}/briefs`,
       { proposed_message: proposedMessage }
+    );
+    return res.data;
+  }
+
+  static async updateBrief(insightId: string, proposedMessage: string): Promise<UriResponse<ActionBrief>> {
+    const res: AxiosResponse<UriResponse<ActionBrief>> = await UriHttpClient.getClient().patch(
+      `${BASE}/insights/${insightId}/briefs`,
+      { proposed_message: proposedMessage }
+    );
+    return res.data;
+  }
+
+  static async getPreferences(): Promise<UriResponse<MINotificationPreferences>> {
+    const res: AxiosResponse<UriResponse<MINotificationPreferences>> = await UriHttpClient.getClient().get(
+      `${BASE}/preferences`
+    );
+    return res.data;
+  }
+
+  static async updatePreferences(body: PreferencesUpdateRequest): Promise<UriResponse<MINotificationPreferences>> {
+    const res: AxiosResponse<UriResponse<MINotificationPreferences>> = await UriHttpClient.getClient().patch(
+      `${BASE}/preferences`,
+      body
+    );
+    return res.data;
+  }
+
+  static async snoozeInsight(insightId: string): Promise<UriResponse<{ snoozed_insight_ids: string[] }>> {
+    const res: AxiosResponse<UriResponse<{ snoozed_insight_ids: string[] }>> = await UriHttpClient.getClient().post(
+      `${BASE}/insights/${insightId}/snooze`
+    );
+    return res.data;
+  }
+
+  static async deleteEvidence(evidenceId: string): Promise<UriResponse<Record<string, unknown>>> {
+    const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().delete(
+      `${BASE}/evidence/${evidenceId}`
+    );
+    return res.data;
+  }
+
+  static async listDevelopments(): Promise<UriResponse<Development[]>> {
+    const res: AxiosResponse<UriResponse<Development[]>> = await UriHttpClient.getClient().get(`${BASE}/developments`);
+    return res.data;
+  }
+
+  static async updateDevelopment(
+    developmentId: string,
+    status: DevelopmentStatus,
+    verificationNote?: string
+  ): Promise<UriResponse<Development>> {
+    const res: AxiosResponse<UriResponse<Development>> = await UriHttpClient.getClient().patch(
+      `${BASE}/developments/${developmentId}`,
+      { status, verification_note: verificationNote }
+    );
+    return res.data;
+  }
+
+  // Both silently 403 for anyone who isn't the brand owner (or an agency
+  // admin, for an agency-owned brand) — callers should treat that 403 as
+  // "hide this UI", not an error to surface.
+  static async listAccessGrants(): Promise<UriResponse<AccessGrant[]>> {
+    const res: AxiosResponse<UriResponse<AccessGrant[]>> = await UriHttpClient.getClient().get(`${BASE}/access`);
+    return res.data;
+  }
+
+  static async setAccessGrant(email: string, level: MIAccessLevel): Promise<UriResponse<Record<string, unknown>>> {
+    const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().post(
+      `${BASE}/access`,
+      { email, level }
     );
     return res.data;
   }
