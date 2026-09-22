@@ -21,6 +21,7 @@ import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/works
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
+import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -550,7 +551,7 @@ export default function CampaignsPage({
   };
 
   // Remove a conversation from the rail. Never touches the actual launched campaign
-  // (that stays in 'My Campaigns' regardless) — this only clears chat clutter.
+  // (that stays in 'Campaign Manager' regardless) — this only clears chat clutter.
   const deleteThread = async (threadId: string) => {
     try {
       await CampaignService.deleteThread(threadId);
@@ -1286,7 +1287,7 @@ export default function CampaignsPage({
             [
               ['chat', 'Create with Jane'],
               ['home', 'Home'],
-              ['manage', 'My Campaigns'],
+              ['manage', 'Campaign Manager'],
               ['wallet', 'Wallet'],
               ...(isAdmin ? [['billing', 'Revenue'] as const] : []),
             ] as const
@@ -1762,7 +1763,7 @@ export default function CampaignsPage({
         <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
             <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
-              Campaigns Jane has set up for you. Each is paused until you activate it.
+              Your campaigns. Start or stop them, and change who a running one targets.
             </p>
             <button
               onClick={loadCampaigns}
@@ -1811,7 +1812,7 @@ export default function CampaignsPage({
           )}
         </div>
       ) : tab === 'home' ? (
-        // DASH-PRD-01 §4 — lives beside My Campaigns rather than in the sidebar:
+        // DASH-PRD-01 §4 — lives beside Campaign Manager rather than in the sidebar:
         // everything it answers is about campaigns, and its suggestions route into
         // the tabs either side of it.
         <HomePanel
@@ -3958,6 +3959,9 @@ const _TOGGLABLE_STATUSES = new Set(['active', 'paused']);
 
 function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void }) {
   const [working, setWorking] = useState(false);
+  // Campaign Management PRD §19 "Audience or geography edit" — the only post-launch
+  // change Uri can make itself. Everything else there is still Ads Manager's job.
+  const [editingTargeting, setEditingTargeting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const displayStatus = c.metrics?.delivery || c.status;
@@ -4002,7 +4006,13 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
     }
   };
 
+  // Only Meta campaigns, and only ones that exist on the provider — the targeting
+  // editor talks to Meta's ad set directly and TikTok has no equivalent adapter yet.
+  const canEditTargeting =
+    c.platform !== 'tiktok' && !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
+
   return (
+    <div>
     <div
       style={{ display: 'flex', gap: 14, border: '1px solid #eee', borderRadius: 12, padding: 12, background: '#fff' }}
     >
@@ -4106,8 +4116,27 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
         })()}
         {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
       </div>
-      {(canToggle || canDelete) && (
+      {(canToggle || canDelete || canEditTargeting) && (
         <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>
+          {canEditTargeting && (
+            <button
+              onClick={() => setEditingTargeting((v) => !v)}
+              title="Change who this campaign targets"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                border: '1px solid #e0dcd9',
+                background: editingTargeting ? '#f4f2f0' : '#fff',
+                cursor: 'pointer',
+                fontSize: 14,
+                lineHeight: 1,
+                color: '#555',
+              }}
+            >
+              🎯
+            </button>
+          )}
           {canToggle && (
             <button
               onClick={toggle}
@@ -4156,6 +4185,15 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           )}
         </div>
       )}
+    </div>
+    {editingTargeting && (
+      <LiveTargetingEditor
+        campaignId={c.campaign_id}
+        campaignName={c.name}
+        onClose={() => setEditingTargeting(false)}
+        onSaved={onChanged}
+      />
+    )}
     </div>
   );
 }

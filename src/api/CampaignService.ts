@@ -138,6 +138,31 @@ export interface PlanFieldsSaveResult {
   summary?: CampaignSummary | null;
 }
 
+/** A live campaign's current targeting. Only the settings that can be changed after
+ * launch — budget, schedule, objective and bid strategy are separate action families
+ * and are refused by the API. */
+export interface LiveTargeting {
+  campaign_id: string;
+  adset_id: string;
+  effective_status?: string;
+  fields: PlanField[];
+  baseline: string;
+  /** True when the ad set is actually delivering, which is when a targeting change
+   * costs a learning reset. */
+  delivering: boolean;
+  learning_warning: string;
+}
+
+export interface LiveTargetingSaveResult {
+  campaign_id: string;
+  applied: string[];
+  rejected: string[];
+  fields: PlanField[];
+  baseline: string;
+  /** Set only when the change was read back from Meta and confirmed. */
+  verified?: boolean;
+}
+
 export interface LaunchFromMessageResult {
   stage:
     | 'need_more'
@@ -512,6 +537,34 @@ export class CampaignService {
     return res.data as PlanFieldsSaveResult;
   }
 
+  /** Who a LIVE campaign currently targets, read fresh from Meta.
+   *
+   * `baseline` is a fingerprint of that targeting. Send it back with the save: if it
+   * no longer matches, somebody changed the ad set in Ads Manager since this screen
+   * was drawn and the save is refused rather than overwriting their work. */
+  static async getLiveTargeting(campaignId: string): Promise<LiveTargeting> {
+    const res = await UriHttpClient.getClient().get(
+      `/jane-ads/meta/campaigns/${campaignId}/targeting`,
+      { timeout: 60000 },
+    );
+    return res.data as LiveTargeting;
+  }
+
+  /** Change who a live campaign targets. Validated with Meta, written, then READ BACK
+   * — the result describes what Meta actually holds, not what we sent. */
+  static async saveLiveTargeting(
+    campaignId: string,
+    edits: Record<string, unknown>,
+    baseline: string,
+  ): Promise<LiveTargetingSaveResult> {
+    const res = await UriHttpClient.getClient().patch(
+      `/jane-ads/meta/campaigns/${campaignId}/targeting`,
+      { edits, baseline },
+      { timeout: 120000 },
+    );
+    return res.data as LiveTargetingSaveResult;
+  }
+
   static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
     // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
     // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was
@@ -708,7 +761,7 @@ export class CampaignService {
   }
 
   /** Remove a conversation from the thread rail. Never touches the brand's actual
-   * launched campaigns — those keep running in 'My Campaigns' regardless. */
+   * launched campaigns — those keep running in 'Campaign Manager' regardless. */
   static async deleteThread(threadId: string): Promise<void> {
     await UriHttpClient.getClient().delete(`/jane-ads/threads/${threadId}`);
   }
