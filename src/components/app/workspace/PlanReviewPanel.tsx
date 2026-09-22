@@ -22,12 +22,7 @@ type Props = {
   planId: string;
   /** Hands the caller the refreshed plan payload so the card above can stop showing
    * Jane's original numbers once the client has changed them. */
-  onSaved?: (refreshed: {
-    plan_edited?: boolean;
-    plan?: unknown;
-    creative?: unknown;
-    summary?: unknown;
-  }) => void;
+  onSaved?: (refreshed: { plan_edited?: boolean; plan?: unknown; creative?: unknown; summary?: unknown }) => void;
   /** Unsaved edits mean the STORED plan is still Jane's — launching now would run the
    * un-edited ad while the panel shows the client's changes. The caller gates the
    * launch button on this. */
@@ -79,7 +74,10 @@ function toEditText(field: PlanField): string {
 
 function parseEdit(field: PlanField, text: string): unknown {
   if (field.type === 'list') {
-    return text.split(',').map((s) => s.trim()).filter(Boolean);
+    return text
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
   if (field.type === 'number') return text.trim();
   return text;
@@ -112,6 +110,18 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
     void load();
   }, [load]);
 
+  // Live-caught 2026-09-22: this was declared AFTER the loadError/!fields early
+  // returns below, so React saw 7 hooks called while still loading (fields ===
+  // null) and 8 once it resolved — a hook-count mismatch between renders, which
+  // React hard-crashes on (error #310) rather than warns about. Every hook must
+  // run unconditionally, before any early return; harmless to compute `dirty`
+  // against the initial empty `pending` on the first render (dirty === false).
+  const dirty = Object.keys(pending).length > 0;
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
   const startEdit = (field: PlanField) => {
     setEditing(field.key);
     setDraft(toEditText(field));
@@ -125,12 +135,18 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
       prev
         ? prev.map((f) =>
             f.key === field.key
-              ? { ...f, value: (field.type === 'list'
-                  ? draft.split(',').map((s) => s.trim()).filter(Boolean)
-                  : draft) as PlanField['value'] }
-              : f,
+              ? {
+                  ...f,
+                  value: (field.type === 'list'
+                    ? draft
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    : draft) as PlanField['value'],
+                }
+              : f
           )
-        : prev,
+        : prev
     );
     setEditing(null);
   };
@@ -179,12 +195,6 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
     );
   }
 
-  const dirty = Object.keys(pending).length > 0;
-
-  useEffect(() => {
-    onDirtyChange?.(dirty);
-  }, [dirty, onDirtyChange]);
-
   if (justSaved) {
     return (
       <div style={{ ...CARD, borderColor: '#cde9cd', background: '#f6fbf6' }}>
@@ -192,9 +202,8 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
           ✓ Rebuilt with your changes
         </p>
         <p style={{ margin: '0 0 4px', fontSize: 12.5, color: '#33691e' }}>
-          I&rsquo;ve redone the plan using {spokenList(justSaved)} you changed. The
-          reasoning and the reach estimate above are recalculated from your version —
-          that&rsquo;s the ad that will run.
+          I&rsquo;ve redone the plan using {spokenList(justSaved)} you changed. The reasoning and the reach estimate
+          above are recalculated from your version — that&rsquo;s the ad that will run.
         </p>
         <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#33691e' }}>
           Want to change anything else, or shall we launch it?
@@ -255,7 +264,13 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
                   <select
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
-                    style={{ width: '100%', fontSize: 13, padding: '6px 8px', borderRadius: 7, border: '1px solid #ccc' }}
+                    style={{
+                      width: '100%',
+                      fontSize: 13,
+                      padding: '6px 8px',
+                      borderRadius: 7,
+                      border: '1px solid #ccc',
+                    }}
                   >
                     {(field.options || []).map((opt) => (
                       <option key={opt} value={opt}>
@@ -269,31 +284,58 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
                     maxLength={field.max_length}
                     onChange={(e) => setDraft(e.target.value)}
                     rows={3}
-                    style={{ width: '100%', fontSize: 13, padding: '6px 8px', borderRadius: 7, border: '1px solid #ccc', resize: 'vertical' }}
+                    style={{
+                      width: '100%',
+                      fontSize: 13,
+                      padding: '6px 8px',
+                      borderRadius: 7,
+                      border: '1px solid #ccc',
+                      resize: 'vertical',
+                    }}
                   />
                 ) : (
                   <input
                     value={draft}
                     maxLength={field.max_length}
                     onChange={(e) => setDraft(e.target.value)}
-                    style={{ width: '100%', fontSize: 13, padding: '6px 8px', borderRadius: 7, border: '1px solid #ccc' }}
+                    style={{
+                      width: '100%',
+                      fontSize: 13,
+                      padding: '6px 8px',
+                      borderRadius: 7,
+                      border: '1px solid #ccc',
+                    }}
                   />
                 )}
-                {field.help && (
-                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#888' }}>{field.help}</p>
-                )}
+                {field.help && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#888' }}>{field.help}</p>}
                 <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                   <button
                     type="button"
                     onClick={() => stageEdit(field)}
-                    style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#222', color: '#fff', cursor: 'pointer' }}
+                    style={{
+                      fontSize: 12,
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: '#222',
+                      color: '#fff',
+                      cursor: 'pointer',
+                    }}
                   >
                     Done
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditing(null)}
-                    style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', color: '#555', cursor: 'pointer' }}
+                    style={{
+                      fontSize: 12,
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #ddd',
+                      background: '#fff',
+                      color: '#555',
+                      cursor: 'pointer',
+                    }}
                   >
                     Cancel
                   </button>
@@ -309,9 +351,7 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
               >
                 {displayValue(field)}
                 {pending[field.key] !== undefined && (
-                  <em style={{ marginLeft: 6, fontSize: 11, color: '#a15c00', fontStyle: 'normal' }}>
-                    unsaved
-                  </em>
+                  <em style={{ marginLeft: 6, fontSize: 11, color: '#a15c00', fontStyle: 'normal' }}>unsaved</em>
                 )}
               </span>
             )}
@@ -324,7 +364,14 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
                 aria-label={`Edit ${field.label}`}
                 title={`Edit ${field.label}`}
                 onClick={() => startEdit(field)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, padding: 2, color: '#888' }}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  padding: 2,
+                  color: '#888',
+                }}
               >
                 ✏️
               </button>
@@ -334,10 +381,16 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
       ))}
 
       {rejected.length > 0 && (
-        <div style={{ marginTop: 10, background: '#fff5f5', border: '1px solid #f3cccc', borderRadius: 8, padding: '8px 10px' }}>
-          <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: '#b3261e' }}>
-            Not saved
-          </p>
+        <div
+          style={{
+            marginTop: 10,
+            background: '#fff5f5',
+            border: '1px solid #f3cccc',
+            borderRadius: 8,
+            padding: '8px 10px',
+          }}
+        >
+          <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: '#b3261e' }}>Not saved</p>
           {rejected.map((reason) => (
             <p key={reason} style={{ margin: '2px 0 0', fontSize: 12, color: '#8a3a33' }}>
               {reason}
