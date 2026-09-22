@@ -17,6 +17,7 @@ import {
   AccessCodeRedemption,
 } from '@/src/api/AdminService';
 import { useRouter } from 'next/navigation';
+import ConfirmDialog from './ConfirmDialog';
 
 // Icon components
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -767,6 +768,7 @@ function AccessCodesPanel() {
   const [loadingRedemptions, setLoadingRedemptions] = useState(false);
   const [deletingCode, setDeletingCode] = useState<string | null>(null);
   const [restoringUserId, setRestoringUserId] = useState<string | null>(null);
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<AccessCode | null>(null);
 
   const [code, setCode] = useState('');
   const [planTierId, setPlanTierId] = useState('starter');
@@ -931,14 +933,11 @@ function AccessCodesPanel() {
     }
   };
 
-  const handleDelete = async (target: AccessCode) => {
-    if (
-      !window.confirm(
-        `Permanently delete code "${target.code}"? This can't be undone. Anyone currently redeeming it will lose access immediately — use Revoke instead if you just want to stop it while keeping the record.`
-      )
-    ) {
-      return;
-    }
+  const handleDelete = (target: AccessCode) => {
+    setDeleteConfirmTarget(target);
+  };
+
+  const performDelete = async (target: AccessCode) => {
     setDeletingCode(target.code);
     setMessage(null);
     try {
@@ -1296,6 +1295,20 @@ function AccessCodesPanel() {
         emailing={resendingCode === detailCode?.code}
         onRestore={(userId) => detailCode && handleRestore(detailCode.code, userId)}
         restoringUserId={restoringUserId}
+      />
+      <ConfirmDialog
+        isOpen={!!deleteConfirmTarget}
+        title="Delete this code?"
+        message={
+          deleteConfirmTarget
+            ? `Permanently delete code "${deleteConfirmTarget.code}"? This can't be undone. Anyone currently redeeming it will lose access immediately — use Revoke instead if you just want to stop it while keeping the record.`
+            : ''
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="#dc2626"
+        onConfirm={() => deleteConfirmTarget && performDelete(deleteConfirmTarget)}
+        onCancel={() => setDeleteConfirmTarget(null)}
       />
     </div>
   );
@@ -2267,10 +2280,18 @@ function AdminAccessManagement({
   const { userDetails } = useAuth();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [confirmRevokeOpen, setConfirmRevokeOpen] = useState(false);
   const isSelf = userDetails?.email?.toLowerCase() === user.email?.toLowerCase();
 
-  const handleToggle = async () => {
-    if (user.is_admin && !window.confirm(`Remove admin access from ${user.email}?`)) return;
+  const handleToggle = () => {
+    if (user.is_admin) {
+      setConfirmRevokeOpen(true);
+      return;
+    }
+    performToggle();
+  };
+
+  const performToggle = async () => {
     setBusy(true);
     setMessage(null);
     try {
@@ -2339,6 +2360,16 @@ function AdminAccessManagement({
           </div>
         )}
       </div>
+      <ConfirmDialog
+        isOpen={confirmRevokeOpen}
+        title="Remove admin access?"
+        message={`Remove admin access from ${user.email}?`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        confirmColor="#B71C1C"
+        onConfirm={performToggle}
+        onCancel={() => setConfirmRevokeOpen(false)}
+      />
     </div>
   );
 }
@@ -2361,6 +2392,7 @@ function CreditTrialManagement({
   const [trialReason, setTrialReason] = useState('');
   const [busy, setBusy] = useState<'credit' | 'trial' | 'expire' | null>(null);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [confirmExpireOpen, setConfirmExpireOpen] = useState(false);
 
   const refreshUser = async () => {
     const details = await AdminService.getUserDetails(user.id);
@@ -2425,10 +2457,11 @@ function CreditTrialManagement({
     }
   };
 
-  const handleExpireTrial = async () => {
-    if (!window.confirm(`Force-expire ${user.email}'s trial? This sets trial credits to 0 and cannot be undone.`)) {
-      return;
-    }
+  const handleExpireTrial = () => {
+    setConfirmExpireOpen(true);
+  };
+
+  const performExpireTrial = async () => {
     setBusy('expire');
     setMessage(null);
     try {
@@ -2527,6 +2560,16 @@ function CreditTrialManagement({
           </div>
         )}
       </div>
+      <ConfirmDialog
+        isOpen={confirmExpireOpen}
+        title="Force-expire this trial?"
+        message={`Force-expire ${user.email}'s trial? This sets trial credits to 0 and cannot be undone.`}
+        confirmText="Expire Trial"
+        cancelText="Cancel"
+        confirmColor="#B71C1C"
+        onConfirm={performExpireTrial}
+        onCancel={() => setConfirmExpireOpen(false)}
+      />
     </div>
   );
 }
