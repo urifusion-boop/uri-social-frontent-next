@@ -1319,8 +1319,9 @@ function AccessCodeActionsMenu({
   emailing?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Positioned via `fixed` + a measured rect, not `absolute` relative to
   // this button — an `absolute` menu gets silently clipped by ANY ancestor
@@ -1334,6 +1335,20 @@ function AccessCodeActionsMenu({
     }
     setIsOpen((v) => !v);
   };
+
+  // That `fixed` positioning fixed the table's own clipping, but a row near
+  // the bottom of the *viewport* itself (not just the table) still opened a
+  // menu that rendered past the bottom of the screen — same symptom, one
+  // level up. Once the menu has actually rendered, flip it to sit ABOVE the
+  // trigger instead if it doesn't fit below.
+  useEffect(() => {
+    if (!isOpen || !menuRef.current || !triggerRef.current) return;
+    const menuRect = menuRef.current.getBoundingClientRect();
+    if (menuRect.bottom > window.innerHeight) {
+      const triggerRect = triggerRef.current.getBoundingClientRect();
+      setMenuPos((prev) => (prev ? { bottom: window.innerHeight - triggerRect.top + 6, right: prev.right } : prev));
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1410,9 +1425,10 @@ function AccessCodeActionsMenu({
         <>
           <div onClick={() => setIsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
           <div
+            ref={menuRef}
             style={{
               position: 'fixed',
-              top: menuPos.top,
+              ...(menuPos.top !== undefined ? { top: menuPos.top } : { bottom: menuPos.bottom }),
               right: menuPos.right,
               width: 200,
               background: '#fff',
