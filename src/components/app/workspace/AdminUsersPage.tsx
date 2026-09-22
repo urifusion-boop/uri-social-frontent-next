@@ -754,6 +754,21 @@ const PLAN_TIER_OPTIONS = [
   { id: 'agency', label: 'Agency' },
 ];
 
+// Splits a pasted/typed list of emails (one per line, or comma-separated —
+// so a column pasted straight out of a spreadsheet just works) into a
+// deduped, normalized array. Shared by the create form and the roster
+// reassign editor.
+function parseEmailList(text: string): string[] {
+  return Array.from(
+    new Set(
+      text
+        .split(/[,\n]/)
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
+
 // Access Codes Tab — admin-generated partner/comp codes (e.g. "ASA26").
 // Generic and reusable: create a code for any plan/duration, hand it to
 // anybody, each redeemer gets their own access window from their own
@@ -775,15 +790,17 @@ function AccessCodesPanel() {
   const [durationDays, setDurationDays] = useState('60');
   const [maxRedemptions, setMaxRedemptions] = useState('');
   const [label, setLabel] = useState('');
-  const [assignedToEmail, setAssignedToEmail] = useState('');
+  const [assignedEmailsText, setAssignedEmailsText] = useState('');
   const [sendEmailOnCreate, setSendEmailOnCreate] = useState(true);
   const [resendingCode, setResendingCode] = useState<string | null>(null);
 
   // Inline reassign/unassign editor — which code row (if any) has its
-  // assignment field open for editing, and the draft value being typed.
+  // roster open for editing, and the draft value being typed (one email
+  // per line or comma-separated, so pasting a spreadsheet column works).
   const [reassigningCode, setReassigningCode] = useState<string | null>(null);
   const [reassignDraft, setReassignDraft] = useState('');
   const [reassigning, setReassigning] = useState(false);
+  const [revokingUserId, setRevokingUserId] = useState<string | null>(null);
 
   const loadCodes = async () => {
     setLoading(true);
@@ -806,27 +823,31 @@ function AccessCodesPanel() {
     setCreating(true);
     setMessage(null);
     try {
+      const assignedEmails = parseEmailList(assignedEmailsText);
       const created = await AdminService.createAccessCode({
         code: code.trim() || undefined,
         plan_tier_id: planTierId,
         duration_days: parseInt(durationDays, 10) || 60,
         max_redemptions: maxRedemptions ? parseInt(maxRedemptions, 10) : undefined,
         label: label.trim() || undefined,
-        assigned_to_email: assignedToEmail.trim() || undefined,
+        assigned_emails: assignedEmails.length ? assignedEmails : undefined,
         send_email: sendEmailOnCreate,
       });
       setMessage({
         type: 'ok',
-        text: created.assigned_to_email
-          ? created.email_sent
-            ? `Created code "${created.code}" and emailed it to ${created.assigned_to_name || created.assigned_to_email}.`
-            : `Created code "${created.code}" — reserved for ${created.assigned_to_name || created.assigned_to_email}. (Not emailed — you can send it from the table below.)`
+        text: assignedEmails.length
+          ? `Created code "${created.code}" — reserved for ${assignedEmails.length} ${
+              assignedEmails.length === 1 ? 'person' : 'people'
+            }.` +
+            (sendEmailOnCreate
+              ? ` Emailed to ${created.emails_sent ?? 0} of them.`
+              : ' (Not emailed — you can send it from the table below.)')
           : `Created code "${created.code}".`,
       });
       setCode('');
       setLabel('');
       setMaxRedemptions('');
-      setAssignedToEmail('');
+      setAssignedEmailsText('');
       await loadCodes();
     } catch (error: unknown) {
       const detail =
@@ -858,12 +879,18 @@ function AccessCodesPanel() {
     }
   };
 
-  const handleResendEmail = async (target: AccessCode) => {
-    setResendingCode(target.code);
+  const handleResendEmail = async (target: AccessCode, email?: string) => {
+    setResendingCode(target.code + (email || ''));
     setMessage(null);
     try {
-      const res = await AdminService.sendAccessCodeEmail(target.code);
-      setMessage({ type: 'ok', text: `Emailed "${target.code}" to ${res.to}.` });
+      const res = await AdminService.sendAccessCodeEmail(target.code, email);
+      setMessage({
+        type: 'ok',
+        text:
+          res.to.length === 1
+            ? `Emailed "${target.code}" to ${res.to[0]}.`
+            : `Emailed "${target.code}" to ${res.to.length} people.`,
+      });
     } catch (error: unknown) {
       const detail =
         (error as { data?: { detail?: string }; response?: { data?: { detail?: string } } })?.data?.detail ??
@@ -877,15 +904,16 @@ function AccessCodesPanel() {
 
   const openReassign = (target: AccessCode) => {
     setReassigningCode(target.code);
-    setReassignDraft(target.assigned_to_email || '');
+    setReassignDraft(target.assigned_emails.join('\n'));
   };
 
   const handleSaveReassign = async (codeStr: string) => {
     setReassigning(true);
     try {
-      // Empty draft clears the assignment (backend treats "" as "unassign",
-      // distinct from omitting the field, which would leave it untouched).
-      await AdminService.updateAccessCode(codeStr, { assigned_to_email: reassignDraft.trim() });
+      // An empty draft clears the roster back to a shared/open code
+      // (backend treats [] as "unassign", distinct from omitting the
+      // field, which would leave the roster untouched).
+      await AdminService.updateAccessCode(codeStr, { assigned_emails: parseEmailList(reassignDraft) });
       setReassigningCode(null);
       await loadCodes();
     } catch (error) {
@@ -930,6 +958,24 @@ function AccessCodesPanel() {
       setMessage({ type: 'err', text: detail || 'Failed to restore access.' });
     } finally {
       setRestoringUserId(null);
+    }
+  };
+
+  const handleRevoke = async (codeStr: string, userId: string) => {
+    setRevokingUserId(userId);
+    setMessage(null);
+    try {
+      await AdminService.revokeAccessCodeRedemption(codeStr, userId);
+      setMessage({ type: 'ok', text: `Revoked this person's access — the code stays active for everyone else.` });
+      await loadRedemptions(codeStr);
+    } catch (error: unknown) {
+      const detail =
+        (error as { data?: { detail?: string }; response?: { data?: { detail?: string } } })?.data?.detail ??
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      console.error('Failed to revoke access:', error);
+      setMessage({ type: 'err', text: detail || 'Failed to revoke access.' });
+    } finally {
+      setRevokingUserId(null);
     }
   };
 
@@ -1033,16 +1079,22 @@ function AccessCodesPanel() {
               style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
             />
           </div>
-          <div>
+          <div style={{ gridColumn: '1 / -1' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>
-              Assign to (email, optional)
+              Assign to (emails, optional)
             </div>
-            <input
-              type="email"
-              value={assignedToEmail}
-              onChange={(e) => setAssignedToEmail(e.target.value)}
-              placeholder="Leave blank for a shared code"
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            <textarea
+              value={assignedEmailsText}
+              onChange={(e) => setAssignedEmailsText(e.target.value)}
+              placeholder="Leave blank for a shared code anyone can redeem. Otherwise paste one email per line (or comma-separated) — only these accounts will be able to redeem it."
+              rows={assignedEmailsText.trim() ? 3 : 1}
+              style={{
+                ...inputStyle,
+                width: '100%',
+                boxSizing: 'border-box',
+                resize: 'vertical',
+                fontFamily: 'inherit',
+              }}
             />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
@@ -1057,31 +1109,36 @@ function AccessCodesPanel() {
             />
           </div>
         </div>
-        {assignedToEmail.trim() && (
-          <div style={{ marginTop: 8, fontSize: 11.5, color: '#888' }}>
-            Only <strong>{assignedToEmail.trim()}</strong> will be able to redeem this code.
-          </div>
-        )}
-        {assignedToEmail.trim() && (
-          <label
-            style={{
-              marginTop: 10,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              fontSize: 12.5,
-              color: '#444',
-              cursor: 'pointer',
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={sendEmailOnCreate}
-              onChange={(e) => setSendEmailOnCreate(e.target.checked)}
-            />
-            Email the code to {assignedToEmail.trim()} right away
-          </label>
-        )}
+        {(() => {
+          const parsed = parseEmailList(assignedEmailsText);
+          if (!parsed.length) return null;
+          return (
+            <>
+              <div style={{ marginTop: 8, fontSize: 11.5, color: '#888' }}>
+                Only these <strong>{parsed.length}</strong> {parsed.length === 1 ? 'account' : 'accounts'} will be able
+                to redeem this code: {parsed.join(', ')}
+              </div>
+              <label
+                style={{
+                  marginTop: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  fontSize: 12.5,
+                  color: '#444',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={sendEmailOnCreate}
+                  onChange={(e) => setSendEmailOnCreate(e.target.checked)}
+                />
+                Email the code to {parsed.length === 1 ? 'them' : `all ${parsed.length} of them`} right away
+              </label>
+            </>
+          );
+        })()}
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             onClick={handleCreate}
@@ -1150,15 +1207,21 @@ function AccessCodesPanel() {
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       {reassigningCode === c.code ? (
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <input
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                          <textarea
                             autoFocus
-                            type="email"
                             value={reassignDraft}
                             onChange={(e) => setReassignDraft(e.target.value)}
-                            placeholder="Anyone (shared)"
-                            style={{ ...inputStyle, padding: '5px 8px', fontSize: 12, width: 150 }}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSaveReassign(c.code)}
+                            placeholder="Anyone (shared) — one email per line"
+                            rows={3}
+                            style={{
+                              ...inputStyle,
+                              padding: '5px 8px',
+                              fontSize: 12,
+                              width: 170,
+                              resize: 'vertical',
+                              fontFamily: 'inherit',
+                            }}
                           />
                           <button
                             onClick={() => handleSaveReassign(c.code)}
@@ -1189,21 +1252,41 @@ function AccessCodesPanel() {
                             ✕
                           </button>
                         </div>
-                      ) : c.assigned_to_email ? (
+                      ) : c.assigned_emails.length > 0 ? (
                         <div>
-                          <div style={{ fontWeight: 600 }}>{c.assigned_to_name || c.assigned_to_email}</div>
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
+                          <div style={{ fontWeight: 600 }}>
+                            {c.assigned_emails.length === 1
+                              ? c.assigned_emails[0]
+                              : `${c.assigned_emails.length} people`}
+                          </div>
+                          <div
+                            style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}
+                          >
                             <span
                               style={{
                                 padding: '1px 8px',
                                 borderRadius: 20,
                                 fontSize: 10,
                                 fontWeight: 700,
-                                background: c.status === 'redeemed' ? 'rgba(46,125,50,.1)' : 'rgba(255,152,0,.12)',
-                                color: c.status === 'redeemed' ? '#2E7D32' : '#B26A00',
+                                background:
+                                  c.status === 'fully_redeemed'
+                                    ? 'rgba(46,125,50,.1)'
+                                    : c.status === 'partially_redeemed'
+                                      ? 'rgba(2,119,189,.1)'
+                                      : 'rgba(255,152,0,.12)',
+                                color:
+                                  c.status === 'fully_redeemed'
+                                    ? '#2E7D32'
+                                    : c.status === 'partially_redeemed'
+                                      ? '#0277BD'
+                                      : '#B26A00',
                               }}
                             >
-                              {c.status === 'redeemed' ? 'Redeemed' : 'Pending'}
+                              {c.status === 'fully_redeemed'
+                                ? 'All redeemed'
+                                : c.status === 'partially_redeemed'
+                                  ? `${c.redeemed_count ?? 0}/${c.assigned_count ?? c.assigned_emails.length} redeemed`
+                                  : 'Pending'}
                             </span>
                             <button
                               onClick={() => openReassign(c)}
@@ -1215,7 +1298,7 @@ function AccessCodesPanel() {
                                 fontSize: 11,
                               }}
                             >
-                              Change
+                              Edit roster
                             </button>
                             <button
                               onClick={() => handleResendEmail(c)}
@@ -1271,7 +1354,7 @@ function AccessCodesPanel() {
                         onViewDetails={() => handleOpenDetail(c)}
                         onToggleActive={() => handleToggleActive(c)}
                         onDelete={() => handleDelete(c)}
-                        onEmail={c.assigned_to_email ? () => handleResendEmail(c) : undefined}
+                        onEmail={c.assigned_emails.length > 0 ? () => handleResendEmail(c) : undefined}
                         deleting={deletingCode === c.code}
                         emailing={resendingCode === c.code}
                       />
@@ -1290,11 +1373,15 @@ function AccessCodesPanel() {
         onClose={() => setDetailCode(null)}
         onToggleActive={() => detailCode && handleToggleActive(detailCode)}
         onDelete={() => detailCode && handleDelete(detailCode)}
-        onEmail={detailCode?.assigned_to_email ? () => handleResendEmail(detailCode) : undefined}
+        onEmail={detailCode && detailCode.assigned_emails.length > 0 ? () => handleResendEmail(detailCode) : undefined}
+        onEmailOne={(email) => detailCode && handleResendEmail(detailCode, email)}
         deleting={deletingCode === detailCode?.code}
         emailing={resendingCode === detailCode?.code}
+        resendingCode={resendingCode}
         onRestore={(userId) => detailCode && handleRestore(detailCode.code, userId)}
         restoringUserId={restoringUserId}
+        onRevoke={(userId) => detailCode && handleRevoke(detailCode.code, userId)}
+        revokingUserId={revokingUserId}
       />
       <ConfirmDialog
         isOpen={!!deleteConfirmTarget}
@@ -1505,6 +1592,7 @@ const REDEMPTION_STATUS_STYLE: Record<
   revoked: { label: 'Revoked', bg: 'rgba(198,40,40,.1)', fg: '#C62828' },
   lapsed: { label: 'Lapsed', bg: 'rgba(0,0,0,.06)', fg: '#777' },
   superseded: { label: 'Superseded', bg: 'rgba(237,108,2,.1)', fg: '#B26A00' },
+  not_redeemed: { label: 'Not redeemed yet', bg: 'rgba(2,119,189,.08)', fg: '#0277BD' },
 };
 
 function AccessCodeDetailPanel({
@@ -1515,10 +1603,14 @@ function AccessCodeDetailPanel({
   onToggleActive,
   onDelete,
   onEmail,
+  onEmailOne,
   deleting,
   emailing,
+  resendingCode,
   onRestore,
   restoringUserId,
+  onRevoke,
+  revokingUserId,
 }: {
   accessCode: AccessCode | null;
   redemptions: AccessCodeRedemption[];
@@ -1527,10 +1619,14 @@ function AccessCodeDetailPanel({
   onToggleActive: () => void;
   onDelete: () => void;
   onEmail?: () => void;
+  onEmailOne?: (email: string) => void;
   deleting?: boolean;
   emailing?: boolean;
+  resendingCode?: string | null;
   onRestore: (userId: string) => void;
   restoringUserId?: string | null;
+  onRevoke: (userId: string) => void;
+  revokingUserId?: string | null;
 }) {
   // Renders always (even while closed) so the slide-out transition can play
   // on close instead of the panel just vanishing — `open` drives the
@@ -1716,7 +1812,9 @@ function AccessCodeDetailPanel({
             {metaCard(
               'mail',
               'Assigned to',
-              accessCode.assigned_to_name || accessCode.assigned_to_email || 'Anyone (shared)'
+              accessCode.assigned_emails.length > 0
+                ? `${accessCode.assigned_emails.length} ${accessCode.assigned_emails.length === 1 ? 'person' : 'people'}`
+                : 'Anyone (shared)'
             )}
           </div>
 
@@ -1754,9 +1852,10 @@ function AccessCodeDetailPanel({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {redemptions.map((r) => {
-                const identity = r.email || r.user_id;
+                const identity = r.email || r.user_id || 'Unknown';
                 const statusKey = r.effective_status ?? (r.revoked_at ? 'revoked' : 'active');
                 const status = REDEMPTION_STATUS_STYLE[statusKey];
+                const isResending = !!(r.email && resendingCode === accessCode.code + r.email);
                 return (
                   <div
                     key={`${r.code}-${r.user_id}`}
@@ -1811,13 +1910,25 @@ function AccessCodeDetailPanel({
                           {status.label}
                         </span>
                       </div>
-                      <div style={{ fontSize: 11.5, color: '#888', marginTop: 5 }}>
-                        Redeemed {new Date(r.redeemed_at).toLocaleDateString()}
-                      </div>
-                      <div style={{ fontSize: 11.5, color: '#888' }}>
-                        Access: {new Date(r.access_start).toLocaleDateString()} →{' '}
-                        {new Date(r.access_end).toLocaleDateString()}
-                      </div>
+                      {statusKey === 'not_redeemed' ? (
+                        <div style={{ fontSize: 11.5, color: '#888', marginTop: 5 }}>
+                          Invited — hasn&apos;t redeemed {accessCode.code} yet
+                        </div>
+                      ) : (
+                        <>
+                          {r.redeemed_at && (
+                            <div style={{ fontSize: 11.5, color: '#888', marginTop: 5 }}>
+                              Redeemed {new Date(r.redeemed_at).toLocaleDateString()}
+                            </div>
+                          )}
+                          {r.access_start && r.access_end && (
+                            <div style={{ fontSize: 11.5, color: '#888' }}>
+                              Access: {new Date(r.access_start).toLocaleDateString()} →{' '}
+                              {new Date(r.access_end).toLocaleDateString()}
+                            </div>
+                          )}
+                        </>
+                      )}
                       {statusKey === 'revoked' && r.revocation_reason && (
                         <div style={{ fontSize: 11, color: '#C62828', marginTop: 4 }}>
                           {r.revocation_reason === 'credits_exhausted'
@@ -1832,25 +1943,65 @@ function AccessCodeDetailPanel({
                           Was on: {r.previous_subscription_tier}
                         </div>
                       )}
-                      {statusKey !== 'active' && (
-                        <button
-                          onClick={() => onRestore(r.user_id)}
-                          disabled={restoringUserId === r.user_id}
-                          style={{
-                            marginTop: 8,
-                            padding: '5px 11px',
-                            borderRadius: 7,
-                            border: '1px solid rgba(194,24,91,.3)',
-                            background: 'rgba(194,24,91,.05)',
-                            color: restoringUserId === r.user_id ? '#bbb' : '#AD1457',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            cursor: restoringUserId === r.user_id ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          {restoringUserId === r.user_id ? 'Restoring…' : 'Restore access'}
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {statusKey === 'not_redeemed' && r.email && onEmailOne && (
+                          <button
+                            onClick={() => onEmailOne(r.email as string)}
+                            disabled={isResending}
+                            style={{
+                              marginTop: 8,
+                              padding: '5px 11px',
+                              borderRadius: 7,
+                              border: '1px solid rgba(194,24,91,.3)',
+                              background: 'rgba(194,24,91,.05)',
+                              color: isResending ? '#bbb' : '#AD1457',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: isResending ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {isResending ? 'Sending…' : 'Resend code'}
+                          </button>
+                        )}
+                        {statusKey === 'active' && r.user_id && (
+                          <button
+                            onClick={() => onRevoke(r.user_id as string)}
+                            disabled={revokingUserId === r.user_id}
+                            style={{
+                              marginTop: 8,
+                              padding: '5px 11px',
+                              borderRadius: 7,
+                              border: '1px solid rgba(198,40,40,.3)',
+                              background: 'rgba(198,40,40,.05)',
+                              color: revokingUserId === r.user_id ? '#bbb' : '#C62828',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: revokingUserId === r.user_id ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {revokingUserId === r.user_id ? 'Revoking…' : 'Revoke this person'}
+                          </button>
+                        )}
+                        {statusKey !== 'active' && statusKey !== 'not_redeemed' && r.user_id && (
+                          <button
+                            onClick={() => onRestore(r.user_id as string)}
+                            disabled={restoringUserId === r.user_id}
+                            style={{
+                              marginTop: 8,
+                              padding: '5px 11px',
+                              borderRadius: 7,
+                              border: '1px solid rgba(194,24,91,.3)',
+                              background: 'rgba(194,24,91,.05)',
+                              color: restoringUserId === r.user_id ? '#bbb' : '#AD1457',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: restoringUserId === r.user_id ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {restoringUserId === r.user_id ? 'Restoring…' : 'Restore access'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
