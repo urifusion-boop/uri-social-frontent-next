@@ -18,6 +18,7 @@
  * · If somebody edited the campaign in Ads Manager since this screen loaded, the save
  *   is refused and the client is told to reload. We do not overwrite their work.
  */
+import { AlertTriangle, Check, Pencil } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { CampaignService, PlanField } from '@/src/api/CampaignService';
@@ -158,8 +159,9 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
 
       {data?.delivering && data.warning && (
         <div style={{ background: '#fff8ec', border: '1px solid #f0e0c0', borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
-          <p style={{ margin: '0 0 3px', fontSize: 12, fontWeight: 700, color: '#8a5a00' }}>
-            This campaign is running right now
+          <p style={{ margin: '0 0 3px', fontSize: 12, fontWeight: 700, color: '#8a5a00', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <AlertTriangle size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+            <span>This campaign is running right now</span>
           </p>
           <p style={{ margin: 0, fontSize: 11.5, color: '#8a5a00' }}>{data.warning}</p>
           <p style={{ margin: '4px 0 0', fontSize: 11.5, color: '#8a5a00' }}>
@@ -170,8 +172,9 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
 
       {savedFields && (
         <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
-          <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 600 }}>
-            ✓ {spoken(savedFields)} updated on Meta — checked and confirmed, not just submitted.
+          <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Check size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+            <span>{spoken(savedFields)} updated on Meta — checked and confirmed, not just submitted.</span>
           </p>
         </div>
       )}
@@ -228,9 +231,9 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
                 type="button"
                 aria-label={`Edit ${field.label}`}
                 onClick={() => { setEditing(field.key); setDraft(asText(field)); setSavedFields(null); }}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, padding: 2, color: '#888' }}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 2, color: '#888', display: 'inline-flex', alignItems: 'center' }}
               >
-                ✏️
+                <Pencil size={13} strokeWidth={2} />
               </button>
             )}
           </div>
