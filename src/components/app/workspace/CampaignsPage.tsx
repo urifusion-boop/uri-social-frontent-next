@@ -1,5 +1,6 @@
 'use client';
 
+import { Check, MapPin, Music2, RotateCw, Target } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AdFormat,
@@ -1994,7 +1995,8 @@ export default function CampaignsPage({
                     cursor: 'pointer',
                   }}
                 >
-                  🎵 TikTok
+                  <Music2 size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+                  TikTok
                 </button>
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
@@ -2062,7 +2064,8 @@ export default function CampaignsPage({
                 color: '#555',
               }}
             >
-              ↻ Refresh
+              <RotateCw size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+              Refresh
             </button>
           </div>
           {loadingList ? (
@@ -2860,7 +2863,16 @@ function PlanVariantCards({
                   color: isSelected ? '#fff' : PINK,
                 }}
               >
-                {isSelected ? '✓ Selected' : maxSelectable > 1 ? 'Select this one' : 'Choose this one'}
+                {isSelected ? (
+                  <>
+                    <Check size={13} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+                    Selected
+                  </>
+                ) : maxSelectable > 1 ? (
+                  'Select this one'
+                ) : (
+                  'Choose this one'
+                )}
               </button>
             </div>
           );
@@ -3673,7 +3685,8 @@ function ResultCard({
                   color: '#666',
                 }}
               >
-                📍 {plan.geo.pins.map((x) => x.name).join(', ')}
+                <MapPin size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+                {plan.geo.pins.map((x) => x.name).join(', ')}
               </span>
             ) : null}
           </div>
@@ -3741,7 +3754,12 @@ function ResultCard({
                   ? 'Launching…'
                   : unsavedEdits
                     ? 'Save your changes first'
-                    : '✓ Looks good — launch it'}
+                    : (
+                        <>
+                          <Check size={14} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 6 }} />
+                          Looks good — launch it
+                        </>
+                      )}
               </button>
               {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
               {fixingWhatsapp && (
@@ -3818,7 +3836,8 @@ function ResultCard({
           {result.stage !== 'planned' && (
             <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
               <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>
-                ✓ Campaign created, paused, no spend yet
+                <Check size={13} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+                Campaign created, paused, no spend yet
               </p>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>{launch?.note}</p>
             </div>
@@ -3912,7 +3931,8 @@ function WalletTab({
             color: '#555',
           }}
         >
-          ↻ Refresh
+          <RotateCw size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+          Refresh
         </button>
       </div>
 
@@ -4350,7 +4370,14 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               color: c.platform === 'tiktok' ? '#111' : '#1877F2',
             }}
           >
-            {c.platform === 'tiktok' ? '🎵 TikTok' : 'Meta'}
+            {c.platform === 'tiktok' ? (
+              <>
+                <Music2 size={11} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 3 }} />
+                TikTok
+              </>
+            ) : (
+              'Meta'
+            )}
           </span>
         </div>
         <p
@@ -4453,7 +4480,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
                 color: '#555',
               }}
             >
-              🎯
+              <Target size={15} strokeWidth={2} />
             </button>
           )}
           {canToggle && (
