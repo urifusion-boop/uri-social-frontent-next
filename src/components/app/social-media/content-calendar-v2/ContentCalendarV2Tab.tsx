@@ -22,7 +22,7 @@ import {
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // ── Constants (deliberately a standalone copy, not shared with v1 — same
 // isolation principle as the backend's _cal_v2_scope) ──────────────────────
@@ -153,6 +153,29 @@ const TerritoryBadge = ({ territory }: { territory: string }) => {
   );
 };
 
+// A named recurring series (PRD §21) — the backend already groups items
+// under a shared series_id/series_name, but until now nothing in the UI
+// rendered it, so a real feature (10 of 30 items in one verified live plan
+// belonged to a series) was entirely invisible to the person using this.
+const SeriesBadge = ({ name }: { name: string }) => (
+  <span
+    title="Part of a recurring branded series"
+    style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 3,
+      padding: '2px 8px',
+      borderRadius: 20,
+      fontSize: 10.5,
+      fontWeight: 700,
+      background: 'rgba(124,58,237,.1)',
+      color: '#7C3AED',
+    }}
+  >
+    🔁 {name}
+  </span>
+);
+
 // ── Item card (30-day grid cell) ────────────────────────────────────────────
 
 const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void }) => {
@@ -194,6 +217,7 @@ const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 'auto' }}>
         <TypeBadge type={item.content_type} />
         <TerritoryBadge territory={item.territory} />
+        {item.series_name && <SeriesBadge name={item.series_name} />}
         {item.ad_opportunity?.is_ad_candidate && <AdBadge score={item.ad_opportunity.score} />}
         {!item.diversity_check.passed && (
           <span title="Flagged as similar to another idea in this plan" style={{ fontSize: 10.5, color: '#B45309' }}>
@@ -387,6 +411,7 @@ const ItemDetailModal = ({
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               <TypeBadge type={item.content_type} />
               <TerritoryBadge territory={item.territory} />
+              {item.series_name && <SeriesBadge name={item.series_name} />}
               {isVideoFormat(item.format) && <VideoBadge />}
             </div>
             <h3 style={{ fontSize: 17, fontWeight: 700, color: '#111827', margin: '8px 0 2px' }}>{item.title}</h3>
@@ -826,6 +851,21 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
     })();
   }, []);
 
+  // onGenerated comes from the parent as a plain (unmemoized) function, so
+  // it gets a new identity on every WorkspaceDashboard re-render. Confirmed
+  // live: with it in this effect's deps, ANY parent re-render during the
+  // real ~8min generation tears down and restarts the interval below — in
+  // a dashboard with its own notification/credit polling, that happens far
+  // more often than every 15s, so the interval's first tick() never fires
+  // and a left-open tab shows "Generating…" forever even after the plan
+  // finishes server-side (a hard reload picks it up fine, since that does
+  // its own independent initial fetch). Routing the callback through a ref
+  // keeps the poll interval keyed ONLY on plan?.status actually changing.
+  const onGeneratedRef = useRef(onGenerated);
+  useEffect(() => {
+    onGeneratedRef.current = onGenerated;
+  }, [onGenerated]);
+
   // The pipeline runs 4-6 min as a background job; while the newest plan is
   // still 'generating', poll GET /plan until it flips to 'active' or 'failed'.
   useEffect(() => {
@@ -843,7 +883,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
           setPlan(res.responseData);
           if (res.responseData.status === 'active') {
             ToastService.showToast('Plan ready', ToastTypeEnum.Success);
-            onGenerated();
+            onGeneratedRef.current();
           } else if (res.responseData.status === 'failed') {
             ToastService.showToast(res.responseData.error || 'Generation failed — try again', ToastTypeEnum.Error);
           }
@@ -857,7 +897,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [plan?.status, onGenerated]);
+  }, [plan?.status]);
 
   const togglePlatform = (key: string) =>
     setPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
