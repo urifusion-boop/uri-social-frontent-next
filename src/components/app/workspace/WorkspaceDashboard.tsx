@@ -6525,25 +6525,6 @@ const PlaybookPage = ({
         )}
       </div>
 
-      {/* Business Pulse — a separate, always-editable surface (own save button,
-          own load/save calls) nested here rather than given its own top-level
-          nav destination. It renders its own header/subtitle, so it isn't
-          wrapped in a titled PbSection like the sections below (that would
-          duplicate the heading) — just contained so its internal
-          height:'100%' resolves against this box instead of the full page. */}
-      <div
-        style={{
-          border: '1px solid #edecea',
-          borderRadius: 14,
-          marginBottom: 20,
-          minHeight: 560,
-          background: '#fff',
-          overflow: 'hidden',
-        }}
-      >
-        <BusinessPulsePanel />
-      </div>
-
       {/* Brand Identity */}
       <PbSection title="Brand Identity">
         {/* Logo row */}
@@ -7774,6 +7755,25 @@ const PlaybookPage = ({
           )}
         </div>
       </PbSection>
+
+      {/* Business Pulse — a separate, always-editable surface (own save button,
+          own load/save calls) nested here rather than given its own top-level
+          nav destination. It renders its own header/subtitle, so it isn't
+          wrapped in a titled PbSection like the sections below (that would
+          duplicate the heading) — just contained so its internal
+          height:'100%' resolves against this box instead of the full page. */}
+      <div
+        style={{
+          border: '1px solid #edecea',
+          borderRadius: 14,
+          marginBottom: 20,
+          minHeight: 560,
+          background: '#fff',
+          overflow: 'hidden',
+        }}
+      >
+        <BusinessPulsePanel />
+      </div>
 
       {/* Language & Region */}
       <PbSection title="Language & Region">
