@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, MapPin, RotateCw, Target } from 'lucide-react';
+import { Check, MapPin, Pencil, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AdFormat,
@@ -4140,20 +4140,24 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           {canEditTargeting && (
             <button
               onClick={() => setEditingTargeting((v) => !v)}
-              title="Change who this campaign targets"
+              aria-expanded={editingTargeting}
+              aria-label="Edit who this campaign targets"
+              title="Edit who this campaign targets — interests, age, gender, places"
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 width: 34,
                 height: 34,
                 borderRadius: '50%',
                 border: '1px solid #e0dcd9',
                 background: editingTargeting ? '#f4f2f0' : '#fff',
                 cursor: 'pointer',
-                fontSize: 14,
                 lineHeight: 1,
                 color: '#555',
               }}
             >
-              <Target size={15} strokeWidth={2} />
+              <Pencil size={14} strokeWidth={2} />
             </button>
           )}
           {canToggle && (
