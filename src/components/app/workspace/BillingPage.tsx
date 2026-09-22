@@ -17,6 +17,9 @@ import {
   PaymentTransaction,
   SubscriptionResponse,
   SubscriptionTier,
+  CUSTOM_CREDIT_PRICE_NGN,
+  CUSTOM_CREDIT_MIN_QUANTITY,
+  CUSTOM_CREDIT_MAX_QUANTITY,
 } from '@/src/api/BillingService';
 import Script from 'next/script';
 
@@ -130,6 +133,119 @@ const Bd = ({
   );
 };
 
+// A partner/comp code (e.g. "ASA26") grants free plan access for a fixed
+// number of days from the moment it's redeemed — see admin_router.py /
+// billing_router.py's access-code endpoints. Kept as its own small,
+// always-visible box (not buried in a specific tab) since redeeming a code
+// is a one-time action most users will only ever do once, right after
+// getting a code from a partner — it shouldn't require knowing which
+// billing sub-tab to look under.
+function RedeemAccessCodeBox({ onRedeemed }: { onRedeemed: () => void | Promise<void> }) {
+  const [expanded, setExpanded] = useState(false);
+  const [code, setCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const handleRedeem = async () => {
+    if (!code.trim()) return;
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      const result = await BillingService.redeemAccessCode(code.trim());
+      const until = new Date(result.access_end).toLocaleDateString();
+      setMessage({ type: 'ok', text: `${result.plan_name} unlocked — free until ${until}.` });
+      setCode('');
+      await onRedeemed();
+    } catch (err: unknown) {
+      const detail =
+        (err as { data?: { detail?: string } })?.data?.detail ??
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setMessage({ type: 'err', text: detail || 'Could not redeem this code.' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          border: '1.5px dashed rgba(205,27,120,0.4)',
+          borderRadius: 10,
+          padding: '12px 16px',
+          marginBottom: 16,
+          background: 'rgba(205,27,120,0.05)',
+          color: '#AD1457',
+          fontSize: 13.5,
+          fontWeight: 700,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        🎟️ Have a partner or promo code? Click here to redeem it
+      </button>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        border: '1px solid #e5e3df',
+        borderRadius: 10,
+        padding: '14px 16px',
+        marginBottom: 16,
+        background: '#fafaf8',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        flexWrap: 'wrap',
+      }}
+    >
+      <input
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="Enter your code"
+        style={{
+          flex: '1 1 180px',
+          padding: '9px 12px',
+          borderRadius: 8,
+          border: '1.5px solid #e5e3df',
+          fontSize: 13,
+          outline: 'none',
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && handleRedeem()}
+      />
+      <button
+        onClick={handleRedeem}
+        disabled={submitting || !code.trim()}
+        style={{
+          padding: '9px 16px',
+          borderRadius: 8,
+          border: 'none',
+          background: '#CD1B78',
+          color: '#fff',
+          fontWeight: 700,
+          fontSize: 13,
+          cursor: submitting || !code.trim() ? 'not-allowed' : 'pointer',
+          opacity: submitting ? 0.7 : 1,
+        }}
+      >
+        {submitting ? 'Redeeming…' : 'Redeem'}
+      </button>
+      {message && (
+        <span style={{ fontSize: 12, fontWeight: 600, color: message.type === 'ok' ? '#2E7D32' : '#C62828' }}>
+          {message.text}
+        </span>
+      )}
+    </div>
+  );
+}
+
 interface BillingPageProps {
   onBack: () => void;
   initialTab?: 'overview' | 'credits' | 'payments' | 'plans';
@@ -152,6 +268,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   const [testAmount, setTestAmount] = useState<string>('100');
   const [testCredits, setTestCredits] = useState<string>('1');
   const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
+  const [customQty, setCustomQty] = useState(10);
+  const [buyingCustomCredits, setBuyingCustomCredits] = useState(false);
   const [paymentModal, setPaymentModal] = useState<{
     show: boolean;
     type: 'success' | 'error' | 'warning';
@@ -335,6 +453,42 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
     }
   };
 
+  const handleBuyCustomCredits = async () => {
+    if (customQty < CUSTOM_CREDIT_MIN_QUANTITY || buyingCustomCredits) return;
+
+    setBuyingCustomCredits(true);
+
+    try {
+      const paymentData = await BillingService.purchaseCustomCredits(customQty);
+
+      // Same inline-modal-with-redirect-fallback pattern as confirmSubscription
+      if (typeof window !== 'undefined' && window.squadPay) {
+        window.squadPay({
+          key: paymentData.public_key,
+          email: paymentData.email,
+          amount: paymentData.amount * 100, // kobo
+          currency: paymentData.currency || 'NGN',
+          transaction_ref: paymentData.transaction_ref,
+          onClose: () => {
+            setBuyingCustomCredits(false);
+          },
+          onLoad: () => {},
+          onSuccess: async (data: SquadPaymentData) => {
+            setBuyingCustomCredits(false);
+            await verifyPaymentCallback(data.transaction_ref);
+          },
+        });
+      } else {
+        console.warn('Squad SDK not loaded, redirecting to payment page');
+        window.location.href = paymentData.payment_url;
+      }
+    } catch (error: unknown) {
+      console.error('Custom credit purchase failed:', error);
+      alert(error instanceof Error ? error.message : 'Failed to start checkout. Please try again.');
+      setBuyingCustomCredits(false);
+    }
+  };
+
   const isCurrentPlan = (tierId: string) => {
     // Show "Current Plan" badge only if BOTH tier AND billing cycle match
     return subscription?.tier_id === tierId && subscription?.billing_cycle === selectedBillingCycle;
@@ -436,6 +590,30 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
           </div>
         </div>
 
+        {/* Comp-grant status — a redeemed access code grants its plan's credits
+            ONCE (never refilled monthly). It ends whichever comes first: the
+            end_date below, or the credits running out (which auto-revokes the
+            grant server-side — see CreditService._revoke_exhausted_comp_grant). */}
+        {balance?.subscription_source === 'access_code' && balance?.subscription_tier && (
+          <div
+            style={{
+              background: 'rgba(194,24,91,.06)',
+              border: '1px solid rgba(194,24,91,.2)',
+              borderRadius: 10,
+              padding: '12px 16px',
+              marginBottom: 16,
+              fontSize: 13,
+              color: '#7a0f43',
+            }}
+          >
+            <strong>Complimentary access</strong> — you're on a free{' '}
+            {balance.subscription_tier.charAt(0).toUpperCase() + balance.subscription_tier.slice(1)} plan from a partner
+            code, with {balance.credits_remaining} credit{balance.credits_remaining === 1 ? '' : 's'} remaining. It ends{' '}
+            {balance.end_date ? `on ${new Date(balance.end_date).toLocaleDateString()}` : 'soon'}, or as soon as your
+            credits run out — whichever comes first. Subscribe to a paid plan anytime to avoid any interruption.
+          </div>
+        )}
+
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #edecea' }}>
           {['overview', 'plans', 'credits', 'payments'].map((tab) => (
@@ -458,6 +636,8 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
             </button>
           ))}
         </div>
+
+        <RedeemAccessCodeBox onRedeemed={handleRefresh} />
 
         {/* Tab Content */}
         {activeTab === 'plans' && (
@@ -842,19 +1022,172 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   );
                 })}
             </div>
+
+            {/* Custom Credit Purchase — buy an exact quantity at a fixed
+                per-credit price, no subscription commitment, never expires
+                (added as bonus_credits). */}
+            <div
+              style={{
+                marginTop: 28,
+                background: 'linear-gradient(135deg, rgba(205,27,120,.03) 0%, rgba(160,21,96,.03) 100%)',
+                border: '1px solid rgba(205,27,120,.15)',
+                borderRadius: 14,
+                padding: '22px 22px 20px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 20,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ flex: '1 1 260px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <div
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 8,
+                        background: 'linear-gradient(135deg,#C2185B,#E91E63)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span style={{ color: '#fff', fontSize: 16, fontWeight: 900, lineHeight: 1 }}>+</span>
+                    </div>
+                    <h3 style={{ fontSize: 16, fontWeight: 900, color: '#111', margin: 0 }}>Buy Custom Credits</h3>
+                  </div>
+                  <p style={{ fontSize: 12.5, color: '#666', margin: 0, lineHeight: 1.5, maxWidth: 380 }}>
+                    Need a specific amount? Top up any quantity — no subscription, and they never expire.{' '}
+                    <strong style={{ color: '#C2185B' }}>₦{CUSTOM_CREDIT_PRICE_NGN.toLocaleString()}</strong> per
+                    credit.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                  {/* Quantity stepper */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      border: '1px solid #e5e3df',
+                      borderRadius: 10,
+                      background: '#fff',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <button
+                      onClick={() => setCustomQty((q) => Math.max(CUSTOM_CREDIT_MIN_QUANTITY, q - 1))}
+                      disabled={buyingCustomCredits || customQty <= CUSTOM_CREDIT_MIN_QUANTITY}
+                      style={{
+                        width: 34,
+                        height: 38,
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: buyingCustomCredits ? 'default' : 'pointer',
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: '#666',
+                      }}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={CUSTOM_CREDIT_MIN_QUANTITY}
+                      max={CUSTOM_CREDIT_MAX_QUANTITY}
+                      value={customQty}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        setCustomQty(
+                          Number.isFinite(v)
+                            ? Math.min(CUSTOM_CREDIT_MAX_QUANTITY, Math.max(CUSTOM_CREDIT_MIN_QUANTITY, v))
+                            : CUSTOM_CREDIT_MIN_QUANTITY
+                        );
+                      }}
+                      disabled={buyingCustomCredits}
+                      style={{
+                        width: 56,
+                        height: 38,
+                        border: 'none',
+                        borderLeft: '1px solid #e5e3df',
+                        borderRight: '1px solid #e5e3df',
+                        textAlign: 'center',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#111',
+                        outline: 'none',
+                      }}
+                    />
+                    <button
+                      onClick={() => setCustomQty((q) => Math.min(CUSTOM_CREDIT_MAX_QUANTITY, q + 1))}
+                      disabled={buyingCustomCredits || customQty >= CUSTOM_CREDIT_MAX_QUANTITY}
+                      style={{
+                        width: 34,
+                        height: 38,
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: buyingCustomCredits ? 'default' : 'pointer',
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: '#666',
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleBuyCustomCredits}
+                    disabled={buyingCustomCredits || customQty < CUSTOM_CREDIT_MIN_QUANTITY}
+                    style={{
+                      padding: '11px 22px',
+                      borderRadius: 10,
+                      border: 'none',
+                      background: buyingCustomCredits ? '#999' : 'linear-gradient(135deg, #C2185B, #E91E63)',
+                      color: '#fff',
+                      fontWeight: 800,
+                      fontSize: 13.5,
+                      cursor: buyingCustomCredits ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {buyingCustomCredits ? (
+                      <>
+                        <I n="loader" s={14} c="#fff" />
+                        Processing...
+                      </>
+                    ) : (
+                      `Buy for ₦${(customQty * CUSTOM_CREDIT_PRICE_NGN).toLocaleString()}`
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
         {activeTab === 'overview' && (
           <div>
-            {/* Trial Status Card — a trial that's genuinely expired has nothing
-                useful to tell an already-subscribed user ("Free Trial Expired
-                / Upgrade to continue" is just false for them, they're already
-                paying); an unexpired trial's info is still true and worth
-                showing regardless of subscription (see WorkspaceDashboard's
-                matching TrialBanner logic). */}
+            {/* Trial Status Card — irrelevant once any subscription (paid or
+                a redeemed comp code) is covering the account, so it must not
+                keep telling an already-subscribed user to "upgrade". And a
+                "your trial ended, upgrade to continue" message is simply
+                false while bonus credits still let them keep generating —
+                only nag once credits_remaining (which already folds bonus
+                credits in, see CreditBalanceResponse) has actually hit 0. */}
             {userDetails?.isTrial &&
-              (userDetails.trialActive || !hasActiveSubscription(userDetails.subscriptionTier)) && (
+              !hasActiveSubscription(userDetails.subscriptionTier) &&
+              (userDetails.trialActive || (userDetails.creditsRemaining ?? 0) <= 0) && (
                 <div
                   style={{
                     background: userDetails.trialActive
@@ -1086,6 +1419,49 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   <div style={{ fontSize: 11, color: '#666' }}>Available for use</div>
                 )}
               </div>
+
+              {/* Buy More Credits — quick access into the custom-credit
+                  purchase flow on the Plans tab */}
+              <div
+                onClick={() => setActiveTab('plans')}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(205,27,120,.04), rgba(160,21,96,.04))',
+                  borderRadius: 12,
+                  border: '1px dashed rgba(205,27,120,.3)',
+                  padding: 18,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  textAlign: 'center',
+                  transition: 'background .15s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(205,27,120,.08)')}
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background =
+                    'linear-gradient(135deg, rgba(205,27,120,.04), rgba(160,21,96,.04))')
+                }
+              >
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    background: 'rgba(205,27,120,.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 8,
+                  }}
+                >
+                  <span style={{ color: '#C2185B', fontSize: 18, fontWeight: 900, lineHeight: 1 }}>+</span>
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#C2185B' }}>Buy More Credits</div>
+                <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>
+                  ₦{CUSTOM_CREDIT_PRICE_NGN.toLocaleString()}/credit, any amount
+                </div>
+              </div>
             </div>
 
             {/* Subscription Info */}
@@ -1189,7 +1565,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   >
                     <div>
                       <div style={{ fontSize: 12.5, fontWeight: 600, textTransform: 'capitalize' }}>
-                        {txn.reason.replace('_', ' ')}
+                        {txn.reason.replace(/_/g, ' ')}
                       </div>
                       <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
                         {new Date(txn.created_at).toLocaleString()}
@@ -1234,7 +1610,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                       {txn.type}
                     </Bd>
                     <div style={{ fontSize: 12, color: '#666', marginTop: 6, textTransform: 'capitalize' }}>
-                      {txn.reason.replace('_', ' ')}
+                      {txn.reason.replace(/_/g, ' ')}
                     </div>
                     <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
                       {new Date(txn.created_at).toLocaleString()}
@@ -1267,7 +1643,9 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                   <div style={{ display: 'flex', justifyContent: 'between', marginBottom: 8 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>
-                        {payment.subscription_tier} Plan
+                        {payment.purchase_type === 'custom_credits'
+                          ? `${payment.credit_quantity ?? Math.round(payment.amount / CUSTOM_CREDIT_PRICE_NGN)} Custom Credits`
+                          : `${payment.subscription_tier} Plan`}
                       </div>
                       <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{payment.transaction_ref}</div>
                     </div>

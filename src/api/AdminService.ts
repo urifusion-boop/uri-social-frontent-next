@@ -92,6 +92,58 @@ export interface TrialAdjustResponse {
   low_credit_warning?: boolean;
 }
 
+export interface AccessCode {
+  code: string;
+  plan_tier_id: string;
+  duration_days: number;
+  max_redemptions: number | null;
+  redemption_count: number;
+  is_active: boolean;
+  expires_at: string | null;
+  label: string;
+  created_by: string;
+  created_at: string;
+  // Personal-invite mode: set means only this email can ever redeem this
+  // code (enforced server-side). assigned_to_name/status are resolved by
+  // the backend on every create/list/update — status is 'unassigned' (a
+  // shared code, anyone with it can redeem), 'pending' (assigned, not yet
+  // redeemed), or 'redeemed'.
+  assigned_to_email: string | null;
+  assigned_to_name: string | null;
+  status: 'unassigned' | 'pending' | 'redeemed';
+  // Only present in the response right after creating an assigned code —
+  // whether the invite email was actually queued (true) or skipped, e.g.
+  // send_email: false was passed. Not present on unassigned codes.
+  email_sent?: boolean;
+  // Only meaningful on the response to a revoke (is_active: false) — how
+  // many people currently redeeming this code just had their access cut
+  // off immediately, not just blocked from future redemptions.
+  revoked_active_users?: number;
+}
+
+export interface AccessCodeRedemption {
+  code: string;
+  user_id: string;
+  email: string | null;
+  plan_tier_id: string;
+  access_start: string;
+  access_end: string;
+  previous_subscription_tier: string | null;
+  redeemed_at: string;
+  // Set the moment their credits run out — a comp grant ends whichever
+  // comes first, end_date or exhausting its one-time credit allocation
+  // (it never refills mid-window like a real subscription does).
+  revoked_at: string | null;
+  revocation_reason: string | null;
+  // The one field that tells the truth about THIS redemption regardless of
+  // revoked_at alone: 'active' (this is still the user's current grant),
+  // 'lapsed' (access_end passed), 'revoked' (revoked_at is set), or
+  // 'superseded' (not revoked, not lapsed, but the wallet has since moved
+  // on to something else without going through a tracked revoke — e.g. a
+  // code redeemed before the no-double-redeeming guard existed).
+  effective_status?: 'active' | 'lapsed' | 'revoked' | 'superseded';
+}
+
 export class AdminService {
   /**
    * Get all users with pagination, search, and sorting
@@ -231,6 +283,78 @@ export class AdminService {
    */
   static async revokeSupport(userId: string): Promise<{ user_id: string; is_support: boolean }> {
     const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/support/revoke`);
+    return response.data;
+  }
+
+  /**
+   * Create a new redeemable access code (e.g. a partner comp like "ASA26").
+   * Omit `code` to have the server auto-generate one.
+   */
+  static async createAccessCode(params: {
+    code?: string;
+    plan_tier_id: string;
+    duration_days: number;
+    max_redemptions?: number;
+    expires_at?: string;
+    label?: string;
+    /** Reserve this code for one specific person — omit for a shared code anyone can redeem. */
+    assigned_to_email?: string;
+    /** When assigned_to_email is set, email them the code immediately. Defaults to true server-side. */
+    send_email?: boolean;
+  }): Promise<AccessCode> {
+    const response = await UriHttpClient.getClient().post('/api/admin/access-codes', params);
+    return response.data;
+  }
+
+  /** (Re)send an already-assigned code to its recipient — e.g. it was created
+   * with the email skipped, or the recipient never got/lost it. */
+  static async sendAccessCodeEmail(code: string): Promise<{ sent: boolean; to: string }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/access-codes/${code}/send-email`);
+    return response.data;
+  }
+
+  /** Permanently remove a code — distinct from revoking (is_active: false),
+   * which keeps it around for its audit trail. Use this to clean up a
+   * mistake or a test code; anyone currently redeeming it is cut off first. */
+  static async deleteAccessCode(
+    code: string
+  ): Promise<{ deleted: boolean; code: string; revoked_active_users: number }> {
+    const response = await UriHttpClient.getClient().delete(`/api/admin/access-codes/${code}`);
+    return response.data;
+  }
+
+  /** Undo an earlier revoke/exhaustion for ONE specific redeemer — grants a
+   * fresh full-duration window of the code's plan and clears their
+   * redemption's revoked_at, without needing a whole new code. */
+  static async restoreAccessCodeRedemption(
+    code: string,
+    userId: string
+  ): Promise<{ restored: boolean; user_id: string; access_end: string }> {
+    const response = await UriHttpClient.getClient().post(
+      `/api/admin/access-codes/${code}/redemptions/${userId}/restore`
+    );
+    return response.data;
+  }
+
+  static async listAccessCodes(): Promise<{ codes: AccessCode[]; count: number }> {
+    const response = await UriHttpClient.getClient().get('/api/admin/access-codes');
+    return response.data;
+  }
+
+  static async listAccessCodeRedemptions(
+    code: string
+  ): Promise<{ code: string; redemptions: AccessCodeRedemption[]; count: number }> {
+    const response = await UriHttpClient.getClient().get(`/api/admin/access-codes/${code}/redemptions`);
+    return response.data;
+  }
+
+  /** Revoke a code early (is_active: false) or edit its label. */
+  /** Pass assigned_to_email: '' to clear an existing assignment — distinct from omitting it, which leaves it untouched. */
+  static async updateAccessCode(
+    code: string,
+    updates: { is_active?: boolean; label?: string; assigned_to_email?: string }
+  ): Promise<AccessCode> {
+    const response = await UriHttpClient.getClient().patch(`/api/admin/access-codes/${code}`, updates);
     return response.data;
   }
 }

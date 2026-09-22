@@ -21,6 +21,10 @@ export interface CreditBalanceResponse {
   credits_used: number;
   credits_remaining: number;
   subscription_tier: string | null;
+  // 'access_code' when this tier came from a redeemed comp code — that grant
+  // is one-time (no monthly refill) and ends whichever comes first: end_date,
+  // or credits running out (auto-revoked server-side, see CreditService).
+  subscription_source?: string | null;
   billing_cycle?: BillingCycle; // PRD 8.1: Billing cycle selection
   start_date?: string | null; // PRD 8.3: Subscription lifecycle
   end_date?: string | null; // PRD 8.3: Auto-expire after end_date
@@ -35,11 +39,20 @@ export interface CreditTransaction {
   amount: number;
   balance_before: number;
   balance_after: number;
-  reason: 'subscription' | 'retry' | 'campaign_generation' | 'refund' | 'bonus';
+  reason: 'subscription' | 'retry' | 'campaign_generation' | 'refund' | 'bonus' | 'custom_credit_purchase';
   campaign_id?: string;
   retry_count?: number;
   created_at: string;
 }
+
+// ==================== Custom Credit Purchase (pay-per-credit top-up) ====================
+
+// Kept in sync with PaymentService.CUSTOM_CREDIT_PRICE_NGN on the backend —
+// used here only for instant client-side total preview before the backend
+// computes the authoritative amount at checkout time.
+export const CUSTOM_CREDIT_PRICE_NGN = 800;
+export const CUSTOM_CREDIT_MIN_QUANTITY = 1;
+export const CUSTOM_CREDIT_MAX_QUANTITY = 1000;
 
 // ==================== PRD 5: Subscription Tiers ====================
 
@@ -111,9 +124,11 @@ export interface PaymentTransaction {
   status: 'pending' | 'completed' | 'failed';
   payment_method: string | null;
   gateway: string;
-  subscription_tier: string;
+  purchase_type?: 'subscription' | 'custom_credits'; // defaults to 'subscription' server-side
+  subscription_tier?: string | null;
   billing_cycle?: BillingCycle; // PRD 8.1: Billing cycle
   credits_allocated?: number; // PRD 8.2: Total credits allocated
+  credit_quantity?: number; // set when purchase_type === 'custom_credits'
   created_at: string;
   completed_at: string | null;
 }
@@ -241,6 +256,21 @@ export class BillingService {
         test_amount: testAmount,
         test_credits: testCredits,
       }
+    );
+
+    return response.data;
+  }
+
+  /**
+   * Buy an arbitrary quantity of bonus credits at a fixed per-credit price
+   * (₦800/credit, NGN only). Returns the same SQUAD checkout shape as
+   * initializePayment — verify with verifyPayment() after redirect, same as
+   * a subscription purchase.
+   */
+  static async purchaseCustomCredits(quantity: number): Promise<InitializePaymentResponse> {
+    const response: AxiosResponse<InitializePaymentResponse> = await UriHttpClient.getClient().post(
+      '/social-media/billing/credits/purchase-custom',
+      { quantity }
     );
 
     return response.data;
@@ -526,6 +556,30 @@ export class BillingService {
       '/social-media/billing/trial/can-generate'
     );
 
+    return response.data.responseData!;
+  }
+
+  /**
+   * Redeem an admin-generated access code (e.g. a partner comp like "ASA26")
+   * for free plan access. Each redeemer gets their own access window from
+   * their own redemption moment, not a shared expiry tied to the code.
+   */
+  static async redeemAccessCode(code: string): Promise<{
+    plan_tier_id: string;
+    plan_name: string;
+    access_start: string;
+    access_end: string;
+    duration_days: number;
+  }> {
+    const response: AxiosResponse<
+      UriResponse<{
+        plan_tier_id: string;
+        plan_name: string;
+        access_start: string;
+        access_end: string;
+        duration_days: number;
+      }>
+    > = await UriHttpClient.getClient().post('/social-media/billing/access-code/redeem', { code });
     return response.data.responseData!;
   }
 }

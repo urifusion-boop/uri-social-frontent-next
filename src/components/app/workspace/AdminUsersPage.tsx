@@ -6,10 +6,18 @@
  * Only accessible by: urisocialingsight@gmail.com
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, Fragment } from 'react';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { AdminService, AdminUser, AdminUserDetails, AdminStats } from '@/src/api/AdminService';
+import {
+  AdminService,
+  AdminUser,
+  AdminUserDetails,
+  AdminStats,
+  AccessCode,
+  AccessCodeRedemption,
+} from '@/src/api/AdminService';
 import { useRouter } from 'next/navigation';
+import ConfirmDialog from './ConfirmDialog';
 
 // Icon components
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -82,6 +90,38 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
         <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
       </>
     ),
+    more: (
+      <>
+        <circle cx="12" cy="5" r="1.6" fill={c} stroke="none" />
+        <circle cx="12" cy="12" r="1.6" fill={c} stroke="none" />
+        <circle cx="12" cy="19" r="1.6" fill={c} stroke="none" />
+      </>
+    ),
+    ban: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <line x1="5.5" y1="5.5" x2="18.5" y2="18.5" />
+      </>
+    ),
+    trash: (
+      <>
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+      </>
+    ),
+    mail: (
+      <>
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <polyline points="2 7 12 13 22 7" />
+      </>
+    ),
+    ticket: (
+      <>
+        <path d="M3 9a2 2 0 100 6" />
+        <path d="M3 9V7a2 2 0 012-2h14a2 2 0 012 2v2a2 2 0 100 6v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2" />
+        <line x1="12" y1="6" x2="12" y2="18" strokeDasharray="2 2" />
+      </>
+    ),
   };
   return (
     <svg
@@ -142,7 +182,7 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
   const { isAdminUser, isAdminStatusPending } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<'stats' | 'all-users' | 'recent'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'all-users' | 'recent' | 'access-codes'>('stats');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [recentUsers, setRecentUsers] = useState<AdminUser[]>([]);
@@ -370,8 +410,13 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
           flexShrink: 0,
         }}
       >
-        {(['stats', 'all-users', 'recent'] as const).map((tab) => {
-          const labels = { stats: 'Overview', 'all-users': 'All Users', recent: 'Recent Signups' };
+        {(['stats', 'all-users', 'recent', 'access-codes'] as const).map((tab) => {
+          const labels = {
+            stats: 'Overview',
+            'all-users': 'All Users',
+            recent: 'Recent Signups',
+            'access-codes': 'Access Codes',
+          };
           const active = activeTab === tab;
           return (
             <button
@@ -676,6 +721,13 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
             <UserTable users={recentUsers} loading={loadingUsers} onViewUser={handleViewUser} formatDate={formatDate} />
           </div>
         )}
+
+        {/* Access Codes Tab */}
+        {activeTab === 'access-codes' && (
+          <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+            <AccessCodesPanel />
+          </div>
+        )}
       </div>
 
       {/* User Details Modal */}
@@ -688,6 +740,1126 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
         />
       )}
     </div>
+  );
+}
+
+// Known subscription_tiers.tier_id values (SubscriptionService.py's
+// initialize_default_tiers) — hardcoded here rather than fetched, since
+// this list changes rarely and a fetch would need its own loading state
+// for a 5-item dropdown.
+const PLAN_TIER_OPTIONS = [
+  { id: 'starter', label: 'Starter' },
+  { id: 'growth', label: 'Growth' },
+  { id: 'pro', label: 'Pro' },
+  { id: 'agency', label: 'Agency' },
+];
+
+// Access Codes Tab — admin-generated partner/comp codes (e.g. "ASA26").
+// Generic and reusable: create a code for any plan/duration, hand it to
+// anybody, each redeemer gets their own access window from their own
+// redemption date. See app/routers/admin_router.py + billing_router.py.
+function AccessCodesPanel() {
+  const [codes, setCodes] = useState<AccessCode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [detailCode, setDetailCode] = useState<AccessCode | null>(null);
+  const [redemptions, setRedemptions] = useState<AccessCodeRedemption[]>([]);
+  const [loadingRedemptions, setLoadingRedemptions] = useState(false);
+  const [deletingCode, setDeletingCode] = useState<string | null>(null);
+  const [restoringUserId, setRestoringUserId] = useState<string | null>(null);
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<AccessCode | null>(null);
+
+  const [code, setCode] = useState('');
+  const [planTierId, setPlanTierId] = useState('starter');
+  const [durationDays, setDurationDays] = useState('60');
+  const [maxRedemptions, setMaxRedemptions] = useState('');
+  const [label, setLabel] = useState('');
+  const [assignedToEmail, setAssignedToEmail] = useState('');
+  const [sendEmailOnCreate, setSendEmailOnCreate] = useState(true);
+  const [resendingCode, setResendingCode] = useState<string | null>(null);
+
+  // Inline reassign/unassign editor — which code row (if any) has its
+  // assignment field open for editing, and the draft value being typed.
+  const [reassigningCode, setReassigningCode] = useState<string | null>(null);
+  const [reassignDraft, setReassignDraft] = useState('');
+  const [reassigning, setReassigning] = useState(false);
+
+  const loadCodes = async () => {
+    setLoading(true);
+    try {
+      const res = await AdminService.listAccessCodes();
+      setCodes(res.codes);
+    } catch (error) {
+      console.error('Failed to load access codes:', error);
+      setMessage({ type: 'err', text: 'Failed to load access codes.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCodes();
+  }, []);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    setMessage(null);
+    try {
+      const created = await AdminService.createAccessCode({
+        code: code.trim() || undefined,
+        plan_tier_id: planTierId,
+        duration_days: parseInt(durationDays, 10) || 60,
+        max_redemptions: maxRedemptions ? parseInt(maxRedemptions, 10) : undefined,
+        label: label.trim() || undefined,
+        assigned_to_email: assignedToEmail.trim() || undefined,
+        send_email: sendEmailOnCreate,
+      });
+      setMessage({
+        type: 'ok',
+        text: created.assigned_to_email
+          ? created.email_sent
+            ? `Created code "${created.code}" and emailed it to ${created.assigned_to_name || created.assigned_to_email}.`
+            : `Created code "${created.code}" — reserved for ${created.assigned_to_name || created.assigned_to_email}. (Not emailed — you can send it from the table below.)`
+          : `Created code "${created.code}".`,
+      });
+      setCode('');
+      setLabel('');
+      setMaxRedemptions('');
+      setAssignedToEmail('');
+      await loadCodes();
+    } catch (error: unknown) {
+      const detail =
+        (error as { data?: { detail?: string }; response?: { data?: { detail?: string } } })?.data?.detail ??
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      console.error('Failed to create access code:', error);
+      setMessage({ type: 'err', text: detail || 'Failed to create access code.' });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleToggleActive = async (target: AccessCode) => {
+    setMessage(null);
+    try {
+      const updated = await AdminService.updateAccessCode(target.code, { is_active: !target.is_active });
+      if (!updated.is_active && (updated.revoked_active_users ?? 0) > 0) {
+        setMessage({
+          type: 'ok',
+          text: `Revoked "${target.code}" — immediately cut off ${updated.revoked_active_users} ${
+            updated.revoked_active_users === 1 ? 'person who was' : 'people who were'
+          } currently using it.`,
+        });
+      }
+      await loadCodes();
+    } catch (error) {
+      console.error('Failed to update access code:', error);
+      setMessage({ type: 'err', text: 'Failed to update code.' });
+    }
+  };
+
+  const handleResendEmail = async (target: AccessCode) => {
+    setResendingCode(target.code);
+    setMessage(null);
+    try {
+      const res = await AdminService.sendAccessCodeEmail(target.code);
+      setMessage({ type: 'ok', text: `Emailed "${target.code}" to ${res.to}.` });
+    } catch (error: unknown) {
+      const detail =
+        (error as { data?: { detail?: string }; response?: { data?: { detail?: string } } })?.data?.detail ??
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      console.error('Failed to send access code email:', error);
+      setMessage({ type: 'err', text: detail || 'Failed to send email.' });
+    } finally {
+      setResendingCode(null);
+    }
+  };
+
+  const openReassign = (target: AccessCode) => {
+    setReassigningCode(target.code);
+    setReassignDraft(target.assigned_to_email || '');
+  };
+
+  const handleSaveReassign = async (codeStr: string) => {
+    setReassigning(true);
+    try {
+      // Empty draft clears the assignment (backend treats "" as "unassign",
+      // distinct from omitting the field, which would leave it untouched).
+      await AdminService.updateAccessCode(codeStr, { assigned_to_email: reassignDraft.trim() });
+      setReassigningCode(null);
+      await loadCodes();
+    } catch (error) {
+      console.error('Failed to reassign access code:', error);
+      setMessage({ type: 'err', text: 'Failed to update assignment.' });
+    } finally {
+      setReassigning(false);
+    }
+  };
+
+  const loadRedemptions = async (codeStr: string) => {
+    setLoadingRedemptions(true);
+    try {
+      const res = await AdminService.listAccessCodeRedemptions(codeStr);
+      setRedemptions(res.redemptions);
+    } catch (error) {
+      console.error('Failed to load redemptions:', error);
+      setMessage({ type: 'err', text: 'Failed to load redemptions.' });
+    } finally {
+      setLoadingRedemptions(false);
+    }
+  };
+
+  const handleOpenDetail = async (target: AccessCode) => {
+    setDetailCode(target);
+    setRedemptions([]);
+    await loadRedemptions(target.code);
+  };
+
+  const handleRestore = async (codeStr: string, userId: string) => {
+    setRestoringUserId(userId);
+    setMessage(null);
+    try {
+      await AdminService.restoreAccessCodeRedemption(codeStr, userId);
+      setMessage({ type: 'ok', text: `Restored access for this person.` });
+      await loadRedemptions(codeStr);
+    } catch (error: unknown) {
+      const detail =
+        (error as { data?: { detail?: string }; response?: { data?: { detail?: string } } })?.data?.detail ??
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      console.error('Failed to restore access:', error);
+      setMessage({ type: 'err', text: detail || 'Failed to restore access.' });
+    } finally {
+      setRestoringUserId(null);
+    }
+  };
+
+  const handleDelete = (target: AccessCode) => {
+    setDeleteConfirmTarget(target);
+  };
+
+  const performDelete = async (target: AccessCode) => {
+    setDeletingCode(target.code);
+    setMessage(null);
+    try {
+      const res = await AdminService.deleteAccessCode(target.code);
+      setMessage({
+        type: 'ok',
+        text:
+          res.revoked_active_users > 0
+            ? `Deleted "${target.code}" — also cut off ${res.revoked_active_users} ${
+                res.revoked_active_users === 1 ? 'person who was' : 'people who were'
+              } currently using it.`
+            : `Deleted "${target.code}".`,
+      });
+      if (detailCode?.code === target.code) setDetailCode(null);
+      await loadCodes();
+    } catch (error: unknown) {
+      const detail =
+        (error as { data?: { detail?: string }; response?: { data?: { detail?: string } } })?.data?.detail ??
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      console.error('Failed to delete access code:', error);
+      setMessage({ type: 'err', text: detail || 'Failed to delete code.' });
+    } finally {
+      setDeletingCode(null);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    padding: '9px 12px',
+    borderRadius: 8,
+    border: '1.5px solid rgba(0,0,0,.1)',
+    fontSize: 13,
+    outline: 'none',
+  };
+
+  return (
+    <div>
+      <div
+        style={{
+          background: 'white',
+          border: '1px solid rgba(0,0,0,.08)',
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Create a new code</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 14 }}>
+          Whoever redeems a code gets the chosen plan free for the given number of days, starting from their own
+          redemption date — not a shared expiry for everyone who uses the code. Leave "Assign to" blank for a shared
+          code anyone can redeem, or set it to reserve this code for one specific person — only that email will be able
+          to redeem it, and you'll see it's theirs immediately below, before they ever act.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>Code (optional)</div>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Auto-generate"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>Plan</div>
+            <select
+              value={planTierId}
+              onChange={(e) => setPlanTierId(e.target.value)}
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            >
+              {PLAN_TIER_OPTIONS.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>Duration (days)</div>
+            <input
+              type="number"
+              value={durationDays}
+              onChange={(e) => setDurationDays(e.target.value)}
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>Max redemptions</div>
+            <input
+              type="number"
+              value={maxRedemptions}
+              onChange={(e) => setMaxRedemptions(e.target.value)}
+              placeholder="Unlimited"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>
+              Assign to (email, optional)
+            </div>
+            <input
+              type="email"
+              value={assignedToEmail}
+              onChange={(e) => setAssignedToEmail(e.target.value)}
+              placeholder="Leave blank for a shared code"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 4 }}>
+              Label (e.g. partnership name)
+            </div>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Africa SME Assembly partnership"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+        </div>
+        {assignedToEmail.trim() && (
+          <div style={{ marginTop: 8, fontSize: 11.5, color: '#888' }}>
+            Only <strong>{assignedToEmail.trim()}</strong> will be able to redeem this code.
+          </div>
+        )}
+        {assignedToEmail.trim() && (
+          <label
+            style={{
+              marginTop: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              fontSize: 12.5,
+              color: '#444',
+              cursor: 'pointer',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={sendEmailOnCreate}
+              onChange={(e) => setSendEmailOnCreate(e.target.checked)}
+            />
+            Email the code to {assignedToEmail.trim()} right away
+          </label>
+        )}
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#AD1457',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: creating ? 'not-allowed' : 'pointer',
+              opacity: creating ? 0.7 : 1,
+            }}
+          >
+            {creating ? 'Creating…' : 'Create code'}
+          </button>
+          {message && (
+            <span style={{ fontSize: 12, fontWeight: 600, color: message.type === 'ok' ? '#2E7D32' : '#C62828' }}>
+              {message.text}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ background: 'white', border: '1px solid rgba(0,0,0,.08)', borderRadius: 12, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>Loading…</div>
+        ) : codes.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>No access codes yet.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(0,0,0,.02)', textAlign: 'left' }}>
+                {['Code', 'Plan', 'Duration', 'Redemptions', 'Assigned to', 'Code status', 'Label', ''].map((h) => (
+                  <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: '#888' }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {codes.map((c) => (
+                <Fragment key={c.code}>
+                  <tr style={{ borderTop: '1px solid rgba(0,0,0,.06)' }}>
+                    <td style={{ padding: '12px 16px', fontWeight: 700, fontFamily: 'monospace' }}>{c.code}</td>
+                    <td style={{ padding: '12px 16px' }}>{c.plan_tier_id}</td>
+                    <td style={{ padding: '12px 16px' }}>{c.duration_days}d</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <button
+                        onClick={() => handleOpenDetail(c)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#AD1457',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontSize: 13,
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        {c.redemption_count}
+                        {c.max_redemptions ? ` / ${c.max_redemptions}` : ''}
+                      </button>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {reassigningCode === c.code ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <input
+                            autoFocus
+                            type="email"
+                            value={reassignDraft}
+                            onChange={(e) => setReassignDraft(e.target.value)}
+                            placeholder="Anyone (shared)"
+                            style={{ ...inputStyle, padding: '5px 8px', fontSize: 12, width: 150 }}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSaveReassign(c.code)}
+                          />
+                          <button
+                            onClick={() => handleSaveReassign(c.code)}
+                            disabled={reassigning}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#2E7D32',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              fontSize: 16,
+                            }}
+                            title="Save"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => setReassigningCode(null)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#999',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                            }}
+                            title="Cancel"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : c.assigned_to_email ? (
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{c.assigned_to_name || c.assigned_to_email}</div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
+                            <span
+                              style={{
+                                padding: '1px 8px',
+                                borderRadius: 20,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                background: c.status === 'redeemed' ? 'rgba(46,125,50,.1)' : 'rgba(255,152,0,.12)',
+                                color: c.status === 'redeemed' ? '#2E7D32' : '#B26A00',
+                              }}
+                            >
+                              {c.status === 'redeemed' ? 'Redeemed' : 'Pending'}
+                            </span>
+                            <button
+                              onClick={() => openReassign(c)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#AD1457',
+                                cursor: 'pointer',
+                                fontSize: 11,
+                              }}
+                            >
+                              Change
+                            </button>
+                            <button
+                              onClick={() => handleResendEmail(c)}
+                              disabled={resendingCode === c.code}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: resendingCode === c.code ? '#999' : '#AD1457',
+                                cursor: resendingCode === c.code ? 'not-allowed' : 'pointer',
+                                fontSize: 11,
+                              }}
+                            >
+                              {resendingCode === c.code ? 'Sending…' : 'Email code'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <span style={{ color: '#999' }}>Anyone (shared)</span>{' '}
+                          <button
+                            onClick={() => openReassign(c)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#AD1457',
+                              cursor: 'pointer',
+                              fontSize: 11,
+                            }}
+                          >
+                            Assign
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span
+                        style={{
+                          padding: '3px 10px',
+                          borderRadius: 20,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: c.is_active ? 'rgba(46,125,50,.1)' : 'rgba(198,40,40,.08)',
+                          color: c.is_active ? '#2E7D32' : '#C62828',
+                        }}
+                      >
+                        {c.is_active ? 'Open' : 'Closed'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px', color: '#666' }}>{c.label || '—'}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <AccessCodeActionsMenu
+                        target={c}
+                        onViewDetails={() => handleOpenDetail(c)}
+                        onToggleActive={() => handleToggleActive(c)}
+                        onDelete={() => handleDelete(c)}
+                        onEmail={c.assigned_to_email ? () => handleResendEmail(c) : undefined}
+                        deleting={deletingCode === c.code}
+                        emailing={resendingCode === c.code}
+                      />
+                    </td>
+                  </tr>
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <AccessCodeDetailPanel
+        accessCode={detailCode}
+        redemptions={redemptions}
+        loading={loadingRedemptions}
+        onClose={() => setDetailCode(null)}
+        onToggleActive={() => detailCode && handleToggleActive(detailCode)}
+        onDelete={() => detailCode && handleDelete(detailCode)}
+        onEmail={detailCode?.assigned_to_email ? () => handleResendEmail(detailCode) : undefined}
+        deleting={deletingCode === detailCode?.code}
+        emailing={resendingCode === detailCode?.code}
+        onRestore={(userId) => detailCode && handleRestore(detailCode.code, userId)}
+        restoringUserId={restoringUserId}
+      />
+      <ConfirmDialog
+        isOpen={!!deleteConfirmTarget}
+        title="Delete this code?"
+        message={
+          deleteConfirmTarget
+            ? `Permanently delete code "${deleteConfirmTarget.code}"? This can't be undone. Anyone currently redeeming it will lose access immediately — use Revoke instead if you just want to stop it while keeping the record.`
+            : ''
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="#dc2626"
+        onConfirm={() => deleteConfirmTarget && performDelete(deleteConfirmTarget)}
+        onCancel={() => setDeleteConfirmTarget(null)}
+      />
+    </div>
+  );
+}
+
+function AccessCodeActionsMenu({
+  target,
+  onViewDetails,
+  onToggleActive,
+  onDelete,
+  onEmail,
+  deleting,
+  emailing,
+}: {
+  target: AccessCode;
+  onViewDetails?: () => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
+  onEmail?: () => void;
+  deleting?: boolean;
+  emailing?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Positioned via `fixed` + a measured rect, not `absolute` relative to
+  // this button — an `absolute` menu gets silently clipped by ANY ancestor
+  // with `overflow: hidden` (the codes table's rounded-corner wrapper does
+  // exactly that for rows near the bottom), cutting off whichever items
+  // fall past the edge instead of just showing them.
+  const handleToggle = () => {
+    if (!isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+    }
+    setIsOpen((v) => !v);
+  };
+
+  // That `fixed` positioning fixed the table's own clipping, but a row near
+  // the bottom of the *viewport* itself (not just the table) still opened a
+  // menu that rendered past the bottom of the screen — same symptom, one
+  // level up. Once the menu has actually rendered, flip it to sit ABOVE the
+  // trigger instead if it doesn't fit below.
+  useEffect(() => {
+    if (!isOpen || !menuRef.current || !triggerRef.current) return;
+    const menuRect = menuRef.current.getBoundingClientRect();
+    if (menuRect.bottom > window.innerHeight) {
+      const triggerRect = triggerRef.current.getBoundingClientRect();
+      setMenuPos((prev) => (prev ? { bottom: window.innerHeight - triggerRect.top + 6, right: prev.right } : prev));
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = () => setIsOpen(false);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [isOpen]);
+
+  const item = (opts: {
+    key: string;
+    icon: string;
+    iconColor: string;
+    label: string;
+    color: string;
+    disabled?: boolean;
+    onClick: () => void;
+  }) => (
+    <button
+      key={opts.key}
+      onClick={() => {
+        setIsOpen(false);
+        opts.onClick();
+      }}
+      disabled={opts.disabled}
+      style={{
+        width: '100%',
+        padding: '9px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 9,
+        background: 'none',
+        border: 'none',
+        cursor: opts.disabled ? 'not-allowed' : 'pointer',
+        fontSize: 13,
+        fontWeight: 500,
+        color: opts.disabled ? '#bbb' : opts.color,
+        textAlign: 'left',
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={(e) => !opts.disabled && (e.currentTarget.style.background = '#f9f9f9')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+    >
+      <I n={opts.icon} s={15} c={opts.disabled ? '#ccc' : opts.iconColor} />
+      {opts.label}
+    </button>
+  );
+
+  return (
+    <div style={{ display: 'inline-block' }}>
+      <button
+        ref={triggerRef}
+        onClick={handleToggle}
+        aria-label="Actions"
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 7,
+          border: '1px solid rgba(0,0,0,.1)',
+          background: isOpen ? '#f9f9f9' : '#fff',
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <I n="more" s={16} c="#666" />
+      </button>
+
+      {isOpen && menuPos && (
+        <>
+          <div onClick={() => setIsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
+          <div
+            ref={menuRef}
+            style={{
+              position: 'fixed',
+              ...(menuPos.top !== undefined ? { top: menuPos.top } : { bottom: menuPos.bottom }),
+              right: menuPos.right,
+              width: 200,
+              background: '#fff',
+              border: '1px solid #e5e3df',
+              borderRadius: 11,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+              zIndex: 1000,
+              overflow: 'hidden',
+              padding: '6px 0',
+            }}
+          >
+            {onViewDetails &&
+              item({
+                key: 'details',
+                icon: 'eye',
+                iconColor: '#666',
+                label: 'View details',
+                color: '#333',
+                onClick: onViewDetails,
+              })}
+            {item({
+              key: 'toggle',
+              icon: target.is_active ? 'ban' : 'refresh',
+              iconColor: target.is_active ? '#C62828' : '#2E7D32',
+              label: target.is_active ? 'Revoke' : 'Reactivate',
+              color: target.is_active ? '#C62828' : '#2E7D32',
+              onClick: onToggleActive,
+            })}
+            {onEmail &&
+              item({
+                key: 'email',
+                icon: 'mail',
+                iconColor: '#AD1457',
+                label: emailing ? 'Sending…' : 'Email code',
+                color: '#AD1457',
+                disabled: emailing,
+                onClick: onEmail,
+              })}
+            <div style={{ borderTop: '1px solid #f0f0f0', margin: '6px 0' }} />
+            {item({
+              key: 'delete',
+              icon: 'trash',
+              iconColor: '#dc2626',
+              label: deleting ? 'Deleting…' : 'Delete permanently',
+              color: '#dc2626',
+              disabled: deleting,
+              onClick: onDelete,
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const REDEMPTION_STATUS_STYLE: Record<
+  NonNullable<AccessCodeRedemption['effective_status']>,
+  { label: string; bg: string; fg: string }
+> = {
+  active: { label: 'Active', bg: 'rgba(46,125,50,.1)', fg: '#2E7D32' },
+  revoked: { label: 'Revoked', bg: 'rgba(198,40,40,.1)', fg: '#C62828' },
+  lapsed: { label: 'Lapsed', bg: 'rgba(0,0,0,.06)', fg: '#777' },
+  superseded: { label: 'Superseded', bg: 'rgba(237,108,2,.1)', fg: '#B26A00' },
+};
+
+function AccessCodeDetailPanel({
+  accessCode,
+  redemptions,
+  loading,
+  onClose,
+  onToggleActive,
+  onDelete,
+  onEmail,
+  deleting,
+  emailing,
+  onRestore,
+  restoringUserId,
+}: {
+  accessCode: AccessCode | null;
+  redemptions: AccessCodeRedemption[];
+  loading: boolean;
+  onClose: () => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
+  onEmail?: () => void;
+  deleting?: boolean;
+  emailing?: boolean;
+  onRestore: (userId: string) => void;
+  restoringUserId?: string | null;
+}) {
+  // Renders always (even while closed) so the slide-out transition can play
+  // on close instead of the panel just vanishing — `open` drives the
+  // transform/opacity, `accessCode` (the last one shown) drives content.
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (accessCode) {
+      const id = requestAnimationFrame(() => setOpen(true));
+      return () => cancelAnimationFrame(id);
+    }
+    setOpen(false);
+  }, [accessCode]);
+
+  if (!accessCode) return null;
+
+  const metaCard = (icon: string, label: string, value: React.ReactNode) => (
+    <div
+      style={{
+        background: 'rgba(194,24,91,.045)',
+        border: '1px solid rgba(194,24,91,.12)',
+        borderRadius: 11,
+        padding: '11px 13px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+        <I n={icon} s={12.5} c="#AD1457" />
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: '#AD1457',
+            textTransform: 'uppercase',
+            letterSpacing: '.04em',
+          }}
+        >
+          {label}
+        </div>
+      </div>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#222' }}>{value}</div>
+    </div>
+  );
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,.4)',
+          opacity: open ? 1 : 0,
+          transition: 'opacity 220ms ease',
+          zIndex: 1000,
+        }}
+      />
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          height: '100vh',
+          width: 'min(460px, 100vw)',
+          background: '#fff',
+          boxShadow: '-8px 0 28px rgba(0,0,0,.18)',
+          zIndex: 1001,
+          transform: open ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 280ms cubic-bezier(0.4, 0, 0.2, 1)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div style={{ height: 4, background: 'linear-gradient(90deg, #CD1B78 0%, #A01560 100%)', flexShrink: 0 }} />
+
+        <div
+          style={{
+            padding: '20px 22px',
+            borderBottom: '1px solid rgba(0,0,0,.08)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            flexShrink: 0,
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', gap: 12, minWidth: 0 }}>
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 11,
+                background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <I n="ticket" s={20} c="#fff" />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily: 'monospace',
+                  fontSize: 20,
+                  fontWeight: 800,
+                  letterSpacing: '.02em',
+                  color: '#1a1a1a',
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {accessCode.code}
+              </div>
+              <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{accessCode.label || 'No label'}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            <AccessCodeActionsMenu
+              target={accessCode}
+              onToggleActive={onToggleActive}
+              onDelete={onDelete}
+              onEmail={onEmail}
+              deleting={deleting}
+              emailing={emailing}
+            />
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 7,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#999',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <I n="x" s={17} c="#999" />
+            </button>
+          </div>
+        </div>
+
+        <div style={{ padding: '20px 22px', overflowY: 'auto', flex: 1 }}>
+          <div style={{ marginBottom: 16 }}>
+            <span
+              style={{
+                padding: '4px 12px',
+                borderRadius: 20,
+                fontSize: 11.5,
+                fontWeight: 700,
+                background: accessCode.is_active ? 'rgba(46,125,50,.1)' : 'rgba(198,40,40,.1)',
+                color: accessCode.is_active ? '#2E7D32' : '#C62828',
+              }}
+            >
+              {accessCode.is_active ? '● Open to new redemptions' : '● Closed to new redemptions'}
+            </span>
+            {/* Revoking a code (below) DOES immediately cut off everyone
+                currently redeeming it too — that's the one-time side effect
+                of the action, not an ongoing state. Reopening it is NOT the
+                reverse of that: it only lets NEW people redeem again — it
+                does nothing for someone already cut off, which is why a
+                person's card below can still say Revoked even once this
+                says Open. Use "Restore access" on their card for that. */}
+            <div style={{ fontSize: 11, color: '#999', marginTop: 6, lineHeight: 1.5 }}>
+              {accessCode.is_active
+                ? "New people can redeem this code. If someone was cut off by an earlier revoke, reopening it doesn't bring them back — restore them individually below."
+                : 'Nobody new can redeem this code, and everyone currently redeeming it was just cut off too.'}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
+            {metaCard('trending', 'Plan', accessCode.plan_tier_id)}
+            {metaCard('calendar', 'Duration', `${accessCode.duration_days} days`)}
+            {metaCard(
+              'users',
+              'Redemptions',
+              `${accessCode.redemption_count}${accessCode.max_redemptions ? ` / ${accessCode.max_redemptions}` : ' (unlimited)'}`
+            )}
+            {metaCard(
+              'mail',
+              'Assigned to',
+              accessCode.assigned_to_name || accessCode.assigned_to_email || 'Anyone (shared)'
+            )}
+          </div>
+
+          <div style={{ fontSize: 11, color: '#aaa', marginBottom: 20 }}>
+            Created by <strong style={{ color: '#888' }}>{accessCode.created_by}</strong>
+          </div>
+
+          <div
+            style={{
+              fontSize: 12.5,
+              fontWeight: 700,
+              marginBottom: 12,
+              color: '#333',
+              textTransform: 'uppercase',
+              letterSpacing: '.03em',
+            }}
+          >
+            Redeemed by ({redemptions.length})
+          </div>
+          {loading ? (
+            <div style={{ color: '#888', fontSize: 12.5 }}>Loading…</div>
+          ) : redemptions.length === 0 ? (
+            <div
+              style={{
+                color: '#999',
+                fontSize: 12.5,
+                textAlign: 'center',
+                padding: '28px 12px',
+                background: 'rgba(0,0,0,.02)',
+                borderRadius: 10,
+              }}
+            >
+              No one has redeemed this code yet.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {redemptions.map((r) => {
+                const identity = r.email || r.user_id;
+                const statusKey = r.effective_status ?? (r.revoked_at ? 'revoked' : 'active');
+                const status = REDEMPTION_STATUS_STYLE[statusKey];
+                return (
+                  <div
+                    key={`${r.code}-${r.user_id}`}
+                    style={{
+                      border: '1px solid rgba(0,0,0,.08)',
+                      borderRadius: 12,
+                      padding: 14,
+                      display: 'flex',
+                      gap: 11,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg,#880E4F,#C2185B)',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {identity[0]?.toUpperCase() || '?'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}
+                      >
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#222', overflowWrap: 'anywhere' }}>
+                          {identity}
+                        </div>
+                        <span
+                          style={{
+                            padding: '2px 9px',
+                            borderRadius: 20,
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            whiteSpace: 'nowrap',
+                            background: status.bg,
+                            color: status.fg,
+                          }}
+                          title={
+                            statusKey === 'superseded'
+                              ? "No longer this person's current plan — something else has taken over their wallet since"
+                              : undefined
+                          }
+                        >
+                          {status.label}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11.5, color: '#888', marginTop: 5 }}>
+                        Redeemed {new Date(r.redeemed_at).toLocaleDateString()}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: '#888' }}>
+                        Access: {new Date(r.access_start).toLocaleDateString()} →{' '}
+                        {new Date(r.access_end).toLocaleDateString()}
+                      </div>
+                      {statusKey === 'revoked' && r.revocation_reason && (
+                        <div style={{ fontSize: 11, color: '#C62828', marginTop: 4 }}>
+                          {r.revocation_reason === 'credits_exhausted'
+                            ? 'Ran out of credits'
+                            : r.revocation_reason === 'admin_revoked'
+                              ? 'Admin revoked the code'
+                              : r.revocation_reason}
+                        </div>
+                      )}
+                      {r.previous_subscription_tier && (
+                        <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
+                          Was on: {r.previous_subscription_tier}
+                        </div>
+                      )}
+                      {statusKey !== 'active' && (
+                        <button
+                          onClick={() => onRestore(r.user_id)}
+                          disabled={restoringUserId === r.user_id}
+                          style={{
+                            marginTop: 8,
+                            padding: '5px 11px',
+                            borderRadius: 7,
+                            border: '1px solid rgba(194,24,91,.3)',
+                            background: 'rgba(194,24,91,.05)',
+                            color: restoringUserId === r.user_id ? '#bbb' : '#AD1457',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: restoringUserId === r.user_id ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {restoringUserId === r.user_id ? 'Restoring…' : 'Restore access'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -1108,10 +2280,18 @@ function AdminAccessManagement({
   const { userDetails } = useAuth();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [confirmRevokeOpen, setConfirmRevokeOpen] = useState(false);
   const isSelf = userDetails?.email?.toLowerCase() === user.email?.toLowerCase();
 
-  const handleToggle = async () => {
-    if (user.is_admin && !window.confirm(`Remove admin access from ${user.email}?`)) return;
+  const handleToggle = () => {
+    if (user.is_admin) {
+      setConfirmRevokeOpen(true);
+      return;
+    }
+    performToggle();
+  };
+
+  const performToggle = async () => {
     setBusy(true);
     setMessage(null);
     try {
@@ -1180,6 +2360,16 @@ function AdminAccessManagement({
           </div>
         )}
       </div>
+      <ConfirmDialog
+        isOpen={confirmRevokeOpen}
+        title="Remove admin access?"
+        message={`Remove admin access from ${user.email}?`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        confirmColor="#B71C1C"
+        onConfirm={performToggle}
+        onCancel={() => setConfirmRevokeOpen(false)}
+      />
     </div>
   );
 }
@@ -1202,6 +2392,7 @@ function CreditTrialManagement({
   const [trialReason, setTrialReason] = useState('');
   const [busy, setBusy] = useState<'credit' | 'trial' | 'expire' | null>(null);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [confirmExpireOpen, setConfirmExpireOpen] = useState(false);
 
   const refreshUser = async () => {
     const details = await AdminService.getUserDetails(user.id);
@@ -1266,10 +2457,11 @@ function CreditTrialManagement({
     }
   };
 
-  const handleExpireTrial = async () => {
-    if (!window.confirm(`Force-expire ${user.email}'s trial? This sets trial credits to 0 and cannot be undone.`)) {
-      return;
-    }
+  const handleExpireTrial = () => {
+    setConfirmExpireOpen(true);
+  };
+
+  const performExpireTrial = async () => {
     setBusy('expire');
     setMessage(null);
     try {
@@ -1368,6 +2560,16 @@ function CreditTrialManagement({
           </div>
         )}
       </div>
+      <ConfirmDialog
+        isOpen={confirmExpireOpen}
+        title="Force-expire this trial?"
+        message={`Force-expire ${user.email}'s trial? This sets trial credits to 0 and cannot be undone.`}
+        confirmText="Expire Trial"
+        cancelText="Cancel"
+        confirmColor="#B71C1C"
+        onConfirm={performExpireTrial}
+        onCancel={() => setConfirmExpireOpen(false)}
+      />
     </div>
   );
 }
