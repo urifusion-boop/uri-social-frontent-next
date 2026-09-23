@@ -4332,8 +4332,12 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
 
   // Only Meta campaigns, and only ones that exist on the provider — the targeting
   // editor talks to Meta's ad set directly and TikTok has no equivalent adapter yet.
+  // Read defensively: `platform` only exists on branches carrying the TikTok work, and
+  // absent means Meta, so this behaves the same either way.
   const canEditTargeting =
-    c.platform !== 'tiktok' && !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
+    (c as { platform?: string }).platform !== 'tiktok' &&
+    !!c.campaign_id &&
+    displayStatus.toLowerCase() !== 'deleted';
 
   return (
     <div>
