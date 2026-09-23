@@ -1,5 +1,6 @@
 'use client';
 
+import { Check, MapPin, Music2, Pencil, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AdFormat,
@@ -21,6 +22,7 @@ import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/works
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
+import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -579,7 +581,7 @@ export default function CampaignsPage({
   };
 
   // Remove a conversation from the rail. Never touches the actual launched campaign
-  // (that stays in 'My Campaigns' regardless) — this only clears chat clutter.
+  // (that stays in 'Campaign Manager' regardless) — this only clears chat clutter.
   const deleteThread = async (threadId: string) => {
     try {
       await CampaignService.deleteThread(threadId);
@@ -1454,7 +1456,7 @@ export default function CampaignsPage({
             [
               ['chat', 'Create with Jane'],
               ['home', 'Home'],
-              ['manage', 'My Campaigns'],
+              ['manage', 'Campaign Manager'],
               ['wallet', 'Wallet'],
               ...(isAdmin ? [['billing', 'Revenue'] as const] : []),
             ] as const
@@ -1993,7 +1995,8 @@ export default function CampaignsPage({
                     cursor: 'pointer',
                   }}
                 >
-                  🎵 TikTok
+                  <Music2 size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+                  TikTok
                 </button>
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
@@ -2046,7 +2049,7 @@ export default function CampaignsPage({
         <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
             <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
-              Campaigns Jane has set up for you. Each is paused until you activate it.
+              Your campaigns. Start or stop them, and change who a running one targets.
             </p>
             <button
               onClick={loadCampaigns}
@@ -2061,7 +2064,8 @@ export default function CampaignsPage({
                 color: '#555',
               }}
             >
-              ↻ Refresh
+              <RotateCw size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+              Refresh
             </button>
           </div>
           {loadingList ? (
@@ -2095,7 +2099,7 @@ export default function CampaignsPage({
           )}
         </div>
       ) : tab === 'home' ? (
-        // DASH-PRD-01 §4 — lives beside My Campaigns rather than in the sidebar:
+        // DASH-PRD-01 §4 — lives beside Campaign Manager rather than in the sidebar:
         // everything it answers is about campaigns, and its suggestions route into
         // the tabs either side of it.
         <HomePanel
@@ -2849,6 +2853,10 @@ function PlanVariantCards({
                 style={{
                   marginTop: 10,
                   width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
                   border: `1.5px solid ${PINK}`,
                   borderRadius: 10,
                   padding: '8px 12px',
@@ -2859,7 +2867,16 @@ function PlanVariantCards({
                   color: isSelected ? '#fff' : PINK,
                 }}
               >
-                {isSelected ? '✓ Selected' : maxSelectable > 1 ? 'Select this one' : 'Choose this one'}
+                {isSelected ? (
+                  <>
+                    <Check size={13} strokeWidth={2.5} />
+                    <span>Selected</span>
+                  </>
+                ) : maxSelectable > 1 ? (
+                  'Select this one'
+                ) : (
+                  'Choose this one'
+                )}
               </button>
             </div>
           );
@@ -3672,7 +3689,8 @@ function ResultCard({
                   color: '#666',
                 }}
               >
-                📍 {plan.geo.pins.map((x) => x.name).join(', ')}
+                <MapPin size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+                {plan.geo.pins.map((x) => x.name).join(', ')}
               </span>
             ) : null}
           </div>
@@ -3725,6 +3743,10 @@ function ResultCard({
                 title={unsavedEdits ? 'Save your changes first — otherwise the original ad launches' : undefined}
                 style={{
                   width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 7,
                   border: 'none',
                   borderRadius: 10,
                   padding: '10px 14px',
@@ -3740,7 +3762,12 @@ function ResultCard({
                   ? 'Launching…'
                   : unsavedEdits
                     ? 'Save your changes first'
-                    : '✓ Looks good — launch it'}
+                    : (
+                        <>
+                          <Check size={14} strokeWidth={2.5} />
+                          <span>Looks good — launch it</span>
+                        </>
+                      )}
               </button>
               {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
               {fixingWhatsapp && (
@@ -3817,7 +3844,8 @@ function ResultCard({
           {result.stage !== 'planned' && (
             <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
               <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>
-                ✓ Campaign created, paused, no spend yet
+                <Check size={13} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+                Campaign created, paused, no spend yet
               </p>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>{launch?.note}</p>
             </div>
@@ -3911,7 +3939,8 @@ function WalletTab({
             color: '#555',
           }}
         >
-          ↻ Refresh
+          <RotateCw size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+          Refresh
         </button>
       </div>
 
@@ -4254,6 +4283,9 @@ const _TOGGLABLE_STATUSES = new Set(['active', 'paused']);
 
 function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void }) {
   const [working, setWorking] = useState(false);
+  // Campaign Management PRD §19 "Audience or geography edit" — the only post-launch
+  // change Uri can make itself. Everything else there is still Ads Manager's job.
+  const [editingTargeting, setEditingTargeting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const displayStatus = c.metrics?.delivery || c.status;
@@ -4298,7 +4330,17 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
     }
   };
 
+  // Only Meta campaigns, and only ones that exist on the provider — the targeting
+  // editor talks to Meta's ad set directly and TikTok has no equivalent adapter yet.
+  // Read defensively: `platform` only exists on branches carrying the TikTok work, and
+  // absent means Meta, so this behaves the same either way.
+  const canEditTargeting =
+    (c as { platform?: string }).platform !== 'tiktok' &&
+    !!c.campaign_id &&
+    displayStatus.toLowerCase() !== 'deleted';
+
   return (
+    <div>
     <div
       style={{ display: 'flex', gap: 14, border: '1px solid #eee', borderRadius: 12, padding: 12, background: '#fff' }}
     >
@@ -4340,7 +4382,14 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               color: c.platform === 'tiktok' ? '#111' : '#1877F2',
             }}
           >
-            {c.platform === 'tiktok' ? '🎵 TikTok' : 'Meta'}
+            {c.platform === 'tiktok' ? (
+              <>
+                <Music2 size={11} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 3 }} />
+                TikTok
+              </>
+            ) : (
+              'Meta'
+            )}
           </span>
         </div>
         <p
@@ -4425,8 +4474,31 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           </a>
         )}
       </div>
-      {(canToggle || canDelete) && (
+      {(canToggle || canDelete || canEditTargeting) && (
         <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>
+          {canEditTargeting && (
+            <button
+              onClick={() => setEditingTargeting((v) => !v)}
+              aria-expanded={editingTargeting}
+              aria-label="Edit who this campaign targets"
+              title="Edit who this campaign targets — interests, age, gender, places"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                border: '1px solid #e0dcd9',
+                background: editingTargeting ? '#f4f2f0' : '#fff',
+                cursor: 'pointer',
+                lineHeight: 1,
+                color: '#555',
+              }}
+            >
+              <Pencil size={14} strokeWidth={2} />
+            </button>
+          )}
           {canToggle && (
             <button
               onClick={toggle}
@@ -4475,6 +4547,15 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           )}
         </div>
       )}
+    </div>
+    {editingTargeting && (
+      <LiveTargetingEditor
+        campaignId={c.campaign_id}
+        campaignName={c.name}
+        onClose={() => setEditingTargeting(false)}
+        onSaved={onChanged}
+      />
+    )}
     </div>
   );
 }

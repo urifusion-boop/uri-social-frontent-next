@@ -103,18 +103,22 @@ export interface AccessCode {
   label: string;
   created_by: string;
   created_at: string;
-  // Personal-invite mode: set means only this email can ever redeem this
-  // code (enforced server-side). assigned_to_name/status are resolved by
-  // the backend on every create/list/update — status is 'unassigned' (a
-  // shared code, anyone with it can redeem), 'pending' (assigned, not yet
-  // redeemed), or 'redeemed'.
-  assigned_to_email: string | null;
-  assigned_to_name: string | null;
-  status: 'unassigned' | 'pending' | 'redeemed';
+  // Personal-invite roster: non-empty means ONLY these emails can ever
+  // redeem this code (enforced server-side, checked against the redeeming
+  // account's own email) — a code can be assigned to one person or many
+  // (e.g. 20 partner-firm signups sharing the same code string). Empty =
+  // a shared/open code, anyone who has the string can redeem it.
+  assigned_emails: string[];
+  assigned_count?: number;
+  redeemed_count?: number;
+  // 'unassigned' (open code), 'pending' (assigned, nobody on the roster has
+  // redeemed yet), 'partially_redeemed' (some but not all of the roster),
+  // or 'fully_redeemed' (everyone on the roster has redeemed).
+  status: 'unassigned' | 'pending' | 'partially_redeemed' | 'fully_redeemed';
   // Only present in the response right after creating an assigned code —
-  // whether the invite email was actually queued (true) or skipped, e.g.
-  // send_email: false was passed. Not present on unassigned codes.
-  email_sent?: boolean;
+  // how many of the roster's invite emails were actually queued (0 if
+  // send_email: false was passed, or the code has no roster).
+  emails_sent?: number;
   // Only meaningful on the response to a revoke (is_active: false) — how
   // many people currently redeeming this code just had their access cut
   // off immediately, not just blocked from future redemptions.
@@ -123,13 +127,13 @@ export interface AccessCode {
 
 export interface AccessCodeRedemption {
   code: string;
-  user_id: string;
+  user_id: string | null;
   email: string | null;
   plan_tier_id: string;
-  access_start: string;
-  access_end: string;
+  access_start: string | null;
+  access_end: string | null;
   previous_subscription_tier: string | null;
-  redeemed_at: string;
+  redeemed_at: string | null;
   // Set the moment their credits run out — a comp grant ends whichever
   // comes first, end_date or exhausting its one-time credit allocation
   // (it never refills mid-window like a real subscription does).
@@ -137,11 +141,13 @@ export interface AccessCodeRedemption {
   revocation_reason: string | null;
   // The one field that tells the truth about THIS redemption regardless of
   // revoked_at alone: 'active' (this is still the user's current grant),
-  // 'lapsed' (access_end passed), 'revoked' (revoked_at is set), or
+  // 'lapsed' (access_end passed), 'revoked' (revoked_at is set),
   // 'superseded' (not revoked, not lapsed, but the wallet has since moved
   // on to something else without going through a tracked revoke — e.g. a
-  // code redeemed before the no-double-redeeming guard existed).
-  effective_status?: 'active' | 'lapsed' | 'revoked' | 'superseded';
+  // code redeemed before the no-double-redeeming guard existed), or
+  // 'not_redeemed' — a synthetic row for an assigned roster member who
+  // hasn't redeemed yet (no user_id, nothing to revoke/restore).
+  effective_status?: 'active' | 'lapsed' | 'revoked' | 'superseded' | 'not_redeemed';
 }
 
 export class AdminService {
@@ -274,19 +280,23 @@ export class AdminService {
     max_redemptions?: number;
     expires_at?: string;
     label?: string;
-    /** Reserve this code for one specific person — omit for a shared code anyone can redeem. */
-    assigned_to_email?: string;
-    /** When assigned_to_email is set, email them the code immediately. Defaults to true server-side. */
+    /** Reserve this code for these specific people — omit/empty for a shared code anyone can redeem. */
+    assigned_emails?: string[];
+    /** When assigned_emails is set, email each of them the code immediately. Defaults to true server-side. */
     send_email?: boolean;
   }): Promise<AccessCode> {
     const response = await UriHttpClient.getClient().post('/api/admin/access-codes', params);
     return response.data;
   }
 
-  /** (Re)send an already-assigned code to its recipient — e.g. it was created
-   * with the email skipped, or the recipient never got/lost it. */
-  static async sendAccessCodeEmail(code: string): Promise<{ sent: boolean; to: string }> {
-    const response = await UriHttpClient.getClient().post(`/api/admin/access-codes/${code}/send-email`);
+  /** (Re)send an already-assigned code to its roster — e.g. it was created
+   * with the email skipped, or someone never got/lost it. Pass `email` to
+   * resend to just that one roster member; omit it to resend to everyone
+   * on the roster at once. */
+  static async sendAccessCodeEmail(code: string, email?: string): Promise<{ sent: boolean; to: string[] }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/access-codes/${code}/send-email`, null, {
+      params: email ? { email } : undefined,
+    });
     return response.data;
   }
 
@@ -313,6 +323,20 @@ export class AdminService {
     return response.data;
   }
 
+  /** Revoke ONE redeemer's access without touching the code itself or
+   * anyone else redeemed on it — for a shared code's abuse case or an
+   * assigned roster where one person needs to be pulled without disturbing
+   * the rest. */
+  static async revokeAccessCodeRedemption(
+    code: string,
+    userId: string
+  ): Promise<{ revoked: boolean; user_id: string }> {
+    const response = await UriHttpClient.getClient().post(
+      `/api/admin/access-codes/${code}/redemptions/${userId}/revoke`
+    );
+    return response.data;
+  }
+
   static async listAccessCodes(): Promise<{ codes: AccessCode[]; count: number }> {
     const response = await UriHttpClient.getClient().get('/api/admin/access-codes');
     return response.data;
@@ -325,11 +349,15 @@ export class AdminService {
     return response.data;
   }
 
-  /** Revoke a code early (is_active: false) or edit its label. */
-  /** Pass assigned_to_email: '' to clear an existing assignment — distinct from omitting it, which leaves it untouched. */
+  /** Revoke a code early (is_active: false), edit its label, or replace its
+   * whole assigned roster. Pass assigned_emails: [] to clear an existing
+   * roster back to a shared/open code — distinct from omitting it, which
+   * leaves the roster untouched. Removing someone from the roster only
+   * blocks their FUTURE redemption — it doesn't revoke access they've
+   * already redeemed; use revokeAccessCodeRedemption for that. */
   static async updateAccessCode(
     code: string,
-    updates: { is_active?: boolean; label?: string; assigned_to_email?: string }
+    updates: { is_active?: boolean; label?: string; assigned_emails?: string[] }
   ): Promise<AccessCode> {
     const response = await UriHttpClient.getClient().patch(`/api/admin/access-codes/${code}`, updates);
     return response.data;

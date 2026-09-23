@@ -102,6 +102,15 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
   const [loading, setLoading] = useState(false);
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Guards against a real production bug: handleGenerate does an async
+  // credit check (await BillingService.canGenerateContent()) before
+  // doGenerate() ever calls setLoading(true), so the button stayed enabled
+  // (no visual feedback) during that gap — a slow check meant an impatient
+  // user's repeated clicks each independently reached doGenerate(), firing
+  // multiple concurrent generations. loading/disabled alone can't close
+  // this gap since it only updates on re-render, one click behind; a ref
+  // set synchronously at the top of the handler closes it immediately.
+  const isGeneratingRef = useRef(false);
   const [postType, setPostType] = useState<'feed' | 'carousel' | 'story'>('feed');
   const [numSlides, setNumSlides] = useState(3);
   const [isDragging, setIsDragging] = useState(false);
@@ -405,38 +414,44 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
   };
 
   const handleGenerate = async () => {
-    // Check email verification FIRST before anything else
-    const canProceed = requireEmailVerification();
-    if (!canProceed) {
-      return; // Modal will show, user can verify and come back
-    }
-
-    if (seedContent.trim().length < 10) {
-      ToastService.showToast('Seed content must be at least 10 characters', ToastTypeEnum.Error);
-      return;
-    }
-    if (selectedPlatforms.length === 0) {
-      ToastService.showToast('Select at least one platform', ToastTypeEnum.Error);
-      return;
-    }
-
-    // PRD Section 8: Check if user has credits before generating
+    if (isGeneratingRef.current) return;
+    isGeneratingRef.current = true;
     try {
-      const canGenerate = await BillingService.canGenerateContent();
-      if (!canGenerate.can_generate || canGenerate.blocked) {
-        setOutOfCreditsOpen(true);
+      // Check email verification FIRST before anything else
+      const canProceed = requireEmailVerification();
+      if (!canProceed) {
+        return; // Modal will show, user can verify and come back
+      }
+
+      if (seedContent.trim().length < 10) {
+        ToastService.showToast('Seed content must be at least 10 characters', ToastTypeEnum.Error);
         return;
       }
-    } catch (error) {
-      console.error('Credit check failed:', error);
-    }
+      if (selectedPlatforms.length === 0) {
+        ToastService.showToast('Select at least one platform', ToastTypeEnum.Error);
+        return;
+      }
 
-    if (!includeImages) {
-      setNoImageConfirmOpen(true);
-      return;
-    }
+      // PRD Section 8: Check if user has credits before generating
+      try {
+        const canGenerate = await BillingService.canGenerateContent();
+        if (!canGenerate.can_generate || canGenerate.blocked) {
+          setOutOfCreditsOpen(true);
+          return;
+        }
+      } catch (error) {
+        console.error('Credit check failed:', error);
+      }
 
-    await doGenerate();
+      if (!includeImages) {
+        setNoImageConfirmOpen(true);
+        return;
+      }
+
+      await doGenerate();
+    } finally {
+      isGeneratingRef.current = false;
+    }
   };
 
   const charCount = seedContent.length;

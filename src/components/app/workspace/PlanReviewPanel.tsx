@@ -14,6 +14,7 @@
  *   field against the same machinery the launch uses and returns rejections per field,
  *   so a mistyped location cannot throw away a caption the client just wrote.
  */
+import { Check, Pencil } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { CampaignService, PlanField } from '@/src/api/CampaignService';
@@ -198,12 +199,17 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
   if (justSaved) {
     return (
       <div style={{ ...CARD, borderColor: '#cde9cd', background: '#f6fbf6' }}>
-        <p style={{ margin: '0 0 6px', fontSize: 13.5, fontWeight: 700, color: '#2e7d32' }}>
-          ✓ Rebuilt with your changes
+        <p style={{ margin: '0 0 6px', fontSize: 13.5, fontWeight: 700, color: '#2e7d32', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Check size={15} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+          <span>Rebuilt with your changes</span>
         </p>
         <p style={{ margin: '0 0 4px', fontSize: 12.5, color: '#33691e' }}>
-          I&rsquo;ve redone the plan using {spokenList(justSaved)} you changed. The reasoning and the reach estimate
-          above are recalculated from your version — that&rsquo;s the ad that will run.
+          {/* Explicit {' '} — JSX drops the whitespace between an expression and the
+              text after it once the line wraps, which ran the words together. */}
+          I&rsquo;ve redone the plan using{' '}
+          {spokenList(justSaved)}{' '}
+          you changed. The reasoning and the reach estimate above are recalculated from
+          your version — that&rsquo;s the ad that will run.
         </p>
         <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#33691e' }}>
           Want to change anything else, or shall we launch it?
@@ -226,7 +232,7 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
             Change something else
           </button>
           <span style={{ fontSize: 11.5, color: '#5a7a4a', alignSelf: 'center' }}>
-            …or use the launch button below when you&rsquo;re happy.
+            …or use the launch button above when you&rsquo;re happy.
           </span>
         </div>
       </div>
@@ -373,7 +379,7 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
                   color: '#888',
                 }}
               >
-                ✏️
+                <Pencil size={13} strokeWidth={2} />
               </button>
             )}
           </div>
