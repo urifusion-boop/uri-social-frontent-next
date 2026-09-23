@@ -416,7 +416,11 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
             opacity: dirty && !saving ? 1 : 0.45,
           }}
         >
-          {saving ? 'Checking with Meta…' : 'Save changes'}
+          {/* Was hardcoded "Checking with Meta…" — shown just as literally on a TikTok
+              plan's save, which this panel also renders for. Kept platform-neutral
+              since this component has no platform prop to branch on (and doesn't need
+              one just for a loading label). */}
+          {saving ? 'Checking the plan…' : 'Save changes'}
         </button>
         {dirty && !saving && (
           <span style={{ fontSize: 11.5, color: '#a15c00' }}>
