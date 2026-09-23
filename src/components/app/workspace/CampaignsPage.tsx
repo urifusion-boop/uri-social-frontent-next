@@ -2853,6 +2853,10 @@ function PlanVariantCards({
                 style={{
                   marginTop: 10,
                   width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
                   border: `1.5px solid ${PINK}`,
                   borderRadius: 10,
                   padding: '8px 12px',
@@ -2865,8 +2869,8 @@ function PlanVariantCards({
               >
                 {isSelected ? (
                   <>
-                    <Check size={13} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 5 }} />
-                    Selected
+                    <Check size={13} strokeWidth={2.5} />
+                    <span>Selected</span>
                   </>
                 ) : maxSelectable > 1 ? (
                   'Select this one'
@@ -3739,6 +3743,10 @@ function ResultCard({
                 title={unsavedEdits ? 'Save your changes first — otherwise the original ad launches' : undefined}
                 style={{
                   width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 7,
                   border: 'none',
                   borderRadius: 10,
                   padding: '10px 14px',
@@ -3756,8 +3764,8 @@ function ResultCard({
                     ? 'Save your changes first'
                     : (
                         <>
-                          <Check size={14} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 6 }} />
-                          Looks good — launch it
+                          <Check size={14} strokeWidth={2.5} />
+                          <span>Looks good — launch it</span>
                         </>
                       )}
               </button>
@@ -4324,8 +4332,12 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
 
   // Only Meta campaigns, and only ones that exist on the provider — the targeting
   // editor talks to Meta's ad set directly and TikTok has no equivalent adapter yet.
+  // Read defensively: `platform` only exists on branches carrying the TikTok work, and
+  // absent means Meta, so this behaves the same either way.
   const canEditTargeting =
-    c.platform !== 'tiktok' && !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
+    (c as { platform?: string }).platform !== 'tiktok' &&
+    !!c.campaign_id &&
+    displayStatus.toLowerCase() !== 'deleted';
 
   return (
     <div>
