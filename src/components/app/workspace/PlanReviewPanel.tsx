@@ -14,6 +14,7 @@
  *   field against the same machinery the launch uses and returns rejections per field,
  *   so a mistyped location cannot throw away a caption the client just wrote.
  */
+import { Check, Pencil } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { CampaignService, PlanField } from '@/src/api/CampaignService';
@@ -22,7 +23,11 @@ type Props = {
   planId: string;
   /** Hands the caller the refreshed plan payload so the card above can stop showing
    * Jane's original numbers once the client has changed them. */
-  onSaved?: (refreshed: { plan_edited?: boolean; plan?: unknown; creative?: unknown }) => void;
+  onSaved?: (refreshed: { plan_edited?: boolean; plan?: unknown; creative?: unknown; summary?: unknown }) => void;
+  /** Unsaved edits mean the STORED plan is still Jane's — launching now would run the
+   * un-edited ad while the panel shows the client's changes. The caller gates the
+   * launch button on this. */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 const CARD: React.CSSProperties = {
@@ -31,6 +36,27 @@ const CARD: React.CSSProperties = {
   borderRadius: 12,
   padding: '14px 16px',
 };
+
+const FIELD_WORDS: Record<string, string> = {
+  headline: 'the headline',
+  caption: 'the caption',
+  locations: 'the locations',
+  interests: 'the interests',
+  gender: 'the gender',
+  placement: 'where it shows',
+  age_min: 'the minimum age',
+  age_max: 'the maximum age',
+  budget_ngn: 'the budget',
+  days: 'the duration',
+};
+
+/** "the caption and the budget", "the caption, the budget and the duration" — Jane
+ * says what she changed in words, not as a list of field keys. */
+function spokenList(keys: string[]): string {
+  const words = keys.map((k) => FIELD_WORDS[k] ?? k);
+  if (words.length <= 1) return words[0] ?? '';
+  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+}
 
 function displayValue(field: PlanField): string {
   if (Array.isArray(field.value)) return field.value.length ? field.value.join(', ') : '—';
@@ -49,20 +75,26 @@ function toEditText(field: PlanField): string {
 
 function parseEdit(field: PlanField, text: string): unknown {
   if (field.type === 'list') {
-    return text.split(',').map((s) => s.trim()).filter(Boolean);
+    return text
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
   if (field.type === 'number') return text.trim();
   return text;
 }
 
-export default function PlanReviewPanel({ planId, onSaved }: Props) {
+export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Props) {
   const [fields, setFields] = useState<PlanField[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   const [rejected, setRejected] = useState<string[]>([]);
-  const [savedNote, setSavedNote] = useState('');
+  // After a save the panel steps OUT of the form and back into the conversation:
+  // Jane reports what she rebuilt and asks what's next, rather than silently
+  // updating a form the client then has to re-read to find their own changes.
+  const [justSaved, setJustSaved] = useState<string[] | null>(null);
   const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async () => {
@@ -79,10 +111,22 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
     void load();
   }, [load]);
 
+  // Live-caught 2026-09-22: this was declared AFTER the loadError/!fields early
+  // returns below, so React saw 7 hooks called while still loading (fields ===
+  // null) and 8 once it resolved — a hook-count mismatch between renders, which
+  // React hard-crashes on (error #310) rather than warns about. Every hook must
+  // run unconditionally, before any early return; harmless to compute `dirty`
+  // against the initial empty `pending` on the first render (dirty === false).
+  const dirty = Object.keys(pending).length > 0;
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
   const startEdit = (field: PlanField) => {
     setEditing(field.key);
     setDraft(toEditText(field));
-    setSavedNote('');
+    setJustSaved(null);
   };
 
   const stageEdit = (field: PlanField) => {
@@ -92,12 +136,18 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
       prev
         ? prev.map((f) =>
             f.key === field.key
-              ? { ...f, value: (field.type === 'list'
-                  ? draft.split(',').map((s) => s.trim()).filter(Boolean)
-                  : draft) as PlanField['value'] }
-              : f,
+              ? {
+                  ...f,
+                  value: (field.type === 'list'
+                    ? draft
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                    : draft) as PlanField['value'],
+                }
+              : f
           )
-        : prev,
+        : prev
     );
     setEditing(null);
   };
@@ -106,18 +156,19 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
     if (!Object.keys(pending).length) return;
     setSaving(true);
     setRejected([]);
-    setSavedNote('');
+    setJustSaved(null);
     try {
       const result = await CampaignService.savePlanFields(planId, pending);
       setFields(result.fields);
       setRejected(result.rejected || []);
       setPending({});
       if (result.applied?.length) {
-        setSavedNote(`Saved: ${result.applied.join(', ')}. This is what will launch.`);
+        setJustSaved(result.applied);
         onSaved?.({
           plan_edited: result.plan_edited,
           plan: result.plan,
           creative: result.creative,
+          summary: result.summary,
         });
       }
     } catch {
@@ -145,7 +196,48 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
     );
   }
 
-  const dirty = Object.keys(pending).length > 0;
+  if (justSaved) {
+    return (
+      <div style={{ ...CARD, borderColor: '#cde9cd', background: '#f6fbf6' }}>
+        <p style={{ margin: '0 0 6px', fontSize: 13.5, fontWeight: 700, color: '#2e7d32', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Check size={15} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+          <span>Rebuilt with your changes</span>
+        </p>
+        <p style={{ margin: '0 0 4px', fontSize: 12.5, color: '#33691e' }}>
+          {/* Explicit {' '} — JSX drops the whitespace between an expression and the
+              text after it once the line wraps, which ran the words together. */}
+          I&rsquo;ve redone the plan using{' '}
+          {spokenList(justSaved)}{' '}
+          you changed. The reasoning and the reach estimate above are recalculated from
+          your version — that&rsquo;s the ad that will run.
+        </p>
+        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#33691e' }}>
+          Want to change anything else, or shall we launch it?
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setJustSaved(null)}
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              padding: '7px 14px',
+              borderRadius: 8,
+              border: '1px solid #cde9cd',
+              background: '#fff',
+              color: '#2e7d32',
+              cursor: 'pointer',
+            }}
+          >
+            Change something else
+          </button>
+          <span style={{ fontSize: 11.5, color: '#5a7a4a', alignSelf: 'center' }}>
+            …or use the launch button above when you&rsquo;re happy.
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={CARD}>
@@ -178,7 +270,13 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
                   <select
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
-                    style={{ width: '100%', fontSize: 13, padding: '6px 8px', borderRadius: 7, border: '1px solid #ccc' }}
+                    style={{
+                      width: '100%',
+                      fontSize: 13,
+                      padding: '6px 8px',
+                      borderRadius: 7,
+                      border: '1px solid #ccc',
+                    }}
                   >
                     {(field.options || []).map((opt) => (
                       <option key={opt} value={opt}>
@@ -192,31 +290,58 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
                     maxLength={field.max_length}
                     onChange={(e) => setDraft(e.target.value)}
                     rows={3}
-                    style={{ width: '100%', fontSize: 13, padding: '6px 8px', borderRadius: 7, border: '1px solid #ccc', resize: 'vertical' }}
+                    style={{
+                      width: '100%',
+                      fontSize: 13,
+                      padding: '6px 8px',
+                      borderRadius: 7,
+                      border: '1px solid #ccc',
+                      resize: 'vertical',
+                    }}
                   />
                 ) : (
                   <input
                     value={draft}
                     maxLength={field.max_length}
                     onChange={(e) => setDraft(e.target.value)}
-                    style={{ width: '100%', fontSize: 13, padding: '6px 8px', borderRadius: 7, border: '1px solid #ccc' }}
+                    style={{
+                      width: '100%',
+                      fontSize: 13,
+                      padding: '6px 8px',
+                      borderRadius: 7,
+                      border: '1px solid #ccc',
+                    }}
                   />
                 )}
-                {field.help && (
-                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#888' }}>{field.help}</p>
-                )}
+                {field.help && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#888' }}>{field.help}</p>}
                 <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                   <button
                     type="button"
                     onClick={() => stageEdit(field)}
-                    style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#222', color: '#fff', cursor: 'pointer' }}
+                    style={{
+                      fontSize: 12,
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: '#222',
+                      color: '#fff',
+                      cursor: 'pointer',
+                    }}
                   >
                     Done
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditing(null)}
-                    style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', color: '#555', cursor: 'pointer' }}
+                    style={{
+                      fontSize: 12,
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #ddd',
+                      background: '#fff',
+                      color: '#555',
+                      cursor: 'pointer',
+                    }}
                   >
                     Cancel
                   </button>
@@ -232,9 +357,7 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
               >
                 {displayValue(field)}
                 {pending[field.key] !== undefined && (
-                  <em style={{ marginLeft: 6, fontSize: 11, color: '#a15c00', fontStyle: 'normal' }}>
-                    unsaved
-                  </em>
+                  <em style={{ marginLeft: 6, fontSize: 11, color: '#a15c00', fontStyle: 'normal' }}>unsaved</em>
                 )}
               </span>
             )}
@@ -247,9 +370,16 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
                 aria-label={`Edit ${field.label}`}
                 title={`Edit ${field.label}`}
                 onClick={() => startEdit(field)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, padding: 2, color: '#888' }}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  padding: 2,
+                  color: '#888',
+                }}
               >
-                ✏️
+                <Pencil size={13} strokeWidth={2} />
               </button>
             )}
           </div>
@@ -257,22 +387,22 @@ export default function PlanReviewPanel({ planId, onSaved }: Props) {
       ))}
 
       {rejected.length > 0 && (
-        <div style={{ marginTop: 10, background: '#fff5f5', border: '1px solid #f3cccc', borderRadius: 8, padding: '8px 10px' }}>
-          <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: '#b3261e' }}>
-            Not saved
-          </p>
+        <div
+          style={{
+            marginTop: 10,
+            background: '#fff5f5',
+            border: '1px solid #f3cccc',
+            borderRadius: 8,
+            padding: '8px 10px',
+          }}
+        >
+          <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: '#b3261e' }}>Not saved</p>
           {rejected.map((reason) => (
             <p key={reason} style={{ margin: '2px 0 0', fontSize: 12, color: '#8a3a33' }}>
               {reason}
             </p>
           ))}
         </div>
-      )}
-
-      {savedNote && (
-        <p style={{ margin: '10px 0 0', fontSize: 12, color: '#2e7d32', fontWeight: 600 }}>
-          {savedNote}
-        </p>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
