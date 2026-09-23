@@ -14,6 +14,8 @@
 import { CalendarPlus } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
+const PINK = '#C2185B';
+
 import { CampaignService, ExtendQuote } from '@/src/api/CampaignService';
 
 type Props = {
@@ -143,8 +145,8 @@ export default function KeepRunningPanel({ campaignId, onClose, onExtended }: Pr
                   fontWeight: 700,
                   padding: '6px 14px',
                   borderRadius: 18,
-                  border: d === days ? '1.5px solid #222' : '1px solid #ddd',
-                  background: d === days ? '#222' : '#fff',
+                  border: d === days ? `1.5px solid ${PINK}` : '1px solid #ddd',
+                  background: d === days ? PINK : '#fff',
                   color: d === days ? '#fff' : '#555',
                   cursor: 'pointer',
                 }}
@@ -203,7 +205,7 @@ export default function KeepRunningPanel({ campaignId, onClose, onExtended }: Pr
               fontWeight: 700,
               fontSize: 13,
               cursor: quote && quote.affordable && !working ? 'pointer' : 'default',
-              background: quote && quote.affordable && !working ? '#222' : '#eee',
+              background: quote && quote.affordable && !working ? PINK : '#eee',
               color: quote && quote.affordable && !working ? '#fff' : '#999',
             }}
           >

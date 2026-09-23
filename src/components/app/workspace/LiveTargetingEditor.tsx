@@ -21,6 +21,8 @@
 import { AlertTriangle, Check, Pencil } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
+const PINK = '#C2185B';
+
 import { CampaignService, PlanField } from '@/src/api/CampaignService';
 
 /** The API's own `detail` carries the useful sentence — a 409 explains that someone
@@ -208,7 +210,7 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
                 )}
                 {field.help && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#888' }}>{field.help}</p>}
                 <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                  <button type="button" onClick={() => stage(field)} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#222', color: '#fff', cursor: 'pointer' }}>
+                  <button type="button" onClick={() => stage(field)} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: PINK, color: '#fff', cursor: 'pointer' }}>
                     Done
                   </button>
                   <button type="button" onClick={() => setEditing(null)} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', color: '#555', cursor: 'pointer' }}>
@@ -261,7 +263,7 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
               padding: '7px 16px',
               borderRadius: 8,
               border: 'none',
-              background: '#222',
+              background: PINK,
               color: '#fff',
               cursor: dirty && !saving ? 'pointer' : 'default',
               opacity: dirty && !saving ? 1 : 0.45,

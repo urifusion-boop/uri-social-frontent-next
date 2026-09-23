@@ -17,6 +17,8 @@
 import { Check, Pencil } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
+const PINK = '#C2185B';
+
 import { CampaignService, PlanField } from '@/src/api/CampaignService';
 
 type Props = {
@@ -323,7 +325,7 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
                       padding: '4px 10px',
                       borderRadius: 6,
                       border: 'none',
-                      background: '#222',
+                      background: PINK,
                       color: '#fff',
                       cursor: 'pointer',
                     }}
@@ -416,7 +418,7 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
             padding: '7px 16px',
             borderRadius: 8,
             border: 'none',
-            background: '#222',
+            background: PINK,
             color: '#fff',
             cursor: dirty && !saving ? 'pointer' : 'default',
             opacity: dirty && !saving ? 1 : 0.45,
