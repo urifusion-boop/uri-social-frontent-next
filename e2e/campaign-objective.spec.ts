@@ -127,6 +127,24 @@ test.describe('Campaign objective', () => {
     await expect(page.getByText(/One thing worth knowing/i)).toHaveCount(0);
   });
 
+  test('a new campaign starts with nothing picked', async ({ page }) => {
+    /* Live-reported: starting a new campaign showed the PREVIOUS one's objective
+       already selected, so a campaign could launch against a goal nobody chose for it. */
+    await mockApi(page, []);
+    await openChat(page);
+
+    await page.getByTestId('objective-engagement').click();
+    await expect(page.getByText(/what are you promoting/i)).toBeVisible();
+
+    await page.getByRole('button', { name: /New campaign/i }).click();
+
+    const picker = page.getByTestId('objective-picker');
+    await expect(picker).toBeVisible({ timeout: 20_000 });
+    for (const o of OBJECTIVES) {
+      await expect(page.getByTestId(`objective-${o.value}`)).toHaveAttribute('aria-pressed', 'false');
+    }
+  });
+
   test('only objectives that actually launch are offered', async ({ page }) => {
     /* A Followers campaign cannot be created through this path: Meta rejects the ad
        without a promoted object and rejects the AD SET with one. Offering a choice that

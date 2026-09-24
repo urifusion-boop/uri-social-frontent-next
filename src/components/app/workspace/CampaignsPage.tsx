@@ -505,6 +505,10 @@ export default function CampaignsPage({
     ownAudienceRef.current = null;
     preferredPlatformRef.current = '';
     setPreferredPlatformUi('');
+    // A fresh conversation starts with NO objective chosen. Carrying the
+    // last one over launches a campaign against a goal nobody picked for it.
+    setObjective('');
+    objectiveRef.current = '';
     setMessages([makeGreeting()]);
     let rebuiltBrief = '';
     try {
@@ -553,6 +557,10 @@ export default function CampaignsPage({
     ownAudienceRef.current = null;
     preferredPlatformRef.current = '';
     setPreferredPlatformUi('');
+    // A fresh conversation starts with NO objective chosen. Carrying the
+    // last one over launches a campaign against a goal nobody picked for it.
+    setObjective('');
+    objectiveRef.current = '';
     setMessages([makeGreeting()]);
     try {
       const t = await CampaignService.createThread();
@@ -577,6 +585,10 @@ export default function CampaignsPage({
       ownAudienceRef.current = null;
       preferredPlatformRef.current = '';
       setPreferredPlatformUi('');
+      // A fresh conversation starts with NO objective chosen. Carrying the
+      // last one over launches a campaign against a goal nobody picked for it.
+      setObjective('');
+      objectiveRef.current = '';
       setMessages([makeGreeting()]);
       await send(seed_message);
     } catch (e) {
@@ -601,6 +613,10 @@ export default function CampaignsPage({
         ownAudienceRef.current = null;
         preferredPlatformRef.current = '';
         setPreferredPlatformUi('');
+        // A fresh conversation starts with NO objective chosen. Carrying the
+        // last one over launches a campaign against a goal nobody picked for it.
+        setObjective('');
+        objectiveRef.current = '';
         setMessages([makeGreeting()]);
       }
     } catch (e) {
@@ -1213,6 +1229,10 @@ export default function CampaignsPage({
       ownAudienceRef.current = null;
       preferredPlatformRef.current = '';
       setPreferredPlatformUi('');
+      // A fresh conversation starts with NO objective chosen. Carrying the
+      // last one over launches a campaign against a goal nobody picked for it.
+      setObjective('');
+      objectiveRef.current = '';
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
       const errMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'text', text: msg };
       setMessages((m) => [...m, errMsg]);
@@ -1689,6 +1709,10 @@ export default function CampaignsPage({
                         ownAudienceRef.current = null;
                         preferredPlatformRef.current = '';
                         setPreferredPlatformUi('');
+                        // A fresh conversation starts with NO objective chosen. Carrying the
+                        // last one over launches a campaign against a goal nobody picked for it.
+                        setObjective('');
+                        objectiveRef.current = '';
                         loadCampaigns();
                         refreshThreads();
                       }}
