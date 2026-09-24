@@ -168,17 +168,10 @@ const GREETING_TEXT =
   "I'll write the copy, design the visual, and set it up for you, paused until you say go.";
 const makeGreeting = (): ChatMsg => ({ id: uid(), role: 'jane', kind: 'text', text: GREETING_TEXT });
 
-// Tappable quick replies (Tier 5b) — pure UI sugar to cut down on typing for the
-// two spots where Jane's own conversation flow always lands: picking a starting
-// goal, and answering the budget/customer-count question nl.py always asks when
-// budget_ngn is missing (the only thing that ever triggers stage === 'need_more').
-const GOAL_STARTER_CHIPS = [
-  'Get me more WhatsApp messages',
-  'Get me more bookings',
-  'Get me more sales',
-  'Get me more followers',
-];
-
+// Tappable quick replies (Tier 5b) — pure UI sugar to cut down on typing when Jane
+// asks for a budget (the only thing that ever triggers stage === 'need_more'). The
+// goal chips that used to sit here are gone: ObjectivePicker asks the same question
+// in Meta's own vocabulary, and it is the one that actually sets the objective.
 const BUDGET_REPLY_CHIPS = ['₦5,000 budget', '₦10,000 budget', '₦20,000 budget', '20 customers'];
 
 // Objective-first flow: nl.py now asks WHAT's being promoted (offer_type) right after
@@ -1687,25 +1680,17 @@ export default function CampaignsPage({
                   )}
                 </div>
               ))}
-              {/* The objective comes FIRST, before any phrasing. Jane used to infer
-                Meta's objective from a goal chip and pick it herself, so a client who
-                asked for sales got a campaign Ads Manager labelled Engagement. The
-                chips stay underneath as phrasing help — they no longer decide the
-                objective, they just save typing. */}
+              {/* The objective picker REPLACES the old goal chips. Keeping both asked
+                the same question twice in two different vocabularies — "Get me more
+                sales" next to "Sales" — and only one of them decided anything. */}
               {messages.length === 1 && !busy && (
-                <>
-                  <ObjectivePicker
-                    selected={objective}
-                    onPick={(v) => {
-                      setObjective(v);
-                      objectiveRef.current = v;
-                    }}
-                  />
-                  <QuickReplyChips
-                    chips={GOAL_STARTER_CHIPS}
-                    onPick={(text) => setInput((prev) => (prev ? prev : text))}
-                  />
-                </>
+                <ObjectivePicker
+                  selected={objective}
+                  onPick={(v) => {
+                    setObjective(v);
+                    objectiveRef.current = v;
+                  }}
+                />
               )}
               {busy && (
                 <JaneBubble>
