@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarPlus, Check, MapPin, Music2, Pencil, RotateCw } from 'lucide-react';
+import { CalendarPlus, Check, Loader2, MapPin, Music2, Pause, Pencil, Play, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AdFormat,
@@ -24,6 +24,7 @@ import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
 import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
 import KeepRunningPanel from '@/src/components/app/workspace/KeepRunningPanel';
+import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import ObjectivePicker from '@/src/components/app/workspace/ObjectivePicker';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -4417,6 +4418,13 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   const [keepingRunning, setKeepingRunning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+  // Live-caught 2026-09-24: a successful activate/pause gave no feedback beyond the
+  // button itself changing — a client who'd just watched an earlier attempt 404
+  // silently had no way to tell THIS one actually worked short of reopening DevTools.
+  // A toast plus this inline confirmation line both fire on success, and neither
+  // depends on the client noticing a subtle colour change on a round button.
+  const [confirmingStart, setConfirmingStart] = useState(false);
+  const [justToggled, setJustToggled] = useState<'active' | 'paused' | null>(null);
   const displayStatus = c.metrics?.delivery || c.status;
   const { bg, color } = statusStyle(displayStatus);
   const isActive = displayStatus.toLowerCase() === 'active';
@@ -4424,24 +4432,40 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   const canDelete = displayStatus.toLowerCase() !== 'deleted' && !!c.campaign_id;
   const busy = working || deleting;
 
-  const toggle = async () => {
-    if (busy) return;
-    if (!isActive) {
-      const ok = window.confirm(
-        `Start running "${c.name}"? It will begin spending its ₦${(c.budget_ngn ?? 0).toLocaleString()} budget.`
-      );
-      if (!ok) return;
-    }
+  useEffect(() => {
+    if (!justToggled) return;
+    const t = setTimeout(() => setJustToggled(null), 5000);
+    return () => clearTimeout(t);
+  }, [justToggled]);
+
+  const doToggle = async () => {
     setError('');
     setWorking(true);
     try {
       await CampaignService.setCampaignStatus(c.campaign_id, !isActive);
+      const nowActive = !isActive;
+      setJustToggled(nowActive ? 'active' : 'paused');
+      ToastService.showToast(
+        nowActive ? `"${c.name}" is now running.` : `"${c.name}" is paused.`,
+        ToastTypeEnum.Success
+      );
       onChanged();
     } catch (e) {
-      setError(extractErrorMessage(e, 'Could not update the campaign, please try again.'));
+      const message = extractErrorMessage(e, 'Could not update the campaign, please try again.');
+      setError(message);
+      ToastService.showToast(message, ToastTypeEnum.Error);
     } finally {
       setWorking(false);
     }
+  };
+
+  const toggle = () => {
+    if (busy) return;
+    if (!isActive) {
+      setConfirmingStart(true);
+      return;
+    }
+    void doToggle();
   };
 
   const remove = async () => {
@@ -4599,6 +4623,23 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               </p>
             );
           })()}
+          {justToggled && (
+            <p
+              style={{
+                margin: '8px 0 0',
+                fontSize: 11.5,
+                color: '#1a7f37',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <Check size={13} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+              {justToggled === 'active'
+                ? `Now running — spending its ₦${(c.budget_ngn ?? 0).toLocaleString()} budget.`
+                : 'Paused — no longer spending.'}
+            </p>
+          )}
           {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
           {c.ads_manager_url && (
             <a
@@ -4670,7 +4711,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               <button
                 onClick={toggle}
                 disabled={busy}
-                title={isActive ? 'Pause' : 'Activate'}
+                title={working ? 'Working…' : isActive ? 'Pause' : 'Activate'}
                 style={{
                   width: 34,
                   height: 34,
@@ -4686,7 +4727,13 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
                   color: working ? '#999' : isActive ? '#c62828' : '#fff',
                 }}
               >
-                {isActive ? '⏸' : '▶'}
+                {working ? (
+                  <Loader2 size={15} strokeWidth={2.5} className="animate-spin" />
+                ) : isActive ? (
+                  <Pause size={14} strokeWidth={2.5} fill="currentColor" />
+                ) : (
+                  <Play size={14} strokeWidth={2.5} fill="currentColor" style={{ marginLeft: 1 }} />
+                )}
               </button>
             )}
             {canDelete && (
@@ -4726,6 +4773,22 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
       {keepingRunning && (
         <KeepRunningPanel campaignId={c.campaign_id} onClose={() => setKeepingRunning(false)} onExtended={onChanged} />
       )}
+      {/* Was a native window.confirm() — replaced so the one genuinely consequential
+          action here (real money starts spending) gets a dialog that actually looks
+          like it belongs to the app, not an OS-styled popup a client might reflexively
+          dismiss. */}
+      <ConfirmDialog
+        isOpen={confirmingStart}
+        title="Start running this campaign?"
+        message={`"${c.name}" will begin spending its ₦${(c.budget_ngn ?? 0).toLocaleString()} budget${
+          c.platform === 'tiktok' ? ' on TikTok' : ''
+        }.`}
+        confirmText="Start running"
+        cancelText="Not yet"
+        confirmColor={PINK}
+        onConfirm={() => void doToggle()}
+        onCancel={() => setConfirmingStart(false)}
+      />
     </div>
   );
 }
