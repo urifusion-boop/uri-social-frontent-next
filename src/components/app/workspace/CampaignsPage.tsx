@@ -1228,21 +1228,51 @@ export default function CampaignsPage({
   // base `media` attachment. Deliberately a plain, direct upload with none of
   // handleFileChosen's branches (recomposite/video-quality-check/attestation) —
   // a carousel slide is just a photo, no format decision to make about it.
+  // Multi-select: picking several files in one dialog uploads them all in parallel
+  // and adds every slide in one go, rather than repeating "+ Add carousel photo"
+  // once per image. TikTok Carousel Ads cap at 35 slides total (base photo
+  // included), so anything past that is dropped rather than sent to a launch that
+  // would just reject it; a stray video mixed into the selection is skipped, not
+  // treated as a reason to fail the whole batch — the good photos still upload.
   const handleCarouselExtraFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file) return;
+    if (!files.length) return;
+
+    const remainingSlots = Math.max(0, 35 - 1 - carouselExtraUrls.length);
+    const toUpload = files.slice(0, remainingSlots);
+    const dropped = files.length - toUpload.length;
+
     setUploadError('');
+    if (!toUpload.length) {
+      setUploadError("This carousel is already at TikTok's 35-photo limit.");
+      return;
+    }
+
     setCarouselUploading(true);
     try {
-      const { url, is_video } = await CampaignService.uploadMedia(file);
-      if (is_video) {
-        setUploadError('Carousel slides are photos, not a video — please choose an image.');
-        return;
+      const results = await Promise.allSettled(toUpload.map((file) => CampaignService.uploadMedia(file)));
+      const uploaded: string[] = [];
+      let videoSkipped = 0;
+      let failed = 0;
+      for (const result of results) {
+        if (result.status !== 'fulfilled') {
+          failed += 1;
+          continue;
+        }
+        if (result.value.is_video) {
+          videoSkipped += 1;
+          continue;
+        }
+        uploaded.push(result.value.url);
       }
-      setCarouselExtraUrls((prev) => [...prev, url]);
-    } catch {
-      setUploadError('Upload failed, please try again.');
+      if (uploaded.length) setCarouselExtraUrls((prev) => [...prev, ...uploaded]);
+
+      const notes: string[] = [];
+      if (dropped > 0) notes.push(`${dropped} skipped — TikTok carousels max out at 35 photos`);
+      if (videoSkipped > 0) notes.push(`${videoSkipped} skipped — carousel slides are photos, not video`);
+      if (failed > 0) notes.push(`${failed} failed to upload`);
+      if (notes.length) setUploadError(notes.join('; ') + '.');
     } finally {
       setCarouselUploading(false);
     }
@@ -1826,13 +1856,14 @@ export default function CampaignsPage({
                       ref={carouselExtraInputRef}
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
+                      multiple
                       style={{ display: 'none' }}
                       onChange={handleCarouselExtraFileChosen}
                     />
                     <button
                       onClick={() => carouselExtraInputRef.current?.click()}
                       disabled={busy || carouselUploading}
-                      title="TikTok Carousel Ads need 2+ photos — add another slide"
+                      title="TikTok Carousel Ads need 2+ photos — select as many as you want at once"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1847,7 +1878,7 @@ export default function CampaignsPage({
                         cursor: busy || carouselUploading ? 'default' : 'pointer',
                       }}
                     >
-                      + {carouselUploading ? 'Uploading…' : 'Add carousel photo'}
+                      + {carouselUploading ? 'Uploading…' : 'Add carousel photos'}
                     </button>
                     {carouselExtraUrls.map((url, i) => (
                       <div
@@ -2433,8 +2464,8 @@ function CampaignReview({ summary, edited }: { summary: CampaignSummary; edited?
            contradictory answers to "what is about to launch". */
         <div style={{ background: '#fff8ec', borderBottom: '1px solid #f0e0c0', padding: '7px 12px' }}>
           <p style={{ margin: 0, fontSize: 11.5, color: '#8a5a00' }}>
-            You&rsquo;ve changed this plan. Jane&rsquo;s reasoning below was her original
-            proposal — the ad will launch with your saved values, shown underneath.
+            You&rsquo;ve changed this plan. Jane&rsquo;s reasoning below was her original proposal — the ad will launch
+            with your saved values, shown underneath.
           </p>
         </div>
       )}
@@ -3543,8 +3574,8 @@ function ResultCard({
       return (
         <JaneBubble>
           TikTok needs either a video, or at least 2 photos for a carousel ad. Attach a video (upload your own, or ask
-          me to generate one), or use &ldquo;Add carousel photo&rdquo; after attaching a first photo, then send your
-          message again.
+          me to generate one), or use &ldquo;Add carousel photos&rdquo; after attaching a first photo — you can select
+          several at once — then send your message again.
         </JaneBubble>
       );
     }
@@ -3699,7 +3730,9 @@ function ResultCard({
               💬 Leads message <strong>+{result.whatsapp_number}</strong> on WhatsApp
             </p>
           )}
-          {result.summary && <CampaignReview summary={result.summary} edited={result.plan_edited && result.summary_stale} />}
+          {result.summary && (
+            <CampaignReview summary={result.summary} edited={result.plan_edited && result.summary_stale} />
+          )}
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
               {/* One number: what actually leaves the wallet, which IS the budget the
@@ -3753,21 +3786,20 @@ function ResultCard({
                   fontWeight: 700,
                   fontSize: 13,
                   cursor: launching || unsavedEdits ? 'default' : 'pointer',
-                  background:
-                    launching || unsavedEdits ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                  background: launching || unsavedEdits ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
                   color: launching || unsavedEdits ? '#999' : '#fff',
                 }}
               >
-                {launching
-                  ? 'Launching…'
-                  : unsavedEdits
-                    ? 'Save your changes first'
-                    : (
-                        <>
-                          <Check size={14} strokeWidth={2.5} />
-                          <span>Looks good — launch it</span>
-                        </>
-                      )}
+                {launching ? (
+                  'Launching…'
+                ) : unsavedEdits ? (
+                  'Save your changes first'
+                ) : (
+                  <>
+                    <Check size={14} strokeWidth={2.5} />
+                    <span>Looks good — launch it</span>
+                  </>
+                )}
               </button>
               {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
               {fixingWhatsapp && (
@@ -4335,227 +4367,235 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   // Read defensively: `platform` only exists on branches carrying the TikTok work, and
   // absent means Meta, so this behaves the same either way.
   const canEditTargeting =
-    (c as { platform?: string }).platform !== 'tiktok' &&
-    !!c.campaign_id &&
-    displayStatus.toLowerCase() !== 'deleted';
+    (c as { platform?: string }).platform !== 'tiktok' && !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
 
   return (
     <div>
-    <div
-      style={{ display: 'flex', gap: 14, border: '1px solid #eee', borderRadius: 12, padding: 12, background: '#fff' }}
-    >
-      {c.image_url ? (
-        <div style={{ width: 84, height: 84, flexShrink: 0 }}>
-          <ZoomableImage
-            src={c.image_url}
-            alt={c.name}
-            style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover' }}
-          />
-        </div>
-      ) : (
-        <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
-      )}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#1a0a12' }}>{c.name}</p>
-          <span
+      <div
+        style={{
+          display: 'flex',
+          gap: 14,
+          border: '1px solid #eee',
+          borderRadius: 12,
+          padding: 12,
+          background: '#fff',
+        }}
+      >
+        {c.image_url ? (
+          <div style={{ width: 84, height: 84, flexShrink: 0 }}>
+            <ZoomableImage
+              src={c.image_url}
+              alt={c.name}
+              style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover' }}
+            />
+          </div>
+        ) : (
+          <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#1a0a12' }}>{c.name}</p>
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 20,
+                background: bg,
+                color,
+                textTransform: 'uppercase',
+              }}
+            >
+              {displayStatus}
+            </span>
+            <span
+              title={c.platform === 'tiktok' ? 'Running on TikTok' : 'Running on Meta (Facebook/Instagram)'}
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 20,
+                background: c.platform === 'tiktok' ? 'rgba(0,0,0,.06)' : 'rgba(24,119,242,.1)',
+                color: c.platform === 'tiktok' ? '#111' : '#1877F2',
+              }}
+            >
+              {c.platform === 'tiktok' ? (
+                <>
+                  <Music2 size={11} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 3 }} />
+                  TikTok
+                </>
+              ) : (
+                'Meta'
+              )}
+            </span>
+          </div>
+          <p
             style={{
-              fontSize: 10.5,
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 20,
-              background: bg,
-              color,
-              textTransform: 'uppercase',
+              margin: '3px 0 0',
+              fontSize: 12.5,
+              color: '#666',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
-            {displayStatus}
-          </span>
-          <span
-            title={c.platform === 'tiktok' ? 'Running on TikTok' : 'Running on Meta (Facebook/Instagram)'}
-            style={{
-              fontSize: 10.5,
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 20,
-              background: c.platform === 'tiktok' ? 'rgba(0,0,0,.06)' : 'rgba(24,119,242,.1)',
-              color: c.platform === 'tiktok' ? '#111' : '#1877F2',
-            }}
-          >
-            {c.platform === 'tiktok' ? (
-              <>
-                <Music2 size={11} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 3 }} />
-                TikTok
-              </>
-            ) : (
-              'Meta'
-            )}
-          </span>
-        </div>
-        <p
-          style={{
-            margin: '3px 0 0',
-            fontSize: 12.5,
-            color: '#666',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {c.headline}
-        </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8, fontSize: 12 }}>
-          <Metric label="Budget" value={naira(c.budget_ngn)} />
-          <Metric label="Amount spent" value={naira(c.metrics?.spend_ngn)} />
-          <Metric
-            label="Views"
-            value={c.metrics?.impressions != null ? c.metrics.impressions.toLocaleString() : 'N/A'}
-          />
-          <Metric label="People reached" value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'} />
-          <Metric
-            label="WhatsApp conversations"
-            value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'}
-          />
-          <Metric
-            label="Cost per conversation"
-            value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
-          />
-          <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
-          {c.city && <Metric label="Area" value={c.city} />}
-        </div>
-        {/* Where this campaign's taps land — so there's never "no way to tell where the
+            {c.headline}
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8, fontSize: 12 }}>
+            <Metric label="Budget" value={naira(c.budget_ngn)} />
+            <Metric label="Amount spent" value={naira(c.metrics?.spend_ngn)} />
+            <Metric
+              label="Views"
+              value={c.metrics?.impressions != null ? c.metrics.impressions.toLocaleString() : 'N/A'}
+            />
+            <Metric
+              label="People reached"
+              value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'}
+            />
+            <Metric
+              label="WhatsApp conversations"
+              value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'}
+            />
+            <Metric
+              label="Cost per conversation"
+              value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
+            />
+            <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
+            {c.city && <Metric label="Area" value={c.city} />}
+          </div>
+          {/* Where this campaign's taps land — so there's never "no way to tell where the
             conversations went". Keyed off the campaign's REAL destination, not off
             whatsapp_number: a website/Instagram/custom ad legitimately has no number,
             and treating that as missing showed "leads went to a shared WhatsApp inbox"
             on ads that never touched WhatsApp. Live-reported. Only a WhatsApp campaign
             with no number on file is actually the legacy shared-inbox case. */}
-        {(() => {
-          const dest = c.destination_type || 'whatsapp';
-          const good = { margin: '8px 0 0', fontSize: 12, color: '#1a7f37' } as React.CSSProperties;
-          if (dest === 'whatsapp') {
-            return c.whatsapp_number ? (
+          {(() => {
+            const dest = c.destination_type || 'whatsapp';
+            const good = { margin: '8px 0 0', fontSize: 12, color: '#1a7f37' } as React.CSSProperties;
+            if (dest === 'whatsapp') {
+              return c.whatsapp_number ? (
+                <p style={good}>
+                  💬 Leads message <strong>+{c.whatsapp_number}</strong> on WhatsApp — open that chat to see them
+                </p>
+              ) : (
+                <p style={{ margin: '8px 0 0', fontSize: 12, color: '#a15c00' }}>
+                  ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number. Duplicate it from a
+                  chat thread to relaunch with your number.
+                </p>
+              );
+            }
+            const label =
+              dest === 'website'
+                ? '🌐 Taps open your website'
+                : dest === 'instagram_dm'
+                  ? '📩 Taps land in your Instagram DMs'
+                  : '🔗 Taps open your link';
+            return (
               <p style={good}>
-                💬 Leads message <strong>+{c.whatsapp_number}</strong> on WhatsApp — open that chat to see them
-              </p>
-            ) : (
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#a15c00' }}>
-                ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number. Duplicate it from a chat
-                thread to relaunch with your number.
+                {label}
+                {c.destination_link ? (
+                  <>
+                    {' '}
+                    — <strong>{c.destination_link}</strong>
+                  </>
+                ) : null}
               </p>
             );
-          }
-          const label =
-            dest === 'website'
-              ? '🌐 Taps open your website'
-              : dest === 'instagram_dm'
-                ? '📩 Taps land in your Instagram DMs'
-                : '🔗 Taps open your link';
-          return (
-            <p style={good}>
-              {label}
-              {c.destination_link ? (
-                <>
-                  {' '}
-                  — <strong>{c.destination_link}</strong>
-                </>
-              ) : null}
-            </p>
-          );
-        })()}
-        {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
-        {c.ads_manager_url && (
-          <a
-            href={c.ads_manager_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: 'inline-block', marginTop: 8, fontSize: 11.5, color: PINK, fontWeight: 600 }}
-          >
-            View in {c.platform === 'tiktok' ? 'TikTok' : 'Meta'} Ads Manager →
-          </a>
-        )}
-      </div>
-      {(canToggle || canDelete || canEditTargeting) && (
-        <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>
-          {canEditTargeting && (
-            <button
-              onClick={() => setEditingTargeting((v) => !v)}
-              aria-expanded={editingTargeting}
-              aria-label="Edit who this campaign targets"
-              title="Edit who this campaign targets — interests, age, gender, places"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                border: '1px solid #e0dcd9',
-                background: editingTargeting ? '#f4f2f0' : '#fff',
-                cursor: 'pointer',
-                lineHeight: 1,
-                color: '#555',
-              }}
+          })()}
+          {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
+          {c.ads_manager_url && (
+            <a
+              href={c.ads_manager_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', marginTop: 8, fontSize: 11.5, color: PINK, fontWeight: 600 }}
             >
-              <Pencil size={14} strokeWidth={2} />
-            </button>
-          )}
-          {canToggle && (
-            <button
-              onClick={toggle}
-              disabled={busy}
-              title={isActive ? 'Pause' : 'Activate'}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                border: 'none',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 13,
-                cursor: busy ? 'default' : 'pointer',
-                background: working ? '#eee' : isActive ? '#fdecea' : `linear-gradient(135deg,${PINK},#8E1545)`,
-                color: working ? '#999' : isActive ? '#c62828' : '#fff',
-              }}
-            >
-              {isActive ? '⏸' : '▶'}
-            </button>
-          )}
-          {canDelete && (
-            <button
-              onClick={remove}
-              disabled={busy}
-              title="Delete"
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                border: '1px solid #f0d8dc',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 13,
-                cursor: busy ? 'default' : 'pointer',
-                background: deleting ? '#eee' : '#fff',
-                color: deleting ? '#999' : '#c62828',
-              }}
-            >
-              🗑
-            </button>
+              View in {c.platform === 'tiktok' ? 'TikTok' : 'Meta'} Ads Manager →
+            </a>
           )}
         </div>
+        {(canToggle || canDelete || canEditTargeting) && (
+          <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>
+            {canEditTargeting && (
+              <button
+                onClick={() => setEditingTargeting((v) => !v)}
+                aria-expanded={editingTargeting}
+                aria-label="Edit who this campaign targets"
+                title="Edit who this campaign targets — interests, age, gender, places"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  border: '1px solid #e0dcd9',
+                  background: editingTargeting ? '#f4f2f0' : '#fff',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  color: '#555',
+                }}
+              >
+                <Pencil size={14} strokeWidth={2} />
+              </button>
+            )}
+            {canToggle && (
+              <button
+                onClick={toggle}
+                disabled={busy}
+                title={isActive ? 'Pause' : 'Activate'}
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  border: 'none',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                  cursor: busy ? 'default' : 'pointer',
+                  background: working ? '#eee' : isActive ? '#fdecea' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                  color: working ? '#999' : isActive ? '#c62828' : '#fff',
+                }}
+              >
+                {isActive ? '⏸' : '▶'}
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={remove}
+                disabled={busy}
+                title="Delete"
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  border: '1px solid #f0d8dc',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                  cursor: busy ? 'default' : 'pointer',
+                  background: deleting ? '#eee' : '#fff',
+                  color: deleting ? '#999' : '#c62828',
+                }}
+              >
+                🗑
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {editingTargeting && (
+        <LiveTargetingEditor
+          campaignId={c.campaign_id}
+          campaignName={c.name}
+          onClose={() => setEditingTargeting(false)}
+          onSaved={onChanged}
+        />
       )}
-    </div>
-    {editingTargeting && (
-      <LiveTargetingEditor
-        campaignId={c.campaign_id}
-        campaignName={c.name}
-        onClose={() => setEditingTargeting(false)}
-        onSaved={onChanged}
-      />
-    )}
     </div>
   );
 }
