@@ -14,9 +14,8 @@ const OBJECTIVES = [
   { value: 'awareness', label: 'Awareness', blurb: 'Show the ad to as many people as possible.', caveat: '' },
   { value: 'traffic', label: 'Traffic', blurb: 'Send people to your link.', caveat: '' },
   { value: 'engagement', label: 'Engagement', blurb: 'Get people messaging you.', caveat: '' },
-  { value: 'leads', label: 'Leads', blurb: 'Collect enquiries.', caveat: "Leads arrive as WhatsApp messages — Uri doesn't use Meta's own lead forms yet." },
-  { value: 'sales', label: 'Sales', blurb: 'Find people likely to buy.', caveat: 'Without tracking installed on your website, Meta optimises for taps rather than confirmed purchases.' },
-  { value: 'followers', label: 'Followers', blurb: 'Grow your Page following.', caveat: '' },
+  { value: 'leads', label: 'Leads', blurb: 'Collect enquiries from interested people.', caveat: '' },
+  { value: 'sales', label: 'Sales', blurb: 'Find people likely to buy.', caveat: '' },
 ];
 
 /** Records what every plan request carried, so the assertions are about the payload
@@ -54,6 +53,20 @@ test.describe('Campaign objective', () => {
     for (const o of OBJECTIVES) {
       await expect(page.getByTestId(`objective-${o.value}`)).toBeVisible();
     }
+  });
+
+  test('picking one moves the conversation on', async ({ page }) => {
+    /* It used to only tint a card — the client picked and nothing happened, so the
+       picker looked broken. The choice is an answer, so it reads back as one. */
+    await mockApi(page, []);
+    await openChat(page);
+
+    await page.getByTestId('objective-awareness').click();
+
+    await expect(page.getByText('Awareness', { exact: true }).last()).toBeVisible();
+    await expect(page.getByText(/what are you promoting/i)).toBeVisible();
+    // The picker has done its job and steps out of the way.
+    await expect(page.getByTestId('objective-picker')).toHaveCount(0);
   });
 
   test('the objective the client picks reaches the plan request', async ({ page }) => {
@@ -103,19 +116,23 @@ test.describe('Campaign objective', () => {
     expect(bodies[bodies.length - 1].objective).toBe('awareness');
   });
 
-  test('a caveat is shown for the objective being chosen, not for all of them', async ({ page }) => {
+  test('no objective warns about itself', async ({ page }) => {
+    /* Sales and Leads go to Meta as themselves and Meta optimises them — warning about
+       them only made clients doubt a setting that works. */
     await mockApi(page, []);
     await openChat(page);
 
-    // Nothing picked yet — no warnings cluttering the choice.
-    await expect(page.getByTestId('objective-caveat-sales')).toHaveCount(0);
-
     await page.getByTestId('objective-sales').click();
-    await expect(page.getByTestId('objective-caveat-sales')).toContainText('taps rather than confirmed purchases');
+    await expect(page.getByText(/what are you promoting/i)).toBeVisible();
+    await expect(page.getByText(/One thing worth knowing/i)).toHaveCount(0);
+  });
 
-    // Switching hides the old caveat and shows the new one.
-    await page.getByTestId('objective-leads').click();
-    await expect(page.getByTestId('objective-caveat-sales')).toHaveCount(0);
-    await expect(page.getByTestId('objective-caveat-leads')).toContainText('WhatsApp messages');
+  test('only objectives that actually launch are offered', async ({ page }) => {
+    /* A Followers campaign cannot be created through this path: Meta rejects the ad
+       without a promoted object and rejects the AD SET with one. Offering a choice that
+       always fails to launch is worse than not offering it. */
+    await mockApi(page, []);
+    await openChat(page);
+    await expect(page.getByTestId('objective-followers')).toHaveCount(0);
   });
 });

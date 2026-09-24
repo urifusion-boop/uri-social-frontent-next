@@ -37,7 +37,9 @@ const ICONS: Record<string, LucideIcon> = {
 
 type Props = {
   selected: string;
-  onPick: (value: string) => void;
+  /** Label and blurb travel with the value so the caller can speak the choice back in
+   *  the client's own words rather than echoing a wire value like "followers". */
+  onPick: (value: string, label: string, blurb: string, caveat: string) => void;
 };
 
 export default function ObjectivePicker({ selected, onPick }: Props) {
@@ -55,8 +57,6 @@ export default function ObjectivePicker({ selected, onPick }: Props) {
   // Never block the conversation on this. If the list cannot load, Jane falls back to
   // the objective the goal implies, which is exactly what she did before.
   if (failed || !choices.length) return null;
-
-  const chosen = choices.find((c) => c.value === selected);
 
   return (
     <div data-testid="objective-picker" style={{ margin: '2px 0 12px' }}>
@@ -85,7 +85,7 @@ export default function ObjectivePicker({ selected, onPick }: Props) {
               type="button"
               data-testid={`objective-${c.value}`}
               aria-pressed={isOn}
-              onClick={() => onPick(c.value)}
+              onClick={() => onPick(c.value, c.label, c.blurb, c.caveat)}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -130,22 +130,6 @@ export default function ObjectivePicker({ selected, onPick }: Props) {
         })}
       </div>
 
-      {chosen?.caveat && (
-        <div
-          data-testid={`objective-caveat-${chosen.value}`}
-          style={{
-            marginTop: 8,
-            background: '#fff8ec',
-            border: '1px solid #f0e0c0',
-            borderRadius: 9,
-            padding: '7px 10px',
-          }}
-        >
-          <p style={{ margin: 0, fontSize: 11.5, color: '#8a5a00', lineHeight: 1.4 }}>
-            {chosen.caveat}
-          </p>
-        </div>
-      )}
     </div>
   );
 }

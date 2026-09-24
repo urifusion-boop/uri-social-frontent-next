@@ -249,6 +249,7 @@ export default function CampaignsPage({
   // The client's Meta campaign objective. Empty until they pick, and Jane then falls
   // back to the one her goal implies — the behaviour before the picker existed.
   const [objective, setObjective] = useState('');
+  const [objectiveLabels, setObjectiveLabels] = useState<Record<string, string>>({});
   // A ref as well as state: the objective must ride on EVERY planFromMessage call, and
   // the follow-up ones fire from closures that would otherwise capture a stale value.
   // Attached media was silently dropped on four follow-up call sites for exactly this
@@ -663,6 +664,38 @@ export default function CampaignsPage({
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Picking an objective has to MOVE THE CONVERSATION ON.
+   *
+   * It used to only tint a card: the client chose Awareness, nothing happened, and the
+   * picker sat there looking broken while they wondered what to do next. The choice is
+   * an answer to Jane's question, so it reads back as one — their pick as a message,
+   * Jane acknowledging it and asking the next thing.
+   *
+   * No API call: Jane cannot plan anything until she knows WHAT is being promoted, and
+   * the objective rides along on that request when it comes. */
+  const pickObjective = (value: string, label: string, blurb: string, caveat: string) => {
+    setObjective(value);
+    objectiveRef.current = value;
+    setObjectiveLabels((prev) => ({ ...prev, [value]: label }));
+    // The caveat goes in JANE'S REPLY, not on the card. It used to render only on the
+    // selected card, and once picking started advancing the conversation the card
+    // vanished the instant it was chosen — so the one warning that changes what a
+    // client should expect ("optimises for taps, not confirmed purchases") became
+    // unreachable. Here it is read at the moment of choosing and stays in the thread.
+    const caveatLine = caveat ? ` One thing worth knowing: ${caveat}` : '';
+    setMessages((m) => [
+      ...m,
+      { id: uid(), role: 'user', text: label },
+      {
+        id: uid(),
+        role: 'jane',
+        kind: 'text',
+        text: `${label} it is — ${blurb.replace(/\.$/, '')}.${caveatLine} `
+          + 'So, what are you promoting? Tell me what it is and roughly what you want to spend.',
+      },
+    ]);
+  };
 
   const send = async (override?: string) => {
     const text = (override ?? input).trim();
@@ -1686,10 +1719,7 @@ export default function CampaignsPage({
               {messages.length === 1 && !busy && (
                 <ObjectivePicker
                   selected={objective}
-                  onPick={(v) => {
-                    setObjective(v);
-                    objectiveRef.current = v;
-                  }}
+                  onPick={pickObjective}
                 />
               )}
               {busy && (
