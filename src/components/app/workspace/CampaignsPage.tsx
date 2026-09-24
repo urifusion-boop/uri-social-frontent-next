@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, MapPin, Music2, Pencil, RotateCw } from 'lucide-react';
+import { CalendarPlus, Check, MapPin, Music2, Pencil, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AdFormat,
@@ -23,6 +23,7 @@ import { useIsMobile } from '@/src/hooks/useIsMobile';
 import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
 import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
+import KeepRunningPanel from '@/src/components/app/workspace/KeepRunningPanel';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -4318,6 +4319,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   // Campaign Management PRD §19 "Audience or geography edit" — the only post-launch
   // change Uri can make itself. Everything else there is still Ads Manager's job.
   const [editingTargeting, setEditingTargeting] = useState(false);
+  // Users top up and keep a working ad running rather than starting over. Extending
+  // preserves everything Meta has learned; a replacement campaign does not.
+  const [keepingRunning, setKeepingRunning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const displayStatus = c.metrics?.delivery || c.status;
@@ -4518,7 +4522,37 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>
             {canEditTargeting && (
               <button
-                onClick={() => setEditingTargeting((v) => !v)}
+                onClick={() => {
+                  setKeepingRunning((v) => !v);
+                  setEditingTargeting(false);
+                }}
+                aria-expanded={keepingRunning}
+                aria-label="Keep this campaign running"
+                title="Keep this campaign running past its end date"
+                data-testid="keep-running-open"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  border: '1px solid #e0dcd9',
+                  background: keepingRunning ? '#f4f2f0' : '#fff',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  color: '#555',
+                }}
+              >
+                <CalendarPlus size={14} strokeWidth={2} />
+              </button>
+            )}
+            {canEditTargeting && (
+              <button
+                onClick={() => {
+                  setEditingTargeting((v) => !v);
+                  setKeepingRunning(false);
+                }}
                 aria-expanded={editingTargeting}
                 aria-label="Edit who this campaign targets"
                 title="Edit who this campaign targets — interests, age, gender, places"
@@ -4595,6 +4629,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           onClose={() => setEditingTargeting(false)}
           onSaved={onChanged}
         />
+      )}
+      {keepingRunning && (
+        <KeepRunningPanel campaignId={c.campaign_id} onClose={() => setKeepingRunning(false)} onExtended={onChanged} />
       )}
     </div>
   );

@@ -17,6 +17,8 @@
 import { Check, Pencil } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
+const PINK = '#C2185B';
+
 import { CampaignService, PlanField } from '@/src/api/CampaignService';
 
 type Props = {
@@ -199,17 +201,25 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
   if (justSaved) {
     return (
       <div style={{ ...CARD, borderColor: '#cde9cd', background: '#f6fbf6' }}>
-        <p style={{ margin: '0 0 6px', fontSize: 13.5, fontWeight: 700, color: '#2e7d32', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <p
+          style={{
+            margin: '0 0 6px',
+            fontSize: 13.5,
+            fontWeight: 700,
+            color: '#2e7d32',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
           <Check size={15} strokeWidth={2.5} style={{ flexShrink: 0 }} />
           <span>Rebuilt with your changes</span>
         </p>
         <p style={{ margin: '0 0 4px', fontSize: 12.5, color: '#33691e' }}>
           {/* Explicit {' '} — JSX drops the whitespace between an expression and the
               text after it once the line wraps, which ran the words together. */}
-          I&rsquo;ve redone the plan using{' '}
-          {spokenList(justSaved)}{' '}
-          you changed. The reasoning and the reach estimate above are recalculated from
-          your version — that&rsquo;s the ad that will run.
+          I&rsquo;ve redone the plan using {spokenList(justSaved)} you changed. The reasoning and the reach estimate
+          above are recalculated from your version — that&rsquo;s the ad that will run.
         </p>
         <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#33691e' }}>
           Want to change anything else, or shall we launch it?
@@ -323,7 +333,7 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
                       padding: '4px 10px',
                       borderRadius: 6,
                       border: 'none',
-                      background: '#222',
+                      background: PINK,
                       color: '#fff',
                       cursor: 'pointer',
                     }}
@@ -416,7 +426,7 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
             padding: '7px 16px',
             borderRadius: 8,
             border: 'none',
-            background: '#222',
+            background: PINK,
             color: '#fff',
             cursor: dirty && !saving ? 'pointer' : 'default',
             opacity: dirty && !saving ? 1 : 0.45,

@@ -163,6 +163,29 @@ export interface LiveTargetingSaveResult {
   verified?: boolean;
 }
 
+/** What keeping a campaign running would cost, priced before anything changes. */
+export interface ExtendQuote {
+  campaign_id: string;
+  days: number;
+  daily_ngn: number;
+  ad_spend_ngn: number;
+  total_due_ngn: number;
+  current_end_time?: string | null;
+  new_end_time: string;
+  has_ended: boolean;
+  wallet_balance_ngn: number;
+  affordable: boolean;
+}
+
+export interface ExtendResult {
+  campaign_id: string;
+  extended_by_days: number;
+  charged_ngn: number;
+  end_time?: string | null;
+  wallet_balance_ngn: number;
+  note: string;
+}
+
 export interface LaunchFromMessageResult {
   stage:
     | 'need_more'
@@ -461,8 +484,12 @@ export interface CampaignRecord {
   };
   creative: { format_id: string; asset_source: string; media_type: string; headline: string };
   budget: {
-    stated_ngn: number; effective_spend_ngn: number; service_fee_ngn: number;
-    duration_days: number; budget_tier: string; budget_source: string;
+    stated_ngn: number;
+    effective_spend_ngn: number;
+    service_fee_ngn: number;
+    duration_days: number;
+    budget_tier: string;
+    budget_source: string;
   };
   modifications: { field: string; from: unknown; to: unknown; changed_at: string }[];
   results: Record<string, unknown> | null;
@@ -486,9 +513,11 @@ export interface BucketView {
     thresholds: { observe: number; bias: number; claim: number };
     message?: string;
     rows: {
-      value: string; campaigns: number;
+      value: string;
+      campaigns: number;
       median_cost_per_conversation_ngn: number | null;
-      with_results: number; sufficient: boolean;
+      with_results: number;
+      sufficient: boolean;
     }[];
   };
 }
@@ -608,16 +637,13 @@ export class CampaignService {
    * uses (Meta's location and interest catalogues, the policy scan, the brand's spend
    * cap), so anything it accepts here cannot fail at launch. Rejections come back per
    * field and do NOT discard the edits that were fine — never drop typed work. */
-  static async savePlanFields(
-    planId: string,
-    edits: Record<string, unknown>,
-  ): Promise<PlanFieldsSaveResult> {
+  static async savePlanFields(planId: string, edits: Record<string, unknown>): Promise<PlanFieldsSaveResult> {
     // Location and interest edits each cost a round trip to Meta's search, so this is
     // slower than a normal PATCH.
     const res = await UriHttpClient.getClient().patch(
       `/jane-ads/meta/plan/${planId}/fields`,
       { edits },
-      { timeout: 90000 },
+      { timeout: 90000 }
     );
     return res.data as PlanFieldsSaveResult;
   }
@@ -628,10 +654,9 @@ export class CampaignService {
    * no longer matches, somebody changed the ad set in Ads Manager since this screen
    * was drawn and the save is refused rather than overwriting their work. */
   static async getLiveTargeting(campaignId: string): Promise<LiveTargeting> {
-    const res = await UriHttpClient.getClient().get(
-      `/jane-ads/meta/campaigns/${campaignId}/targeting`,
-      { timeout: 60000 },
-    );
+    const res = await UriHttpClient.getClient().get(`/jane-ads/meta/campaigns/${campaignId}/targeting`, {
+      timeout: 60000,
+    });
     return res.data as LiveTargeting;
   }
 
@@ -640,14 +665,35 @@ export class CampaignService {
   static async saveLiveTargeting(
     campaignId: string,
     edits: Record<string, unknown>,
-    baseline: string,
+    baseline: string
   ): Promise<LiveTargetingSaveResult> {
     const res = await UriHttpClient.getClient().patch(
       `/jane-ads/meta/campaigns/${campaignId}/targeting`,
       { edits, baseline },
-      { timeout: 120000 },
+      { timeout: 120000 }
     );
     return res.data as LiveTargetingSaveResult;
+  }
+
+  /** Price an extension before anything is charged or changed. */
+  static async getExtendQuote(campaignId: string, days: number): Promise<ExtendQuote> {
+    const res = await UriHttpClient.getClient().get(`/jane-ads/meta/campaigns/${campaignId}/extend-quote`, {
+      params: { days },
+      timeout: 60000,
+    });
+    return res.data as ExtendQuote;
+  }
+
+  /** Keep a campaign running past its end date. Keeps the campaign, the creative and
+   * everything Meta has learned — only the end date moves. `confirm` is required
+   * because this restarts spending on a campaign that had stopped. */
+  static async extendCampaign(campaignId: string, days: number): Promise<ExtendResult> {
+    const res = await UriHttpClient.getClient().post(
+      `/jane-ads/meta/campaigns/${campaignId}/extend`,
+      { days, confirm: true },
+      { timeout: 120000 }
+    );
+    return res.data as ExtendResult;
   }
 
   static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
@@ -756,14 +802,15 @@ export class CampaignService {
   }
 
   static async getCampaignRecord(campaignId: string): Promise<CampaignRecord> {
-    const res = await UriHttpClient.getClient().get(
-      `/jane-ads/admin/intelligence/campaign/${campaignId}`,
-    );
+    const res = await UriHttpClient.getClient().get(`/jane-ads/admin/intelligence/campaign/${campaignId}`);
     return res.data as CampaignRecord;
   }
 
   static async getBucket(params: {
-    business_category?: string; city?: string; budget_tier?: string; dimension?: string;
+    business_category?: string;
+    city?: string;
+    budget_tier?: string;
+    dimension?: string;
   }): Promise<BucketView> {
     const res = await UriHttpClient.getClient().get('/jane-ads/admin/intelligence/bucket', {
       params,
@@ -777,9 +824,7 @@ export class CampaignService {
   }
 
   static async backfillRecordResults(): Promise<{ filled: number; failed: number }> {
-    const res = await UriHttpClient.getClient().post(
-      '/jane-ads/admin/intelligence/backfill-results', {},
-    );
+    const res = await UriHttpClient.getClient().post('/jane-ads/admin/intelligence/backfill-results', {});
     return res.data as { filled: number; failed: number };
   }
 
