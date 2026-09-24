@@ -1181,10 +1181,57 @@ export default function CampaignsPage({
   };
 
   const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
     const forChoice = uploadForChoiceRef.current;
     uploadForChoiceRef.current = false;
+    if (!files.length) return;
+
+    // TikTok carousel shortcut, user-requested 2026-09-24: picking several photos
+    // at once from THIS button (composer attach, not the choose-source card or a
+    // recomposite request — forChoice is only set by those) builds the whole
+    // carousel in one action, file[0] becoming the base photo and the rest
+    // becoming slides, instead of needing a separate visit to "+ Add carousel
+    // photos" for anything past the first. Runs as its own self-contained branch
+    // rather than reusing the single-file logic below (attestation prompt,
+    // video-quality-check) — those assume exactly one file and one decision to
+    // make about it, and a carousel slide is just a photo with no such decision,
+    // same reasoning handleCarouselExtraFileChosen already applies.
+    if (files.length > 1 && preferredPlatformUi === 'tiktok' && !forChoice) {
+      setUploadError('');
+      setUploading(true);
+      try {
+        const results = await Promise.allSettled(files.map((f) => CampaignService.uploadMedia(f)));
+        const photos: string[] = [];
+        let videoSkipped = 0;
+        let failed = 0;
+        for (const result of results) {
+          if (result.status !== 'fulfilled') {
+            failed += 1;
+            continue;
+          }
+          if (result.value.is_video) {
+            videoSkipped += 1;
+            continue;
+          }
+          photos.push(result.value.url);
+        }
+        if (photos.length) {
+          setMedia({ source: 'upload', url: photos[0], isVideo: false, label: files[0].name });
+          setCarouselExtraUrls(photos.slice(1));
+        }
+        const notes: string[] = [];
+        if (videoSkipped > 0) notes.push(`${videoSkipped} skipped — carousel slides are photos, not video`);
+        if (failed > 0) notes.push(`${failed} failed to upload`);
+        if (!photos.length && !notes.length) notes.push('Upload failed, please try again');
+        if (notes.length) setUploadError(notes.join('; ') + '.');
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
+    const file = files[0];
     if (!file) return;
     setUploadError('');
     setUploading(true);
@@ -1736,6 +1783,11 @@ export default function CampaignsPage({
                 ref={fileInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
+                // Multi-select only actually does anything on TikTok (see
+                // handleFileChosen's carousel-batch branch) — left off for Meta/the
+                // choose-source card so their single-file assumptions can't be
+                // surprised by a multi-file FileList they were never built to expect.
+                multiple={preferredPlatformUi === 'tiktok'}
                 style={{ display: 'none' }}
                 onChange={handleFileChosen}
               />
