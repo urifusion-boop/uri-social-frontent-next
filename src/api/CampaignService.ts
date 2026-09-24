@@ -186,6 +186,17 @@ export interface ExtendResult {
   note: string;
 }
 
+/** One of Meta's campaign objectives, offered in Meta's own words so that what the
+ * client picks is what Ads Manager shows them later. `caveat` is the limit worth
+ * stating before they choose — Sales without a pixel optimises for taps, not
+ * purchases — and is empty for the objectives Uri honours fully. */
+export interface CampaignObjectiveChoice {
+  value: string;
+  label: string;
+  blurb: string;
+  caveat: string;
+}
+
 export interface LaunchFromMessageResult {
   stage:
     | 'need_more'
@@ -576,6 +587,10 @@ export class CampaignService {
    * nothing is lost if the user never confirms it. */
   static async planFromMessage(payload: {
     message: string;
+    /** The client's Meta campaign objective, picked at the start of the conversation.
+     * Omitted means they have not chosen and Jane falls back to the one her goal
+     * implies — which is what she always did, and got wrong often enough to matter. */
+    objective?: string;
     business_name?: string;
     category?: string;
     creative_source?: CreativeSource;
@@ -694,6 +709,12 @@ export class CampaignService {
       { timeout: 120000 }
     );
     return res.data as ExtendResult;
+  }
+
+  /** Meta's campaign objectives, for the picker Jane opens with. */
+  static async getObjectives(): Promise<CampaignObjectiveChoice[]> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/objectives');
+    return (res.data as { objectives: CampaignObjectiveChoice[] }).objectives;
   }
 
   static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {

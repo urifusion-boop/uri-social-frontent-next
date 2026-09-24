@@ -24,6 +24,7 @@ import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
 import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
 import KeepRunningPanel from '@/src/components/app/workspace/KeepRunningPanel';
+import ObjectivePicker from '@/src/components/app/workspace/ObjectivePicker';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -252,6 +253,14 @@ export default function CampaignsPage({
     messagesRef.current = messages;
   }, [messages]);
   const [input, setInput] = useState('');
+  // The client's Meta campaign objective. Empty until they pick, and Jane then falls
+  // back to the one her goal implies — the behaviour before the picker existed.
+  const [objective, setObjective] = useState('');
+  // A ref as well as state: the objective must ride on EVERY planFromMessage call, and
+  // the follow-up ones fire from closures that would otherwise capture a stale value.
+  // Attached media was silently dropped on four follow-up call sites for exactly this
+  // reason; one source of truth avoids repeating it.
+  const objectiveRef = useRef('');
   const [busy, setBusy] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loadingList, setLoadingList] = useState(false);
@@ -684,6 +693,7 @@ export default function CampaignsPage({
     try {
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: combinedMessage,
         thread_id: threadId,
@@ -757,6 +767,7 @@ export default function CampaignsPage({
           : [];
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar || clean,
         whatsapp_number: clean,
@@ -815,6 +826,7 @@ export default function CampaignsPage({
           : [];
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
@@ -873,6 +885,7 @@ export default function CampaignsPage({
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
           ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
           message: brief,
           thread_id: activeThreadRef.current ?? undefined,
           ...(variant ? { selected_plan_variant: variant, variant_group_id: pendingVariants!.variantGroupId } : {}),
@@ -1005,6 +1018,7 @@ export default function CampaignsPage({
     try {
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
@@ -1088,6 +1102,7 @@ export default function CampaignsPage({
       // below still builds each pending variant with its own correct data.
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
@@ -1147,6 +1162,7 @@ export default function CampaignsPage({
     try {
       const result = await CampaignService.planFromMessage({
         ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
@@ -1615,13 +1631,22 @@ export default function CampaignsPage({
                   )}
                 </div>
               ))}
-              {/* Quick-start goal chips — only before the conversation gets going, so a
-                new user doesn't have to think of a phrasing from scratch. */}
+              {/* The objective comes FIRST, before any phrasing. Jane used to infer
+                Meta's objective from a goal chip and pick it herself, so a client who
+                asked for sales got a campaign Ads Manager labelled Engagement. The
+                chips stay underneath as phrasing help — they no longer decide the
+                objective, they just save typing. */}
               {messages.length === 1 && !busy && (
-                <QuickReplyChips
-                  chips={GOAL_STARTER_CHIPS}
-                  onPick={(text) => setInput((prev) => (prev ? prev : text))}
-                />
+                <>
+                  <ObjectivePicker
+                    selected={objective}
+                    onPick={(v) => { setObjective(v); objectiveRef.current = v; }}
+                  />
+                  <QuickReplyChips
+                    chips={GOAL_STARTER_CHIPS}
+                    onPick={(text) => setInput((prev) => (prev ? prev : text))}
+                  />
+                </>
               )}
               {busy && (
                 <JaneBubble>
