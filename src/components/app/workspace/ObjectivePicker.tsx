@@ -64,11 +64,16 @@ export default function ObjectivePicker({ selected, onPick }: Props) {
         What should this ad do for you?
       </p>
 
+      {/* Three across, not six. auto-fit across a full-width chat column squeezed all
+          six into one row, so every blurb wrapped to four lines and the cards came out
+          ragged and unreadable. A 3-column cap keeps each card wide enough for its
+          text to breathe and makes the two rows line up. */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(212px, 1fr))',
           gap: 8,
+          maxWidth: 720,
         }}
       >
         {choices.map((c) => {
@@ -81,59 +86,44 @@ export default function ObjectivePicker({ selected, onPick }: Props) {
               data-testid={`objective-${c.value}`}
               aria-pressed={isOn}
               onClick={() => onPick(c.value)}
-              title={c.blurb}
               style={{
                 display: 'flex',
-                alignItems: 'flex-start',
-                gap: 9,
+                flexDirection: 'column',
+                gap: 6,
                 textAlign: 'left',
                 border: isOn ? `1.5px solid ${PINK}` : '1px solid #ece8e6',
                 background: isOn ? 'rgba(194,24,91,.05)' : '#fff',
                 borderRadius: 12,
-                padding: '11px 12px',
+                padding: '11px 13px',
                 cursor: 'pointer',
                 transition: 'border-color .12s ease, background .12s ease',
                 boxShadow: isOn ? '0 1px 3px rgba(194,24,91,.10)' : 'none',
               }}
             >
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 28,
-                  height: 28,
-                  flexShrink: 0,
-                  borderRadius: 8,
-                  background: isOn ? PINK : '#f6f3f2',
-                  color: isOn ? '#fff' : '#8a8080',
-                }}
-              >
-                <Icon size={15} strokeWidth={2} />
-              </span>
-              <span style={{ minWidth: 0 }}>
+              {/* Icon and label on ONE line. Side-by-side with a wrapping blurb left the
+                  icon floating against a tall block of text. */}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span
                   style={{
-                    display: 'block',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: isOn ? PINK : '#1a0a12',
-                    lineHeight: 1.25,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 26,
+                    height: 26,
+                    flexShrink: 0,
+                    borderRadius: 8,
+                    background: isOn ? PINK : '#f6f3f2',
+                    color: isOn ? '#fff' : '#8a8080',
                   }}
                 >
+                  <Icon size={14} strokeWidth={2} />
+                </span>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: isOn ? PINK : '#1a0a12' }}>
                   {c.label}
                 </span>
-                <span
-                  style={{
-                    display: 'block',
-                    fontSize: 11,
-                    color: '#7a7270',
-                    marginTop: 2,
-                    lineHeight: 1.35,
-                  }}
-                >
-                  {c.blurb}
-                </span>
+              </span>
+              <span style={{ fontSize: 11.5, color: '#7a7270', lineHeight: 1.45 }}>
+                {c.blurb}
               </span>
             </button>
           );
