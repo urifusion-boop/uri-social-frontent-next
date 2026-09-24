@@ -885,7 +885,7 @@ export default function CampaignsPage({
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
           ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
-        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
+          ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
           message: brief,
           thread_id: activeThreadRef.current ?? undefined,
           ...(variant ? { selected_plan_variant: variant, variant_group_id: pendingVariants!.variantGroupId } : {}),
@@ -1213,7 +1213,16 @@ export default function CampaignsPage({
     // video-quality-check) — those assume exactly one file and one decision to
     // make about it, and a carousel slide is just a photo with no such decision,
     // same reasoning handleCarouselExtraFileChosen already applies.
-    if (files.length > 1 && preferredPlatformUi === 'tiktok' && !forChoice) {
+    //
+    // Live-caught 2026-09-24: this used to also require preferredPlatformUi ===
+    // 'tiktok' already being true, which meant multi-select silently did nothing
+    // unless the client had clicked the "TikTok" chip before attaching photos —
+    // backwards ordering. Multi-photo-select has no other meaning in this
+    // composer (Meta has no multi-image concept here), so picking 2+ files is
+    // itself the signal — it now selects TikTok as a side effect rather than
+    // requiring it as a precondition.
+    if (files.length > 1 && !forChoice) {
+      if (preferredPlatformUi !== 'tiktok') setPreferredPlatform('tiktok');
       setUploadError('');
       setUploading(true);
       try {
@@ -1687,7 +1696,10 @@ export default function CampaignsPage({
                 <>
                   <ObjectivePicker
                     selected={objective}
-                    onPick={(v) => { setObjective(v); objectiveRef.current = v; }}
+                    onPick={(v) => {
+                      setObjective(v);
+                      objectiveRef.current = v;
+                    }}
                   />
                   <QuickReplyChips
                     chips={GOAL_STARTER_CHIPS}
@@ -1808,11 +1820,15 @@ export default function CampaignsPage({
                 ref={fileInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
-                // Multi-select only actually does anything on TikTok (see
-                // handleFileChosen's carousel-batch branch) — left off for Meta/the
-                // choose-source card so their single-file assumptions can't be
-                // surprised by a multi-file FileList they were never built to expect.
-                multiple={preferredPlatformUi === 'tiktok'}
+                // Live-caught 2026-09-24: this used to be gated on
+                // preferredPlatformUi === 'tiktok', which meant the OS picker only
+                // allowed multi-select if the client had already clicked the "TikTok"
+                // chip BEFORE attaching photos — backwards from how people actually
+                // use this (attach photos first, worry about platform after). Always
+                // multiple now; handleFileChosen's own carousel-batch branch is what
+                // decides what a multi-file pick MEANS (and now auto-selects TikTok
+                // itself, rather than requiring it to already be chosen).
+                multiple
                 style={{ display: 'none' }}
                 onChange={handleFileChosen}
               />
