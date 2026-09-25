@@ -2,9 +2,11 @@
  * Campaign Manager — change who an already-running campaign targets.
  *
  * This is the Campaign Management PRD's "Audience or geography edit" row (§19) and
- * nothing else from that document. Interests, age, gender, placement and locations on
- * a campaign that is already on Meta. Budget, schedule, objective and bid strategy are
- * separate action families and the API refuses them.
+ * nothing else from that document, for a campaign already running on Meta or TikTok
+ * (TikTok gained real support 2026-09-25). On Meta: interests, age, gender, placement
+ * and locations. On TikTok: locations, age and gender only — no interests/placement
+ * equivalent exists there. Budget, schedule, objective and bid strategy are separate
+ * action families on both platforms and the API refuses them.
  *
  * Deliberately NOT in Jane's chat. Editing a live ad is an operation on something that
  * already exists and is already spending, not a conversation about something to build.
@@ -39,6 +41,11 @@ function errorText(e: unknown, fallback: string): string {
 type Props = {
   campaignId: string;
   campaignName: string;
+  /** Which provider this campaign runs on — TikTok gained real live-targeting-edit
+   * support 2026-09-25 (location/gender/age only, no interests/placement, which
+   * have no TikTok equivalent). Defaults to Meta's wording when omitted, so any
+   * existing caller that hasn't been updated to pass this still reads correctly. */
+  platform?: 'meta' | 'tiktok';
   onClose: () => void;
   onSaved?: () => void;
 };
@@ -72,7 +79,8 @@ function asText(field: PlanField): string {
   return field.value === null ? '' : String(field.value);
 }
 
-export default function LiveTargetingEditor({ campaignId, campaignName, onClose, onSaved }: Props) {
+export default function LiveTargetingEditor({ campaignId, campaignName, platform, onClose, onSaved }: Props) {
+  const platformLabel = platform === 'tiktok' ? 'TikTok' : 'Meta';
   const [data, setData] = useState<{
     fields: PlanField[];
     baseline: string;
@@ -98,9 +106,9 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
         warning: live.learning_warning,
       });
     } catch (e) {
-      setLoadError(errorText(e, 'Could not read this campaign from Meta.'));
+      setLoadError(errorText(e, `Could not read this campaign from ${platformLabel}.`));
     }
-  }, [campaignId]);
+  }, [campaignId, platformLabel]);
 
   useEffect(() => {
     void load();
@@ -229,13 +237,15 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
             }}
           >
             <Check size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-            <span>{spoken(savedFields)} updated on Meta — checked and confirmed, not just submitted.</span>
+            <span>
+              {spoken(savedFields)} updated on {platformLabel} — checked and confirmed, not just submitted.
+            </span>
           </p>
         </div>
       )}
 
       {!data && !loadError && (
-        <p style={{ margin: 0, fontSize: 12.5, color: '#666' }}>Reading the campaign from Meta…</p>
+        <p style={{ margin: 0, fontSize: 12.5, color: '#666' }}>Reading the campaign from {platformLabel}…</p>
       )}
 
       {data?.fields.map((field) => (
@@ -393,7 +403,7 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
               opacity: dirty && !saving ? 1 : 0.45,
             }}
           >
-            {saving ? 'Applying on Meta…' : 'Apply to the live campaign'}
+            {saving ? `Applying on ${platformLabel}…` : 'Apply to the live campaign'}
           </button>
           <span style={{ fontSize: 11.5, color: '#888' }}>
             Budget, schedule and objective can&rsquo;t be changed after launch.

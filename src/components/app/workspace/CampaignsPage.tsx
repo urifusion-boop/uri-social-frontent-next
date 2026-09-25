@@ -708,8 +708,9 @@ export default function CampaignsPage({
         id: uid(),
         role: 'jane',
         kind: 'text',
-        text: `${label} it is — ${blurb.replace(/\.$/, '')}.${caveatLine} `
-          + 'So, what are you promoting? Tell me what it is and roughly what you want to spend.',
+        text:
+          `${label} it is — ${blurb.replace(/\.$/, '')}.${caveatLine} ` +
+          'So, what are you promoting? Tell me what it is and roughly what you want to spend.',
       },
     ]);
   };
@@ -1741,12 +1742,7 @@ export default function CampaignsPage({
               {/* The objective picker REPLACES the old goal chips. Keeping both asked
                 the same question twice in two different vocabularies — "Get me more
                 sales" next to "Sales" — and only one of them decided anything. */}
-              {messages.length === 1 && !busy && (
-                <ObjectivePicker
-                  selected={objective}
-                  onPick={pickObjective}
-                />
-              )}
+              {messages.length === 1 && !busy && <ObjectivePicker selected={objective} onPick={pickObjective} />}
               {busy && (
                 <JaneBubble>
                   <TypingDots />
@@ -4522,12 +4518,10 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
     }
   };
 
-  // Only Meta campaigns, and only ones that exist on the provider — the targeting
-  // editor talks to Meta's ad set directly and TikTok has no equivalent adapter yet.
-  // Read defensively: `platform` only exists on branches carrying the TikTok work, and
-  // absent means Meta, so this behaves the same either way.
-  const canEditTargeting =
-    (c as { platform?: string }).platform !== 'tiktok' && !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
+  // TikTok gained real live-targeting-edit support 2026-09-25 (location/gender/
+  // age — see live_edit.py's TikTok-native functions), so this is no longer
+  // Meta-only. Only campaigns that exist on the provider can be edited either way.
+  const canEditTargeting = !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
 
   return (
     <div>
@@ -4805,6 +4799,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
         <LiveTargetingEditor
           campaignId={c.campaign_id}
           campaignName={c.name}
+          platform={c.platform}
           onClose={() => setEditingTargeting(false)}
           onSaved={onChanged}
         />
