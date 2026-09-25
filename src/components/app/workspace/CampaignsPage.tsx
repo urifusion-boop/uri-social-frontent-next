@@ -4805,7 +4805,12 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
         />
       )}
       {keepingRunning && (
-        <KeepRunningPanel campaignId={c.campaign_id} onClose={() => setKeepingRunning(false)} onExtended={onChanged} />
+        <KeepRunningPanel
+          campaignId={c.campaign_id}
+          platform={c.platform}
+          onClose={() => setKeepingRunning(false)}
+          onExtended={onChanged}
+        />
       )}
       {/* Was a native window.confirm() — replaced so the one genuinely consequential
           action here (real money starts spending) gets a dialog that actually looks
