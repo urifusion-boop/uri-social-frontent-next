@@ -14,7 +14,6 @@ export default function PageLayout({ children }: { children: React.ReactNode }) 
     pathname?.startsWith('/dashboard') ||
     pathname?.startsWith('/social-media') ||
     pathname?.startsWith('/settings') ||
-    pathname?.startsWith('/inbox') ||
     pathname === '/login' ||
     pathname === '/verify-email' ||
     pathname === '/forgot-password' ||

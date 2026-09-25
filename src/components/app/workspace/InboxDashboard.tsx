@@ -1,11 +1,14 @@
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 
 /*
- * Unified Social Inbox — desktop + mobile shell.
+ * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
+ * not a standalone route: it renders inside the dashboard's existing
+ * sidebar/mobile-tab-bar shell, the same way every other tab (Campaigns,
+ * Billing, Playbook, ...) does, so it never triggers a separate page load
+ * or an auth re-check. isMobile is passed down from WorkspaceDashboard's
+ * own breakpoint rather than detected locally, for the same reason.
  *
  * Queue filtering, view switching, grouping, the drag-and-drop board (desktop
  * only — HTML5 drag events don't fire on touch), replying, assigning, and
@@ -220,28 +223,6 @@ const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
 ];
 
 const ASSIGNEE_OPTIONS = ['You', 'Ngozi U.', 'Tobi D.'];
-
-// Sidebar nav mirrors WorkspaceDashboard's NAV ids/routes (goTo there resolves
-// to /workspace/?tab=<id>) so these links land on the same tabs the main
-// sidebar would open.
-const SIDEBAR_NAV: { id: string; icon: string; label: string }[] = [
-  { id: 'workspace', icon: 'home', label: 'Workspace' },
-  { id: 'schedule', icon: 'calendar', label: 'Create Content' },
-  { id: 'connections', icon: 'share', label: 'Connected Accounts' },
-  { id: 'performance', icon: 'chart', label: 'Performance' },
-  { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
-  { id: 'playbook', icon: 'book', label: 'Brand Playbook' },
-  { id: 'settings', icon: 'settings', label: 'Settings' },
-  { id: 'billing', icon: 'trending', label: 'Billing' },
-];
-
-const MOBILE_TABS: { id: string; icon: string; label: string; tab?: string }[] = [
-  { id: 'workspace', icon: 'home', label: 'Jane', tab: 'workspace' },
-  { id: 'messages', icon: 'inbox', label: 'Inbox' },
-  { id: 'schedule', icon: 'calendar', label: 'Create', tab: 'schedule' },
-  { id: 'playbook', icon: 'book', label: 'Playbook', tab: 'playbook' },
-  { id: 'more', icon: 'settings', label: 'More', tab: 'settings' },
-];
 
 // ─── Placeholder sample data — stands in for the real Unified Inbox API ────
 const RAW_CONVERSATIONS: Conversation[] = [
@@ -500,10 +481,7 @@ function pillStyle(active: boolean): React.CSSProperties {
   };
 }
 
-export default function InboxDashboard() {
-  const router = useRouter();
-
-  const [isMobile, setIsMobile] = useState(false);
+export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [mobileScreen, setMobileScreen] = useState<'list' | 'thread'>('list');
 
   const [selectedQueue, setSelectedQueue] = useState<'all' | QueueKey>('all');
@@ -529,13 +507,6 @@ export default function InboxDashboard() {
   const [dragOverCol, setDragOverCol] = useState<QueueKey | null>(null);
   const [assignMenuOpen, setAssignMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const ck = () => setIsMobile(window.innerWidth < 768);
-    ck();
-    window.addEventListener('resize', ck);
-    return () => window.removeEventListener('resize', ck);
-  }, []);
 
   // Every conversation with its live overrides folded in — everything below
   // reads from this, never from RAW_CONVERSATIONS directly, so the list, the
@@ -579,10 +550,6 @@ export default function InboxDashboard() {
     setSelectedId(id);
     setView('list');
     if (isMobile) setMobileScreen('thread');
-  }
-
-  function goToWorkspaceTab(tabId: string) {
-    router.push(`/workspace?tab=${tabId}`);
   }
 
   function sendDraft() {
@@ -1251,26 +1218,7 @@ export default function InboxDashboard() {
                 boxSizing: 'border-box',
               }}
             >
-              <button
-                type="button"
-                aria-label="Back to Workspace"
-                onClick={() => router.push('/workspace')}
-                style={{
-                  width: 40,
-                  height: 40,
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#333',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                }}
-              >
-                <I n="chevronLeft" s={22} />
-              </button>
-              <div style={{ flex: 1, fontSize: 17, fontWeight: 800 }}>Inbox</div>
+              <div style={{ flex: 1, fontSize: 17, fontWeight: 800 }}>Customer Messages</div>
               <button
                 type="button"
                 aria-label="Notifications"
@@ -1499,50 +1447,6 @@ export default function InboxDashboard() {
                 </div>
               ))}
             </div>
-
-            <div
-              style={{
-                flex: '0 0 64px',
-                height: 64,
-                background: '#fff',
-                borderTop: '1px solid rgba(0,0,0,.08)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-around',
-                boxSizing: 'border-box',
-              }}
-            >
-              {MOBILE_TABS.map((t) => {
-                const active = t.id === 'messages';
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    aria-label={t.label}
-                    onClick={() => {
-                      if (t.tab) router.push(`/workspace?tab=${t.tab}`);
-                    }}
-                    style={{
-                      position: 'relative',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 3,
-                      border: 'none',
-                      background: 'transparent',
-                      color: active ? '#AD1457' : '#999',
-                      fontSize: 10,
-                      fontWeight: active ? 800 : 600,
-                      fontFamily: FONT,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <I n={t.icon} s={20} />
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
           </>
         ) : (
           <>
@@ -1563,705 +1467,420 @@ export default function InboxDashboard() {
     <div
       style={{
         width: '100%',
-        height: '100vh',
+        height: '100%',
         display: 'flex',
-        flexDirection: 'row',
+        flexDirection: 'column',
+        minWidth: 0,
         fontFamily: FONT,
         background: '#fafafa',
         color: '#1a1a1a',
         overflow: 'hidden',
       }}
     >
-      {/* Sidebar (visually identical to WorkspaceDashboard's, "Customer Messages" active) */}
+      {/* top bar */}
       <div
         style={{
-          width: 224,
-          flexShrink: 0,
-          background: '#1a0a12',
+          height: 60,
+          flex: '0 0 60px',
+          background: '#fff',
+          borderBottom: '1px solid rgba(0,0,0,.08)',
           display: 'flex',
-          flexDirection: 'column',
-          padding: '18px 0',
-          height: '100vh',
+          alignItems: 'center',
+          padding: '0 24px',
+          gap: 16,
+          boxSizing: 'border-box',
         }}
       >
-        <Link
-          href="/"
+        <div
+          style={{ fontSize: 13, color: '#888', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+        >
+          <span>Workspace</span>
+          <span>›</span>
+          <span style={{ color: '#1a1a1a', fontWeight: 700 }}>Customer Messages</span>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            background: '#f4f4f5',
+            borderRadius: 8,
+            padding: '8px 12px',
+            gap: 8,
+            maxWidth: 420,
+          }}
+        >
+          <I n="search" s={16} c="#999" />
+          <input
+            aria-label="Search conversations, customers, or keywords"
+            placeholder="Search conversations, customers, or keywords"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              outline: 'none',
+              fontSize: 13,
+              flex: 1,
+              fontFamily: FONT,
+              color: '#333',
+            }}
+          />
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 9,
-            padding: '0 18px',
-            marginBottom: 26,
-            textDecoration: 'none',
+            gap: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#2E7D32',
+            background: 'rgba(46,125,50,.08)',
+            padding: '6px 10px',
+            borderRadius: 20,
+            whiteSpace: 'nowrap',
           }}
         >
-          <img
-            src="/images/urilogo-nobg.png"
-            alt="URI Social"
-            style={{ width: 32, height: 32, objectFit: 'contain' }}
-          />
-          <span
-            style={{
-              color: '#fff',
-              fontWeight: 300,
-              fontSize: 15,
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontStyle: 'italic',
-              letterSpacing: '0.5px',
-            }}
-          >
-            social
-          </span>
-        </Link>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2E7D32' }} />
+          All channels connected
+        </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <button
-            type="button"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '9px 18px',
-              background: 'rgba(194,24,91,.1)',
-              border: 'none',
-              borderLeft: '2.5px solid #E91E63',
-              fontFamily: FONT,
-              fontSize: 12.5,
-              color: '#fce4ec',
-              fontWeight: 600,
-              cursor: 'default',
-              textAlign: 'left',
-            }}
-          >
-            <I n="inbox" s={15} c="#E91E63" />
-            <span style={{ flex: 1 }}>Customer Messages</span>
-          </button>
+        <button
+          type="button"
+          aria-label="Notifications"
+          style={{
+            width: 36,
+            height: 36,
+            border: 'none',
+            background: 'transparent',
+            borderRadius: 8,
+            color: '#555',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <I n="bell" s={18} />
+        </button>
+      </div>
 
-          {SIDEBAR_NAV.map((n) => (
-            <button
-              key={n.id}
-              type="button"
-              onClick={() => goToWorkspaceTab(n.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 18px',
-                background: 'transparent',
-                border: 'none',
-                borderLeft: '2.5px solid transparent',
-                fontFamily: FONT,
-                fontSize: 12.5,
-                color: 'rgba(255,255,255,.35)',
-                fontWeight: 400,
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all .12s',
-              }}
-            >
-              <I n={n.icon} s={15} c="rgba(255,255,255,.22)" />
-              <span style={{ flex: 1 }}>{n.label}</span>
+      {/* toolbar: view switch + group by */}
+      <div
+        style={{
+          height: 48,
+          flex: '0 0 48px',
+          background: '#fff',
+          borderBottom: '1px solid rgba(0,0,0,.08)',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 24px',
+          gap: 20,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: '#f4f4f5',
+            borderRadius: 9,
+            padding: 3,
+            gap: 2,
+          }}
+        >
+          {(['list', 'board'] as const).map((v) => (
+            <button key={v} type="button" onClick={() => setView(v)} style={pillStyle(view === v)}>
+              {v === 'list' ? 'List' : 'Board'}
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Inbox shell */}
-      <div style={{ flex: 1, height: '100vh', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* top bar */}
-        <div
-          style={{
-            height: 60,
-            flex: '0 0 60px',
-            background: '#fff',
-            borderBottom: '1px solid rgba(0,0,0,.08)',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 24px',
-            gap: 16,
-            boxSizing: 'border-box',
-          }}
-        >
-          <div
-            style={{ fontSize: 13, color: '#888', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
-          >
-            <span>Workspace</span>
-            <span>›</span>
-            <span style={{ color: '#1a1a1a', fontWeight: 700 }}>Customer Messages</span>
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              background: '#f4f4f5',
-              borderRadius: 8,
-              padding: '8px 12px',
-              gap: 8,
-              maxWidth: 420,
-            }}
-          >
-            <I n="search" s={16} c="#999" />
-            <input
-              aria-label="Search conversations, customers, or keywords"
-              placeholder="Search conversations, customers, or keywords"
-              style={{
-                border: 'none',
-                background: 'transparent',
-                outline: 'none',
-                fontSize: 13,
-                flex: 1,
-                fontFamily: FONT,
-                color: '#333',
-              }}
-            />
-          </div>
-
-          <div style={{ flex: 1 }} />
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12,
-              fontWeight: 600,
-              color: '#2E7D32',
-              background: 'rgba(46,125,50,.08)',
-              padding: '6px 10px',
-              borderRadius: 20,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2E7D32' }} />
-            All channels connected
-          </div>
-
-          <button
-            type="button"
-            aria-label="Notifications"
-            style={{
-              width: 36,
-              height: 36,
-              border: 'none',
-              background: 'transparent',
-              borderRadius: 8,
-              color: '#555',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <I n="bell" s={18} />
-          </button>
-        </div>
-
-        {/* toolbar: view switch + group by */}
-        <div
-          style={{
-            height: 48,
-            flex: '0 0 48px',
-            background: '#fff',
-            borderBottom: '1px solid rgba(0,0,0,.08)',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 24px',
-            gap: 20,
-            boxSizing: 'border-box',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: '#f4f4f5',
-              borderRadius: 9,
-              padding: 3,
-              gap: 2,
-            }}
-          >
-            {(['list', 'board'] as const).map((v) => (
-              <button key={v} type="button" onClick={() => setView(v)} style={pillStyle(view === v)}>
-                {v === 'list' ? 'List' : 'Board'}
-              </button>
-            ))}
-          </div>
-
-          {view === 'list' ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#999',
-                  textTransform: 'uppercase',
-                  letterSpacing: '.04em',
-                }}
-              >
-                Group by
-              </span>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: '#f4f4f5',
-                  borderRadius: 9,
-                  padding: 3,
-                  gap: 2,
-                }}
-              >
-                {(
-                  [
-                    ['time', 'Time'],
-                    ['platform', 'Platform'],
-                    ['customer', 'Customer'],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button key={id} type="button" onClick={() => setGroupBy(id)} style={pillStyle(groupBy === id)}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 12, color: '#999' }}>Drag a card between columns to re-triage it</div>
-          )}
-        </div>
 
         {view === 'list' ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0 }}>
-            {/* queue nav */}
-            <div
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
               style={{
-                width: 220,
-                flex: '0 0 220px',
-                background: '#fff',
-                borderRight: '1px solid rgba(0,0,0,.08)',
-                padding: '20px 12px',
-                boxSizing: 'border-box',
-                overflowY: 'auto',
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: '.04em',
               }}
             >
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: '.06em',
-                  textTransform: 'uppercase',
-                  color: '#999',
-                  padding: '0 8px 10px',
-                }}
-              >
-                Queues
-              </div>
-              {queuePills.map((q) => (
-                <button
-                  key={q.id}
-                  type="button"
-                  onClick={() => setSelectedQueue(q.id)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '9px 10px',
-                    marginBottom: 2,
-                    border: 'none',
-                    borderLeft: q.active ? '3px solid #E91E63' : '3px solid transparent',
-                    background: q.active ? 'rgba(194,24,91,.1)' : 'transparent',
-                    color: q.active ? '#AD1457' : '#444',
-                    fontWeight: q.active ? 700 : 500,
-                    fontSize: 13,
-                    borderRadius: '0 8px 8px 0',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontFamily: FONT,
-                  }}
-                >
-                  <span>{q.label}</span>
-                  <span style={{ fontSize: 11, color: '#999', fontWeight: 700 }}>{q.count}</span>
+              Group by
+            </span>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: '#f4f4f5',
+                borderRadius: 9,
+                padding: 3,
+                gap: 2,
+              }}
+            >
+              {(
+                [
+                  ['time', 'Time'],
+                  ['platform', 'Platform'],
+                  ['customer', 'Customer'],
+                ] as const
+              ).map(([id, label]) => (
+                <button key={id} type="button" onClick={() => setGroupBy(id)} style={pillStyle(groupBy === id)}>
+                  {label}
                 </button>
               ))}
-
-              <div style={{ height: 1, background: 'rgba(0,0,0,.08)', margin: '16px 8px' }} />
-
-              <button
-                type="button"
-                title="Coming soon"
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '9px 10px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#aaa',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  borderRadius: 8,
-                  cursor: 'default',
-                  textAlign: 'left',
-                  fontFamily: FONT,
-                }}
-              >
-                <I n="share" s={16} c="#bbb" />
-                Connections
-              </button>
-              <button
-                type="button"
-                title="Coming soon"
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '9px 10px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#aaa',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  borderRadius: 8,
-                  cursor: 'default',
-                  textAlign: 'left',
-                  fontFamily: FONT,
-                }}
-              >
-                <I n="chart" s={16} c="#bbb" />
-                Insights
-              </button>
-            </div>
-
-            {/* conversation list */}
-            <div
-              style={{
-                width: 380,
-                flex: '0 0 380px',
-                background: '#fafafa',
-                borderRight: '1px solid rgba(0,0,0,.08)',
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-              }}
-            >
-              <div
-                style={{
-                  padding: '14px 16px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>
-                  {filteredConversations.length} conversations
-                </div>
-                <button
-                  type="button"
-                  aria-label="Filter conversations"
-                  title="Coming soon"
-                  style={{
-                    width: 28,
-                    height: 28,
-                    border: '1px solid rgba(0,0,0,.1)',
-                    background: '#fff',
-                    borderRadius: 6,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#666',
-                    cursor: 'default',
-                  }}
-                >
-                  <I n="filter" s={14} />
-                </button>
-              </div>
-              <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
-                {groups.map((grp) => (
-                  <div key={grp.key}>
-                    {grp.label && (
-                      <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 8px 4px' }}>
-                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: grp.dotColor }} />
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 800,
-                              color: '#666',
-                              textTransform: 'uppercase',
-                              letterSpacing: '.04em',
-                            }}
-                          >
-                            {grp.label}
-                          </span>
-                          <span style={{ fontSize: 10.5, color: '#aaa' }}>({grp.items.length})</span>
-                        </div>
-                        {grp.caption && (
-                          <div style={{ fontSize: 10.5, color: '#AD1457', padding: '0 8px 6px' }}>{grp.caption}</div>
-                        )}
-                      </>
-                    )}
-                    {grp.items.map((item) => {
-                      const ch = CHANNEL_META[item.channel];
-                      const st = STATUS_META[item.status];
-                      const selected = selectedId === item.id;
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => openConversation(item.id)}
-                          style={{
-                            width: '100%',
-                            textAlign: 'left',
-                            display: 'flex',
-                            gap: 10,
-                            padding: 12,
-                            marginBottom: 6,
-                            border: 'none',
-                            borderLeft: selected ? '3px solid #E91E63' : '3px solid transparent',
-                            background: selected ? 'rgba(194,24,91,.06)' : '#fff',
-                            borderRadius: '0 10px 10px 0',
-                            cursor: 'pointer',
-                            fontFamily: FONT,
-                          }}
-                        >
-                          <div style={{ position: 'relative', flex: '0 0 auto' }}>
-                            <div
-                              style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: '50%',
-                                background: item.avatarColor,
-                                color: '#fff',
-                                fontSize: 12,
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              {item.initials}
-                            </div>
-                            <div
-                              style={{
-                                position: 'absolute',
-                                bottom: -2,
-                                right: -2,
-                                width: 16,
-                                height: 16,
-                                borderRadius: '50%',
-                                background: ch.color,
-                                border: '2px solid #fafafa',
-                                color: '#fff',
-                                fontSize: 8,
-                                fontWeight: 800,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              {ch.letter}
-                            </div>
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: 13,
-                                  fontWeight: 700,
-                                  color: '#1a1a1a',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                }}
-                              >
-                                {item.name}
-                              </span>
-                              <span style={{ fontSize: 11, color: '#999', flex: '0 0 auto' }}>{item.time}</span>
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 12,
-                                color: '#777',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                marginTop: 2,
-                              }}
-                            >
-                              {item.excerpt}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  padding: '2px 7px',
-                                  borderRadius: 10,
-                                  background: st.bg,
-                                  color: st.fg,
-                                }}
-                              >
-                                {st.label}
-                              </span>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* thread pane */}
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-                minWidth: 0,
-                background: '#fff',
-              }}
-            >
-              {threadHeader(false)}
-              {sourceStrip}
-              {threadBody}
-              {threadComposer}
             </div>
           </div>
         ) : (
-          // ── BOARD VIEW (desktop only) ──
+          <div style={{ fontSize: 12, color: '#999' }}>Drag a card between columns to re-triage it</div>
+        )}
+      </div>
+
+      {view === 'list' ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0 }}>
+          {/* queue nav */}
           <div
             style={{
-              flex: 1,
-              overflowX: 'auto',
-              overflowY: 'hidden',
-              padding: '16px 20px',
-              display: 'flex',
-              gap: 14,
-              minHeight: 0,
+              width: 220,
+              flex: '0 0 220px',
+              background: '#fff',
+              borderRight: '1px solid rgba(0,0,0,.08)',
+              padding: '20px 12px',
               boxSizing: 'border-box',
+              overflowY: 'auto',
             }}
           >
-            {BOARD_COLUMNS.map((col) => {
-              const isOver = dragOverCol === col.id;
-              const items = conversations.filter((c) => currentQueueOf(c) === col.id);
-              return (
-                <div
-                  key={col.id}
-                  data-queue-column={col.id}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDragEnter={() => setDragOverCol(col.id)}
-                  onDragLeave={() => setDragOverCol((prev) => (prev === col.id ? null : prev))}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    // dataTransfer, not the draggingId state closure, is the source of
-                    // truth here — a dragstart's setState may not have re-rendered this
-                    // handler's closure yet by the time drop fires on a fast drag.
-                    const id = e.dataTransfer.getData('text/plain') || draggingId;
-                    moveCard(id, col.id);
-                  }}
-                  style={{
-                    flex: '0 0 250px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    background: isOver ? 'rgba(194,24,91,.06)' : '#fafafa',
-                    border: isOver ? '2px dashed #E91E63' : '1px solid rgba(0,0,0,.08)',
-                    borderRadius: 12,
-                    minHeight: 0,
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <div
-                    style={{
-                      padding: '12px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      flex: '0 0 auto',
-                    }}
-                  >
-                    <span style={{ fontSize: 12.5, fontWeight: 800, color: '#333' }}>{col.label}</span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: '#999',
-                        background: 'rgba(0,0,0,.05)',
-                        padding: '2px 8px',
-                        borderRadius: 10,
-                      }}
-                    >
-                      {items.length}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      flex: 1,
-                      overflowY: 'auto',
-                      padding: '0 10px 10px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                      minHeight: 40,
-                    }}
-                  >
-                    {items.map((c) => {
-                      const ch = CHANNEL_META[c.channel];
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          draggable
-                          data-card-id={c.id}
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', c.id);
-                            e.dataTransfer.effectAllowed = 'move';
-                            setDraggingId(c.id);
-                          }}
-                          onDragEnd={() => setDraggingId(null)}
-                          onClick={() => openConversation(c.id)}
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: '.06em',
+                textTransform: 'uppercase',
+                color: '#999',
+                padding: '0 8px 10px',
+              }}
+            >
+              Queues
+            </div>
+            {queuePills.map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => setSelectedQueue(q.id)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 10px',
+                  marginBottom: 2,
+                  border: 'none',
+                  borderLeft: q.active ? '3px solid #E91E63' : '3px solid transparent',
+                  background: q.active ? 'rgba(194,24,91,.1)' : 'transparent',
+                  color: q.active ? '#AD1457' : '#444',
+                  fontWeight: q.active ? 700 : 500,
+                  fontSize: 13,
+                  borderRadius: '0 8px 8px 0',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: FONT,
+                }}
+              >
+                <span>{q.label}</span>
+                <span style={{ fontSize: 11, color: '#999', fontWeight: 700 }}>{q.count}</span>
+              </button>
+            ))}
+
+            <div style={{ height: 1, background: 'rgba(0,0,0,.08)', margin: '16px 8px' }} />
+
+            <button
+              type="button"
+              title="Coming soon"
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 10px',
+                border: 'none',
+                background: 'transparent',
+                color: '#aaa',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 8,
+                cursor: 'default',
+                textAlign: 'left',
+                fontFamily: FONT,
+              }}
+            >
+              <I n="share" s={16} c="#bbb" />
+              Connections
+            </button>
+            <button
+              type="button"
+              title="Coming soon"
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 10px',
+                border: 'none',
+                background: 'transparent',
+                color: '#aaa',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 8,
+                cursor: 'default',
+                textAlign: 'left',
+                fontFamily: FONT,
+              }}
+            >
+              <I n="chart" s={16} c="#bbb" />
+              Insights
+            </button>
+          </div>
+
+          {/* conversation list */}
+          <div
+            style={{
+              width: 380,
+              flex: '0 0 380px',
+              background: '#fafafa',
+              borderRight: '1px solid rgba(0,0,0,.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+            }}
+          >
+            <div
+              style={{
+                padding: '14px 16px 10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>
+                {filteredConversations.length} conversations
+              </div>
+              <button
+                type="button"
+                aria-label="Filter conversations"
+                title="Coming soon"
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: '1px solid rgba(0,0,0,.1)',
+                  background: '#fff',
+                  borderRadius: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#666',
+                  cursor: 'default',
+                }}
+              >
+                <I n="filter" s={14} />
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
+              {groups.map((grp) => (
+                <div key={grp.key}>
+                  {grp.label && (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 8px 4px' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: grp.dotColor }} />
+                        <span
                           style={{
-                            width: '100%',
-                            textAlign: 'left',
-                            cursor: 'grab',
-                            border: '1px solid rgba(0,0,0,.08)',
-                            background: '#fff',
-                            borderRadius: 10,
-                            padding: 10,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 6,
-                            fontFamily: FONT,
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: '#666',
+                            textTransform: 'uppercase',
+                            letterSpacing: '.04em',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div
-                              style={{
-                                width: 26,
-                                height: 26,
-                                borderRadius: '50%',
-                                background: c.avatarColor,
-                                color: '#fff',
-                                fontSize: 10,
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flex: '0 0 auto',
-                              }}
-                            >
-                              {c.initials}
-                            </div>
+                          {grp.label}
+                        </span>
+                        <span style={{ fontSize: 10.5, color: '#aaa' }}>({grp.items.length})</span>
+                      </div>
+                      {grp.caption && (
+                        <div style={{ fontSize: 10.5, color: '#AD1457', padding: '0 8px 6px' }}>{grp.caption}</div>
+                      )}
+                    </>
+                  )}
+                  {grp.items.map((item) => {
+                    const ch = CHANNEL_META[item.channel];
+                    const st = STATUS_META[item.status];
+                    const selected = selectedId === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => openConversation(item.id)}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          display: 'flex',
+                          gap: 10,
+                          padding: 12,
+                          marginBottom: 6,
+                          border: 'none',
+                          borderLeft: selected ? '3px solid #E91E63' : '3px solid transparent',
+                          background: selected ? 'rgba(194,24,91,.06)' : '#fff',
+                          borderRadius: '0 10px 10px 0',
+                          cursor: 'pointer',
+                          fontFamily: FONT,
+                        }}
+                      >
+                        <div style={{ position: 'relative', flex: '0 0 auto' }}>
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: '50%',
+                              background: item.avatarColor,
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {item.initials}
+                          </div>
+                          <div
+                            style={{
+                              position: 'absolute',
+                              bottom: -2,
+                              right: -2,
+                              width: 16,
+                              height: 16,
+                              borderRadius: '50%',
+                              background: ch.color,
+                              border: '2px solid #fafafa',
+                              color: '#fff',
+                              fontSize: 8,
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {ch.letter}
+                          </div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
+                          >
                             <span
                               style={{
-                                fontSize: 12.5,
+                                fontSize: 13,
                                 fontWeight: 700,
                                 color: '#1a1a1a',
                                 whiteSpace: 'nowrap',
@@ -2269,39 +1888,228 @@ export default function InboxDashboard() {
                                 textOverflow: 'ellipsis',
                               }}
                             >
-                              {c.name}
+                              {item.name}
                             </span>
+                            <span style={{ fontSize: 11, color: '#999', flex: '0 0 auto' }}>{item.time}</span>
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: '#777',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              marginTop: 2,
+                            }}
+                          >
+                            {item.excerpt}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
                             <span
                               style={{
-                                width: 14,
-                                height: 14,
-                                borderRadius: '50%',
-                                background: ch.color,
-                                color: '#fff',
-                                fontSize: 7,
-                                fontWeight: 800,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flex: '0 0 auto',
-                                marginLeft: 'auto',
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: '2px 7px',
+                                borderRadius: 10,
+                                background: st.bg,
+                                color: st.fg,
                               }}
                             >
-                              {ch.letter}
+                              {st.label}
                             </span>
                           </div>
-                          <div style={{ fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>{c.excerpt}</div>
-                          <div style={{ fontSize: 10, color: '#aaa' }}>{c.time} ago</div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* thread pane */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              minWidth: 0,
+              background: '#fff',
+            }}
+          >
+            {threadHeader(false)}
+            {sourceStrip}
+            {threadBody}
+            {threadComposer}
+          </div>
+        </div>
+      ) : (
+        // ── BOARD VIEW (desktop only) ──
+        <div
+          style={{
+            flex: 1,
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            padding: '16px 20px',
+            display: 'flex',
+            gap: 14,
+            minHeight: 0,
+            boxSizing: 'border-box',
+          }}
+        >
+          {BOARD_COLUMNS.map((col) => {
+            const isOver = dragOverCol === col.id;
+            const items = conversations.filter((c) => currentQueueOf(c) === col.id);
+            return (
+              <div
+                key={col.id}
+                data-queue-column={col.id}
+                onDragOver={(e) => e.preventDefault()}
+                onDragEnter={() => setDragOverCol(col.id)}
+                onDragLeave={() => setDragOverCol((prev) => (prev === col.id ? null : prev))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  // dataTransfer, not the draggingId state closure, is the source of
+                  // truth here — a dragstart's setState may not have re-rendered this
+                  // handler's closure yet by the time drop fires on a fast drag.
+                  const id = e.dataTransfer.getData('text/plain') || draggingId;
+                  moveCard(id, col.id);
+                }}
+                style={{
+                  flex: '0 0 250px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  background: isOver ? 'rgba(194,24,91,.06)' : '#fafafa',
+                  border: isOver ? '2px dashed #E91E63' : '1px solid rgba(0,0,0,.08)',
+                  borderRadius: 12,
+                  minHeight: 0,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flex: '0 0 auto',
+                  }}
+                >
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: '#333' }}>{col.label}</span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#999',
+                      background: 'rgba(0,0,0,.05)',
+                      padding: '2px 8px',
+                      borderRadius: 10,
+                    }}
+                  >
+                    {items.length}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '0 10px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    minHeight: 40,
+                  }}
+                >
+                  {items.map((c) => {
+                    const ch = CHANNEL_META[c.channel];
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        draggable
+                        data-card-id={c.id}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', c.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggingId(c.id);
+                        }}
+                        onDragEnd={() => setDraggingId(null)}
+                        onClick={() => openConversation(c.id)}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          cursor: 'grab',
+                          border: '1px solid rgba(0,0,0,.08)',
+                          background: '#fff',
+                          borderRadius: 10,
+                          padding: 10,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                          fontFamily: FONT,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div
+                            style={{
+                              width: 26,
+                              height: 26,
+                              borderRadius: '50%',
+                              background: c.avatarColor,
+                              color: '#fff',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flex: '0 0 auto',
+                            }}
+                          >
+                            {c.initials}
+                          </div>
+                          <span
+                            style={{
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              color: '#1a1a1a',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {c.name}
+                          </span>
+                          <span
+                            style={{
+                              width: 14,
+                              height: 14,
+                              borderRadius: '50%',
+                              background: ch.color,
+                              color: '#fff',
+                              fontSize: 7,
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flex: '0 0 auto',
+                              marginLeft: 'auto',
+                            }}
+                          >
+                            {ch.letter}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>{c.excerpt}</div>
+                        <div style={{ fontSize: 10, color: '#aaa' }}>{c.time} ago</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

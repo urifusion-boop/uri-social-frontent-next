@@ -76,6 +76,7 @@ import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
+import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
@@ -4541,63 +4542,6 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
 };
 
 /* ── Subpages ────────────────────────────────────────────────────────────── */
-const MessagesPage = ({ onJane }: { onJane: () => void }) => (
-  <SubPage
-    title="Customer Messages"
-    icon="inbox"
-    desc="DMs, comments, and mentions across all platforms"
-    onJane={onJane}
-  >
-    {(
-      [
-        { u: '@coffeelover_ng', p: 'Instagram', t: 'When will the new content launch?', tm: '12m' },
-        { u: '@jakethebaker', p: 'X', t: 'Your latest post was fire! 🔥', tm: '1h' },
-        { u: 'Adaeze Okonkwo', p: 'LinkedIn', t: 'Would love to discuss a partnership.', tm: '3h' },
-        { u: '@morning_fan', p: 'Instagram', t: 'Do you ship to Abuja?', tm: '5h' },
-      ] as { u: string; p: string; t: string; tm: string }[]
-    ).map((m, i) => (
-      <div
-        key={i}
-        style={{
-          display: 'flex',
-          gap: 10,
-          padding: '13px 15px',
-          borderRadius: 11,
-          border: '1px solid #edecea',
-          background: '#fff',
-          marginBottom: 7,
-          cursor: 'pointer',
-        }}
-      >
-        <div
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: '50%',
-            background: '#f5f4f0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#888' }}>
-            {(m.u[0] === '@' ? m.u[1] : m.u[0]).toUpperCase()}
-          </span>
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700 }}>{m.u}</span>
-            <span style={{ fontSize: 11, color: '#bbb' }}>via {m.p}</span>
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#bbb' }}>{m.tm}</span>
-          </div>
-          <p style={{ fontSize: 12.5, color: '#555', margin: 0 }}>{m.t}</p>
-        </div>
-      </div>
-    ))}
-  </SubPage>
-);
-
 const PLATFORM_COLORS: Record<string, string> = {
   instagram: '#E1306C',
   facebook: '#1877F2',
@@ -9592,7 +9536,6 @@ const NAV = [
     icon: 'inbox',
     label: 'Customer Messages',
     tooltip: 'Reply to DMs and comments across Instagram, Facebook, WhatsApp and TikTok — all in one inbox',
-    href: '/inbox',
   },
   {
     id: 'schedule',
@@ -10171,7 +10114,7 @@ export default function WorkspaceDashboard() {
     .toUpperCase();
 
   const PAGES: Record<string, ReactNode> = {
-    messages: <MessagesPage onJane={goWorkspace} />,
+    messages: <InboxDashboard isMobile={isMobile} />,
     schedule: (
       <ContentManagerPage
         onJane={goWorkspace}
@@ -10319,13 +10262,7 @@ export default function WorkspaceDashboard() {
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
                     <button
                       id={`tnav-${n.id}`}
-                      onClick={() => {
-                        if ('href' in n && n.href) {
-                          router.push(n.href);
-                        } else {
-                          goTo(n.id);
-                        }
-                      }}
+                      onClick={() => goTo(n.id)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
