@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, MapPin, Pencil, RotateCw } from 'lucide-react';
+import { CalendarPlus, Check, MapPin, Pencil, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AdFormat,
@@ -22,6 +22,8 @@ import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/works
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
+import KeepRunningPanel from '@/src/components/app/workspace/KeepRunningPanel';
+import ObjectivePicker from '@/src/components/app/workspace/ObjectivePicker';
 import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -170,13 +172,6 @@ const makeGreeting = (): ChatMsg => ({ id: uid(), role: 'jane', kind: 'text', te
 // two spots where Jane's own conversation flow always lands: picking a starting
 // goal, and answering the budget/customer-count question nl.py always asks when
 // budget_ngn is missing (the only thing that ever triggers stage === 'need_more').
-const GOAL_STARTER_CHIPS = [
-  'Get me more WhatsApp messages',
-  'Get me more bookings',
-  'Get me more sales',
-  'Get me more followers',
-];
-
 const BUDGET_REPLY_CHIPS = ['₦5,000 budget', '₦10,000 budget', '₦20,000 budget', '20 customers'];
 
 // Objective-first flow: nl.py now asks WHAT's being promoted (offer_type) right after
@@ -251,6 +246,12 @@ export default function CampaignsPage({
     messagesRef.current = messages;
   }, [messages]);
   const [input, setInput] = useState('');
+  // The client's Meta campaign objective. Empty until they pick, and Jane then falls
+  // back to the one her goal implies — the behaviour before the picker existed.
+  const [objective, setObjective] = useState('');
+  // A ref too: the objective must ride on EVERY planFromMessage call, and the
+  // follow-up ones fire from closures that would otherwise capture a stale value.
+  const objectiveRef = useRef('');
   const [busy, setBusy] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loadingList, setLoadingList] = useState(false);
@@ -478,6 +479,10 @@ export default function CampaignsPage({
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
     ownAudienceRef.current = null;
+    // A fresh conversation starts with NO objective chosen. Carrying the
+    // last one over launches a campaign against a goal nobody picked for it.
+    setObjective('');
+    objectiveRef.current = '';
     setMessages([makeGreeting()]);
     let rebuiltBrief = '';
     try {
@@ -523,6 +528,10 @@ export default function CampaignsPage({
     creativeChoiceRef.current = null;
     chosenVariantRef.current = null;
     ownAudienceRef.current = null;
+    // A fresh conversation starts with NO objective chosen. Carrying the
+    // last one over launches a campaign against a goal nobody picked for it.
+    setObjective('');
+    objectiveRef.current = '';
     setMessages([makeGreeting()]);
     try {
       const t = await CampaignService.createThread();
@@ -544,6 +553,10 @@ export default function CampaignsPage({
       setBriefSoFar('');
       chosenVariantRef.current = null;
       ownAudienceRef.current = null;
+      // A fresh conversation starts with NO objective chosen. Carrying the
+      // last one over launches a campaign against a goal nobody picked for it.
+      setObjective('');
+      objectiveRef.current = '';
       setMessages([makeGreeting()]);
       await send(seed_message);
     } catch (e) {
@@ -565,6 +578,10 @@ export default function CampaignsPage({
         creativeChoiceRef.current = null;
         chosenVariantRef.current = null;
         ownAudienceRef.current = null;
+        // A fresh conversation starts with NO objective chosen. Carrying the
+        // last one over launches a campaign against a goal nobody picked for it.
+        setObjective('');
+        objectiveRef.current = '';
         setMessages([makeGreeting()]);
       }
     } catch (e) {
@@ -629,6 +646,31 @@ export default function CampaignsPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** Picking an objective has to MOVE THE CONVERSATION ON.
+   *
+   * It used to only tint a card: the client chose, nothing happened, and the picker sat
+   * there looking broken. The choice is an answer to Jane's question, so it reads back
+   * as one — their pick as a message, Jane acknowledging it and asking the next thing.
+   *
+   * No API call: Jane cannot plan anything until she knows WHAT is being promoted, and
+   * the objective rides along on that request when it comes. */
+  const pickObjective = (value: string, label: string, blurb: string) => {
+    setObjective(value);
+    objectiveRef.current = value;
+    setMessages((m) => [
+      ...m,
+      { id: uid(), role: 'user', text: label },
+      {
+        id: uid(),
+        role: 'jane',
+        kind: 'text',
+        text:
+          `${label} it is — ${blurb.replace(/\.$/, '')}. So, what are you promoting? ` +
+          'Tell me what it is and roughly what you want to spend.',
+      },
+    ]);
+  };
+
   const send = async (override?: string) => {
     const text = (override ?? input).trim();
     if (!text || busy) return;
@@ -646,6 +688,7 @@ export default function CampaignsPage({
     saveMsg(userMsg);
     try {
       const result = await CampaignService.planFromMessage({
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: combinedMessage,
         thread_id: threadId,
         // Keep the already-chosen audience attached to every follow-up, so typing a
@@ -713,6 +756,7 @@ export default function CampaignsPage({
     try {
       const attachedMedia = media;
       const result = await CampaignService.planFromMessage({
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: briefSoFar || clean,
         whatsapp_number: clean,
         thread_id: threadId,
@@ -761,6 +805,7 @@ export default function CampaignsPage({
       // never reached the launch at all. Live-reported.
       await CampaignService.setWhatsapp(clean);
       const result = await CampaignService.planFromMessage({
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
@@ -805,6 +850,7 @@ export default function CampaignsPage({
       const variants = pendingVariants ? pendingVariants.variants : [null];
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
+          ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
           message: brief,
           thread_id: activeThreadRef.current ?? undefined,
           ...(variant ? { selected_plan_variant: variant, variant_group_id: pendingVariants!.variantGroupId } : {}),
@@ -927,6 +973,7 @@ export default function CampaignsPage({
     setBusy(true);
     try {
       const result = await CampaignService.planFromMessage({
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         creative_source: 'ask',
@@ -981,6 +1028,7 @@ export default function CampaignsPage({
       // to signal "a choice was made" and skip regeneration) — continueWithSource
       // below still builds each pending variant with its own correct data.
       const result = await CampaignService.planFromMessage({
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         creative_source: 'ask',
@@ -1016,6 +1064,7 @@ export default function CampaignsPage({
     setBusy(true);
     try {
       const result = await CampaignService.planFromMessage({
+        ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         creative_source: 'ask',
@@ -1413,14 +1462,10 @@ export default function CampaignsPage({
                   )}
                 </div>
               ))}
-              {/* Quick-start goal chips — only before the conversation gets going, so a
-                new user doesn't have to think of a phrasing from scratch. */}
-              {messages.length === 1 && !busy && (
-                <QuickReplyChips
-                  chips={GOAL_STARTER_CHIPS}
-                  onPick={(text) => setInput((prev) => (prev ? prev : text))}
-                />
-              )}
+              {/* The objective picker REPLACES the old goal chips. Keeping both asked
+                the same question twice in two different vocabularies — "Get me more
+                sales" next to "Sales" — and only one of them decided anything. */}
+              {messages.length === 1 && !busy && <ObjectivePicker selected={objective} onPick={pickObjective} />}
               {busy && (
                 <JaneBubble>
                   <TypingDots />
@@ -2148,8 +2193,8 @@ function CampaignReview({ summary, edited }: { summary: CampaignSummary; edited?
            contradictory answers to "what is about to launch". */
         <div style={{ background: '#fff8ec', borderBottom: '1px solid #f0e0c0', padding: '7px 12px' }}>
           <p style={{ margin: 0, fontSize: 11.5, color: '#8a5a00' }}>
-            You&rsquo;ve changed this plan. Jane&rsquo;s reasoning below was her original
-            proposal — the ad will launch with your saved values, shown underneath.
+            You&rsquo;ve changed this plan. Jane&rsquo;s reasoning below was her original proposal — the ad will launch
+            with your saved values, shown underneath.
           </p>
         </div>
       )}
@@ -3402,7 +3447,9 @@ function ResultCard({
               💬 Leads message <strong>+{result.whatsapp_number}</strong> on WhatsApp
             </p>
           )}
-          {result.summary && <CampaignReview summary={result.summary} edited={result.plan_edited && result.summary_stale} />}
+          {result.summary && (
+            <CampaignReview summary={result.summary} edited={result.plan_edited && result.summary_stale} />
+          )}
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
               {/* One number: what actually leaves the wallet, which IS the budget the
@@ -3456,21 +3503,20 @@ function ResultCard({
                   fontWeight: 700,
                   fontSize: 13,
                   cursor: launching || unsavedEdits ? 'default' : 'pointer',
-                  background:
-                    launching || unsavedEdits ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                  background: launching || unsavedEdits ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
                   color: launching || unsavedEdits ? '#999' : '#fff',
                 }}
               >
-                {launching
-                  ? 'Launching…'
-                  : unsavedEdits
-                    ? 'Save your changes first'
-                    : (
-                        <>
-                          <Check size={14} strokeWidth={2.5} />
-                          <span>Looks good — launch it</span>
-                        </>
-                      )}
+                {launching ? (
+                  'Launching…'
+                ) : unsavedEdits ? (
+                  'Save your changes first'
+                ) : (
+                  <>
+                    <Check size={14} strokeWidth={2.5} />
+                    <span>Looks good — launch it</span>
+                  </>
+                )}
               </button>
               {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
               {fixingWhatsapp && (
@@ -3989,6 +4035,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   // Campaign Management PRD §19 "Audience or geography edit" — the only post-launch
   // change Uri can make itself. Everything else there is still Ads Manager's job.
   const [editingTargeting, setEditingTargeting] = useState(false);
+  // Users top up and keep a working ad running rather than starting over. Extending
+  // preserves everything Meta has learned; a replacement campaign does not.
+  const [keepingRunning, setKeepingRunning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const displayStatus = c.metrics?.delivery || c.status;
@@ -4038,197 +4087,238 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   // Read defensively: `platform` only exists on branches carrying the TikTok work, and
   // absent means Meta, so this behaves the same either way.
   const canEditTargeting =
-    (c as { platform?: string }).platform !== 'tiktok' &&
-    !!c.campaign_id &&
-    displayStatus.toLowerCase() !== 'deleted';
+    (c as { platform?: string }).platform !== 'tiktok' && !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
 
   return (
     <div>
-    <div
-      style={{ display: 'flex', gap: 14, border: '1px solid #eee', borderRadius: 12, padding: 12, background: '#fff' }}
-    >
-      {c.image_url ? (
-        <div style={{ width: 84, height: 84, flexShrink: 0 }}>
-          <ZoomableImage
-            src={c.image_url}
-            alt={c.name}
-            style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover' }}
-          />
-        </div>
-      ) : (
-        <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
-      )}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#1a0a12' }}>{c.name}</p>
-          <span
+      <div
+        style={{
+          display: 'flex',
+          gap: 14,
+          border: '1px solid #eee',
+          borderRadius: 12,
+          padding: 12,
+          background: '#fff',
+        }}
+      >
+        {c.image_url ? (
+          <div style={{ width: 84, height: 84, flexShrink: 0 }}>
+            <ZoomableImage
+              src={c.image_url}
+              alt={c.name}
+              style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover' }}
+            />
+          </div>
+        ) : (
+          <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#1a0a12' }}>{c.name}</p>
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 20,
+                background: bg,
+                color,
+                textTransform: 'uppercase',
+              }}
+            >
+              {displayStatus}
+            </span>
+          </div>
+          <p
             style={{
-              fontSize: 10.5,
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 20,
-              background: bg,
-              color,
-              textTransform: 'uppercase',
+              margin: '3px 0 0',
+              fontSize: 12.5,
+              color: '#666',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
-            {displayStatus}
-          </span>
-        </div>
-        <p
-          style={{
-            margin: '3px 0 0',
-            fontSize: 12.5,
-            color: '#666',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {c.headline}
-        </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8, fontSize: 12 }}>
-          <Metric label="Budget" value={naira(c.budget_ngn)} />
-          <Metric label="Amount spent" value={naira(c.metrics?.spend_ngn)} />
-          <Metric
-            label="Views"
-            value={c.metrics?.impressions != null ? c.metrics.impressions.toLocaleString() : 'N/A'}
-          />
-          <Metric label="People reached" value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'} />
-          <Metric
-            label="WhatsApp conversations"
-            value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'}
-          />
-          <Metric
-            label="Cost per conversation"
-            value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
-          />
-          <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
-          {c.city && <Metric label="Area" value={c.city} />}
-        </div>
-        {/* Where this campaign's taps land — so there's never "no way to tell where the
+            {c.headline}
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8, fontSize: 12 }}>
+            <Metric label="Budget" value={naira(c.budget_ngn)} />
+            <Metric label="Amount spent" value={naira(c.metrics?.spend_ngn)} />
+            <Metric
+              label="Views"
+              value={c.metrics?.impressions != null ? c.metrics.impressions.toLocaleString() : 'N/A'}
+            />
+            <Metric
+              label="People reached"
+              value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'}
+            />
+            <Metric
+              label="WhatsApp conversations"
+              value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'}
+            />
+            <Metric
+              label="Cost per conversation"
+              value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
+            />
+            <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
+            {c.city && <Metric label="Area" value={c.city} />}
+          </div>
+          {/* Where this campaign's taps land — so there's never "no way to tell where the
             conversations went". Keyed off the campaign's REAL destination, not off
             whatsapp_number: a website/Instagram/custom ad legitimately has no number,
             and treating that as missing showed "leads went to a shared WhatsApp inbox"
             on ads that never touched WhatsApp. Live-reported. Only a WhatsApp campaign
             with no number on file is actually the legacy shared-inbox case. */}
-        {(() => {
-          const dest = c.destination_type || 'whatsapp';
-          const good = { margin: '8px 0 0', fontSize: 12, color: '#1a7f37' } as React.CSSProperties;
-          if (dest === 'whatsapp') {
-            return c.whatsapp_number ? (
+          {(() => {
+            const dest = c.destination_type || 'whatsapp';
+            const good = { margin: '8px 0 0', fontSize: 12, color: '#1a7f37' } as React.CSSProperties;
+            if (dest === 'whatsapp') {
+              return c.whatsapp_number ? (
+                <p style={good}>
+                  💬 Leads message <strong>+{c.whatsapp_number}</strong> on WhatsApp — open that chat to see them
+                </p>
+              ) : (
+                <p style={{ margin: '8px 0 0', fontSize: 12, color: '#a15c00' }}>
+                  ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number. Duplicate it from a
+                  chat thread to relaunch with your number.
+                </p>
+              );
+            }
+            const label =
+              dest === 'website'
+                ? '🌐 Taps open your website'
+                : dest === 'instagram_dm'
+                  ? '📩 Taps land in your Instagram DMs'
+                  : '🔗 Taps open your link';
+            return (
               <p style={good}>
-                💬 Leads message <strong>+{c.whatsapp_number}</strong> on WhatsApp — open that chat to see them
-              </p>
-            ) : (
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#a15c00' }}>
-                ⚠ Older campaign — leads went to a shared WhatsApp inbox, not your own number. Duplicate it from a chat
-                thread to relaunch with your number.
+                {label}
+                {c.destination_link ? (
+                  <>
+                    {' '}
+                    — <strong>{c.destination_link}</strong>
+                  </>
+                ) : null}
               </p>
             );
-          }
-          const label =
-            dest === 'website'
-              ? '🌐 Taps open your website'
-              : dest === 'instagram_dm'
-                ? '📩 Taps land in your Instagram DMs'
-                : '🔗 Taps open your link';
-          return (
-            <p style={good}>
-              {label}
-              {c.destination_link ? (
-                <>
-                  {' '}
-                  — <strong>{c.destination_link}</strong>
-                </>
-              ) : null}
-            </p>
-          );
-        })()}
-        {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
-      </div>
-      {(canToggle || canDelete || canEditTargeting) && (
-        <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>
-          {canEditTargeting && (
-            <button
-              onClick={() => setEditingTargeting((v) => !v)}
-              aria-expanded={editingTargeting}
-              aria-label="Edit who this campaign targets"
-              title="Edit who this campaign targets — interests, age, gender, places"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                border: '1px solid #e0dcd9',
-                background: editingTargeting ? '#f4f2f0' : '#fff',
-                cursor: 'pointer',
-                lineHeight: 1,
-                color: '#555',
-              }}
-            >
-              <Pencil size={14} strokeWidth={2} />
-            </button>
-          )}
-          {canToggle && (
-            <button
-              onClick={toggle}
-              disabled={busy}
-              title={isActive ? 'Pause' : 'Activate'}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                border: 'none',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 13,
-                cursor: busy ? 'default' : 'pointer',
-                background: working ? '#eee' : isActive ? '#fdecea' : `linear-gradient(135deg,${PINK},#8E1545)`,
-                color: working ? '#999' : isActive ? '#c62828' : '#fff',
-              }}
-            >
-              {isActive ? '⏸' : '▶'}
-            </button>
-          )}
-          {canDelete && (
-            <button
-              onClick={remove}
-              disabled={busy}
-              title="Delete"
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                border: '1px solid #f0d8dc',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 13,
-                cursor: busy ? 'default' : 'pointer',
-                background: deleting ? '#eee' : '#fff',
-                color: deleting ? '#999' : '#c62828',
-              }}
-            >
-              🗑
-            </button>
-          )}
+          })()}
+          {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
         </div>
+        {(canToggle || canDelete || canEditTargeting) && (
+          <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>
+            {canEditTargeting && (
+              <button
+                onClick={() => {
+                  setKeepingRunning((v) => !v);
+                  setEditingTargeting(false);
+                }}
+                aria-expanded={keepingRunning}
+                aria-label="Keep this campaign running"
+                title="Keep this campaign running past its end date"
+                data-testid="keep-running-open"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  border: '1px solid #e0dcd9',
+                  background: keepingRunning ? '#f4f2f0' : '#fff',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  color: '#555',
+                }}
+              >
+                <CalendarPlus size={14} strokeWidth={2} />
+              </button>
+            )}
+            {canEditTargeting && (
+              <button
+                onClick={() => {
+                  setEditingTargeting((v) => !v);
+                  setKeepingRunning(false);
+                }}
+                aria-expanded={editingTargeting}
+                aria-label="Edit who this campaign targets"
+                title="Edit who this campaign targets — interests, age, gender, places"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  border: '1px solid #e0dcd9',
+                  background: editingTargeting ? '#f4f2f0' : '#fff',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  color: '#555',
+                }}
+              >
+                <Pencil size={14} strokeWidth={2} />
+              </button>
+            )}
+            {canToggle && (
+              <button
+                onClick={toggle}
+                disabled={busy}
+                title={isActive ? 'Pause' : 'Activate'}
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  border: 'none',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                  cursor: busy ? 'default' : 'pointer',
+                  background: working ? '#eee' : isActive ? '#fdecea' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                  color: working ? '#999' : isActive ? '#c62828' : '#fff',
+                }}
+              >
+                {isActive ? '⏸' : '▶'}
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={remove}
+                disabled={busy}
+                title="Delete"
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  border: '1px solid #f0d8dc',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                  cursor: busy ? 'default' : 'pointer',
+                  background: deleting ? '#eee' : '#fff',
+                  color: deleting ? '#999' : '#c62828',
+                }}
+              >
+                🗑
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {editingTargeting && (
+        <LiveTargetingEditor
+          campaignId={c.campaign_id}
+          campaignName={c.name}
+          onClose={() => setEditingTargeting(false)}
+          onSaved={onChanged}
+        />
       )}
-    </div>
-    {editingTargeting && (
-      <LiveTargetingEditor
-        campaignId={c.campaign_id}
-        campaignName={c.name}
-        onClose={() => setEditingTargeting(false)}
-        onSaved={onChanged}
-      />
-    )}
+      {keepingRunning && (
+        <KeepRunningPanel campaignId={c.campaign_id} onClose={() => setKeepingRunning(false)} onExtended={onChanged} />
+      )}
     </div>
   );
 }

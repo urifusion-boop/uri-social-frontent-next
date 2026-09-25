@@ -163,6 +163,40 @@ export interface LiveTargetingSaveResult {
   verified?: boolean;
 }
 
+/** What keeping a campaign running would cost, priced before anything changes. */
+export interface ExtendQuote {
+  campaign_id: string;
+  days: number;
+  daily_ngn: number;
+  ad_spend_ngn: number;
+  total_due_ngn: number;
+  current_end_time?: string | null;
+  new_end_time: string;
+  has_ended: boolean;
+  wallet_balance_ngn: number;
+  affordable: boolean;
+}
+
+export interface ExtendResult {
+  campaign_id: string;
+  extended_by_days: number;
+  charged_ngn: number;
+  end_time?: string | null;
+  wallet_balance_ngn: number;
+  note: string;
+}
+
+/** One of Meta's campaign objectives, offered in Meta's own words so that what the
+ * client picks is what Ads Manager shows them later. `caveat` is the limit worth
+ * stating before they choose — Sales without a pixel optimises for taps, not
+ * purchases — and is empty for the objectives Uri honours fully. */
+export interface CampaignObjectiveChoice {
+  value: string;
+  label: string;
+  blurb: string;
+  caveat: string;
+}
+
 export interface LaunchFromMessageResult {
   stage:
     | 'need_more'
@@ -472,6 +506,10 @@ export class CampaignService {
    * nothing is lost if the user never confirms it. */
   static async planFromMessage(payload: {
     message: string;
+    /** The client's Meta campaign objective, picked at the start of the conversation.
+     * Omitted means they have not chosen and Jane falls back to the one her goal
+     * implies — which is what she always did, and got wrong often enough to matter. */
+    objective?: string;
     business_name?: string;
     category?: string;
     creative_source?: CreativeSource;
@@ -523,16 +561,13 @@ export class CampaignService {
    * uses (Meta's location and interest catalogues, the policy scan, the brand's spend
    * cap), so anything it accepts here cannot fail at launch. Rejections come back per
    * field and do NOT discard the edits that were fine — never drop typed work. */
-  static async savePlanFields(
-    planId: string,
-    edits: Record<string, unknown>,
-  ): Promise<PlanFieldsSaveResult> {
+  static async savePlanFields(planId: string, edits: Record<string, unknown>): Promise<PlanFieldsSaveResult> {
     // Location and interest edits each cost a round trip to Meta's search, so this is
     // slower than a normal PATCH.
     const res = await UriHttpClient.getClient().patch(
       `/jane-ads/meta/plan/${planId}/fields`,
       { edits },
-      { timeout: 90000 },
+      { timeout: 90000 }
     );
     return res.data as PlanFieldsSaveResult;
   }
@@ -543,10 +578,9 @@ export class CampaignService {
    * no longer matches, somebody changed the ad set in Ads Manager since this screen
    * was drawn and the save is refused rather than overwriting their work. */
   static async getLiveTargeting(campaignId: string): Promise<LiveTargeting> {
-    const res = await UriHttpClient.getClient().get(
-      `/jane-ads/meta/campaigns/${campaignId}/targeting`,
-      { timeout: 60000 },
-    );
+    const res = await UriHttpClient.getClient().get(`/jane-ads/meta/campaigns/${campaignId}/targeting`, {
+      timeout: 60000,
+    });
     return res.data as LiveTargeting;
   }
 
@@ -555,14 +589,41 @@ export class CampaignService {
   static async saveLiveTargeting(
     campaignId: string,
     edits: Record<string, unknown>,
-    baseline: string,
+    baseline: string
   ): Promise<LiveTargetingSaveResult> {
     const res = await UriHttpClient.getClient().patch(
       `/jane-ads/meta/campaigns/${campaignId}/targeting`,
       { edits, baseline },
-      { timeout: 120000 },
+      { timeout: 120000 }
     );
     return res.data as LiveTargetingSaveResult;
+  }
+
+  /** Price an extension before anything is charged or changed. */
+  static async getExtendQuote(campaignId: string, days: number): Promise<ExtendQuote> {
+    const res = await UriHttpClient.getClient().get(`/jane-ads/meta/campaigns/${campaignId}/extend-quote`, {
+      params: { days },
+      timeout: 60000,
+    });
+    return res.data as ExtendQuote;
+  }
+
+  /** Keep a campaign running past its end date. Keeps the campaign, the creative and
+   * everything Meta has learned — only the end date moves. `confirm` is required
+   * because this restarts spending on a campaign that had stopped. */
+  static async extendCampaign(campaignId: string, days: number): Promise<ExtendResult> {
+    const res = await UriHttpClient.getClient().post(
+      `/jane-ads/meta/campaigns/${campaignId}/extend`,
+      { days, confirm: true },
+      { timeout: 120000 }
+    );
+    return res.data as ExtendResult;
+  }
+
+  /** Meta's campaign objectives, for the picker Jane opens with. */
+  static async getObjectives(): Promise<CampaignObjectiveChoice[]> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/objectives');
+    return (res.data as { objectives: CampaignObjectiveChoice[] }).objectives;
   }
 
   static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
