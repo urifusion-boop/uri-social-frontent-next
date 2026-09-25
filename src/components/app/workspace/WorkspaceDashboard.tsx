@@ -9587,7 +9587,13 @@ const NAV = [
     label: 'Workspace',
     tooltip: "Your AI command centre — chat with URI Agent and see today's briefing",
   },
-  // { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
+  {
+    id: 'messages',
+    icon: 'inbox',
+    label: 'Customer Messages',
+    tooltip: 'Reply to DMs and comments across Instagram, Facebook, WhatsApp and TikTok — all in one inbox',
+    href: '/inbox',
+  },
   {
     id: 'schedule',
     icon: 'calendar',
@@ -10313,7 +10319,13 @@ export default function WorkspaceDashboard() {
                   <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
                     <button
                       id={`tnav-${n.id}`}
-                      onClick={() => goTo(n.id)}
+                      onClick={() => {
+                        if ('href' in n && n.href) {
+                          router.push(n.href);
+                        } else {
+                          goTo(n.id);
+                        }
+                      }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
