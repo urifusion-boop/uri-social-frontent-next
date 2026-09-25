@@ -2161,7 +2161,11 @@ export default function InboxDashboard() {
                   onDragLeave={() => setDragOverCol((prev) => (prev === col.id ? null : prev))}
                   onDrop={(e) => {
                     e.preventDefault();
-                    moveCard(draggingId, col.id);
+                    // dataTransfer, not the draggingId state closure, is the source of
+                    // truth here — a dragstart's setState may not have re-rendered this
+                    // handler's closure yet by the time drop fires on a fast drag.
+                    const id = e.dataTransfer.getData('text/plain') || draggingId;
+                    moveCard(id, col.id);
                   }}
                   style={{
                     flex: '0 0 250px',
@@ -2216,7 +2220,11 @@ export default function InboxDashboard() {
                           type="button"
                           draggable
                           data-card-id={c.id}
-                          onDragStart={() => setDraggingId(c.id)}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', c.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                            setDraggingId(c.id);
+                          }}
                           onDragEnd={() => setDraggingId(null)}
                           onClick={() => openConversation(c.id)}
                           style={{
