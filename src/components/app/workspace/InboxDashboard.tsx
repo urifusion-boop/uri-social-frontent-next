@@ -927,6 +927,284 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   );
 
   function threadHeader(showBack: boolean) {
+    const backButton = showBack && (
+      <button
+        type="button"
+        aria-label="Back to conversations"
+        onClick={() => setMobileScreen('list')}
+        style={{
+          width: 32,
+          height: 32,
+          border: 'none',
+          background: 'transparent',
+          color: '#444',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          flex: '0 0 auto',
+        }}
+      >
+        <I n="chevronLeft" s={20} />
+      </button>
+    );
+
+    const avatar = (
+      <div
+        style={{
+          width: isMobile ? 30 : 34,
+          height: isMobile ? 30 : 34,
+          borderRadius: '50%',
+          background: selectedConv.avatarColor,
+          color: '#fff',
+          fontSize: 12,
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: '0 0 auto',
+        }}
+      >
+        {selectedConv.initials}
+      </div>
+    );
+
+    const nameAndChannel = (
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 800,
+            color: '#1a1a1a',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {selectedConv.name}
+        </div>
+        <div style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: chSel.color, flex: '0 0 auto' }} />
+          {chSel.label}
+        </div>
+      </div>
+    );
+
+    const statusChip = (
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          padding: '4px 10px',
+          borderRadius: 12,
+          background: stSel.bg,
+          color: stSel.fg,
+          whiteSpace: 'nowrap',
+          flex: '0 0 auto',
+        }}
+      >
+        {stSel.label}
+      </span>
+    );
+
+    const assignControl = (
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={() => {
+            setAssignMenuOpen((o) => !o);
+            setMoreMenuOpen(false);
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            border: '1px solid rgba(0,0,0,.1)',
+            background: '#fff',
+            borderRadius: 8,
+            padding: '6px 10px',
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#444',
+            cursor: 'pointer',
+            fontFamily: FONT,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {isMobile ? selectedConv.assignee || 'Unassigned' : `Assigned: ${selectedConv.assignee || 'Unassigned'}`}
+          <I n="chevronDown" s={12} />
+        </button>
+        {assignMenuOpen && (
+          <>
+            <div onClick={() => setAssignMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+            <div
+              style={{
+                position: 'absolute',
+                top: '110%',
+                left: isMobile ? 0 : 'auto',
+                right: isMobile ? 'auto' : 0,
+                zIndex: 999,
+                background: '#fff',
+                borderRadius: 10,
+                boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                border: '1px solid rgba(0,0,0,.06)',
+                minWidth: 160,
+                padding: 6,
+              }}
+            >
+              {ASSIGNEE_OPTIONS.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setAssignee(name)}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 10px',
+                    border: 'none',
+                    background: selectedConv.assignee === name ? 'rgba(194,24,91,.08)' : 'transparent',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#333',
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  {name}
+                  {selectedConv.assignee === name && <I n="check" s={13} c="#AD1457" />}
+                </button>
+              ))}
+              <div style={{ height: 1, background: 'rgba(0,0,0,.06)', margin: '4px 0' }} />
+              <button
+                type="button"
+                onClick={() => setAssignee(null)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '8px 10px',
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#999',
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                Unassign
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+
+    const moreControl = (
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          aria-label="More options"
+          onClick={() => {
+            setMoreMenuOpen((o) => !o);
+            setAssignMenuOpen(false);
+          }}
+          style={{
+            width: 32,
+            height: 32,
+            border: 'none',
+            background: 'transparent',
+            borderRadius: 8,
+            color: '#666',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flex: '0 0 auto',
+          }}
+        >
+          <I n="more" s={16} />
+        </button>
+        {moreMenuOpen && (
+          <>
+            <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+            <div
+              style={{
+                position: 'absolute',
+                top: '110%',
+                right: 0,
+                zIndex: 999,
+                background: '#fff',
+                borderRadius: 10,
+                boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                border: '1px solid rgba(0,0,0,.06)',
+                minWidth: 180,
+                padding: 6,
+              }}
+            >
+              <button
+                type="button"
+                onClick={toggleResolved}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 10px',
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#333',
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                <I n="check" s={14} c={selectedConv.status === 'resolved' ? '#999' : '#2E7D32'} />
+                {selectedConv.status === 'resolved' ? 'Reopen conversation' : 'Mark resolved'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+
+    if (isMobile) {
+      // Two rows: identity gets its own row so a long name never has to
+      // fight the assign pill and the more button for space.
+      return (
+        <div style={{ flex: '0 0 auto', borderBottom: '1px solid rgba(0,0,0,.08)', boxSizing: 'border-box' }}>
+          <div
+            style={{
+              height: 52,
+              padding: '0 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              boxSizing: 'border-box',
+            }}
+          >
+            {backButton}
+            {avatar}
+            {nameAndChannel}
+            {moreControl}
+          </div>
+          <div
+            style={{ padding: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 8, boxSizing: 'border-box' }}
+          >
+            {assignControl}
+            {statusChip}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
         style={{
@@ -940,228 +1218,12 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           boxSizing: 'border-box',
         }}
       >
-        {showBack && (
-          <button
-            type="button"
-            aria-label="Back to conversations"
-            onClick={() => setMobileScreen('list')}
-            style={{
-              width: 32,
-              height: 32,
-              border: 'none',
-              background: 'transparent',
-              color: '#444',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flex: '0 0 auto',
-            }}
-          >
-            <I n="chevronLeft" s={20} />
-          </button>
-        )}
-        <div
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: '50%',
-            background: selectedConv.avatarColor,
-            color: '#fff',
-            fontSize: 12,
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flex: '0 0 auto',
-          }}
-        >
-          {selectedConv.initials}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a1a' }}>{selectedConv.name}</div>
-          <div style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: chSel.color }} />
-            {chSel.label}
-          </div>
-        </div>
-        {!isMobile && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              padding: '4px 10px',
-              borderRadius: 12,
-              background: stSel.bg,
-              color: stSel.fg,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {stSel.label}
-          </span>
-        )}
-
-        <div style={{ position: 'relative' }}>
-          <button
-            type="button"
-            onClick={() => {
-              setAssignMenuOpen((o) => !o);
-              setMoreMenuOpen(false);
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              border: '1px solid rgba(0,0,0,.1)',
-              background: '#fff',
-              borderRadius: 8,
-              padding: '6px 10px',
-              fontSize: 12,
-              fontWeight: 600,
-              color: '#444',
-              cursor: 'pointer',
-              fontFamily: FONT,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {isMobile ? selectedConv.assignee || 'Unassigned' : `Assigned: ${selectedConv.assignee || 'Unassigned'}`}
-            <I n="chevronDown" s={12} />
-          </button>
-          {assignMenuOpen && (
-            <>
-              <div onClick={() => setAssignMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '110%',
-                  right: 0,
-                  zIndex: 999,
-                  background: '#fff',
-                  borderRadius: 10,
-                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-                  border: '1px solid rgba(0,0,0,.06)',
-                  minWidth: 160,
-                  padding: 6,
-                }}
-              >
-                {ASSIGNEE_OPTIONS.map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setAssignee(name)}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 10px',
-                      border: 'none',
-                      background: selectedConv.assignee === name ? 'rgba(194,24,91,.08)' : 'transparent',
-                      borderRadius: 6,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: '#333',
-                      cursor: 'pointer',
-                      fontFamily: FONT,
-                    }}
-                  >
-                    {name}
-                    {selectedConv.assignee === name && <I n="check" s={13} c="#AD1457" />}
-                  </button>
-                ))}
-                <div style={{ height: 1, background: 'rgba(0,0,0,.06)', margin: '4px 0' }} />
-                <button
-                  type="button"
-                  onClick={() => setAssignee(null)}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '8px 10px',
-                    border: 'none',
-                    background: 'transparent',
-                    borderRadius: 6,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#999',
-                    cursor: 'pointer',
-                    fontFamily: FONT,
-                  }}
-                >
-                  Unassign
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div style={{ position: 'relative' }}>
-          <button
-            type="button"
-            aria-label="More options"
-            onClick={() => {
-              setMoreMenuOpen((o) => !o);
-              setAssignMenuOpen(false);
-            }}
-            style={{
-              width: 32,
-              height: 32,
-              border: 'none',
-              background: 'transparent',
-              borderRadius: 8,
-              color: '#666',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <I n="more" s={16} />
-          </button>
-          {moreMenuOpen && (
-            <>
-              <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '110%',
-                  right: 0,
-                  zIndex: 999,
-                  background: '#fff',
-                  borderRadius: 10,
-                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-                  border: '1px solid rgba(0,0,0,.06)',
-                  minWidth: 180,
-                  padding: 6,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={toggleResolved}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 10px',
-                    border: 'none',
-                    background: 'transparent',
-                    borderRadius: 6,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#333',
-                    cursor: 'pointer',
-                    fontFamily: FONT,
-                  }}
-                >
-                  <I n="check" s={14} c={selectedConv.status === 'resolved' ? '#999' : '#2E7D32'} />
-                  {selectedConv.status === 'resolved' ? 'Reopen conversation' : 'Mark resolved'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        {backButton}
+        {avatar}
+        {nameAndChannel}
+        {statusChip}
+        {assignControl}
+        {moreControl}
       </div>
     );
   }
