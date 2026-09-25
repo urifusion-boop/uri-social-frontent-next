@@ -2,21 +2,18 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 
 /*
- * Unified Social Inbox — desktop shell.
+ * Unified Social Inbox — desktop + mobile shell.
  *
- * This is the interactive frontend for the URI Unified Social Inbox PRD
- * (queues, list/board triage, grouping, drag-and-drop re-triage, DM + comment
- * threads, AI-suggested replies, complaint flagging). Queue filtering, view
- * switching, grouping and the drag-and-drop board are fully real (component
- * state, real HTML5 drag events). What is NOT yet wired to a backend:
- * sending a reply, assigning a conversation, and using an AI suggestion —
- * those need the Unified Inbox API endpoints from the PRD's Stage 1/2 rollout
- * before they can do anything real, so their buttons are present but inert.
- * RAW_CONVERSATIONS below is placeholder sample data standing in for that
- * API until it exists.
+ * Queue filtering, view switching, grouping, the drag-and-drop board (desktop
+ * only — HTML5 drag events don't fire on touch), replying, assigning, and
+ * marking resolved are all real component state. What is NOT yet wired to a
+ * backend: none of it persists past a page reload, and nothing is actually
+ * sent to Instagram/Facebook/WhatsApp/TikTok — that needs the Unified Inbox
+ * API from the PRD's Stage 1/2 rollout. RAW_CONVERSATIONS is placeholder
+ * sample data standing in for that API until it exists.
  */
 
 // ─── Icon set (same hand-rolled convention as WorkspaceDashboard/EscalationsPage) ──
@@ -95,17 +92,25 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       </>
     ),
     chevronDown: <polyline points="6 9 12 15 18 9" />,
+    chevronLeft: <polyline points="15 18 9 12 15 6" />,
     checkCheck: (
       <>
         <polyline points="17 6 6 17 1 12" />
         <polyline points="23 6 12 17 10 15" />
       </>
     ),
+    check: <polyline points="20 6 9 17 4 12" />,
     alertTriangle: (
       <>
         <polygon points="12 3 22 20 2 20" />
         <line x1="12" y1="9" x2="12" y2="14" />
         <circle cx="12" cy="17" r="1" fill={c} stroke="none" />
+      </>
+    ),
+    x: (
+      <>
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
       </>
     ),
   };
@@ -214,9 +219,11 @@ const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
   { id: 'resolved', label: 'Resolved' },
 ];
 
-// Sidebar nav mirrors WorkspaceDashboard's getNav ids/routes exactly (goTo
-// there resolves to /workspace/?tab=<id>) so these links land on the same
-// tabs the main sidebar would open.
+const ASSIGNEE_OPTIONS = ['You', 'Ngozi U.', 'Tobi D.'];
+
+// Sidebar nav mirrors WorkspaceDashboard's NAV ids/routes (goTo there resolves
+// to /workspace/?tab=<id>) so these links land on the same tabs the main
+// sidebar would open.
 const SIDEBAR_NAV: { id: string; icon: string; label: string }[] = [
   { id: 'workspace', icon: 'home', label: 'Workspace' },
   { id: 'schedule', icon: 'calendar', label: 'Create Content' },
@@ -226,6 +233,14 @@ const SIDEBAR_NAV: { id: string; icon: string; label: string }[] = [
   { id: 'playbook', icon: 'book', label: 'Brand Playbook' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
+];
+
+const MOBILE_TABS: { id: string; icon: string; label: string; tab?: string }[] = [
+  { id: 'workspace', icon: 'home', label: 'Jane', tab: 'workspace' },
+  { id: 'messages', icon: 'inbox', label: 'Inbox' },
+  { id: 'schedule', icon: 'calendar', label: 'Create', tab: 'schedule' },
+  { id: 'playbook', icon: 'book', label: 'Playbook', tab: 'playbook' },
+  { id: 'more', icon: 'settings', label: 'More', tab: 'settings' },
 ];
 
 // ─── Placeholder sample data — stands in for the real Unified Inbox API ────
@@ -481,16 +496,21 @@ function pillStyle(active: boolean): React.CSSProperties {
     fontWeight: 700,
     cursor: 'pointer',
     fontFamily: FONT,
+    whiteSpace: 'nowrap',
   };
 }
 
 export default function InboxDashboard() {
   const router = useRouter();
 
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileScreen, setMobileScreen] = useState<'list' | 'thread'>('list');
+
   const [selectedQueue, setSelectedQueue] = useState<'all' | QueueKey>('all');
   const [selectedId, setSelectedId] = useState<string>('c1');
   const [view, setView] = useState<'list' | 'board'>('list');
   const [groupBy, setGroupBy] = useState<GroupMode>('time');
+
   const [cardQueues, setCardQueues] = useState<Record<string, QueueKey>>(() => {
     const map: Record<string, QueueKey> = {};
     RAW_CONVERSATIONS.forEach((c) => {
@@ -498,22 +518,55 @@ export default function InboxDashboard() {
     });
     return map;
   });
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, StatusKey>>({});
+  const [assigneeOverrides, setAssigneeOverrides] = useState<Record<string, string | null>>({});
+  const [messageOverrides, setMessageOverrides] = useState<Record<string, ThreadMessage[]>>({});
+  const [commentOverrides, setCommentOverrides] = useState<Record<string, ThreadComment[]>>({});
+  const [composerDrafts, setComposerDrafts] = useState<Record<string, string>>({});
+  const [usedAiSuggestion, setUsedAiSuggestion] = useState<Record<string, boolean>>({});
+
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<QueueKey | null>(null);
+  const [assignMenuOpen, setAssignMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const ck = () => setIsMobile(window.innerWidth < 768);
+    ck();
+    window.addEventListener('resize', ck);
+    return () => window.removeEventListener('resize', ck);
+  }, []);
+
+  // Every conversation with its live overrides folded in — everything below
+  // reads from this, never from RAW_CONVERSATIONS directly, so the list, the
+  // board and the thread pane can never disagree about a conversation's
+  // current state.
+  const conversations = useMemo<Conversation[]>(
+    () =>
+      RAW_CONVERSATIONS.map((c) => ({
+        ...c,
+        status: statusOverrides[c.id] ?? c.status,
+        assignee: c.id in assigneeOverrides ? assigneeOverrides[c.id] : c.assignee,
+        messages: c.messages ? [...c.messages, ...(messageOverrides[c.id] || [])] : c.messages,
+        comments: c.comments ? [...c.comments, ...(commentOverrides[c.id] || [])] : c.comments,
+      })),
+    [statusOverrides, assigneeOverrides, messageOverrides, commentOverrides]
+  );
 
   const currentQueueOf = (c: Conversation): QueueKey => cardQueues[c.id] ?? c.queue;
 
   const filteredConversations = useMemo(
-    () => RAW_CONVERSATIONS.filter((c) => selectedQueue === 'all' || currentQueueOf(c) === selectedQueue),
+    () => conversations.filter((c) => selectedQueue === 'all' || currentQueueOf(c) === selectedQueue),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedQueue, cardQueues]
+    [conversations, selectedQueue, cardQueues]
   );
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
 
-  const selectedConv = RAW_CONVERSATIONS.find((c) => c.id === selectedId) ?? RAW_CONVERSATIONS[0];
+  const selectedConv = conversations.find((c) => c.id === selectedId) ?? conversations[0];
   const chSel = CHANNEL_META[selectedConv.channel];
   const stSel = STATUS_META[selectedConv.status];
+  const draft = composerDrafts[selectedId] ?? '';
 
   function moveCard(id: string | null, queueId: QueueKey) {
     if (!id) return;
@@ -522,15 +575,990 @@ export default function InboxDashboard() {
     setDragOverCol(null);
   }
 
-  function openFromBoard(id: string) {
+  function openConversation(id: string) {
     setSelectedId(id);
     setView('list');
+    if (isMobile) setMobileScreen('thread');
   }
 
   function goToWorkspaceTab(tabId: string) {
     router.push(`/workspace?tab=${tabId}`);
   }
 
+  function sendDraft() {
+    const text = draft.trim();
+    if (!text) return;
+    if (selectedConv.type === 'dm') {
+      setMessageOverrides((prev) => ({
+        ...prev,
+        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
+      }));
+    } else {
+      setCommentOverrides((prev) => ({
+        ...prev,
+        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
+      }));
+    }
+    setComposerDrafts((prev) => ({ ...prev, [selectedId]: '' }));
+    if (selectedConv.aiSuggestion) setUsedAiSuggestion((prev) => ({ ...prev, [selectedId]: true }));
+  }
+
+  function useAiSuggestionNow() {
+    if (!selectedConv.aiSuggestion) return;
+    const text = selectedConv.aiSuggestion.text;
+    if (selectedConv.type === 'dm') {
+      setMessageOverrides((prev) => ({
+        ...prev,
+        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
+      }));
+    } else {
+      setCommentOverrides((prev) => ({
+        ...prev,
+        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
+      }));
+    }
+    setUsedAiSuggestion((prev) => ({ ...prev, [selectedId]: true }));
+  }
+
+  function editAiSuggestionIntoComposer() {
+    if (!selectedConv.aiSuggestion) return;
+    setComposerDrafts((prev) => ({ ...prev, [selectedId]: selectedConv.aiSuggestion!.text }));
+  }
+
+  function setAssignee(name: string | null) {
+    setAssigneeOverrides((prev) => ({ ...prev, [selectedId]: name }));
+    setAssignMenuOpen(false);
+  }
+
+  function toggleResolved() {
+    if (selectedConv.status === 'resolved') {
+      setStatusOverrides((prev) => ({ ...prev, [selectedId]: 'unassigned' }));
+      setCardQueues((prev) => ({ ...prev, [selectedId]: 'unassigned' }));
+    } else {
+      setStatusOverrides((prev) => ({ ...prev, [selectedId]: 'resolved' }));
+      setCardQueues((prev) => ({ ...prev, [selectedId]: 'resolved' }));
+    }
+    setMoreMenuOpen(false);
+  }
+
+  // ── Shared thread body (used by both the desktop thread pane and the mobile thread screen) ──
+  const threadBody = (
+    <div
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+        minHeight: 0,
+      }}
+    >
+      {selectedConv.type === 'dm' &&
+        (selectedConv.messages || []).map((m, idx) =>
+          m.from === 'customer' ? (
+            <div key={idx} style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <div
+                style={{
+                  maxWidth: '80%',
+                  background: 'rgba(0,0,0,.04)',
+                  color: '#1a1a1a',
+                  padding: '10px 14px',
+                  borderRadius: '14px 14px 14px 4px',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                {m.text}
+                <div style={{ fontSize: 10, color: '#999', marginTop: 4 }}>{m.time}</div>
+              </div>
+            </div>
+          ) : (
+            <div key={idx} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div
+                style={{
+                  maxWidth: '80%',
+                  background: 'rgba(194,24,91,.08)',
+                  color: '#1a1a1a',
+                  padding: '10px 14px',
+                  borderRadius: '14px 14px 4px 14px',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                {m.text}
+                <div style={{ fontSize: 10, color: '#AD1457', marginTop: 4, textAlign: 'right' }}>
+                  {m.by} · {m.time}
+                </div>
+              </div>
+            </div>
+          )
+        )}
+
+      {selectedConv.type === 'comment' && selectedConv.post && (
+        <div style={{ border: '1px solid rgba(0,0,0,.08)', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', gap: 12, padding: 12, background: '#fafafa' }}>
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 8,
+                background: '#e8e8ea',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 10,
+                fontWeight: 800,
+                color: '#999',
+                flex: '0 0 auto',
+              }}
+            >
+              {selectedConv.post.label}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, color: '#333', lineHeight: 1.4 }}>{selectedConv.post.caption}</div>
+              {selectedConv.post.campaign && (
+                <div style={{ fontSize: 11, color: '#AD1457', fontWeight: 700, marginTop: 6 }}>
+                  Campaign: {selectedConv.post.campaign}
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
+                {selectedConv.post.likes} likes · {selectedConv.post.commentsCount} comments
+              </div>
+            </div>
+          </div>
+          <div
+            style={{
+              padding: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              borderTop: '1px solid rgba(0,0,0,.06)',
+            }}
+          >
+            {(selectedConv.comments || []).map((c, idx) =>
+              c.from === 'agent' ? (
+                <div key={idx} style={{ marginLeft: 20, paddingLeft: 12, borderLeft: '2px solid rgba(194,24,91,.2)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#AD1457' }}>
+                    {c.by} <span style={{ fontWeight: 500, color: '#999', fontSize: 11 }}>· {c.time}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#333', marginTop: 2 }}>{c.text}</div>
+                </div>
+              ) : (
+                <div key={idx}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a' }}>
+                    {c.from} <span style={{ fontWeight: 500, color: '#999', fontSize: 11 }}>· {c.time}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#333', marginTop: 2 }}>{c.text}</div>
+                </div>
+              )
+            )}
+          </div>
+        </div>
+      )}
+
+      {selectedConv.isComplaint && (
+        <div
+          style={{
+            border: '1px solid rgba(198,40,40,.25)',
+            background: 'rgba(198,40,40,.05)',
+            borderRadius: 12,
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <I n="alertTriangle" s={18} c="#C62828" />
+          <div style={{ fontSize: 12.5, color: '#8B1E1E', fontWeight: 600, lineHeight: 1.4 }}>
+            Possible complaint detected — verify order details before promising a resolution. Never auto-resolve from
+            sentiment alone.
+          </div>
+        </div>
+      )}
+
+      {selectedConv.aiSuggestion && !usedAiSuggestion[selectedId] && (
+        <div
+          style={{
+            border: '1.5px dashed #E91E63',
+            background: 'rgba(194,24,91,.04)',
+            borderRadius: 12,
+            padding: '14px 16px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: '.04em',
+                textTransform: 'uppercase',
+                color: '#AD1457',
+              }}
+            >
+              <I n="sparkle" s={13} c="#AD1457" />
+              AI Suggested Reply
+            </div>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#2E7D32',
+                background: 'rgba(46,125,50,.1)',
+                padding: '2px 8px',
+                borderRadius: 10,
+              }}
+            >
+              {selectedConv.aiSuggestion.confidence}% confidence
+            </span>
+          </div>
+          <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.5, marginBottom: 8 }}>
+            {selectedConv.aiSuggestion.text}
+          </div>
+          <div style={{ fontSize: 11, color: '#999', marginBottom: 10 }}>
+            Grounded in: {selectedConv.aiSuggestion.sources.join(' · ')}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={editAiSuggestionIntoComposer}
+              style={{
+                padding: '7px 14px',
+                borderRadius: 8,
+                border: '1px solid rgba(0,0,0,.12)',
+                background: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#444',
+                cursor: 'pointer',
+                fontFamily: FONT,
+              }}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={useAiSuggestionNow}
+              style={{
+                padding: '7px 14px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#AD1457',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: FONT,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <I n="send" s={13} c="#fff" />
+              Use &amp; Send
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const threadComposer = (
+    <div style={{ flex: '0 0 auto', padding: '14px 20px 18px', borderTop: '1px solid rgba(0,0,0,.08)' }}>
+      {selectedConv.type === 'comment' && (
+        <div style={{ fontSize: 11, color: '#999', marginBottom: 6 }}>
+          Public reply — visible to everyone on this post
+        </div>
+      )}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: 10,
+          background: '#f4f4f5',
+          borderRadius: 12,
+          padding: '10px 12px',
+        }}
+      >
+        <button
+          type="button"
+          aria-label="Attach file"
+          title="Coming soon"
+          style={{
+            width: 28,
+            height: 28,
+            border: 'none',
+            background: 'transparent',
+            color: '#888',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'default',
+            flex: '0 0 auto',
+          }}
+        >
+          <I n="paperclip" s={16} />
+        </button>
+        <textarea
+          aria-label="Reply message"
+          placeholder="Write a reply..."
+          rows={1}
+          value={draft}
+          onChange={(e) => setComposerDrafts((prev) => ({ ...prev, [selectedId]: e.target.value }))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              sendDraft();
+            }
+          }}
+          style={{
+            flex: 1,
+            border: 'none',
+            background: 'transparent',
+            outline: 'none',
+            resize: 'none',
+            fontSize: 13,
+            fontFamily: FONT,
+            color: '#1a1a1a',
+            padding: '6px 0',
+          }}
+        />
+        <button
+          type="button"
+          onClick={sendDraft}
+          disabled={!draft.trim()}
+          style={{
+            padding: '8px 16px',
+            border: 'none',
+            borderRadius: 8,
+            background: draft.trim() ? '#AD1457' : '#d9a9bc',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: draft.trim() ? 'pointer' : 'default',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontFamily: FONT,
+            flex: '0 0 auto',
+          }}
+        >
+          <I n="send" s={14} c="#fff" />
+          Send
+        </button>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 8, fontSize: 11, color: '#999' }}>
+        <I n="checkCheck" s={12} c="#2E7D32" />
+        Delivery status shown instantly · read receipts where the channel supports them
+      </div>
+    </div>
+  );
+
+  function threadHeader(showBack: boolean) {
+    return (
+      <div
+        style={{
+          height: 64,
+          flex: '0 0 64px',
+          padding: '0 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          borderBottom: '1px solid rgba(0,0,0,.08)',
+          boxSizing: 'border-box',
+        }}
+      >
+        {showBack && (
+          <button
+            type="button"
+            aria-label="Back to conversations"
+            onClick={() => setMobileScreen('list')}
+            style={{
+              width: 32,
+              height: 32,
+              border: 'none',
+              background: 'transparent',
+              color: '#444',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flex: '0 0 auto',
+            }}
+          >
+            <I n="chevronLeft" s={20} />
+          </button>
+        )}
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: '50%',
+            background: selectedConv.avatarColor,
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flex: '0 0 auto',
+          }}
+        >
+          {selectedConv.initials}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a1a' }}>{selectedConv.name}</div>
+          <div style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: chSel.color }} />
+            {chSel.label}
+          </div>
+        </div>
+        {!isMobile && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: 12,
+              background: stSel.bg,
+              color: stSel.fg,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {stSel.label}
+          </span>
+        )}
+
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setAssignMenuOpen((o) => !o);
+              setMoreMenuOpen(false);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              border: '1px solid rgba(0,0,0,.1)',
+              background: '#fff',
+              borderRadius: 8,
+              padding: '6px 10px',
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#444',
+              cursor: 'pointer',
+              fontFamily: FONT,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {isMobile ? selectedConv.assignee || 'Unassigned' : `Assigned: ${selectedConv.assignee || 'Unassigned'}`}
+            <I n="chevronDown" s={12} />
+          </button>
+          {assignMenuOpen && (
+            <>
+              <div onClick={() => setAssignMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '110%',
+                  right: 0,
+                  zIndex: 999,
+                  background: '#fff',
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                  border: '1px solid rgba(0,0,0,.06)',
+                  minWidth: 160,
+                  padding: 6,
+                }}
+              >
+                {ASSIGNEE_OPTIONS.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setAssignee(name)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 10px',
+                      border: 'none',
+                      background: selectedConv.assignee === name ? 'rgba(194,24,91,.08)' : 'transparent',
+                      borderRadius: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#333',
+                      cursor: 'pointer',
+                      fontFamily: FONT,
+                    }}
+                  >
+                    {name}
+                    {selectedConv.assignee === name && <I n="check" s={13} c="#AD1457" />}
+                  </button>
+                ))}
+                <div style={{ height: 1, background: 'rgba(0,0,0,.06)', margin: '4px 0' }} />
+                <button
+                  type="button"
+                  onClick={() => setAssignee(null)}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#999',
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  Unassign
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            aria-label="More options"
+            onClick={() => {
+              setMoreMenuOpen((o) => !o);
+              setAssignMenuOpen(false);
+            }}
+            style={{
+              width: 32,
+              height: 32,
+              border: 'none',
+              background: 'transparent',
+              borderRadius: 8,
+              color: '#666',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <I n="more" s={16} />
+          </button>
+          {moreMenuOpen && (
+            <>
+              <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '110%',
+                  right: 0,
+                  zIndex: 999,
+                  background: '#fff',
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                  border: '1px solid rgba(0,0,0,.06)',
+                  minWidth: 180,
+                  padding: 6,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={toggleResolved}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#333',
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  <I n="check" s={14} c={selectedConv.status === 'resolved' ? '#999' : '#2E7D32'} />
+                  {selectedConv.status === 'resolved' ? 'Reopen conversation' : 'Mark resolved'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const sourceStrip = selectedConv.sourceLabel && (
+    <div
+      style={{
+        padding: '8px 20px',
+        background: 'rgba(194,24,91,.05)',
+        borderBottom: '1px solid rgba(194,24,91,.1)',
+        fontSize: 12,
+        color: '#AD1457',
+        fontWeight: 600,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+      }}
+    >
+      <I n="paperclip" s={13} />
+      Sourced from {selectedConv.sourceLabel}
+    </div>
+  );
+
+  // ── Shared: queue pills (used in desktop sidebar + mobile chip row) ──
+  const queuePills = QUEUE_DEFS.map((q) => ({ ...q, active: selectedQueue === q.id }));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // MOBILE
+  // ═══════════════════════════════════════════════════════════════════════
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          fontFamily: FONT,
+          background: '#fafafa',
+          color: '#1a1a1a',
+          overflow: 'hidden',
+        }}
+      >
+        {mobileScreen === 'list' ? (
+          <>
+            <div
+              style={{
+                flex: '0 0 56px',
+                height: 56,
+                background: '#fff',
+                borderBottom: '1px solid rgba(0,0,0,.08)',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 12px',
+                gap: 8,
+                boxSizing: 'border-box',
+              }}
+            >
+              <button
+                type="button"
+                aria-label="Back to Workspace"
+                onClick={() => router.push('/workspace')}
+                style={{
+                  width: 40,
+                  height: 40,
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#333',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                <I n="chevronLeft" s={22} />
+              </button>
+              <div style={{ flex: 1, fontSize: 17, fontWeight: 800 }}>Inbox</div>
+              <button
+                type="button"
+                aria-label="Notifications"
+                style={{
+                  width: 40,
+                  height: 40,
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#444',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 8,
+                }}
+              >
+                <I n="bell" s={19} />
+              </button>
+            </div>
+
+            <div
+              style={{
+                flex: '0 0 auto',
+                display: 'flex',
+                gap: 8,
+                padding: '10px 12px',
+                overflowX: 'auto',
+                boxSizing: 'border-box',
+              }}
+            >
+              {queuePills.map((q) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => setSelectedQueue(q.id)}
+                  style={{
+                    flex: '0 0 auto',
+                    ...pillStyle(q.active),
+                    border: q.active ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                    background: q.active ? 'rgba(194,24,91,.1)' : '#fff',
+                  }}
+                >
+                  {q.label} {q.count}
+                </button>
+              ))}
+            </div>
+
+            <div
+              style={{
+                flex: '0 0 auto',
+                display: 'flex',
+                gap: 8,
+                padding: '0 12px 10px',
+                overflowX: 'auto',
+                boxSizing: 'border-box',
+              }}
+            >
+              {(
+                [
+                  ['time', 'Time'],
+                  ['platform', 'Platform'],
+                  ['customer', 'Customer'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setGroupBy(id)}
+                  style={{
+                    flex: '0 0 auto',
+                    ...pillStyle(groupBy === id),
+                    background: groupBy === id ? '#fff' : 'transparent',
+                    border: groupBy === id ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '4px 12px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                minHeight: 0,
+              }}
+            >
+              {groups.map((grp) => (
+                <div key={grp.key}>
+                  {grp.label && (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 4px 4px' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: grp.dotColor }} />
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: '#666',
+                            textTransform: 'uppercase',
+                            letterSpacing: '.04em',
+                          }}
+                        >
+                          {grp.label}
+                        </span>
+                        <span style={{ fontSize: 10.5, color: '#aaa' }}>({grp.items.length})</span>
+                      </div>
+                      {grp.caption && (
+                        <div style={{ fontSize: 10.5, color: '#AD1457', padding: '0 4px 6px' }}>{grp.caption}</div>
+                      )}
+                    </>
+                  )}
+                  {grp.items.map((item) => {
+                    const ch = CHANNEL_META[item.channel];
+                    const st = STATUS_META[item.status];
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => openConversation(item.id)}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          display: 'flex',
+                          gap: 12,
+                          padding: 14,
+                          minHeight: 76,
+                          boxSizing: 'border-box',
+                          border: 'none',
+                          background: '#fff',
+                          borderRadius: 14,
+                          boxShadow: '0 1px 2px rgba(0,0,0,.04)',
+                          cursor: 'pointer',
+                          fontFamily: FONT,
+                          marginBottom: 8,
+                        }}
+                      >
+                        <div style={{ position: 'relative', flex: '0 0 auto' }}>
+                          <div
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: '50%',
+                              background: item.avatarColor,
+                              color: '#fff',
+                              fontSize: 14,
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {item.initials}
+                          </div>
+                          <div
+                            style={{
+                              position: 'absolute',
+                              bottom: -2,
+                              right: -2,
+                              width: 18,
+                              height: 18,
+                              borderRadius: '50%',
+                              background: ch.color,
+                              border: '2px solid #fff',
+                              color: '#fff',
+                              fontSize: 9,
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {ch.letter}
+                          </div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 700,
+                                color: '#1a1a1a',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {item.name}
+                            </span>
+                            <span style={{ fontSize: 11, color: '#999', flex: '0 0 auto' }}>{item.time}</span>
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 12.5,
+                              color: '#777',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              marginTop: 3,
+                            }}
+                          >
+                            {item.excerpt}
+                          </div>
+                          <div style={{ marginTop: 7 }}>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: '3px 8px',
+                                borderRadius: 10,
+                                background: st.bg,
+                                color: st.fg,
+                              }}
+                            >
+                              {st.label}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                flex: '0 0 64px',
+                height: 64,
+                background: '#fff',
+                borderTop: '1px solid rgba(0,0,0,.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-around',
+                boxSizing: 'border-box',
+              }}
+            >
+              {MOBILE_TABS.map((t) => {
+                const active = t.id === 'messages';
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    aria-label={t.label}
+                    onClick={() => {
+                      if (t.tab) router.push(`/workspace?tab=${t.tab}`);
+                    }}
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      border: 'none',
+                      background: 'transparent',
+                      color: active ? '#AD1457' : '#999',
+                      fontSize: 10,
+                      fontWeight: active ? 800 : 600,
+                      fontFamily: FONT,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <I n={t.icon} s={20} />
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            {threadHeader(true)}
+            {sourceStrip}
+            {threadBody}
+            {threadComposer}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // DESKTOP
+  // ═══════════════════════════════════════════════════════════════════════
   return (
     <div
       style={{
@@ -544,7 +1572,7 @@ export default function InboxDashboard() {
         overflow: 'hidden',
       }}
     >
-      {/* ── Sidebar (visually identical to WorkspaceDashboard's, "Customer Messages" active) ── */}
+      {/* Sidebar (visually identical to WorkspaceDashboard's, "Customer Messages" active) */}
       <div
         style={{
           width: 224,
@@ -638,7 +1666,7 @@ export default function InboxDashboard() {
         </div>
       </div>
 
-      {/* ── Inbox shell ── */}
+      {/* Inbox shell */}
       <div style={{ flex: 1, height: '100vh', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {/* top bar */}
         <div
@@ -828,37 +1856,34 @@ export default function InboxDashboard() {
               >
                 Queues
               </div>
-              {QUEUE_DEFS.map((q) => {
-                const active = selectedQueue === q.id;
-                return (
-                  <button
-                    key={q.id}
-                    type="button"
-                    onClick={() => setSelectedQueue(q.id)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '9px 10px',
-                      marginBottom: 2,
-                      border: 'none',
-                      borderLeft: active ? '3px solid #E91E63' : '3px solid transparent',
-                      background: active ? 'rgba(194,24,91,.1)' : 'transparent',
-                      color: active ? '#AD1457' : '#444',
-                      fontWeight: active ? 700 : 500,
-                      fontSize: 13,
-                      borderRadius: '0 8px 8px 0',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontFamily: FONT,
-                    }}
-                  >
-                    <span>{q.label}</span>
-                    <span style={{ fontSize: 11, color: '#999', fontWeight: 700 }}>{q.count}</span>
-                  </button>
-                );
-              })}
+              {queuePills.map((q) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => setSelectedQueue(q.id)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '9px 10px',
+                    marginBottom: 2,
+                    border: 'none',
+                    borderLeft: q.active ? '3px solid #E91E63' : '3px solid transparent',
+                    background: q.active ? 'rgba(194,24,91,.1)' : 'transparent',
+                    color: q.active ? '#AD1457' : '#444',
+                    fontWeight: q.active ? 700 : 500,
+                    fontSize: 13,
+                    borderRadius: '0 8px 8px 0',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: FONT,
+                  }}
+                >
+                  <span>{q.label}</span>
+                  <span style={{ fontSize: 11, color: '#999', fontWeight: 700 }}>{q.count}</span>
+                </button>
+              ))}
 
               <div style={{ height: 1, background: 'rgba(0,0,0,.08)', margin: '16px 8px' }} />
 
@@ -986,7 +2011,7 @@ export default function InboxDashboard() {
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => setSelectedId(item.id)}
+                          onClick={() => openConversation(item.id)}
                           style={{
                             width: '100%',
                             textAlign: 'left',
@@ -1104,435 +2129,14 @@ export default function InboxDashboard() {
                 background: '#fff',
               }}
             >
-              <div
-                style={{
-                  height: 64,
-                  flex: '0 0 64px',
-                  padding: '0 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  borderBottom: '1px solid rgba(0,0,0,.08)',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <div
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: '50%',
-                    background: selectedConv.avatarColor,
-                    color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {selectedConv.initials}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a1a' }}>{selectedConv.name}</div>
-                  <div style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: chSel.color }} />
-                    {chSel.label}
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    padding: '4px 10px',
-                    borderRadius: 12,
-                    background: stSel.bg,
-                    color: stSel.fg,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {stSel.label}
-                </span>
-                <button
-                  type="button"
-                  title="Coming soon — connect to your team"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    border: '1px solid rgba(0,0,0,.1)',
-                    background: '#fff',
-                    borderRadius: 8,
-                    padding: '6px 10px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: '#444',
-                    cursor: 'default',
-                    fontFamily: FONT,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Assigned: {selectedConv.assignee || 'Unassigned'}
-                  <I n="chevronDown" s={12} />
-                </button>
-                <button
-                  type="button"
-                  aria-label="More options"
-                  title="Coming soon"
-                  style={{
-                    width: 32,
-                    height: 32,
-                    border: 'none',
-                    background: 'transparent',
-                    borderRadius: 8,
-                    color: '#666',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'default',
-                  }}
-                >
-                  <I n="more" s={16} />
-                </button>
-              </div>
-
-              {selectedConv.sourceLabel && (
-                <div
-                  style={{
-                    padding: '8px 20px',
-                    background: 'rgba(194,24,91,.05)',
-                    borderBottom: '1px solid rgba(194,24,91,.1)',
-                    fontSize: 12,
-                    color: '#AD1457',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <I n="paperclip" s={13} />
-                  Sourced from {selectedConv.sourceLabel}
-                </div>
-              )}
-
-              <div
-                style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: 20,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 14,
-                  minHeight: 0,
-                }}
-              >
-                {selectedConv.type === 'dm' &&
-                  (selectedConv.messages || []).map((m, idx) =>
-                    m.from === 'customer' ? (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                        <div
-                          style={{
-                            maxWidth: '70%',
-                            background: 'rgba(0,0,0,.04)',
-                            color: '#1a1a1a',
-                            padding: '10px 14px',
-                            borderRadius: '14px 14px 14px 4px',
-                            fontSize: 13,
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {m.text}
-                          <div style={{ fontSize: 10, color: '#999', marginTop: 4 }}>{m.time}</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <div
-                          style={{
-                            maxWidth: '70%',
-                            background: 'rgba(194,24,91,.08)',
-                            color: '#1a1a1a',
-                            padding: '10px 14px',
-                            borderRadius: '14px 14px 4px 14px',
-                            fontSize: 13,
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {m.text}
-                          <div style={{ fontSize: 10, color: '#AD1457', marginTop: 4, textAlign: 'right' }}>
-                            {m.by} · {m.time}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  )}
-
-                {selectedConv.type === 'comment' && selectedConv.post && (
-                  <div style={{ border: '1px solid rgba(0,0,0,.08)', borderRadius: 12, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', gap: 12, padding: 12, background: '#fafafa' }}>
-                      <div
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 8,
-                          background: '#e8e8ea',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 10,
-                          fontWeight: 800,
-                          color: '#999',
-                          flex: '0 0 auto',
-                        }}
-                      >
-                        {selectedConv.post.label}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, color: '#333', lineHeight: 1.4 }}>
-                          {selectedConv.post.caption}
-                        </div>
-                        {selectedConv.post.campaign && (
-                          <div style={{ fontSize: 11, color: '#AD1457', fontWeight: 700, marginTop: 6 }}>
-                            Campaign: {selectedConv.post.campaign}
-                          </div>
-                        )}
-                        <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
-                          {selectedConv.post.likes} likes · {selectedConv.post.commentsCount} comments
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        padding: 12,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10,
-                        borderTop: '1px solid rgba(0,0,0,.06)',
-                      }}
-                    >
-                      {(selectedConv.comments || []).map((c, idx) =>
-                        c.from === 'agent' ? (
-                          <div
-                            key={idx}
-                            style={{ marginLeft: 20, paddingLeft: 12, borderLeft: '2px solid rgba(194,24,91,.2)' }}
-                          >
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#AD1457' }}>
-                              {c.by} <span style={{ fontWeight: 500, color: '#999', fontSize: 11 }}>· {c.time}</span>
-                            </div>
-                            <div style={{ fontSize: 13, color: '#333', marginTop: 2 }}>{c.text}</div>
-                          </div>
-                        ) : (
-                          <div key={idx}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a' }}>
-                              {c.from} <span style={{ fontWeight: 500, color: '#999', fontSize: 11 }}>· {c.time}</span>
-                            </div>
-                            <div style={{ fontSize: 13, color: '#333', marginTop: 2 }}>{c.text}</div>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {selectedConv.isComplaint && (
-                  <div
-                    style={{
-                      border: '1px solid rgba(198,40,40,.25)',
-                      background: 'rgba(198,40,40,.05)',
-                      borderRadius: 12,
-                      padding: '12px 16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                    }}
-                  >
-                    <I n="alertTriangle" s={18} c="#C62828" />
-                    <div style={{ fontSize: 12.5, color: '#8B1E1E', fontWeight: 600, lineHeight: 1.4 }}>
-                      Possible complaint detected — verify order details before promising a resolution. Never
-                      auto-resolve from sentiment alone.
-                    </div>
-                  </div>
-                )}
-
-                {selectedConv.aiSuggestion && (
-                  <div
-                    style={{
-                      border: '1.5px dashed #E91E63',
-                      background: 'rgba(194,24,91,.04)',
-                      borderRadius: 12,
-                      padding: '14px 16px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          fontSize: 11,
-                          fontWeight: 800,
-                          letterSpacing: '.04em',
-                          textTransform: 'uppercase',
-                          color: '#AD1457',
-                        }}
-                      >
-                        <I n="sparkle" s={13} c="#AD1457" />
-                        AI Suggested Reply
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: '#2E7D32',
-                          background: 'rgba(46,125,50,.1)',
-                          padding: '2px 8px',
-                          borderRadius: 10,
-                        }}
-                      >
-                        {selectedConv.aiSuggestion.confidence}% confidence
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.5, marginBottom: 8 }}>
-                      {selectedConv.aiSuggestion.text}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#999', marginBottom: 10 }}>
-                      Grounded in: {selectedConv.aiSuggestion.sources.join(' · ')}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        type="button"
-                        title="Coming soon"
-                        style={{
-                          padding: '7px 14px',
-                          borderRadius: 8,
-                          border: '1px solid rgba(0,0,0,.12)',
-                          background: '#fff',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: '#444',
-                          cursor: 'default',
-                          fontFamily: FONT,
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        title="Coming soon"
-                        style={{
-                          padding: '7px 14px',
-                          borderRadius: 8,
-                          border: 'none',
-                          background: '#AD1457',
-                          color: '#fff',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'default',
-                          fontFamily: FONT,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        <I n="send" s={13} c="#fff" />
-                        Use &amp; Send
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ flex: '0 0 auto', padding: '14px 20px 18px', borderTop: '1px solid rgba(0,0,0,.08)' }}>
-                {selectedConv.type === 'comment' && (
-                  <div style={{ fontSize: 11, color: '#999', marginBottom: 6 }}>
-                    Public reply — visible to everyone on this post
-                  </div>
-                )}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    gap: 10,
-                    background: '#f4f4f5',
-                    borderRadius: 12,
-                    padding: '10px 12px',
-                  }}
-                >
-                  <button
-                    type="button"
-                    aria-label="Attach file"
-                    title="Coming soon"
-                    style={{
-                      width: 28,
-                      height: 28,
-                      border: 'none',
-                      background: 'transparent',
-                      color: '#888',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'default',
-                      flex: '0 0 auto',
-                    }}
-                  >
-                    <I n="paperclip" s={16} />
-                  </button>
-                  <textarea
-                    aria-label="Reply message"
-                    placeholder="Write a reply..."
-                    rows={1}
-                    style={{
-                      flex: 1,
-                      border: 'none',
-                      background: 'transparent',
-                      outline: 'none',
-                      resize: 'none',
-                      fontSize: 13,
-                      fontFamily: FONT,
-                      color: '#1a1a1a',
-                      padding: '6px 0',
-                    }}
-                  />
-                  <button
-                    type="button"
-                    title="Coming soon"
-                    style={{
-                      padding: '8px 16px',
-                      border: 'none',
-                      borderRadius: 8,
-                      background: '#AD1457',
-                      color: '#fff',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: 'default',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontFamily: FONT,
-                      flex: '0 0 auto',
-                    }}
-                  >
-                    <I n="send" s={14} c="#fff" />
-                    Send
-                  </button>
-                </div>
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 8, fontSize: 11, color: '#999' }}
-                >
-                  <I n="checkCheck" s={12} c="#2E7D32" />
-                  Delivery status shown instantly · read receipts where the channel supports them
-                </div>
-              </div>
+              {threadHeader(false)}
+              {sourceStrip}
+              {threadBody}
+              {threadComposer}
             </div>
           </div>
         ) : (
-          // ── BOARD VIEW ──
+          // ── BOARD VIEW (desktop only) ──
           <div
             style={{
               flex: 1,
@@ -1547,10 +2151,11 @@ export default function InboxDashboard() {
           >
             {BOARD_COLUMNS.map((col) => {
               const isOver = dragOverCol === col.id;
-              const items = RAW_CONVERSATIONS.filter((c) => currentQueueOf(c) === col.id);
+              const items = conversations.filter((c) => currentQueueOf(c) === col.id);
               return (
                 <div
                   key={col.id}
+                  data-queue-column={col.id}
                   onDragOver={(e) => e.preventDefault()}
                   onDragEnter={() => setDragOverCol(col.id)}
                   onDragLeave={() => setDragOverCol((prev) => (prev === col.id ? null : prev))}
@@ -1610,9 +2215,10 @@ export default function InboxDashboard() {
                           key={c.id}
                           type="button"
                           draggable
+                          data-card-id={c.id}
                           onDragStart={() => setDraggingId(c.id)}
                           onDragEnd={() => setDraggingId(null)}
-                          onClick={() => openFromBoard(c.id)}
+                          onClick={() => openConversation(c.id)}
                           style={{
                             width: '100%',
                             textAlign: 'left',
