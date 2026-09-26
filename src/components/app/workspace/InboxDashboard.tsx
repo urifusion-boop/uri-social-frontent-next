@@ -1,6 +1,8 @@
 'use client';
 
 import { ReactNode, useMemo, useState } from 'react';
+import InboxConnectionsPage from './InboxConnectionsPage';
+import InboxInsightsPage, { type InsightsConversation } from './InboxInsightsPage';
 
 /*
  * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
@@ -103,6 +105,54 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       </>
     ),
     check: <polyline points="20 6 9 17 4 12" />,
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <polyline points="12 7 12 12 15.5 14" />
+      </>
+    ),
+    tag: (
+      <>
+        <path d="M20.59 13.41 12 22 2 12V2h10z" />
+        <circle cx="7" cy="7" r="1.4" fill="currentColor" stroke="none" />
+      </>
+    ),
+    note: (
+      <>
+        <path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z" />
+        <polyline points="14 3 14 9 20 9" />
+        <line x1="8" y1="13" x2="16" y2="13" />
+        <line x1="8" y1="17" x2="13" y2="17" />
+      </>
+    ),
+    user: (
+      <>
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </>
+    ),
+    plus: (
+      <>
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </>
+    ),
+    target: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="5" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+      </>
+    ),
+    grid: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </>
+    ),
+    zap: <polygon points="13 2 3 14 11 14 9 22 21 10 13 10 13 2" />,
     alertTriangle: (
       <>
         <polygon points="12 3 22 20 2 20" />
@@ -140,11 +190,30 @@ type QueueKey = 'unassigned' | 'sales' | 'support' | 'complaints' | 'ad' | 'reso
 type StatusKey = 'unassigned' | 'pending' | 'urgent' | 'resolved';
 type ConversationType = 'dm' | 'comment';
 
+type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read';
+
 interface ThreadMessage {
   from: 'customer' | 'agent';
   text: string;
   time: string;
   by?: string;
+  id?: string;
+  delivery?: DeliveryStatus;
+}
+
+interface InternalNote {
+  id: string;
+  text: string;
+  by: string;
+  time: string;
+}
+
+interface Lead {
+  interest: string;
+  budget: string;
+  notes: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 interface ThreadComment {
@@ -186,6 +255,9 @@ interface Conversation {
   post?: PostContext;
   comments?: ThreadComment[];
   aiSuggestion?: AiSuggestion;
+  tags?: string[];
+  notes?: InternalNote[];
+  lead?: Lead | null;
 }
 
 // ─── Static metadata ────────────────────────────────────────────────────────
@@ -203,13 +275,16 @@ const STATUS_META: Record<StatusKey, { label: string; fg: string; bg: string }> 
   resolved: { label: 'Resolved', fg: '#2E7D32', bg: 'rgba(46,125,50,.1)' },
 };
 
-const QUEUE_DEFS: { id: 'all' | QueueKey; label: string; count: number }[] = [
+type QueueFilter = 'all' | QueueKey | 'unanswered';
+
+const QUEUE_DEFS: { id: QueueFilter; label: string; count: number }[] = [
   { id: 'all', label: 'All conversations', count: 142 },
   { id: 'unassigned', label: 'Unassigned', count: 18 },
   { id: 'sales', label: 'Sales', count: 34 },
   { id: 'support', label: 'Support', count: 27 },
   { id: 'complaints', label: 'Complaints', count: 9 },
   { id: 'ad', label: 'Ad responses', count: 12 },
+  { id: 'unanswered', label: 'Unanswered', count: 22 },
   { id: 'resolved', label: 'Resolved', count: 20 },
 ];
 
@@ -223,6 +298,22 @@ const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
 ];
 
 const ASSIGNEE_OPTIONS = ['You', 'Ngozi U.', 'Tobi D.'];
+
+const TAG_PRESETS = ['VIP', 'Repeat customer', 'Refund', 'Spam review', 'Urgent'];
+
+const SAVED_REPLIES: { label: string; text: string }[] = [
+  { label: 'Order status', text: 'Thanks for reaching out! Let me check your order status and get right back to you.' },
+  {
+    label: 'Shipping times',
+    text: 'We ship within 2 business days, and delivery across Nigeria typically takes 3-5 days after that.',
+  },
+  {
+    label: 'Out of stock',
+    text: "That one's currently out of stock, but I can let you know the moment it's back — want me to?",
+  },
+  { label: 'Pickup available', text: 'Yes, pickup is available at our Lekki Phase 1 studio, Mon-Sat, 10am-6pm.' },
+  { label: 'Thank you', text: 'Thank you so much for your kind words — it means a lot to us! 💕' },
+];
 
 // ─── Placeholder sample data — stands in for the real Unified Inbox API ────
 const RAW_CONVERSATIONS: Conversation[] = [
@@ -484,7 +575,7 @@ function pillStyle(active: boolean): React.CSSProperties {
 export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [mobileScreen, setMobileScreen] = useState<'list' | 'thread'>('list');
 
-  const [selectedQueue, setSelectedQueue] = useState<'all' | QueueKey>('all');
+  const [selectedQueue, setSelectedQueue] = useState<QueueFilter>('all');
   const [selectedId, setSelectedId] = useState<string>('c1');
   const [view, setView] = useState<'list' | 'board'>('list');
   const [groupBy, setGroupBy] = useState<GroupMode>('time');
@@ -510,6 +601,26 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [moveMenuCardId, setMoveMenuCardId] = useState<string | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | ConversationType>('all');
+  const [typeFilterMenuOpen, setTypeFilterMenuOpen] = useState(false);
+  const [threadTab, setThreadTab] = useState<'thread' | 'notes'>('thread');
+  const [tagOverrides, setTagOverrides] = useState<Record<string, string[]>>({});
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
+  const [customTagDraft, setCustomTagDraft] = useState('');
+  const [noteOverrides, setNoteOverrides] = useState<Record<string, InternalNote[]>>({});
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savedRepliesOpen, setSavedRepliesOpen] = useState(false);
+  const [leadOverrides, setLeadOverrides] = useState<Record<string, Lead>>({});
+  const [leadModalOpen, setLeadModalOpen] = useState(false);
+  const [leadFormInterest, setLeadFormInterest] = useState('');
+  const [leadFormBudget, setLeadFormBudget] = useState('');
+  const [leadFormNotes, setLeadFormNotes] = useState('');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights'>('inbox');
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
   // Every conversation with its live overrides folded in — everything below
   // reads from this, never from RAW_CONVERSATIONS directly, so the list, the
   // board and the thread pane can never disagree about a conversation's
@@ -522,17 +633,39 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         assignee: c.id in assigneeOverrides ? assigneeOverrides[c.id] : c.assignee,
         messages: c.messages ? [...c.messages, ...(messageOverrides[c.id] || [])] : c.messages,
         comments: c.comments ? [...c.comments, ...(commentOverrides[c.id] || [])] : c.comments,
+        tags: tagOverrides[c.id] ?? c.tags ?? [],
+        notes: noteOverrides[c.id] ?? c.notes ?? [],
+        lead: c.id in leadOverrides ? leadOverrides[c.id] : (c.lead ?? null),
       })),
-    [statusOverrides, assigneeOverrides, messageOverrides, commentOverrides]
+    [statusOverrides, assigneeOverrides, messageOverrides, commentOverrides, tagOverrides, noteOverrides, leadOverrides]
   );
 
   const currentQueueOf = (c: Conversation): QueueKey => cardQueues[c.id] ?? c.queue;
 
-  const filteredConversations = useMemo(
-    () => conversations.filter((c) => selectedQueue === 'all' || currentQueueOf(c) === selectedQueue),
+  // A conversation is unanswered when the most recent activity is from the
+  // customer and nobody has replied since — computed live, not a static
+  // queue tag, so it stays accurate as replies go out.
+  function isUnanswered(c: Conversation): boolean {
+    if (c.status === 'resolved') return false;
+    const last = c.type === 'dm' ? c.messages?.[c.messages.length - 1] : c.comments?.[c.comments.length - 1];
+    if (!last) return false;
+    return c.type === 'dm' ? (last as ThreadMessage).from === 'customer' : (last as ThreadComment).from !== 'agent';
+  }
+
+  const filteredConversations = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return conversations.filter((c) => {
+      if (selectedQueue === 'unanswered') {
+        if (!isUnanswered(c)) return false;
+      } else if (selectedQueue !== 'all' && currentQueueOf(c) !== selectedQueue) {
+        return false;
+      }
+      if (typeFilter !== 'all' && c.type !== typeFilter) return false;
+      if (q && !(c.name.toLowerCase().includes(q) || c.excerpt.toLowerCase().includes(q))) return false;
+      return true;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [conversations, selectedQueue, cardQueues]
-  );
+  }, [conversations, selectedQueue, cardQueues, typeFilter, searchQuery]);
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
 
@@ -551,47 +684,66 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   function openConversation(id: string) {
     setSelectedId(id);
     setView('list');
+    setThreadTab('thread');
     if (isMobile) setMobileScreen('thread');
   }
 
-  function sendDraft() {
-    const text = draft.trim();
-    if (!text) return;
+  // Simulates realistic delivery progression (pending -> sent -> delivered)
+  // for a just-sent message, since there is no real channel API behind this
+  // yet. Updates the one message by its synthetic id, never the whole list,
+  // so it can't clobber messages sent in the meantime.
+  function simulateDelivery(convId: string, messageId: string) {
+    const advance = (delivery: DeliveryStatus) => {
+      setMessageOverrides((prev) => ({
+        ...prev,
+        [convId]: (prev[convId] || []).map((m) => (m.id === messageId ? { ...m, delivery } : m)),
+      }));
+    };
+    setTimeout(() => advance('sent'), 500);
+    setTimeout(() => advance('delivered'), 1600);
+  }
+
+  function appendReply(text: string) {
+    const id = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     if (selectedConv.type === 'dm') {
       setMessageOverrides((prev) => ({
         ...prev,
-        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
+        [selectedId]: [
+          ...(prev[selectedId] || []),
+          { from: 'agent', by: 'You', text, time: 'Just now', id, delivery: 'pending' },
+        ],
       }));
+      simulateDelivery(selectedId, id);
     } else {
       setCommentOverrides((prev) => ({
         ...prev,
         [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
       }));
     }
+  }
+
+  function sendDraft() {
+    const text = draft.trim();
+    if (!text) return;
+    appendReply(text);
     setComposerDrafts((prev) => ({ ...prev, [selectedId]: '' }));
     if (selectedConv.aiSuggestion) setUsedAiSuggestion((prev) => ({ ...prev, [selectedId]: true }));
   }
 
   function useAiSuggestionNow() {
     if (!selectedConv.aiSuggestion) return;
-    const text = selectedConv.aiSuggestion.text;
-    if (selectedConv.type === 'dm') {
-      setMessageOverrides((prev) => ({
-        ...prev,
-        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
-      }));
-    } else {
-      setCommentOverrides((prev) => ({
-        ...prev,
-        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
-      }));
-    }
+    appendReply(selectedConv.aiSuggestion.text);
     setUsedAiSuggestion((prev) => ({ ...prev, [selectedId]: true }));
   }
 
   function editAiSuggestionIntoComposer() {
     if (!selectedConv.aiSuggestion) return;
     setComposerDrafts((prev) => ({ ...prev, [selectedId]: selectedConv.aiSuggestion!.text }));
+  }
+
+  function insertSavedReply(text: string) {
+    setComposerDrafts((prev) => ({ ...prev, [selectedId]: text }));
+    setSavedRepliesOpen(false);
   }
 
   function setAssignee(name: string | null) {
@@ -610,8 +762,96 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     setMoreMenuOpen(false);
   }
 
+  function addTag(tag: string) {
+    const trimmed = tag.trim();
+    if (!trimmed) return;
+    const current = selectedConv.tags ?? [];
+    if (current.includes(trimmed)) return;
+    setTagOverrides((prev) => ({ ...prev, [selectedId]: [...current, trimmed] }));
+    setCustomTagDraft('');
+  }
+
+  function removeTag(tag: string) {
+    const current = selectedConv.tags ?? [];
+    setTagOverrides((prev) => ({ ...prev, [selectedId]: current.filter((t) => t !== tag) }));
+  }
+
+  function addNote() {
+    const text = noteDraft.trim();
+    if (!text) return;
+    const current = selectedConv.notes ?? [];
+    setNoteOverrides((prev) => ({
+      ...prev,
+      [selectedId]: [...current, { id: `note-${Date.now()}`, text, by: 'You', time: 'Just now' }],
+    }));
+    setNoteDraft('');
+  }
+
+  function openLeadModal() {
+    const existing = selectedConv.lead;
+    setLeadFormInterest(existing?.interest ?? '');
+    setLeadFormBudget(existing?.budget ?? '');
+    setLeadFormNotes(existing?.notes ?? '');
+    setLeadModalOpen(true);
+    setMoreMenuOpen(false);
+  }
+
+  function submitLead() {
+    if (!leadFormInterest.trim()) return;
+    setLeadOverrides((prev) => ({
+      ...prev,
+      [selectedId]: {
+        interest: leadFormInterest.trim(),
+        budget: leadFormBudget.trim(),
+        notes: leadFormNotes.trim(),
+        createdBy: 'You',
+        createdAt: 'Just now',
+      },
+    }));
+    setLeadModalOpen(false);
+  }
+
+  function toggleSelectId(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function bulkMarkResolved() {
+    const ids = Array.from(selectedIds);
+    setStatusOverrides((prev) => {
+      const next = { ...prev };
+      ids.forEach((id) => (next[id] = 'resolved'));
+      return next;
+    });
+    setCardQueues((prev) => {
+      const next = { ...prev };
+      ids.forEach((id) => (next[id] = 'resolved'));
+      return next;
+    });
+    exitSelectMode();
+  }
+
+  function bulkAssign(name: string) {
+    const ids = Array.from(selectedIds);
+    setAssigneeOverrides((prev) => {
+      const next = { ...prev };
+      ids.forEach((id) => (next[id] = name));
+      return next;
+    });
+    exitSelectMode();
+  }
+
   // ── Shared thread body (used by both the desktop thread pane and the mobile thread screen) ──
-  const threadBody = (
+  const messagesView = (
     <div
       style={{
         flex: 1,
@@ -656,8 +896,21 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 }}
               >
                 {m.text}
-                <div style={{ fontSize: 10, color: '#AD1457', marginTop: 4, textAlign: 'right' }}>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: '#AD1457',
+                    marginTop: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    gap: 4,
+                  }}
+                >
                   {m.by} · {m.time}
+                  {m.delivery === 'pending' && <I n="clock" s={11} c="#c98aa8" />}
+                  {m.delivery === 'sent' && <I n="check" s={11} c="#c98aa8" />}
+                  {m.delivery === 'delivered' && <I n="checkCheck" s={11} c="#AD1457" />}
                 </div>
               </div>
             </div>
@@ -835,6 +1088,153 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     </div>
   );
 
+  const notesView = (
+    <div
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        minHeight: 0,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11.5,
+          color: '#B26A00',
+          background: 'rgba(237,108,2,.08)',
+          border: '1px solid rgba(237,108,2,.2)',
+          borderRadius: 8,
+          padding: '8px 12px',
+        }}
+      >
+        Private notes are only visible to your team — the customer never sees these.
+      </div>
+      {(selectedConv.notes ?? []).length === 0 ? (
+        <div style={{ fontSize: 13, color: '#bbb', textAlign: 'center', padding: '24px 0' }}>No notes yet</div>
+      ) : (
+        (selectedConv.notes ?? []).map((note) => (
+          <div
+            key={note.id}
+            style={{
+              background: '#fff8ea',
+              border: '1px solid rgba(237,108,2,.15)',
+              borderRadius: 12,
+              padding: '10px 14px',
+            }}
+          >
+            <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.5 }}>{note.text}</div>
+            <div style={{ fontSize: 10.5, color: '#B26A00', marginTop: 6, fontWeight: 600 }}>
+              {note.by} · {note.time}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  const threadTabs = (
+    <div
+      style={{
+        flex: '0 0 auto',
+        display: 'flex',
+        gap: 4,
+        padding: '10px 20px 0',
+        borderBottom: '1px solid rgba(0,0,0,.06)',
+      }}
+    >
+      {(
+        [
+          ['thread', selectedConv.type === 'comment' ? 'Comment' : 'Conversation'],
+          ['notes', `Notes${(selectedConv.notes ?? []).length ? ` (${(selectedConv.notes ?? []).length})` : ''}`],
+        ] as const
+      ).map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => setThreadTab(id)}
+          style={{
+            padding: '8px 12px',
+            border: 'none',
+            borderBottom: threadTab === id ? '2px solid #E91E63' : '2px solid transparent',
+            background: 'transparent',
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: threadTab === id ? '#AD1457' : '#999',
+            cursor: 'pointer',
+            fontFamily: FONT,
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const threadBody = threadTab === 'thread' ? messagesView : notesView;
+
+  const noteComposer = (
+    <div style={{ flex: '0 0 auto', padding: '14px 20px 18px', borderTop: '1px solid rgba(0,0,0,.08)' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: 10,
+          background: '#fff8ea',
+          border: '1px solid rgba(237,108,2,.2)',
+          borderRadius: 12,
+          padding: '10px 12px',
+        }}
+      >
+        <textarea
+          aria-label="Add an internal note"
+          placeholder="Add a private note for your team..."
+          rows={1}
+          value={noteDraft}
+          onChange={(e) => setNoteDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              addNote();
+            }
+          }}
+          style={{
+            flex: 1,
+            border: 'none',
+            background: 'transparent',
+            outline: 'none',
+            resize: 'none',
+            fontSize: 13,
+            fontFamily: FONT,
+            color: '#1a1a1a',
+            padding: '6px 0',
+          }}
+        />
+        <button
+          type="button"
+          onClick={addNote}
+          disabled={!noteDraft.trim()}
+          style={{
+            padding: '8px 16px',
+            border: 'none',
+            borderRadius: 8,
+            background: noteDraft.trim() ? '#B26A00' : '#e8c9a0',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: noteDraft.trim() ? 'pointer' : 'default',
+            fontFamily: FONT,
+            flex: '0 0 auto',
+          }}
+        >
+          Add note
+        </button>
+      </div>
+    </div>
+  );
+
   const threadComposer = (
     <div style={{ flex: '0 0 auto', padding: '14px 20px 18px', borderTop: '1px solid rgba(0,0,0,.08)' }}>
       {selectedConv.type === 'comment' && (
@@ -871,6 +1271,91 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         >
           <I n="paperclip" s={16} />
         </button>
+        <div style={{ position: 'relative', flex: '0 0 auto' }}>
+          <button
+            type="button"
+            aria-label="Saved replies"
+            title="Saved replies"
+            onClick={() => setSavedRepliesOpen((o) => !o)}
+            style={{
+              width: 28,
+              height: 28,
+              border: 'none',
+              background: 'transparent',
+              color: '#888',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <I n="zap" s={16} />
+          </button>
+          {savedRepliesOpen && (
+            <>
+              <div onClick={() => setSavedRepliesOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '120%',
+                  left: 0,
+                  zIndex: 999,
+                  background: '#fff',
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                  border: '1px solid rgba(0,0,0,.06)',
+                  minWidth: 240,
+                  maxWidth: '80vw',
+                  padding: 6,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: '.04em',
+                    textTransform: 'uppercase',
+                    color: '#999',
+                    padding: '6px 8px',
+                  }}
+                >
+                  Saved replies
+                </div>
+                {SAVED_REPLIES.map((r) => (
+                  <button
+                    key={r.label}
+                    type="button"
+                    onClick={() => insertSavedReply(r.text)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px',
+                      border: 'none',
+                      background: 'transparent',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontFamily: FONT,
+                    }}
+                  >
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#333' }}>{r.label}</div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: '#999',
+                        marginTop: 1,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {r.text}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <textarea
           aria-label="Reply message"
           placeholder="Write a reply..."
@@ -1169,6 +1654,29 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 <I n="check" s={14} c={selectedConv.status === 'resolved' ? '#999' : '#2E7D32'} />
                 {selectedConv.status === 'resolved' ? 'Reopen conversation' : 'Mark resolved'}
               </button>
+              <button
+                type="button"
+                onClick={openLeadModal}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 10px',
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#333',
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                <I n="target" s={14} c={selectedConv.lead ? '#2E7D32' : '#999'} />
+                {selectedConv.lead ? 'Edit lead' : 'Create lead'}
+              </button>
             </div>
           </>
         )}
@@ -1247,8 +1755,518 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     </div>
   );
 
+  const tagsRow = (
+    <div
+      style={{
+        padding: '10px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        flexWrap: 'wrap',
+        borderBottom: '1px solid rgba(0,0,0,.06)',
+      }}
+    >
+      {(selectedConv.tags ?? []).map((tag) => (
+        <span
+          key={tag}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 11,
+            fontWeight: 700,
+            padding: '4px 6px 4px 10px',
+            borderRadius: 12,
+            background: 'rgba(194,24,91,.08)',
+            color: '#AD1457',
+          }}
+        >
+          {tag}
+          <button
+            type="button"
+            aria-label={`Remove tag ${tag}`}
+            onClick={() => removeTag(tag)}
+            style={{
+              width: 16,
+              height: 16,
+              border: 'none',
+              background: 'rgba(194,24,91,.15)',
+              borderRadius: '50%',
+              color: '#AD1457',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            <I n="x" s={9} />
+          </button>
+        </span>
+      ))}
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={() => setTagMenuOpen((o) => !o)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 11,
+            fontWeight: 700,
+            padding: '4px 10px',
+            borderRadius: 12,
+            border: '1px dashed rgba(0,0,0,.2)',
+            background: 'transparent',
+            color: '#888',
+            cursor: 'pointer',
+            fontFamily: FONT,
+          }}
+        >
+          <I n="plus" s={10} />
+          Tag
+        </button>
+        {tagMenuOpen && (
+          <>
+            <div onClick={() => setTagMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+            <div
+              style={{
+                position: 'absolute',
+                top: '110%',
+                left: 0,
+                zIndex: 999,
+                background: '#fff',
+                borderRadius: 10,
+                boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                border: '1px solid rgba(0,0,0,.06)',
+                minWidth: 200,
+                padding: 10,
+              }}
+            >
+              {TAG_PRESETS.filter((t) => !(selectedConv.tags ?? []).includes(t)).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    addTag(t);
+                    setTagMenuOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '7px 8px',
+                    border: 'none',
+                    background: 'transparent',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#333',
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  marginTop: 6,
+                  padding: '6px 4px 0',
+                  borderTop: '1px solid rgba(0,0,0,.06)',
+                }}
+              >
+                <input
+                  aria-label="Custom tag"
+                  placeholder="Custom tag..."
+                  value={customTagDraft}
+                  onChange={(e) => setCustomTagDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      addTag(customTagDraft);
+                      setTagMenuOpen(false);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    border: '1px solid rgba(0,0,0,.1)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    addTag(customTagDraft);
+                    setTagMenuOpen(false);
+                  }}
+                  style={{
+                    border: 'none',
+                    background: '#AD1457',
+                    color: '#fff',
+                    borderRadius: 6,
+                    padding: '0 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+      {selectedConv.lead && (
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 11,
+            fontWeight: 700,
+            padding: '4px 10px',
+            borderRadius: 12,
+            background: 'rgba(46,125,50,.1)',
+            color: '#2E7D32',
+            marginLeft: 'auto',
+          }}
+        >
+          <I n="target" s={11} c="#2E7D32" />
+          Lead
+        </span>
+      )}
+    </div>
+  );
+
   // ── Shared: queue pills (used in desktop sidebar + mobile chip row) ──
   const queuePills = QUEUE_DEFS.map((q) => ({ ...q, active: selectedQueue === q.id }));
+
+  const notificationBell = (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        aria-label="Notifications"
+        onClick={() => setNotificationsOpen((o) => !o)}
+        style={{
+          width: 36,
+          height: 36,
+          border: 'none',
+          background: 'transparent',
+          borderRadius: 8,
+          color: '#555',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          position: 'relative',
+        }}
+      >
+        <I n="bell" s={18} />
+        <span
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: '#E91E63',
+          }}
+        />
+      </button>
+      {notificationsOpen && (
+        <>
+          <div onClick={() => setNotificationsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+          <div
+            style={{
+              position: 'absolute',
+              top: '110%',
+              right: 0,
+              zIndex: 999,
+              background: '#fff',
+              borderRadius: 12,
+              boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+              border: '1px solid rgba(0,0,0,.06)',
+              width: 300,
+              maxWidth: '85vw',
+              padding: 8,
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#333', padding: '6px 8px 10px' }}>Recent activity</div>
+            {[
+              { text: 'Tobi O. sent a new message', time: '2h', icon: 'inbox' as const, color: '#C62828' },
+              { text: 'Ifeoma B. commented on your ad', time: '24m', icon: 'megaphone' as const, color: '#AD1457' },
+              { text: 'Ngozi U. resolved a conversation', time: '3h', icon: 'check' as const, color: '#2E7D32' },
+            ].map((n, idx) => (
+              <div
+                key={idx}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px', borderRadius: 8 }}
+              >
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: `${n.color}1a`,
+                    color: n.color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flex: '0 0 auto',
+                  }}
+                >
+                  <I n={n.icon} s={13} c={n.color} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, color: '#333' }}>{n.text}</div>
+                  <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>{n.time} ago</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const leadModal = leadModalOpen && (
+    <>
+      <div
+        onClick={() => setLeadModalOpen(false)}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1100 }}
+      />
+      <div
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%,-50%)',
+          zIndex: 1101,
+          background: '#fff',
+          borderRadius: 16,
+          width: 420,
+          maxWidth: '90vw',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          boxShadow: '0 20px 60px rgba(0,0,0,.3)',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ padding: '20px 20px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, color: '#1a1a1a' }}
+            >
+              <I n="target" s={18} c="#AD1457" />
+              {selectedConv.lead ? 'Edit lead' : 'Create lead'}
+            </div>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setLeadModalOpen(false)}
+              style={{
+                width: 30,
+                height: 30,
+                border: 'none',
+                background: 'transparent',
+                color: '#666',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                borderRadius: 8,
+              }}
+            >
+              <I n="x" s={16} />
+            </button>
+          </div>
+          <div style={{ fontSize: 12.5, color: '#999', marginBottom: 16 }}>
+            For {selectedConv.name} · {CHANNEL_META[selectedConv.channel].label}
+          </div>
+        </div>
+
+        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <label
+            style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#444' }}
+          >
+            Product interest
+            <input
+              value={leadFormInterest}
+              onChange={(e) => setLeadFormInterest(e.target.value)}
+              placeholder="e.g. Tan Woven Tote"
+              style={{
+                border: '1px solid rgba(0,0,0,.12)',
+                borderRadius: 8,
+                padding: '9px 12px',
+                fontSize: 13,
+                fontFamily: FONT,
+                outline: 'none',
+              }}
+            />
+          </label>
+          <label
+            style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#444' }}
+          >
+            Budget (optional)
+            <input
+              value={leadFormBudget}
+              onChange={(e) => setLeadFormBudget(e.target.value)}
+              placeholder="e.g. ₦40,000 - ₦60,000"
+              style={{
+                border: '1px solid rgba(0,0,0,.12)',
+                borderRadius: 8,
+                padding: '9px 12px',
+                fontSize: 13,
+                fontFamily: FONT,
+                outline: 'none',
+              }}
+            />
+          </label>
+          <label
+            style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#444' }}
+          >
+            Notes (optional)
+            <textarea
+              value={leadFormNotes}
+              onChange={(e) => setLeadFormNotes(e.target.value)}
+              placeholder="Anything worth remembering for the follow-up..."
+              rows={3}
+              style={{
+                border: '1px solid rgba(0,0,0,.12)',
+                borderRadius: 8,
+                padding: '9px 12px',
+                fontSize: 13,
+                fontFamily: FONT,
+                outline: 'none',
+                resize: 'vertical',
+              }}
+            />
+          </label>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', padding: 20 }}>
+          <button
+            type="button"
+            onClick={() => setLeadModalOpen(false)}
+            style={{
+              padding: '9px 16px',
+              borderRadius: 8,
+              border: '1px solid rgba(0,0,0,.12)',
+              background: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#444',
+              cursor: 'pointer',
+              fontFamily: FONT,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submitLead}
+            disabled={!leadFormInterest.trim()}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: leadFormInterest.trim() ? '#AD1457' : '#d9a9bc',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: leadFormInterest.trim() ? 'pointer' : 'default',
+              fontFamily: FONT,
+            }}
+          >
+            {selectedConv.lead ? 'Save changes' : 'Create lead'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CONNECTIONS / INSIGHTS — full-width sub-screens, same for mobile and desktop
+  // ═══════════════════════════════════════════════════════════════════════
+  if (subView !== 'inbox') {
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          fontFamily: FONT,
+          background: '#fafafa',
+          color: '#1a1a1a',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            height: 56,
+            flex: '0 0 56px',
+            background: '#fff',
+            borderBottom: '1px solid rgba(0,0,0,.08)',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 16px',
+            gap: 10,
+            boxSizing: 'border-box',
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Back to Customer Messages"
+            onClick={() => setSubView('inbox')}
+            style={{
+              width: 34,
+              height: 34,
+              border: 'none',
+              background: 'transparent',
+              color: '#444',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              borderRadius: 8,
+              flex: '0 0 auto',
+            }}
+          >
+            <I n="chevronLeft" s={20} />
+          </button>
+          <div
+            style={{
+              flex: 1,
+              fontSize: isMobile ? 16 : 18,
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {subView === 'connections' ? 'Channel Connections' : 'Insights'}
+          </div>
+          {notificationBell}
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          {subView === 'connections' ? (
+            <InboxConnectionsPage isMobile={isMobile} />
+          ) : (
+            <InboxInsightsPage isMobile={isMobile} conversations={conversations} />
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // MOBILE
@@ -1287,23 +2305,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               }}
             >
               <div style={{ flex: 1, fontSize: 17, fontWeight: 800 }}>Customer Messages</div>
-              <button
-                type="button"
-                aria-label="Notifications"
-                style={{
-                  width: 40,
-                  height: 40,
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#444',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 8,
-                }}
-              >
-                <I n="bell" s={19} />
-              </button>
+              {notificationBell}
             </div>
 
             {/* View toggle + filter summary — no horizontal scroll: queues/grouping live in the
@@ -1366,11 +2368,31 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                     textAlign: 'left',
                   }}
                 >
-                  {activeQueueLabel}
+                  {searchQuery ? `"${searchQuery}"` : activeQueueLabel}
+                  {typeFilter !== 'all' ? ` · ${typeFilter === 'dm' ? 'Messages' : 'Comments'}` : ''}
                   {groupBy !== 'time' ? ` · Grouped by ${groupByLabel}` : ''}
                 </span>
                 <I n="chevronDown" s={12} c="#999" />
               </button>
+              {view === 'list' && (
+                <button
+                  type="button"
+                  onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+                  style={{
+                    flex: '0 0 auto',
+                    border: 'none',
+                    background: 'transparent',
+                    color: selectMode ? '#AD1457' : '#888',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                    padding: '4px 2px',
+                  }}
+                >
+                  {selectMode ? 'Cancel' : 'Select'}
+                </button>
+              )}
             </div>
 
             {view === 'list' ? (
@@ -1416,11 +2438,12 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => openConversation(item.id)}
+                          onClick={() => (selectMode ? toggleSelectId(item.id) : openConversation(item.id))}
                           style={{
                             width: '100%',
                             textAlign: 'left',
                             display: 'flex',
+                            alignItems: 'center',
                             gap: 12,
                             padding: 14,
                             minHeight: 76,
@@ -1434,6 +2457,23 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                             marginBottom: 8,
                           }}
                         >
+                          {selectMode && (
+                            <div
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: 6,
+                                border: selectedIds.has(item.id) ? 'none' : '1.5px solid rgba(0,0,0,.2)',
+                                background: selectedIds.has(item.id) ? '#AD1457' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flex: '0 0 auto',
+                              }}
+                            >
+                              {selectedIds.has(item.id) && <I n="check" s={13} c="#fff" />}
+                            </div>
+                          )}
                           <div style={{ position: 'relative', flex: '0 0 auto' }}>
                             <div
                               style={{
@@ -1698,10 +2738,77 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         ) : (
           <>
             {threadHeader(true)}
-            {sourceStrip}
+            {tagsRow}
+            {threadTabs}
+            {threadTab === 'thread' && sourceStrip}
             {threadBody}
-            {threadComposer}
+            {threadTab === 'thread' ? threadComposer : noteComposer}
           </>
+        )}
+
+        {selectMode && mobileScreen === 'list' && (
+          <div
+            style={{
+              position: 'fixed',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: '#fff',
+              borderTop: '1px solid rgba(0,0,0,.08)',
+              zIndex: 900,
+              padding: '10px 12px calc(10px + env(safe-area-inset-bottom, 0px))',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              overflowX: 'auto',
+              boxSizing: 'border-box',
+            }}
+          >
+            <span style={{ flex: '0 0 auto', fontSize: 12, color: '#666', fontWeight: 700 }}>
+              {selectedIds.size} selected
+            </span>
+            <button
+              type="button"
+              disabled={selectedIds.size === 0}
+              onClick={bulkMarkResolved}
+              style={{
+                flex: '0 0 auto',
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(0,0,0,.1)',
+                background: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                color: selectedIds.size === 0 ? '#ccc' : '#2E7D32',
+                cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                fontFamily: FONT,
+              }}
+            >
+              Mark resolved
+            </button>
+            {ASSIGNEE_OPTIONS.map((name) => (
+              <button
+                key={name}
+                type="button"
+                disabled={selectedIds.size === 0}
+                onClick={() => bulkAssign(name)}
+                style={{
+                  flex: '0 0 auto',
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(0,0,0,.1)',
+                  background: '#fff',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: selectedIds.size === 0 ? '#ccc' : '#444',
+                  cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                Assign {name}
+              </button>
+            ))}
+          </div>
         )}
 
         {/* Filter drawer — queues + grouping, replacing what would otherwise be a
@@ -1757,6 +2864,80 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 >
                   <I n="x" s={16} />
                 </button>
+              </div>
+
+              <div style={{ padding: '0 16px 14px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    background: '#f4f4f5',
+                    borderRadius: 9,
+                    padding: '8px 10px',
+                  }}
+                >
+                  <I n="search" s={14} c="#999" />
+                  <input
+                    aria-label="Search conversations"
+                    placeholder="Search conversations..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      flex: 1,
+                      border: 'none',
+                      background: 'transparent',
+                      outline: 'none',
+                      fontSize: 13,
+                      fontFamily: FONT,
+                      color: '#333',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ padding: '0 12px 8px' }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: '.06em',
+                    textTransform: 'uppercase',
+                    color: '#999',
+                    padding: '0 8px 8px',
+                  }}
+                >
+                  Type
+                </div>
+                <div style={{ display: 'flex', gap: 6, padding: '0 8px' }}>
+                  {(
+                    [
+                      ['all', 'All'],
+                      ['dm', 'Messages'],
+                      ['comment', 'Comments'],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setTypeFilter(id)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 6px',
+                        borderRadius: 8,
+                        border: typeFilter === id ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                        background: typeFilter === id ? 'rgba(194,24,91,.1)' : '#fff',
+                        color: typeFilter === id ? '#AD1457' : '#444',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        fontFamily: FONT,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div style={{ padding: '8px 12px' }}>
@@ -1854,6 +3035,61 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                     {label}
                   </button>
                 ))}
+
+                <div style={{ height: 1, background: 'rgba(0,0,0,.08)', margin: '16px 8px' }} />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubView('connections');
+                    setFilterDrawerOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '11px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#333',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: FONT,
+                  }}
+                >
+                  <I n="share" s={16} c="#888" />
+                  Connections
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubView('insights');
+                    setFilterDrawerOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '11px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#333',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: FONT,
+                  }}
+                >
+                  <I n="chart" s={16} c="#888" />
+                  Insights
+                </button>
               </div>
             </div>
           </>
@@ -1932,6 +3168,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             </div>
           </>
         )}
+        {leadModal}
       </div>
     );
   }
@@ -1991,6 +3228,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           <input
             aria-label="Search conversations, customers, or keywords"
             placeholder="Search conversations, customers, or keywords"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               border: 'none',
               background: 'transparent',
@@ -2001,6 +3240,23 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               color: '#333',
             }}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setSearchQuery('')}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#999',
+                cursor: 'pointer',
+                display: 'flex',
+                padding: 0,
+              }}
+            >
+              <I n="x" s={13} />
+            </button>
+          )}
         </div>
 
         <div style={{ flex: 1 }} />
@@ -2023,24 +3279,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           All channels connected
         </div>
 
-        <button
-          type="button"
-          aria-label="Notifications"
-          style={{
-            width: 36,
-            height: 36,
-            border: 'none',
-            background: 'transparent',
-            borderRadius: 8,
-            color: '#555',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <I n="bell" s={18} />
-        </button>
+        {notificationBell}
       </div>
 
       {/* toolbar: view switch + group by */}
@@ -2174,7 +3413,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
             <button
               type="button"
-              title="Coming soon"
+              onClick={() => setSubView('connections')}
               style={{
                 width: '100%',
                 display: 'flex',
@@ -2183,21 +3422,21 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 padding: '9px 10px',
                 border: 'none',
                 background: 'transparent',
-                color: '#aaa',
+                color: '#444',
                 fontSize: 13,
                 fontWeight: 600,
                 borderRadius: 8,
-                cursor: 'default',
+                cursor: 'pointer',
                 textAlign: 'left',
                 fontFamily: FONT,
               }}
             >
-              <I n="share" s={16} c="#bbb" />
+              <I n="share" s={16} c="#888" />
               Connections
             </button>
             <button
               type="button"
-              title="Coming soon"
+              onClick={() => setSubView('insights')}
               style={{
                 width: '100%',
                 display: 'flex',
@@ -2206,16 +3445,16 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 padding: '9px 10px',
                 border: 'none',
                 background: 'transparent',
-                color: '#aaa',
+                color: '#444',
                 fontSize: 13,
                 fontWeight: 600,
                 borderRadius: 8,
-                cursor: 'default',
+                cursor: 'pointer',
                 textAlign: 'left',
                 fontFamily: FONT,
               }}
             >
-              <I n="chart" s={16} c="#bbb" />
+              <I n="chart" s={16} c="#888" />
               Insights
             </button>
           </div>
@@ -2241,28 +3480,161 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               }}
             >
               <div style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>
-                {filteredConversations.length} conversations
+                {filteredConversations.length} conversation{filteredConversations.length === 1 ? '' : 's'}
               </div>
-              <button
-                type="button"
-                aria-label="Filter conversations"
-                title="Coming soon"
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectMode) exitSelectMode();
+                    else setSelectMode(true);
+                  }}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: selectMode ? '#AD1457' : '#888',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                    padding: '4px 6px',
+                  }}
+                >
+                  {selectMode ? 'Cancel' : 'Select'}
+                </button>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    aria-label="Filter by type"
+                    onClick={() => setTypeFilterMenuOpen((o) => !o)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      border: typeFilter !== 'all' ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                      background: typeFilter !== 'all' ? 'rgba(194,24,91,.08)' : '#fff',
+                      borderRadius: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: typeFilter !== 'all' ? '#AD1457' : '#666',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <I n="filter" s={14} />
+                  </button>
+                  {typeFilterMenuOpen && (
+                    <>
+                      <div
+                        onClick={() => setTypeFilterMenuOpen(false)}
+                        style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '110%',
+                          right: 0,
+                          zIndex: 999,
+                          background: '#fff',
+                          borderRadius: 10,
+                          boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                          border: '1px solid rgba(0,0,0,.06)',
+                          minWidth: 160,
+                          padding: 6,
+                        }}
+                      >
+                        {(
+                          [
+                            ['all', 'All types'],
+                            ['dm', 'Messages only'],
+                            ['comment', 'Comments only'],
+                          ] as const
+                        ).map(([id, label]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => {
+                              setTypeFilter(id);
+                              setTypeFilterMenuOpen(false);
+                            }}
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 10px',
+                              border: 'none',
+                              background: typeFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: '#333',
+                              cursor: 'pointer',
+                              fontFamily: FONT,
+                            }}
+                          >
+                            {label}
+                            {typeFilter === id && <I n="check" s={13} c="#AD1457" />}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            {selectMode && (
+              <div
                 style={{
-                  width: 28,
-                  height: 28,
-                  border: '1px solid rgba(0,0,0,.1)',
-                  background: '#fff',
-                  borderRadius: 6,
+                  padding: '0 16px 10px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#666',
-                  cursor: 'default',
+                  gap: 8,
+                  flexWrap: 'wrap',
                 }}
               >
-                <I n="filter" s={14} />
-              </button>
-            </div>
+                <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{selectedIds.size} selected</span>
+                <button
+                  type="button"
+                  disabled={selectedIds.size === 0}
+                  onClick={bulkMarkResolved}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 7,
+                    border: '1px solid rgba(0,0,0,.1)',
+                    background: '#fff',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: selectedIds.size === 0 ? '#ccc' : '#2E7D32',
+                    cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  Mark resolved
+                </button>
+                {ASSIGNEE_OPTIONS.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    disabled={selectedIds.size === 0}
+                    onClick={() => bulkAssign(name)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: 7,
+                      border: '1px solid rgba(0,0,0,.1)',
+                      background: '#fff',
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      color: selectedIds.size === 0 ? '#ccc' : '#444',
+                      cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                      fontFamily: FONT,
+                    }}
+                  >
+                    Assign {name}
+                  </button>
+                ))}
+              </div>
+            )}
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
               {groups.map((grp) => (
                 <div key={grp.key}>
@@ -2296,11 +3668,12 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                       <button
                         key={item.id}
                         type="button"
-                        onClick={() => openConversation(item.id)}
+                        onClick={() => (selectMode ? toggleSelectId(item.id) : openConversation(item.id))}
                         style={{
                           width: '100%',
                           textAlign: 'left',
                           display: 'flex',
+                          alignItems: 'center',
                           gap: 10,
                           padding: 12,
                           marginBottom: 6,
@@ -2312,6 +3685,23 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                           fontFamily: FONT,
                         }}
                       >
+                        {selectMode && (
+                          <div
+                            style={{
+                              width: 18,
+                              height: 18,
+                              borderRadius: 5,
+                              border: selectedIds.has(item.id) ? 'none' : '1.5px solid rgba(0,0,0,.2)',
+                              background: selectedIds.has(item.id) ? '#AD1457' : 'transparent',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flex: '0 0 auto',
+                            }}
+                          >
+                            {selectedIds.has(item.id) && <I n="check" s={12} c="#fff" />}
+                          </div>
+                        )}
                         <div style={{ position: 'relative', flex: '0 0 auto' }}>
                           <div
                             style={{
@@ -2415,9 +3805,11 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             }}
           >
             {threadHeader(false)}
-            {sourceStrip}
+            {tagsRow}
+            {threadTabs}
+            {threadTab === 'thread' && sourceStrip}
             {threadBody}
-            {threadComposer}
+            {threadTab === 'thread' ? threadComposer : noteComposer}
           </div>
         </div>
       ) : (
@@ -2586,6 +3978,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           })}
         </div>
       )}
+      {leadModal}
     </div>
   );
 }
