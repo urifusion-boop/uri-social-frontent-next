@@ -1,8 +1,9 @@
 'use client';
 
-import { ReactNode, useMemo, useState } from 'react';
-import InboxConnectionsPage from './InboxConnectionsPage';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
+import InboxConnectionsPage, { INITIAL_CHANNEL_CONNECTIONS, type ChannelConnection } from './InboxConnectionsPage';
 import InboxInsightsPage, { type InsightsConversation } from './InboxInsightsPage';
+import InboxSettingsPage from './InboxSettingsPage';
 
 /*
  * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
@@ -299,9 +300,14 @@ const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
 
 const ASSIGNEE_OPTIONS = ['You', 'Ngozi U.', 'Tobi D.'];
 
-const TAG_PRESETS = ['VIP', 'Repeat customer', 'Refund', 'Spam review', 'Urgent'];
+export interface SavedReply {
+  label: string;
+  text: string;
+}
 
-const SAVED_REPLIES: { label: string; text: string }[] = [
+const DEFAULT_TAG_PRESETS = ['VIP', 'Repeat customer', 'Refund', 'Spam review', 'Urgent'];
+
+const DEFAULT_SAVED_REPLIES: SavedReply[] = [
   { label: 'Order status', text: 'Thanks for reaching out! Let me check your order status and get right back to you.' },
   {
     label: 'Shipping times',
@@ -604,6 +610,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | ConversationType>('all');
   const [typeFilterMenuOpen, setTypeFilterMenuOpen] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [threadTab, setThreadTab] = useState<'thread' | 'notes'>('thread');
   const [tagOverrides, setTagOverrides] = useState<Record<string, string[]>>({});
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
@@ -618,8 +626,32 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [leadFormNotes, setLeadFormNotes] = useState('');
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights'>('inbox');
+  const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights' | 'settings'>('inbox');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [channelConnections, setChannelConnections] = useState<ChannelConnection[]>(INITIAL_CHANNEL_CONNECTIONS);
+  const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set(['c1']));
+  const [tagPresets, setTagPresets] = useState<string[]>(DEFAULT_TAG_PRESETS);
+  const [savedReplies, setSavedReplies] = useState<SavedReply[]>(DEFAULT_SAVED_REPLIES);
+
+  // Escape closes whatever overlay is currently open — drawers, sheets,
+  // menus and modals alike — since none of them trap focus, a keyboard or
+  // screen-reader user otherwise has no way out but the mouse.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setLeadModalOpen(false);
+      setMoveMenuCardId(null);
+      setFilterDrawerOpen(false);
+      setAssignMenuOpen(false);
+      setMoreMenuOpen(false);
+      setTagMenuOpen(false);
+      setSavedRepliesOpen(false);
+      setTypeFilterMenuOpen(false);
+      setNotificationsOpen(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // Every conversation with its live overrides folded in — everything below
   // reads from this, never from RAW_CONVERSATIONS directly, so the list, the
@@ -661,11 +693,15 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         return false;
       }
       if (typeFilter !== 'all' && c.type !== typeFilter) return false;
+      if (tagFilter !== 'all' && !(c.tags ?? []).includes(tagFilter)) return false;
+      if (assigneeFilter !== 'all') {
+        if (assigneeFilter === 'unassigned' ? c.assignee : c.assignee !== assigneeFilter) return false;
+      }
       if (q && !(c.name.toLowerCase().includes(q) || c.excerpt.toLowerCase().includes(q))) return false;
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, selectedQueue, cardQueues, typeFilter, searchQuery]);
+  }, [conversations, selectedQueue, cardQueues, typeFilter, tagFilter, assigneeFilter, searchQuery]);
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
 
@@ -685,6 +721,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     setSelectedId(id);
     setView('list');
     setThreadTab('thread');
+    setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
     if (isMobile) setMobileScreen('thread');
   }
 
@@ -692,7 +729,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   // for a just-sent message, since there is no real channel API behind this
   // yet. Updates the one message by its synthetic id, never the whole list,
   // so it can't clobber messages sent in the meantime.
-  function simulateDelivery(convId: string, messageId: string) {
+  function simulateDelivery(convId: string, messageId: string, channel: ChannelKey) {
     const advance = (delivery: DeliveryStatus) => {
       setMessageOverrides((prev) => ({
         ...prev,
@@ -701,6 +738,11 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     };
     setTimeout(() => advance('sent'), 500);
     setTimeout(() => advance('delivered'), 1600);
+    // Read receipts aren't exposed by every channel's API — only simulate the
+    // 'read' state for the ones that actually support it.
+    if (channel === 'whatsapp' || channel === 'instagram') {
+      setTimeout(() => advance('read'), 3200);
+    }
   }
 
   function appendReply(text: string) {
@@ -713,7 +755,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           { from: 'agent', by: 'You', text, time: 'Just now', id, delivery: 'pending' },
         ],
       }));
-      simulateDelivery(selectedId, id);
+      simulateDelivery(selectedId, id, selectedConv.channel);
     } else {
       setCommentOverrides((prev) => ({
         ...prev,
@@ -850,6 +892,22 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     exitSelectMode();
   }
 
+  function handleChannelConnected(channelId: string, accountLabel: string) {
+    setChannelConnections((prev) =>
+      prev.map((c) =>
+        c.id === channelId
+          ? {
+              ...c,
+              connected: true,
+              statusNote: `Connected as ${accountLabel}`,
+              tokenHealth: 'healthy',
+              lastEvent: 'Just now',
+            }
+          : c
+      )
+    );
+  }
+
   // ── Shared thread body (used by both the desktop thread pane and the mobile thread screen) ──
   const messagesView = (
     <div
@@ -911,6 +969,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                   {m.delivery === 'pending' && <I n="clock" s={11} c="#c98aa8" />}
                   {m.delivery === 'sent' && <I n="check" s={11} c="#c98aa8" />}
                   {m.delivery === 'delivered' && <I n="checkCheck" s={11} c="#AD1457" />}
+                  {m.delivery === 'read' && <I n="checkCheck" s={11} c="#1565C0" />}
                 </div>
               </div>
             </div>
@@ -1321,7 +1380,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 >
                   Saved replies
                 </div>
-                {SAVED_REPLIES.map((r) => (
+                {savedReplies.map((r) => (
                   <button
                     key={r.label}
                     type="button"
@@ -1843,31 +1902,33 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 padding: 10,
               }}
             >
-              {TAG_PRESETS.filter((t) => !(selectedConv.tags ?? []).includes(t)).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => {
-                    addTag(t);
-                    setTagMenuOpen(false);
-                  }}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '7px 8px',
-                    border: 'none',
-                    background: 'transparent',
-                    borderRadius: 6,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#333',
-                    cursor: 'pointer',
-                    fontFamily: FONT,
-                  }}
-                >
-                  {t}
-                </button>
-              ))}
+              {tagPresets
+                .filter((t) => !(selectedConv.tags ?? []).includes(t))
+                .map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      addTag(t);
+                      setTagMenuOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '7px 8px',
+                      border: 'none',
+                      background: 'transparent',
+                      borderRadius: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#333',
+                      cursor: 'pointer',
+                      fontFamily: FONT,
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
               <div
                 style={{
                   display: 'flex',
@@ -1948,6 +2009,59 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
   // ── Shared: queue pills (used in desktop sidebar + mobile chip row) ──
   const queuePills = QUEUE_DEFS.map((q) => ({ ...q, active: selectedQueue === q.id }));
+
+  const allTagsInUse = Array.from(new Set(conversations.flatMap((c) => c.tags ?? []))).sort();
+  const hasExtraFilters = typeFilter !== 'all' || tagFilter !== 'all' || assigneeFilter !== 'all';
+
+  const listEmptyState = (
+    <div style={{ padding: '40px 20px', textAlign: 'center', color: '#999' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#666', marginBottom: 4 }}>No conversations match</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+        {searchQuery ? `Nothing found for "${searchQuery}".` : 'Try a different queue, type, or clearing your filters.'}
+      </div>
+      {(searchQuery || hasExtraFilters || selectedQueue !== 'all') && (
+        <button
+          type="button"
+          onClick={() => {
+            setSearchQuery('');
+            setTypeFilter('all');
+            setTagFilter('all');
+            setAssigneeFilter('all');
+            setSelectedQueue('all');
+          }}
+          style={{
+            marginTop: 12,
+            padding: '7px 16px',
+            borderRadius: 8,
+            border: '1px solid rgba(0,0,0,.12)',
+            background: '#fff',
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: '#AD1457',
+            cursor: 'pointer',
+            fontFamily: FONT,
+          }}
+        >
+          Clear filters
+        </button>
+      )}
+    </div>
+  );
+
+  // Drives the top bar pill — never claims "all connected" while a real
+  // channel is disconnected or its token is expiring, and never counts an
+  // unapproved platform (TikTok) against the total.
+  const approvedConnections = channelConnections.filter((c) => c.approved);
+  const connectionIssues = approvedConnections.filter((c) => !c.connected || c.tokenHealth === 'expiring');
+  const connectionsSummary =
+    connectionIssues.length === 0
+      ? { label: 'All channels connected', fg: '#2E7D32', bg: 'rgba(46,125,50,.08)', dot: '#2E7D32' }
+      : {
+          label: `${approvedConnections.length - connectionIssues.length}/${approvedConnections.length} connected — action needed`,
+          fg: '#B26A00',
+          bg: 'rgba(237,108,2,.08)',
+          dot: '#B26A00',
+        };
 
   const notificationBell = (
     <div style={{ position: 'relative' }}>
@@ -2253,15 +2367,27 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               textOverflow: 'ellipsis',
             }}
           >
-            {subView === 'connections' ? 'Channel Connections' : 'Insights'}
+            {subView === 'connections' ? 'Channel Connections' : subView === 'insights' ? 'Insights' : 'Inbox Settings'}
           </div>
           {notificationBell}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {subView === 'connections' ? (
-            <InboxConnectionsPage isMobile={isMobile} />
-          ) : (
+            <InboxConnectionsPage
+              isMobile={isMobile}
+              connections={channelConnections}
+              onConnected={handleChannelConnected}
+            />
+          ) : subView === 'insights' ? (
             <InboxInsightsPage isMobile={isMobile} conversations={conversations} />
+          ) : (
+            <InboxSettingsPage
+              isMobile={isMobile}
+              savedReplies={savedReplies}
+              onSavedRepliesChange={setSavedReplies}
+              tagPresets={tagPresets}
+              onTagPresetsChange={setTagPresets}
+            />
           )}
         </div>
       </div>
@@ -2370,6 +2496,10 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 >
                   {searchQuery ? `"${searchQuery}"` : activeQueueLabel}
                   {typeFilter !== 'all' ? ` · ${typeFilter === 'dm' ? 'Messages' : 'Comments'}` : ''}
+                  {assigneeFilter !== 'all'
+                    ? ` · ${assigneeFilter === 'unassigned' ? 'Unassigned' : assigneeFilter}`
+                    : ''}
+                  {tagFilter !== 'all' ? ` · #${tagFilter}` : ''}
                   {groupBy !== 'time' ? ` · Grouped by ${groupByLabel}` : ''}
                 </span>
                 <I n="chevronDown" s={12} c="#999" />
@@ -2407,6 +2537,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                   minHeight: 0,
                 }}
               >
+                {filteredConversations.length === 0 && listEmptyState}
                 {groups.map((grp) => (
                   <div key={grp.key}>
                     {grp.label && (
@@ -2528,12 +2659,18 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                               >
                                 {item.name}
                               </span>
-                              <span style={{ fontSize: 11, color: '#999', flex: '0 0 auto' }}>{item.time}</span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 0 auto' }}>
+                                {!openedIds.has(item.id) && (
+                                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E91E63' }} />
+                                )}
+                                <span style={{ fontSize: 11, color: '#999' }}>{item.time}</span>
+                              </span>
                             </div>
                             <div
                               style={{
                                 fontSize: 12.5,
-                                color: '#777',
+                                color: openedIds.has(item.id) ? '#999' : '#444',
+                                fontWeight: openedIds.has(item.id) ? 400 : 600,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
@@ -2940,6 +3077,86 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 </div>
               </div>
 
+              <div style={{ padding: '0 12px 8px' }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: '.06em',
+                    textTransform: 'uppercase',
+                    color: '#999',
+                    padding: '0 8px 8px',
+                  }}
+                >
+                  Assignee
+                </div>
+                <div style={{ display: 'flex', gap: 6, padding: '0 8px', flexWrap: 'wrap' }}>
+                  {(['all', 'unassigned', ...ASSIGNEE_OPTIONS] as const).map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setAssigneeFilter(id)}
+                      style={{
+                        flex: '0 0 auto',
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: assigneeFilter === id ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                        background: assigneeFilter === id ? 'rgba(194,24,91,.1)' : '#fff',
+                        color: assigneeFilter === id ? '#AD1457' : '#444',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        fontFamily: FONT,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {id === 'all' ? 'Anyone' : id === 'unassigned' ? 'Unassigned' : id}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {allTagsInUse.length > 0 && (
+                <div style={{ padding: '0 12px 8px' }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      letterSpacing: '.06em',
+                      textTransform: 'uppercase',
+                      color: '#999',
+                      padding: '0 8px 8px',
+                    }}
+                  >
+                    Tag
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, padding: '0 8px', flexWrap: 'wrap' }}>
+                    {['all', ...allTagsInUse].map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setTagFilter(id)}
+                        style={{
+                          flex: '0 0 auto',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: tagFilter === id ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                          background: tagFilter === id ? 'rgba(194,24,91,.1)' : '#fff',
+                          color: tagFilter === id ? '#AD1457' : '#444',
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontFamily: FONT,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {id === 'all' ? 'Any tag' : id}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div style={{ padding: '8px 12px' }}>
                 <div
                   style={{
@@ -3089,6 +3306,32 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 >
                   <I n="chart" s={16} c="#888" />
                   Insights
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubView('settings');
+                    setFilterDrawerOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '11px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#333',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: FONT,
+                  }}
+                >
+                  <I n="settings" s={16} c="#888" />
+                  Inbox Settings
                 </button>
               </div>
             </div>
@@ -3261,23 +3504,28 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
         <div style={{ flex: 1 }} />
 
-        <div
+        <button
+          type="button"
+          onClick={() => setSubView('connections')}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 6,
             fontSize: 12,
             fontWeight: 600,
-            color: '#2E7D32',
-            background: 'rgba(46,125,50,.08)',
+            color: connectionsSummary.fg,
+            background: connectionsSummary.bg,
             padding: '6px 10px',
             borderRadius: 20,
             whiteSpace: 'nowrap',
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: FONT,
           }}
         >
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2E7D32' }} />
-          All channels connected
-        </div>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: connectionsSummary.dot }} />
+          {connectionsSummary.label}
+        </button>
 
         {notificationBell}
       </div>
@@ -3457,6 +3705,29 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               <I n="chart" s={16} c="#888" />
               Insights
             </button>
+            <button
+              type="button"
+              onClick={() => setSubView('settings')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 10px',
+                border: 'none',
+                background: 'transparent',
+                color: '#444',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 8,
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: FONT,
+              }}
+            >
+              <I n="settings" s={16} c="#888" />
+              Inbox Settings
+            </button>
           </div>
 
           {/* conversation list */}
@@ -3505,18 +3776,18 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 <div style={{ position: 'relative' }}>
                   <button
                     type="button"
-                    aria-label="Filter by type"
+                    aria-label="Filters"
                     onClick={() => setTypeFilterMenuOpen((o) => !o)}
                     style={{
                       width: 28,
                       height: 28,
-                      border: typeFilter !== 'all' ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                      background: typeFilter !== 'all' ? 'rgba(194,24,91,.08)' : '#fff',
+                      border: hasExtraFilters ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                      background: hasExtraFilters ? 'rgba(194,24,91,.08)' : '#fff',
                       borderRadius: 6,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: typeFilter !== 'all' ? '#AD1457' : '#666',
+                      color: hasExtraFilters ? '#AD1457' : '#666',
                       cursor: 'pointer',
                     }}
                   >
@@ -3538,10 +3809,24 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                           borderRadius: 10,
                           boxShadow: '0 8px 24px rgba(0,0,0,.15)',
                           border: '1px solid rgba(0,0,0,.06)',
-                          minWidth: 160,
+                          minWidth: 200,
+                          maxHeight: '70vh',
+                          overflowY: 'auto',
                           padding: 6,
                         }}
                       >
+                        <div
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            letterSpacing: '.04em',
+                            textTransform: 'uppercase',
+                            color: '#999',
+                            padding: '6px 8px 4px',
+                          }}
+                        >
+                          Type
+                        </div>
                         {(
                           [
                             ['all', 'All types'],
@@ -3552,10 +3837,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                           <button
                             key={id}
                             type="button"
-                            onClick={() => {
-                              setTypeFilter(id);
-                              setTypeFilterMenuOpen(false);
-                            }}
+                            onClick={() => setTypeFilter(id)}
                             style={{
                               width: '100%',
                               textAlign: 'left',
@@ -3577,6 +3859,117 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                             {typeFilter === id && <I n="check" s={13} c="#AD1457" />}
                           </button>
                         ))}
+
+                        <div
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            letterSpacing: '.04em',
+                            textTransform: 'uppercase',
+                            color: '#999',
+                            padding: '10px 8px 4px',
+                          }}
+                        >
+                          Assignee
+                        </div>
+                        {(['all', 'unassigned', ...ASSIGNEE_OPTIONS] as const).map((id) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setAssigneeFilter(id)}
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 10px',
+                              border: 'none',
+                              background: assigneeFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: '#333',
+                              cursor: 'pointer',
+                              fontFamily: FONT,
+                            }}
+                          >
+                            {id === 'all' ? 'Anyone' : id === 'unassigned' ? 'Unassigned' : id}
+                            {assigneeFilter === id && <I n="check" s={13} c="#AD1457" />}
+                          </button>
+                        ))}
+
+                        {allTagsInUse.length > 0 && (
+                          <>
+                            <div
+                              style={{
+                                fontSize: 10.5,
+                                fontWeight: 800,
+                                letterSpacing: '.04em',
+                                textTransform: 'uppercase',
+                                color: '#999',
+                                padding: '10px 8px 4px',
+                              }}
+                            >
+                              Tag
+                            </div>
+                            {['all', ...allTagsInUse].map((id) => (
+                              <button
+                                key={id}
+                                type="button"
+                                onClick={() => setTagFilter(id)}
+                                style={{
+                                  width: '100%',
+                                  textAlign: 'left',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '8px 10px',
+                                  border: 'none',
+                                  background: tagFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
+                                  borderRadius: 6,
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  color: '#333',
+                                  cursor: 'pointer',
+                                  fontFamily: FONT,
+                                }}
+                              >
+                                {id === 'all' ? 'Any tag' : id}
+                                {tagFilter === id && <I n="check" s={13} c="#AD1457" />}
+                              </button>
+                            ))}
+                          </>
+                        )}
+
+                        {hasExtraFilters && (
+                          <>
+                            <div style={{ height: 1, background: 'rgba(0,0,0,.06)', margin: '6px 0' }} />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTypeFilter('all');
+                                setTagFilter('all');
+                                setAssigneeFilter('all');
+                              }}
+                              style={{
+                                width: '100%',
+                                textAlign: 'left',
+                                padding: '8px 10px',
+                                border: 'none',
+                                background: 'transparent',
+                                borderRadius: 6,
+                                fontSize: 12.5,
+                                fontWeight: 700,
+                                color: '#AD1457',
+                                cursor: 'pointer',
+                                fontFamily: FONT,
+                              }}
+                            >
+                              Clear filters
+                            </button>
+                          </>
+                        )}
                       </div>
                     </>
                   )}
@@ -3636,6 +4029,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               </div>
             )}
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
+              {filteredConversations.length === 0 && listEmptyState}
               {groups.map((grp) => (
                 <div key={grp.key}>
                   {grp.label && (
@@ -3756,12 +4150,18 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                             >
                               {item.name}
                             </span>
-                            <span style={{ fontSize: 11, color: '#999', flex: '0 0 auto' }}>{item.time}</span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 0 auto' }}>
+                              {!openedIds.has(item.id) && (
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#E91E63' }} />
+                              )}
+                              <span style={{ fontSize: 11, color: '#999' }}>{item.time}</span>
+                            </span>
                           </div>
                           <div
                             style={{
                               fontSize: 12,
-                              color: '#777',
+                              color: openedIds.has(item.id) ? '#999' : '#444',
+                              fontWeight: openedIds.has(item.id) ? 400 : 600,
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
