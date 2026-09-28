@@ -325,11 +325,11 @@ const DEFAULT_SAVED_REPLIES: SavedReply[] = [
 ];
 
 // ─── Placeholder sample data — stands in for the real Unified Inbox API ────
-// Demo mode. OFF unless NEXT_PUBLIC_INBOX_DEMO is explicitly "true", so the
-// deployed product always shows real conversations. The sample data below is for
-// design review and product demos — it is invented, and nothing sent while demo
-// mode is on reaches Instagram or Facebook.
-const DEMO_INBOX = process.env.NEXT_PUBLIC_INBOX_DEMO === 'true';
+// Demo mode: ON unless NEXT_PUBLIC_INBOX_DEMO is explicitly "false".
+// The sample conversations below are invented, and while this is on nothing is
+// fetched and nothing sent from here reaches Instagram or Facebook. Set the env
+// var to "false" to show the real inbox instead.
+const DEMO_INBOX = process.env.NEXT_PUBLIC_INBOX_DEMO !== 'false';
 
 const RAW_CONVERSATIONS: Conversation[] = [
   {
