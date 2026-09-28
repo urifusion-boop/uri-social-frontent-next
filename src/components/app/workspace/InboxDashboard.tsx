@@ -281,15 +281,17 @@ const STATUS_META: Record<StatusKey, { label: string; fg: string; bg: string }> 
 
 type QueueFilter = 'all' | QueueKey | 'unanswered';
 
-const QUEUE_DEFS: { id: QueueFilter; label: string; count: number }[] = [
-  { id: 'all', label: 'All conversations', count: 142 },
-  { id: 'unassigned', label: 'Unassigned', count: 18 },
-  { id: 'sales', label: 'Sales', count: 34 },
-  { id: 'support', label: 'Support', count: 27 },
-  { id: 'complaints', label: 'Complaints', count: 9 },
-  { id: 'ad', label: 'Ad responses', count: 12 },
-  { id: 'unanswered', label: 'Unanswered', count: 22 },
-  { id: 'resolved', label: 'Resolved', count: 20 },
+// Counts are computed from the conversations actually loaded — never a literal.
+// A queue claiming 34 next to an empty list is worse than no number at all.
+const QUEUE_DEFS: { id: QueueFilter; label: string }[] = [
+  { id: 'all', label: 'All conversations' },
+  { id: 'unassigned', label: 'Unassigned' },
+  { id: 'sales', label: 'Sales' },
+  { id: 'support', label: 'Support' },
+  { id: 'complaints', label: 'Complaints' },
+  { id: 'ad', label: 'Ad responses' },
+  { id: 'unanswered', label: 'Unanswered' },
+  { id: 'resolved', label: 'Resolved' },
 ];
 
 const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
@@ -2319,7 +2321,16 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   );
 
   // ── Shared: queue pills (used in desktop sidebar + mobile chip row) ──
-  const queuePills = QUEUE_DEFS.map((q) => ({ ...q, active: selectedQueue === q.id }));
+  const queuePills = QUEUE_DEFS.map((q) => ({
+    ...q,
+    active: selectedQueue === q.id,
+    count:
+      q.id === 'all'
+        ? conversations.length
+        : q.id === 'unanswered'
+          ? conversations.filter(isUnanswered).length
+          : conversations.filter((c) => currentQueueOf(c) === q.id).length,
+  }));
 
   const allTagsInUse = Array.from(new Set(conversations.flatMap((c) => c.tags ?? []))).sort();
   const hasExtraFilters = typeFilter !== 'all' || tagFilter !== 'all' || assigneeFilter !== 'all';
