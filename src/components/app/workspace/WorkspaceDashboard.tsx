@@ -4058,6 +4058,13 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                           >
                             <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
                               {account.account_name || account.username || 'Connected page'}
+                              {/* is_active is only ever explicitly false when Outstand itself
+                                  has flagged this connection unhealthy — undefined/null means
+                                  Outstand didn't report a status at all and must not be shown
+                                  as a problem (see social_account_service.get_user_connections). */}
+                              {account.is_active === false && (
+                                <span style={{ color: '#c62828', fontWeight: 700 }}> — needs reconnecting</span>
+                              )}
                             </span>
                             <button
                               type="button"

@@ -15,6 +15,13 @@ export interface ConnectedAccountEntry {
   account_name?: string;
   connected_via?: string;
   profile_picture_url?: string;
+  // Only ever explicitly false when Outstand itself has flagged this
+  // connection unhealthy (its own isActive flag) — undefined/null means
+  // Outstand didn't report a status for this account/network at all, and
+  // must not be treated as a problem (a stale token only shows up here
+  // once Outstand's own record catches up; it is NOT a live token check —
+  // an attempt to actually publish can still fail even when this is true).
+  is_active?: boolean | null;
 }
 
 export interface PlatformStatus {
