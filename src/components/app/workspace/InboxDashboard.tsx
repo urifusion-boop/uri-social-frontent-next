@@ -325,6 +325,199 @@ const DEFAULT_SAVED_REPLIES: SavedReply[] = [
 ];
 
 // ─── Placeholder sample data — stands in for the real Unified Inbox API ────
+// Demo mode. OFF unless NEXT_PUBLIC_INBOX_DEMO is explicitly "true", so the
+// deployed product always shows real conversations. The sample data below is for
+// design review and product demos — it is invented, and nothing sent while demo
+// mode is on reaches Instagram or Facebook.
+const DEMO_INBOX = process.env.NEXT_PUBLIC_INBOX_DEMO === 'true';
+
+const RAW_CONVERSATIONS: Conversation[] = [
+  {
+    id: 'c1',
+    type: 'dm',
+    channel: 'instagram',
+    name: 'Chidinma A.',
+    initials: 'CA',
+    avatarColor: '#AD1457',
+    excerpt: 'Hi! Do you have the tan tote in stock?',
+    time: '8m',
+    queue: 'sales',
+    status: 'unassigned',
+    assignee: null,
+    sourceLabel: 'Reel · "New Arrivals — Tan Collection"',
+    messages: [
+      { from: 'customer', text: 'Hi! Do you have the tan tote in stock?', time: '9:14 AM' },
+      { from: 'customer', text: 'Saw it on your last reel 😍', time: '9:14 AM' },
+    ],
+    aiSuggestion: {
+      text: 'Hi Chidinma! Yes, the Tan Woven Tote is in stock — ₦45,000, ships within 2 business days. Want me to reserve one for you?',
+      confidence: 92,
+      sources: ['Product Catalog', 'Shipping Policy'],
+    },
+  },
+  {
+    id: 'c2',
+    type: 'dm',
+    channel: 'whatsapp',
+    name: 'Tobi O.',
+    initials: 'TO',
+    avatarColor: '#00897B',
+    excerpt: "My order #4482 hasn't arrived yet",
+    time: '2h',
+    queue: 'complaints',
+    status: 'urgent',
+    assignee: 'Ngozi U.',
+    isComplaint: true,
+    messages: [
+      { from: 'customer', text: "My order #4482 hasn't arrived yet — it's been 9 days.", time: '11:02 AM' },
+      { from: 'customer', text: 'Can someone please check on this?', time: '11:03 AM' },
+    ],
+  },
+  {
+    id: 'c3',
+    type: 'comment',
+    channel: 'facebook',
+    name: 'Ifeoma B.',
+    initials: 'IB',
+    avatarColor: '#1565C0',
+    excerpt: 'Is this real leather??',
+    time: '24m',
+    queue: 'ad',
+    status: 'unassigned',
+    assignee: null,
+    post: {
+      label: 'AD',
+      caption: 'Summer Drop is here 🌞 Shop the collection — link in bio',
+      campaign: 'Summer Sale Retargeting',
+      likes: 214,
+      commentsCount: 38,
+    },
+    comments: [{ from: 'Ifeoma B.', text: 'Is this real leather??', time: '24m' }],
+    aiSuggestion: {
+      text: 'Yes! 100% full-grain leather, hand-finished in our Lagos workshop. 🌿',
+      confidence: 87,
+      sources: ['Product Catalog'],
+    },
+  },
+  {
+    id: 'c4',
+    type: 'comment',
+    channel: 'tiktok',
+    name: 'kemi.wears',
+    initials: 'KW',
+    avatarColor: '#333333',
+    excerpt: 'omg need this in black 😍',
+    time: '1h',
+    queue: 'sales',
+    status: 'unassigned',
+    assignee: null,
+    post: {
+      label: 'VID',
+      caption: 'Handstitched totes — behind the scenes',
+      campaign: null,
+      likes: 1204,
+      commentsCount: 96,
+    },
+    comments: [{ from: 'kemi.wears', text: 'omg need this in black 😍', time: '1h' }],
+  },
+  {
+    id: 'c5',
+    type: 'comment',
+    channel: 'instagram',
+    name: 'Segun A.',
+    initials: 'SA',
+    avatarColor: '#AD1457',
+    excerpt: 'Price?',
+    time: '3h',
+    queue: 'resolved',
+    status: 'resolved',
+    assignee: 'Ngozi U.',
+    post: {
+      label: 'IMG',
+      caption: 'The Everyday Crossbody, now in 4 colours',
+      campaign: null,
+      likes: 340,
+      commentsCount: 22,
+    },
+    comments: [
+      { from: 'Segun A.', text: 'Price?', time: '3h' },
+      { from: 'agent', by: 'Ngozi U.', text: '₦32,000 — DM sent with the full colour range! 💛', time: '2h' },
+    ],
+  },
+  {
+    id: 'c6',
+    type: 'dm',
+    channel: 'whatsapp',
+    name: 'Funmi K.',
+    initials: 'FK',
+    avatarColor: '#00897B',
+    excerpt: 'Can I pick up in Lekki instead of delivery?',
+    time: '40m',
+    queue: 'support',
+    status: 'pending',
+    assignee: null,
+    messages: [{ from: 'customer', text: 'Can I pick up in Lekki instead of delivery?', time: '10:31 AM' }],
+    aiSuggestion: {
+      text: 'Yes — pickup is available at our Lekki Phase 1 studio, Mon–Sat, 10am–6pm. Would you like me to hold your order for pickup?',
+      confidence: 89,
+      sources: ['Store Locations', 'Fulfilment Policy'],
+    },
+  },
+  {
+    id: 'c7',
+    type: 'dm',
+    channel: 'facebook',
+    name: 'Uche B.',
+    initials: 'UB',
+    avatarColor: '#1565C0',
+    excerpt: 'Refund please, wrong size sent',
+    time: '12m',
+    queue: 'complaints',
+    status: 'urgent',
+    assignee: null,
+    isComplaint: true,
+    messages: [
+      { from: 'customer', text: 'I ordered a medium and got a small. I need a refund please.', time: '11:48 AM' },
+    ],
+  },
+  {
+    id: 'c8',
+    type: 'dm',
+    channel: 'instagram',
+    name: 'Praise N.',
+    initials: 'PN',
+    avatarColor: '#AD1457',
+    excerpt: 'Thank you so much, love it!! 💕',
+    time: '1d',
+    queue: 'resolved',
+    status: 'resolved',
+    assignee: 'You',
+    messages: [
+      { from: 'agent', by: 'You', text: 'Your order is on its way — tracking attached! 📦', time: 'Yesterday' },
+      { from: 'customer', text: 'Thank you so much, love it!! 💕', time: 'Yesterday' },
+    ],
+  },
+  {
+    id: 'c9',
+    type: 'dm',
+    channel: 'whatsapp',
+    name: 'Chidinma A.',
+    initials: 'CA',
+    avatarColor: '#AD1457',
+    excerpt: 'Loved the last order, ordering again!',
+    time: '6d',
+    queue: 'resolved',
+    status: 'resolved',
+    assignee: 'You',
+    messages: [
+      { from: 'customer', text: 'Loved the last order, ordering again!', time: '6d ago' },
+      { from: 'agent', by: 'You', text: 'So happy to hear that! Sending you the new colours now 💗', time: '6d ago' },
+    ],
+  },
+];
+
+// ─── Grouping ───────────────────────────────────────────────────────────────
+
 type GroupMode = 'time' | 'platform' | 'customer';
 
 interface ConversationGroup {
@@ -509,7 +702,14 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [view, setView] = useState<'list' | 'board'>('list');
   const [groupBy, setGroupBy] = useState<GroupMode>('time');
 
-  const [cardQueues, setCardQueues] = useState<Record<string, QueueKey>>({});
+  const [cardQueues, setCardQueues] = useState<Record<string, QueueKey>>(() => {
+    if (!DEMO_INBOX) return {};
+    const map: Record<string, QueueKey> = {};
+    RAW_CONVERSATIONS.forEach((c) => {
+      map[c.id] = c.queue;
+    });
+    return map;
+  });
   const [statusOverrides, setStatusOverrides] = useState<Record<string, StatusKey>>({});
   const [assigneeOverrides, setAssigneeOverrides] = useState<Record<string, string | null>>({});
   const [messageOverrides, setMessageOverrides] = useState<Record<string, ThreadMessage[]>>({});
@@ -578,6 +778,11 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [loadedThreads, setLoadedThreads] = useState<Record<string, boolean>>({});
 
   const refreshConversations = useCallback(async () => {
+    if (DEMO_INBOX) {
+      setBaseConversations(RAW_CONVERSATIONS);
+      setLoadingList(false);
+      return;
+    }
     try {
       const rows = await InboxService.listConversations({ limit: 100 });
       setBaseConversations(rows.map(toConversation));
@@ -598,7 +803,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   // endpoint returns only an excerpt, and fetching every thread's history up
   // front would be hundreds of requests for threads nobody opens.
   useEffect(() => {
-    if (!selectedId || loadedThreads[selectedId]) return;
+    if (DEMO_INBOX || !selectedId || loadedThreads[selectedId]) return;
     let cancelled = false;
     (async () => {
       try {
@@ -803,6 +1008,12 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     setSending(true);
     setSendError('');
     showPending(text, localId);
+
+    if (DEMO_INBOX) {
+      settleDelivery(localId, 'sent');
+      setSending(false);
+      return;
+    }
 
     try {
       const result = await InboxService.sendReply(selectedId, text, idempotencyKey);
