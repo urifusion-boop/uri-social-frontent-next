@@ -2301,6 +2301,9 @@ function UserDetailsModal({
           {/* Admin Access */}
           <AdminAccessManagement user={user} onUserUpdated={onUserUpdated} />
 
+          {/* Subscription Plan */}
+          <SubscriptionManagement user={user} onUserUpdated={onUserUpdated} />
+
           {/* Credit & Trial Management */}
           <CreditTrialManagement user={user} onUserUpdated={onUserUpdated} />
 
@@ -2520,6 +2523,165 @@ function AdminAccessManagement({
         confirmColor="#B71C1C"
         onConfirm={performToggle}
         onCancel={() => setConfirmRevokeOpen(false)}
+      />
+    </div>
+  );
+}
+
+// Subscription Plan — the actual "change this user's plan" action.
+// CreditTrialManagement's "Adjust credits" control below only ever touches
+// bonus_credits (a top-up on top of whatever plan they're on), which is why
+// topping a user up to 20 credits there never made the "Subscription" badge
+// above stop reading "free" — a bonus grant and a plan change are genuinely
+// different things. This is the control that actually sets subscription_tier.
+function SubscriptionManagement({
+  user,
+  onUserUpdated,
+}: {
+  user: AdminUserDetails;
+  onUserUpdated: (userId: string, updates: Partial<AdminUser>) => void;
+}) {
+  const [planTierId, setPlanTierId] = useState(PLAN_TIER_OPTIONS[0].id);
+  const [durationDays, setDurationDays] = useState('30');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState<'set' | 'clear' | null>(null);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+
+  const refreshUser = async () => {
+    const details = await AdminService.getUserDetails(user.id);
+    onUserUpdated(user.id, details);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    padding: '8px 10px',
+    fontSize: 13,
+    border: '1px solid rgba(0,0,0,.12)',
+    borderRadius: 8,
+    outline: 'none',
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    padding: '8px 14px',
+    fontSize: 12,
+    fontWeight: 700,
+    color: 'white',
+    background: '#AD1457',
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  };
+
+  const handleSetPlan = async () => {
+    const days = parseInt(durationDays, 10);
+    if (!days || days <= 0) return;
+    setBusy('set');
+    setMessage(null);
+    try {
+      await AdminService.setUserSubscription(user.id, planTierId, days, reason || undefined);
+      await refreshUser();
+      setMessage({ type: 'ok', text: `Assigned '${planTierId}' for ${days} days.` });
+      setReason('');
+    } catch (error) {
+      console.error('Failed to set subscription:', error);
+      setMessage({ type: 'err', text: 'Failed to assign plan.' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleClearPlan = () => {
+    setConfirmClearOpen(true);
+  };
+
+  const performClearPlan = async () => {
+    setBusy('clear');
+    setMessage(null);
+    try {
+      await AdminService.clearUserSubscription(user.id, reason || undefined);
+      await refreshUser();
+      setMessage({ type: 'ok', text: 'Reverted to free.' });
+    } catch (error) {
+      console.error('Failed to clear subscription:', error);
+      setMessage({ type: 'err', text: 'Failed to revert to free.' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px', color: '#1a1a1a' }}>Subscription Plan</h3>
+      <div
+        style={{
+          padding: 16,
+          background: 'rgba(0,0,0,.02)',
+          border: '1px solid rgba(0,0,0,.06)',
+          borderRadius: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Assign plan</span>
+          <select
+            value={planTierId}
+            onChange={(e) => setPlanTierId(e.target.value)}
+            style={{ ...inputStyle, width: 130 }}
+          >
+            {PLAN_TIER_OPTIONS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            value={durationDays}
+            onChange={(e) => setDurationDays(e.target.value)}
+            placeholder="Days"
+            style={{ ...inputStyle, width: 80 }}
+          />
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason (optional)"
+            style={{ ...inputStyle, flex: 1, minWidth: 140 }}
+          />
+          <button onClick={handleSetPlan} disabled={busy === 'set' || !durationDays} style={buttonStyle}>
+            {busy === 'set' ? 'Assigning…' : 'Assign'}
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Revert to free</span>
+          <button
+            onClick={handleClearPlan}
+            disabled={busy === 'clear' || !user.subscription_tier || user.subscription_tier === 'free'}
+            style={{ ...buttonStyle, background: '#B71C1C' }}
+          >
+            {busy === 'clear' ? 'Reverting…' : 'Revert to Free'}
+          </button>
+        </div>
+
+        {message && (
+          <div style={{ fontSize: 12, fontWeight: 600, color: message.type === 'ok' ? '#2E7D32' : '#C62828' }}>
+            {message.text}
+          </div>
+        )}
+      </div>
+      <ConfirmDialog
+        isOpen={confirmClearOpen}
+        title="Revert to free?"
+        message={`Revert ${user.email} to the free plan? Their subscription credits are cleared immediately; any bonus credits are kept.`}
+        confirmText="Revert to Free"
+        cancelText="Cancel"
+        confirmColor="#B71C1C"
+        onConfirm={performClearPlan}
+        onCancel={() => setConfirmClearOpen(false)}
       />
     </div>
   );
