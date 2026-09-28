@@ -1,6 +1,7 @@
 'use client';
 
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { InboxService, InboxConversationDTO, InboxMessageDTO } from '@/src/api/InboxService';
 import InboxConnectionsPage, { INITIAL_CHANNEL_CONNECTIONS, type ChannelConnection } from './InboxConnectionsPage';
 import InboxInsightsPage, { type InsightsConversation } from './InboxInsightsPage';
 import InboxSettingsPage from './InboxSettingsPage';
@@ -14,12 +15,14 @@ import InboxSettingsPage from './InboxSettingsPage';
  * own breakpoint rather than detected locally, for the same reason.
  *
  * Queue filtering, view switching, grouping, the drag-and-drop board (desktop
- * only — HTML5 drag events don't fire on touch), replying, assigning, and
- * marking resolved are all real component state. What is NOT yet wired to a
- * backend: none of it persists past a page reload, and nothing is actually
- * sent to Instagram/Facebook/WhatsApp/TikTok — that needs the Unified Inbox
- * API from the PRD's Stage 1/2 rollout. RAW_CONVERSATIONS is placeholder
- * sample data standing in for that API until it exists.
+ * only — HTML5 drag events don't fire on touch), assigning and marking resolved
+ * are component state.
+ *
+ * Conversations, messages and replying are REAL: they come from the Unified
+ * Inbox API and a reply goes to Instagram or Facebook. Delivery reflects what
+ * the provider actually said and is never advanced on a timer. Queues,
+ * assignees, tags, notes, leads and AI suggestions are still local-only and do
+ * not persist past a reload.
  */
 
 // ─── Icon set (same hand-rolled convention as WorkspaceDashboard/EscalationsPage) ──
@@ -322,192 +325,6 @@ const DEFAULT_SAVED_REPLIES: SavedReply[] = [
 ];
 
 // ─── Placeholder sample data — stands in for the real Unified Inbox API ────
-const RAW_CONVERSATIONS: Conversation[] = [
-  {
-    id: 'c1',
-    type: 'dm',
-    channel: 'instagram',
-    name: 'Chidinma A.',
-    initials: 'CA',
-    avatarColor: '#AD1457',
-    excerpt: 'Hi! Do you have the tan tote in stock?',
-    time: '8m',
-    queue: 'sales',
-    status: 'unassigned',
-    assignee: null,
-    sourceLabel: 'Reel · "New Arrivals — Tan Collection"',
-    messages: [
-      { from: 'customer', text: 'Hi! Do you have the tan tote in stock?', time: '9:14 AM' },
-      { from: 'customer', text: 'Saw it on your last reel 😍', time: '9:14 AM' },
-    ],
-    aiSuggestion: {
-      text: 'Hi Chidinma! Yes, the Tan Woven Tote is in stock — ₦45,000, ships within 2 business days. Want me to reserve one for you?',
-      confidence: 92,
-      sources: ['Product Catalog', 'Shipping Policy'],
-    },
-  },
-  {
-    id: 'c2',
-    type: 'dm',
-    channel: 'whatsapp',
-    name: 'Tobi O.',
-    initials: 'TO',
-    avatarColor: '#00897B',
-    excerpt: "My order #4482 hasn't arrived yet",
-    time: '2h',
-    queue: 'complaints',
-    status: 'urgent',
-    assignee: 'Ngozi U.',
-    isComplaint: true,
-    messages: [
-      { from: 'customer', text: "My order #4482 hasn't arrived yet — it's been 9 days.", time: '11:02 AM' },
-      { from: 'customer', text: 'Can someone please check on this?', time: '11:03 AM' },
-    ],
-  },
-  {
-    id: 'c3',
-    type: 'comment',
-    channel: 'facebook',
-    name: 'Ifeoma B.',
-    initials: 'IB',
-    avatarColor: '#1565C0',
-    excerpt: 'Is this real leather??',
-    time: '24m',
-    queue: 'ad',
-    status: 'unassigned',
-    assignee: null,
-    post: {
-      label: 'AD',
-      caption: 'Summer Drop is here 🌞 Shop the collection — link in bio',
-      campaign: 'Summer Sale Retargeting',
-      likes: 214,
-      commentsCount: 38,
-    },
-    comments: [{ from: 'Ifeoma B.', text: 'Is this real leather??', time: '24m' }],
-    aiSuggestion: {
-      text: 'Yes! 100% full-grain leather, hand-finished in our Lagos workshop. 🌿',
-      confidence: 87,
-      sources: ['Product Catalog'],
-    },
-  },
-  {
-    id: 'c4',
-    type: 'comment',
-    channel: 'tiktok',
-    name: 'kemi.wears',
-    initials: 'KW',
-    avatarColor: '#333333',
-    excerpt: 'omg need this in black 😍',
-    time: '1h',
-    queue: 'sales',
-    status: 'unassigned',
-    assignee: null,
-    post: {
-      label: 'VID',
-      caption: 'Handstitched totes — behind the scenes',
-      campaign: null,
-      likes: 1204,
-      commentsCount: 96,
-    },
-    comments: [{ from: 'kemi.wears', text: 'omg need this in black 😍', time: '1h' }],
-  },
-  {
-    id: 'c5',
-    type: 'comment',
-    channel: 'instagram',
-    name: 'Segun A.',
-    initials: 'SA',
-    avatarColor: '#AD1457',
-    excerpt: 'Price?',
-    time: '3h',
-    queue: 'resolved',
-    status: 'resolved',
-    assignee: 'Ngozi U.',
-    post: {
-      label: 'IMG',
-      caption: 'The Everyday Crossbody, now in 4 colours',
-      campaign: null,
-      likes: 340,
-      commentsCount: 22,
-    },
-    comments: [
-      { from: 'Segun A.', text: 'Price?', time: '3h' },
-      { from: 'agent', by: 'Ngozi U.', text: '₦32,000 — DM sent with the full colour range! 💛', time: '2h' },
-    ],
-  },
-  {
-    id: 'c6',
-    type: 'dm',
-    channel: 'whatsapp',
-    name: 'Funmi K.',
-    initials: 'FK',
-    avatarColor: '#00897B',
-    excerpt: 'Can I pick up in Lekki instead of delivery?',
-    time: '40m',
-    queue: 'support',
-    status: 'pending',
-    assignee: null,
-    messages: [{ from: 'customer', text: 'Can I pick up in Lekki instead of delivery?', time: '10:31 AM' }],
-    aiSuggestion: {
-      text: 'Yes — pickup is available at our Lekki Phase 1 studio, Mon–Sat, 10am–6pm. Would you like me to hold your order for pickup?',
-      confidence: 89,
-      sources: ['Store Locations', 'Fulfilment Policy'],
-    },
-  },
-  {
-    id: 'c7',
-    type: 'dm',
-    channel: 'facebook',
-    name: 'Uche B.',
-    initials: 'UB',
-    avatarColor: '#1565C0',
-    excerpt: 'Refund please, wrong size sent',
-    time: '12m',
-    queue: 'complaints',
-    status: 'urgent',
-    assignee: null,
-    isComplaint: true,
-    messages: [
-      { from: 'customer', text: 'I ordered a medium and got a small. I need a refund please.', time: '11:48 AM' },
-    ],
-  },
-  {
-    id: 'c8',
-    type: 'dm',
-    channel: 'instagram',
-    name: 'Praise N.',
-    initials: 'PN',
-    avatarColor: '#AD1457',
-    excerpt: 'Thank you so much, love it!! 💕',
-    time: '1d',
-    queue: 'resolved',
-    status: 'resolved',
-    assignee: 'You',
-    messages: [
-      { from: 'agent', by: 'You', text: 'Your order is on its way — tracking attached! 📦', time: 'Yesterday' },
-      { from: 'customer', text: 'Thank you so much, love it!! 💕', time: 'Yesterday' },
-    ],
-  },
-  {
-    id: 'c9',
-    type: 'dm',
-    channel: 'whatsapp',
-    name: 'Chidinma A.',
-    initials: 'CA',
-    avatarColor: '#AD1457',
-    excerpt: 'Loved the last order, ordering again!',
-    time: '6d',
-    queue: 'resolved',
-    status: 'resolved',
-    assignee: 'You',
-    messages: [
-      { from: 'customer', text: 'Loved the last order, ordering again!', time: '6d ago' },
-      { from: 'agent', by: 'You', text: 'So happy to hear that! Sending you the new colours now 💗', time: '6d ago' },
-    ],
-  },
-];
-
-// ─── Grouping ───────────────────────────────────────────────────────────────
 type GroupMode = 'time' | 'platform' | 'customer';
 
 interface ConversationGroup {
@@ -578,21 +395,121 @@ function pillStyle(active: boolean): React.CSSProperties {
   };
 }
 
+// ─── API → view model ───────────────────────────────────────────────────────
+// The backend is deliberately narrower than this screen: it knows conversations,
+// messages and delivery, and nothing about queues, assignees, leads or AI
+// suggestions. Those stay local UI state, so what a reviewer sees on screen is
+// either real or plainly the agent's own working notes — never invented history
+// dressed up as a customer's.
+
+const CHANNEL_FALLBACK: ChannelKey = 'instagram';
+
+function asChannel(platform: string): ChannelKey {
+  return (['instagram', 'facebook', 'whatsapp', 'tiktok'] as const).includes(platform as ChannelKey)
+    ? (platform as ChannelKey)
+    : CHANNEL_FALLBACK;
+}
+
+function asStatus(status: string): StatusKey {
+  return status === 'resolved' ? 'resolved' : status === 'pending' ? 'pending' : 'unassigned';
+}
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
+}
+
+const AVATAR_COLORS = ['#C2185B', '#6A1B9A', '#00695C', '#EF6C00', '#283593'];
+
+function avatarColorFor(id: string): string {
+  let sum = 0;
+  for (let i = 0; i < id.length; i += 1) sum += id.charCodeAt(i);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+// Meta's states, mapped to what the thread shows. `unknown` and `failed` are NOT
+// collapsed into a tick: a send that may or may not have arrived is exactly what
+// the agent needs to see.
+function asDelivery(delivery: string): DeliveryStatus | undefined {
+  switch (delivery) {
+    case 'accepted':
+      return 'sent';
+    case 'delivered':
+      return 'delivered';
+    case 'read':
+      return 'read';
+    case 'pending':
+      return 'pending';
+    default:
+      return undefined;
+  }
+}
+
+function toConversation(dto: InboxConversationDTO): Conversation {
+  const name = dto.contact_name || 'Unknown contact';
+  return {
+    id: dto.id,
+    type: dto.kind,
+    channel: asChannel(dto.platform),
+    name,
+    initials: initialsOf(name),
+    avatarColor: avatarColorFor(dto.id),
+    excerpt: dto.excerpt || '',
+    time: relativeTime(dto.last_activity_at),
+    queue: 'unassigned',
+    status: asStatus(dto.status),
+    assignee: dto.assignee_id || null,
+    sourceLabel: dto.source_ad_id ? 'From an ad' : dto.source_post_id ? 'From a post' : undefined,
+    tags: dto.tags ?? [],
+    messages: dto.kind === 'dm' ? [] : undefined,
+    comments: dto.kind === 'comment' ? [] : undefined,
+    notes: [],
+    lead: null,
+  };
+}
+
+function toThreadMessage(m: InboxMessageDTO): ThreadMessage {
+  return {
+    id: m.id,
+    from: m.direction === 'outbound' ? 'agent' : 'customer',
+    by: m.direction === 'outbound' ? 'You' : undefined,
+    text: m.text,
+    time: relativeTime(m.received_at ?? m.provider_timestamp),
+    delivery: m.direction === 'outbound' ? asDelivery(m.delivery) : undefined,
+  };
+}
+
+function toThreadComment(m: InboxMessageDTO): ThreadComment {
+  return {
+    from: m.direction === 'outbound' ? 'agent' : 'customer',
+    by: m.direction === 'outbound' ? 'You' : undefined,
+    text: m.text,
+    time: relativeTime(m.received_at ?? m.provider_timestamp),
+  };
+}
+
 export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [mobileScreen, setMobileScreen] = useState<'list' | 'thread'>('list');
 
   const [selectedQueue, setSelectedQueue] = useState<QueueFilter>('all');
-  const [selectedId, setSelectedId] = useState<string>('c1');
+  const [selectedId, setSelectedId] = useState<string>('');
   const [view, setView] = useState<'list' | 'board'>('list');
   const [groupBy, setGroupBy] = useState<GroupMode>('time');
 
-  const [cardQueues, setCardQueues] = useState<Record<string, QueueKey>>(() => {
-    const map: Record<string, QueueKey> = {};
-    RAW_CONVERSATIONS.forEach((c) => {
-      map[c.id] = c.queue;
-    });
-    return map;
-  });
+  const [cardQueues, setCardQueues] = useState<Record<string, QueueKey>>({});
   const [statusOverrides, setStatusOverrides] = useState<Record<string, StatusKey>>({});
   const [assigneeOverrides, setAssigneeOverrides] = useState<Record<string, string | null>>({});
   const [messageOverrides, setMessageOverrides] = useState<Record<string, ThreadMessage[]>>({});
@@ -653,13 +570,69 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  const [baseConversations, setBaseConversations] = useState<Conversation[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [sendError, setSendError] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loadedThreads, setLoadedThreads] = useState<Record<string, boolean>>({});
+
+  const refreshConversations = useCallback(async () => {
+    try {
+      const rows = await InboxService.listConversations({ limit: 100 });
+      setBaseConversations(rows.map(toConversation));
+      setLoadError('');
+    } catch (e: unknown) {
+      const detail = (e as { data?: { detail?: string } })?.data?.detail;
+      setLoadError(detail || 'Could not load conversations.');
+    } finally {
+      setLoadingList(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshConversations();
+  }, [refreshConversations]);
+
+  // Messages are fetched per thread, once, when it is first opened: the list
+  // endpoint returns only an excerpt, and fetching every thread's history up
+  // front would be hundreds of requests for threads nobody opens.
+  useEffect(() => {
+    if (!selectedId || loadedThreads[selectedId]) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await InboxService.listMessages(selectedId);
+        if (cancelled) return;
+        const conv = baseConversations.find((c) => c.id === selectedId);
+        if (conv?.type === 'comment') {
+          setCommentOverrides((prev) => ({ ...prev, [selectedId]: rows.map(toThreadComment) }));
+        } else {
+          setMessageOverrides((prev) => ({ ...prev, [selectedId]: rows.map(toThreadMessage) }));
+        }
+        setLoadedThreads((prev) => ({ ...prev, [selectedId]: true }));
+      } catch {
+        // Leave the thread unloaded so reopening it tries again, rather than
+        // showing an empty thread as though the customer had said nothing.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, loadedThreads, baseConversations]);
+
+  // Select the first conversation once there is one to select.
+  useEffect(() => {
+    if (!selectedId && baseConversations.length) setSelectedId(baseConversations[0].id);
+  }, [baseConversations, selectedId]);
+
   // Every conversation with its live overrides folded in — everything below
-  // reads from this, never from RAW_CONVERSATIONS directly, so the list, the
+  // reads from this, never from the fetched rows directly, so the list, the
   // board and the thread pane can never disagree about a conversation's
   // current state.
   const conversations = useMemo<Conversation[]>(
     () =>
-      RAW_CONVERSATIONS.map((c) => ({
+      baseConversations.map((c) => ({
         ...c,
         status: statusOverrides[c.id] ?? c.status,
         assignee: c.id in assigneeOverrides ? assigneeOverrides[c.id] : c.assignee,
@@ -669,7 +642,16 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         notes: noteOverrides[c.id] ?? c.notes ?? [],
         lead: c.id in leadOverrides ? leadOverrides[c.id] : (c.lead ?? null),
       })),
-    [statusOverrides, assigneeOverrides, messageOverrides, commentOverrides, tagOverrides, noteOverrides, leadOverrides]
+    [
+      baseConversations,
+      statusOverrides,
+      assigneeOverrides,
+      messageOverrides,
+      commentOverrides,
+      tagOverrides,
+      noteOverrides,
+      leadOverrides,
+    ]
   );
 
   const currentQueueOf = (c: Conversation): QueueKey => cardQueues[c.id] ?? c.queue;
@@ -705,6 +687,65 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
 
+  // Nothing to show yet. This has to come before selectedConv: with an empty
+  // list the old `?? conversations[0]` was undefined and the next line crashed.
+  if (loadingList || !conversations.length) {
+    return (
+      <div
+        style={{
+          fontFamily: FONT,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          padding: '64px 24px',
+          textAlign: 'center',
+          color: '#5B6472',
+        }}
+      >
+        {loadingList ? (
+          <p style={{ margin: 0, fontSize: 15 }}>Loading your inbox…</p>
+        ) : loadError ? (
+          <>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1F2430' }}>
+              We couldn&apos;t load your inbox
+            </p>
+            <p style={{ margin: 0, fontSize: 14, maxWidth: 420 }}>{loadError}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadingList(true);
+                refreshConversations();
+              }}
+              style={{
+                marginTop: 6,
+                padding: '9px 18px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#C2185B',
+                color: '#fff',
+                fontFamily: FONT,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Try again
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1F2430' }}>No conversations yet</p>
+            <p style={{ margin: 0, fontSize: 14, maxWidth: 420 }}>
+              Messages and comments from your connected Instagram and Facebook accounts will appear here as they arrive.
+            </p>
+          </>
+        )}
+      </div>
+    );
+  }
+
   const selectedConv = conversations.find((c) => c.id === selectedId) ?? conversations[0];
   const chSel = CHANNEL_META[selectedConv.channel];
   const stSel = STATUS_META[selectedConv.status];
@@ -725,37 +766,18 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     if (isMobile) setMobileScreen('thread');
   }
 
-  // Simulates realistic delivery progression (pending -> sent -> delivered)
-  // for a just-sent message, since there is no real channel API behind this
-  // yet. Updates the one message by its synthetic id, never the whole list,
-  // so it can't clobber messages sent in the meantime.
-  function simulateDelivery(convId: string, messageId: string, channel: ChannelKey) {
-    const advance = (delivery: DeliveryStatus) => {
-      setMessageOverrides((prev) => ({
-        ...prev,
-        [convId]: (prev[convId] || []).map((m) => (m.id === messageId ? { ...m, delivery } : m)),
-      }));
-    };
-    setTimeout(() => advance('sent'), 500);
-    setTimeout(() => advance('delivered'), 1600);
-    // Read receipts aren't exposed by every channel's API — only simulate the
-    // 'read' state for the ones that actually support it.
-    if (channel === 'whatsapp' || channel === 'instagram') {
-      setTimeout(() => advance('read'), 3200);
-    }
-  }
-
-  function appendReply(text: string) {
-    const id = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  // The reply is shown as pending, then settled by what the provider actually
+  // said. Delivery is never advanced on a timer: a tick the customer never
+  // earned is a lie told to the agent.
+  function showPending(text: string, localId: string) {
     if (selectedConv.type === 'dm') {
       setMessageOverrides((prev) => ({
         ...prev,
         [selectedId]: [
           ...(prev[selectedId] || []),
-          { from: 'agent', by: 'You', text, time: 'Just now', id, delivery: 'pending' },
+          { from: 'agent', by: 'You', text, time: 'Just now', id: localId, delivery: 'pending' },
         ],
       }));
-      simulateDelivery(selectedId, id, selectedConv.channel);
     } else {
       setCommentOverrides((prev) => ({
         ...prev,
@@ -764,12 +786,53 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     }
   }
 
+  function settleDelivery(localId: string, delivery: DeliveryStatus | undefined) {
+    setMessageOverrides((prev) => ({
+      ...prev,
+      [selectedId]: (prev[selectedId] || []).map((m) => (m.id === localId ? { ...m, delivery } : m)),
+    }));
+  }
+
+  async function appendReply(text: string) {
+    if (!selectedId || sending) return;
+    const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    // One key per composer submission, so a double-click or a retried request
+    // sends once rather than messaging the customer twice.
+    const idempotencyKey = localId;
+
+    setSending(true);
+    setSendError('');
+    showPending(text, localId);
+
+    try {
+      const result = await InboxService.sendReply(selectedId, text, idempotencyKey);
+      if (result.delivery === 'accepted') {
+        settleDelivery(localId, 'sent');
+      } else {
+        // failed or unknown — the agent needs to know, and "unknown" genuinely
+        // means it may have arrived, so it is not reported as a failure.
+        settleDelivery(localId, undefined);
+        setSendError(
+          result.delivery === 'unknown'
+            ? 'We did not hear back from Meta. The message may or may not have been delivered — check before resending.'
+            : result.failure_reason || 'The message could not be sent.'
+        );
+      }
+    } catch (e: unknown) {
+      settleDelivery(localId, undefined);
+      const detail = (e as { data?: { detail?: string } })?.data?.detail;
+      setSendError(detail || 'The message could not be sent.');
+    } finally {
+      setSending(false);
+    }
+  }
+
   function sendDraft() {
     const text = draft.trim();
-    if (!text) return;
-    appendReply(text);
+    if (!text || sending) return;
     setComposerDrafts((prev) => ({ ...prev, [selectedId]: '' }));
     if (selectedConv.aiSuggestion) setUsedAiSuggestion((prev) => ({ ...prev, [selectedId]: true }));
+    void appendReply(text);
   }
 
   function useAiSuggestionNow() {
@@ -1442,16 +1505,16 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         <button
           type="button"
           onClick={sendDraft}
-          disabled={!draft.trim()}
+          disabled={!draft.trim() || sending}
           style={{
             padding: '8px 16px',
             border: 'none',
             borderRadius: 8,
-            background: draft.trim() ? '#AD1457' : '#d9a9bc',
+            background: draft.trim() && !sending ? '#AD1457' : '#d9a9bc',
             color: '#fff',
             fontSize: 13,
             fontWeight: 700,
-            cursor: draft.trim() ? 'pointer' : 'default',
+            cursor: draft.trim() && !sending ? 'pointer' : 'default',
             display: 'flex',
             alignItems: 'center',
             gap: 6,
@@ -1460,13 +1523,50 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           }}
         >
           <I n="send" s={14} c="#fff" />
-          Send
+          {sending ? 'Sending…' : 'Send'}
         </button>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 8, fontSize: 11, color: '#999' }}>
-        <I n="checkCheck" s={12} c="#2E7D32" />
-        Delivery status shown instantly · read receipts where the channel supports them
-      </div>
+      {sendError ? (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 6,
+            marginTop: 8,
+            padding: '8px 10px',
+            borderRadius: 8,
+            background: '#FDECEF',
+            border: '1px solid #F3C2CD',
+            fontSize: 12,
+            color: '#8E1338',
+            fontFamily: FONT,
+          }}
+        >
+          <span style={{ flex: 1 }}>{sendError}</span>
+          <button
+            type="button"
+            onClick={() => setSendError('')}
+            aria-label="Dismiss"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: '#8E1338',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 8, fontSize: 11, color: '#999' }}>
+          <I n="checkCheck" s={12} c="#2E7D32" />
+          Delivery reflects what the channel reports
+        </div>
+      )}
     </div>
   );
 
