@@ -57,9 +57,31 @@ const sendReply = async (conversationId: string, text: string, idempotencyKey: s
   return r.data;
 };
 
+export interface InboxChannelDTO {
+  platform: string;
+  name: string;
+  external_account_id: string;
+  page_id: string;
+  connected_at: string | null;
+  updated_at: string | null;
+  has_token: boolean;
+  last_event_at: string | null;
+}
+
+const listChannels = async (): Promise<InboxChannelDTO[]> => {
+  const r = await UriHttpClient.getClient().get('/inbox/channels');
+  return r.data?.channels ?? [];
+};
+
 const linkChannels = async (): Promise<{ linked: number }> => {
   const r = await UriHttpClient.getClient().post('/inbox/channels/link', {});
   return r.data;
 };
 
-export const InboxService = { listConversations, listMessages, sendReply, linkChannels };
+export const InboxService = {
+  listConversations,
+  listMessages,
+  sendReply,
+  linkChannels,
+  listChannels,
+};

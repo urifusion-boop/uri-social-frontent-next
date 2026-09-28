@@ -90,82 +90,83 @@ export interface ChannelConnection {
   mockAccounts: string[];
 }
 
-export const INITIAL_CHANNEL_CONNECTIONS: ChannelConnection[] = [
+// The channels the product can speak to. Everything about whether one is
+// actually connected comes from the API — this only fixes the labels and the
+// order, so a channel nobody connected cannot render as connected.
+const CHANNEL_SHELLS: {
+  id: string;
+  label: string;
+  color: string;
+  approved: boolean;
+  capabilities: Capability[];
+}[] = [
   {
     id: 'instagram',
     label: 'Instagram',
     color: '#C2185B',
-    connected: true,
-    statusNote: 'Connected as @amaraleatherco',
-    scopes: ['instagram_business_basic', 'instagram_manage_messages', 'instagram_manage_comments'],
-    lastEvent: '2 minutes ago',
-    tokenHealth: 'healthy',
     approved: true,
-    mockAccounts: ['@amaraleatherco (Business)'],
     capabilities: [
       { key: 'receiveDM', label: 'Receive DMs', ok: true },
       { key: 'sendDM', label: 'Send DMs', ok: true },
       { key: 'receiveComment', label: 'Receive comments', ok: true },
       { key: 'replyComment', label: 'Reply to comments', ok: true },
-      { key: 'fetchHistory', label: 'Fetch history', ok: true },
     ],
   },
   {
     id: 'facebook',
     label: 'Facebook',
     color: '#1877F2',
-    connected: true,
-    statusNote: 'Connected — Amara Leather Co. Page',
-    scopes: ['pages_messaging', 'pages_manage_metadata', 'pages_read_engagement'],
-    lastEvent: '18 minutes ago',
-    tokenHealth: 'expiring',
     approved: true,
-    mockAccounts: ['Amara Leather Co.'],
     capabilities: [
       { key: 'receiveDM', label: 'Receive DMs', ok: true },
       { key: 'sendDM', label: 'Send DMs', ok: true },
       { key: 'receiveComment', label: 'Receive comments', ok: true },
       { key: 'replyComment', label: 'Reply to comments', ok: true },
-      { key: 'fetchHistory', label: 'Fetch history', ok: true },
-    ],
-  },
-  {
-    id: 'whatsapp',
-    label: 'WhatsApp',
-    color: '#25D366',
-    connected: true,
-    statusNote: 'Connected — +234 801 234 5678 (Cloud API)',
-    scopes: ['whatsapp_business_messaging', 'whatsapp_business_management'],
-    lastEvent: '1 minute ago',
-    tokenHealth: 'healthy',
-    approved: true,
-    mockAccounts: ['+234 801 234 5678'],
-    capabilities: [
-      { key: 'receiveDM', label: 'Receive messages', ok: true },
-      { key: 'sendDM', label: 'Send messages', ok: true },
-      { key: 'sendTemplate', label: 'Send template (outside 24h window)', ok: true },
-      { key: 'fetchHistory', label: 'Fetch history', ok: false },
-    ],
-  },
-  {
-    id: 'tiktok',
-    label: 'TikTok',
-    color: '#111111',
-    connected: false,
-    statusNote: 'Not connected — Messaging Partner approval pending',
-    scopes: [],
-    lastEvent: '—',
-    tokenHealth: 'unavailable',
-    approved: false,
-    mockAccounts: [],
-    capabilities: [
-      { key: 'receiveDM', label: 'Receive DMs', ok: false },
-      { key: 'sendDM', label: 'Send DMs', ok: false },
-      { key: 'receiveComment', label: 'Receive comments', ok: false },
-      { key: 'replyComment', label: 'Reply to comments', ok: false },
     ],
   },
 ];
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return 'No events yet';
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (Number.isNaN(mins)) return 'No events yet';
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hours ago`;
+  return `${Math.floor(hours / 24)} days ago`;
+}
+
+// An unconnected channel keeps its capability list, greyed out — the list says
+// what the channel WOULD do, and `connected` says whether it does.
+export function channelsFromApi(
+  rows: {
+    platform: string;
+    name: string;
+    external_account_id: string;
+    has_token: boolean;
+    last_event_at: string | null;
+  }[]
+): ChannelConnection[] {
+  return CHANNEL_SHELLS.map((shell) => {
+    const row = rows.find((r) => r.platform === shell.id);
+    const connected = Boolean(row);
+    return {
+      ...shell,
+      connected,
+      statusNote: row ? `Connected${row.name ? ` — ${row.name}` : ''}` : 'Not connected',
+      // Scopes are granted by Meta, not knowable from our own records, so we do
+      // not print a list that might be wrong.
+      scopes: [],
+      lastEvent: row ? timeAgo(row.last_event_at) : '—',
+      tokenHealth: !row ? 'unavailable' : row.has_token ? 'healthy' : 'unavailable',
+      capabilities: shell.capabilities.map((c) => ({ ...c, ok: connected })),
+      mockAccounts: row && row.name ? [row.name] : [],
+    };
+  });
+}
+
+export const INITIAL_CHANNEL_CONNECTIONS: ChannelConnection[] = channelsFromApi([]);
 
 const HEALTH_META: Record<TokenHealth, { label: string; fg: string; bg: string; icon: string }> = {
   healthy: { label: 'Token healthy', fg: '#2E7D32', bg: 'rgba(46,125,50,.1)', icon: 'check' },

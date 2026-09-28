@@ -2,7 +2,11 @@
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { InboxService, InboxConversationDTO, InboxMessageDTO } from '@/src/api/InboxService';
-import InboxConnectionsPage, { INITIAL_CHANNEL_CONNECTIONS, type ChannelConnection } from './InboxConnectionsPage';
+import InboxConnectionsPage, {
+  INITIAL_CHANNEL_CONNECTIONS,
+  channelsFromApi,
+  type ChannelConnection,
+} from './InboxConnectionsPage';
 import InboxInsightsPage, { type InsightsConversation } from './InboxInsightsPage';
 import InboxSettingsPage from './InboxSettingsPage';
 
@@ -778,6 +782,24 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [sendError, setSendError] = useState('');
   const [sending, setSending] = useState(false);
   const [loadedThreads, setLoadedThreads] = useState<Record<string, boolean>>({});
+
+  // Real connections, so the page cannot show a channel nobody connected.
+  useEffect(() => {
+    if (DEMO_INBOX) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await InboxService.listChannels();
+        if (!cancelled) setChannelConnections(channelsFromApi(rows));
+      } catch {
+        // Leave the shells as they are — all showing "Not connected", which is
+        // the safe thing to say when we could not find out.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const refreshConversations = useCallback(async () => {
     if (DEMO_INBOX) {
