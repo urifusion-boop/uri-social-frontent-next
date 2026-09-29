@@ -63,7 +63,10 @@ export interface BrandProfileData {
   unique_selling_proposition?: string;
   business_stage?: '' | 'new' | 'growing' | 'established' | 'market_leader';
   business_priorities?: string[];
-  logo_url?: string;
+  // null (not just omitted) is how the brand explicitly clears a previously
+  // uploaded logo — plain `undefined` gets stripped by JSON.stringify before
+  // the request ever goes out, so the backend never sees the clear at all.
+  logo_url?: string | null;
   logo_position?: string;
   logo_size?: string;
   brand_colors?: string[];

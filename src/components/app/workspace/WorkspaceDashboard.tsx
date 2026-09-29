@@ -6208,7 +6208,11 @@ const PlaybookPage = ({
         region: region.join(', '),
         posting_cadence: cadence,
         approval_workflow: approval,
-        logo_url: logoUrl || undefined,
+        // null, not undefined — an empty string here means the brand
+        // explicitly removed their logo, and undefined-valued keys get
+        // silently dropped by JSON.stringify before the request is even
+        // sent, so the backend would never see the clear.
+        logo_url: logoUrl || null,
         logo_position: logoPosition,
         logo_size: logoSize,
         style_selections: styleSelections,
@@ -6462,6 +6466,23 @@ const PlaybookPage = ({
                 >
                   {logoUploading ? 'Uploading…' : logoUrl ? 'Replace logo' : 'Upload logo'}
                 </button>
+                {logoUrl && !logoUploading && (
+                  <button
+                    onClick={() => setLogoUrl('')}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: 7,
+                      border: '1.5px solid #edecea',
+                      background: '#fff',
+                      color: '#888',
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--wf)',
+                    }}
+                  >
+                    Remove logo
+                  </button>
+                )}
               </div>
               {logoError && <span style={{ fontSize: 11.5, color: '#EF4444' }}>{logoError}</span>}
             </div>
