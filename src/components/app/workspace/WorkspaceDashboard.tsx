@@ -3059,8 +3059,16 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         setGoogleAccountNeedsSignup(false);
         loadStatuses();
       }
-    } catch {
-      setGoogleAccountError('Could not send the link request. Check the account ID and try again.');
+    } catch (error) {
+      // Same interceptor gotcha as handleGoogleCreateAccount above: a non-2xx
+      // here (including the 502 this endpoint returns for a real Google Ads
+      // REST failure, e.g. "customer not found" / account still mid-setup)
+      // rejects with error.response directly, so the real detail — Google's
+      // own error text — lives at error.data.detail. Surfacing it instead of
+      // a generic string is what actually tells the user what's wrong.
+      const err = error as { data?: { detail?: string }; response?: { data?: { detail?: string } } };
+      const detail = err?.data?.detail ?? err?.response?.data?.detail;
+      setGoogleAccountError(detail || 'Could not send the link request. Check the account ID and try again.');
     } finally {
       setGoogleAccountSubmitting(false);
     }
