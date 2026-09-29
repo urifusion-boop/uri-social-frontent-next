@@ -58,6 +58,11 @@ export interface PlatformStatus {
   google_connection_state?: string;
   google_customer_id?: string;
   google_whatsapp_number?: string;
+  // google_ads only — whether URI's Manager Account is currently eligible to mint
+  // brand-new client accounts (Google requires it to have at least one linked
+  // account with real spend + clean policy history first). undefined/null means
+  // never checked yet; gates whether "Create one for me" should be offered.
+  google_can_create_account?: boolean | null;
 }
 
 export interface LinkedInPage {

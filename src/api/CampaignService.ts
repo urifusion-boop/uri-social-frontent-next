@@ -1000,6 +1000,11 @@ export class CampaignService {
     account_name: string;
     customer_id: string;
     whatsapp_number: string;
+    /** null/undefined = eligibility not yet known (never attempted or not checked);
+     * true = URI's Manager Account can create new client accounts; false = it can't
+     * (needs a spend-qualified account linked first) — gates whether "Create one for
+     * me" should be offered at all. */
+    can_create_account?: boolean | null;
   }> {
     const res = await UriHttpClient.getClient().get('/jane-ads/google/connection/status');
     return res.data as {
@@ -1007,6 +1012,7 @@ export class CampaignService {
       account_name: string;
       customer_id: string;
       whatsapp_number: string;
+      can_create_account?: boolean | null;
     };
   }
 

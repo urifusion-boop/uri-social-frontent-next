@@ -2442,6 +2442,15 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   const [googleAccountNameInput, setGoogleAccountNameInput] = useState('');
   const [googleAccountSubmitting, setGoogleAccountSubmitting] = useState(false);
   const [googleAccountError, setGoogleAccountError] = useState('');
+  // Set when "Create one for me" hits Google's real anti-fraud restriction on
+  // brand-new Manager Accounts (backend detail code
+  // "google_ads_mcc_not_eligible_to_create") — a brand-new MCC can't mint fresh
+  // client accounts until it has at least one linked account with real spend +
+  // clean policy history. Not a bug and not retryable, so instead of a dead-end
+  // "try again" error, this drives a guided panel: explain why, offer Google's
+  // own signup, and pivot straight into the (already-working) link-existing
+  // flow so the user has one clear next step instead of a wall.
+  const [googleAccountNeedsSignup, setGoogleAccountNeedsSignup] = useState(false);
 
   // Facebook/Instagram OAuth callback state
   const [phase, setPhase] = useState<'idle' | 'pending' | 'finalizing'>('idle');
@@ -2541,6 +2550,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           google_connection_state: gAds.state,
           google_customer_id: gAds.customer_id || undefined,
           google_whatsapp_number: gAds.whatsapp_number || undefined,
+          google_can_create_account: gAds.can_create_account,
         };
       }
       next.linkedin = li?.responseData ?? { linked: false };
@@ -3046,6 +3056,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         ToastService.showToast('Link request sent — accept it in your Google Ads account.', ToastTypeEnum.Success);
         setGoogleAccountChoice('none');
         setGoogleCustomerIdInput('');
+        setGoogleAccountNeedsSignup(false);
         loadStatuses();
       }
     } catch {
@@ -3064,9 +3075,28 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       ToastService.showToast('Google Ads account created!', ToastTypeEnum.Success);
       setGoogleAccountChoice('none');
       setGoogleAccountNameInput('');
+      setGoogleAccountNeedsSignup(false);
       loadStatuses();
-    } catch {
-      setGoogleAccountError('Could not create the account. Please try again.');
+    } catch (error) {
+      // http.config.ts's interceptor rejects a non-2xx with error.response
+      // directly (not the full AxiosError) for every status this endpoint can
+      // return, INCLUDING 409 — so the real shape here is error.data.detail,
+      // not error.response.data.detail. Checking both defensively rather than
+      // assuming one shape everywhere a request could conceivably fail
+      // outside that interceptor (e.g. a network error with no response at
+      // all reaches here as a plain Error, where neither path exists).
+      const err = error as { data?: { detail?: string }; response?: { data?: { detail?: string } } };
+      const detail = err?.data?.detail ?? err?.response?.data?.detail;
+      if (detail === 'google_ads_mcc_not_eligible_to_create') {
+        // Real Google restriction, not a retryable failure — pivot straight
+        // into the link-existing flow (already fully working) instead of
+        // leaving the user at a dead end. See googleAccountNeedsSignup above.
+        setGoogleAccountNeedsSignup(true);
+        setGoogleAccountChoice('existing');
+        setGoogleAccountNameInput('');
+      } else {
+        setGoogleAccountError('Could not create the account. Please try again.');
+      }
     } finally {
       setGoogleAccountSubmitting(false);
     }
@@ -4202,50 +4232,112 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     }}
                   >
                     {googleAccountChoice === 'none' ? (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setGoogleAccountError('');
-                            setGoogleAccountChoice('existing');
-                          }}
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: 7,
-                            border: '1px solid #4285F4',
-                            background: '#fff',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: '#4285F4',
-                            cursor: 'pointer',
-                            fontFamily: 'var(--wf)',
-                          }}
-                        >
-                          I already have a Google Ads account
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setGoogleAccountError('');
-                            setGoogleAccountChoice('create');
-                          }}
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: 7,
-                            border: 'none',
-                            background: '#4285F4',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontFamily: 'var(--wf)',
-                          }}
-                        >
-                          Create one for me
-                        </button>
+                      <div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGoogleAccountError('');
+                              setGoogleAccountNeedsSignup(false);
+                              setGoogleAccountChoice('existing');
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 7,
+                              border: '1px solid #4285F4',
+                              background: '#fff',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: '#4285F4',
+                              cursor: 'pointer',
+                              fontFamily: 'var(--wf)',
+                            }}
+                          >
+                            I already have a Google Ads account
+                          </button>
+                          {/* Hidden (not disabled) once the backend has confirmed URI's
+                           * Manager Account can't mint fresh accounts yet — showing it
+                           * only to fail with the same explanation every time is a dead
+                           * end; go straight to the one flow that works. Left visible
+                           * when eligibility is true or still unknown (never checked). */}
+                          {s?.google_can_create_account !== false && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGoogleAccountError('');
+                                setGoogleAccountNeedsSignup(false);
+                                setGoogleAccountChoice('create');
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 7,
+                                border: 'none',
+                                background: '#4285F4',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontFamily: 'var(--wf)',
+                              }}
+                            >
+                              Create one for me
+                            </button>
+                          )}
+                        </div>
+                        {s?.google_can_create_account === false && (
+                          <div style={{ fontSize: 11.5, color: '#888', marginTop: 8, lineHeight: 1.5 }}>
+                            URI can&rsquo;t create Google Ads accounts automatically right now — use your own existing
+                            Google Ads account instead. If you don&rsquo;t have one yet, the next step will let you sign
+                            up for one directly with Google.
+                          </div>
+                        )}
                       </div>
                     ) : googleAccountChoice === 'existing' ? (
                       <div>
+                        {(googleAccountNeedsSignup || s?.google_can_create_account === false) && (
+                          // Google's own real restriction on brand-new Manager
+                          // Accounts (confirmed live, see
+                          // MccNotEligibleToCreateAccounts on the backend) — not
+                          // retryable, so explain it plainly and hand over the
+                          // one thing that actually works: sign up for a real
+                          // Google Ads account directly, then link it here. Shown
+                          // either reactively (a live attempt just hit the error,
+                          // googleAccountNeedsSignup) or proactively (eligibility
+                          // was already known false when this panel opened).
+                          <div
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              background: '#FFFBEB',
+                              border: '1.5px solid #FDE68A',
+                              marginBottom: 10,
+                            }}
+                          >
+                            <div style={{ fontSize: 12, color: '#92400E', lineHeight: 1.5, marginBottom: 8 }}>
+                              Google won&rsquo;t let URI create a Google Ads account for you automatically yet — this
+                              needs a real, existing Google Ads account to connect instead. If you don&rsquo;t have one,
+                              sign up directly with Google (it&rsquo;s free and takes a couple of minutes), then come
+                              back and paste its Customer ID below.
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => window.open('https://ads.google.com', '_blank', 'noopener,noreferrer')}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 7,
+                                border: 'none',
+                                background: '#4285F4',
+                                color: '#fff',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                fontFamily: 'var(--wf)',
+                              }}
+                            >
+                              Sign up for Google Ads ↗
+                            </button>
+                          </div>
+                        )}
                         <div style={{ display: 'flex', gap: 8 }}>
                           <input
                             type="text"
@@ -4285,6 +4377,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                             onClick={() => {
                               setGoogleAccountChoice('none');
                               setGoogleAccountError('');
+                              setGoogleAccountNeedsSignup(false);
                             }}
                             style={{
                               padding: '7px 10px',
@@ -4345,6 +4438,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                             onClick={() => {
                               setGoogleAccountChoice('none');
                               setGoogleAccountError('');
+                              setGoogleAccountNeedsSignup(false);
                             }}
                             style={{
                               padding: '7px 10px',
