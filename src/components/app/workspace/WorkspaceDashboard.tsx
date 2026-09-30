@@ -867,6 +867,21 @@ const ContentManagerPage = ({
       setVideoTab('chat');
     }
   }, [videoPolishHandoff]);
+  // TEMP test-only entry point (2026-09-30): the "Generate" sub-tab's own nav
+  // button is deliberately hidden (see the commented-out array a few hundred
+  // lines below) — this is NOT undoing that decision, just a URL-triggered
+  // way to reach VideoStoryboardGenerator for testing the storyboard/caption
+  // Gemini-3.5-Flash-Lite swap without putting a new button in front of every
+  // real user. Visit the usual workspace URL with ?videoTab=generate appended.
+  // Remove this block once that swap (and any further video-cost work) is
+  // confirmed and no longer needs a manual test path.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('videoTab') === 'generate') {
+      setActiveTab('video');
+      setVideoTab('generate');
+    }
+  }, [searchParams]);
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
   // Keep JaneVideoChat mounted after first visit so in-progress sessions survive tab switches
   const [janeEverMounted, setJaneEverMounted] = useState(false);
