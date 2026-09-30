@@ -6,8 +6,10 @@ import {
   ApprovedDraft,
   ContentDraft,
   DenyPayload,
+  LogoPlacement,
   SocialMediaAgentService,
 } from '@/src/api/SocialMediaAgentService';
+import LogoRepositionModal from './LogoRepositionModal';
 import { trackEvent } from '@/lib/analytics';
 import posthog from 'posthog-js';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
@@ -123,6 +125,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
   // Canvas Editor state
   const [canvasEditorOpen, setCanvasEditorOpen] = useState(false);
+  const [logoRepositionOpen, setLogoRepositionOpen] = useState(false);
 
   // Sync draft data from parent on any relevant field change.
   // Always reset image load state to ensure images reload properly when navigating between tabs.
@@ -1509,6 +1512,40 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               </Button>
             ) : null}
 
+            {/* Move Logo — only for content generated with a saved
+             * logo-free background (see LogoRepositionService on the
+             * backend). Deliberately separate from the Canvas Editor
+             * button above, which gates on an unrelated, currently-broken
+             * layered-document flow. */}
+            {(isCarousel ? currentSlide?.logo_placement : draft.logo_placement) && (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setLogoRepositionOpen(true)}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  py: 1.5,
+                  px: 2,
+                  borderRadius: '10px',
+                  borderColor: '#F3C7DA',
+                  color: '#C2185B',
+                  background: '#FFF7FA',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&:hover': {
+                    borderColor: '#C2185B',
+                    background: 'linear-gradient(135deg, #FFF0F5 0%, #FCE4EC 100%)',
+                    color: '#C2185B',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 8px 16px rgba(194, 24, 91, 0.15)',
+                  },
+                }}
+              >
+                Move Logo
+              </Button>
+            )}
+
             <Button
               size="small"
               variant="outlined"
@@ -2151,6 +2188,40 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               console.error('Failed to save canvas image to draft:', error);
               ToastService.showToast('Failed to save image', ToastTypeEnum.Error);
             }
+          }}
+        />
+      ) : null}
+
+      {logoRepositionOpen && (isCarousel ? currentSlide?.logo_placement : draft.logo_placement) ? (
+        <LogoRepositionModal
+          open={logoRepositionOpen}
+          onClose={() => setLogoRepositionOpen(false)}
+          imageUrl={resolveUrl((isCarousel ? currentSlide?.image_url : draft.image_url) || '')}
+          initialPlacement={(isCarousel ? currentSlide?.logo_placement : draft.logo_placement) as LogoPlacement}
+          onSave={async (placement) => {
+            const draftId = draft.id || draft.draft_id || '';
+            const response = await SocialMediaAgentService.repositionDraftLogo(
+              draftId,
+              placement,
+              isCarousel ? slideIndex : undefined
+            );
+            if (!response.status || !response.responseData) {
+              throw new Error(response.responseMessage || 'Could not save the new logo position.');
+            }
+            const { image_url: newImageUrl, logo_placement: newPlacement } = response.responseData;
+            setDraft((prev) => {
+              if (isCarousel) {
+                const updatedSlides = [...(prev.slides || [])];
+                updatedSlides[slideIndex] = {
+                  ...updatedSlides[slideIndex],
+                  image_url: newImageUrl,
+                  logo_placement: newPlacement,
+                };
+                return { ...prev, slides: updatedSlides };
+              }
+              return { ...prev, image_url: newImageUrl, logo_placement: newPlacement };
+            });
+            ToastService.showToast('✅ Logo position updated!', ToastTypeEnum.Success);
           }}
         />
       ) : null}

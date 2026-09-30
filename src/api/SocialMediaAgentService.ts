@@ -300,6 +300,13 @@ export interface SocialConnection {
   connected_via?: string;
 }
 
+export interface LogoPlacement {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface CarouselSlide {
   headline: string;
   body: string;
@@ -310,6 +317,12 @@ export interface CarouselSlide {
   // single-image draft carries, but scoped to this one slide.
   image_version?: number;
   content_edit_count?: number;
+  // Logo-free background + exactly where the logo landed on it, saved at
+  // generation time — present only for content generated after manual
+  // logo reposition shipped. Both absent means this slide can't be
+  // repositioned this way (nothing to re-paste the logo onto).
+  background_image_url?: string;
+  logo_placement?: LogoPlacement;
 }
 
 export interface ContentDraft {
@@ -345,6 +358,12 @@ export interface ContentDraft {
   error_message?: string;
   content_source?: 'ai_generated' | 'user_uploaded'; // NEW: Distinguish AI vs user content
   uploaded_media_urls?: string[]; // NEW: User-uploaded media URLs (images/videos)
+  // Logo-free background + exactly where the logo landed on it, saved at
+  // generation time — present only for content generated after manual
+  // logo reposition shipped. Both absent means this draft can't be
+  // repositioned this way (nothing to re-paste the logo onto).
+  background_image_url?: string;
+  logo_placement?: LogoPlacement;
 }
 
 export interface ContentCalendarResponse {
@@ -542,6 +561,23 @@ export class SocialMediaAgentService {
         force_category: forceCategory,
         slide_index: slideIndex,
       }
+    );
+    return response.data;
+  }
+
+  // Deterministic, no-AI logo move/resize — pastes the real logo fresh onto
+  // the draft's saved logo-free background at the exact box given, so
+  // nothing else in the image can change. Only works for a draft that has
+  // a saved background_image_url/logo_placement (content generated after
+  // this shipped) — see LogoPlacement on ContentDraft/CarouselSlide.
+  static async repositionDraftLogo(
+    draftId: string,
+    placement: LogoPlacement,
+    slideIndex?: number
+  ): Promise<UriResponse<{ image_url: string; logo_placement: LogoPlacement }>> {
+    const response = await UriHttpClient.getClient().post(
+      `${socialMediaAgentRoutes.deleteDraft}/${draftId}/logo/reposition`,
+      { ...placement, slide_index: slideIndex }
     );
     return response.data;
   }
