@@ -207,6 +207,7 @@ export default function LogoRepositionModal({
           />
           {naturalSize && (
             <Box
+              data-testid="logo-drag-box"
               onMouseDown={startMove}
               sx={{
                 position: 'absolute',
@@ -221,6 +222,7 @@ export default function LogoRepositionModal({
               }}
             >
               <Box
+                data-testid="logo-resize-handle"
                 onMouseDown={startResize}
                 sx={{
                   position: 'absolute',
