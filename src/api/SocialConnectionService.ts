@@ -15,6 +15,13 @@ export interface ConnectedAccountEntry {
   account_name?: string;
   connected_via?: string;
   profile_picture_url?: string;
+  // Only ever explicitly false when Outstand itself has flagged this
+  // connection unhealthy (its own isActive flag) — undefined/null means
+  // Outstand didn't report a status for this account/network at all, and
+  // must not be treated as a problem (a stale token only shows up here
+  // once Outstand's own record catches up; it is NOT a live token check —
+  // an attempt to actually publish can still fail even when this is true).
+  is_active?: boolean | null;
 }
 
 export interface PlatformStatus {
@@ -51,6 +58,11 @@ export interface PlatformStatus {
   google_connection_state?: string;
   google_customer_id?: string;
   google_whatsapp_number?: string;
+  // google_ads only — whether URI's Manager Account is currently eligible to mint
+  // brand-new client accounts (Google requires it to have at least one linked
+  // account with real spend + clean policy history first). undefined/null means
+  // never checked yet; gates whether "Create one for me" should be offered.
+  google_can_create_account?: boolean | null;
 }
 
 export interface LinkedInPage {

@@ -266,9 +266,21 @@ export interface ApproveError {
   error: string;
 }
 
+// Distinct from ApproveError: the draft IS genuinely scheduled (status
+// stays "scheduled", the backend cron will still retry at send time) but
+// the initial dispatch attempt hit an issue worth flagging now — e.g. the
+// platform connection may actually be expired even though Connected
+// Accounts still shows it as active. Unlike an error, this should NOT
+// block the normal "Scheduled!" success handling.
+export interface ApproveWarning {
+  draft_id: string;
+  warning: string;
+}
+
 export interface ApproveResult {
   approved_drafts: ApprovedDraft[];
   errors: ApproveError[];
+  warnings?: ApproveWarning[];
   schedule_option: string;
   scheduled_datetime: string | null;
   approved_at: string;

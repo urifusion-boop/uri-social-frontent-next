@@ -7,7 +7,7 @@ import { ToastService } from '@/src/utils/toast.util';
 import { Box, Button, Chip, Dialog, DialogActions, DialogContent, Typography } from '@mui/material';
 import { useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
-import { MdCalendarToday, MdOutlineSchedule } from 'react-icons/md';
+import { MdCalendarToday, MdErrorOutline, MdOutlineSchedule } from 'react-icons/md';
 
 const PLATFORM_ASPECT: Record<string, string> = {
   linkedin: '1200 / 628',
@@ -68,6 +68,13 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
   const scheduledDate =
     (draft as ContentDraft & { scheduled_date?: string }).scheduled_date ?? draft.scheduled_datetime;
+  // The cron marks a dispatch that actually failed (e.g. a real Facebook
+  // rejection) as status="publish_failed" with a real, actionable
+  // error_message — this card used to ignore both fields entirely and just
+  // kept showing "Scheduled" / "Publishing soon…" forever off the countdown
+  // alone, even for a post that had already failed hours ago with a clear
+  // reason sitting right there in the data.
+  const isFailed = draft.status === 'publish_failed';
 
   const handleUnschedule = async () => {
     if (!confirmUnschedule) {
@@ -104,10 +111,12 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
         overflow: 'hidden',
       }}
     >
-      {/* Scheduled banner */}
+      {/* Scheduled / failed banner */}
       <Box
         sx={{
-          background: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
+          background: isFailed
+            ? 'linear-gradient(135deg, #DC2626 0%, #991B1B 100%)'
+            : 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
           px: 2.5,
           py: 1.25,
           display: 'flex',
@@ -124,10 +133,21 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
           </Typography>
         </Box>
         <Box display="flex" alignItems="center" gap={0.75}>
-          <MdOutlineSchedule color="rgba(255,255,255,0.75)" size={13} />
-          <Typography fontSize="11px" color="rgba(255,255,255,0.85)" fontWeight={500}>
-            {getCountdown(scheduledDate)}
-          </Typography>
+          {isFailed ? (
+            <>
+              <MdErrorOutline color="rgba(255,255,255,0.9)" size={13} />
+              <Typography fontSize="11px" color="rgba(255,255,255,0.9)" fontWeight={700}>
+                Failed to publish
+              </Typography>
+            </>
+          ) : (
+            <>
+              <MdOutlineSchedule color="rgba(255,255,255,0.75)" size={13} />
+              <Typography fontSize="11px" color="rgba(255,255,255,0.85)" fontWeight={500}>
+                {getCountdown(scheduledDate)}
+              </Typography>
+            </>
+          )}
         </Box>
       </Box>
 
@@ -142,11 +162,36 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
             sx={{ background: pc.bg, color: pc.color, fontWeight: 600, fontSize: '11px', height: 24 }}
           />
           <Chip
-            label="Scheduled"
+            label={isFailed ? 'Failed' : 'Scheduled'}
             size="small"
-            sx={{ background: '#EDE9FE', color: '#5B21B6', fontWeight: 600, fontSize: '11px', height: 24 }}
+            sx={
+              isFailed
+                ? { background: '#FEE2E2', color: '#B91C1C', fontWeight: 600, fontSize: '11px', height: 24 }
+                : { background: '#EDE9FE', color: '#5B21B6', fontWeight: 600, fontSize: '11px', height: 24 }
+            }
           />
         </Box>
+
+        {/* Failure reason — the actual point of this card knowing about
+            isFailed at all. error_message is already the friendly,
+            actionable text (see backend's _friendlier_facebook_error),
+            with the raw platform detail appended, not a raw stack trace. */}
+        {isFailed && draft.error_message && (
+          <Box
+            sx={{
+              background: '#FEF2F2',
+              border: '1px solid #FECACA',
+              borderRadius: '8px',
+              px: 1.5,
+              py: 1.25,
+              mb: 1.5,
+            }}
+          >
+            <Typography fontSize="13px" color="#991B1B" sx={{ lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+              {draft.error_message}
+            </Typography>
+          </Box>
+        )}
 
         {/* Content preview */}
         <Typography

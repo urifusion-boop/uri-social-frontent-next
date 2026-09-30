@@ -1,19 +1,32 @@
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { InboxService, InboxConversationDTO, InboxMessageDTO } from '@/src/api/InboxService';
+import InboxConnectionsPage, {
+  INITIAL_CHANNEL_CONNECTIONS,
+  channelsFromApi,
+  type ChannelConnection,
+} from './InboxConnectionsPage';
+import InboxInsightsPage, { type InsightsConversation } from './InboxInsightsPage';
+import InboxSettingsPage from './InboxSettingsPage';
 
 /*
- * Unified Social Inbox — desktop + mobile shell.
+ * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
+ * not a standalone route: it renders inside the dashboard's existing
+ * sidebar/mobile-tab-bar shell, the same way every other tab (Campaigns,
+ * Billing, Playbook, ...) does, so it never triggers a separate page load
+ * or an auth re-check. isMobile is passed down from WorkspaceDashboard's
+ * own breakpoint rather than detected locally, for the same reason.
  *
  * Queue filtering, view switching, grouping, the drag-and-drop board (desktop
- * only — HTML5 drag events don't fire on touch), replying, assigning, and
- * marking resolved are all real component state. What is NOT yet wired to a
- * backend: none of it persists past a page reload, and nothing is actually
- * sent to Instagram/Facebook/WhatsApp/TikTok — that needs the Unified Inbox
- * API from the PRD's Stage 1/2 rollout. RAW_CONVERSATIONS is placeholder
- * sample data standing in for that API until it exists.
+ * only — HTML5 drag events don't fire on touch), assigning and marking resolved
+ * are component state.
+ *
+ * Conversations, messages and replying are REAL: they come from the Unified
+ * Inbox API and a reply goes to Instagram or Facebook. Delivery reflects what
+ * the provider actually said and is never advanced on a timer. Queues,
+ * assignees, tags, notes, leads and AI suggestions are still local-only and do
+ * not persist past a reload.
  */
 
 // ─── Icon set (same hand-rolled convention as WorkspaceDashboard/EscalationsPage) ──
@@ -100,6 +113,54 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       </>
     ),
     check: <polyline points="20 6 9 17 4 12" />,
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <polyline points="12 7 12 12 15.5 14" />
+      </>
+    ),
+    tag: (
+      <>
+        <path d="M20.59 13.41 12 22 2 12V2h10z" />
+        <circle cx="7" cy="7" r="1.4" fill="currentColor" stroke="none" />
+      </>
+    ),
+    note: (
+      <>
+        <path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z" />
+        <polyline points="14 3 14 9 20 9" />
+        <line x1="8" y1="13" x2="16" y2="13" />
+        <line x1="8" y1="17" x2="13" y2="17" />
+      </>
+    ),
+    user: (
+      <>
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </>
+    ),
+    plus: (
+      <>
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </>
+    ),
+    target: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="5" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+      </>
+    ),
+    grid: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </>
+    ),
+    zap: <polygon points="13 2 3 14 11 14 9 22 21 10 13 10 13 2" />,
     alertTriangle: (
       <>
         <polygon points="12 3 22 20 2 20" />
@@ -137,11 +198,30 @@ type QueueKey = 'unassigned' | 'sales' | 'support' | 'complaints' | 'ad' | 'reso
 type StatusKey = 'unassigned' | 'pending' | 'urgent' | 'resolved';
 type ConversationType = 'dm' | 'comment';
 
+type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read';
+
 interface ThreadMessage {
   from: 'customer' | 'agent';
   text: string;
   time: string;
   by?: string;
+  id?: string;
+  delivery?: DeliveryStatus;
+}
+
+interface InternalNote {
+  id: string;
+  text: string;
+  by: string;
+  time: string;
+}
+
+interface Lead {
+  interest: string;
+  budget: string;
+  notes: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 interface ThreadComment {
@@ -183,6 +263,9 @@ interface Conversation {
   post?: PostContext;
   comments?: ThreadComment[];
   aiSuggestion?: AiSuggestion;
+  tags?: string[];
+  notes?: InternalNote[];
+  lead?: Lead | null;
 }
 
 // ─── Static metadata ────────────────────────────────────────────────────────
@@ -200,14 +283,19 @@ const STATUS_META: Record<StatusKey, { label: string; fg: string; bg: string }> 
   resolved: { label: 'Resolved', fg: '#2E7D32', bg: 'rgba(46,125,50,.1)' },
 };
 
-const QUEUE_DEFS: { id: 'all' | QueueKey; label: string; count: number }[] = [
-  { id: 'all', label: 'All conversations', count: 142 },
-  { id: 'unassigned', label: 'Unassigned', count: 18 },
-  { id: 'sales', label: 'Sales', count: 34 },
-  { id: 'support', label: 'Support', count: 27 },
-  { id: 'complaints', label: 'Complaints', count: 9 },
-  { id: 'ad', label: 'Ad responses', count: 12 },
-  { id: 'resolved', label: 'Resolved', count: 20 },
+type QueueFilter = 'all' | QueueKey | 'unanswered';
+
+// Counts are computed from the conversations actually loaded — never a literal.
+// A queue claiming 34 next to an empty list is worse than no number at all.
+const QUEUE_DEFS: { id: QueueFilter; label: string }[] = [
+  { id: 'all', label: 'All conversations' },
+  { id: 'unassigned', label: 'Unassigned' },
+  { id: 'sales', label: 'Sales' },
+  { id: 'support', label: 'Support' },
+  { id: 'complaints', label: 'Complaints' },
+  { id: 'ad', label: 'Ad responses' },
+  { id: 'unanswered', label: 'Unanswered' },
+  { id: 'resolved', label: 'Resolved' },
 ];
 
 const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
@@ -221,29 +309,34 @@ const BOARD_COLUMNS: { id: QueueKey; label: string }[] = [
 
 const ASSIGNEE_OPTIONS = ['You', 'Ngozi U.', 'Tobi D.'];
 
-// Sidebar nav mirrors WorkspaceDashboard's NAV ids/routes (goTo there resolves
-// to /workspace/?tab=<id>) so these links land on the same tabs the main
-// sidebar would open.
-const SIDEBAR_NAV: { id: string; icon: string; label: string }[] = [
-  { id: 'workspace', icon: 'home', label: 'Workspace' },
-  { id: 'schedule', icon: 'calendar', label: 'Create Content' },
-  { id: 'connections', icon: 'share', label: 'Connected Accounts' },
-  { id: 'performance', icon: 'chart', label: 'Performance' },
-  { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
-  { id: 'playbook', icon: 'book', label: 'Brand Playbook' },
-  { id: 'settings', icon: 'settings', label: 'Settings' },
-  { id: 'billing', icon: 'trending', label: 'Billing' },
-];
+export interface SavedReply {
+  label: string;
+  text: string;
+}
 
-const MOBILE_TABS: { id: string; icon: string; label: string; tab?: string }[] = [
-  { id: 'workspace', icon: 'home', label: 'Jane', tab: 'workspace' },
-  { id: 'messages', icon: 'inbox', label: 'Inbox' },
-  { id: 'schedule', icon: 'calendar', label: 'Create', tab: 'schedule' },
-  { id: 'playbook', icon: 'book', label: 'Playbook', tab: 'playbook' },
-  { id: 'more', icon: 'settings', label: 'More', tab: 'settings' },
+const DEFAULT_TAG_PRESETS = ['VIP', 'Repeat customer', 'Refund', 'Spam review', 'Urgent'];
+
+const DEFAULT_SAVED_REPLIES: SavedReply[] = [
+  { label: 'Order status', text: 'Thanks for reaching out! Let me check your order status and get right back to you.' },
+  {
+    label: 'Shipping times',
+    text: 'We ship within 2 business days, and delivery across Nigeria typically takes 3-5 days after that.',
+  },
+  {
+    label: 'Out of stock',
+    text: "That one's currently out of stock, but I can let you know the moment it's back — want me to?",
+  },
+  { label: 'Pickup available', text: 'Yes, pickup is available at our Lekki Phase 1 studio, Mon-Sat, 10am-6pm.' },
+  { label: 'Thank you', text: 'Thank you so much for your kind words — it means a lot to us! 💕' },
 ];
 
 // ─── Placeholder sample data — stands in for the real Unified Inbox API ────
+// Demo mode: OFF unless NEXT_PUBLIC_INBOX_DEMO is explicitly "true".
+// The sample conversations below are invented, and while this is on nothing is
+// fetched and nothing sent from here reaches Instagram or Facebook. Set the env
+// var to "true" to show the sample conversations instead.
+const DEMO_INBOX = process.env.NEXT_PUBLIC_INBOX_DEMO === 'true';
+
 const RAW_CONVERSATIONS: Conversation[] = [
   {
     id: 'c1',
@@ -430,6 +523,7 @@ const RAW_CONVERSATIONS: Conversation[] = [
 ];
 
 // ─── Grouping ───────────────────────────────────────────────────────────────
+
 type GroupMode = 'time' | 'platform' | 'customer';
 
 interface ConversationGroup {
@@ -500,18 +594,122 @@ function pillStyle(active: boolean): React.CSSProperties {
   };
 }
 
-export default function InboxDashboard() {
-  const router = useRouter();
+// ─── API → view model ───────────────────────────────────────────────────────
+// The backend is deliberately narrower than this screen: it knows conversations,
+// messages and delivery, and nothing about queues, assignees, leads or AI
+// suggestions. Those stay local UI state, so what a reviewer sees on screen is
+// either real or plainly the agent's own working notes — never invented history
+// dressed up as a customer's.
 
-  const [isMobile, setIsMobile] = useState(false);
+const CHANNEL_FALLBACK: ChannelKey = 'instagram';
+
+function asChannel(platform: string): ChannelKey {
+  return (['instagram', 'facebook', 'whatsapp', 'tiktok'] as const).includes(platform as ChannelKey)
+    ? (platform as ChannelKey)
+    : CHANNEL_FALLBACK;
+}
+
+function asStatus(status: string): StatusKey {
+  return status === 'resolved' ? 'resolved' : status === 'pending' ? 'pending' : 'unassigned';
+}
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
+}
+
+const AVATAR_COLORS = ['#C2185B', '#6A1B9A', '#00695C', '#EF6C00', '#283593'];
+
+function avatarColorFor(id: string): string {
+  let sum = 0;
+  for (let i = 0; i < id.length; i += 1) sum += id.charCodeAt(i);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+// Meta's states, mapped to what the thread shows. `unknown` and `failed` are NOT
+// collapsed into a tick: a send that may or may not have arrived is exactly what
+// the agent needs to see.
+function asDelivery(delivery: string): DeliveryStatus | undefined {
+  switch (delivery) {
+    case 'accepted':
+      return 'sent';
+    case 'delivered':
+      return 'delivered';
+    case 'read':
+      return 'read';
+    case 'pending':
+      return 'pending';
+    default:
+      return undefined;
+  }
+}
+
+function toConversation(dto: InboxConversationDTO): Conversation {
+  const name = dto.contact_name || 'Unknown contact';
+  return {
+    id: dto.id,
+    type: dto.kind,
+    channel: asChannel(dto.platform),
+    name,
+    initials: initialsOf(name),
+    avatarColor: avatarColorFor(dto.id),
+    excerpt: dto.excerpt || '',
+    time: relativeTime(dto.last_activity_at),
+    queue: 'unassigned',
+    status: asStatus(dto.status),
+    assignee: dto.assignee_id || null,
+    sourceLabel: dto.source_ad_id ? 'From an ad' : dto.source_post_id ? 'From a post' : undefined,
+    tags: dto.tags ?? [],
+    messages: dto.kind === 'dm' ? [] : undefined,
+    comments: dto.kind === 'comment' ? [] : undefined,
+    notes: [],
+    lead: null,
+  };
+}
+
+function toThreadMessage(m: InboxMessageDTO): ThreadMessage {
+  return {
+    id: m.id,
+    from: m.direction === 'outbound' ? 'agent' : 'customer',
+    by: m.direction === 'outbound' ? 'You' : undefined,
+    text: m.text,
+    time: relativeTime(m.received_at ?? m.provider_timestamp),
+    delivery: m.direction === 'outbound' ? asDelivery(m.delivery) : undefined,
+  };
+}
+
+function toThreadComment(m: InboxMessageDTO): ThreadComment {
+  return {
+    from: m.direction === 'outbound' ? 'agent' : 'customer',
+    by: m.direction === 'outbound' ? 'You' : undefined,
+    text: m.text,
+    time: relativeTime(m.received_at ?? m.provider_timestamp),
+  };
+}
+
+export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [mobileScreen, setMobileScreen] = useState<'list' | 'thread'>('list');
 
-  const [selectedQueue, setSelectedQueue] = useState<'all' | QueueKey>('all');
-  const [selectedId, setSelectedId] = useState<string>('c1');
+  const [selectedQueue, setSelectedQueue] = useState<QueueFilter>('all');
+  const [selectedId, setSelectedId] = useState<string>('');
   const [view, setView] = useState<'list' | 'board'>('list');
   const [groupBy, setGroupBy] = useState<GroupMode>('time');
 
   const [cardQueues, setCardQueues] = useState<Record<string, QueueKey>>(() => {
+    if (!DEMO_INBOX) return {};
     const map: Record<string, QueueKey> = {};
     RAW_CONVERSATIONS.forEach((c) => {
       map[c.id] = c.queue;
@@ -529,39 +727,253 @@ export default function InboxDashboard() {
   const [dragOverCol, setDragOverCol] = useState<QueueKey | null>(null);
   const [assignMenuOpen, setAssignMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [moveMenuCardId, setMoveMenuCardId] = useState<string | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | ConversationType>('all');
+  const [typeFilterMenuOpen, setTypeFilterMenuOpen] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
+  const [threadTab, setThreadTab] = useState<'thread' | 'notes'>('thread');
+  const [tagOverrides, setTagOverrides] = useState<Record<string, string[]>>({});
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
+  const [customTagDraft, setCustomTagDraft] = useState('');
+  const [noteOverrides, setNoteOverrides] = useState<Record<string, InternalNote[]>>({});
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savedRepliesOpen, setSavedRepliesOpen] = useState(false);
+  const [leadOverrides, setLeadOverrides] = useState<Record<string, Lead>>({});
+  const [leadModalOpen, setLeadModalOpen] = useState(false);
+  const [leadFormInterest, setLeadFormInterest] = useState('');
+  const [leadFormBudget, setLeadFormBudget] = useState('');
+  const [leadFormNotes, setLeadFormNotes] = useState('');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights' | 'settings'>('inbox');
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [channelConnections, setChannelConnections] = useState<ChannelConnection[]>(INITIAL_CHANNEL_CONNECTIONS);
+  const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set(['c1']));
+  const [tagPresets, setTagPresets] = useState<string[]>(DEFAULT_TAG_PRESETS);
+  const [savedReplies, setSavedReplies] = useState<SavedReply[]>(DEFAULT_SAVED_REPLIES);
+
+  // Escape closes whatever overlay is currently open — drawers, sheets,
+  // menus and modals alike — since none of them trap focus, a keyboard or
+  // screen-reader user otherwise has no way out but the mouse.
   useEffect(() => {
-    const ck = () => setIsMobile(window.innerWidth < 768);
-    ck();
-    window.addEventListener('resize', ck);
-    return () => window.removeEventListener('resize', ck);
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setLeadModalOpen(false);
+      setMoveMenuCardId(null);
+      setFilterDrawerOpen(false);
+      setAssignMenuOpen(false);
+      setMoreMenuOpen(false);
+      setTagMenuOpen(false);
+      setSavedRepliesOpen(false);
+      setTypeFilterMenuOpen(false);
+      setNotificationsOpen(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  const [baseConversations, setBaseConversations] = useState<Conversation[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [sendError, setSendError] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loadedThreads, setLoadedThreads] = useState<Record<string, boolean>>({});
+
+  // Real connections, so the page cannot show a channel nobody connected.
+  useEffect(() => {
+    if (DEMO_INBOX) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await InboxService.listChannels();
+        if (!cancelled) setChannelConnections(channelsFromApi(rows));
+      } catch {
+        // Leave the shells as they are — all showing "Not connected", which is
+        // the safe thing to say when we could not find out.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const refreshConversations = useCallback(async () => {
+    if (DEMO_INBOX) {
+      setBaseConversations(RAW_CONVERSATIONS);
+      setLoadingList(false);
+      return;
+    }
+    try {
+      const rows = await InboxService.listConversations({ limit: 100 });
+      setBaseConversations(rows.map(toConversation));
+      setLoadError('');
+    } catch (e: unknown) {
+      const detail = (e as { data?: { detail?: string } })?.data?.detail;
+      setLoadError(detail || 'Could not load conversations.');
+    } finally {
+      setLoadingList(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshConversations();
+  }, [refreshConversations]);
+
+  // Messages are fetched per thread, once, when it is first opened: the list
+  // endpoint returns only an excerpt, and fetching every thread's history up
+  // front would be hundreds of requests for threads nobody opens.
+  useEffect(() => {
+    if (DEMO_INBOX || !selectedId || loadedThreads[selectedId]) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await InboxService.listMessages(selectedId);
+        if (cancelled) return;
+        const conv = baseConversations.find((c) => c.id === selectedId);
+        if (conv?.type === 'comment') {
+          setCommentOverrides((prev) => ({ ...prev, [selectedId]: rows.map(toThreadComment) }));
+        } else {
+          setMessageOverrides((prev) => ({ ...prev, [selectedId]: rows.map(toThreadMessage) }));
+        }
+        setLoadedThreads((prev) => ({ ...prev, [selectedId]: true }));
+      } catch {
+        // Leave the thread unloaded so reopening it tries again, rather than
+        // showing an empty thread as though the customer had said nothing.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, loadedThreads, baseConversations]);
+
+  // Select the first conversation once there is one to select.
+  useEffect(() => {
+    if (!selectedId && baseConversations.length) setSelectedId(baseConversations[0].id);
+  }, [baseConversations, selectedId]);
+
   // Every conversation with its live overrides folded in — everything below
-  // reads from this, never from RAW_CONVERSATIONS directly, so the list, the
+  // reads from this, never from the fetched rows directly, so the list, the
   // board and the thread pane can never disagree about a conversation's
   // current state.
   const conversations = useMemo<Conversation[]>(
     () =>
-      RAW_CONVERSATIONS.map((c) => ({
+      baseConversations.map((c) => ({
         ...c,
         status: statusOverrides[c.id] ?? c.status,
         assignee: c.id in assigneeOverrides ? assigneeOverrides[c.id] : c.assignee,
         messages: c.messages ? [...c.messages, ...(messageOverrides[c.id] || [])] : c.messages,
         comments: c.comments ? [...c.comments, ...(commentOverrides[c.id] || [])] : c.comments,
+        tags: tagOverrides[c.id] ?? c.tags ?? [],
+        notes: noteOverrides[c.id] ?? c.notes ?? [],
+        lead: c.id in leadOverrides ? leadOverrides[c.id] : (c.lead ?? null),
       })),
-    [statusOverrides, assigneeOverrides, messageOverrides, commentOverrides]
+    [
+      baseConversations,
+      statusOverrides,
+      assigneeOverrides,
+      messageOverrides,
+      commentOverrides,
+      tagOverrides,
+      noteOverrides,
+      leadOverrides,
+    ]
   );
 
   const currentQueueOf = (c: Conversation): QueueKey => cardQueues[c.id] ?? c.queue;
 
-  const filteredConversations = useMemo(
-    () => conversations.filter((c) => selectedQueue === 'all' || currentQueueOf(c) === selectedQueue),
+  // A conversation is unanswered when the most recent activity is from the
+  // customer and nobody has replied since — computed live, not a static
+  // queue tag, so it stays accurate as replies go out.
+  function isUnanswered(c: Conversation): boolean {
+    if (c.status === 'resolved') return false;
+    const last = c.type === 'dm' ? c.messages?.[c.messages.length - 1] : c.comments?.[c.comments.length - 1];
+    if (!last) return false;
+    return c.type === 'dm' ? (last as ThreadMessage).from === 'customer' : (last as ThreadComment).from !== 'agent';
+  }
+
+  const filteredConversations = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return conversations.filter((c) => {
+      if (selectedQueue === 'unanswered') {
+        if (!isUnanswered(c)) return false;
+      } else if (selectedQueue !== 'all' && currentQueueOf(c) !== selectedQueue) {
+        return false;
+      }
+      if (typeFilter !== 'all' && c.type !== typeFilter) return false;
+      if (tagFilter !== 'all' && !(c.tags ?? []).includes(tagFilter)) return false;
+      if (assigneeFilter !== 'all') {
+        if (assigneeFilter === 'unassigned' ? c.assignee : c.assignee !== assigneeFilter) return false;
+      }
+      if (q && !(c.name.toLowerCase().includes(q) || c.excerpt.toLowerCase().includes(q))) return false;
+      return true;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [conversations, selectedQueue, cardQueues]
-  );
+  }, [conversations, selectedQueue, cardQueues, typeFilter, tagFilter, assigneeFilter, searchQuery]);
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
+
+  // Nothing to show yet. This has to come before selectedConv: with an empty
+  // list the old `?? conversations[0]` was undefined and the next line crashed.
+  if (loadingList || !conversations.length) {
+    return (
+      <div
+        style={{
+          fontFamily: FONT,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          padding: '64px 24px',
+          textAlign: 'center',
+          color: '#5B6472',
+        }}
+      >
+        {loadingList ? (
+          <p style={{ margin: 0, fontSize: 15 }}>Loading your inbox…</p>
+        ) : loadError ? (
+          <>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1F2430' }}>
+              We couldn&apos;t load your inbox
+            </p>
+            <p style={{ margin: 0, fontSize: 14, maxWidth: 420 }}>{loadError}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadingList(true);
+                refreshConversations();
+              }}
+              style={{
+                marginTop: 6,
+                padding: '9px 18px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#C2185B',
+                color: '#fff',
+                fontFamily: FONT,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Try again
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1F2430' }}>No conversations yet</p>
+            <p style={{ margin: 0, fontSize: 14, maxWidth: 420 }}>
+              Messages and comments from your connected Instagram and Facebook accounts will appear here as they arrive.
+            </p>
+          </>
+        )}
+      </div>
+    );
+  }
 
   const selectedConv = conversations.find((c) => c.id === selectedId) ?? conversations[0];
   const chSel = CHANNEL_META[selectedConv.channel];
@@ -578,51 +990,100 @@ export default function InboxDashboard() {
   function openConversation(id: string) {
     setSelectedId(id);
     setView('list');
+    setThreadTab('thread');
+    setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
     if (isMobile) setMobileScreen('thread');
   }
 
-  function goToWorkspaceTab(tabId: string) {
-    router.push(`/workspace?tab=${tabId}`);
+  // The reply is shown as pending, then settled by what the provider actually
+  // said. Delivery is never advanced on a timer: a tick the customer never
+  // earned is a lie told to the agent.
+  function showPending(text: string, localId: string) {
+    if (selectedConv.type === 'dm') {
+      setMessageOverrides((prev) => ({
+        ...prev,
+        [selectedId]: [
+          ...(prev[selectedId] || []),
+          { from: 'agent', by: 'You', text, time: 'Just now', id: localId, delivery: 'pending' },
+        ],
+      }));
+    } else {
+      setCommentOverrides((prev) => ({
+        ...prev,
+        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
+      }));
+    }
+  }
+
+  function settleDelivery(localId: string, delivery: DeliveryStatus | undefined) {
+    setMessageOverrides((prev) => ({
+      ...prev,
+      [selectedId]: (prev[selectedId] || []).map((m) => (m.id === localId ? { ...m, delivery } : m)),
+    }));
+  }
+
+  async function appendReply(text: string) {
+    if (!selectedId || sending) return;
+    const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    // One key per composer submission, so a double-click or a retried request
+    // sends once rather than messaging the customer twice.
+    const idempotencyKey = localId;
+
+    setSending(true);
+    setSendError('');
+    showPending(text, localId);
+
+    if (DEMO_INBOX) {
+      settleDelivery(localId, 'sent');
+      setSending(false);
+      return;
+    }
+
+    try {
+      const result = await InboxService.sendReply(selectedId, text, idempotencyKey);
+      if (result.delivery === 'accepted') {
+        settleDelivery(localId, 'sent');
+      } else {
+        // failed or unknown — the agent needs to know, and "unknown" genuinely
+        // means it may have arrived, so it is not reported as a failure.
+        settleDelivery(localId, undefined);
+        setSendError(
+          result.delivery === 'unknown'
+            ? 'We did not hear back from Meta. The message may or may not have been delivered — check before resending.'
+            : result.failure_reason || 'The message could not be sent.'
+        );
+      }
+    } catch (e: unknown) {
+      settleDelivery(localId, undefined);
+      const detail = (e as { data?: { detail?: string } })?.data?.detail;
+      setSendError(detail || 'The message could not be sent.');
+    } finally {
+      setSending(false);
+    }
   }
 
   function sendDraft() {
     const text = draft.trim();
-    if (!text) return;
-    if (selectedConv.type === 'dm') {
-      setMessageOverrides((prev) => ({
-        ...prev,
-        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
-      }));
-    } else {
-      setCommentOverrides((prev) => ({
-        ...prev,
-        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
-      }));
-    }
+    if (!text || sending) return;
     setComposerDrafts((prev) => ({ ...prev, [selectedId]: '' }));
     if (selectedConv.aiSuggestion) setUsedAiSuggestion((prev) => ({ ...prev, [selectedId]: true }));
+    void appendReply(text);
   }
 
   function useAiSuggestionNow() {
     if (!selectedConv.aiSuggestion) return;
-    const text = selectedConv.aiSuggestion.text;
-    if (selectedConv.type === 'dm') {
-      setMessageOverrides((prev) => ({
-        ...prev,
-        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
-      }));
-    } else {
-      setCommentOverrides((prev) => ({
-        ...prev,
-        [selectedId]: [...(prev[selectedId] || []), { from: 'agent', by: 'You', text, time: 'Just now' }],
-      }));
-    }
+    appendReply(selectedConv.aiSuggestion.text);
     setUsedAiSuggestion((prev) => ({ ...prev, [selectedId]: true }));
   }
 
   function editAiSuggestionIntoComposer() {
     if (!selectedConv.aiSuggestion) return;
     setComposerDrafts((prev) => ({ ...prev, [selectedId]: selectedConv.aiSuggestion!.text }));
+  }
+
+  function insertSavedReply(text: string) {
+    setComposerDrafts((prev) => ({ ...prev, [selectedId]: text }));
+    setSavedRepliesOpen(false);
   }
 
   function setAssignee(name: string | null) {
@@ -641,8 +1102,112 @@ export default function InboxDashboard() {
     setMoreMenuOpen(false);
   }
 
+  function addTag(tag: string) {
+    const trimmed = tag.trim();
+    if (!trimmed) return;
+    const current = selectedConv.tags ?? [];
+    if (current.includes(trimmed)) return;
+    setTagOverrides((prev) => ({ ...prev, [selectedId]: [...current, trimmed] }));
+    setCustomTagDraft('');
+  }
+
+  function removeTag(tag: string) {
+    const current = selectedConv.tags ?? [];
+    setTagOverrides((prev) => ({ ...prev, [selectedId]: current.filter((t) => t !== tag) }));
+  }
+
+  function addNote() {
+    const text = noteDraft.trim();
+    if (!text) return;
+    const current = selectedConv.notes ?? [];
+    setNoteOverrides((prev) => ({
+      ...prev,
+      [selectedId]: [...current, { id: `note-${Date.now()}`, text, by: 'You', time: 'Just now' }],
+    }));
+    setNoteDraft('');
+  }
+
+  function openLeadModal() {
+    const existing = selectedConv.lead;
+    setLeadFormInterest(existing?.interest ?? '');
+    setLeadFormBudget(existing?.budget ?? '');
+    setLeadFormNotes(existing?.notes ?? '');
+    setLeadModalOpen(true);
+    setMoreMenuOpen(false);
+  }
+
+  function submitLead() {
+    if (!leadFormInterest.trim()) return;
+    setLeadOverrides((prev) => ({
+      ...prev,
+      [selectedId]: {
+        interest: leadFormInterest.trim(),
+        budget: leadFormBudget.trim(),
+        notes: leadFormNotes.trim(),
+        createdBy: 'You',
+        createdAt: 'Just now',
+      },
+    }));
+    setLeadModalOpen(false);
+  }
+
+  function toggleSelectId(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function bulkMarkResolved() {
+    const ids = Array.from(selectedIds);
+    setStatusOverrides((prev) => {
+      const next = { ...prev };
+      ids.forEach((id) => (next[id] = 'resolved'));
+      return next;
+    });
+    setCardQueues((prev) => {
+      const next = { ...prev };
+      ids.forEach((id) => (next[id] = 'resolved'));
+      return next;
+    });
+    exitSelectMode();
+  }
+
+  function bulkAssign(name: string) {
+    const ids = Array.from(selectedIds);
+    setAssigneeOverrides((prev) => {
+      const next = { ...prev };
+      ids.forEach((id) => (next[id] = name));
+      return next;
+    });
+    exitSelectMode();
+  }
+
+  function handleChannelConnected(channelId: string, accountLabel: string) {
+    setChannelConnections((prev) =>
+      prev.map((c) =>
+        c.id === channelId
+          ? {
+              ...c,
+              connected: true,
+              statusNote: `Connected as ${accountLabel}`,
+              tokenHealth: 'healthy',
+              lastEvent: 'Just now',
+            }
+          : c
+      )
+    );
+  }
+
   // ── Shared thread body (used by both the desktop thread pane and the mobile thread screen) ──
-  const threadBody = (
+  const messagesView = (
     <div
       style={{
         flex: 1,
@@ -687,8 +1252,22 @@ export default function InboxDashboard() {
                 }}
               >
                 {m.text}
-                <div style={{ fontSize: 10, color: '#AD1457', marginTop: 4, textAlign: 'right' }}>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: '#AD1457',
+                    marginTop: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    gap: 4,
+                  }}
+                >
                   {m.by} · {m.time}
+                  {m.delivery === 'pending' && <I n="clock" s={11} c="#c98aa8" />}
+                  {m.delivery === 'sent' && <I n="check" s={11} c="#c98aa8" />}
+                  {m.delivery === 'delivered' && <I n="checkCheck" s={11} c="#AD1457" />}
+                  {m.delivery === 'read' && <I n="checkCheck" s={11} c="#1565C0" />}
                 </div>
               </div>
             </div>
@@ -866,6 +1445,153 @@ export default function InboxDashboard() {
     </div>
   );
 
+  const notesView = (
+    <div
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        minHeight: 0,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11.5,
+          color: '#B26A00',
+          background: 'rgba(237,108,2,.08)',
+          border: '1px solid rgba(237,108,2,.2)',
+          borderRadius: 8,
+          padding: '8px 12px',
+        }}
+      >
+        Private notes are only visible to your team — the customer never sees these.
+      </div>
+      {(selectedConv.notes ?? []).length === 0 ? (
+        <div style={{ fontSize: 13, color: '#bbb', textAlign: 'center', padding: '24px 0' }}>No notes yet</div>
+      ) : (
+        (selectedConv.notes ?? []).map((note) => (
+          <div
+            key={note.id}
+            style={{
+              background: '#fff8ea',
+              border: '1px solid rgba(237,108,2,.15)',
+              borderRadius: 12,
+              padding: '10px 14px',
+            }}
+          >
+            <div style={{ fontSize: 13, color: '#1a1a1a', lineHeight: 1.5 }}>{note.text}</div>
+            <div style={{ fontSize: 10.5, color: '#B26A00', marginTop: 6, fontWeight: 600 }}>
+              {note.by} · {note.time}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  const threadTabs = (
+    <div
+      style={{
+        flex: '0 0 auto',
+        display: 'flex',
+        gap: 4,
+        padding: '10px 20px 0',
+        borderBottom: '1px solid rgba(0,0,0,.06)',
+      }}
+    >
+      {(
+        [
+          ['thread', selectedConv.type === 'comment' ? 'Comment' : 'Conversation'],
+          ['notes', `Notes${(selectedConv.notes ?? []).length ? ` (${(selectedConv.notes ?? []).length})` : ''}`],
+        ] as const
+      ).map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => setThreadTab(id)}
+          style={{
+            padding: '8px 12px',
+            border: 'none',
+            borderBottom: threadTab === id ? '2px solid #E91E63' : '2px solid transparent',
+            background: 'transparent',
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: threadTab === id ? '#AD1457' : '#999',
+            cursor: 'pointer',
+            fontFamily: FONT,
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const threadBody = threadTab === 'thread' ? messagesView : notesView;
+
+  const noteComposer = (
+    <div style={{ flex: '0 0 auto', padding: '14px 20px 18px', borderTop: '1px solid rgba(0,0,0,.08)' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: 10,
+          background: '#fff8ea',
+          border: '1px solid rgba(237,108,2,.2)',
+          borderRadius: 12,
+          padding: '10px 12px',
+        }}
+      >
+        <textarea
+          aria-label="Add an internal note"
+          placeholder="Add a private note for your team..."
+          rows={1}
+          value={noteDraft}
+          onChange={(e) => setNoteDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              addNote();
+            }
+          }}
+          style={{
+            flex: 1,
+            border: 'none',
+            background: 'transparent',
+            outline: 'none',
+            resize: 'none',
+            fontSize: 13,
+            fontFamily: FONT,
+            color: '#1a1a1a',
+            padding: '6px 0',
+          }}
+        />
+        <button
+          type="button"
+          onClick={addNote}
+          disabled={!noteDraft.trim()}
+          style={{
+            padding: '8px 16px',
+            border: 'none',
+            borderRadius: 8,
+            background: noteDraft.trim() ? '#B26A00' : '#e8c9a0',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: noteDraft.trim() ? 'pointer' : 'default',
+            fontFamily: FONT,
+            flex: '0 0 auto',
+          }}
+        >
+          Add note
+        </button>
+      </div>
+    </div>
+  );
+
   const threadComposer = (
     <div style={{ flex: '0 0 auto', padding: '14px 20px 18px', borderTop: '1px solid rgba(0,0,0,.08)' }}>
       {selectedConv.type === 'comment' && (
@@ -902,6 +1628,91 @@ export default function InboxDashboard() {
         >
           <I n="paperclip" s={16} />
         </button>
+        <div style={{ position: 'relative', flex: '0 0 auto' }}>
+          <button
+            type="button"
+            aria-label="Saved replies"
+            title="Saved replies"
+            onClick={() => setSavedRepliesOpen((o) => !o)}
+            style={{
+              width: 28,
+              height: 28,
+              border: 'none',
+              background: 'transparent',
+              color: '#888',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <I n="zap" s={16} />
+          </button>
+          {savedRepliesOpen && (
+            <>
+              <div onClick={() => setSavedRepliesOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '120%',
+                  left: 0,
+                  zIndex: 999,
+                  background: '#fff',
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                  border: '1px solid rgba(0,0,0,.06)',
+                  minWidth: 240,
+                  maxWidth: '80vw',
+                  padding: 6,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: '.04em',
+                    textTransform: 'uppercase',
+                    color: '#999',
+                    padding: '6px 8px',
+                  }}
+                >
+                  Saved replies
+                </div>
+                {savedReplies.map((r) => (
+                  <button
+                    key={r.label}
+                    type="button"
+                    onClick={() => insertSavedReply(r.text)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px',
+                      border: 'none',
+                      background: 'transparent',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontFamily: FONT,
+                    }}
+                  >
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#333' }}>{r.label}</div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: '#999',
+                        marginTop: 1,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {r.text}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <textarea
           aria-label="Reply message"
           placeholder="Write a reply..."
@@ -929,16 +1740,16 @@ export default function InboxDashboard() {
         <button
           type="button"
           onClick={sendDraft}
-          disabled={!draft.trim()}
+          disabled={!draft.trim() || sending}
           style={{
             padding: '8px 16px',
             border: 'none',
             borderRadius: 8,
-            background: draft.trim() ? '#AD1457' : '#d9a9bc',
+            background: draft.trim() && !sending ? '#AD1457' : '#d9a9bc',
             color: '#fff',
             fontSize: 13,
             fontWeight: 700,
-            cursor: draft.trim() ? 'pointer' : 'default',
+            cursor: draft.trim() && !sending ? 'pointer' : 'default',
             display: 'flex',
             alignItems: 'center',
             gap: 6,
@@ -947,17 +1758,355 @@ export default function InboxDashboard() {
           }}
         >
           <I n="send" s={14} c="#fff" />
-          Send
+          {sending ? 'Sending…' : 'Send'}
         </button>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 8, fontSize: 11, color: '#999' }}>
-        <I n="checkCheck" s={12} c="#2E7D32" />
-        Delivery status shown instantly · read receipts where the channel supports them
-      </div>
+      {sendError ? (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 6,
+            marginTop: 8,
+            padding: '8px 10px',
+            borderRadius: 8,
+            background: '#FDECEF',
+            border: '1px solid #F3C2CD',
+            fontSize: 12,
+            color: '#8E1338',
+            fontFamily: FONT,
+          }}
+        >
+          <span style={{ flex: 1 }}>{sendError}</span>
+          <button
+            type="button"
+            onClick={() => setSendError('')}
+            aria-label="Dismiss"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: '#8E1338',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 8, fontSize: 11, color: '#999' }}>
+          <I n="checkCheck" s={12} c="#2E7D32" />
+          Delivery reflects what the channel reports
+        </div>
+      )}
     </div>
   );
 
   function threadHeader(showBack: boolean) {
+    const backButton = showBack && (
+      <button
+        type="button"
+        aria-label="Back to conversations"
+        onClick={() => setMobileScreen('list')}
+        style={{
+          width: 32,
+          height: 32,
+          border: 'none',
+          background: 'transparent',
+          color: '#444',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          flex: '0 0 auto',
+        }}
+      >
+        <I n="chevronLeft" s={20} />
+      </button>
+    );
+
+    const avatar = (
+      <div
+        style={{
+          width: isMobile ? 30 : 34,
+          height: isMobile ? 30 : 34,
+          borderRadius: '50%',
+          background: selectedConv.avatarColor,
+          color: '#fff',
+          fontSize: 12,
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: '0 0 auto',
+        }}
+      >
+        {selectedConv.initials}
+      </div>
+    );
+
+    const nameAndChannel = (
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 800,
+            color: '#1a1a1a',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {selectedConv.name}
+        </div>
+        <div style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: chSel.color, flex: '0 0 auto' }} />
+          {chSel.label}
+        </div>
+      </div>
+    );
+
+    const statusChip = (
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          padding: '4px 10px',
+          borderRadius: 12,
+          background: stSel.bg,
+          color: stSel.fg,
+          whiteSpace: 'nowrap',
+          flex: '0 0 auto',
+        }}
+      >
+        {stSel.label}
+      </span>
+    );
+
+    const assignControl = (
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={() => {
+            setAssignMenuOpen((o) => !o);
+            setMoreMenuOpen(false);
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            border: '1px solid rgba(0,0,0,.1)',
+            background: '#fff',
+            borderRadius: 8,
+            padding: '6px 10px',
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#444',
+            cursor: 'pointer',
+            fontFamily: FONT,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {isMobile ? selectedConv.assignee || 'Unassigned' : `Assigned: ${selectedConv.assignee || 'Unassigned'}`}
+          <I n="chevronDown" s={12} />
+        </button>
+        {assignMenuOpen && (
+          <>
+            <div onClick={() => setAssignMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+            <div
+              style={{
+                position: 'absolute',
+                top: '110%',
+                left: isMobile ? 0 : 'auto',
+                right: isMobile ? 'auto' : 0,
+                zIndex: 999,
+                background: '#fff',
+                borderRadius: 10,
+                boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                border: '1px solid rgba(0,0,0,.06)',
+                minWidth: 160,
+                padding: 6,
+              }}
+            >
+              {ASSIGNEE_OPTIONS.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setAssignee(name)}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 10px',
+                    border: 'none',
+                    background: selectedConv.assignee === name ? 'rgba(194,24,91,.08)' : 'transparent',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#333',
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  {name}
+                  {selectedConv.assignee === name && <I n="check" s={13} c="#AD1457" />}
+                </button>
+              ))}
+              <div style={{ height: 1, background: 'rgba(0,0,0,.06)', margin: '4px 0' }} />
+              <button
+                type="button"
+                onClick={() => setAssignee(null)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '8px 10px',
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#999',
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                Unassign
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+
+    const moreControl = (
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          aria-label="More options"
+          onClick={() => {
+            setMoreMenuOpen((o) => !o);
+            setAssignMenuOpen(false);
+          }}
+          style={{
+            width: 32,
+            height: 32,
+            border: 'none',
+            background: 'transparent',
+            borderRadius: 8,
+            color: '#666',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flex: '0 0 auto',
+          }}
+        >
+          <I n="more" s={16} />
+        </button>
+        {moreMenuOpen && (
+          <>
+            <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+            <div
+              style={{
+                position: 'absolute',
+                top: '110%',
+                right: 0,
+                zIndex: 999,
+                background: '#fff',
+                borderRadius: 10,
+                boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                border: '1px solid rgba(0,0,0,.06)',
+                minWidth: 180,
+                padding: 6,
+              }}
+            >
+              <button
+                type="button"
+                onClick={toggleResolved}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 10px',
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#333',
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                <I n="check" s={14} c={selectedConv.status === 'resolved' ? '#999' : '#2E7D32'} />
+                {selectedConv.status === 'resolved' ? 'Reopen conversation' : 'Mark resolved'}
+              </button>
+              <button
+                type="button"
+                onClick={openLeadModal}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 10px',
+                  border: 'none',
+                  background: 'transparent',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#333',
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                <I n="target" s={14} c={selectedConv.lead ? '#2E7D32' : '#999'} />
+                {selectedConv.lead ? 'Edit lead' : 'Create lead'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+
+    if (isMobile) {
+      // Two rows: identity gets its own row so a long name never has to
+      // fight the assign pill and the more button for space.
+      return (
+        <div style={{ flex: '0 0 auto', borderBottom: '1px solid rgba(0,0,0,.08)', boxSizing: 'border-box' }}>
+          <div
+            style={{
+              height: 52,
+              padding: '0 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              boxSizing: 'border-box',
+            }}
+          >
+            {backButton}
+            {avatar}
+            {nameAndChannel}
+            {moreControl}
+          </div>
+          <div
+            style={{ padding: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 8, boxSizing: 'border-box' }}
+          >
+            {assignControl}
+            {statusChip}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
         style={{
@@ -971,228 +2120,12 @@ export default function InboxDashboard() {
           boxSizing: 'border-box',
         }}
       >
-        {showBack && (
-          <button
-            type="button"
-            aria-label="Back to conversations"
-            onClick={() => setMobileScreen('list')}
-            style={{
-              width: 32,
-              height: 32,
-              border: 'none',
-              background: 'transparent',
-              color: '#444',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flex: '0 0 auto',
-            }}
-          >
-            <I n="chevronLeft" s={20} />
-          </button>
-        )}
-        <div
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: '50%',
-            background: selectedConv.avatarColor,
-            color: '#fff',
-            fontSize: 12,
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flex: '0 0 auto',
-          }}
-        >
-          {selectedConv.initials}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a1a' }}>{selectedConv.name}</div>
-          <div style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: chSel.color }} />
-            {chSel.label}
-          </div>
-        </div>
-        {!isMobile && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              padding: '4px 10px',
-              borderRadius: 12,
-              background: stSel.bg,
-              color: stSel.fg,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {stSel.label}
-          </span>
-        )}
-
-        <div style={{ position: 'relative' }}>
-          <button
-            type="button"
-            onClick={() => {
-              setAssignMenuOpen((o) => !o);
-              setMoreMenuOpen(false);
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              border: '1px solid rgba(0,0,0,.1)',
-              background: '#fff',
-              borderRadius: 8,
-              padding: '6px 10px',
-              fontSize: 12,
-              fontWeight: 600,
-              color: '#444',
-              cursor: 'pointer',
-              fontFamily: FONT,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {isMobile ? selectedConv.assignee || 'Unassigned' : `Assigned: ${selectedConv.assignee || 'Unassigned'}`}
-            <I n="chevronDown" s={12} />
-          </button>
-          {assignMenuOpen && (
-            <>
-              <div onClick={() => setAssignMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '110%',
-                  right: 0,
-                  zIndex: 999,
-                  background: '#fff',
-                  borderRadius: 10,
-                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-                  border: '1px solid rgba(0,0,0,.06)',
-                  minWidth: 160,
-                  padding: 6,
-                }}
-              >
-                {ASSIGNEE_OPTIONS.map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setAssignee(name)}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 10px',
-                      border: 'none',
-                      background: selectedConv.assignee === name ? 'rgba(194,24,91,.08)' : 'transparent',
-                      borderRadius: 6,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: '#333',
-                      cursor: 'pointer',
-                      fontFamily: FONT,
-                    }}
-                  >
-                    {name}
-                    {selectedConv.assignee === name && <I n="check" s={13} c="#AD1457" />}
-                  </button>
-                ))}
-                <div style={{ height: 1, background: 'rgba(0,0,0,.06)', margin: '4px 0' }} />
-                <button
-                  type="button"
-                  onClick={() => setAssignee(null)}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '8px 10px',
-                    border: 'none',
-                    background: 'transparent',
-                    borderRadius: 6,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#999',
-                    cursor: 'pointer',
-                    fontFamily: FONT,
-                  }}
-                >
-                  Unassign
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div style={{ position: 'relative' }}>
-          <button
-            type="button"
-            aria-label="More options"
-            onClick={() => {
-              setMoreMenuOpen((o) => !o);
-              setAssignMenuOpen(false);
-            }}
-            style={{
-              width: 32,
-              height: 32,
-              border: 'none',
-              background: 'transparent',
-              borderRadius: 8,
-              color: '#666',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <I n="more" s={16} />
-          </button>
-          {moreMenuOpen && (
-            <>
-              <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '110%',
-                  right: 0,
-                  zIndex: 999,
-                  background: '#fff',
-                  borderRadius: 10,
-                  boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-                  border: '1px solid rgba(0,0,0,.06)',
-                  minWidth: 180,
-                  padding: 6,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={toggleResolved}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 10px',
-                    border: 'none',
-                    background: 'transparent',
-                    borderRadius: 6,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#333',
-                    cursor: 'pointer',
-                    fontFamily: FONT,
-                  }}
-                >
-                  <I n="check" s={14} c={selectedConv.status === 'resolved' ? '#999' : '#2E7D32'} />
-                  {selectedConv.status === 'resolved' ? 'Reopen conversation' : 'Mark resolved'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        {backButton}
+        {avatar}
+        {nameAndChannel}
+        {statusChip}
+        {assignControl}
+        {moreControl}
       </div>
     );
   }
@@ -1216,24 +2149,614 @@ export default function InboxDashboard() {
     </div>
   );
 
+  const tagsRow = (
+    <div
+      style={{
+        padding: '10px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        flexWrap: 'wrap',
+        borderBottom: '1px solid rgba(0,0,0,.06)',
+      }}
+    >
+      {(selectedConv.tags ?? []).map((tag) => (
+        <span
+          key={tag}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 11,
+            fontWeight: 700,
+            padding: '4px 6px 4px 10px',
+            borderRadius: 12,
+            background: 'rgba(194,24,91,.08)',
+            color: '#AD1457',
+          }}
+        >
+          {tag}
+          <button
+            type="button"
+            aria-label={`Remove tag ${tag}`}
+            onClick={() => removeTag(tag)}
+            style={{
+              width: 16,
+              height: 16,
+              border: 'none',
+              background: 'rgba(194,24,91,.15)',
+              borderRadius: '50%',
+              color: '#AD1457',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            <I n="x" s={9} />
+          </button>
+        </span>
+      ))}
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={() => setTagMenuOpen((o) => !o)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 11,
+            fontWeight: 700,
+            padding: '4px 10px',
+            borderRadius: 12,
+            border: '1px dashed rgba(0,0,0,.2)',
+            background: 'transparent',
+            color: '#888',
+            cursor: 'pointer',
+            fontFamily: FONT,
+          }}
+        >
+          <I n="plus" s={10} />
+          Tag
+        </button>
+        {tagMenuOpen && (
+          <>
+            <div onClick={() => setTagMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+            <div
+              style={{
+                position: 'absolute',
+                top: '110%',
+                left: 0,
+                zIndex: 999,
+                background: '#fff',
+                borderRadius: 10,
+                boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                border: '1px solid rgba(0,0,0,.06)',
+                minWidth: 200,
+                padding: 10,
+              }}
+            >
+              {tagPresets
+                .filter((t) => !(selectedConv.tags ?? []).includes(t))
+                .map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      addTag(t);
+                      setTagMenuOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '7px 8px',
+                      border: 'none',
+                      background: 'transparent',
+                      borderRadius: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#333',
+                      cursor: 'pointer',
+                      fontFamily: FONT,
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  marginTop: 6,
+                  padding: '6px 4px 0',
+                  borderTop: '1px solid rgba(0,0,0,.06)',
+                }}
+              >
+                <input
+                  aria-label="Custom tag"
+                  placeholder="Custom tag..."
+                  value={customTagDraft}
+                  onChange={(e) => setCustomTagDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      addTag(customTagDraft);
+                      setTagMenuOpen(false);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    border: '1px solid rgba(0,0,0,.1)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    addTag(customTagDraft);
+                    setTagMenuOpen(false);
+                  }}
+                  style={{
+                    border: 'none',
+                    background: '#AD1457',
+                    color: '#fff',
+                    borderRadius: 6,
+                    padding: '0 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+      {selectedConv.lead && (
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 11,
+            fontWeight: 700,
+            padding: '4px 10px',
+            borderRadius: 12,
+            background: 'rgba(46,125,50,.1)',
+            color: '#2E7D32',
+            marginLeft: 'auto',
+          }}
+        >
+          <I n="target" s={11} c="#2E7D32" />
+          Lead
+        </span>
+      )}
+    </div>
+  );
+
   // ── Shared: queue pills (used in desktop sidebar + mobile chip row) ──
-  const queuePills = QUEUE_DEFS.map((q) => ({ ...q, active: selectedQueue === q.id }));
+  const queuePills = QUEUE_DEFS.map((q) => ({
+    ...q,
+    active: selectedQueue === q.id,
+    count:
+      q.id === 'all'
+        ? conversations.length
+        : q.id === 'unanswered'
+          ? conversations.filter(isUnanswered).length
+          : conversations.filter((c) => currentQueueOf(c) === q.id).length,
+  }));
+
+  const allTagsInUse = Array.from(new Set(conversations.flatMap((c) => c.tags ?? []))).sort();
+  const hasExtraFilters = typeFilter !== 'all' || tagFilter !== 'all' || assigneeFilter !== 'all';
+
+  const listEmptyState = (
+    <div style={{ padding: '40px 20px', textAlign: 'center', color: '#999' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#666', marginBottom: 4 }}>No conversations match</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+        {searchQuery ? `Nothing found for "${searchQuery}".` : 'Try a different queue, type, or clearing your filters.'}
+      </div>
+      {(searchQuery || hasExtraFilters || selectedQueue !== 'all') && (
+        <button
+          type="button"
+          onClick={() => {
+            setSearchQuery('');
+            setTypeFilter('all');
+            setTagFilter('all');
+            setAssigneeFilter('all');
+            setSelectedQueue('all');
+          }}
+          style={{
+            marginTop: 12,
+            padding: '7px 16px',
+            borderRadius: 8,
+            border: '1px solid rgba(0,0,0,.12)',
+            background: '#fff',
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: '#AD1457',
+            cursor: 'pointer',
+            fontFamily: FONT,
+          }}
+        >
+          Clear filters
+        </button>
+      )}
+    </div>
+  );
+
+  // Drives the top bar pill — never claims "all connected" while a real
+  // channel is disconnected or its token is expiring, and never counts an
+  // unapproved platform (TikTok) against the total.
+  const approvedConnections = channelConnections.filter((c) => c.approved);
+  const connectionIssues = approvedConnections.filter((c) => !c.connected || c.tokenHealth === 'expiring');
+  const connectionsSummary =
+    connectionIssues.length === 0
+      ? { label: 'All channels connected', fg: '#2E7D32', bg: 'rgba(46,125,50,.08)', dot: '#2E7D32' }
+      : {
+          label: `${approvedConnections.length - connectionIssues.length}/${approvedConnections.length} connected — action needed`,
+          fg: '#B26A00',
+          bg: 'rgba(237,108,2,.08)',
+          dot: '#B26A00',
+        };
+
+  const notificationBell = (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        aria-label="Notifications"
+        onClick={() => setNotificationsOpen((o) => !o)}
+        style={{
+          width: 36,
+          height: 36,
+          border: 'none',
+          background: 'transparent',
+          borderRadius: 8,
+          color: '#555',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          position: 'relative',
+        }}
+      >
+        <I n="bell" s={18} />
+        <span
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: '#E91E63',
+          }}
+        />
+      </button>
+      {notificationsOpen && (
+        <>
+          <div onClick={() => setNotificationsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+          <div
+            style={{
+              position: 'absolute',
+              top: '110%',
+              right: 0,
+              zIndex: 999,
+              background: '#fff',
+              borderRadius: 12,
+              boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+              border: '1px solid rgba(0,0,0,.06)',
+              width: 300,
+              maxWidth: '85vw',
+              padding: 8,
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#333', padding: '6px 8px 10px' }}>Recent activity</div>
+            {[
+              { text: 'Tobi O. sent a new message', time: '2h', icon: 'inbox' as const, color: '#C62828' },
+              { text: 'Ifeoma B. commented on your ad', time: '24m', icon: 'megaphone' as const, color: '#AD1457' },
+              { text: 'Ngozi U. resolved a conversation', time: '3h', icon: 'check' as const, color: '#2E7D32' },
+            ].map((n, idx) => (
+              <div
+                key={idx}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px', borderRadius: 8 }}
+              >
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: `${n.color}1a`,
+                    color: n.color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flex: '0 0 auto',
+                  }}
+                >
+                  <I n={n.icon} s={13} c={n.color} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, color: '#333' }}>{n.text}</div>
+                  <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>{n.time} ago</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const leadModal = leadModalOpen && (
+    <>
+      <div
+        onClick={() => setLeadModalOpen(false)}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1100 }}
+      />
+      <div
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%,-50%)',
+          zIndex: 1101,
+          background: '#fff',
+          borderRadius: 16,
+          width: 420,
+          maxWidth: '90vw',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          boxShadow: '0 20px 60px rgba(0,0,0,.3)',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ padding: '20px 20px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, color: '#1a1a1a' }}
+            >
+              <I n="target" s={18} c="#AD1457" />
+              {selectedConv.lead ? 'Edit lead' : 'Create lead'}
+            </div>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setLeadModalOpen(false)}
+              style={{
+                width: 30,
+                height: 30,
+                border: 'none',
+                background: 'transparent',
+                color: '#666',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                borderRadius: 8,
+              }}
+            >
+              <I n="x" s={16} />
+            </button>
+          </div>
+          <div style={{ fontSize: 12.5, color: '#999', marginBottom: 16 }}>
+            For {selectedConv.name} · {CHANNEL_META[selectedConv.channel].label}
+          </div>
+        </div>
+
+        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <label
+            style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#444' }}
+          >
+            Product interest
+            <input
+              value={leadFormInterest}
+              onChange={(e) => setLeadFormInterest(e.target.value)}
+              placeholder="e.g. Tan Woven Tote"
+              style={{
+                border: '1px solid rgba(0,0,0,.12)',
+                borderRadius: 8,
+                padding: '9px 12px',
+                fontSize: 13,
+                fontFamily: FONT,
+                outline: 'none',
+              }}
+            />
+          </label>
+          <label
+            style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#444' }}
+          >
+            Budget (optional)
+            <input
+              value={leadFormBudget}
+              onChange={(e) => setLeadFormBudget(e.target.value)}
+              placeholder="e.g. ₦40,000 - ₦60,000"
+              style={{
+                border: '1px solid rgba(0,0,0,.12)',
+                borderRadius: 8,
+                padding: '9px 12px',
+                fontSize: 13,
+                fontFamily: FONT,
+                outline: 'none',
+              }}
+            />
+          </label>
+          <label
+            style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#444' }}
+          >
+            Notes (optional)
+            <textarea
+              value={leadFormNotes}
+              onChange={(e) => setLeadFormNotes(e.target.value)}
+              placeholder="Anything worth remembering for the follow-up..."
+              rows={3}
+              style={{
+                border: '1px solid rgba(0,0,0,.12)',
+                borderRadius: 8,
+                padding: '9px 12px',
+                fontSize: 13,
+                fontFamily: FONT,
+                outline: 'none',
+                resize: 'vertical',
+              }}
+            />
+          </label>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', padding: 20 }}>
+          <button
+            type="button"
+            onClick={() => setLeadModalOpen(false)}
+            style={{
+              padding: '9px 16px',
+              borderRadius: 8,
+              border: '1px solid rgba(0,0,0,.12)',
+              background: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#444',
+              cursor: 'pointer',
+              fontFamily: FONT,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submitLead}
+            disabled={!leadFormInterest.trim()}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: leadFormInterest.trim() ? '#AD1457' : '#d9a9bc',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: leadFormInterest.trim() ? 'pointer' : 'default',
+              fontFamily: FONT,
+            }}
+          >
+            {selectedConv.lead ? 'Save changes' : 'Create lead'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
 
   // ═══════════════════════════════════════════════════════════════════════
-  // MOBILE
+  // CONNECTIONS / INSIGHTS — full-width sub-screens, same for mobile and desktop
   // ═══════════════════════════════════════════════════════════════════════
-  if (isMobile) {
+  if (subView !== 'inbox') {
     return (
       <div
         style={{
           width: '100%',
-          height: '100vh',
+          height: '100%',
           display: 'flex',
           flexDirection: 'column',
           fontFamily: FONT,
           background: '#fafafa',
           color: '#1a1a1a',
           overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            height: 56,
+            flex: '0 0 56px',
+            background: '#fff',
+            borderBottom: '1px solid rgba(0,0,0,.08)',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 16px',
+            gap: 10,
+            boxSizing: 'border-box',
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Back to Customer Messages"
+            onClick={() => setSubView('inbox')}
+            style={{
+              width: 34,
+              height: 34,
+              border: 'none',
+              background: 'transparent',
+              color: '#444',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              borderRadius: 8,
+              flex: '0 0 auto',
+            }}
+          >
+            <I n="chevronLeft" s={20} />
+          </button>
+          <div
+            style={{
+              flex: 1,
+              fontSize: isMobile ? 16 : 18,
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {subView === 'connections' ? 'Channel Connections' : subView === 'insights' ? 'Insights' : 'Inbox Settings'}
+          </div>
+          {notificationBell}
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          {subView === 'connections' ? (
+            <InboxConnectionsPage
+              isMobile={isMobile}
+              connections={channelConnections}
+              onConnected={handleChannelConnected}
+            />
+          ) : subView === 'insights' ? (
+            <InboxInsightsPage isMobile={isMobile} conversations={conversations} />
+          ) : (
+            <InboxSettingsPage
+              isMobile={isMobile}
+              savedReplies={savedReplies}
+              onSavedRepliesChange={setSavedReplies}
+              tagPresets={tagPresets}
+              onTagPresetsChange={setTagPresets}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // MOBILE
+  // ═══════════════════════════════════════════════════════════════════════
+  const activeQueueLabel = QUEUE_DEFS.find((q) => q.id === selectedQueue)?.label ?? 'All conversations';
+  const groupByLabel = groupBy === 'platform' ? 'Platform' : groupBy === 'customer' ? 'Customer' : 'Time';
+
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          fontFamily: FONT,
+          background: '#fafafa',
+          color: '#1a1a1a',
+          overflow: 'hidden',
+          position: 'relative',
         }}
       >
         {mobileScreen === 'list' ? (
@@ -1251,557 +2774,22 @@ export default function InboxDashboard() {
                 boxSizing: 'border-box',
               }}
             >
-              <button
-                type="button"
-                aria-label="Back to Workspace"
-                onClick={() => router.push('/workspace')}
-                style={{
-                  width: 40,
-                  height: 40,
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#333',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                }}
-              >
-                <I n="chevronLeft" s={22} />
-              </button>
-              <div style={{ flex: 1, fontSize: 17, fontWeight: 800 }}>Inbox</div>
-              <button
-                type="button"
-                aria-label="Notifications"
-                style={{
-                  width: 40,
-                  height: 40,
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#444',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 8,
-                }}
-              >
-                <I n="bell" s={19} />
-              </button>
+              <div style={{ flex: 1, fontSize: 17, fontWeight: 800 }}>Customer Messages</div>
+              {notificationBell}
             </div>
 
+            {/* View toggle + filter summary — no horizontal scroll: queues/grouping live in the
+                slide-in drawer below instead of a pill row. */}
             <div
               style={{
                 flex: '0 0 auto',
                 display: 'flex',
+                alignItems: 'center',
                 gap: 8,
                 padding: '10px 12px',
-                overflowX: 'auto',
                 boxSizing: 'border-box',
               }}
             >
-              {queuePills.map((q) => (
-                <button
-                  key={q.id}
-                  type="button"
-                  onClick={() => setSelectedQueue(q.id)}
-                  style={{
-                    flex: '0 0 auto',
-                    ...pillStyle(q.active),
-                    border: q.active ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                    background: q.active ? 'rgba(194,24,91,.1)' : '#fff',
-                  }}
-                >
-                  {q.label} {q.count}
-                </button>
-              ))}
-            </div>
-
-            <div
-              style={{
-                flex: '0 0 auto',
-                display: 'flex',
-                gap: 8,
-                padding: '0 12px 10px',
-                overflowX: 'auto',
-                boxSizing: 'border-box',
-              }}
-            >
-              {(
-                [
-                  ['time', 'Time'],
-                  ['platform', 'Platform'],
-                  ['customer', 'Customer'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setGroupBy(id)}
-                  style={{
-                    flex: '0 0 auto',
-                    ...pillStyle(groupBy === id),
-                    background: groupBy === id ? '#fff' : 'transparent',
-                    border: groupBy === id ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div
-              style={{
-                flex: 1,
-                overflowY: 'auto',
-                padding: '4px 12px 12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-                minHeight: 0,
-              }}
-            >
-              {groups.map((grp) => (
-                <div key={grp.key}>
-                  {grp.label && (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 4px 4px' }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: grp.dotColor }} />
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 800,
-                            color: '#666',
-                            textTransform: 'uppercase',
-                            letterSpacing: '.04em',
-                          }}
-                        >
-                          {grp.label}
-                        </span>
-                        <span style={{ fontSize: 10.5, color: '#aaa' }}>({grp.items.length})</span>
-                      </div>
-                      {grp.caption && (
-                        <div style={{ fontSize: 10.5, color: '#AD1457', padding: '0 4px 6px' }}>{grp.caption}</div>
-                      )}
-                    </>
-                  )}
-                  {grp.items.map((item) => {
-                    const ch = CHANNEL_META[item.channel];
-                    const st = STATUS_META[item.status];
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => openConversation(item.id)}
-                        style={{
-                          width: '100%',
-                          textAlign: 'left',
-                          display: 'flex',
-                          gap: 12,
-                          padding: 14,
-                          minHeight: 76,
-                          boxSizing: 'border-box',
-                          border: 'none',
-                          background: '#fff',
-                          borderRadius: 14,
-                          boxShadow: '0 1px 2px rgba(0,0,0,.04)',
-                          cursor: 'pointer',
-                          fontFamily: FONT,
-                          marginBottom: 8,
-                        }}
-                      >
-                        <div style={{ position: 'relative', flex: '0 0 auto' }}>
-                          <div
-                            style={{
-                              width: 44,
-                              height: 44,
-                              borderRadius: '50%',
-                              background: item.avatarColor,
-                              color: '#fff',
-                              fontSize: 14,
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            {item.initials}
-                          </div>
-                          <div
-                            style={{
-                              position: 'absolute',
-                              bottom: -2,
-                              right: -2,
-                              width: 18,
-                              height: 18,
-                              borderRadius: '50%',
-                              background: ch.color,
-                              border: '2px solid #fff',
-                              color: '#fff',
-                              fontSize: 9,
-                              fontWeight: 800,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            {ch.letter}
-                          </div>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
-                          >
-                            <span
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: '#1a1a1a',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                              }}
-                            >
-                              {item.name}
-                            </span>
-                            <span style={{ fontSize: 11, color: '#999', flex: '0 0 auto' }}>{item.time}</span>
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 12.5,
-                              color: '#777',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              marginTop: 3,
-                            }}
-                          >
-                            {item.excerpt}
-                          </div>
-                          <div style={{ marginTop: 7 }}>
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                padding: '3px 8px',
-                                borderRadius: 10,
-                                background: st.bg,
-                                color: st.fg,
-                              }}
-                            >
-                              {st.label}
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-
-            <div
-              style={{
-                flex: '0 0 64px',
-                height: 64,
-                background: '#fff',
-                borderTop: '1px solid rgba(0,0,0,.08)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-around',
-                boxSizing: 'border-box',
-              }}
-            >
-              {MOBILE_TABS.map((t) => {
-                const active = t.id === 'messages';
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    aria-label={t.label}
-                    onClick={() => {
-                      if (t.tab) router.push(`/workspace?tab=${t.tab}`);
-                    }}
-                    style={{
-                      position: 'relative',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 3,
-                      border: 'none',
-                      background: 'transparent',
-                      color: active ? '#AD1457' : '#999',
-                      fontSize: 10,
-                      fontWeight: active ? 800 : 600,
-                      fontFamily: FONT,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <I n={t.icon} s={20} />
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <>
-            {threadHeader(true)}
-            {sourceStrip}
-            {threadBody}
-            {threadComposer}
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // DESKTOP
-  // ═══════════════════════════════════════════════════════════════════════
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'row',
-        fontFamily: FONT,
-        background: '#fafafa',
-        color: '#1a1a1a',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Sidebar (visually identical to WorkspaceDashboard's, "Customer Messages" active) */}
-      <div
-        style={{
-          width: 224,
-          flexShrink: 0,
-          background: '#1a0a12',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '18px 0',
-          height: '100vh',
-        }}
-      >
-        <Link
-          href="/"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 9,
-            padding: '0 18px',
-            marginBottom: 26,
-            textDecoration: 'none',
-          }}
-        >
-          <img
-            src="/images/urilogo-nobg.png"
-            alt="URI Social"
-            style={{ width: 32, height: 32, objectFit: 'contain' }}
-          />
-          <span
-            style={{
-              color: '#fff',
-              fontWeight: 300,
-              fontSize: 15,
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontStyle: 'italic',
-              letterSpacing: '0.5px',
-            }}
-          >
-            social
-          </span>
-        </Link>
-
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <button
-            type="button"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '9px 18px',
-              background: 'rgba(194,24,91,.1)',
-              border: 'none',
-              borderLeft: '2.5px solid #E91E63',
-              fontFamily: FONT,
-              fontSize: 12.5,
-              color: '#fce4ec',
-              fontWeight: 600,
-              cursor: 'default',
-              textAlign: 'left',
-            }}
-          >
-            <I n="inbox" s={15} c="#E91E63" />
-            <span style={{ flex: 1 }}>Customer Messages</span>
-          </button>
-
-          {SIDEBAR_NAV.map((n) => (
-            <button
-              key={n.id}
-              type="button"
-              onClick={() => goToWorkspaceTab(n.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 18px',
-                background: 'transparent',
-                border: 'none',
-                borderLeft: '2.5px solid transparent',
-                fontFamily: FONT,
-                fontSize: 12.5,
-                color: 'rgba(255,255,255,.35)',
-                fontWeight: 400,
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all .12s',
-              }}
-            >
-              <I n={n.icon} s={15} c="rgba(255,255,255,.22)" />
-              <span style={{ flex: 1 }}>{n.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Inbox shell */}
-      <div style={{ flex: 1, height: '100vh', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* top bar */}
-        <div
-          style={{
-            height: 60,
-            flex: '0 0 60px',
-            background: '#fff',
-            borderBottom: '1px solid rgba(0,0,0,.08)',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 24px',
-            gap: 16,
-            boxSizing: 'border-box',
-          }}
-        >
-          <div
-            style={{ fontSize: 13, color: '#888', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
-          >
-            <span>Workspace</span>
-            <span>›</span>
-            <span style={{ color: '#1a1a1a', fontWeight: 700 }}>Customer Messages</span>
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              background: '#f4f4f5',
-              borderRadius: 8,
-              padding: '8px 12px',
-              gap: 8,
-              maxWidth: 420,
-            }}
-          >
-            <I n="search" s={16} c="#999" />
-            <input
-              aria-label="Search conversations, customers, or keywords"
-              placeholder="Search conversations, customers, or keywords"
-              style={{
-                border: 'none',
-                background: 'transparent',
-                outline: 'none',
-                fontSize: 13,
-                flex: 1,
-                fontFamily: FONT,
-                color: '#333',
-              }}
-            />
-          </div>
-
-          <div style={{ flex: 1 }} />
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12,
-              fontWeight: 600,
-              color: '#2E7D32',
-              background: 'rgba(46,125,50,.08)',
-              padding: '6px 10px',
-              borderRadius: 20,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2E7D32' }} />
-            All channels connected
-          </div>
-
-          <button
-            type="button"
-            aria-label="Notifications"
-            style={{
-              width: 36,
-              height: 36,
-              border: 'none',
-              background: 'transparent',
-              borderRadius: 8,
-              color: '#555',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <I n="bell" s={18} />
-          </button>
-        </div>
-
-        {/* toolbar: view switch + group by */}
-        <div
-          style={{
-            height: 48,
-            flex: '0 0 48px',
-            background: '#fff',
-            borderBottom: '1px solid rgba(0,0,0,.08)',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 24px',
-            gap: 20,
-            boxSizing: 'border-box',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: '#f4f4f5',
-              borderRadius: 9,
-              padding: 3,
-              gap: 2,
-            }}
-          >
-            {(['list', 'board'] as const).map((v) => (
-              <button key={v} type="button" onClick={() => setView(v)} style={pillStyle(view === v)}>
-                {v === 'list' ? 'List' : 'Board'}
-              </button>
-            ))}
-          </div>
-
-          {view === 'list' ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#999',
-                  textTransform: 'uppercase',
-                  letterSpacing: '.04em',
-                }}
-              >
-                Group by
-              </span>
               <div
                 style={{
                   display: 'flex',
@@ -1810,180 +2798,95 @@ export default function InboxDashboard() {
                   borderRadius: 9,
                   padding: 3,
                   gap: 2,
+                  flex: '0 0 auto',
                 }}
               >
-                {(
-                  [
-                    ['time', 'Time'],
-                    ['platform', 'Platform'],
-                    ['customer', 'Customer'],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button key={id} type="button" onClick={() => setGroupBy(id)} style={pillStyle(groupBy === id)}>
-                    {label}
+                {(['list', 'board'] as const).map((v) => (
+                  <button key={v} type="button" onClick={() => setView(v)} style={pillStyle(view === v)}>
+                    {v === 'list' ? 'List' : 'Board'}
                   </button>
                 ))}
               </div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 12, color: '#999' }}>Drag a card between columns to re-triage it</div>
-          )}
-        </div>
-
-        {view === 'list' ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0 }}>
-            {/* queue nav */}
-            <div
-              style={{
-                width: 220,
-                flex: '0 0 220px',
-                background: '#fff',
-                borderRight: '1px solid rgba(0,0,0,.08)',
-                padding: '20px 12px',
-                boxSizing: 'border-box',
-                overflowY: 'auto',
-              }}
-            >
-              <div
+              <button
+                type="button"
+                onClick={() => setFilterDrawerOpen(true)}
                 style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: '.06em',
-                  textTransform: 'uppercase',
-                  color: '#999',
-                  padding: '0 8px 10px',
+                  flex: 1,
+                  minWidth: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 12px',
+                  border: '1px solid rgba(0,0,0,.1)',
+                  borderRadius: 9,
+                  background: '#fff',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: '#444',
+                  fontFamily: FONT,
+                  cursor: 'pointer',
                 }}
               >
-                Queues
-              </div>
-              {queuePills.map((q) => (
-                <button
-                  key={q.id}
-                  type="button"
-                  onClick={() => setSelectedQueue(q.id)}
+                <I n="filter" s={13} c="#AD1457" />
+                <span
                   style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '9px 10px',
-                    marginBottom: 2,
-                    border: 'none',
-                    borderLeft: q.active ? '3px solid #E91E63' : '3px solid transparent',
-                    background: q.active ? 'rgba(194,24,91,.1)' : 'transparent',
-                    color: q.active ? '#AD1457' : '#444',
-                    fontWeight: q.active ? 700 : 500,
-                    fontSize: 13,
-                    borderRadius: '0 8px 8px 0',
-                    cursor: 'pointer',
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                     textAlign: 'left',
-                    fontFamily: FONT,
                   }}
                 >
-                  <span>{q.label}</span>
-                  <span style={{ fontSize: 11, color: '#999', fontWeight: 700 }}>{q.count}</span>
-                </button>
-              ))}
-
-              <div style={{ height: 1, background: 'rgba(0,0,0,.08)', margin: '16px 8px' }} />
-
-              <button
-                type="button"
-                title="Coming soon"
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '9px 10px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#aaa',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  borderRadius: 8,
-                  cursor: 'default',
-                  textAlign: 'left',
-                  fontFamily: FONT,
-                }}
-              >
-                <I n="share" s={16} c="#bbb" />
-                Connections
+                  {searchQuery ? `"${searchQuery}"` : activeQueueLabel}
+                  {typeFilter !== 'all' ? ` · ${typeFilter === 'dm' ? 'Messages' : 'Comments'}` : ''}
+                  {assigneeFilter !== 'all'
+                    ? ` · ${assigneeFilter === 'unassigned' ? 'Unassigned' : assigneeFilter}`
+                    : ''}
+                  {tagFilter !== 'all' ? ` · #${tagFilter}` : ''}
+                  {groupBy !== 'time' ? ` · Grouped by ${groupByLabel}` : ''}
+                </span>
+                <I n="chevronDown" s={12} c="#999" />
               </button>
-              <button
-                type="button"
-                title="Coming soon"
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '9px 10px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#aaa',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  borderRadius: 8,
-                  cursor: 'default',
-                  textAlign: 'left',
-                  fontFamily: FONT,
-                }}
-              >
-                <I n="chart" s={16} c="#bbb" />
-                Insights
-              </button>
-            </div>
-
-            {/* conversation list */}
-            <div
-              style={{
-                width: 380,
-                flex: '0 0 380px',
-                background: '#fafafa',
-                borderRight: '1px solid rgba(0,0,0,.08)',
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-              }}
-            >
-              <div
-                style={{
-                  padding: '14px 16px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>
-                  {filteredConversations.length} conversations
-                </div>
+              {view === 'list' && (
                 <button
                   type="button"
-                  aria-label="Filter conversations"
-                  title="Coming soon"
+                  onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
                   style={{
-                    width: 28,
-                    height: 28,
-                    border: '1px solid rgba(0,0,0,.1)',
-                    background: '#fff',
-                    borderRadius: 6,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#666',
-                    cursor: 'default',
+                    flex: '0 0 auto',
+                    border: 'none',
+                    background: 'transparent',
+                    color: selectMode ? '#AD1457' : '#888',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                    padding: '4px 2px',
                   }}
                 >
-                  <I n="filter" s={14} />
+                  {selectMode ? 'Cancel' : 'Select'}
                 </button>
-              </div>
-              <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
+              )}
+            </div>
+
+            {view === 'list' ? (
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  padding: '4px 12px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  minHeight: 0,
+                }}
+              >
+                {filteredConversations.length === 0 && listEmptyState}
                 {groups.map((grp) => (
                   <div key={grp.key}>
                     {grp.label && (
                       <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 8px 4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 4px 4px' }}>
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: grp.dotColor }} />
                           <span
                             style={{
@@ -1999,43 +2902,62 @@ export default function InboxDashboard() {
                           <span style={{ fontSize: 10.5, color: '#aaa' }}>({grp.items.length})</span>
                         </div>
                         {grp.caption && (
-                          <div style={{ fontSize: 10.5, color: '#AD1457', padding: '0 8px 6px' }}>{grp.caption}</div>
+                          <div style={{ fontSize: 10.5, color: '#AD1457', padding: '0 4px 6px' }}>{grp.caption}</div>
                         )}
                       </>
                     )}
                     {grp.items.map((item) => {
                       const ch = CHANNEL_META[item.channel];
                       const st = STATUS_META[item.status];
-                      const selected = selectedId === item.id;
                       return (
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => openConversation(item.id)}
+                          onClick={() => (selectMode ? toggleSelectId(item.id) : openConversation(item.id))}
                           style={{
                             width: '100%',
                             textAlign: 'left',
                             display: 'flex',
-                            gap: 10,
-                            padding: 12,
-                            marginBottom: 6,
+                            alignItems: 'center',
+                            gap: 12,
+                            padding: 14,
+                            minHeight: 76,
+                            boxSizing: 'border-box',
                             border: 'none',
-                            borderLeft: selected ? '3px solid #E91E63' : '3px solid transparent',
-                            background: selected ? 'rgba(194,24,91,.06)' : '#fff',
-                            borderRadius: '0 10px 10px 0',
+                            background: '#fff',
+                            borderRadius: 14,
+                            boxShadow: '0 1px 2px rgba(0,0,0,.04)',
                             cursor: 'pointer',
                             fontFamily: FONT,
+                            marginBottom: 8,
                           }}
                         >
+                          {selectMode && (
+                            <div
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: 6,
+                                border: selectedIds.has(item.id) ? 'none' : '1.5px solid rgba(0,0,0,.2)',
+                                background: selectedIds.has(item.id) ? '#AD1457' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flex: '0 0 auto',
+                              }}
+                            >
+                              {selectedIds.has(item.id) && <I n="check" s={13} c="#fff" />}
+                            </div>
+                          )}
                           <div style={{ position: 'relative', flex: '0 0 auto' }}>
                             <div
                               style={{
-                                width: 36,
-                                height: 36,
+                                width: 44,
+                                height: 44,
                                 borderRadius: '50%',
                                 background: item.avatarColor,
                                 color: '#fff',
-                                fontSize: 12,
+                                fontSize: 14,
                                 fontWeight: 700,
                                 display: 'flex',
                                 alignItems: 'center',
@@ -2049,13 +2971,13 @@ export default function InboxDashboard() {
                                 position: 'absolute',
                                 bottom: -2,
                                 right: -2,
-                                width: 16,
-                                height: 16,
+                                width: 18,
+                                height: 18,
                                 borderRadius: '50%',
                                 background: ch.color,
-                                border: '2px solid #fafafa',
+                                border: '2px solid #fff',
                                 color: '#fff',
-                                fontSize: 8,
+                                fontSize: 9,
                                 fontWeight: 800,
                                 display: 'flex',
                                 alignItems: 'center',
@@ -2071,7 +2993,7 @@ export default function InboxDashboard() {
                             >
                               <span
                                 style={{
-                                  fontSize: 13,
+                                  fontSize: 14,
                                   fontWeight: 700,
                                   color: '#1a1a1a',
                                   whiteSpace: 'nowrap',
@@ -2081,26 +3003,32 @@ export default function InboxDashboard() {
                               >
                                 {item.name}
                               </span>
-                              <span style={{ fontSize: 11, color: '#999', flex: '0 0 auto' }}>{item.time}</span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 0 auto' }}>
+                                {!openedIds.has(item.id) && (
+                                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E91E63' }} />
+                                )}
+                                <span style={{ fontSize: 11, color: '#999' }}>{item.time}</span>
+                              </span>
                             </div>
                             <div
                               style={{
-                                fontSize: 12,
-                                color: '#777',
+                                fontSize: 12.5,
+                                color: openedIds.has(item.id) ? '#999' : '#444',
+                                fontWeight: openedIds.has(item.id) ? 400 : 600,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
-                                marginTop: 2,
+                                marginTop: 3,
                               }}
                             >
                               {item.excerpt}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                            <div style={{ marginTop: 7 }}>
                               <span
                                 style={{
                                   fontSize: 10,
                                   fontWeight: 700,
-                                  padding: '2px 7px',
+                                  padding: '3px 8px',
                                   borderRadius: 10,
                                   background: st.bg,
                                   color: st.fg,
@@ -2116,152 +3044,1447 @@ export default function InboxDashboard() {
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* thread pane */}
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-                minWidth: 0,
-                background: '#fff',
-              }}
-            >
-              {threadHeader(false)}
-              {sourceStrip}
-              {threadBody}
-              {threadComposer}
-            </div>
-          </div>
+            ) : (
+              // Mobile board: columns stacked vertically (never side-by-side — no horizontal
+              // scroll), each card gets an explicit "Move to" sheet since HTML5 drag doesn't
+              // fire on touch. Same re-triage capability as the desktop drag-and-drop board.
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  padding: '4px 12px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 18,
+                  minHeight: 0,
+                }}
+              >
+                {BOARD_COLUMNS.map((col) => {
+                  const items = conversations.filter((c) => currentQueueOf(c) === col.id);
+                  return (
+                    <div key={col.id}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '4px 4px 8px',
+                        }}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 800, color: '#333' }}>{col.label}</span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#999',
+                            background: 'rgba(0,0,0,.05)',
+                            padding: '2px 8px',
+                            borderRadius: 10,
+                          }}
+                        >
+                          {items.length}
+                        </span>
+                      </div>
+                      {items.length === 0 ? (
+                        <div style={{ fontSize: 12, color: '#bbb', padding: '0 4px 4px' }}>No conversations</div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {items.map((c) => {
+                            const ch = CHANNEL_META[c.channel];
+                            return (
+                              <div
+                                key={c.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                  border: '1px solid rgba(0,0,0,.08)',
+                                  background: '#fff',
+                                  borderRadius: 12,
+                                  padding: 10,
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => openConversation(c.id)}
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 10,
+                                    border: 'none',
+                                    background: 'transparent',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    fontFamily: FONT,
+                                    padding: 0,
+                                  }}
+                                >
+                                  <div style={{ position: 'relative', flex: '0 0 auto' }}>
+                                    <div
+                                      style={{
+                                        width: 38,
+                                        height: 38,
+                                        borderRadius: '50%',
+                                        background: c.avatarColor,
+                                        color: '#fff',
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                      }}
+                                    >
+                                      {c.initials}
+                                    </div>
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        bottom: -2,
+                                        right: -2,
+                                        width: 15,
+                                        height: 15,
+                                        borderRadius: '50%',
+                                        background: ch.color,
+                                        border: '2px solid #fff',
+                                        color: '#fff',
+                                        fontSize: 7,
+                                        fontWeight: 800,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                      }}
+                                    >
+                                      {ch.letter}
+                                    </div>
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div
+                                      style={{
+                                        fontSize: 13,
+                                        fontWeight: 700,
+                                        color: '#1a1a1a',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                      }}
+                                    >
+                                      {c.name}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: 11.5,
+                                        color: '#777',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        marginTop: 2,
+                                      }}
+                                    >
+                                      {c.excerpt}
+                                    </div>
+                                  </div>
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label={`Move ${c.name}'s conversation to another queue`}
+                                  onClick={() => setMoveMenuCardId(c.id)}
+                                  style={{
+                                    flex: '0 0 auto',
+                                    width: 34,
+                                    height: 34,
+                                    borderRadius: 8,
+                                    border: '1px solid rgba(0,0,0,.1)',
+                                    background: '#fafafa',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <I n="more" s={16} c="#666" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         ) : (
-          // ── BOARD VIEW (desktop only) ──
+          <>
+            {threadHeader(true)}
+            {tagsRow}
+            {threadTabs}
+            {threadTab === 'thread' && sourceStrip}
+            {threadBody}
+            {threadTab === 'thread' ? threadComposer : noteComposer}
+          </>
+        )}
+
+        {selectMode && mobileScreen === 'list' && (
           <div
             style={{
-              flex: 1,
-              overflowX: 'auto',
-              overflowY: 'hidden',
-              padding: '16px 20px',
+              position: 'fixed',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: '#fff',
+              borderTop: '1px solid rgba(0,0,0,.08)',
+              zIndex: 900,
+              padding: '10px 12px calc(10px + env(safe-area-inset-bottom, 0px))',
               display: 'flex',
-              gap: 14,
-              minHeight: 0,
+              alignItems: 'center',
+              gap: 8,
+              overflowX: 'auto',
               boxSizing: 'border-box',
             }}
           >
-            {BOARD_COLUMNS.map((col) => {
-              const isOver = dragOverCol === col.id;
-              const items = conversations.filter((c) => currentQueueOf(c) === col.id);
-              return (
-                <div
-                  key={col.id}
-                  data-queue-column={col.id}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDragEnter={() => setDragOverCol(col.id)}
-                  onDragLeave={() => setDragOverCol((prev) => (prev === col.id ? null : prev))}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    // dataTransfer, not the draggingId state closure, is the source of
-                    // truth here — a dragstart's setState may not have re-rendered this
-                    // handler's closure yet by the time drop fires on a fast drag.
-                    const id = e.dataTransfer.getData('text/plain') || draggingId;
-                    moveCard(id, col.id);
-                  }}
+            <span style={{ flex: '0 0 auto', fontSize: 12, color: '#666', fontWeight: 700 }}>
+              {selectedIds.size} selected
+            </span>
+            <button
+              type="button"
+              disabled={selectedIds.size === 0}
+              onClick={bulkMarkResolved}
+              style={{
+                flex: '0 0 auto',
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(0,0,0,.1)',
+                background: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                color: selectedIds.size === 0 ? '#ccc' : '#2E7D32',
+                cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                fontFamily: FONT,
+              }}
+            >
+              Mark resolved
+            </button>
+            {ASSIGNEE_OPTIONS.map((name) => (
+              <button
+                key={name}
+                type="button"
+                disabled={selectedIds.size === 0}
+                onClick={() => bulkAssign(name)}
+                style={{
+                  flex: '0 0 auto',
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(0,0,0,.1)',
+                  background: '#fff',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: selectedIds.size === 0 ? '#ccc' : '#444',
+                  cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                Assign {name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Filter drawer — queues + grouping, replacing what would otherwise be a
+            horizontally-scrolling pill row. */}
+        {filterDrawerOpen && (
+          <>
+            <div
+              onClick={() => setFilterDrawerOpen(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000 }}
+            />
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                bottom: 0,
+                left: 0,
+                width: 280,
+                maxWidth: '85vw',
+                background: '#fff',
+                zIndex: 1001,
+                boxShadow: '2px 0 24px rgba(0,0,0,.18)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflowY: 'auto',
+                boxSizing: 'border-box',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '18px 16px 8px',
+                }}
+              >
+                <span style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a' }}>Filters</span>
+                <button
+                  type="button"
+                  aria-label="Close filters"
+                  onClick={() => setFilterDrawerOpen(false)}
                   style={{
-                    flex: '0 0 250px',
+                    width: 32,
+                    height: 32,
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#666',
                     display: 'flex',
-                    flexDirection: 'column',
-                    background: isOver ? 'rgba(194,24,91,.06)' : '#fafafa',
-                    border: isOver ? '2px dashed #E91E63' : '1px solid rgba(0,0,0,.08)',
-                    borderRadius: 12,
-                    minHeight: 0,
-                    boxSizing: 'border-box',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    borderRadius: 8,
                   }}
                 >
+                  <I n="x" s={16} />
+                </button>
+              </div>
+
+              <div style={{ padding: '0 16px 14px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    background: '#f4f4f5',
+                    borderRadius: 9,
+                    padding: '8px 10px',
+                  }}
+                >
+                  <I n="search" s={14} c="#999" />
+                  <input
+                    aria-label="Search conversations"
+                    placeholder="Search conversations..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      flex: 1,
+                      border: 'none',
+                      background: 'transparent',
+                      outline: 'none',
+                      fontSize: 13,
+                      fontFamily: FONT,
+                      color: '#333',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ padding: '0 12px 8px' }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: '.06em',
+                    textTransform: 'uppercase',
+                    color: '#999',
+                    padding: '0 8px 8px',
+                  }}
+                >
+                  Type
+                </div>
+                <div style={{ display: 'flex', gap: 6, padding: '0 8px' }}>
+                  {(
+                    [
+                      ['all', 'All'],
+                      ['dm', 'Messages'],
+                      ['comment', 'Comments'],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setTypeFilter(id)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 6px',
+                        borderRadius: 8,
+                        border: typeFilter === id ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                        background: typeFilter === id ? 'rgba(194,24,91,.1)' : '#fff',
+                        color: typeFilter === id ? '#AD1457' : '#444',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        fontFamily: FONT,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ padding: '0 12px 8px' }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: '.06em',
+                    textTransform: 'uppercase',
+                    color: '#999',
+                    padding: '0 8px 8px',
+                  }}
+                >
+                  Assignee
+                </div>
+                <div style={{ display: 'flex', gap: 6, padding: '0 8px', flexWrap: 'wrap' }}>
+                  {(['all', 'unassigned', ...ASSIGNEE_OPTIONS] as const).map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setAssigneeFilter(id)}
+                      style={{
+                        flex: '0 0 auto',
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: assigneeFilter === id ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                        background: assigneeFilter === id ? 'rgba(194,24,91,.1)' : '#fff',
+                        color: assigneeFilter === id ? '#AD1457' : '#444',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        fontFamily: FONT,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {id === 'all' ? 'Anyone' : id === 'unassigned' ? 'Unassigned' : id}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {allTagsInUse.length > 0 && (
+                <div style={{ padding: '0 12px 8px' }}>
                   <div
                     style={{
-                      padding: '12px 14px',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      letterSpacing: '.06em',
+                      textTransform: 'uppercase',
+                      color: '#999',
+                      padding: '0 8px 8px',
+                    }}
+                  >
+                    Tag
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, padding: '0 8px', flexWrap: 'wrap' }}>
+                    {['all', ...allTagsInUse].map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setTagFilter(id)}
+                        style={{
+                          flex: '0 0 auto',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: tagFilter === id ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                          background: tagFilter === id ? 'rgba(194,24,91,.1)' : '#fff',
+                          color: tagFilter === id ? '#AD1457' : '#444',
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontFamily: FONT,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {id === 'all' ? 'Any tag' : id}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ padding: '8px 12px' }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: '.06em',
+                    textTransform: 'uppercase',
+                    color: '#999',
+                    padding: '0 8px 8px',
+                  }}
+                >
+                  Queues
+                </div>
+                {queuePills.map((q) => (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedQueue(q.id);
+                      setFilterDrawerOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      flex: '0 0 auto',
+                      padding: '11px 10px',
+                      marginBottom: 2,
+                      border: 'none',
+                      borderLeft: q.active ? '3px solid #E91E63' : '3px solid transparent',
+                      background: q.active ? 'rgba(194,24,91,.1)' : 'transparent',
+                      color: q.active ? '#AD1457' : '#333',
+                      fontWeight: q.active ? 700 : 500,
+                      fontSize: 14,
+                      borderRadius: '0 8px 8px 0',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: FONT,
                     }}
                   >
-                    <span style={{ fontSize: 12.5, fontWeight: 800, color: '#333' }}>{col.label}</span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: '#999',
-                        background: 'rgba(0,0,0,.05)',
-                        padding: '2px 8px',
-                        borderRadius: 10,
-                      }}
-                    >
-                      {items.length}
-                    </span>
-                  </div>
-                  <div
+                    <span>{q.label}</span>
+                    <span style={{ fontSize: 12, color: '#999', fontWeight: 700 }}>{q.count}</span>
+                  </button>
+                ))}
+
+                <div style={{ height: 1, background: 'rgba(0,0,0,.08)', margin: '16px 8px' }} />
+
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: '.06em',
+                    textTransform: 'uppercase',
+                    color: '#999',
+                    padding: '0 8px 8px',
+                  }}
+                >
+                  Group by
+                </div>
+                {(
+                  [
+                    ['time', 'Time'],
+                    ['platform', 'Platform'],
+                    ['customer', 'Customer'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setGroupBy(id);
+                      setFilterDrawerOpen(false);
+                    }}
                     style={{
-                      flex: 1,
-                      overflowY: 'auto',
-                      padding: '0 10px 10px',
+                      width: '100%',
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                      minHeight: 40,
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '11px 10px',
+                      marginBottom: 2,
+                      border: 'none',
+                      borderLeft: groupBy === id ? '3px solid #E91E63' : '3px solid transparent',
+                      background: groupBy === id ? 'rgba(194,24,91,.1)' : 'transparent',
+                      color: groupBy === id ? '#AD1457' : '#333',
+                      fontWeight: groupBy === id ? 700 : 500,
+                      fontSize: 14,
+                      borderRadius: '0 8px 8px 0',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: FONT,
                     }}
                   >
-                    {items.map((c) => {
-                      const ch = CHANNEL_META[c.channel];
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          draggable
-                          data-card-id={c.id}
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', c.id);
-                            e.dataTransfer.effectAllowed = 'move';
-                            setDraggingId(c.id);
-                          }}
-                          onDragEnd={() => setDraggingId(null)}
-                          onClick={() => openConversation(c.id)}
+                    {label}
+                  </button>
+                ))}
+
+                <div style={{ height: 1, background: 'rgba(0,0,0,.08)', margin: '16px 8px' }} />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubView('connections');
+                    setFilterDrawerOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '11px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#333',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: FONT,
+                  }}
+                >
+                  <I n="share" s={16} c="#888" />
+                  Connections
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubView('insights');
+                    setFilterDrawerOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '11px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#333',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: FONT,
+                  }}
+                >
+                  <I n="chart" s={16} c="#888" />
+                  Insights
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubView('settings');
+                    setFilterDrawerOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '11px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#333',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: FONT,
+                  }}
+                >
+                  <I n="settings" s={16} c="#888" />
+                  Inbox Settings
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Move-to bottom sheet — mobile board's equivalent of dragging a card to a column */}
+        {moveMenuCardId && (
+          <>
+            <div
+              onClick={() => setMoveMenuCardId(null)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000 }}
+            />
+            <div
+              style={{
+                position: 'fixed',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: '#fff',
+                borderRadius: '16px 16px 0 0',
+                zIndex: 1001,
+                padding: '8px 14px calc(16px + env(safe-area-inset-bottom, 0px))',
+                boxShadow: '0 -8px 24px rgba(0,0,0,.18)',
+                boxSizing: 'border-box',
+              }}
+            >
+              <div
+                style={{
+                  width: 36,
+                  height: 4,
+                  borderRadius: 2,
+                  background: 'rgba(0,0,0,.15)',
+                  margin: '8px auto 14px',
+                }}
+              />
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  letterSpacing: '.06em',
+                  textTransform: 'uppercase',
+                  color: '#999',
+                  padding: '0 6px 6px',
+                }}
+              >
+                Move to
+              </div>
+              {BOARD_COLUMNS.filter((col) => {
+                const conv = conversations.find((c) => c.id === moveMenuCardId);
+                return conv ? currentQueueOf(conv) !== col.id : true;
+              }).map((col) => (
+                <button
+                  key={col.id}
+                  type="button"
+                  onClick={() => {
+                    moveCard(moveMenuCardId, col.id);
+                    setMoveMenuCardId(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '13px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: '#333',
+                    fontFamily: FONT,
+                    cursor: 'pointer',
+                    borderRadius: 8,
+                  }}
+                >
+                  {col.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {leadModal}
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // DESKTOP
+  // ═══════════════════════════════════════════════════════════════════════
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        minWidth: 0,
+        fontFamily: FONT,
+        background: '#fafafa',
+        color: '#1a1a1a',
+        overflow: 'hidden',
+      }}
+    >
+      {/* top bar */}
+      <div
+        style={{
+          height: 60,
+          flex: '0 0 60px',
+          background: '#fff',
+          borderBottom: '1px solid rgba(0,0,0,.08)',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 24px',
+          gap: 16,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          style={{ fontSize: 13, color: '#888', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+        >
+          <span>Workspace</span>
+          <span>›</span>
+          <span style={{ color: '#1a1a1a', fontWeight: 700 }}>Customer Messages</span>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            background: '#f4f4f5',
+            borderRadius: 8,
+            padding: '8px 12px',
+            gap: 8,
+            maxWidth: 420,
+          }}
+        >
+          <I n="search" s={16} c="#999" />
+          <input
+            aria-label="Search conversations, customers, or keywords"
+            placeholder="Search conversations, customers, or keywords"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              outline: 'none',
+              fontSize: 13,
+              flex: 1,
+              fontFamily: FONT,
+              color: '#333',
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setSearchQuery('')}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#999',
+                cursor: 'pointer',
+                display: 'flex',
+                padding: 0,
+              }}
+            >
+              <I n="x" s={13} />
+            </button>
+          )}
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        <button
+          type="button"
+          onClick={() => setSubView('connections')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            color: connectionsSummary.fg,
+            background: connectionsSummary.bg,
+            padding: '6px 10px',
+            borderRadius: 20,
+            whiteSpace: 'nowrap',
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: FONT,
+          }}
+        >
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: connectionsSummary.dot }} />
+          {connectionsSummary.label}
+        </button>
+
+        {notificationBell}
+      </div>
+
+      {/* toolbar: view switch + group by */}
+      <div
+        style={{
+          height: 48,
+          flex: '0 0 48px',
+          background: '#fff',
+          borderBottom: '1px solid rgba(0,0,0,.08)',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 24px',
+          gap: 20,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: '#f4f4f5',
+            borderRadius: 9,
+            padding: 3,
+            gap: 2,
+          }}
+        >
+          {(['list', 'board'] as const).map((v) => (
+            <button key={v} type="button" onClick={() => setView(v)} style={pillStyle(view === v)}>
+              {v === 'list' ? 'List' : 'Board'}
+            </button>
+          ))}
+        </div>
+
+        {view === 'list' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: '.04em',
+              }}
+            >
+              Group by
+            </span>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: '#f4f4f5',
+                borderRadius: 9,
+                padding: 3,
+                gap: 2,
+              }}
+            >
+              {(
+                [
+                  ['time', 'Time'],
+                  ['platform', 'Platform'],
+                  ['customer', 'Customer'],
+                ] as const
+              ).map(([id, label]) => (
+                <button key={id} type="button" onClick={() => setGroupBy(id)} style={pillStyle(groupBy === id)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: '#999' }}>Drag a card between columns to re-triage it</div>
+        )}
+      </div>
+
+      {view === 'list' ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0 }}>
+          {/* queue nav */}
+          <div
+            style={{
+              width: 220,
+              flex: '0 0 220px',
+              background: '#fff',
+              borderRight: '1px solid rgba(0,0,0,.08)',
+              padding: '20px 12px',
+              boxSizing: 'border-box',
+              overflowY: 'auto',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: '.06em',
+                textTransform: 'uppercase',
+                color: '#999',
+                padding: '0 8px 10px',
+              }}
+            >
+              Queues
+            </div>
+            {queuePills.map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => setSelectedQueue(q.id)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 10px',
+                  marginBottom: 2,
+                  border: 'none',
+                  borderLeft: q.active ? '3px solid #E91E63' : '3px solid transparent',
+                  background: q.active ? 'rgba(194,24,91,.1)' : 'transparent',
+                  color: q.active ? '#AD1457' : '#444',
+                  fontWeight: q.active ? 700 : 500,
+                  fontSize: 13,
+                  borderRadius: '0 8px 8px 0',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: FONT,
+                }}
+              >
+                <span>{q.label}</span>
+                <span style={{ fontSize: 11, color: '#999', fontWeight: 700 }}>{q.count}</span>
+              </button>
+            ))}
+
+            <div style={{ height: 1, background: 'rgba(0,0,0,.08)', margin: '16px 8px' }} />
+
+            <button
+              type="button"
+              onClick={() => setSubView('connections')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 10px',
+                border: 'none',
+                background: 'transparent',
+                color: '#444',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 8,
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: FONT,
+              }}
+            >
+              <I n="share" s={16} c="#888" />
+              Connections
+            </button>
+            <button
+              type="button"
+              onClick={() => setSubView('insights')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 10px',
+                border: 'none',
+                background: 'transparent',
+                color: '#444',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 8,
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: FONT,
+              }}
+            >
+              <I n="chart" s={16} c="#888" />
+              Insights
+            </button>
+            <button
+              type="button"
+              onClick={() => setSubView('settings')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 10px',
+                border: 'none',
+                background: 'transparent',
+                color: '#444',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 8,
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: FONT,
+              }}
+            >
+              <I n="settings" s={16} c="#888" />
+              Inbox Settings
+            </button>
+          </div>
+
+          {/* conversation list */}
+          <div
+            style={{
+              width: 380,
+              flex: '0 0 380px',
+              background: '#fafafa',
+              borderRight: '1px solid rgba(0,0,0,.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+            }}
+          >
+            <div
+              style={{
+                padding: '14px 16px 10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>
+                {filteredConversations.length} conversation{filteredConversations.length === 1 ? '' : 's'}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectMode) exitSelectMode();
+                    else setSelectMode(true);
+                  }}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: selectMode ? '#AD1457' : '#888',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                    padding: '4px 6px',
+                  }}
+                >
+                  {selectMode ? 'Cancel' : 'Select'}
+                </button>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    aria-label="Filters"
+                    onClick={() => setTypeFilterMenuOpen((o) => !o)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      border: hasExtraFilters ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                      background: hasExtraFilters ? 'rgba(194,24,91,.08)' : '#fff',
+                      borderRadius: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: hasExtraFilters ? '#AD1457' : '#666',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <I n="filter" s={14} />
+                  </button>
+                  {typeFilterMenuOpen && (
+                    <>
+                      <div
+                        onClick={() => setTypeFilterMenuOpen(false)}
+                        style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '110%',
+                          right: 0,
+                          zIndex: 999,
+                          background: '#fff',
+                          borderRadius: 10,
+                          boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+                          border: '1px solid rgba(0,0,0,.06)',
+                          minWidth: 200,
+                          maxHeight: '70vh',
+                          overflowY: 'auto',
+                          padding: 6,
+                        }}
+                      >
+                        <div
                           style={{
-                            width: '100%',
-                            textAlign: 'left',
-                            cursor: 'grab',
-                            border: '1px solid rgba(0,0,0,.08)',
-                            background: '#fff',
-                            borderRadius: 10,
-                            padding: 10,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 6,
-                            fontFamily: FONT,
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            letterSpacing: '.04em',
+                            textTransform: 'uppercase',
+                            color: '#999',
+                            padding: '6px 8px 4px',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          Type
+                        </div>
+                        {(
+                          [
+                            ['all', 'All types'],
+                            ['dm', 'Messages only'],
+                            ['comment', 'Comments only'],
+                          ] as const
+                        ).map(([id, label]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setTypeFilter(id)}
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 10px',
+                              border: 'none',
+                              background: typeFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: '#333',
+                              cursor: 'pointer',
+                              fontFamily: FONT,
+                            }}
+                          >
+                            {label}
+                            {typeFilter === id && <I n="check" s={13} c="#AD1457" />}
+                          </button>
+                        ))}
+
+                        <div
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            letterSpacing: '.04em',
+                            textTransform: 'uppercase',
+                            color: '#999',
+                            padding: '10px 8px 4px',
+                          }}
+                        >
+                          Assignee
+                        </div>
+                        {(['all', 'unassigned', ...ASSIGNEE_OPTIONS] as const).map((id) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setAssigneeFilter(id)}
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 10px',
+                              border: 'none',
+                              background: assigneeFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: '#333',
+                              cursor: 'pointer',
+                              fontFamily: FONT,
+                            }}
+                          >
+                            {id === 'all' ? 'Anyone' : id === 'unassigned' ? 'Unassigned' : id}
+                            {assigneeFilter === id && <I n="check" s={13} c="#AD1457" />}
+                          </button>
+                        ))}
+
+                        {allTagsInUse.length > 0 && (
+                          <>
                             <div
                               style={{
-                                width: 26,
-                                height: 26,
-                                borderRadius: '50%',
-                                background: c.avatarColor,
-                                color: '#fff',
-                                fontSize: 10,
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flex: '0 0 auto',
+                                fontSize: 10.5,
+                                fontWeight: 800,
+                                letterSpacing: '.04em',
+                                textTransform: 'uppercase',
+                                color: '#999',
+                                padding: '10px 8px 4px',
                               }}
                             >
-                              {c.initials}
+                              Tag
                             </div>
+                            {['all', ...allTagsInUse].map((id) => (
+                              <button
+                                key={id}
+                                type="button"
+                                onClick={() => setTagFilter(id)}
+                                style={{
+                                  width: '100%',
+                                  textAlign: 'left',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '8px 10px',
+                                  border: 'none',
+                                  background: tagFilter === id ? 'rgba(194,24,91,.08)' : 'transparent',
+                                  borderRadius: 6,
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  color: '#333',
+                                  cursor: 'pointer',
+                                  fontFamily: FONT,
+                                }}
+                              >
+                                {id === 'all' ? 'Any tag' : id}
+                                {tagFilter === id && <I n="check" s={13} c="#AD1457" />}
+                              </button>
+                            ))}
+                          </>
+                        )}
+
+                        {hasExtraFilters && (
+                          <>
+                            <div style={{ height: 1, background: 'rgba(0,0,0,.06)', margin: '6px 0' }} />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTypeFilter('all');
+                                setTagFilter('all');
+                                setAssigneeFilter('all');
+                              }}
+                              style={{
+                                width: '100%',
+                                textAlign: 'left',
+                                padding: '8px 10px',
+                                border: 'none',
+                                background: 'transparent',
+                                borderRadius: 6,
+                                fontSize: 12.5,
+                                fontWeight: 700,
+                                color: '#AD1457',
+                                cursor: 'pointer',
+                                fontFamily: FONT,
+                              }}
+                            >
+                              Clear filters
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            {selectMode && (
+              <div
+                style={{
+                  padding: '0 16px 10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{selectedIds.size} selected</span>
+                <button
+                  type="button"
+                  disabled={selectedIds.size === 0}
+                  onClick={bulkMarkResolved}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 7,
+                    border: '1px solid rgba(0,0,0,.1)',
+                    background: '#fff',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: selectedIds.size === 0 ? '#ccc' : '#2E7D32',
+                    cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                    fontFamily: FONT,
+                  }}
+                >
+                  Mark resolved
+                </button>
+                {ASSIGNEE_OPTIONS.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    disabled={selectedIds.size === 0}
+                    onClick={() => bulkAssign(name)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: 7,
+                      border: '1px solid rgba(0,0,0,.1)',
+                      background: '#fff',
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      color: selectedIds.size === 0 ? '#ccc' : '#444',
+                      cursor: selectedIds.size === 0 ? 'default' : 'pointer',
+                      fontFamily: FONT,
+                    }}
+                  >
+                    Assign {name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px' }}>
+              {filteredConversations.length === 0 && listEmptyState}
+              {groups.map((grp) => (
+                <div key={grp.key}>
+                  {grp.label && (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 8px 4px' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: grp.dotColor }} />
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: '#666',
+                            textTransform: 'uppercase',
+                            letterSpacing: '.04em',
+                          }}
+                        >
+                          {grp.label}
+                        </span>
+                        <span style={{ fontSize: 10.5, color: '#aaa' }}>({grp.items.length})</span>
+                      </div>
+                      {grp.caption && (
+                        <div style={{ fontSize: 10.5, color: '#AD1457', padding: '0 8px 6px' }}>{grp.caption}</div>
+                      )}
+                    </>
+                  )}
+                  {grp.items.map((item) => {
+                    const ch = CHANNEL_META[item.channel];
+                    const st = STATUS_META[item.status];
+                    const selected = selectedId === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => (selectMode ? toggleSelectId(item.id) : openConversation(item.id))}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: 12,
+                          marginBottom: 6,
+                          border: 'none',
+                          borderLeft: selected ? '3px solid #E91E63' : '3px solid transparent',
+                          background: selected ? 'rgba(194,24,91,.06)' : '#fff',
+                          borderRadius: '0 10px 10px 0',
+                          cursor: 'pointer',
+                          fontFamily: FONT,
+                        }}
+                      >
+                        {selectMode && (
+                          <div
+                            style={{
+                              width: 18,
+                              height: 18,
+                              borderRadius: 5,
+                              border: selectedIds.has(item.id) ? 'none' : '1.5px solid rgba(0,0,0,.2)',
+                              background: selectedIds.has(item.id) ? '#AD1457' : 'transparent',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flex: '0 0 auto',
+                            }}
+                          >
+                            {selectedIds.has(item.id) && <I n="check" s={12} c="#fff" />}
+                          </div>
+                        )}
+                        <div style={{ position: 'relative', flex: '0 0 auto' }}>
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: '50%',
+                              background: item.avatarColor,
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {item.initials}
+                          </div>
+                          <div
+                            style={{
+                              position: 'absolute',
+                              bottom: -2,
+                              right: -2,
+                              width: 16,
+                              height: 16,
+                              borderRadius: '50%',
+                              background: ch.color,
+                              border: '2px solid #fafafa',
+                              color: '#fff',
+                              fontSize: 8,
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {ch.letter}
+                          </div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}
+                          >
                             <span
                               style={{
-                                fontSize: 12.5,
+                                fontSize: 13,
                                 fontWeight: 700,
                                 color: '#1a1a1a',
                                 whiteSpace: 'nowrap',
@@ -2269,39 +4492,237 @@ export default function InboxDashboard() {
                                 textOverflow: 'ellipsis',
                               }}
                             >
-                              {c.name}
+                              {item.name}
                             </span>
-                            <span
-                              style={{
-                                width: 14,
-                                height: 14,
-                                borderRadius: '50%',
-                                background: ch.color,
-                                color: '#fff',
-                                fontSize: 7,
-                                fontWeight: 800,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flex: '0 0 auto',
-                                marginLeft: 'auto',
-                              }}
-                            >
-                              {ch.letter}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 0 auto' }}>
+                              {!openedIds.has(item.id) && (
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#E91E63' }} />
+                              )}
+                              <span style={{ fontSize: 11, color: '#999' }}>{item.time}</span>
                             </span>
                           </div>
-                          <div style={{ fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>{c.excerpt}</div>
-                          <div style={{ fontSize: 10, color: '#aaa' }}>{c.time} ago</div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: openedIds.has(item.id) ? '#999' : '#444',
+                              fontWeight: openedIds.has(item.id) ? 400 : 600,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              marginTop: 2,
+                            }}
+                          >
+                            {item.excerpt}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: '2px 7px',
+                                borderRadius: 10,
+                                background: st.bg,
+                                color: st.fg,
+                              }}
+                            >
+                              {st.label}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* thread pane */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              minWidth: 0,
+              background: '#fff',
+            }}
+          >
+            {threadHeader(false)}
+            {tagsRow}
+            {threadTabs}
+            {threadTab === 'thread' && sourceStrip}
+            {threadBody}
+            {threadTab === 'thread' ? threadComposer : noteComposer}
+          </div>
+        </div>
+      ) : (
+        // ── BOARD VIEW (desktop only) ──
+        <div
+          style={{
+            flex: 1,
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            padding: '16px 20px',
+            display: 'flex',
+            gap: 14,
+            minHeight: 0,
+            boxSizing: 'border-box',
+          }}
+        >
+          {BOARD_COLUMNS.map((col) => {
+            const isOver = dragOverCol === col.id;
+            const items = conversations.filter((c) => currentQueueOf(c) === col.id);
+            return (
+              <div
+                key={col.id}
+                data-queue-column={col.id}
+                onDragOver={(e) => e.preventDefault()}
+                onDragEnter={() => setDragOverCol(col.id)}
+                onDragLeave={() => setDragOverCol((prev) => (prev === col.id ? null : prev))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  // dataTransfer, not the draggingId state closure, is the source of
+                  // truth here — a dragstart's setState may not have re-rendered this
+                  // handler's closure yet by the time drop fires on a fast drag.
+                  const id = e.dataTransfer.getData('text/plain') || draggingId;
+                  moveCard(id, col.id);
+                }}
+                style={{
+                  flex: '0 0 250px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  background: isOver ? 'rgba(194,24,91,.06)' : '#fafafa',
+                  border: isOver ? '2px dashed #E91E63' : '1px solid rgba(0,0,0,.08)',
+                  borderRadius: 12,
+                  minHeight: 0,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flex: '0 0 auto',
+                  }}
+                >
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: '#333' }}>{col.label}</span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#999',
+                      background: 'rgba(0,0,0,.05)',
+                      padding: '2px 8px',
+                      borderRadius: 10,
+                    }}
+                  >
+                    {items.length}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '0 10px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    minHeight: 40,
+                  }}
+                >
+                  {items.map((c) => {
+                    const ch = CHANNEL_META[c.channel];
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        draggable
+                        data-card-id={c.id}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', c.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggingId(c.id);
+                        }}
+                        onDragEnd={() => setDraggingId(null)}
+                        onClick={() => openConversation(c.id)}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          cursor: 'grab',
+                          border: '1px solid rgba(0,0,0,.08)',
+                          background: '#fff',
+                          borderRadius: 10,
+                          padding: 10,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                          fontFamily: FONT,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div
+                            style={{
+                              width: 26,
+                              height: 26,
+                              borderRadius: '50%',
+                              background: c.avatarColor,
+                              color: '#fff',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flex: '0 0 auto',
+                            }}
+                          >
+                            {c.initials}
+                          </div>
+                          <span
+                            style={{
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              color: '#1a1a1a',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {c.name}
+                          </span>
+                          <span
+                            style={{
+                              width: 14,
+                              height: 14,
+                              borderRadius: '50%',
+                              background: ch.color,
+                              color: '#fff',
+                              fontSize: 7,
+                              fontWeight: 800,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flex: '0 0 auto',
+                              marginLeft: 'auto',
+                            }}
+                          >
+                            {ch.letter}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>{c.excerpt}</div>
+                        <div style={{ fontSize: 10, color: '#aaa' }}>{c.time} ago</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {leadModal}
     </div>
   );
 }

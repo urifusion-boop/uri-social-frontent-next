@@ -429,9 +429,22 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           }
         }
 
+        // A warning for this draft means it IS genuinely scheduled (the backend
+        // will still retry at send time) but the initial dispatch hit an issue
+        // worth surfacing now — e.g. the platform connection may actually be
+        // expired even though Connected Accounts still shows it as active.
+        // Show that instead of a flat "Scheduled!" so it isn't mistaken for a
+        // clean success, without treating it as a hard failure either.
+        const myWarning = (response.responseData?.warnings ?? []).find((w) => w.draft_id === draftId);
         ToastService.showToast(
-          option === 'immediate' ? 'Published!' : option === 'schedule' ? 'Scheduled!' : 'Saved as draft',
-          ToastTypeEnum.Success
+          myWarning
+            ? myWarning.warning
+            : option === 'immediate'
+              ? 'Published!'
+              : option === 'schedule'
+                ? 'Scheduled!'
+                : 'Saved as draft',
+          myWarning ? ToastTypeEnum.Warning : ToastTypeEnum.Success
         );
         posthog.capture('draft_approved', { option, platform: draft.platform });
         if (option === 'schedule') {

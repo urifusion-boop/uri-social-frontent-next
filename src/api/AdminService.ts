@@ -78,6 +78,13 @@ export interface CreditAdjustResponse {
   total_credits: number;
 }
 
+export interface SetSubscriptionResponse {
+  user_id: string;
+  subscription_tier: string | null;
+  end_date: string | null;
+  credits_balance: number;
+}
+
 export interface TrialAdjustResponse {
   is_trial: boolean;
   trial_active: boolean;
@@ -232,6 +239,38 @@ export class AdminService {
    */
   static async expireUserTrial(userId: string): Promise<TrialAdjustResponse> {
     const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/trial/expire`);
+    return response.data;
+  }
+
+  /**
+   * Directly assign a user a subscription tier — distinct from
+   * adjustUserCredits above, which only ever touches bonus credits and
+   * never changes the subscription badge. Writes the wallet exactly like a
+   * real purchase or an access-code redemption would; it auto-lapses back
+   * to free after durationDays via the existing daily expiry sweep.
+   */
+  static async setUserSubscription(
+    userId: string,
+    planTierId: string,
+    durationDays: number,
+    reason?: string
+  ): Promise<SetSubscriptionResponse> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/subscription/set`, {
+      plan_tier_id: planTierId,
+      duration_days: durationDays,
+      reason,
+    });
+    return response.data;
+  }
+
+  /**
+   * Revert a user to free — the undo for setUserSubscription (e.g. the
+   * wrong tier was picked). Keeps bonus credits untouched.
+   */
+  static async clearUserSubscription(userId: string, reason?: string): Promise<SetSubscriptionResponse> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/users/${userId}/subscription/clear`, {
+      reason,
+    });
     return response.data;
   }
 
