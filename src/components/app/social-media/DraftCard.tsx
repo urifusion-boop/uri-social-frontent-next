@@ -2196,7 +2196,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         <LogoRepositionModal
           open={logoRepositionOpen}
           onClose={() => setLogoRepositionOpen(false)}
-          imageUrl={resolveUrl((isCarousel ? currentSlide?.image_url : draft.image_url) || '')}
+          imageUrl={resolveUrl((isCarousel ? currentSlide?.background_image_url : draft.background_image_url) || '')}
           initialPlacement={(isCarousel ? currentSlide?.logo_placement : draft.logo_placement) as LogoPlacement}
           onSave={async (placement) => {
             const draftId = draft.id || draft.draft_id || '';

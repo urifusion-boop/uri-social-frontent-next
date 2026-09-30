@@ -7,9 +7,10 @@ import { BrandProfileService } from '../../../api/BrandProfileService';
 interface LogoRepositionModalProps {
   open: boolean;
   onClose: () => void;
-  /** Already resolveUrl()'d — the CURRENT composited image, shown as the
-   * backdrop so what's being dragged is visibly the real logo, not a
-   * placeholder. */
+  /** Already resolveUrl()'d — the logo-free BACKGROUND image (not the
+   * composited one), so the backdrop never shows the logo at its old spot
+   * while the live preview box shows it at the new one. Two logos on screen
+   * at once (old baked-in + new being dragged) reads as a rendering bug. */
   imageUrl: string;
   /** In ORIGINAL image pixels, not on-screen display pixels — this is what
    * the backend stored and what gets sent back, unchanged in meaning. */
