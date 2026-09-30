@@ -64,7 +64,13 @@ export default function LogoRepositionModal({
     const w = img.naturalWidth;
     const h = img.naturalHeight;
     setNaturalSize({ w, h });
-    const s = Math.min(1, MAX_DISPLAY_WIDTH / w);
+    // Measured from the actual rendered element, not derived from
+    // MAX_DISPLAY_WIDTH — the img can render narrower than that (e.g. a
+    // narrow viewport shrinking it via maxWidth: 100%), and if scale drifts
+    // from the true on-screen size, the drag/resize clamping below goes out
+    // of sync with what the user actually sees and can pin the box in place.
+    const renderedWidth = img.getBoundingClientRect().width || Math.min(w, MAX_DISPLAY_WIDTH);
+    const s = renderedWidth / w;
     setScale(s);
     setBox({
       x: initialPlacement.x * s,
@@ -93,8 +99,8 @@ export default function LogoRepositionModal({
         const dy = e.clientY - drag.startY;
         setBox((prev) => ({
           ...prev,
-          x: Math.max(0, Math.min(containerWidth - prev.width, drag.boxStartX + dx)),
-          y: Math.max(0, Math.min(containerHeight - prev.height, drag.boxStartY + dy)),
+          x: Math.max(0, Math.min(Math.max(0, containerWidth - prev.width), drag.boxStartX + dx)),
+          y: Math.max(0, Math.min(Math.max(0, containerHeight - prev.height), drag.boxStartY + dy)),
         }));
       } else {
         const dx = e.clientX - drag.startX;
@@ -173,6 +179,8 @@ export default function LogoRepositionModal({
           p: 3,
           maxWidth: 560,
           width: '92vw',
+          maxHeight: '90vh',
+          overflowY: 'auto',
           boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
         }}
       >
