@@ -50,6 +50,7 @@ import {
   MdRemove,
   MdMoreHoriz,
   MdAutorenew,
+  MdOpenWith,
 } from 'react-icons/md';
 import DraftEditor from './DraftEditor';
 import CanvasEditor from './canvas-editor/CanvasEditor';
@@ -1400,12 +1401,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             )}
           </Box>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1 }}>
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
-              startIcon={<MdEdit size={16} />}
+              startIcon={<MdEdit size={14} />}
               onClick={async () => {
                 // Open dialog immediately with loading placeholder
                 setEditFeedback('Extracting text from image...');
@@ -1435,10 +1436,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 600,
-                py: 1.5,
-                px: 2,
+                py: 1,
+                px: 1.5,
                 borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
@@ -1464,7 +1465,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               size="small"
               variant="outlined"
               disabled={editLoading}
-              startIcon={<MdPalette size={16} />}
+              startIcon={<MdPalette size={14} />}
               onClick={() => {
                 setEditFeedback('Change colours');
                 setEditForceCategory('style_edit');
@@ -1472,10 +1473,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 600,
-                py: 1.5,
-                px: 2,
+                py: 1,
+                px: 1.5,
                 borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
@@ -1501,7 +1502,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               size="small"
               variant="outlined"
               disabled={editLoading}
-              startIcon={<MdImage size={16} />}
+              startIcon={<MdImage size={14} />}
               onClick={() => {
                 setEditFeedback('Change background');
                 setEditForceCategory('style_edit');
@@ -1509,10 +1510,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 600,
-                py: 1.5,
-                px: 2,
+                py: 1,
+                px: 1.5,
                 borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
@@ -1540,14 +1541,14 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               <Button
                 size="small"
                 variant="outlined"
-                startIcon={<MdEdit size={16} />}
+                startIcon={<MdEdit size={14} />}
                 onClick={() => setCanvasEditorOpen(true)}
                 sx={{
                   textTransform: 'none',
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: 600,
-                  py: 1.5,
-                  px: 2,
+                  py: 1,
+                  px: 1.5,
                   borderRadius: '10px',
                   borderColor: '#FED7AA',
                   color: '#EA580C',
@@ -1575,13 +1576,14 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               <Button
                 size="small"
                 variant="outlined"
+                startIcon={<MdOpenWith size={14} />}
                 onClick={() => setLogoRepositionOpen(true)}
                 sx={{
                   textTransform: 'none',
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: 600,
-                  py: 1.5,
-                  px: 2,
+                  py: 1,
+                  px: 1.5,
                   borderRadius: '10px',
                   borderColor: '#F3C7DA',
                   color: '#C2185B',
@@ -1604,7 +1606,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               size="small"
               variant="outlined"
               disabled={editLoading}
-              startIcon={<MdAdd size={16} />}
+              startIcon={<MdAdd size={14} />}
               onClick={() => {
                 setEditFeedback('Add element');
                 setEditForceCategory('content_edit');
@@ -1612,10 +1614,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 600,
-                py: 1.5,
-                px: 2,
+                py: 1,
+                px: 1.5,
                 borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
@@ -1641,7 +1643,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               size="small"
               variant="outlined"
               disabled={editLoading}
-              startIcon={<MdRemove size={16} />}
+              startIcon={<MdRemove size={14} />}
               onClick={() => {
                 setEditFeedback('Remove element');
                 setEditForceCategory('content_edit');
@@ -1649,10 +1651,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 600,
-                py: 1.5,
-                px: 2,
+                py: 1,
+                px: 1.5,
                 borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
@@ -1678,7 +1680,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               size="small"
               variant="outlined"
               disabled={editLoading}
-              startIcon={<MdMoreHoriz size={16} />}
+              startIcon={<MdMoreHoriz size={14} />}
               onClick={() => {
                 setEditFeedback('');
                 setEditForceCategory(undefined);
@@ -1686,10 +1688,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 600,
-                py: 1.5,
-                px: 2,
+                py: 1,
+                px: 1.5,
                 borderRadius: '10px',
                 borderColor: '#E9D5FF',
                 color: '#7C3AED',
@@ -1715,7 +1717,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               size="small"
               variant="outlined"
               disabled={editLoading}
-              startIcon={<MdAutorenew size={16} />}
+              startIcon={<MdAutorenew size={14} />}
               onClick={() => {
                 setEditFeedback('Start over completely');
                 setEditForceCategory('full_redesign');
@@ -1723,10 +1725,10 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               }}
               sx={{
                 textTransform: 'none',
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 600,
-                py: 1.5,
-                px: 2,
+                py: 1,
+                px: 1.5,
                 borderRadius: '10px',
                 gridColumn: { xs: '1 / -1', sm: 'auto' },
                 borderColor: '#FCE7F3',
