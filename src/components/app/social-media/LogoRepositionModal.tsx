@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Box, Button, Typography, CircularProgress } from '@mui/material';
 import { MdClose } from 'react-icons/md';
 import { LogoPlacement } from '../../../api/SocialMediaAgentService';
+import { BrandProfileService } from '../../../api/BrandProfileService';
 
 interface LogoRepositionModalProps {
   open: boolean;
@@ -51,6 +52,24 @@ export default function LogoRepositionModal({
   const [box, setBox] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // The box was previously an empty outline — you'd drag a frame around while
+  // the real logo stayed baked into the static backdrop image, with no
+  // feedback about what the result would actually look like. This renders
+  // the actual logo inside the box so it visibly moves and resizes with it.
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    BrandProfileService.get().then((res) => {
+      if (!cancelled && res.status && res.responseData?.logo_url) {
+        setLogoUrl(res.responseData.logo_url);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const dragState = useRef<
     | { mode: 'move'; startX: number; startY: number; boxStartX: number; boxStartY: number }
@@ -229,6 +248,22 @@ export default function LogoRepositionModal({
                 boxShadow: '0 0 0 9999px rgba(0,0,0,0.25)',
               }}
             >
+              {logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoUrl}
+                  alt=""
+                  draggable={false}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'fill',
+                    pointerEvents: 'none',
+                  }}
+                />
+              )}
               <Box
                 data-testid="logo-resize-handle"
                 onMouseDown={startResize}
