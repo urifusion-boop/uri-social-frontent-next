@@ -65,6 +65,7 @@ export default function VideoStoryboardGenerator() {
 
   // Storyboard frame image generation state
   const [frameMap, setFrameMap] = useState<Record<number, string>>({});
+  const [frameError, setFrameError] = useState('');
   const frameJobIdRef = useRef<string | null>(null);
   const framePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -339,10 +340,22 @@ export default function VideoStoryboardGenerator() {
     addFiles(e.dataTransfer.files);
   };
 
+  // Frame generation runs scenes sequentially server-side (one gpt-image-2 call
+  // per scene) — genuinely slow for several scenes, not stuck. But this polled
+  // forever with no escape hatch at all: if the background job never flips to
+  // "complete" — a worker dying mid-job, a stuck/crashed job, anything — the
+  // UI just spun on "Generating frame…" with zero feedback, indistinguishable
+  // from "still working." 60 attempts at 5s = 5 minutes, generous for even a
+  // 5-scene storyboard, after which this stops polling and says so plainly
+  // instead of spinning silently forever.
+  const MAX_FRAME_POLL_ATTEMPTS = 60;
+
   const startFramePolling = (jobId: string) => {
     frameJobIdRef.current = jobId;
     if (framePollRef.current) clearInterval(framePollRef.current);
+    let attempts = 0;
     framePollRef.current = setInterval(async () => {
+      attempts += 1;
       try {
         const res = await SocialMediaAgentService.getStoryboardFrameJob(jobId);
         if (res.status && res.responseData) {
@@ -353,10 +366,19 @@ export default function VideoStoryboardGenerator() {
           setFrameMap(map);
           if (res.responseData.status === 'complete') {
             clearInterval(framePollRef.current!);
+            return;
           }
         }
       } catch {
-        /* keep polling */
+        /* keep polling — a single failed poll (network blip, transient 5xx)
+           isn't reason to give up, only sustained timeout below is. */
+      }
+      if (attempts >= MAX_FRAME_POLL_ATTEMPTS) {
+        clearInterval(framePollRef.current!);
+        setFrameError(
+          'Frame generation is taking much longer than expected and may have stalled. ' +
+            'Try generating the storyboard again — any scenes already shown above finished successfully.'
+        );
       }
     }, 5000);
   };
@@ -369,6 +391,7 @@ export default function VideoStoryboardGenerator() {
     setVideoJob(null);
     setVideoError('');
     setFrameMap({});
+    setFrameError('');
     clearSession();
     if (framePollRef.current) clearInterval(framePollRef.current);
     try {
@@ -764,6 +787,19 @@ export default function VideoStoryboardGenerator() {
 
       {storyboard && !loading && (
         <>
+          {frameError && (
+            <div
+              style={{
+                background: '#FEF2F2',
+                border: '1px solid #FECACA',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 14,
+              }}
+            >
+              <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{frameError}</p>
+            </div>
+          )}
           <StoryboardResult storyboard={storyboard} clipMap={clipMap} frameMap={frameMap} />
 
           {/* Video generation section */}
