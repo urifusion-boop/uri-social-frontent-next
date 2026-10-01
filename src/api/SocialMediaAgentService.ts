@@ -60,6 +60,14 @@ export interface StoryboardScene {
   reference_image_index: number;
   text_overlay: string | null;
   frame_image_url?: string;
+  // How this scene follows directly from the previous one — the model is
+  // instructed to write the whole storyboard as one connected narrative,
+  // not independent moments.
+  continuity_note?: string | null;
+  // Populated only for talking-head/testimonial content: the exact words
+  // spoken on camera this scene, one continuous script split across scenes.
+  // Consumed by the "Talking / Dialogue" outcome's avatar model.
+  dialogue?: string | null;
 }
 
 export interface Storyboard {
@@ -97,6 +105,11 @@ export interface VideoClip {
   outcome?: string;
   routed_model?: string | null;
   fallback_used?: boolean;
+  // Set only when fallback_used is true: why the primary model failed, even
+  // though the fallback itself succeeded — e.g. talking_dialogue's fallback
+  // (Veo) has no scripted-speech guarantee, so a "Done" clip routed there can
+  // still be materially different from what was asked for.
+  warning?: string | null;
   latency_seconds?: number;
   error?: string;
 }
@@ -116,6 +129,9 @@ export interface VideoFromStoryboardPayload {
   storyboard: Storyboard;
   brand_images: string[];
   outcome?: string;
+  // Only used when outcome routes to the talking-avatar model (currently
+  // "talking_dialogue") — one of AVATAR_VOICES in VideoStoryboardGenerator.tsx.
+  avatar_voice?: string;
 }
 
 export interface VideoDraft {

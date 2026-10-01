@@ -56,8 +56,34 @@ const VIDEO_OUTCOMES = [
   { value: 'social_video', label: 'Social Video', description: 'Cheap variants for iteration' },
   { value: 'high_quality', label: 'High Quality', description: 'Premium brand shots, hero creative' },
   { value: 'complex_cinematic', label: 'Complex / Cinematic', description: 'Hard motion, multiple subjects' },
-  { value: 'talking_dialogue', label: 'Talking / Dialogue', description: 'Synced speech, lip-sync' },
+  { value: 'talking_dialogue', label: 'Talking / Dialogue', description: 'Scripted talking avatar, real lip-sync' },
   { value: 'advanced_references', label: 'Advanced References', description: 'Reference-driven, brand-critical' },
+];
+
+// fal.ai's own documented voice enum for fal-ai/ai-avatar/single-text — keep
+// in sync with AVATAR_VOICES in video_generation_service.py if this changes.
+// Only shown/used when selectedOutcome === 'talking_dialogue'.
+const AVATAR_VOICES = [
+  'Aria',
+  'Roger',
+  'Sarah',
+  'Laura',
+  'Charlie',
+  'George',
+  'Callum',
+  'River',
+  'Liam',
+  'Charlotte',
+  'Alice',
+  'Matilda',
+  'Will',
+  'Jessica',
+  'Eric',
+  'Chris',
+  'Brian',
+  'Daniel',
+  'Lily',
+  'Bill',
 ];
 
 const DURATIONS = [
@@ -86,6 +112,7 @@ export default function VideoStoryboardGenerator() {
 
   // Video generation state
   const [selectedOutcome, setSelectedOutcome] = useState('quick_video');
+  const [selectedVoice, setSelectedVoice] = useState('Sarah');
   const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
   const [videoError, setVideoError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -474,6 +501,7 @@ export default function VideoStoryboardGenerator() {
         storyboard: enrichedStoryboard,
         brand_images: images.map((img) => img.dataUrl),
         outcome: selectedOutcome,
+        ...(selectedOutcome === 'talking_dialogue' ? { avatar_voice: selectedVoice } : {}),
       });
       if (res.status && res.responseData) {
         setVideoJob(res.responseData);
@@ -1030,6 +1058,53 @@ export default function VideoStoryboardGenerator() {
                     })}
                   </div>
                 </div>
+
+                {/* Voice picker — only matters once a scene actually has dialogue to
+                    speak; fal-ai/ai-avatar/single-text takes a fixed voice enum, not
+                    an uploaded voice sample. */}
+                {selectedOutcome === 'talking_dialogue' && (
+                  <div style={{ marginBottom: 16 }}>
+                    <p
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: GREY,
+                        margin: '0 0 8px',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      Avatar Voice
+                    </p>
+                    <select
+                      value={selectedVoice}
+                      onChange={(e) => setSelectedVoice(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 10px',
+                        borderRadius: 8,
+                        border: `1px solid ${BORDER}`,
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                        color: DARK,
+                        background: '#fff',
+                      }}
+                    >
+                      {AVATAR_VOICES.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                    {storyboard && !storyboard.scenes.some((s) => s.dialogue) && (
+                      <p style={{ fontSize: 11, color: '#B45309', margin: '6px 0 0' }}>
+                        This storyboard has no scripted dialogue yet — pick the "Testimonial Style" video style and
+                        regenerate the storyboard to get a spoken script, or clips will fall back to reading their
+                        on-screen text/prompt aloud.
+                      </p>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
@@ -1707,11 +1782,13 @@ function SceneCard({
                   fontSize: 10,
                   fontWeight: 700,
                   color: '#fff',
-                  background: '#16a34a',
+                  background: clip.warning ? '#B45309' : '#16a34a',
                   borderRadius: 4,
                   padding: '2px 7px',
                 }}
+                title={clip.warning || undefined}
               >
+                {clip.warning ? '⚠ Fallback · ' : ''}
                 {clip.cost_usd != null ? `Done · $${clip.cost_usd.toFixed(3)}` : 'Done'}
               </span>
             )}
@@ -1817,6 +1894,44 @@ function SceneCard({
             Motion
           </p>
           <p style={{ fontSize: 12.5, color: '#d4d4d8', margin: '0 0 10px', lineHeight: 1.5 }}>{scene.motion}</p>
+          {scene.continuity_note && (
+            <>
+              <p
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: '#71717a',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  margin: '0 0 6px',
+                }}
+              >
+                Continuity
+              </p>
+              <p style={{ fontSize: 12.5, color: '#d4d4d8', margin: '0 0 10px', lineHeight: 1.5, fontStyle: 'italic' }}>
+                {scene.continuity_note}
+              </p>
+            </>
+          )}
+          {scene.dialogue && (
+            <>
+              <p
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: '#71717a',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  margin: '0 0 6px',
+                }}
+              >
+                Dialogue
+              </p>
+              <p style={{ fontSize: 12.5, color: '#FFD700', margin: '0 0 10px', lineHeight: 1.5 }}>
+                &ldquo;{scene.dialogue}&rdquo;
+              </p>
+            </>
+          )}
           <p
             style={{
               fontSize: 10.5,
@@ -1830,6 +1945,20 @@ function SceneCard({
             Video Prompt
           </p>
           <p style={{ fontSize: 12, color: '#a1a1aa', margin: 0, lineHeight: 1.5 }}>{scene.video_prompt}</p>
+          {clip?.warning && (
+            <p
+              style={{
+                fontSize: 11.5,
+                color: '#FBBF24',
+                marginTop: 10,
+                padding: '7px 10px',
+                background: 'rgba(180,83,9,0.15)',
+                borderRadius: 6,
+              }}
+            >
+              {clip.warning}
+            </p>
+          )}
           {clip?.error && (
             <p
               style={{
