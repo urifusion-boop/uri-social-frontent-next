@@ -107,24 +107,40 @@ export default function LogoRepositionModal({
     }
   }, [open]);
 
+  // Mouse and touch share this same move/resize logic — only how the
+  // starting gesture is read differs (clientX/Y directly vs. touches[0]).
+  const pointFromEvent = (e: MouseEvent | TouchEvent): { x: number; y: number } | null => {
+    if ('touches' in e) {
+      const t = e.touches[0] ?? e.changedTouches[0];
+      return t ? { x: t.clientX, y: t.clientY } : null;
+    }
+    return { x: e.clientX, y: e.clientY };
+  };
+
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: MouseEvent | TouchEvent) => {
       const drag = dragState.current;
       if (!drag || !containerRef.current || !naturalSize) return;
+      const point = pointFromEvent(e);
+      if (!point) return;
+      // Without this, a touchmove while dragging the box also scrolls the
+      // page underneath it on mobile — the drag gesture and page scroll
+      // fight over the same touch, and scroll usually wins.
+      if ('touches' in e) e.preventDefault();
       const containerWidth = naturalSize.w * scale;
       const containerHeight = naturalSize.h * scale;
 
       if (drag.mode === 'move') {
-        const dx = e.clientX - drag.startX;
-        const dy = e.clientY - drag.startY;
+        const dx = point.x - drag.startX;
+        const dy = point.y - drag.startY;
         setBox((prev) => ({
           ...prev,
           x: Math.max(0, Math.min(Math.max(0, containerWidth - prev.width), drag.boxStartX + dx)),
           y: Math.max(0, Math.min(Math.max(0, containerHeight - prev.height), drag.boxStartY + dy)),
         }));
       } else {
-        const dx = e.clientX - drag.startX;
-        const dy = e.clientY - drag.startY;
+        const dx = point.x - drag.startX;
+        const dy = point.y - drag.startY;
         setBox((prev) => ({
           ...prev,
           width: Math.max(MIN_BOX_SIZE, Math.min(containerWidth - prev.x, drag.boxStartW + dx)),
@@ -137,31 +153,44 @@ export default function LogoRepositionModal({
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    // passive: false — onMove needs to call preventDefault() to stop the
+    // page scrolling under a drag; browsers default touchmove to passive
+    // (assuming it never calls preventDefault) unless told otherwise.
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+    window.addEventListener('touchcancel', onUp);
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+      window.removeEventListener('touchcancel', onUp);
     };
   }, [naturalSize, scale]);
 
-  const startMove = (e: React.MouseEvent) => {
+  const startMove = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const point = 'touches' in e ? e.touches[0] : e;
+    if (!point) return;
     dragState.current = {
       mode: 'move',
-      startX: e.clientX,
-      startY: e.clientY,
+      startX: point.clientX,
+      startY: point.clientY,
       boxStartX: box.x,
       boxStartY: box.y,
     };
   };
 
-  const startResize = (e: React.MouseEvent) => {
+  const startResize = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const point = 'touches' in e ? e.touches[0] : e;
+    if (!point) return;
     dragState.current = {
       mode: 'resize',
-      startX: e.clientX,
-      startY: e.clientY,
+      startX: point.clientX,
+      startY: point.clientY,
       boxStartW: box.width,
       boxStartH: box.height,
     };
@@ -237,6 +266,7 @@ export default function LogoRepositionModal({
             <Box
               data-testid="logo-drag-box"
               onMouseDown={startMove}
+              onTouchStart={startMove}
               sx={{
                 position: 'absolute',
                 left: box.x,
@@ -246,6 +276,7 @@ export default function LogoRepositionModal({
                 border: '2px solid #C2185B',
                 borderRadius: '4px',
                 cursor: 'move',
+                touchAction: 'none',
                 boxShadow: '0 0 0 9999px rgba(0,0,0,0.25)',
               }}
             >
@@ -268,18 +299,39 @@ export default function LogoRepositionModal({
               <Box
                 data-testid="logo-resize-handle"
                 onMouseDown={startResize}
+                onTouchStart={startResize}
                 sx={{
                   position: 'absolute',
-                  right: -7,
-                  bottom: -7,
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  background: '#C2185B',
-                  border: '2px solid #fff',
+                  right: 0,
+                  bottom: 0,
+                  // Centered on the corner via the transform (not a fixed
+                  // right/bottom offset) so it stays centered regardless of
+                  // the responsive size below. A 14px circle is a fine mouse
+                  // target but far below the ~44px minimum for a reliable
+                  // touch target — the visible dot stays small, but the
+                  // actual hit area grows via this invisible padding so
+                  // it's actually grabbable on mobile.
+                  transform: 'translate(50%, 50%)',
+                  width: { xs: 32, sm: 14 },
+                  height: { xs: 32, sm: 14 },
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   cursor: 'nwse-resize',
+                  touchAction: 'none',
                 }}
-              />
+              >
+                <Box
+                  sx={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: '#C2185B',
+                    border: '2px solid #fff',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </Box>
             </Box>
           )}
           {!naturalSize && (
