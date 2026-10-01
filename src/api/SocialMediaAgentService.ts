@@ -90,13 +90,22 @@ export interface VideoClip {
   // (fal.ai's response carries no live cost field). null until the clip
   // finishes (or if generation failed — see `error`).
   cost_usd: number | null;
+  // Engineering-brief routing (§2/§4): the outcome resolves to a primary
+  // model server-side, with its own paired fallback used automatically if
+  // the primary fails — routed_model is whichever one actually ran this
+  // clip, which can differ from the outcome's usual primary.
+  outcome?: string;
+  routed_model?: string | null;
+  fallback_used?: boolean;
+  latency_seconds?: number;
   error?: string;
 }
 
 export interface VideoJob {
   job_id: string;
   status: 'queued' | 'generating' | 'complete' | 'failed';
-  model: string;
+  outcome: string;
+  model: string; // the outcome's primary model at job-creation time — see each clip's own routed_model for what actually ran
   total_scenes: number;
   current_scene: number;
   clips: VideoClip[];
@@ -106,7 +115,7 @@ export interface VideoJob {
 export interface VideoFromStoryboardPayload {
   storyboard: Storyboard;
   brand_images: string[];
-  model?: string;
+  outcome?: string;
 }
 
 export interface VideoDraft {

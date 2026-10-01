@@ -25,25 +25,39 @@ const PLATFORMS = [
   { value: 'linkedin', label: 'LinkedIn' },
 ];
 
-// Matches the "URI_AI_Video_API_Model_Selection_Engineering_Brief" (Uzuri
-// Creative / URI, 1 October 2026) exactly — its 7 selected launch routes,
-// minus Seedance 2.5 which the brief explicitly says not to make a launch
-// default. Order follows the brief's own cost table (cheapest default first).
-// Labels are the actual model names, not "Version N", and `role` is the
-// brief's own one-line purpose for that route — see video_generation_service.py's
-// MODEL_REGISTRY, the backend's source of truth these ids/labels must match.
-const VIDEO_MODELS = [
-  { value: 'minimax/h3-max-turbo/image-to-video', label: 'H3 Max Turbo', role: 'Default generation' },
-  {
-    value: 'fal-ai/kling-video/v2.5-turbo/standard/image-to-video',
-    label: 'Kling 2.5 Standard',
-    role: 'Product image animation',
-  },
-  { value: 'fal-ai/pixverse/v6/image-to-video', label: 'PixVerse V6', role: 'Social content' },
-  { value: 'minimax/h3-max/image-to-video', label: 'H3 Max', role: 'Premium quality' },
-  { value: 'alibaba/wan-3.0/image-to-video', label: 'Wan 3.0', role: 'Complex motion' },
-  { value: 'fal-ai/veo3.1/fast/image-to-video', label: 'Veo 3.1 Fast', role: 'Dialogue / speaking' },
-  { value: 'bytedance/seedance-2.0/image-to-video', label: 'Seedance 2.0 Fast', role: 'Advanced references' },
+// Engineering-brief routing (§2 "Product Principle: URI Chooses the Model" +
+// §4 "Recommended URI Routing Logic", Uzuri Creative / URI, 1 October 2026):
+// "Customers should choose an outcome, not an inference provider. Model names
+// should remain an implementation detail." These 7 keys/labels/descriptions
+// are the brief's own §2 list verbatim; which model each one actually routes
+// to (plus its automatic fallback) lives server-side in
+// video_generation_service.py's OUTCOME_ROUTES, the real source of truth —
+// this UI never sees or sends a raw model id. modelHint is shown ONLY as a
+// small transparency label after a clip finishes (routed_model from the job),
+// since this screen is still internal dev testing, not the customer-facing
+// surface the brief is actually describing.
+// Display-only — turns a routed_model id into its friendly name for the dev
+// transparency note below. Never offered as a pickable option (that's the
+// whole point of outcome routing); must match video_generation_service.py's
+// MODEL_REGISTRY labels.
+const MODEL_LABELS: Record<string, string> = {
+  'minimax/h3-max-turbo/image-to-video': 'H3 Max Turbo',
+  'fal-ai/kling-video/v2.5-turbo/standard/image-to-video': 'Kling 2.5 Standard',
+  'fal-ai/pixverse/v6/image-to-video': 'PixVerse V6',
+  'minimax/h3-max/image-to-video': 'H3 Max',
+  'alibaba/wan-3.0/image-to-video': 'Wan 3.0',
+  'fal-ai/veo3.1/fast/image-to-video': 'Veo 3.1 Fast',
+  'bytedance/seedance-2.0/image-to-video': 'Seedance 2.0 Fast',
+};
+
+const VIDEO_OUTCOMES = [
+  { value: 'quick_video', label: 'Quick Video', description: 'Fast, low-cost general creative' },
+  { value: 'animate_product', label: 'Animate My Product', description: 'Camera movement from a product photo' },
+  { value: 'social_video', label: 'Social Video', description: 'Cheap variants for iteration' },
+  { value: 'high_quality', label: 'High Quality', description: 'Premium brand shots, hero creative' },
+  { value: 'complex_cinematic', label: 'Complex / Cinematic', description: 'Hard motion, multiple subjects' },
+  { value: 'talking_dialogue', label: 'Talking / Dialogue', description: 'Synced speech, lip-sync' },
+  { value: 'advanced_references', label: 'Advanced References', description: 'Reference-driven, brand-critical' },
 ];
 
 const DURATIONS = [
@@ -71,7 +85,7 @@ export default function VideoStoryboardGenerator() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video generation state
-  const [selectedModel, setSelectedModel] = useState('minimax/h3-max-turbo/image-to-video');
+  const [selectedOutcome, setSelectedOutcome] = useState('quick_video');
   const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
   const [videoError, setVideoError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -459,7 +473,7 @@ export default function VideoStoryboardGenerator() {
       const res = await SocialMediaAgentService.generateVideoFromStoryboard({
         storyboard: enrichedStoryboard,
         brand_images: images.map((img) => img.dataUrl),
-        model: selectedModel,
+        outcome: selectedOutcome,
       });
       if (res.status && res.responseData) {
         setVideoJob(res.responseData);
@@ -833,14 +847,23 @@ export default function VideoStoryboardGenerator() {
 
             {/* Total estimated cost — summed from each clip's own estimate (duration
                 actually sent to the model × fal.ai's published per-second rate), so
-                switching the Video Model above and regenerating gives a real number
-                to compare, not just a visual impression. */}
+                picking a different Video Outcome and regenerating gives a real number
+                to compare, not just a visual impression. Dev-only transparency note:
+                which model(s) actually ran (routed_model can differ from the outcome's
+                usual primary when §4's automatic fallback kicked in) — the brief's own
+                customer-facing surface would never show this, but this screen is still
+                internal testing, not that surface. */}
             {videoJob?.status === 'complete' &&
               (() => {
                 const costed = videoJob.clips.filter((c) => c.cost_usd != null);
                 if (costed.length === 0) return null;
                 const total = costed.reduce((sum, c) => sum + (c.cost_usd ?? 0), 0);
-                const modelLabel = VIDEO_MODELS.find((m) => m.value === videoJob.model)?.label ?? videoJob.model;
+                const outcomeLabel =
+                  VIDEO_OUTCOMES.find((o) => o.value === videoJob.outcome)?.label ?? videoJob.outcome;
+                const routedModels = Array.from(
+                  new Set(videoJob.clips.map((c) => c.routed_model).filter((m): m is string => !!m))
+                );
+                const anyFallback = videoJob.clips.some((c) => c.fallback_used);
                 return (
                   <div
                     style={{
@@ -849,16 +872,21 @@ export default function VideoStoryboardGenerator() {
                       borderRadius: 10,
                       padding: '10px 14px',
                       marginBottom: 16,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
                     }}
                   >
-                    <span style={{ fontSize: 12.5, color: GREY }}>
-                      {modelLabel} · {costed.length}/{videoJob.clips.length} clip
-                      {videoJob.clips.length === 1 ? '' : 's'} costed
-                    </span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: DARK }}>~${total.toFixed(3)}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12.5, color: GREY }}>
+                        {outcomeLabel} · {costed.length}/{videoJob.clips.length} clip
+                        {videoJob.clips.length === 1 ? '' : 's'} costed
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: DARK }}>~${total.toFixed(3)}</span>
+                    </div>
+                    {routedModels.length > 0 && (
+                      <p style={{ fontSize: 10.5, color: '#9CA3AF', margin: '4px 0 0' }}>
+                        Routed to: {routedModels.map((m) => MODEL_LABELS[m] ?? m).join(', ')}
+                        {anyFallback ? ' (fallback used on at least one clip)' : ''}
+                      </p>
+                    )}
                   </div>
                 );
               })()}
@@ -924,7 +952,11 @@ export default function VideoStoryboardGenerator() {
 
             {(!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') && (
               <>
-                {/* Model picker */}
+                {/* Outcome picker — engineering brief §2: the customer picks an outcome,
+                    never a raw model name. Which model actually runs (plus its automatic
+                    fallback) is resolved server-side; see the "Routed to:" transparency
+                    note above once a job completes, which exists only because this screen
+                    is still internal testing, not the brief's actual customer-facing surface. */}
                 <div style={{ marginBottom: 16 }}>
                   <p
                     style={{
@@ -936,35 +968,36 @@ export default function VideoStoryboardGenerator() {
                       letterSpacing: 0.5,
                     }}
                   >
-                    Video Model
+                    Video Outcome
                   </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                    {VIDEO_MODELS.map((m) => {
-                      const active = selectedModel === m.value;
-                      // Every model here animates a storyboard frame (fal.ai image-to-video) —
-                      // none of them can run before frame generation finishes.
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                    {VIDEO_OUTCOMES.map((o) => {
+                      const active = selectedOutcome === o.value;
+                      // Every outcome routes to an image-to-video model (fal.ai) — none of
+                      // them can run before frame generation finishes.
                       const framesReady = storyboard ? storyboard.scenes.every((s) => frameMap[s.scene_number]) : false;
                       const blocked = !framesReady;
                       return (
                         <button
-                          key={m.value}
-                          onClick={() => !blocked && setSelectedModel(m.value)}
+                          key={o.value}
+                          onClick={() => !blocked && setSelectedOutcome(o.value)}
                           title={blocked ? 'Waiting for storyboard frames to finish generating…' : ''}
                           style={{
-                            padding: '10px 6px',
+                            padding: '10px 8px',
                             borderRadius: 10,
                             border: `2px solid ${active ? PRIMARY : blocked ? '#E5E7EB' : BORDER}`,
                             background: active ? '#FFF0F8' : blocked ? '#F9FAFB' : '#fff',
                             color: active ? PRIMARY : blocked ? '#9CA3AF' : DARK,
                             fontWeight: active ? 700 : 500,
                             fontSize: 12.5,
+                            textAlign: 'left',
                             cursor: blocked ? 'not-allowed' : 'pointer',
                             fontFamily: 'inherit',
                             transition: 'all .15s',
                             opacity: blocked ? 0.6 : 1,
                           }}
                         >
-                          {m.label}
+                          {o.label}
                           {!blocked && (
                             <span
                               style={{
@@ -976,7 +1009,7 @@ export default function VideoStoryboardGenerator() {
                                 opacity: 0.85,
                               }}
                             >
-                              {m.role}
+                              {o.description}
                             </span>
                           )}
                           {blocked && (
