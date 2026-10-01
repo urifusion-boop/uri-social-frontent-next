@@ -25,13 +25,19 @@ const PLATFORMS = [
   { value: 'linkedin', label: 'LinkedIn' },
 ];
 
+// All six run through fal.ai now (Veo moved off the direct Google Gemini API
+// call — see video_generation_service.py's MODEL_REGISTRY, the backend's own
+// source of truth these ids/labels must match). Labels are the actual model
+// names, not "Version N" — so a cost/quality comparison across them means
+// something at a glance instead of requiring a lookup every time.
 const VIDEO_MODELS = [
-  { value: 'veo-3.1-generate-preview', label: 'Version 1' },
-  { value: 'fal-ai/kling-video/v3/pro/image-to-video', label: 'Version 2' },
-  { value: 'bytedance/seedance-2.0/image-to-video', label: 'Version 3' },
+  { value: 'fal-ai/veo3.1/image-to-video', label: 'Veo 3.1' },
+  { value: 'fal-ai/kling-video/v3/pro/image-to-video', label: 'Kling 3.0 Pro' },
+  { value: 'bytedance/seedance-2.0/image-to-video', label: 'Seedance 2.0' },
+  { value: 'fal-ai/luma-dream-machine/ray-2/image-to-video', label: 'Luma Ray 2' },
+  { value: 'fal-ai/minimax/hailuo-02/standard/image-to-video', label: 'MiniMax Hailuo 02' },
+  { value: 'fal-ai/wan/v2.2-a14b/image-to-video', label: 'Wan 2.2' },
 ];
-
-const FAL_MODELS = ['fal-ai/kling-video/v3/pro/image-to-video', 'bytedance/seedance-2.0/image-to-video'];
 
 const DURATIONS = [
   { value: 10, label: '10s' },
@@ -58,7 +64,7 @@ export default function VideoStoryboardGenerator() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video generation state
-  const [selectedModel, setSelectedModel] = useState('veo-3.1-generate-preview');
+  const [selectedModel, setSelectedModel] = useState('fal-ai/veo3.1/image-to-video');
   const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
   const [videoError, setVideoError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -818,6 +824,38 @@ export default function VideoStoryboardGenerator() {
               </div>
             )}
 
+            {/* Total estimated cost — summed from each clip's own estimate (duration
+                actually sent to the model × fal.ai's published per-second rate), so
+                switching the Video Model above and regenerating gives a real number
+                to compare, not just a visual impression. */}
+            {videoJob?.status === 'complete' &&
+              (() => {
+                const costed = videoJob.clips.filter((c) => c.cost_usd != null);
+                if (costed.length === 0) return null;
+                const total = costed.reduce((sum, c) => sum + (c.cost_usd ?? 0), 0);
+                const modelLabel = VIDEO_MODELS.find((m) => m.value === videoJob.model)?.label ?? videoJob.model;
+                return (
+                  <div
+                    style={{
+                      background: LIGHT,
+                      border: `1px solid ${BORDER}`,
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      marginBottom: 16,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: 12.5, color: GREY }}>
+                      {modelLabel} · {costed.length}/{videoJob.clips.length} clip
+                      {videoJob.clips.length === 1 ? '' : 's'} costed
+                    </span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: DARK }}>~${total.toFixed(3)}</span>
+                  </div>
+                );
+              })()}
+
             {/* Job progress */}
             {videoJob && videoJob.status !== 'complete' && videoJob.status !== 'failed' && (
               <div
@@ -893,19 +931,19 @@ export default function VideoStoryboardGenerator() {
                   >
                     Video Model
                   </p>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                     {VIDEO_MODELS.map((m) => {
                       const active = selectedModel === m.value;
-                      const needsFrame = FAL_MODELS.includes(m.value);
+                      // Every model here animates a storyboard frame (fal.ai image-to-video) —
+                      // none of them can run before frame generation finishes.
                       const framesReady = storyboard ? storyboard.scenes.every((s) => frameMap[s.scene_number]) : false;
-                      const blocked = needsFrame && !framesReady;
+                      const blocked = !framesReady;
                       return (
                         <button
                           key={m.value}
                           onClick={() => !blocked && setSelectedModel(m.value)}
                           title={blocked ? 'Waiting for storyboard frames to finish generating…' : ''}
                           style={{
-                            flex: 1,
                             padding: '10px 6px',
                             borderRadius: 10,
                             border: `2px solid ${active ? PRIMARY : blocked ? '#E5E7EB' : BORDER}`,
@@ -1620,7 +1658,7 @@ function SceneCard({
                   padding: '2px 7px',
                 }}
               >
-                Done
+                {clip.cost_usd != null ? `Done · $${clip.cost_usd.toFixed(3)}` : 'Done'}
               </span>
             )}
             {clip.error && (

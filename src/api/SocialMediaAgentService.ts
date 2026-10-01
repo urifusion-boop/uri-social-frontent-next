@@ -85,6 +85,11 @@ export interface VideoClip {
   text_overlay: string | null;
   video_prompt: string;
   video_url: string | null;
+  // Estimated cost in USD for this clip — duration actually sent to the model
+  // × fal.ai's own published per-second rate, not a real-time billed figure
+  // (fal.ai's response carries no live cost field). null until the clip
+  // finishes (or if generation failed — see `error`).
+  cost_usd: number | null;
   error?: string;
 }
 
