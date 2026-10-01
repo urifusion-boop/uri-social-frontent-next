@@ -25,18 +25,25 @@ const PLATFORMS = [
   { value: 'linkedin', label: 'LinkedIn' },
 ];
 
-// All six run through fal.ai now (Veo moved off the direct Google Gemini API
-// call — see video_generation_service.py's MODEL_REGISTRY, the backend's own
-// source of truth these ids/labels must match). Labels are the actual model
-// names, not "Version N" — so a cost/quality comparison across them means
-// something at a glance instead of requiring a lookup every time.
+// Matches the "URI_AI_Video_API_Model_Selection_Engineering_Brief" (Uzuri
+// Creative / URI, 1 October 2026) exactly — its 7 selected launch routes,
+// minus Seedance 2.5 which the brief explicitly says not to make a launch
+// default. Order follows the brief's own cost table (cheapest default first).
+// Labels are the actual model names, not "Version N", and `role` is the
+// brief's own one-line purpose for that route — see video_generation_service.py's
+// MODEL_REGISTRY, the backend's source of truth these ids/labels must match.
 const VIDEO_MODELS = [
-  { value: 'fal-ai/veo3.1/image-to-video', label: 'Veo 3.1' },
-  { value: 'fal-ai/kling-video/v3/pro/image-to-video', label: 'Kling 3.0 Pro' },
-  { value: 'bytedance/seedance-2.0/image-to-video', label: 'Seedance 2.0' },
-  { value: 'fal-ai/luma-dream-machine/ray-2/image-to-video', label: 'Luma Ray 2' },
-  { value: 'fal-ai/minimax/hailuo-02/standard/image-to-video', label: 'MiniMax Hailuo 02' },
-  { value: 'fal-ai/wan/v2.2-a14b/image-to-video', label: 'Wan 2.2' },
+  { value: 'minimax/h3-max-turbo/image-to-video', label: 'H3 Max Turbo', role: 'Default generation' },
+  {
+    value: 'fal-ai/kling-video/v2.5-turbo/standard/image-to-video',
+    label: 'Kling 2.5 Standard',
+    role: 'Product image animation',
+  },
+  { value: 'fal-ai/pixverse/v6/image-to-video', label: 'PixVerse V6', role: 'Social content' },
+  { value: 'minimax/h3-max/image-to-video', label: 'H3 Max', role: 'Premium quality' },
+  { value: 'alibaba/wan-3.0/image-to-video', label: 'Wan 3.0', role: 'Complex motion' },
+  { value: 'fal-ai/veo3.1/fast/image-to-video', label: 'Veo 3.1 Fast', role: 'Dialogue / speaking' },
+  { value: 'bytedance/seedance-2.0/image-to-video', label: 'Seedance 2.0 Fast', role: 'Advanced references' },
 ];
 
 const DURATIONS = [
@@ -64,7 +71,7 @@ export default function VideoStoryboardGenerator() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video generation state
-  const [selectedModel, setSelectedModel] = useState('fal-ai/veo3.1/image-to-video');
+  const [selectedModel, setSelectedModel] = useState('minimax/h3-max-turbo/image-to-video');
   const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
   const [videoError, setVideoError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -958,6 +965,20 @@ export default function VideoStoryboardGenerator() {
                           }}
                         >
                           {m.label}
+                          {!blocked && (
+                            <span
+                              style={{
+                                display: 'block',
+                                fontSize: 9.5,
+                                color: active ? PRIMARY : '#9CA3AF',
+                                marginTop: 2,
+                                fontWeight: 400,
+                                opacity: 0.85,
+                              }}
+                            >
+                              {m.role}
+                            </span>
+                          )}
                           {blocked && (
                             <span
                               style={{
