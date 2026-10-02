@@ -7,7 +7,7 @@ import {
   VideoDraft,
   VideoJob,
 } from '@/src/api/SocialMediaAgentService';
-import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
+import { VIDEO_STYLES } from '@/src/data/videoStyles';
 import {
   PRIMARY,
   DARK,
@@ -27,9 +27,13 @@ import { useEffect, useRef, useState } from 'react';
 
 // "Describe it" flow: a free-text brief is the primary input (reference
 // images are optional, unlike VideoStoryboardGenerator's upload-first flow
-// where 1-5 images are required). gpt-5.4 writes a creative_direction +
-// scene-by-scene script from the brief, then gpt-image-2 generates a
-// consistent frame image per scene — each scene chains off the previous
+// where 1-5 images are required). No style picker here on purpose — gpt-5.4
+// infers the best-fitting VIDEO_STYLES entry from the brief itself as part
+// of the same call (see video_creative_service.py) and writes a
+// creative_direction + scene-by-scene script; its style pick comes back on
+// storyboard.video_style for display, rather than asking the user to also
+// choose a style for a video they've already described in their own words.
+// gpt-image-2 then generates a
 // scene's own generated image for visual consistency, rather than editing a
 // fixed uploaded photo by index. Once scenes carry frame_image_url, this
 // reuses the EXACT SAME outcome-routed fal.ai generation pipeline as the
@@ -50,7 +54,6 @@ export default function DescribeVideoGenerator() {
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [platform, setPlatform] = useState('instagram_reels');
   const [duration, setDuration] = useState(15);
-  const [selectedStyle, setSelectedStyle] = useState(DEFAULT_STYLE_SLUG);
   const [loading, setLoading] = useState(false);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [error, setError] = useState('');
@@ -250,7 +253,8 @@ export default function DescribeVideoGenerator() {
         reference_images: images.map((img) => img.dataUrl),
         target_platform: platform,
         target_duration_seconds: duration,
-        video_style: selectedStyle,
+        // video_style omitted on purpose — the model infers it from the
+        // brief itself; see the top-of-file comment.
       });
       if (res.status && res.responseData) {
         setStoryboard(res.responseData);
@@ -436,69 +440,6 @@ export default function DescribeVideoGenerator() {
         )}
       </Section>
 
-      {/* Video Style Picker */}
-      <Section
-        title="Video Style"
-        subtitle="Choose a visual style — it shapes camera movement, pacing, color grading, and energy"
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-          {VIDEO_STYLES.map((style) => {
-            const isSelected = selectedStyle === style.slug;
-            return (
-              <button
-                key={style.slug}
-                onClick={() => setSelectedStyle(style.slug)}
-                style={{
-                  border: `2px solid ${isSelected ? PRIMARY : BORDER}`,
-                  borderRadius: 12,
-                  padding: '12px 14px',
-                  background: isSelected ? '#FFF0F8' : '#fff',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  transition: 'all .15s',
-                  position: 'relative',
-                }}
-              >
-                {isSelected && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 10,
-                      width: 16,
-                      height: 16,
-                      borderRadius: 99,
-                      background: PRIMARY,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 9,
-                      color: '#fff',
-                      fontWeight: 700,
-                      lineHeight: 1,
-                    }}
-                  >
-                    ✓
-                  </span>
-                )}
-                <p style={{ fontSize: 13, fontWeight: 700, color: isSelected ? PRIMARY : DARK, margin: '0 0 4px' }}>
-                  {style.name}
-                </p>
-                <p style={{ fontSize: 11, color: GREY, margin: '0 0 6px', fontStyle: 'italic' }}>{style.vibe}</p>
-                <p style={{ fontSize: 10.5, color: GREY, margin: '0 0 2px' }}>
-                  <span style={{ fontWeight: 600 }}>Pacing:</span> {style.pacing}
-                </p>
-                <p style={{ fontSize: 10.5, color: GREY, margin: '0 0 2px' }}>
-                  <span style={{ fontWeight: 600 }}>Camera:</span> {style.camera}
-                </p>
-                <p style={{ fontSize: 10.5, color: '#9CA3AF', margin: '4px 0 0' }}>Best for: {style.best_for}</p>
-              </button>
-            );
-          })}
-        </div>
-      </Section>
-
       {/* Platform + Duration */}
       <Section title="Video Settings" subtitle="Platform and target duration">
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -608,18 +549,37 @@ export default function DescribeVideoGenerator() {
                 marginBottom: 16,
               }}
             >
-              <p
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  color: PRIMARY,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  margin: '0 0 6px',
-                }}
+              <div
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 6px' }}
               >
-                Creative Direction
-              </p>
+                <p
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    color: PRIMARY,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    margin: 0,
+                  }}
+                >
+                  Creative Direction
+                </p>
+                {storyboard.video_style && (
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      color: PRIMARY,
+                      background: '#fff',
+                      border: `1px solid #FBCFE8`,
+                      borderRadius: 99,
+                      padding: '2px 10px',
+                    }}
+                  >
+                    Style: {VIDEO_STYLES.find((s) => s.slug === storyboard.video_style)?.name ?? storyboard.video_style}
+                  </span>
+                )}
+              </div>
               <p style={{ fontSize: 13, color: DARK, margin: 0, lineHeight: 1.6 }}>{storyboard.creative_direction}</p>
             </div>
           )}

@@ -78,6 +78,10 @@ export interface Storyboard {
   // Only present from the "describe it" flow (generateCreativeStoryboard) —
   // the overall concept the scenes exist to serve, written before the scenes.
   creative_direction?: string;
+  // Only present from the "describe it" flow when no style was forced — the
+  // model's own pick from VIDEO_STYLES, echoed back so the choice is visible
+  // rather than a silent internal decision.
+  video_style?: string;
 }
 
 export interface StoryboardPayload {
