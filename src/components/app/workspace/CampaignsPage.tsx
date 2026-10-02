@@ -3280,17 +3280,14 @@ function ResultCard({
     }
     // Meta refused to grant URI advertising access to the Page — the token and the
     // permissions are fine, so offering "Reconnect" (as meta_connection_expired does)
-    // sends the client round a loop that re-runs the identical refused call. The fix
-    // is on Meta's side and usually needs the Page's owner, so say that instead.
+    // sends the client round a loop that re-runs the identical refused call. Name the
+    // one thing they can actually change: their own role on the Page.
     if (result.stage === 'meta_connection_page_not_shared') {
       return (
         <JaneBubble>
-          {result.page_name
-            ? `Meta won't let me advertise from ${result.page_name}`
-            : "Meta won't let me advertise from your Page"}{' '}
-          yet. That usually means another Business Manager owns the Page, or you&rsquo;re not a full admin of it. Ask
-          whoever owns the Page to give URI partner access in Meta Business Settings (Business settings → Pages → Assign
-          partner → Advertise) — reconnecting here won&rsquo;t change it.
+          I can&rsquo;t advertise from {result.page_name || 'this Page'} — your Facebook account doesn&rsquo;t have full
+          admin access to it. Ask whoever manages the Page to make you an admin, then reconnect and we&rsquo;ll carry on
+          from here.
         </JaneBubble>
       );
     }
