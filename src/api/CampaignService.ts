@@ -218,6 +218,10 @@ export interface LaunchFromMessageResult {
     | 'meta_connection_content_only'
     | 'meta_connection_ads_no_whatsapp'
     | 'meta_connection_expired'
+    // Meta refused URI's Business Manager ADVERTISE access to the Page. Distinct from
+    // 'expired' on purpose: the token and scopes are fine, so reconnecting re-runs the
+    // same refused call — the fix is on Meta's side, usually by the Page's owner.
+    | 'meta_connection_page_not_shared'
     | 'meta_connection_no_page';
   plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
   /** Set once the client edits the plan in the review panel. */

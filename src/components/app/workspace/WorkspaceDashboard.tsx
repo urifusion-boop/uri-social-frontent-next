@@ -3757,6 +3757,18 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         {p.id === 'facebook_ads' && s?.meta_connection_state === 'expired' && (
                           <span style={{ color: '#c62828' }}> — needs reconnecting</span>
                         )}
+                        {/* Meta refused to give URI advertising access to the Page.
+                            Reconnecting re-runs the identical grant and is refused
+                            identically — one client tried several times. Say what
+                            actually has to happen, on Meta's side, by whom. */}
+                        {p.id === 'facebook_ads' && s?.meta_connection_state === 'page_not_shared' && (
+                          <span style={{ color: '#c62828' }}>
+                            {' '}
+                            — Meta won't let us advertise from this Page. It's usually owned by another Business
+                            Manager, or you're not a full admin of it. Ask the Page's owner to give URI partner access
+                            in Meta Business Settings — reconnecting here won't change it.
+                          </span>
+                        )}
                         {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
                           <span style={{ color: '#4285F4' }}> — choose or create your Ads account below</span>
                         )}
