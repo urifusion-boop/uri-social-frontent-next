@@ -53,6 +53,7 @@ import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import DescribeVideoGenerator from '@/src/components/app/workspace/DescribeVideoGenerator';
 import VisualEngineV2Panel from '@/src/components/app/workspace/visual-engine-v2/VisualEngineV2Panel';
 import MultiClipComposer from '@/src/components/app/workspace/MultiClipComposer';
 import JaneVideoChat from '@/src/components/app/workspace/JaneVideoChat';
@@ -856,6 +857,14 @@ const ContentManagerPage = ({
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
   const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
+  // Nested under the Generate tab: 'upload' is the original upload-first flow
+  // (1-5 required brand images, VideoStoryboardGenerator.tsx); 'describe' is
+  // the newer brief-first flow (DescribeVideoGenerator.tsx) — a free-text
+  // brief with optional reference images, gpt-5.4 writing creative direction
+  // + script, gpt-image-2 generating consistent chained scene images. Both
+  // land on the same outcome-routed fal.ai generation pipeline once a
+  // storyboard has frame images.
+  const [generateMode, setGenerateMode] = useState<'upload' | 'describe'>('upload');
   // Jane Ads hand-off (upload a video in a campaign -> optionally improve its
   // quality here -> come back to that exact thread). Lands on JaneVideoChat
   // ('chat', already the default tab) — confirmed this is the tool actually in
@@ -1593,7 +1602,38 @@ const ContentManagerPage = ({
                 </button>
               ))}
             </div>
-            {videoTab === 'generate' && <VideoStoryboardGenerator />}
+            {videoTab === 'generate' && (
+              <>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                  {(
+                    [
+                      { key: 'upload', label: 'Upload Images' },
+                      { key: 'describe', label: '✦ Describe It' },
+                    ] as { key: 'upload' | 'describe'; label: string }[]
+                  ).map((gm) => (
+                    <button
+                      key={gm.key}
+                      onClick={() => setGenerateMode(gm.key)}
+                      style={{
+                        flexShrink: 0,
+                        padding: '7px 16px',
+                        borderRadius: 8,
+                        border: generateMode === gm.key ? 'none' : '1.5px solid #E5E7EB',
+                        background: generateMode === gm.key ? '#0d0e0f' : '#fff',
+                        color: generateMode === gm.key ? '#fff' : '#6B7280',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {gm.label}
+                    </button>
+                  ))}
+                </div>
+                {generateMode === 'upload' ? <VideoStoryboardGenerator /> : <DescribeVideoGenerator />}
+              </>
+            )}
             {videoTab === 'produce' && (
               <VideoProductionForm
                 sourceUrl={pendingProduceUrl}

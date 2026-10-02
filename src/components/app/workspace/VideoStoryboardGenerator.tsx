@@ -12,13 +12,16 @@ import {
 import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
 import { useEffect, useRef, useState } from 'react';
 
-const PRIMARY = '#CD1B78';
-const DARK = '#0d0e0f';
-const GREY = '#6B7280';
-const LIGHT = '#F9FAFB';
-const BORDER = '#E5E7EB';
+// Exported — reused as-is by DescribeVideoGenerator.tsx so the two entry
+// points (upload-first vs. describe-it) share one "turn a storyboard into
+// video" rendering surface instead of two diverging copies.
+export const PRIMARY = '#CD1B78';
+export const DARK = '#0d0e0f';
+export const GREY = '#6B7280';
+export const LIGHT = '#F9FAFB';
+export const BORDER = '#E5E7EB';
 
-const PLATFORMS = [
+export const PLATFORMS = [
   { value: 'instagram_reels', label: 'Instagram Reels' },
   { value: 'tiktok', label: 'TikTok' },
   { value: 'facebook_reels', label: 'Facebook Reels' },
@@ -40,7 +43,7 @@ const PLATFORMS = [
 // transparency note below. Never offered as a pickable option (that's the
 // whole point of outcome routing); must match video_generation_service.py's
 // MODEL_REGISTRY labels.
-const MODEL_LABELS: Record<string, string> = {
+export const MODEL_LABELS: Record<string, string> = {
   'minimax/h3-max-turbo/image-to-video': 'H3 Max Turbo',
   'fal-ai/kling-video/v2.5-turbo/standard/image-to-video': 'Kling 2.5 Standard',
   'fal-ai/pixverse/v6/image-to-video': 'PixVerse V6',
@@ -50,7 +53,7 @@ const MODEL_LABELS: Record<string, string> = {
   'bytedance/seedance-2.0/image-to-video': 'Seedance 2.0 Fast',
 };
 
-const VIDEO_OUTCOMES = [
+export const VIDEO_OUTCOMES = [
   { value: 'quick_video', label: 'Quick Video', description: 'Fast, low-cost general creative' },
   { value: 'animate_product', label: 'Animate My Product', description: 'Camera movement from a product photo' },
   { value: 'social_video', label: 'Social Video', description: 'Cheap variants for iteration' },
@@ -63,7 +66,7 @@ const VIDEO_OUTCOMES = [
 // fal.ai's own documented voice enum for fal-ai/ai-avatar/single-text — keep
 // in sync with AVATAR_VOICES in video_generation_service.py if this changes.
 // Only shown/used when selectedOutcome === 'talking_dialogue'.
-const AVATAR_VOICES = [
+export const AVATAR_VOICES = [
   'Aria',
   'Roger',
   'Sarah',
@@ -86,7 +89,7 @@ const AVATAR_VOICES = [
   'Bill',
 ];
 
-const DURATIONS = [
+export const DURATIONS = [
   { value: 10, label: '10s' },
   { value: 15, label: '15s' },
   { value: 20, label: '20s' },
@@ -1562,7 +1565,7 @@ export default function VideoStoryboardGenerator() {
   );
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+export function Section({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ marginBottom: 10 }}>
@@ -1574,7 +1577,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle: strin
   );
 }
 
-function Spinner({ label }: { label: string }) {
+export function Spinner({ label }: { label: string }) {
   return (
     <div style={{ textAlign: 'center', padding: '32px 0', color: GREY }}>
       <div
@@ -1594,7 +1597,7 @@ function Spinner({ label }: { label: string }) {
   );
 }
 
-function StoryboardResult({
+export function StoryboardResult({
   storyboard,
   clipMap,
   frameMap,
@@ -1642,7 +1645,7 @@ function StoryboardResult({
   );
 }
 
-function Chip({ label, value }: { label: string; value: string }) {
+export function Chip({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p
@@ -1662,7 +1665,7 @@ function Chip({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SceneCard({
+export function SceneCard({
   scene,
   startTime,
   clip,

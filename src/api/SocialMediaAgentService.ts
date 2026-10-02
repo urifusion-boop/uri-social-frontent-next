@@ -75,11 +75,22 @@ export interface Storyboard {
   target_platform: string;
   aspect_ratio: string;
   scenes: StoryboardScene[];
+  // Only present from the "describe it" flow (generateCreativeStoryboard) —
+  // the overall concept the scenes exist to serve, written before the scenes.
+  creative_direction?: string;
 }
 
 export interface StoryboardPayload {
   brand_images: string[];
   optional_text?: string;
+  target_platform: string;
+  target_duration_seconds: number;
+  video_style?: string;
+}
+
+export interface CreativeStoryboardPayload {
+  brief: string;
+  reference_images?: string[];
   target_platform: string;
   target_duration_seconds: number;
   video_style?: string;
@@ -1251,6 +1262,28 @@ export class SocialMediaAgentService {
     UriResponse<{ job_id: string; status: string; frames: { scene_number: number; frame_image_url: string }[] }>
   > {
     const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.storyboardFrameJob}/${jobId}`);
+    return response.data;
+  }
+
+  static async generateCreativeStoryboard(payload: CreativeStoryboardPayload): Promise<UriResponse<Storyboard>> {
+    const response: Awaited<AxiosResponse<UriResponse<Storyboard>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateCreativeStoryboard,
+      payload,
+      { timeout: 60000 }
+    );
+    return response.data;
+  }
+
+  // Frame job it kicks off is polled with the existing getStoryboardFrameJob
+  // above — generate-creative-frames writes to the same job collection.
+  static async generateCreativeFrames(
+    scenes: StoryboardScene[],
+    referenceImages: string[] = []
+  ): Promise<UriResponse<{ job_id: string; status: string; total_scenes: number }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateCreativeFrames, {
+      scenes,
+      reference_images: referenceImages,
+    });
     return response.data;
   }
 
