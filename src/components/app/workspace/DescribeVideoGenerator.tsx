@@ -22,6 +22,7 @@ import {
   Section,
   Spinner,
   StoryboardResult,
+  suggestOutcome,
 } from '@/src/components/app/workspace/VideoStoryboardGenerator';
 import { useEffect, useRef, useState } from 'react';
 
@@ -62,6 +63,7 @@ export default function DescribeVideoGenerator() {
 
   // Video generation state
   const [selectedOutcome, setSelectedOutcome] = useState('quick_video');
+  const [outcomeSuggestionReason, setOutcomeSuggestionReason] = useState('');
   const [selectedVoice, setSelectedVoice] = useState('Sarah');
   const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
   const [videoError, setVideoError] = useState('');
@@ -246,6 +248,7 @@ export default function DescribeVideoGenerator() {
     setVideoError('');
     setFrameMap({});
     setFrameError('');
+    setOutcomeSuggestionReason('');
     if (framePollRef.current) clearInterval(framePollRef.current);
     try {
       const res = await SocialMediaAgentService.generateCreativeStoryboard({
@@ -258,6 +261,9 @@ export default function DescribeVideoGenerator() {
       });
       if (res.status && res.responseData) {
         setStoryboard(res.responseData);
+        const suggestion = suggestOutcome(res.responseData);
+        setSelectedOutcome(suggestion.outcome);
+        setOutcomeSuggestionReason(suggestion.reason);
         SocialMediaAgentService.generateCreativeFrames(
           res.responseData.scenes,
           images.map((img) => img.dataUrl)
@@ -714,6 +720,24 @@ export default function DescribeVideoGenerator() {
 
             {(!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') && (
               <>
+                {outcomeSuggestionReason && (
+                  <div
+                    style={{
+                      background: '#FFF0F8',
+                      border: `1px solid #FBCFE8`,
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      marginBottom: 14,
+                    }}
+                  >
+                    <p style={{ fontSize: 12.5, color: DARK, margin: 0, lineHeight: 1.5 }}>
+                      <span style={{ fontWeight: 700, color: PRIMARY }}>
+                        ✦ Suggested: {VIDEO_OUTCOMES.find((o) => o.value === selectedOutcome)?.label ?? selectedOutcome}
+                      </span>{' '}
+                      — {outcomeSuggestionReason}
+                    </p>
+                  </div>
+                )}
                 <div style={{ marginBottom: 16 }}>
                   <p
                     style={{

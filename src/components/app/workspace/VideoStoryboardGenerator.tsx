@@ -63,6 +63,53 @@ export const VIDEO_OUTCOMES = [
   { value: 'advanced_references', label: 'Advanced References', description: 'Reference-driven, brand-critical' },
 ];
 
+// Which outcome fits a storyboard's own video_style when nothing stronger
+// (actual scripted dialogue) overrides it — each mapping grounded in that
+// style's own "best_for"/vibe against the outcome's own description in
+// video_generation_service.py's OUTCOME_ROUTES, not a guess: e.g. luxury_slow_burn's
+// "Premium & cinematic" vibe is exactly high_quality's "Premium brand shots and
+// hero creative"; before_after's side-by-side matched framing is exactly what
+// advanced_references' "brand-consistency-critical" is for.
+const STYLE_TO_OUTCOME: Record<string, string> = {
+  clean_commercial: 'animate_product',
+  luxury_slow_burn: 'high_quality',
+  viral_fast_cut: 'social_video',
+  ingredient_reveal: 'complex_cinematic',
+  street_style: 'quick_video',
+  unboxing_drama: 'complex_cinematic',
+  before_after: 'advanced_references',
+  mood_film: 'high_quality',
+  product_explosion: 'complex_cinematic',
+  testimonial_style: 'talking_dialogue',
+  menu_showcase: 'animate_product',
+  countdown_hype: 'social_video',
+};
+
+// Suggests which outcome to pick for a generated storyboard, with a one-line
+// reason — scripted dialogue always wins (it's a functional requirement, not
+// a vibe match: only talking_dialogue's model reads the dialogue field at
+// all), falling back to the style-based mapping above when there's none.
+export function suggestOutcome(storyboard: Storyboard): { outcome: string; reason: string } {
+  const hasDialogue = storyboard.scenes.some((s) => s.dialogue && s.dialogue.trim());
+  if (hasDialogue) {
+    return {
+      outcome: 'talking_dialogue',
+      reason:
+        'This script has spoken dialogue — only Talking / Dialogue actually turns it into audible, lip-synced speech. Every other outcome would animate the same frame silently.',
+    };
+  }
+  const styleSlug = storyboard.video_style;
+  const styleName = VIDEO_STYLES.find((s) => s.slug === styleSlug)?.name;
+  const mapped = (styleSlug && STYLE_TO_OUTCOME[styleSlug]) || 'quick_video';
+  const mappedLabel = VIDEO_OUTCOMES.find((o) => o.value === mapped)?.label ?? mapped;
+  return {
+    outcome: mapped,
+    reason: styleName
+      ? `No dialogue in this script — ${styleName}'s own look (${VIDEO_STYLES.find((s) => s.slug === styleSlug)?.vibe?.toLowerCase()}) matches ${mappedLabel} best.`
+      : `No dialogue in this script — defaulting to ${mappedLabel}, the general-purpose outcome.`,
+  };
+}
+
 // fal.ai's own documented voice enum for fal-ai/ai-avatar/single-text — keep
 // in sync with AVATAR_VOICES in video_generation_service.py if this changes.
 // Only shown/used when selectedOutcome === 'talking_dialogue'.
@@ -115,6 +162,7 @@ export default function VideoStoryboardGenerator() {
 
   // Video generation state
   const [selectedOutcome, setSelectedOutcome] = useState('quick_video');
+  const [outcomeSuggestionReason, setOutcomeSuggestionReason] = useState('');
   const [selectedVoice, setSelectedVoice] = useState('Sarah');
   const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
   const [videoError, setVideoError] = useState('');
@@ -449,6 +497,7 @@ export default function VideoStoryboardGenerator() {
     setVideoError('');
     setFrameMap({});
     setFrameError('');
+    setOutcomeSuggestionReason('');
     clearSession();
     if (framePollRef.current) clearInterval(framePollRef.current);
     try {
@@ -462,6 +511,12 @@ export default function VideoStoryboardGenerator() {
       if (res.status && res.responseData) {
         setStoryboard(res.responseData);
         saveSession(null, res.responseData, platform);
+        // generateStoryboard's response never carries video_style back (only
+        // the "describe it" endpoint's does, since there the model picks it)
+        // — selectedStyle is what was actually used here, so feed it in.
+        const suggestion = suggestOutcome({ ...res.responseData, video_style: selectedStyle });
+        setSelectedOutcome(suggestion.outcome);
+        setOutcomeSuggestionReason(suggestion.reason);
         // Fire frame image generation in the background
         SocialMediaAgentService.generateStoryboardFrames(
           res.responseData.scenes,
@@ -988,6 +1043,24 @@ export default function VideoStoryboardGenerator() {
                     fallback) is resolved server-side; see the "Routed to:" transparency
                     note above once a job completes, which exists only because this screen
                     is still internal testing, not the brief's actual customer-facing surface. */}
+                {outcomeSuggestionReason && (
+                  <div
+                    style={{
+                      background: '#FFF0F8',
+                      border: `1px solid #FBCFE8`,
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      marginBottom: 14,
+                    }}
+                  >
+                    <p style={{ fontSize: 12.5, color: DARK, margin: 0, lineHeight: 1.5 }}>
+                      <span style={{ fontWeight: 700, color: PRIMARY }}>
+                        ✦ Suggested: {VIDEO_OUTCOMES.find((o) => o.value === selectedOutcome)?.label ?? selectedOutcome}
+                      </span>{' '}
+                      — {outcomeSuggestionReason}
+                    </p>
+                  </div>
+                )}
                 <div style={{ marginBottom: 16 }}>
                   <p
                     style={{
