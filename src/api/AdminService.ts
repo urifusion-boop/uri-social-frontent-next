@@ -205,6 +205,19 @@ export class AdminService {
   }
 
   /**
+   * Re-checks every recently-"published" draft against Outstand's real
+   * status — catches a post that was marked published the moment Outstand
+   * accepted it, but whose underlying platform (e.g. Facebook) actually
+   * rejected it afterward (expired token, policy hold, etc.) with nothing
+   * ever correcting the draft or notifying the owner. Not yet on an
+   * automatic schedule — this IS the manual trigger.
+   */
+  static async reconcilePublishedPosts(): Promise<{ status: boolean; checked: number; corrected: number }> {
+    const response = await UriHttpClient.getClient().post('/api/admin/social-media/reconcile-published-posts');
+    return response.data;
+  }
+
+  /**
    * Adjust a user's credit balance by a signed amount (positive grants,
    * negative claws back). Floored at 0 server-side.
    */

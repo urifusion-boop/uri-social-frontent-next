@@ -196,6 +196,29 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
   const [sortBy, setSortBy] = useState<'createdAt' | 'email' | 'name'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [recentDays, setRecentDays] = useState(7);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileMessage, setReconcileMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const handleReconcilePublishedPosts = async () => {
+    setReconciling(true);
+    setReconcileMessage(null);
+    try {
+      const result = await AdminService.reconcilePublishedPosts();
+      setReconcileMessage({
+        type: 'ok',
+        text:
+          result.corrected > 0
+            ? `Checked ${result.checked} post(s), corrected ${result.corrected} that had silently failed on their platform.`
+            : `Checked ${result.checked} post(s) — all confirmed fine, nothing to correct.`,
+      });
+    } catch (error) {
+      console.error('Failed to reconcile published posts:', error);
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setReconcileMessage({ type: 'err', text: detail || 'Failed to run the reconciliation check.' });
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   useEffect(() => {
     // Wait for the backend-verified admin check to resolve before redirecting —
@@ -561,6 +584,76 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
                   {stats.total_workspaces.toLocaleString()}
                 </div>
               </div>
+            </div>
+
+            {/* Tools */}
+            <div
+              style={{
+                background: 'white',
+                border: '1px solid rgba(0,0,0,.08)',
+                borderRadius: 12,
+                padding: 24,
+                marginTop: 20,
+              }}
+            >
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 8px', color: '#1a1a1a' }}>Tools</h3>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ maxWidth: 480 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginBottom: 4 }}>
+                    Reconcile Facebook/Outstand Publishes
+                  </div>
+                  <div style={{ fontSize: 12, color: '#666' }}>
+                    Checks posts marked &quot;published&quot; in the last 7 days against what actually happened on the
+                    platform — catches a post that silently failed on Facebook (e.g. an expired connection) after we
+                    marked it published. Corrects its status and notifies the owner if their connection needs
+                    reconnecting.
+                  </div>
+                </div>
+                <button
+                  onClick={handleReconcilePublishedPosts}
+                  disabled={reconciling}
+                  style={{
+                    padding: '10px 20px',
+                    border: '1px solid rgba(194,24,91,.2)',
+                    borderRadius: 8,
+                    background: reconciling ? '#f5f5f5' : '#fce4ec',
+                    color: '#AD1457',
+                    cursor: reconciling ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {reconciling ? <I n="loader" s={16} c="#AD1457" /> : <I n="refresh" s={16} c="#AD1457" />}
+                  {reconciling ? 'Checking…' : 'Run Check'}
+                </button>
+              </div>
+              {reconcileMessage && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    background: reconcileMessage.type === 'ok' ? 'rgba(46,125,50,.08)' : 'rgba(211,47,47,.08)',
+                    color: reconcileMessage.type === 'ok' ? '#2E7D32' : '#D32F2F',
+                  }}
+                >
+                  {reconcileMessage.text}
+                </div>
+              )}
             </div>
           </div>
         )}
