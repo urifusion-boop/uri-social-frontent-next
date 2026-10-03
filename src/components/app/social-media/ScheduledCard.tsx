@@ -66,6 +66,13 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
+  // A carousel's images live in slides[], never in the top-level image_url —
+  // the same distinction DraftCard.tsx already makes everywhere. This card
+  // never did, so a scheduled carousel's caption showed up here fine while
+  // its thumbnail silently never did (image_url was correctly empty for it).
+  const isCarousel = draft.post_type === 'carousel' && (draft.slides?.length ?? 0) > 0;
+  const thumbnailImageUrl = isCarousel ? draft.slides?.[0]?.image_url : draft.image_url;
+  const slideCount = draft.slides?.length ?? 0;
   const scheduledDate =
     (draft as ContentDraft & { scheduled_date?: string }).scheduled_date ?? draft.scheduled_datetime;
   // The cron marks a dispatch that actually failed (e.g. a real Facebook
@@ -222,7 +229,7 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
         )}
 
         {/* Image thumbnail if present */}
-        {draft.image_url &&
+        {thumbnailImageUrl &&
           (() => {
             const specs = (draft as { image_specs?: { width?: number; height?: number } }).image_specs;
             const aspect =
@@ -242,6 +249,23 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
                   position: 'relative',
                 }}
               >
+                {isCarousel && slideCount > 1 && (
+                  <Chip
+                    label={`1/${slideCount}`}
+                    size="small"
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      left: 8,
+                      zIndex: 1,
+                      background: 'rgba(0,0,0,0.65)',
+                      color: '#fff',
+                      fontWeight: 600,
+                      fontSize: '11px',
+                      height: 22,
+                    }}
+                  />
+                )}
                 {!imageLoaded && (
                   <Box
                     sx={{
@@ -266,9 +290,9 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
                 )}
                 <img
                   src={
-                    draft.image_url.startsWith('/')
-                      ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}`
-                      : draft.image_url
+                    thumbnailImageUrl.startsWith('/')
+                      ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${thumbnailImageUrl}`
+                      : thumbnailImageUrl
                   }
                   alt="Scheduled post image"
                   onLoad={() => setImageLoaded(true)}
@@ -311,12 +335,12 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
         <DialogContent
           sx={{ p: 2, pt: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000' }}
         >
-          {draft.image_url && (
+          {thumbnailImageUrl && (
             <img
               src={
-                draft.image_url.startsWith('/')
-                  ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${draft.image_url}`
-                  : draft.image_url
+                thumbnailImageUrl.startsWith('/')
+                  ? `${process.env.NEXT_PUBLIC_URI_API_BASE_URL}${thumbnailImageUrl}`
+                  : thumbnailImageUrl
               }
               alt="Scheduled post image"
               style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }}
