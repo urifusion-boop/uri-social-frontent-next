@@ -2904,6 +2904,31 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }, 800);
   };
 
+  // A full-page redirect (window.location.href = ...) either unloads this
+  // page — in which case no JS here ever runs again — or it silently fails
+  // to navigate at all (blocked by the browser, a content filter, or the
+  // destination host being unreachable from this network), in which case
+  // this component is still mounted and nothing ever tells the user why.
+  // Live-reported: exactly this — click Connect, "it bounces back without
+  // any action... or even showing an error at all". There's no event for
+  // "navigation didn't happen"; the only signal is time passing while we're
+  // still here. If we're still here after a few seconds, say so instead of
+  // leaving the user staring at a stuck "Connecting…" state forever.
+  const redirectOrWarn = (url: string, platformId: string) => {
+    const stuckTimer = setTimeout(() => {
+      setConnecting((current) => (current === platformId ? null : current));
+      ToastService.showToast(
+        "Couldn't open the connection page — check your network connection (or a content/ad blocker) and try again.",
+        ToastTypeEnum.Error
+      );
+    }, 6000);
+    // Cleared automatically on real navigation since the whole page (and
+    // this timer with it) goes away; this is just a safety net for the
+    // case where it doesn't.
+    window.addEventListener('pagehide', () => clearTimeout(stuckTimer), { once: true });
+    window.location.href = url;
+  };
+
   const handleConnect = async (id: string, flow: string) => {
     if (flow === 'outstand_oauth') {
       setConnecting(id);
@@ -2913,7 +2938,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         if (res.status && authUrl) {
           localStorage.setItem('outstand_connect_source', 'settings');
           localStorage.setItem('outstand_connect_platform', id); // track which platform initiated
-          window.location.href = authUrl;
+          redirectOrWarn(authUrl, id);
           return;
         }
         ToastService.showToast('Could not start connection. Please try again.', ToastTypeEnum.Error);
@@ -2933,7 +2958,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       localStorage.setItem('outstand_connect_platform', id);
       // Redirect to the Meta/Facebook Login flow for Instagram Business Account connection
       const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
-      window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
+      redirectOrWarn(`${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`, id);
       return;
     }
     if (flow === 'facebook_ads_oauth') {

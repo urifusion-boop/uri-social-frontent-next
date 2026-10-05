@@ -117,7 +117,7 @@ class UriHttpClient {
   private static async handleErrorResponse(error: AxiosError) {
     if (error.response) {
       switch (error.response.status) {
-        case 401:
+        case 401: {
           // A 401 on a JWT-protected endpoint always means the token is
           // missing/invalid/expired — that's true regardless of which
           // endpoint returned it. Scoping this to /auth/ URLs only meant an
@@ -126,9 +126,22 @@ class UriHttpClient {
           // token is normally discovered on whatever the user does next, not
           // by hitting /auth/ directly) was silently ignored, leaving the
           // user stuck on a dead session instead of being logged out.
-          this.clearUserData();
-          window.dispatchEvent(new CustomEvent('unauthorized'));
+          //
+          // Live-reported: a connect-account click (/connect/initiate) got a
+          // 401 and the user was silently force-logged-out with zero visible
+          // feedback — "bounces back, no action, no error at all". Connect
+          // endpoints hit a different backend auth path (flexible_auth) that
+          // can 401 for reasons unrelated to this browser's own session being
+          // dead (e.g. a malformed token shape), so — same as the 403 case
+          // right below — don't nuke the session over one; let the caller's
+          // own catch block show its real error instead.
+          const isConnectEndpoint401 = error.config?.url?.includes('/connect');
+          if (!isConnectEndpoint401) {
+            this.clearUserData();
+            window.dispatchEvent(new CustomEvent('unauthorized'));
+          }
           return Promise.reject(error.response);
+        }
         case 403:
           // Only clear tokens if it's an authentication issue, not authorization
           // Don't clear on brand-profile 403 as user might not have completed onboarding
