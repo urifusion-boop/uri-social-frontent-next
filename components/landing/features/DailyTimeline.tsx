@@ -25,8 +25,14 @@ const DailyTimeline = () => {
       actionWord: 'POSTED!',
     },
     {
+      time: '11:30 AM',
+      text: "Checks your ad spend, cuts what isn't working, and puts more behind what is.",
+      color: 'rgba(255, 152, 0, 0.1)',
+      actionWord: 'OPTIMIZED!',
+    },
+    {
       time: '1:00 PM',
-      text: 'Flags a DM from a potential wholesale buyer. Suggests a reply in your brand voice.',
+      text: 'Spots a DM from a potential wholesale buyer, replies right away, and adds them to your leads list to follow up.',
       color: 'rgba(156, 39, 176, 0.1)',
       actionWord: null,
     },

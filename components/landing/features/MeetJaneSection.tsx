@@ -1,6 +1,7 @@
 const MeetJaneSection = () => {
   const stats = [
     { label: 'CONTENT CREATION', fill: 8 },
+    { label: 'LEAD FOLLOW-UP', fill: 9 },
     { label: 'SPEED', fill: 10 },
     { label: 'STAMINA (24/7)', fill: 10 },
     { label: 'BRAND VOICE', fill: 8 },
@@ -53,7 +54,7 @@ const MeetJaneSection = () => {
                   JANE
                 </h3>
                 <p className="text-sm font-bold uppercase tracking-wider" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
-                  AI SOCIAL MEDIA MANAGER
+                  AI GROWTH EMPLOYEE
                 </p>
                 <div className="flex items-center justify-center gap-1.5 mt-2">
                   <span

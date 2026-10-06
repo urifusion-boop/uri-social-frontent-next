@@ -36,7 +36,7 @@ const OnboardingSection = () => {
     {
       num: 3,
       title: 'Let her cook',
-      desc: 'Jane drafts posts. You approve from WhatsApp, email, or the dashboard. She publishes at the perfect time. You go back to running your business.',
+      desc: 'Jane drafts posts and campaigns. You approve from WhatsApp, email, or the dashboard. She publishes and runs them at the perfect time. You go back to running your business.',
       illustration: (
         <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect x="20" y="10" width="40" height="60" rx="6" fill="hsl(122, 39%, 49%)" stroke="black" strokeWidth="3" />
