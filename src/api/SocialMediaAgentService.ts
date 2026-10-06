@@ -138,6 +138,19 @@ export interface VideoJob {
   current_scene: number;
   clips: VideoClip[];
   error: string | null;
+  // Live fal.ai queue status for whichever scene is generating right now —
+  // only present while a fal.ai call is actually in flight (unset on
+  // completion/timeout). Lets the UI show real progress (queued/position,
+  // processing, elapsed time) instead of a static spinner for however long
+  // the model actually takes — the talking-avatar model routinely runs
+  // 3-12+ minutes.
+  current_scene_status?: {
+    scene_number: number;
+    model_label: string;
+    state: 'Queued' | 'InProgress';
+    position: number | null;
+    elapsed_seconds: number;
+  };
 }
 
 export interface VideoFromStoryboardPayload {

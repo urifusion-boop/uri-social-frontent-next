@@ -1015,9 +1015,22 @@ export default function VideoStoryboardGenerator() {
                     }}
                   />
                 </div>
-                <p style={{ fontSize: 11, color: GREY, margin: '6px 0 0' }}>
-                  Each scene takes ~30–90 seconds. This page will update automatically.
-                </p>
+                {videoJob.current_scene_status ? (
+                  <p style={{ fontSize: 11, color: GREY, margin: '6px 0 0' }}>
+                    {videoJob.current_scene_status.model_label}:{' '}
+                    {videoJob.current_scene_status.state === 'Queued'
+                      ? `queued on fal.ai${videoJob.current_scene_status.position != null ? ` (position ${videoJob.current_scene_status.position})` : ''}`
+                      : 'processing'}{' '}
+                    · {videoJob.current_scene_status.elapsed_seconds}s elapsed
+                    {videoJob.current_scene_status.model_label === 'Talking Avatar'
+                      ? ' — this model can take several minutes'
+                      : ''}
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 11, color: GREY, margin: '6px 0 0' }}>
+                    Each scene takes ~30–90 seconds. This page will update automatically.
+                  </p>
+                )}
                 <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
               </div>
             )}
