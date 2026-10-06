@@ -113,6 +113,14 @@ export default function Navbar() {
             >
               Contact
             </Link>
+            <Link
+              href="/api-docs"
+              className="text-xs font-bold uppercase tracking-wide transition-colors duration-150"
+              style={{ color: 'rgba(0, 0, 0, 0.7)' }}
+              onClick={() => trackEvent('nav_click', { destination: 'developers' })}
+            >
+              Developers
+            </Link>
 
             {isAuthenticated ? (
               <>
@@ -291,6 +299,13 @@ export default function Navbar() {
                   onClick={() => setOpen(false)}
                 >
                   Contact
+                </Link>
+                <Link
+                  href="/api-docs"
+                  className="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:text-[#CD1B78] transition-colors rounded-lg mx-2"
+                  onClick={() => setOpen(false)}
+                >
+                  Developers
                 </Link>
 
                 {isAuthenticated ? (

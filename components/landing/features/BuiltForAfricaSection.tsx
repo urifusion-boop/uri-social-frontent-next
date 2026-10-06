@@ -9,7 +9,7 @@ const BuiltForAfricaSection = () => {
     {
       letter: 'W',
       title: 'WhatsApp everything',
-      desc: "Approve posts, get alerts, review performance — all from WhatsApp. Because that's how we move.",
+      desc: "Approve posts, get alerts, and review performance, all from WhatsApp. Because that's how we move.",
       color: 'hsl(122, 39%, 49%)',
     },
     {
