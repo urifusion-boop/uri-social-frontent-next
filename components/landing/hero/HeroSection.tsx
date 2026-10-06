@@ -22,14 +22,17 @@ const HeroSection = () => {
               className="comic-headline text-2xl sm:text-3xl md:text-4xl lg:text-4xl xl:text-5xl font-black mb-5 sm:mb-6 leading-tight"
               style={{ color: 'white' }}
             >
-              YOUR SOCIAL MEDIA MANAGER <span className="highlight-strip">JUST CLOCKED IN.</span>
+              YOU RUN THE BUSINESS.
+              <br />
+              <span className="highlight-strip">URI RUNS THE GROWTH.</span>
             </h1>
             <p
               className="text-sm sm:text-base md:text-lg font-semibold max-w-full lg:max-w-lg leading-relaxed mb-6 sm:mb-7"
               style={{ color: 'rgba(255, 255, 255, 0.9)' }}
             >
-              Meet Jane — she creates posts, publishes on time, monitors trends, replies to customers, and writes you a
-              performance report every week. She never takes leave. She never asks for a raise. She just... delivers.
+              Your marketing and sales team, in one AI employee. Create content, run ads, find people looking for what
+              you sell, reply to everyone from one place, and understand what's driving sales. Built for African
+              businesses.
             </p>
 
             {/* CTAs */}

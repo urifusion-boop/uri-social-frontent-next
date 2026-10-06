@@ -3679,6 +3679,19 @@ function ResultCard({
         </div>
       );
     }
+    // Meta refused to grant URI advertising access to the Page — the token and the
+    // permissions are fine, so offering "Reconnect" (as meta_connection_expired does)
+    // sends the client round a loop that re-runs the identical refused call. Name the
+    // one thing they can actually change: their own role on the Page.
+    if (result.stage === 'meta_connection_page_not_shared') {
+      return (
+        <JaneBubble>
+          I can&rsquo;t advertise from {result.page_name || 'this Page'} — your Facebook account doesn&rsquo;t have full
+          admin access to it. Ask whoever manages the Page to make you an admin, then reconnect and we&rsquo;ll carry on
+          from here.
+        </JaneBubble>
+      );
+    }
     if (result.stage === 'meta_connection_no_page') {
       return (
         <JaneBubble>

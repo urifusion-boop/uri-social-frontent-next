@@ -218,6 +218,10 @@ export interface LaunchFromMessageResult {
     | 'meta_connection_content_only'
     | 'meta_connection_ads_no_whatsapp'
     | 'meta_connection_expired'
+    // Meta refused URI's Business Manager ADVERTISE access to the Page. Distinct from
+    // 'expired' on purpose: the token and scopes are fine, so reconnecting re-runs the
+    // same refused call — the fix is on Meta's side, usually by the Page's owner.
+    | 'meta_connection_page_not_shared'
     | 'meta_connection_no_page'
     // Explicit "put this on TikTok" request (preferred_platform: 'tiktok') that
     // couldn't be honoured right now — see MetaLaunchFromMessageBody.preferred_platform.

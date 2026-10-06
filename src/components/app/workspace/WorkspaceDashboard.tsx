@@ -3847,6 +3847,17 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         {p.id === 'facebook_ads' && s?.meta_connection_state === 'expired' && (
                           <span style={{ color: '#c62828' }}> — needs reconnecting</span>
                         )}
+                        {/* Meta refused to give URI advertising access to the Page.
+                            Reconnecting re-runs the identical grant and is refused
+                            identically — one client tried several times. Name the
+                            thing the client can actually change: their own role. */}
+                        {p.id === 'facebook_ads' && s?.meta_connection_state === 'page_not_shared' && (
+                          <span style={{ color: '#c62828' }}>
+                            {' '}
+                            — you don&rsquo;t have full admin access to this Page. Ask whoever manages it to make you an
+                            admin, then reconnect.
+                          </span>
+                        )}
                         {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
                           <span style={{ color: '#4285F4' }}> — choose or create your Ads account below</span>
                         )}
