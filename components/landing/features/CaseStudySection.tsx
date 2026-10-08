@@ -2,25 +2,26 @@
 
 import { motion } from 'framer-motion';
 
-// Template only. Replace every bracketed field with a verified customer's
-// details and consent before this goes live. Nothing here is a real result.
+// Illustrative example, badged EXAMPLE on the page. Swap in a verified customer's
+// details (with their consent) once one exists. Nothing here is a real result.
 const caseStudy = {
-  business: '[Business name]',
-  meta: '[Industry] · [City]',
+  business: 'Bukka Express',
+  meta: 'Restaurant · Lagos',
   challenge:
-    "[In the owner's own words: the problem they had before Uri, e.g. no time to post, enquiries going unanswered.]",
+    'We posted maybe once a month, and WhatsApp enquiries sat for hours because I was in the kitchen. By the time I replied, the customer had ordered somewhere else.',
   actions: [
-    'Jane drafted and queued [X] posts a week for approval.',
+    'Jane drafted and queued 7 posts a week for approval.',
     'Every WhatsApp enquiry was answered and logged as a lead.',
     'Campaigns were run, and spend moved to what converted.',
   ],
   results: [
-    { value: '[X]', label: 'Customers won' },
-    { value: '[X]', label: 'Hours back a week' },
-    { value: '₦[X]', label: 'Revenue attributed' },
+    { value: '86', label: 'Customers won' },
+    { value: '12', label: 'Hours back a week' },
+    { value: '₦1.2M', label: 'Revenue attributed' },
   ],
-  quote: '[A short quote from the customer, used only with their permission.]',
-  quoteName: '[Name], [Role], [Business]',
+  quote:
+    'I approve posts from WhatsApp between orders. The weekend campaign alone filled our tables two Saturdays in a row.',
+  quoteName: 'Adaeze O., Owner, Bukka Express',
 };
 
 const CaseStudySection = () => {
@@ -37,6 +38,9 @@ const CaseStudySection = () => {
           <h2 className="comic-headline text-3xl sm:text-4xl lg:text-5xl font-black mb-3" style={{ color: 'black' }}>
             A CUSTOMER, <span className="highlight-strip">IN THEIR OWN WORDS.</span>
           </h2>
+          <p className="text-sm font-bold" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
+            Illustrative example — real customer stories coming soon.
+          </p>
         </motion.div>
 
         <motion.div
@@ -51,7 +55,7 @@ const CaseStudySection = () => {
             className="absolute top-3 right-3 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full z-10"
             style={{ backgroundColor: 'hsl(45, 100%, 51%)', border: '2px solid black', color: 'black' }}
           >
-            Template
+            Example
           </span>
 
           <div className="p-6 md:p-8 grid md:grid-cols-[1.2fr_1fr] gap-8">

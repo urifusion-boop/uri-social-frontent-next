@@ -3,26 +3,26 @@
 import { motion } from 'framer-motion';
 
 // Before/after states are drawn from what Uri actually does (see the
-// DailyTimeline and WhatsApp approval flow). Bracketed figures are
-// placeholders until verified customer numbers exist.
+// DailyTimeline and WhatsApp approval flow). Figures are illustrative
+// examples until verified customer numbers exist.
 const rows = [
   {
     area: 'Content',
     before: 'Posting when you remember. Your last post is still the one from February.',
     after: 'A week of posts drafted every morning. You approve from WhatsApp in about 30 seconds.',
-    figure: '[X] posts a week, without you writing them',
+    figure: '7 posts a week, without you writing them',
   },
   {
     area: 'Enquiries',
     before: 'DMs sit unread for days, and the buyer goes to someone who answered first.',
     after: 'Every enquiry answered, logged as a lead, and followed up on.',
-    figure: '[X]% of enquiries answered within the hour',
+    figure: '95% of enquiries answered within the hour',
   },
   {
     area: 'Ad spend',
     before: 'Money goes out on ads and nobody can say which one brought a customer.',
     after: 'Spend shifts to whatever is converting, and you can see the cost per customer.',
-    figure: '[X]% lower cost per customer',
+    figure: '38% lower cost per customer',
   },
 ];
 
@@ -41,7 +41,7 @@ const BeforeAfterSection = () => {
             BEFORE <span className="highlight-strip">AND AFTER URI.</span>
           </h2>
           <p className="text-sm font-bold" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
-            Figures in brackets are placeholders until verified results are in.
+            Figures shown are illustrative examples — real customer results coming soon.
           </p>
         </motion.div>
 
