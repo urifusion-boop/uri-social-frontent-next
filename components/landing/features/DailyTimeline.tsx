@@ -109,11 +109,10 @@ const DailyTimeline = () => {
                   </div>
                   {/* Timeline dot */}
                   <div
-                    className="absolute left-4 md:left-1/2 top-5 w-4 h-4 rounded-full"
+                    className="absolute left-[26px] md:left-[calc(50%+2px)] -translate-x-1/2 top-5 w-4 h-4 rounded-full"
                     style={{
                       backgroundColor: 'hsl(340, 74%, 42%)',
                       border: '3px solid black',
-                      transform: 'translateX(-2px) md:translateX(-8px)',
                     }}
                   />
                 </div>

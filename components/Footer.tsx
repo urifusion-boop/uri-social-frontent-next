@@ -7,7 +7,7 @@ export default function Footer() {
   const footerLinks = {
     Product: [
       { label: 'Workspace', to: '/workspace' },
-      { label: 'Pricing', to: '/#pricing' },
+      { label: 'Pricing', to: '/pricing' },
       { label: 'Changelog', to: '/changelog' },
       { label: 'API Docs', to: '/api-docs' },
     ],

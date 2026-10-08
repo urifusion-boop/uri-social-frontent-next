@@ -84,7 +84,10 @@ const FinalCTASection = () => {
             type="button"
             className="comic-btn px-10 py-4 rounded-lg text-lg"
             style={{ backgroundColor: 'black', color: 'white' }}
-            onClick={() => trackEvent('final_cta_click')}
+            onClick={() => {
+              trackEvent('final_cta_click');
+              window.location.href = '/login?tab=signup';
+            }}
           >
             HIRE JANE →
           </button>

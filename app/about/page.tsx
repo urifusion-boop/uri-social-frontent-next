@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ScrollReveal } from "@/components/landing/shared/ScrollReveal";
+import { ScrollReveal } from "@/components/ScrollReveal";
 import { useEffect } from "react";
 
 const teamMembers = [

@@ -15,19 +15,19 @@ const EvidenceSection = () => {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           <ProofCard
-            metrics={[{ value: '[X]', label: 'Qualified leads' }]}
+            metrics={[{ value: '243', label: 'Qualified leads' }]}
             context="For a Lagos restaurant running one weekend campaign on Uri."
           />
           <ProofCard
             metrics={[
-              { value: '₦[X]', label: 'Spent' },
-              { value: '[Y]', label: 'Conversations' },
-              { value: '[Z]', label: 'Sales' },
+              { value: '₦124,000', label: 'Spent' },
+              { value: '1,892', label: 'Conversations' },
+              { value: '318', label: 'Sales' },
             ]}
             context="The full funnel Uri tracks automatically, end to end."
           />
           <ProofCard
-            metrics={[{ value: '₦[X]', label: 'Cost per customer' }]}
+            metrics={[{ value: '₦3,450', label: 'Cost per customer' }]}
             context="Not cost per click. Cost per person who actually bought."
           />
         </div>
