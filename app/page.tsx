@@ -1,5 +1,3 @@
-'use client';
-
 import BeforeAfterSection from '@/components/landing/features/BeforeAfterSection';
 import BuiltForAfricaSection from '@/components/landing/features/BuiltForAfricaSection';
 import CaseStudySection from '@/components/landing/features/CaseStudySection';
@@ -11,6 +9,7 @@ import FinalCTASection from '@/components/landing/features/FinalCTASection';
 import FocusSection from '@/components/landing/features/FocusSection';
 import GrowthEngineSection from '@/components/landing/features/GrowthEngineSection';
 import MeetJaneSection from '@/components/landing/features/MeetJaneSection';
+import OneBoxSection from '@/components/landing/features/OneBoxSection';
 import OnboardingSection from '@/components/landing/features/OnboardingSection';
 import OutcomeCardsSection from '@/components/landing/features/OutcomeCardsSection';
 import OutcomePromptSection from '@/components/landing/features/OutcomePromptSection';
@@ -36,6 +35,7 @@ export default function Home() {
       <OnboardingSection />
       <DailyTimeline />
       <WorkspaceSection />
+      <OneBoxSection />
       <ComparisonSection />
       <BuiltForAfricaSection />
       <UseCasesSection />

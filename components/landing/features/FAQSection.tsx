@@ -2,125 +2,138 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Sparkles, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { trackEvent } from '@/lib/analytics';
 
 const FAQSection = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
+  // Answers reflect what the product does today — check the backend before changing them.
   const faqs = [
     {
-      question: 'How does Jane create content?',
+      question: 'What does Jane actually do?',
       answer:
-        "Jane uses advanced AI to analyze your brand voice, audience preferences, and trending topics. She generates engaging, on-brand content tailored to each platform's best practices.",
+        'Jane is your AI marketing and sales employee. She creates posts, graphics and videos in your brand voice, publishes them on schedule, plans and runs ad campaigns, and brings your Instagram and Facebook messages and comments into one inbox so no enquiry goes unanswered.',
     },
     {
-      question: 'Can I review posts before they go live?',
+      question: 'Which platforms can Jane post to?',
       answer:
-        'Absolutely! You can set Jane to auto-publish or require your approval for each post. You have full control over your content strategy.',
+        'Facebook, Instagram, LinkedIn, X (Twitter) and TikTok. Connect your accounts once and Jane formats each post for the platform it is going to.',
     },
     {
-      question: 'Which social media platforms does Jane support?',
+      question: 'Do I get to approve posts before they go live?',
       answer:
-        "Jane supports all major platforms including Facebook, Instagram, Twitter/X, LinkedIn, TikTok, Pinterest, and YouTube. We're constantly adding new platforms.",
+        'Yes. By default every post waits for your approval: approve from the dashboard, or reply "1" on WhatsApp. If you would rather not review each one, switch your workspace to auto-publish.',
+    },
+    {
+      question: 'How do ads work with Jane?',
+      answer:
+        'Tell Jane your goal and budget, such as more WhatsApp enquiries or more sales. She builds the campaign, audience and creatives, and shows you the plan. You can edit any line before you launch. Ads run on Facebook and Instagram, and Jane reports spend, conversations and cost per conversation.',
+    },
+    {
+      question: 'Is ad spend included in my plan?',
+      answer:
+        'No. Your plan pays for Jane’s work. Ad spend is paid from a separate ad wallet that you top up in Naira (minimum top-up ₦5,000), so you always see exactly how much went to ads.',
     },
     {
       question: 'How does the free trial work?',
       answer:
-        'Your 7-day free trial includes 10 credits to create content. No credit card required. You can upgrade to a paid plan anytime during the trial.',
+        'Your 7-day free trial comes with 10 credits to create content. You don’t need a card to start, and you can upgrade to a paid plan at any time.',
     },
     {
-      question: 'Can I change plans later?',
+      question: 'What are credits, and how much do plans cost?',
       answer:
-        "Yes! You can upgrade or downgrade your plan at any time. Changes take effect immediately, and we'll prorate any charges.",
+        'Credits pay for what Jane creates. Video editing uses more credits than a single post. Plans start at ₦15,000 a month for 20 credits, and you can pay in Naira or US dollars. Pay for 3, 6 or 12 months upfront and save 5%.',
     },
     {
-      question: 'What kind of analytics does Jane provide?',
+      question: 'Can I cancel?',
       answer:
-        "Jane tracks engagement metrics, audience growth, best posting times, content performance, and ROI. You'll receive detailed reports tailored to your plan level.",
+        'Yes, at any time from Billing. Your remaining credits stay usable until the end of the period you have already paid for.',
+    },
+    {
+      question: 'Does Jane write in Pidgin?',
+      answer:
+        'Yes. Choose standard English or a light-to-heavy mix of Nigerian Pidgin, and Jane writes your captions to match your brand voice.',
     },
   ];
 
   return (
-    <section id="faq" className="py-24 lg:py-32 bg-gradient-to-b from-background to-primary/5">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-16"
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold text-primary">FAQ</span>
-          </div>
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6">
-            Questions? <span className="text-gradient-primary">We've got answers</span>
+    <section id="faq" className="py-16 lg:py-20 halftone-bg-light" style={{ backgroundColor: 'hsl(12, 100%, 98%)' }}>
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-12">
+          <h2
+            className="comic-headline text-3xl sm:text-4xl lg:text-5xl font-black mb-4"
+            style={{ color: 'black', transform: 'rotate(-1deg)' }}
+          >
+            QUESTIONS? <span className="highlight-strip">WE&apos;VE GOT ANSWERS.</span>
           </h2>
-          <p className="text-xl text-muted-foreground">Everything you need to know about Jane and how she works</p>
-        </motion.div>
-
-        {/* FAQ Items */}
-        <div className="space-y-4">
-          {faqs.map((faq, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: index * 0.05 }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  const opening = openIndex !== index;
-                  setOpenIndex(opening ? index : null);
-                  if (opening) trackEvent('faq_expanded', { question: faq.question });
-                }}
-                className="w-full bg-card border border-border rounded-xl p-6 hover:border-primary/50 transition-all duration-300 text-left group"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <h3 className="text-lg font-semibold pr-8 group-hover:text-primary transition-colors">
-                    {faq.question}
-                  </h3>
-                  <ChevronDown
-                    className={`w-5 h-5 text-primary shrink-0 transition-transform duration-300 ${
-                      openIndex === index ? 'rotate-180' : ''
-                    }`}
-                  />
-                </div>
-                <motion.div
-                  initial={false}
-                  animate={{
-                    height: openIndex === index ? 'auto' : 0,
-                    opacity: openIndex === index ? 1 : 0,
-                  }}
-                  transition={{ duration: 0.3 }}
-                  className="overflow-hidden"
-                >
-                  <p className="text-muted-foreground mt-4 leading-relaxed">{faq.answer}</p>
-                </motion.div>
-              </button>
-            </motion.div>
-          ))}
+          <p className="text-sm font-bold uppercase tracking-wider" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
+            Everything you need to know about Jane
+          </p>
         </div>
 
-        {/* CTA */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="text-center mt-12"
-        >
-          <p className="text-muted-foreground mb-4">Still have questions?</p>
-          <button className="gradient-primary text-white px-8 py-3 rounded-full font-semibold hover:shadow-lg hover:shadow-primary/25 transition-all duration-300 hover:scale-105">
-            Contact Support
-          </button>
-        </motion.div>
+        <div className="space-y-4">
+          {faqs.map((faq, index) => {
+            const isOpen = openIndex === index;
+            return (
+              <motion.div
+                key={faq.question}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: index * 0.05 }}
+                className="comic-panel"
+                style={{ backgroundColor: 'white' }}
+              >
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  onClick={() => {
+                    setOpenIndex(isOpen ? null : index);
+                    if (!isOpen) trackEvent('faq_expanded', { question: faq.question });
+                  }}
+                  className="w-full p-5 text-left"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <h3 className="text-base sm:text-lg font-black uppercase" style={{ color: 'black' }}>
+                      {faq.question}
+                    </h3>
+                    <ChevronDown
+                      className={`w-5 h-5 shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+                      style={{ color: 'hsl(340, 74%, 42%)' }}
+                      strokeWidth={3}
+                    />
+                  </div>
+                  <motion.div
+                    initial={false}
+                    animate={{ height: isOpen ? 'auto' : 0, opacity: isOpen ? 1 : 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="overflow-hidden"
+                  >
+                    <p className="text-sm leading-relaxed mt-3" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                      {faq.answer}
+                    </p>
+                  </motion.div>
+                </button>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <div className="text-center mt-12">
+          <p className="text-base font-black mb-4" style={{ color: 'black' }}>
+            Still have questions?
+          </p>
+          <Link
+            href="/contact"
+            className="comic-btn inline-block px-8 py-3 rounded-lg text-sm"
+            style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}
+            onClick={() => trackEvent('faq_contact_click')}
+          >
+            CONTACT SUPPORT →
+          </Link>
+        </div>
       </div>
     </section>
   );

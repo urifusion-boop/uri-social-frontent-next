@@ -12,8 +12,8 @@ interface ProofCardProps {
 /**
  * Reusable "CUSTOMER RESULT" / "CAMPAIGN RESULT" proof card (brief §13).
  * No verified customer data exists yet, so every usage today passes
- * isPlaceholder (the default) and bracketed values like "[X]" rather than
- * an invented-looking number — swap in real metrics and isPlaceholder=false
+ * isPlaceholder (the default), which keeps the illustrative numbers clearly
+ * badged "EXAMPLE" — swap in real metrics and isPlaceholder=false
  * once a verified result is available, and the dashed/"EXAMPLE" treatment
  * drops away automatically.
  */
@@ -34,7 +34,7 @@ const ProofCard = ({ metrics, context, isPlaceholder = true }: ProofCardProps) =
           Example
         </span>
       )}
-      <div className="flex items-end gap-4 flex-wrap mb-2">
+      <div className={`flex items-end gap-4 flex-wrap mb-2 ${isPlaceholder ? 'pt-6' : ''}`}>
         {metrics.map((metric) => (
           <div key={metric.label}>
             <div className="text-2xl font-black" style={{ color: 'hsl(340, 74%, 42%)' }}>
