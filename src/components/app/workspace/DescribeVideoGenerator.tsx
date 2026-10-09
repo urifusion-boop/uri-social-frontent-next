@@ -53,6 +53,11 @@ interface UploadedImage {
 export default function DescribeVideoGenerator() {
   const [brief, setBrief] = useState('');
   const [images, setImages] = useState<UploadedImage[]>([]);
+  // Required (not just a disclaimer the user can ignore) whenever reference
+  // images are attached — an uploaded photo goes to gpt-image-2/fal.ai, so
+  // this is the one point where the user affirmatively confirms they're
+  // allowed to use it, not just text they can scroll past.
+  const [confirmedImageRights, setConfirmedImageRights] = useState(false);
   const [platform, setPlatform] = useState('instagram_reels');
   const [duration, setDuration] = useState(15);
   const [loading, setLoading] = useState(false);
@@ -191,12 +196,17 @@ export default function DescribeVideoGenerator() {
         setImages((prev) =>
           prev.length < 5 ? [...prev, { dataUrl: reader.result as string, name: file.name }] : prev
         );
+        // A newly added image hasn't been covered by any prior confirmation.
+        setConfirmedImageRights(false);
       };
       reader.readAsDataURL(file);
     });
   };
 
-  const removeImage = (idx: number) => setImages((prev) => prev.filter((_, i) => i !== idx));
+  const removeImage = (idx: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== idx));
+    setConfirmedImageRights(false);
+  };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -241,6 +251,7 @@ export default function DescribeVideoGenerator() {
 
   const handleGenerateStoryboard = async () => {
     if (!brief.trim()) return;
+    if (images.length > 0 && !confirmedImageRights) return;
     setLoading(true);
     setError('');
     setStoryboard(null);
@@ -444,6 +455,33 @@ export default function DescribeVideoGenerator() {
             ))}
           </div>
         )}
+
+        {images.length > 0 && (
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 8,
+              marginTop: 14,
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: confirmedImageRights ? '#F0FDF4' : '#FFF7ED',
+              border: `1px solid ${confirmedImageRights ? '#86EFAC' : '#FDBA74'}`,
+              cursor: 'pointer',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={confirmedImageRights}
+              onChange={(e) => setConfirmedImageRights(e.target.checked)}
+              style={{ marginTop: 2, flexShrink: 0, width: 15, height: 15, cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: 12, color: DARK, lineHeight: 1.5 }}>
+              I confirm I have the legal right to use the image{images.length > 1 ? 's' : ''} uploaded above, and
+              permission to process {images.length > 1 ? 'them' : 'it'} with AI.
+            </span>
+          </label>
+        )}
       </Section>
 
       {/* Platform + Duration */}
@@ -520,26 +558,37 @@ export default function DescribeVideoGenerator() {
         </div>
       )}
 
-      <button
-        onClick={handleGenerateStoryboard}
-        disabled={!brief.trim() || loading}
-        style={{
-          width: '100%',
-          padding: '13px 0',
-          borderRadius: 10,
-          background: !brief.trim() || loading ? '#E5E7EB' : PRIMARY,
-          color: !brief.trim() || loading ? '#9CA3AF' : '#fff',
-          border: 'none',
-          fontSize: 14,
-          fontWeight: 700,
-          cursor: !brief.trim() || loading ? 'not-allowed' : 'pointer',
-          fontFamily: 'inherit',
-          transition: 'background .15s',
-          marginBottom: 28,
-        }}
-      >
-        {loading ? 'Writing creative direction & script…' : 'Generate Storyboard'}
-      </button>
+      {(() => {
+        const needsRightsConfirm = images.length > 0 && !confirmedImageRights;
+        const isDisabled = !brief.trim() || loading || needsRightsConfirm;
+        return (
+          <button
+            onClick={handleGenerateStoryboard}
+            disabled={isDisabled}
+            title={needsRightsConfirm ? 'Confirm you have the rights to the uploaded image(s) above first' : ''}
+            style={{
+              width: '100%',
+              padding: '13px 0',
+              borderRadius: 10,
+              background: isDisabled ? '#E5E7EB' : PRIMARY,
+              color: isDisabled ? '#9CA3AF' : '#fff',
+              border: 'none',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: isDisabled ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              transition: 'background .15s',
+              marginBottom: 28,
+            }}
+          >
+            {loading
+              ? 'Writing creative direction & script…'
+              : needsRightsConfirm
+                ? 'Confirm image rights above to continue'
+                : 'Generate Storyboard'}
+          </button>
+        );
+      })()}
 
       {loading && <Spinner label="Inventing the creative concept and scene-by-scene script…" />}
 
