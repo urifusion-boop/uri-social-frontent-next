@@ -98,6 +98,9 @@ export interface CreativeStoryboardPayload {
   target_platform: string;
   target_duration_seconds: number;
   video_style?: string;
+  // Set when regenerating from a hand-edited creative_direction — the model
+  // uses this text verbatim instead of writing its own from the brief.
+  creative_direction_override?: string;
 }
 
 export interface VideoClip {

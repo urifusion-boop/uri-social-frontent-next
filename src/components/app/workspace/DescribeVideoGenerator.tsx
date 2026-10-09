@@ -63,6 +63,13 @@ export default function DescribeVideoGenerator() {
   const [loading, setLoading] = useState(false);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [error, setError] = useState('');
+  // Editing creative_direction regenerates the whole storyboard (new scenes,
+  // new frames) from the edited text rather than just changing the label —
+  // the direction is what the scenes exist to serve, so a stale script after
+  // editing it would be misleading.
+  const [editingDirection, setEditingDirection] = useState(false);
+  const [editedDirection, setEditedDirection] = useState('');
+  const [regeneratingDirection, setRegeneratingDirection] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -249,12 +256,23 @@ export default function DescribeVideoGenerator() {
     }, 5000);
   };
 
-  const handleGenerateStoryboard = async () => {
-    if (!brief.trim()) return;
-    if (images.length > 0 && !confirmedImageRights) return;
-    setLoading(true);
+  // Shared by a fresh generation and a creative-direction-edit regeneration —
+  // both end the same way: a new storyboard, then kick off frame generation
+  // for its scenes. videoStyleOverride/creativeDirectionOverride are only
+  // set on the regenerate path, to keep the same style and force the edited
+  // direction instead of letting the model infer/rewrite either.
+  const runStoryboardGeneration = async (opts?: {
+    videoStyleOverride?: string;
+    creativeDirectionOverride?: string;
+  }): Promise<boolean> => {
     setError('');
-    setStoryboard(null);
+    // Only clear the storyboard on a fresh generation — a direction-edit
+    // regeneration keeps the old one mounted (and with it, the Creative
+    // Direction block's own edit/regenerate UI) until the new one replaces
+    // it below, instead of the whole section disappearing mid-regenerate.
+    if (!opts) {
+      setStoryboard(null);
+    }
     setVideoJob(null);
     setVideoError('');
     setFrameMap({});
@@ -267,8 +285,10 @@ export default function DescribeVideoGenerator() {
         reference_images: images.map((img) => img.dataUrl),
         target_platform: platform,
         target_duration_seconds: duration,
-        // video_style omitted on purpose — the model infers it from the
-        // brief itself; see the top-of-file comment.
+        // video_style omitted on a fresh generation on purpose — the model
+        // infers it from the brief itself; see the top-of-file comment.
+        ...(opts?.videoStyleOverride ? { video_style: opts.videoStyleOverride } : {}),
+        ...(opts?.creativeDirectionOverride ? { creative_direction_override: opts.creativeDirectionOverride } : {}),
       });
       if (res.status && res.responseData) {
         setStoryboard(res.responseData);
@@ -285,13 +305,43 @@ export default function DescribeVideoGenerator() {
             }
           })
           .catch(() => {});
+        return true;
       } else {
         setError(res.responseMessage || 'Creative storyboard generation failed. Please try again.');
+        return false;
       }
     } catch {
       setError('Something went wrong. Please try again.');
+      return false;
+    }
+  };
+
+  const handleGenerateStoryboard = async () => {
+    if (!brief.trim()) return;
+    if (images.length > 0 && !confirmedImageRights) return;
+    setLoading(true);
+    try {
+      await runStoryboardGeneration();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRegenerateWithDirection = async () => {
+    if (!editedDirection.trim()) return;
+    setRegeneratingDirection(true);
+    try {
+      const succeeded = await runStoryboardGeneration({
+        videoStyleOverride: storyboard?.video_style,
+        creativeDirectionOverride: editedDirection.trim(),
+      });
+      // Stay in edit mode on failure — the edited text (and the error above)
+      // stay visible so the user can just retry instead of losing the edit.
+      if (succeeded) {
+        setEditingDirection(false);
+      }
+    } finally {
+      setRegeneratingDirection(false);
     }
   };
 
@@ -619,23 +669,115 @@ export default function DescribeVideoGenerator() {
                 >
                   Creative Direction
                 </p>
-                {storyboard.video_style && (
-                  <span
-                    style={{
-                      fontSize: 10.5,
-                      fontWeight: 700,
-                      color: PRIMARY,
-                      background: '#fff',
-                      border: `1px solid #FBCFE8`,
-                      borderRadius: 99,
-                      padding: '2px 10px',
-                    }}
-                  >
-                    Style: {VIDEO_STYLES.find((s) => s.slug === storyboard.video_style)?.name ?? storyboard.video_style}
-                  </span>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {storyboard.video_style && (
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        color: PRIMARY,
+                        background: '#fff',
+                        border: `1px solid #FBCFE8`,
+                        borderRadius: 99,
+                        padding: '2px 10px',
+                      }}
+                    >
+                      Style:{' '}
+                      {VIDEO_STYLES.find((s) => s.slug === storyboard.video_style)?.name ?? storyboard.video_style}
+                    </span>
+                  )}
+                  {!editingDirection && !regeneratingDirection && (
+                    <button
+                      onClick={() => {
+                        setEditedDirection(storyboard.creative_direction || '');
+                        setEditingDirection(true);
+                      }}
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        color: PRIMARY,
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      ✎ Edit
+                    </button>
+                  )}
+                </div>
               </div>
-              <p style={{ fontSize: 13, color: DARK, margin: 0, lineHeight: 1.6 }}>{storyboard.creative_direction}</p>
+
+              {editingDirection ? (
+                <div>
+                  <textarea
+                    value={editedDirection}
+                    onChange={(e) => setEditedDirection(e.target.value)}
+                    rows={4}
+                    maxLength={2000}
+                    disabled={regeneratingDirection}
+                    style={{
+                      width: '100%',
+                      border: `1.5px solid ${BORDER}`,
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                      fontSize: 13,
+                      color: DARK,
+                      resize: 'vertical',
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      background: regeneratingDirection ? '#F9FAFB' : '#fff',
+                      marginBottom: 8,
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={handleRegenerateWithDirection}
+                      disabled={!editedDirection.trim() || regeneratingDirection}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: !editedDirection.trim() || regeneratingDirection ? '#E5E7EB' : PRIMARY,
+                        color: !editedDirection.trim() || regeneratingDirection ? '#9CA3AF' : '#fff',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: !editedDirection.trim() || regeneratingDirection ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {regeneratingDirection ? 'Regenerating scenes…' : 'Regenerate with this direction'}
+                    </button>
+                    {!regeneratingDirection && (
+                      <button
+                        onClick={() => setEditingDirection(false)}
+                        style={{
+                          padding: '7px 14px',
+                          borderRadius: 8,
+                          border: `1.5px solid ${BORDER}`,
+                          background: '#fff',
+                          color: GREY,
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                  {regeneratingDirection && (
+                    <p style={{ fontSize: 11, color: GREY, margin: '8px 0 0' }}>
+                      Rewriting the script to match this direction — new scenes and images are coming.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p style={{ fontSize: 13, color: DARK, margin: 0, lineHeight: 1.6 }}>{storyboard.creative_direction}</p>
+              )}
             </div>
           )}
 
