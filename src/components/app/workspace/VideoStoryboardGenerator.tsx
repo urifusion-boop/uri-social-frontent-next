@@ -141,6 +141,9 @@ export const DURATIONS = [
   { value: 15, label: '15s' },
   { value: 20, label: '20s' },
   { value: 30, label: '30s' },
+  { value: 40, label: '40s' },
+  { value: 50, label: '50s' },
+  { value: 60, label: '60s' },
 ];
 
 interface UploadedImage {
@@ -835,7 +838,7 @@ export default function VideoStoryboardGenerator() {
             <label style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 6 }}>
               Duration
             </label>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {DURATIONS.map((d) => (
                 <button
                   key={d.value}
