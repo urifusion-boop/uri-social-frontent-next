@@ -1,3 +1,7 @@
+'use client';
+
+import { trackEvent } from '@/lib/analytics';
+
 const OnboardingSection = () => {
   const steps = [
     {
@@ -162,6 +166,10 @@ const OnboardingSection = () => {
           <button
             className="comic-btn px-8 py-4 rounded-lg text-base"
             style={{ backgroundColor: 'hsl(340, 74%, 42%)', color: 'white' }}
+            onClick={() => {
+              trackEvent('onboarding_cta_click');
+              window.location.href = '/login?tab=signup';
+            }}
           >
             SOUNDS GOOD. HIRE HER →
           </button>

@@ -61,7 +61,11 @@ const WorkspaceSection = () => {
   const scenario = scenarios[activeIndex];
 
   return (
-    <section className="py-16 lg:py-20 halftone-bg-light" style={{ backgroundColor: 'hsl(12, 100%, 98%)' }}>
+    <section
+      id="see-her-in-action"
+      className="py-16 lg:py-20 halftone-bg-light scroll-mt-16"
+      style={{ backgroundColor: 'hsl(12, 100%, 98%)' }}
+    >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2

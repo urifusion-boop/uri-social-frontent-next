@@ -88,6 +88,7 @@ const WhatsAppPhoneMockup = () => {
   const [showTapHint, setShowTapHint] = useState(true);
 
   const convo = conversations[activeIndex];
+  const prevConvo = conversations[(activeIndex - 1 + conversations.length) % conversations.length];
 
   const advanceCycle = useCallback(() => {
     if (isPaused) return;
@@ -197,29 +198,59 @@ const WhatsAppPhoneMockup = () => {
               backgroundColor: '#ECE5DD',
             }}
           >
-            {/* User Context Strip */}
+            {/* Messages — a real thread has history, not one isolated exchange
+                floating in empty space. The previous cycle's exchange stays
+                visible (muted) above the live one, so the chat area reads as
+                an ongoing conversation instead of a near-empty screen. */}
             <div
-              className="flex items-center gap-2 mb-3 px-1 transition-all duration-500"
-              style={{ opacity: isVisible ? 1 : 0, transform: isVisible ? 'translateY(0)' : 'translateY(-8px)' }}
-            >
-              <div
-                className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white"
-                style={{ background: convo.color }}
-              >
-                {convo.user[0]}
-              </div>
-              <span className="text-[10px] font-bold text-[#444]">{convo.user}</span>
-              <span className="text-[9px] text-[#888]">· {convo.business}</span>
-              <span className="text-[7px] bg-[#ddd] text-[#666] px-1.5 py-[1px] rounded-full font-semibold">
-                {convo.industry}
-              </span>
-            </div>
-
-            {/* Messages */}
-            <div
-              className="flex flex-col gap-2 flex-1 transition-all duration-500"
+              className="flex flex-col flex-1 justify-end transition-all duration-500"
               style={{ opacity: isVisible ? 1 : 0, transform: isVisible ? 'translateY(0)' : 'translateY(10px)' }}
             >
+              {/* Earlier exchange (previous cycle) */}
+              <div className="flex flex-col gap-1.5 opacity-40 mb-2">
+                <div className="flex items-center gap-1.5 px-1">
+                  <div
+                    className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-black text-white"
+                    style={{ background: prevConvo.color }}
+                  >
+                    {prevConvo.user[0]}
+                  </div>
+                  <span className="text-[9px] font-bold text-[#555]">{prevConvo.user}</span>
+                  <span className="text-[8px] text-[#999]">· {prevConvo.business}</span>
+                </div>
+                <div className="flex justify-end">
+                  <div className="max-w-[85%] bg-[#DCF8C6] rounded-tl-xl rounded-tr-[4px] rounded-b-xl px-2.5 py-1.5 text-[11px] text-[#111] leading-snug">
+                    {prevConvo.userMsg}
+                  </div>
+                </div>
+                <div className="flex justify-start">
+                  <div className="max-w-[85%] bg-white rounded-tr-xl rounded-tl-[4px] rounded-b-xl px-2.5 py-1.5 text-[11px] text-[#111] leading-snug shadow-sm">
+                    {prevConvo.janeMsg}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-center mb-2">
+                <span className="text-[8px] font-semibold text-[#777]" style={{ background: 'rgba(0,0,0,0.06)' }}>
+                  <span className="px-2 py-0.5 inline-block rounded-full">{convo.time}</span>
+                </span>
+              </div>
+
+              {/* User Context Strip (current exchange) */}
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white"
+                  style={{ background: convo.color }}
+                >
+                  {convo.user[0]}
+                </div>
+                <span className="text-[10px] font-bold text-[#444]">{convo.user}</span>
+                <span className="text-[9px] text-[#888]">· {convo.business}</span>
+                <span className="text-[7px] bg-[#ddd] text-[#666] px-1.5 py-[1px] rounded-full font-semibold">
+                  {convo.industry}
+                </span>
+              </div>
+
               {/* User Message */}
               <div className="flex justify-end">
                 <div className="relative max-w-[85%] bg-[#DCF8C6] rounded-tl-xl rounded-tr-[4px] rounded-b-xl px-2.5 py-1.5 text-[11px] text-[#111] leading-snug">

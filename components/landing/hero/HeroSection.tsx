@@ -55,7 +55,10 @@ const HeroSection = () => {
                   color: 'hsl(340, 74%, 42%)',
                   border: '3px solid black',
                 }}
-                onClick={() => trackEvent('hero_cta_click', { button: 'see_in_action' })}
+                onClick={() => {
+                  trackEvent('hero_cta_click', { button: 'see_in_action' });
+                  document.getElementById('see-her-in-action')?.scrollIntoView({ behavior: 'smooth' });
+                }}
               >
                 SEE HER IN ACTION
               </button>
