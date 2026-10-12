@@ -128,7 +128,8 @@ const CHANNEL_SHELLS: {
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'No events yet';
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  const zoned = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`;
+  const mins = Math.floor((Date.now() - new Date(zoned).getTime()) / 60000);
   if (Number.isNaN(mins)) return 'No events yet';
   if (mins < 1) return 'Just now';
   if (mins < 60) return `${mins} minutes ago`;

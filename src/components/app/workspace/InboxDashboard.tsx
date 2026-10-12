@@ -646,9 +646,15 @@ function avatarColorFor(id: string): string {
   return AVATAR_COLORS[sum % AVATAR_COLORS.length];
 }
 
+// The API sends UTC times without a zone suffix, which the browser would otherwise
+// read as local time — an hour off in Lagos.
+function parseUtc(iso: string): number {
+  return new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`).getTime();
+}
+
 function relativeTime(iso: string | null): string {
   if (!iso) return '';
-  const then = new Date(iso).getTime();
+  const then = parseUtc(iso);
   if (Number.isNaN(then)) return '';
   const mins = Math.floor((Date.now() - then) / 60000);
   if (mins < 1) return 'Just now';
