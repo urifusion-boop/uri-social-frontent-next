@@ -38,7 +38,7 @@ const POST_TYPES: Array<{
   subtitle: string;
 }> = [
   { key: 'feed', label: 'Feed Post', icon: '📄', subtitle: 'Standard single post' },
-  { key: 'carousel', label: 'Carousel', icon: '🎠', subtitle: '2–5 swipeable slides' },
+  { key: 'carousel', label: 'Carousel', icon: '🎠', subtitle: '2–10 swipeable slides' },
   { key: 'story', label: 'Story', icon: '📱', subtitle: '24-hour full-screen story' },
 ];
 
@@ -161,9 +161,9 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
       return false;
     }
 
-    // If image, max 5 for carousel
-    if (isImage && uploadedFiles.length >= 5) {
-      ToastService.showToast('Maximum 5 images allowed', ToastTypeEnum.Error);
+    // If image, max 10 for carousel (Instagram's carousel limit)
+    if (isImage && uploadedFiles.length >= 10) {
+      ToastService.showToast('Maximum 10 images allowed', ToastTypeEnum.Error);
       return false;
     }
 
@@ -375,7 +375,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
             Images (JPG, PNG) up to 10MB • Videos (MP4) up to 100MB
           </Typography>
           <Typography sx={{ fontSize: 12, color: '#9CA3AF' }}>
-            {hasVideo ? '1 video only' : 'Maximum 5 images for carousel'}
+            {hasVideo ? '1 video only' : 'Maximum 10 images for carousel'}
           </Typography>
         </Box>
       </Box>
