@@ -1,7 +1,7 @@
 'use client';
 
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { InboxService, InboxConversationDTO, InboxMessageDTO } from '@/src/api/InboxService';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { InboxService, InboxAgentView, InboxConversationDTO, InboxMessageDTO } from '@/src/api/InboxService';
 import InboxConnectionsPage, {
   INITIAL_CHANNEL_CONNECTIONS,
   channelsFromApi,
@@ -232,9 +232,25 @@ interface ThreadComment {
 }
 
 interface AiSuggestion {
+  id?: string;
   text: string;
   confidence: number;
   sources: string[];
+  unverified?: string[];
+}
+
+// What the inbox agent concluded about a conversation. Labels are estimates with a
+// confidence, never facts, and an agent can correct them.
+interface AgentInfo {
+  intent: string;
+  confidence: number | null;
+  rationale: string;
+  corrected: boolean;
+  urgency: string;
+  language: string;
+  exclusions: string[];
+  needsHuman: boolean;
+  handoffReason: string;
 }
 
 interface PostContext {
@@ -266,6 +282,9 @@ interface Conversation {
   tags?: string[];
   notes?: InternalNote[];
   lead?: Lead | null;
+  agent?: AgentInfo;
+  lastDirection?: string;
+  lastActivityAt?: string | null;
 }
 
 // ─── Static metadata ────────────────────────────────────────────────────────
@@ -657,8 +676,70 @@ function asDelivery(delivery: string): DeliveryStatus | undefined {
   }
 }
 
+const SALES_INTENTS = ['purchase', 'booking', 'product_question'];
+
+export const INTENT_LABELS: Record<string, string> = {
+  purchase: 'Purchase',
+  booking: 'Booking',
+  product_question: 'Product question',
+  support: 'Support',
+  complaint: 'Complaint',
+  praise: 'Praise',
+  engagement: 'Engagement',
+  spam: 'Spam',
+  other: 'Other',
+};
+
+function queueFor(status: string, intent: string, fromAd: boolean): QueueKey {
+  if (status === 'resolved') return 'resolved';
+  if (intent === 'complaint') return 'complaints';
+  if (fromAd) return 'ad';
+  if (SALES_INTENTS.includes(intent)) return 'sales';
+  if (intent === 'support') return 'support';
+  return 'unassigned';
+}
+
+// The agent's fields, applied the same way to a fetched row and to the response of a
+// correction or a fresh draft, so both paths render identically.
+function agentFields(
+  view: InboxAgentView,
+  status: string,
+  fromAd: boolean
+): Pick<Conversation, 'agent' | 'aiSuggestion' | 'isComplaint' | 'queue'> & { urgent: boolean } {
+  const s = view.ai_suggestion;
+  return {
+    agent: view.intent
+      ? {
+          intent: view.intent,
+          confidence: view.intent_confidence ?? null,
+          rationale: view.intent_rationale || '',
+          corrected: Boolean(view.intent_corrected),
+          urgency: view.urgency || 'normal',
+          language: view.language || '',
+          exclusions: view.exclusions ?? [],
+          needsHuman: Boolean(view.needs_human),
+          handoffReason: view.handoff_reason || '',
+        }
+      : undefined,
+    aiSuggestion:
+      s && s.text
+        ? {
+            id: s.id,
+            text: s.text,
+            confidence: s.confidence,
+            sources: s.sources.map((src) => src.label),
+            unverified: s.unverified,
+          }
+        : undefined,
+    isComplaint: view.intent === 'complaint',
+    queue: queueFor(status, view.intent || '', fromAd),
+    urgent: view.priority === 'high' && status !== 'resolved',
+  };
+}
+
 function toConversation(dto: InboxConversationDTO): Conversation {
   const name = dto.contact_name || 'Unknown contact';
+  const { urgent, ...agentPart } = agentFields(dto, dto.status, Boolean(dto.source_ad_id));
   return {
     id: dto.id,
     type: dto.kind,
@@ -668,8 +749,7 @@ function toConversation(dto: InboxConversationDTO): Conversation {
     avatarColor: avatarColorFor(dto.id),
     excerpt: dto.excerpt || '',
     time: relativeTime(dto.last_activity_at),
-    queue: 'unassigned',
-    status: asStatus(dto.status),
+    status: urgent ? 'urgent' : asStatus(dto.status),
     assignee: dto.assignee_id || null,
     sourceLabel: dto.source_ad_id ? 'an ad' : dto.source_post_id ? 'a post' : undefined,
     tags: dto.tags ?? [],
@@ -677,6 +757,9 @@ function toConversation(dto: InboxConversationDTO): Conversation {
     comments: dto.kind === 'comment' ? [] : undefined,
     notes: [],
     lead: null,
+    lastDirection: dto.last_direction || '',
+    lastActivityAt: dto.last_activity_at,
+    ...agentPart,
   };
 }
 
@@ -684,7 +767,7 @@ function toThreadMessage(m: InboxMessageDTO): ThreadMessage {
   return {
     id: m.id,
     from: m.direction === 'outbound' ? 'agent' : 'customer',
-    by: m.direction === 'outbound' ? 'You' : undefined,
+    by: m.direction === 'outbound' ? (m.by_agent ? 'URI agent (auto-reply)' : 'You') : undefined,
     text: m.text,
     time: relativeTime(m.received_at ?? m.provider_timestamp),
     delivery: m.direction === 'outbound' ? asDelivery(m.delivery) : undefined,
@@ -694,7 +777,7 @@ function toThreadMessage(m: InboxMessageDTO): ThreadMessage {
 function toThreadComment(m: InboxMessageDTO): ThreadComment {
   return {
     from: m.direction === 'outbound' ? 'agent' : 'customer',
-    by: m.direction === 'outbound' ? 'You' : undefined,
+    by: m.direction === 'outbound' ? (m.by_agent ? 'URI agent (auto-reply)' : 'You') : undefined,
     text: m.text,
     time: relativeTime(m.received_at ?? m.provider_timestamp),
   };
@@ -722,6 +805,13 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [commentOverrides, setCommentOverrides] = useState<Record<string, ThreadComment[]>>({});
   const [composerDrafts, setComposerDrafts] = useState<Record<string, string>>({});
   const [usedAiSuggestion, setUsedAiSuggestion] = useState<Record<string, boolean>>({});
+  const [agentOverrides, setAgentOverrides] = useState<Record<string, InboxAgentView>>({});
+  // Which suggestion the composer's text started from, so the send is recorded as
+  // the draft sent as-is or edited rather than an unrelated reply.
+  const [draftSuggestionIds, setDraftSuggestionIds] = useState<Record<string, string>>({});
+  const [drafting, setDrafting] = useState(false);
+  const [agentError, setAgentError] = useState('');
+  const lastActivityRef = useRef<Map<string, string | null | undefined>>(new Map());
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<QueueKey | null>(null);
@@ -809,7 +899,23 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     }
     try {
       const rows = await InboxService.listConversations({ limit: 100 });
-      setBaseConversations(rows.map(toConversation));
+      const next = rows.map(toConversation);
+      // A thread with new activity since the last poll is fetched again, so an
+      // auto-reply or a new customer message shows up without a reload.
+      const before = lastActivityRef.current;
+      const changed = next.filter((c) => before.has(c.id) && before.get(c.id) !== c.lastActivityAt).map((c) => c.id);
+      lastActivityRef.current = new Map(next.map((c) => [c.id, c.lastActivityAt]));
+      if (changed.length) {
+        const drop = <T,>(prev: Record<string, T>) => {
+          const copy = { ...prev };
+          changed.forEach((id) => delete copy[id]);
+          return copy;
+        };
+        setLoadedThreads(drop);
+        setAgentOverrides(drop);
+        setUsedAiSuggestion(drop);
+      }
+      setBaseConversations(next);
       setLoadError('');
     } catch (e: unknown) {
       const detail = (e as { data?: { detail?: string } })?.data?.detail;
@@ -821,6 +927,11 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
   useEffect(() => {
     refreshConversations();
+    if (DEMO_INBOX) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refreshConversations();
+    }, 20000);
+    return () => window.clearInterval(timer);
   }, [refreshConversations]);
 
   // Messages are fetched per thread, once, when it is first opened: the list
@@ -861,18 +972,28 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   // current state.
   const conversations = useMemo<Conversation[]>(
     () =>
-      baseConversations.map((c) => ({
-        ...c,
-        status: statusOverrides[c.id] ?? c.status,
-        assignee: c.id in assigneeOverrides ? assigneeOverrides[c.id] : c.assignee,
-        messages: c.messages ? [...c.messages, ...(messageOverrides[c.id] || [])] : c.messages,
-        comments: c.comments ? [...c.comments, ...(commentOverrides[c.id] || [])] : c.comments,
-        tags: tagOverrides[c.id] ?? c.tags ?? [],
-        notes: noteOverrides[c.id] ?? c.notes ?? [],
-        lead: c.id in leadOverrides ? leadOverrides[c.id] : (c.lead ?? null),
-      })),
+      baseConversations.map((base) => {
+        const view = agentOverrides[base.id];
+        const c = view
+          ? (() => {
+              const { urgent, ...fields } = agentFields(view, base.status, base.sourceLabel === 'an ad');
+              return { ...base, ...fields, status: urgent ? ('urgent' as StatusKey) : base.status };
+            })()
+          : base;
+        return {
+          ...c,
+          status: statusOverrides[c.id] ?? c.status,
+          assignee: c.id in assigneeOverrides ? assigneeOverrides[c.id] : c.assignee,
+          messages: c.messages ? [...c.messages, ...(messageOverrides[c.id] || [])] : c.messages,
+          comments: c.comments ? [...c.comments, ...(commentOverrides[c.id] || [])] : c.comments,
+          tags: tagOverrides[c.id] ?? c.tags ?? [],
+          notes: noteOverrides[c.id] ?? c.notes ?? [],
+          lead: c.id in leadOverrides ? leadOverrides[c.id] : (c.lead ?? null),
+        };
+      }),
     [
       baseConversations,
+      agentOverrides,
       statusOverrides,
       assigneeOverrides,
       messageOverrides,
@@ -891,7 +1012,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   function isUnanswered(c: Conversation): boolean {
     if (c.status === 'resolved') return false;
     const last = c.type === 'dm' ? c.messages?.[c.messages.length - 1] : c.comments?.[c.comments.length - 1];
-    if (!last) return false;
+    // Threads not opened yet have no messages loaded; the list row says who spoke last.
+    if (!last) return c.lastDirection === 'inbound';
     return c.type === 'dm' ? (last as ThreadMessage).from === 'customer' : (last as ThreadComment).from !== 'agent';
   }
 
@@ -1022,7 +1144,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     }));
   }
 
-  async function appendReply(text: string) {
+  async function appendReply(text: string, suggestionId = '') {
     if (!selectedId || sending) return;
     const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     // One key per composer submission, so a double-click or a retried request
@@ -1040,7 +1162,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     }
 
     try {
-      const result = await InboxService.sendReply(selectedId, text, idempotencyKey);
+      const result = await InboxService.sendReply(selectedId, text, idempotencyKey, suggestionId);
       if (result.delivery === 'accepted') {
         settleDelivery(localId, 'sent');
       } else {
@@ -1067,18 +1189,57 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     if (!text || sending) return;
     setComposerDrafts((prev) => ({ ...prev, [selectedId]: '' }));
     if (selectedConv.aiSuggestion) setUsedAiSuggestion((prev) => ({ ...prev, [selectedId]: true }));
-    void appendReply(text);
+    const suggestionId = draftSuggestionIds[selectedId] || '';
+    setDraftSuggestionIds((prev) => ({ ...prev, [selectedId]: '' }));
+    void appendReply(text, suggestionId);
   }
 
   function useAiSuggestionNow() {
     if (!selectedConv.aiSuggestion) return;
-    appendReply(selectedConv.aiSuggestion.text);
+    appendReply(selectedConv.aiSuggestion.text, selectedConv.aiSuggestion.id || '');
     setUsedAiSuggestion((prev) => ({ ...prev, [selectedId]: true }));
   }
 
   function editAiSuggestionIntoComposer() {
     if (!selectedConv.aiSuggestion) return;
     setComposerDrafts((prev) => ({ ...prev, [selectedId]: selectedConv.aiSuggestion!.text }));
+    setDraftSuggestionIds((prev) => ({ ...prev, [selectedId]: selectedConv.aiSuggestion!.id || '' }));
+  }
+
+  async function draftAgain() {
+    if (DEMO_INBOX || !selectedId || drafting) return;
+    setDrafting(true);
+    setAgentError('');
+    try {
+      const view = await InboxService.regenerateSuggestion(selectedId);
+      setAgentOverrides((prev) => ({ ...prev, [selectedId]: view }));
+      setUsedAiSuggestion((prev) => ({ ...prev, [selectedId]: false }));
+    } catch (e: unknown) {
+      const detail = (e as { data?: { detail?: string } })?.data?.detail;
+      setAgentError(detail || "Couldn't draft a reply right now.");
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  async function correctIntent(intent: string) {
+    if (DEMO_INBOX || !selectedId) return;
+    setAgentError('');
+    try {
+      const view = await InboxService.correctClassification(
+        selectedId,
+        intent,
+        intent === 'complaint' ? 'high' : undefined
+      );
+      setAgentOverrides((prev) => ({ ...prev, [selectedId]: view }));
+      setCardQueues((prev) => {
+        const copy = { ...prev };
+        delete copy[selectedId];
+        return copy;
+      });
+    } catch {
+      setAgentError("Couldn't save that label.");
+    }
   }
 
   function insertSavedReply(text: string) {
@@ -1388,8 +1549,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               style={{
                 fontSize: 11,
                 fontWeight: 700,
-                color: '#2E7D32',
-                background: 'rgba(46,125,50,.1)',
+                color: selectedConv.aiSuggestion.confidence >= 85 ? '#2E7D32' : '#B26A00',
+                background: selectedConv.aiSuggestion.confidence >= 85 ? 'rgba(46,125,50,.1)' : 'rgba(237,108,2,.1)',
                 padding: '2px 8px',
                 borderRadius: 10,
               }}
@@ -1401,8 +1562,15 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             {selectedConv.aiSuggestion.text}
           </div>
           <div style={{ fontSize: 11, color: '#999', marginBottom: 10 }}>
-            Grounded in: {selectedConv.aiSuggestion.sources.join(' · ')}
+            {selectedConv.aiSuggestion.sources.length
+              ? `Grounded in: ${selectedConv.aiSuggestion.sources.join(' · ')}`
+              : 'No approved source answers this yet — check it before sending, or add an FAQ in Inbox Settings.'}
           </div>
+          {(selectedConv.aiSuggestion.unverified ?? []).length > 0 && (
+            <div style={{ fontSize: 11.5, color: '#B26A00', fontWeight: 600, marginBottom: 10 }}>
+              Check before sending — not verified: {(selectedConv.aiSuggestion.unverified ?? []).join(', ')}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               type="button"
@@ -1442,8 +1610,54 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               <I n="send" s={13} c="#fff" />
               Use &amp; Send
             </button>
+            {!DEMO_INBOX && (
+              <button
+                type="button"
+                onClick={draftAgain}
+                disabled={drafting}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: 'transparent',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#AD1457',
+                  cursor: drafting ? 'default' : 'pointer',
+                  fontFamily: FONT,
+                }}
+              >
+                {drafting ? 'Drafting…' : 'Draft again'}
+              </button>
+            )}
           </div>
         </div>
+      )}
+
+      {!DEMO_INBOX && (!selectedConv.aiSuggestion || usedAiSuggestion[selectedId]) && isUnanswered(selectedConv) && (
+        <button
+          type="button"
+          onClick={draftAgain}
+          disabled={drafting}
+          style={{
+            alignSelf: 'flex-start',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1.5px dashed #E91E63',
+            background: 'rgba(194,24,91,.04)',
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: '#AD1457',
+            cursor: drafting ? 'default' : 'pointer',
+            fontFamily: FONT,
+          }}
+        >
+          <I n="sparkle" s={13} c="#AD1457" />
+          {drafting ? 'Drafting a reply…' : 'Draft a reply with URI'}
+        </button>
       )}
     </div>
   );
@@ -2149,6 +2363,74 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     >
       <I n="paperclip" s={13} />
       Sourced from {selectedConv.sourceLabel}
+    </div>
+  );
+
+  const agentInfo = selectedConv.agent;
+  const agentStrip = !DEMO_INBOX && (
+    <div
+      style={{
+        padding: '8px 20px',
+        borderBottom: '1px solid rgba(0,0,0,.06)',
+        fontSize: 12,
+        color: '#555',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <I n="sparkle" s={13} c="#AD1457" />
+        {agentInfo ? (
+          <>
+            <span title={agentInfo.rationale || undefined} style={{ fontWeight: 700, color: '#1a1a1a' }}>
+              {INTENT_LABELS[agentInfo.intent] ?? agentInfo.intent}
+            </span>
+            <span style={{ color: '#999' }}>
+              {agentInfo.corrected
+                ? 'set by your team'
+                : agentInfo.confidence !== null
+                  ? `URI's estimate · ${agentInfo.confidence}% sure`
+                  : "URI's estimate"}
+            </span>
+            {agentInfo.urgency === 'high' && <span style={{ fontWeight: 700, color: '#C62828' }}>Urgent</span>}
+            {agentInfo.language === 'pcm' && <span style={{ color: '#999' }}>Pidgin</span>}
+            <select
+              aria-label="Correct the label"
+              value=""
+              onChange={(e) => e.target.value && correctIntent(e.target.value)}
+              style={{
+                marginLeft: 'auto',
+                border: '1px solid rgba(0,0,0,.12)',
+                borderRadius: 6,
+                padding: '3px 6px',
+                fontSize: 11.5,
+                fontFamily: FONT,
+                color: '#444',
+                background: '#fff',
+              }}
+            >
+              <option value="">Wrong label? Change it</option>
+              {Object.entries(INTENT_LABELS).map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <span style={{ color: '#999' }}>Not labelled yet</span>
+        )}
+      </div>
+      {agentInfo && agentInfo.exclusions.length > 0 && (
+        <div style={{ color: '#B26A00', fontWeight: 600 }}>
+          Always reviewed by a person: {agentInfo.exclusions.join(', ')}
+        </div>
+      )}
+      {agentInfo?.needsHuman && agentInfo.handoffReason && (
+        <div style={{ color: '#666' }}>Not auto-replied: {agentInfo.handoffReason}</div>
+      )}
+      {agentError && <div style={{ color: '#C62828' }}>{agentError}</div>}
     </div>
   );
 
@@ -3225,6 +3507,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             {tagsRow}
             {threadTabs}
             {threadTab === 'thread' && sourceStrip}
+            {threadTab === 'thread' && agentStrip}
             {threadBody}
             {threadTab === 'thread' ? threadComposer : noteComposer}
           </>
@@ -4555,6 +4838,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             {tagsRow}
             {threadTabs}
             {threadTab === 'thread' && sourceStrip}
+            {threadTab === 'thread' && agentStrip}
             {threadBody}
             {threadTab === 'thread' ? threadComposer : noteComposer}
           </div>

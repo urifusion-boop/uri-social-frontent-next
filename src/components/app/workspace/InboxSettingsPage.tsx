@@ -1,17 +1,20 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { InboxKnowledgeEntry, InboxService } from '@/src/api/InboxService';
 
 /*
  * Inbox settings — per PRD §4.3: business hours, the automation policy for
- * opt-in auto-replies (confidence threshold, and the categories that always
- * require a human no matter the confidence score), plus management of the
- * saved replies and tag presets used elsewhere in Inbox. Business hours and
- * the auto-reply policy are local to this screen for now — there is no
- * backend yet for them to actually gate anything — but saved replies and
- * tags are lifted into InboxDashboard's own state, so editing them here
- * changes what shows up in the composer and tag picker immediately.
+ * opt-in auto-replies (confidence threshold, channels, and the categories that
+ * always require a human no matter the confidence score), the FAQ knowledge
+ * base replies are grounded in, plus the saved replies and tag presets used
+ * elsewhere in Inbox. Hours, policy and FAQs are saved to the backend, which
+ * is what actually gates an auto-reply; saved replies and tags are lifted into
+ * InboxDashboard's own state.
  */
+
+const DEMO_INBOX = process.env.NEXT_PUBLIC_INBOX_DEMO === 'true';
+const TIMEZONE = 'Africa/Lagos';
 
 const FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
@@ -162,6 +165,101 @@ export default function InboxSettingsPage({
 
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [confidenceThreshold, setConfidenceThreshold] = useState(90);
+  const [autoDm, setAutoDm] = useState(true);
+  const [autoComments, setAutoComments] = useState(false);
+  const [timezone, setTimezone] = useState(TIMEZONE);
+  const [settingsLoaded, setSettingsLoaded] = useState(DEMO_INBOX);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const [faqs, setFaqs] = useState<InboxKnowledgeEntry[]>([]);
+  const [faqError, setFaqError] = useState('');
+  const [newQuestion, setNewQuestion] = useState('');
+  const [newAnswer, setNewAnswer] = useState('');
+  const [editingFaq, setEditingFaq] = useState<InboxKnowledgeEntry | null>(null);
+
+  useEffect(() => {
+    if (DEMO_INBOX) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [settings, entries] = await Promise.all([InboxService.getAgentSettings(), InboxService.listKnowledge()]);
+        if (cancelled) return;
+        setOpenDays(settings.business_hours.days);
+        setOpenTime(settings.business_hours.open);
+        setCloseTime(settings.business_hours.close);
+        setTimezone(settings.business_hours.timezone);
+        setAutoReplyEnabled(settings.auto_reply_enabled);
+        setConfidenceThreshold(settings.confidence_threshold);
+        setAutoDm(settings.auto_reply_channels.dm);
+        setAutoComments(settings.auto_reply_channels.comment);
+        setFaqs(entries);
+        setSettingsLoaded(true);
+      } catch {
+        if (!cancelled) setSaveState('error');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // "Saved" stops being true the moment anything changes again.
+  useEffect(() => {
+    setSaveState((prev) => (prev === 'saved' ? 'idle' : prev));
+  }, [openDays, openTime, closeTime, autoReplyEnabled, confidenceThreshold, autoDm, autoComments]);
+
+  async function saveAgentSettings() {
+    if (DEMO_INBOX) return;
+    setSaveState('saving');
+    try {
+      await InboxService.saveAgentSettings({
+        auto_reply_enabled: autoReplyEnabled,
+        confidence_threshold: confidenceThreshold,
+        auto_reply_channels: { dm: autoDm, comment: autoComments },
+        business_hours: { timezone, days: openDays, open: openTime, close: closeTime },
+      });
+      setSaveState('saved');
+    } catch {
+      setSaveState('error');
+    }
+  }
+
+  async function addFaq() {
+    const question = newQuestion.trim();
+    const answer = newAnswer.trim();
+    if (!question || !answer || DEMO_INBOX) return;
+    setFaqError('');
+    try {
+      const id = await InboxService.createKnowledge({ question, answer, approved: true });
+      setFaqs((prev) => [...prev, { id, question, answer, approved: true }]);
+      setNewQuestion('');
+      setNewAnswer('');
+    } catch {
+      setFaqError("Couldn't save that FAQ. Try again.");
+    }
+  }
+
+  async function saveFaq(entry: InboxKnowledgeEntry) {
+    if (!entry.question.trim() || !entry.answer.trim()) return;
+    setFaqError('');
+    try {
+      await InboxService.updateKnowledge(entry);
+      setFaqs((prev) => prev.map((f) => (f.id === entry.id ? entry : f)));
+      setEditingFaq(null);
+    } catch {
+      setFaqError("Couldn't save that FAQ. Try again.");
+    }
+  }
+
+  async function removeFaq(id: string) {
+    setFaqError('');
+    try {
+      await InboxService.deleteKnowledge(id);
+      setFaqs((prev) => prev.filter((f) => f.id !== id));
+    } catch {
+      setFaqError("Couldn't delete that FAQ. Try again.");
+    }
+  }
 
   const [newReplyLabel, setNewReplyLabel] = useState('');
   const [newReplyText, setNewReplyText] = useState('');
@@ -233,7 +331,7 @@ export default function InboxSettingsPage({
     >
       <SectionCard
         title="Business hours"
-        desc="Used to decide when opt-in auto-replies are allowed to fire — outside these hours, everything waits for a human."
+        desc={`Auto-replies only fire inside these hours (${timezone.replace('_', ' ')} time) — outside them, everything waits for a human.`}
       >
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {DAYS.map((d) => (
@@ -306,6 +404,37 @@ export default function InboxSettingsPage({
           </div>
         </div>
 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: autoReplyEnabled ? 1 : 0.5 }}>
+          {[
+            {
+              label: 'Direct messages',
+              hint: 'Instagram and Messenger DMs, inside the 24-hour reply window.',
+              on: autoDm,
+              toggle: () => setAutoDm((v) => !v),
+            },
+            {
+              label: 'Public comments',
+              hint: 'Everyone on the post sees these replies, so this is off by default.',
+              on: autoComments,
+              toggle: () => setAutoComments((v) => !v),
+            },
+          ].map((row) => (
+            <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#444' }}>{row.label}</div>
+                <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{row.hint}</div>
+              </div>
+              <Toggle on={row.on} onClick={() => autoReplyEnabled && row.toggle()} />
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+          An auto-reply only goes out when it answers from an FAQ you approved below, nobody on your team has replied or
+          been assigned, and the customer hasn&apos;t already had 3 auto-replies. Anything else is drafted for you to
+          review.
+        </div>
+
         <div>
           <div
             style={{
@@ -345,6 +474,181 @@ export default function InboxSettingsPage({
           </div>
         </div>
       </SectionCard>
+
+      {!DEMO_INBOX && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end' }}>
+          <span style={{ fontSize: 12, color: saveState === 'error' ? '#C62828' : '#2E7D32' }}>
+            {saveState === 'saved'
+              ? 'Saved'
+              : saveState === 'error'
+                ? "Couldn't load or save these settings. Try again."
+                : ''}
+          </span>
+          <button
+            type="button"
+            onClick={saveAgentSettings}
+            disabled={!settingsLoaded || saveState === 'saving'}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: settingsLoaded ? '#AD1457' : 'rgba(0,0,0,.15)',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: settingsLoaded ? 'pointer' : 'default',
+              fontFamily: FONT,
+            }}
+          >
+            {saveState === 'saving' ? 'Saving…' : 'Save hours and auto-reply policy'}
+          </button>
+        </div>
+      )}
+
+      {!DEMO_INBOX && (
+        <SectionCard
+          title="FAQ answers"
+          desc="The facts URI's suggested replies and auto-replies are allowed to use. Only approved answers can be sent automatically — your Brand Playbook is used for drafts, but always reviewed."
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {faqs.length === 0 && (
+              <div style={{ fontSize: 12.5, color: '#999' }}>
+                No FAQs yet. Add the questions customers ask most — opening hours, delivery areas and fees, how to book
+                or order.
+              </div>
+            )}
+            {faqs.map((f) =>
+              editingFaq?.id === f.id ? (
+                <div
+                  key={f.id}
+                  style={{
+                    border: '1px solid rgba(194,24,91,.3)',
+                    borderRadius: 10,
+                    padding: 10,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <input
+                    value={editingFaq.question}
+                    onChange={(e) => setEditingFaq({ ...editingFaq, question: e.target.value })}
+                    style={inputStyle}
+                    aria-label="Question"
+                  />
+                  <textarea
+                    value={editingFaq.answer}
+                    onChange={(e) => setEditingFaq({ ...editingFaq, answer: e.target.value })}
+                    rows={3}
+                    style={{ ...inputStyle, resize: 'vertical' }}
+                    aria-label="Answer"
+                  />
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditingFaq(null)}
+                      style={{ ...inputStyle, background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveFaq(editingFaq)}
+                      style={{
+                        ...inputStyle,
+                        border: 'none',
+                        background: '#AD1457',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        fontWeight: 700,
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  key={f.id}
+                  style={{
+                    border: '1px solid rgba(0,0,0,.08)',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#333' }}>{f.question}</div>
+                    <div style={{ fontSize: 12.5, color: '#666', marginTop: 2, whiteSpace: 'pre-wrap' }}>
+                      {f.answer}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '0 0 auto' }}>
+                    <span style={{ fontSize: 11, color: f.approved ? '#2E7D32' : '#999', fontWeight: 700 }}>
+                      {f.approved ? 'Approved' : 'Draft only'}
+                    </span>
+                    <Toggle on={f.approved} onClick={() => saveFaq({ ...f, approved: !f.approved })} />
+                    <button
+                      type="button"
+                      aria-label={`Edit ${f.question}`}
+                      onClick={() => setEditingFaq(f)}
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4 }}
+                    >
+                      <I n="edit" s={14} c="#888" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete ${f.question}`}
+                      onClick={() => removeFaq(f.id)}
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4 }}
+                    >
+                      <I n="trash" s={14} c="#888" />
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input
+              value={newQuestion}
+              onChange={(e) => setNewQuestion(e.target.value)}
+              placeholder="Question, e.g. Do you deliver outside Lagos?"
+              style={inputStyle}
+            />
+            <textarea
+              value={newAnswer}
+              onChange={(e) => setNewAnswer(e.target.value)}
+              placeholder="Your answer, exactly as a customer should hear it"
+              rows={3}
+              style={{ ...inputStyle, resize: 'vertical' }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+              {faqError && <span style={{ fontSize: 12, color: '#C62828' }}>{faqError}</span>}
+              <button
+                type="button"
+                onClick={addFaq}
+                disabled={!newQuestion.trim() || !newAnswer.trim()}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: newQuestion.trim() && newAnswer.trim() ? '#AD1457' : 'rgba(0,0,0,.15)',
+                  color: '#fff',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: newQuestion.trim() && newAnswer.trim() ? 'pointer' : 'default',
+                  fontFamily: FONT,
+                }}
+              >
+                Add FAQ
+              </button>
+            </div>
+          </div>
+        </SectionCard>
+      )}
 
       <SectionCard title="Saved replies" desc="Shown in the composer's quick-insert menu.">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
