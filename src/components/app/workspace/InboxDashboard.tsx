@@ -671,7 +671,7 @@ function toConversation(dto: InboxConversationDTO): Conversation {
     queue: 'unassigned',
     status: asStatus(dto.status),
     assignee: dto.assignee_id || null,
-    sourceLabel: dto.source_ad_id ? 'From an ad' : dto.source_post_id ? 'From a post' : undefined,
+    sourceLabel: dto.source_ad_id ? 'an ad' : dto.source_post_id ? 'a post' : undefined,
     tags: dto.tags ?? [],
     messages: dto.kind === 'dm' ? [] : undefined,
     comments: dto.kind === 'comment' ? [] : undefined,
@@ -1274,45 +1274,47 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           )
         )}
 
-      {selectedConv.type === 'comment' && selectedConv.post && (
+      {selectedConv.type === 'comment' && (
         <div style={{ border: '1px solid rgba(0,0,0,.08)', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', gap: 12, padding: 12, background: '#fafafa' }}>
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 8,
-                background: '#e8e8ea',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 10,
-                fontWeight: 800,
-                color: '#999',
-                flex: '0 0 auto',
-              }}
-            >
-              {selectedConv.post.label}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, color: '#333', lineHeight: 1.4 }}>{selectedConv.post.caption}</div>
-              {selectedConv.post.campaign && (
-                <div style={{ fontSize: 11, color: '#AD1457', fontWeight: 700, marginTop: 6 }}>
-                  Campaign: {selectedConv.post.campaign}
+          {selectedConv.post && (
+            <div style={{ display: 'flex', gap: 12, padding: 12, background: '#fafafa' }}>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 8,
+                  background: '#e8e8ea',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  color: '#999',
+                  flex: '0 0 auto',
+                }}
+              >
+                {selectedConv.post.label}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, color: '#333', lineHeight: 1.4 }}>{selectedConv.post.caption}</div>
+                {selectedConv.post.campaign && (
+                  <div style={{ fontSize: 11, color: '#AD1457', fontWeight: 700, marginTop: 6 }}>
+                    Campaign: {selectedConv.post.campaign}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
+                  {selectedConv.post.likes} likes · {selectedConv.post.commentsCount} comments
                 </div>
-              )}
-              <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
-                {selectedConv.post.likes} likes · {selectedConv.post.commentsCount} comments
               </div>
             </div>
-          </div>
+          )}
           <div
             style={{
               padding: 12,
               display: 'flex',
               flexDirection: 'column',
               gap: 10,
-              borderTop: '1px solid rgba(0,0,0,.06)',
+              borderTop: selectedConv.post ? '1px solid rgba(0,0,0,.06)' : undefined,
             }}
           >
             {(selectedConv.comments || []).map((c, idx) =>
@@ -1326,7 +1328,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               ) : (
                 <div key={idx}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a' }}>
-                    {c.from} <span style={{ fontWeight: 500, color: '#999', fontSize: 11 }}>· {c.time}</span>
+                    {c.from === 'customer' ? selectedConv.name : c.from}{' '}
+                    <span style={{ fontWeight: 500, color: '#999', fontSize: 11 }}>· {c.time}</span>
                   </div>
                   <div style={{ fontSize: 13, color: '#333', marginTop: 2 }}>{c.text}</div>
                 </div>
