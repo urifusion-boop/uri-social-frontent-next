@@ -168,6 +168,85 @@ export function channelsFromApi(
 
 export const INITIAL_CHANNEL_CONNECTIONS: ChannelConnection[] = channelsFromApi([]);
 
+// What actually stops messages arriving once a channel is connected — each one a
+// setting the business controls on Meta's side, not something Uri can fix for them.
+const TROUBLESHOOTING: Record<string, { title: string; detail: string }[]> = {
+  instagram: [
+    {
+      title: 'Allow access to messages',
+      detail:
+        'In the Instagram app on your business account: Settings → Messages and story replies → Message controls → Connected tools → turn on "Allow access to messages".',
+    },
+    {
+      title: 'Use a Professional account linked to your Facebook Page',
+      detail:
+        'Instagram messages reach Uri through the Facebook Page the account is linked to. Switch to a Business or Creator account and link it to your Page in Instagram settings or Meta Business Suite.',
+    },
+    {
+      title: 'Reconnect and allow every permission',
+      detail:
+        "If you unticked anything on the Facebook permission screen, messages can't be delivered. Click Reconnect and leave every permission switched on.",
+    },
+  ],
+  facebook: [
+    {
+      title: 'Reconnect and allow every permission',
+      detail:
+        "If you unticked anything on the Facebook permission screen, messages can't be delivered. Click Reconnect, choose your Page, and leave every permission switched on.",
+    },
+    {
+      title: 'Make sure you have full control of the Page',
+      detail:
+        'You need full control (admin access) of the Page. If someone else manages it, ask them to make you an admin, then reconnect.',
+    },
+    {
+      title: 'Check messaging is turned on for the Page',
+      detail:
+        'In Meta Business Suite → Inbox, make sure people can message your Page, and that no other app has been set to handle its messages.',
+    },
+  ],
+};
+
+function TroubleshootPanel({ channelId, defaultOpen }: { channelId: string; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const steps = TROUBLESHOOTING[channelId];
+  if (!steps) return null;
+  return (
+    <div style={{ borderTop: '1px solid rgba(0,0,0,.06)', paddingTop: 12 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: 0,
+          border: 'none',
+          background: 'none',
+          fontSize: 12.5,
+          fontWeight: 700,
+          color: '#AD1457',
+          cursor: 'pointer',
+          fontFamily: FONT,
+        }}
+      >
+        <I n="alertTriangle" s={13} c="#AD1457" />
+        Not receiving messages?
+        <span style={{ fontWeight: 500, color: '#999' }}>{open ? 'Hide' : 'Show fixes'}</span>
+      </button>
+      {open && (
+        <ol style={{ margin: '10px 0 0', paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {steps.map((step) => (
+            <li key={step.title} style={{ fontSize: 12.5, color: '#333', lineHeight: 1.5 }}>
+              <span style={{ fontWeight: 700 }}>{step.title}.</span> {step.detail}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 const HEALTH_META: Record<TokenHealth, { label: string; fg: string; bg: string; icon: string }> = {
   healthy: { label: 'Token healthy', fg: '#2E7D32', bg: 'rgba(46,125,50,.1)', icon: 'check' },
   expiring: { label: 'Token expiring soon', fg: '#B26A00', bg: 'rgba(237,108,2,.1)', icon: 'alertTriangle' },
@@ -663,6 +742,8 @@ export default function InboxConnectionsPage({
                   ))}
                 </div>
               </div>
+
+              {c.connected && <TroubleshootPanel channelId={c.id} defaultOpen={c.lastEvent === 'No events yet'} />}
             </div>
           </div>
         );
