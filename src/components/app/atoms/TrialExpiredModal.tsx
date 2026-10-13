@@ -44,7 +44,8 @@ const TrialExpiredModal = ({ open, onClose, reason = 'no_plan', trialEndDate }: 
 
   const handleUpgrade = () => {
     onClose();
-    router.push('/pricing/');
+    // The workspace's own Billing page (plans + buy credits), not the public pricing page.
+    router.push('/workspace/?tab=billing&billing=buy-credits');
   };
 
   return (

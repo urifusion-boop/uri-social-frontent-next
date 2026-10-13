@@ -10694,7 +10694,13 @@ export default function WorkspaceDashboard() {
     settings: (
       <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
     ),
-    billing: <BillingPage onBack={goWorkspace} initialTab={billingTab} />,
+    billing: (
+      <BillingPage
+        onBack={goWorkspace}
+        initialTab={billingTab}
+        focusBuyCredits={searchParams?.get('billing') === 'buy-credits'}
+      />
+    ),
     notifications: <NotificationsPanel />,
     'visual-engine-v2': <VisualEngineV2Panel />,
   };

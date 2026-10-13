@@ -248,9 +248,11 @@ function RedeemAccessCodeBox({ onRedeemed }: { onRedeemed: () => void | Promise<
 interface BillingPageProps {
   onBack: () => void;
   initialTab?: 'overview' | 'credits' | 'payments' | 'plans';
+  /** Open on Subscription Plans, scrolled to "Buy Custom Credits" (from the out-of-credits popups). */
+  focusBuyCredits?: boolean;
 }
 
-export default function BillingPage({ onBack, initialTab = 'overview' }: BillingPageProps) {
+export default function BillingPage({ onBack, initialTab = 'overview', focusBuyCredits = false }: BillingPageProps) {
   const { refreshCreditBalance, userDetails } = useAuth();
 
   const [balance, setBalance] = useState<CreditBalanceResponse | null>(null);
@@ -260,7 +262,20 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>(
+    focusBuyCredits ? 'plans' : initialTab
+  );
+  // Arriving from "Get more credits": show the plans tab and bring Buy Custom Credits into view.
+  useEffect(() => {
+    if (!focusBuyCredits) return;
+    setActiveTab('plans');
+    if (loading) return;
+    const t = setTimeout(
+      () => document.getElementById('buy-credits')?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      150
+    );
+    return () => clearTimeout(t);
+  }, [focusBuyCredits, loading]);
   const [confirmTier, setConfirmTier] = useState<SubscriptionTier | null>(null);
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('monthly'); // PRD 8.1: Billing cycle selection
   const [showTestTier, setShowTestTier] = useState(false);
@@ -1059,7 +1074,9 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                     >
                       <span style={{ color: '#fff', fontSize: 16, fontWeight: 900, lineHeight: 1 }}>+</span>
                     </div>
-                    <h3 style={{ fontSize: 16, fontWeight: 900, color: '#111', margin: 0 }}>Buy Custom Credits</h3>
+                    <h3 id="buy-credits" style={{ fontSize: 16, fontWeight: 900, color: '#111', margin: 0 }}>
+                      Buy Custom Credits
+                    </h3>
                   </div>
                   <p style={{ fontSize: 12.5, color: '#666', margin: 0, lineHeight: 1.5, maxWidth: 380 }}>
                     Need a specific amount? Top up any quantity — no subscription, and they never expire.{' '}
