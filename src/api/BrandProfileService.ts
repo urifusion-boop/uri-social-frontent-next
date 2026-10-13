@@ -186,6 +186,14 @@ export interface PlaybookHealthData {
   used_in: Record<string, string[]>;
 }
 
+/** A Playbook change Jane suggests from the user's own edits and results. */
+export interface PlaybookSuggestion {
+  id: string;
+  title: string;
+  evidence: string;
+  change: string;
+}
+
 export class BrandProfileService {
   static async get(): Promise<UriResponse<BrandProfileData | null>> {
     const res: AxiosResponse<UriResponse<BrandProfileData | null>> = await UriHttpClient.getClient().get(BASE);
@@ -322,6 +330,29 @@ export class BrandProfileService {
     } catch {
       return null;
     }
+  }
+
+  static async getSuggestions(): Promise<PlaybookSuggestion[]> {
+    try {
+      const res: AxiosResponse<UriResponse<{ suggestions: PlaybookSuggestion[] }>> =
+        await UriHttpClient.getClient().get(`${BASE}/suggestions`);
+      return res.data?.responseData?.suggestions ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Applies one suggestion and returns the updated profile. */
+  static async applySuggestion(id: string): Promise<UriResponse<BrandProfileData>> {
+    const res: AxiosResponse<UriResponse<BrandProfileData>> = await UriHttpClient.getClient().post(
+      `${BASE}/suggestions/apply`,
+      { id }
+    );
+    return res.data;
+  }
+
+  static async dismissSuggestion(id: string): Promise<void> {
+    await UriHttpClient.getClient().post(`${BASE}/suggestions/dismiss`, { id });
   }
 
   /** One sample caption from the saved Playbook. No draft, no credits. */

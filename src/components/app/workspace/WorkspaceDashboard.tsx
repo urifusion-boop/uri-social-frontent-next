@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
 import PlaybookNotifications from './PlaybookNotifications';
 import PlaybookHealth from './PlaybookHealth';
+import PlaybookSuggestions from './PlaybookSuggestions';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
 import {
@@ -6567,6 +6568,7 @@ const PlaybookPage = ({
         </div>
 
         <PlaybookHealth health={health} />
+        <PlaybookSuggestions profile={profile} onProfileUpdate={onProfileUpdate} />
 
         {/* Brand Identity */}
         <PbSection title="Brand Identity">
