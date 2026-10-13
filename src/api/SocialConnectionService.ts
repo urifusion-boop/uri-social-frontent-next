@@ -68,6 +68,7 @@ export interface PlatformStatus {
   google_created_by_uri?: boolean;
   google_currency?: string;
   google_signin_verified?: boolean;
+  google_finishing?: boolean;
 }
 
 export interface LinkedInPage {

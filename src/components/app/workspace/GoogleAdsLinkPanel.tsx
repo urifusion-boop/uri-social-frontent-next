@@ -30,6 +30,8 @@ interface Props {
   createdByUri?: boolean;
   /** false while Google hasn't verified URI's sign-in app yet (it shows a warning screen). */
   signinVerified?: boolean;
+  /** We already approved it with the owner's sign-in; Google is just finishing. Nothing to do. */
+  finishing?: boolean;
   /** Reload the page's connection statuses (after anything changed). */
   onChanged: () => void;
 }
@@ -62,6 +64,7 @@ const GoogleAdsLinkPanel = ({
   detail,
   createdByUri,
   signinVerified,
+  finishing,
   onChanged,
 }: Props) => {
   const [busy, setBusy] = useState('');
@@ -74,13 +77,15 @@ const GoogleAdsLinkPanel = ({
   useEffect(() => {
     if (state !== 'manager_link_pending') return;
     let tries = 0;
-    const timer = setInterval(async () => {
+    let stopped = false;
+    const look = async () => {
       tries += 1;
-      if (tries > 50) return clearInterval(timer);
+      if (stopped || tries > 55) return clearInterval(timer);
       if (document.hidden) return;
       try {
         const s = await CampaignService.getGoogleConnectionStatus(true);
-        if (s.state !== 'manager_link_pending') {
+        if (s.state !== 'manager_link_pending' && !stopped) {
+          stopped = true;
           clearInterval(timer);
           if (s.state === 'ready') {
             ToastService.showToast(
@@ -93,8 +98,15 @@ const GoogleAdsLinkPanel = ({
       } catch {
         // a quiet check: try again next time
       }
-    }, 12000);
-    return () => clearInterval(timer);
+    };
+    const timer = setInterval(look, 12000);
+    // Look early too: right after an approval Google is usually done within seconds.
+    const early = [3000, 7000].map((ms) => setTimeout(look, ms));
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      early.forEach(clearTimeout);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
@@ -213,7 +225,15 @@ const GoogleAdsLinkPanel = ({
               <span style={{ fontSize: 14.5, fontWeight: 800, color: G.ink }}>{name}</span>
               <span style={status}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
-                {linked ? 'Linked' : pending ? 'One approval left' : refused ? 'Not linked' : 'Permission ended'}
+                {linked
+                  ? 'Linked'
+                  : pending && finishing
+                    ? 'Approved — finishing'
+                    : pending
+                      ? 'One approval left'
+                      : refused
+                        ? 'Not linked'
+                        : 'Permission ended'}
               </span>
             </div>
             <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
@@ -283,7 +303,25 @@ const GoogleAdsLinkPanel = ({
           </div>
         )}
 
-        {pending && (
+        {pending && finishing && (
+          <div
+            role="status"
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: G.blueSoft,
+              fontSize: 12.5,
+              color: G.body,
+              lineHeight: 1.5,
+            }}
+          >
+            <b>Approved.</b> Google is finishing the link — nothing for you to do. This turns to Linked by itself in a
+            few seconds.
+          </div>
+        )}
+
+        {pending && !finishing && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${G.line}` }}>
             <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
               <div>

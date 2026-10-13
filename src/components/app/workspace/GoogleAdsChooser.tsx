@@ -312,6 +312,12 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
           `Google Ads linked — ${r.account_name || a.name || 'your account'}.`,
           ToastTypeEnum.Success
         );
+      } else if (r.state === 'manager_link_pending' && r.auto_accepted) {
+        // We approved it with their sign-in; Google just hasn't caught up yet.
+        ToastService.showToast(
+          'Approved — Google is finishing the link. This page will show Linked in a few seconds.',
+          ToastTypeEnum.Success
+        );
       } else if (r.state === 'manager_link_pending') {
         ToastService.showToast(
           'Request sent. An admin of that Google Ads account needs to approve it — steps are below.',
@@ -739,6 +745,11 @@ export const GoogleAdsReturn = ({ onChanged }: { onChanged: () => void }) => {
     const reason = params.get('reason') || '';
     if (outcome === 'linked') {
       ToastService.showToast('Google Ads linked. You are ready to run Google ads.', ToastTypeEnum.Success);
+    } else if (outcome === 'finishing') {
+      ToastService.showToast(
+        'Approved — Google is finishing the link. This page will show Linked in a few seconds.',
+        ToastTypeEnum.Success
+      );
     } else if (outcome === 'pending') {
       ToastService.showToast(
         reason || 'Request sent. An admin of that Google Ads account needs to approve it — steps are below.',

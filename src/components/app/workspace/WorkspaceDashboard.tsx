@@ -2596,6 +2596,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           google_created_by_uri: !!gAds.created_by_uri,
           google_currency: gAds.currency_code || undefined,
           google_signin_verified: gAds.signin_verified,
+          google_finishing: !!gAds.finishing,
         };
       }
       next.linkedin = li?.responseData ?? { linked: false };
@@ -4246,6 +4247,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     createdByUri={s?.google_created_by_uri}
                     currency={s?.google_currency}
                     signinVerified={s?.google_signin_verified}
+                    finishing={s?.google_finishing}
                     onChanged={loadStatuses}
                   />
                 )}
