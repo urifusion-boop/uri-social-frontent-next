@@ -233,9 +233,9 @@ export const UnverifiedNote = () => (
       textAlign: 'left',
     }}
   >
-    <b>Heads up:</b> Google is still reviewing URI&apos;s sign-in, so it shows a &ldquo;Google hasn&apos;t verified this
-    app&rdquo; screen first. It&apos;s safe to continue: click <b>Advanced</b>, then <b>Go to URI Social</b>. Prefer to
-    skip that? Use your Customer ID instead.
+    <b style={{ marginRight: 4 }}>Heads up:</b> Google is still reviewing URI&apos;s sign-in, so it shows a
+    &ldquo;Google hasn&apos;t verified this app&rdquo; screen first. It&apos;s safe to continue: click <b>Advanced</b>,
+    then <b>Go to URI Social</b>. Prefer to skip that? Use your Customer ID instead.
   </div>
 );
 
