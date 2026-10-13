@@ -67,14 +67,20 @@ const GoogleAdsLinkPanel = ({ state, customerId, accountName, managerId, detail,
     setNote('');
     try {
       const s = await CampaignService.getGoogleConnectionStatus(true);
-      if (s.sync_error) setNote(s.sync_error);
+      // Toasts, not an inline note: reloading the statuses redraws this panel.
+      if (s.sync_error) ToastService.showToast(s.sync_error, ToastTypeEnum.Warning);
       else if (s.state === 'manager_link_pending') {
-        setNote('Not accepted yet. Once you accept it in Google Ads, press Check again.');
+        ToastService.showToast(
+          'Not accepted yet. Accept the request in Google Ads, then press Check again.',
+          ToastTypeEnum.Warning
+        );
       } else if (s.state === 'ready') {
         ToastService.showToast(
           `Google Ads linked${s.account_name ? ` — ${s.account_name}` : ''}.`,
           ToastTypeEnum.Success
         );
+      } else if (s.state === 'manager_link_declined') {
+        ToastService.showToast('The link request was declined or removed in Google Ads.', ToastTypeEnum.Error);
       }
       onChanged();
     } catch (err) {
@@ -157,7 +163,16 @@ const GoogleAdsLinkPanel = ({ state, customerId, accountName, managerId, detail,
             </div>
           )}
           {pending && (
-            <ol style={{ fontSize: 11.5, color: '#555', margin: '7px 0 0', paddingLeft: 17, lineHeight: 1.6 }}>
+            <ol
+              style={{
+                fontSize: 11.5,
+                color: '#555',
+                margin: '7px 0 0',
+                paddingLeft: 18,
+                lineHeight: 1.6,
+                listStyle: 'decimal',
+              }}
+            >
               <li>
                 Open{' '}
                 <a
