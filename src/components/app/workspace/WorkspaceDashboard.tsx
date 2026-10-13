@@ -91,6 +91,7 @@ import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspacePr
 import TrialBanner from '@/src/components/app/atoms/TrialBanner';
 import TrialEndingBanner from '@/src/components/app/atoms/TrialEndingBanner';
 import TrialExpiredModal from '@/src/components/app/atoms/TrialExpiredModal';
+import { hasActiveSubscription } from '@/src/utils/subscription.util';
 import NotificationBell from '@/src/components/app/atoms/NotificationBell';
 import NotificationsPanel from '@/src/components/app/workspace/NotificationsPanel';
 import { useNotifications } from '@/src/providers/NotificationProvider';
@@ -10323,9 +10324,14 @@ export default function WorkspaceDashboard() {
     [goTo]
   );
 
-  // Show trial expired modal on first visit after expiry
+  // No active plan: invite them to choose one (once per session). Closes by
+  // itself if the plan loads after the trial status does.
   useEffect(() => {
-    if (userDetails?.trialExpired && !userDetails?.subscriptionTier) {
+    if (hasActiveSubscription(userDetails?.subscriptionTier)) {
+      setTrialExpiredOpen(false);
+      return;
+    }
+    if (userDetails?.trialExpired) {
       const dismissed = sessionStorage.getItem('trial_expired_dismissed');
       if (!dismissed) setTrialExpiredOpen(true);
     }
@@ -10687,6 +10693,9 @@ export default function WorkspaceDashboard() {
         .workspace-root input:focus,.workspace-root textarea:focus,.workspace-root select:focus{outline:none}
         @keyframes wTypeBounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
         @keyframes wStatusFade{0%{opacity:0;transform:translateY(3px)}12%{opacity:1;transform:translateY(0)}88%{opacity:1}100%{opacity:0;transform:translateY(-3px)}}
+        .ws-nav-scroll{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.12) transparent}
+        .ws-nav-scroll::-webkit-scrollbar{width:4px}
+        .ws-nav-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
         @keyframes tourFadeIn{from{opacity:0}to{opacity:1}}
         @keyframes tourRingPulse{0%,100%{box-shadow:0 0 0 3px #C2185B,0 0 0 7px rgba(194,24,91,.2),0 0 28px rgba(194,24,91,.45)}50%{box-shadow:0 0 0 3px #C2185B,0 0 0 12px rgba(194,24,91,.1),0 0 40px rgba(194,24,91,.25)}}
       `}</style>
@@ -10697,6 +10706,7 @@ export default function WorkspaceDashboard() {
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
           height: '100vh',
+          overflow: 'hidden',
           fontFamily: 'var(--wf)',
           background: '#f5f4f0',
           opacity: ready ? 1 : 0,
@@ -10713,6 +10723,8 @@ export default function WorkspaceDashboard() {
               flexDirection: 'column',
               padding: '18px 0',
               flexShrink: 0,
+              height: '100%',
+              minHeight: 0,
             }}
           >
             <Link
@@ -10767,7 +10779,12 @@ export default function WorkspaceDashboard() {
               </div>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', paddingLeft: 37 }}>Active & ready</div>
             </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {/* On a short screen the menu scrolls here instead of pushing the sidebar
+                past the bottom of the window (which left a white strip under the app). */}
+            <div
+              className="ws-nav-scroll"
+              style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}
+            >
               {NAV.filter((n) => {
                 const item = n as { adminOnly?: boolean; platformAdminOnly?: boolean };
                 if (item.adminOnly) return isAdsAdmin;
@@ -11770,6 +11787,7 @@ export default function WorkspaceDashboard() {
       {/* Trial Expired Modal */}
       <TrialExpiredModal
         open={trialExpiredOpen}
+        trialEndDate={userDetails?.trialEndDate}
         onClose={() => {
           setTrialExpiredOpen(false);
           sessionStorage.setItem('trial_expired_dismissed', '1');

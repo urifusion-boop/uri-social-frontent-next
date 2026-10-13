@@ -2,19 +2,36 @@
 
 import { Box, Button, Dialog, DialogActions, DialogContent, Typography } from '@mui/material';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { MdTimerOff } from 'react-icons/md';
 
 /**
- * TrialExpiredModal — Shown when free trial has expired
- * Matches OutOfCreditsModal design language
+ * Shown when the user has no active plan. It used to always say "Your 7-day
+ * trial is over" — wrong for anyone whose trial ended long ago or whose plan
+ * (e.g. an access-code plan, which ends when its credits run out) has ended,
+ * and the trial isn't 7 days anyway. It now says what is actually true.
+ * Matches OutOfCreditsModal design language.
  */
 interface TrialExpiredModalProps {
   open: boolean;
   onClose: () => void;
+  trialEndDate?: string | null;
 }
 
-const TrialExpiredModal = ({ open, onClose }: TrialExpiredModalProps) => {
+const RECENT_TRIAL_DAYS = 14;
+
+const TrialExpiredModal = ({ open, onClose, trialEndDate }: TrialExpiredModalProps) => {
   const router = useRouter();
+  const [now] = useState(() => Date.now());
+  const ended = trialEndDate ? new Date(trialEndDate.endsWith('Z') ? trialEndDate : `${trialEndDate}Z`) : null;
+  const endedLabel =
+    ended && !Number.isNaN(ended.getTime()) && now - ended.getTime() < RECENT_TRIAL_DAYS * 86400000
+      ? ended.toLocaleDateString(undefined, { day: 'numeric', month: 'long' })
+      : null;
+  const title = endedLabel ? 'Your free trial has ended' : "You don't have an active plan";
+  const body = endedLabel
+    ? `Your free trial ended on ${endedLabel}. Choose a plan to keep creating with URI Agent.`
+    : 'Choose a plan to keep creating posts, ads and replies with URI Agent.';
 
   const handleUpgrade = () => {
     onClose();
@@ -39,10 +56,10 @@ const TrialExpiredModal = ({ open, onClose }: TrialExpiredModalProps) => {
           <MdTimerOff size={32} color="#CD1B78" />
         </Box>
         <Typography fontSize="20px" fontWeight={700} color="#111827" mb={1}>
-          Your free trial has ended
+          {title}
         </Typography>
         <Typography fontSize="14px" color="#6B7280" lineHeight={1.7}>
-          Your 7-day trial is over, but don't worry — choose a plan to continue creating amazing content with URI Agent.
+          {body}
         </Typography>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 3, gap: 1, justifyContent: 'center' }}>
