@@ -56,8 +56,8 @@ export const gBtn = (kind: 'primary' | 'plain' | 'danger' = 'plain', disabled = 
   alignItems: 'center',
   justifyContent: 'center',
   gap: 7,
-  padding: '8px 14px',
-  borderRadius: 9,
+  padding: '7px 12px',
+  borderRadius: 8,
   border: kind === 'primary' ? 'none' : `1px solid ${kind === 'danger' ? '#F3C7C7' : G.line}`,
   background: kind === 'primary' ? G.blue : '#fff',
   color: kind === 'primary' ? '#fff' : kind === 'danger' ? G.red : G.body,
@@ -91,13 +91,13 @@ export const GoogleButton = ({
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 10,
-      padding: '10px 18px',
-      borderRadius: 10,
+      gap: 8,
+      padding: '7px 14px',
+      borderRadius: 9,
       border: `1px solid #DADCE0`,
       background: '#fff',
       color: '#1F1F1F',
-      fontSize: 13.5,
+      fontSize: 12.5,
       fontWeight: 700,
       cursor: disabled || busy ? 'default' : 'pointer',
       opacity: disabled ? 0.6 : 1,
@@ -105,7 +105,7 @@ export const GoogleButton = ({
       whiteSpace: 'nowrap',
     }}
   >
-    <FcGoogle size={18} />
+    <FcGoogle size={16} />
     {busy ? 'Opening Google…' : label}
   </button>
 );
@@ -133,14 +133,14 @@ export const GoogleSteps = ({ steps, current }: { steps: string[]; current: numb
         >
           <span
             style={{
-              width: 20,
-              height: 20,
+              width: 17,
+              height: 17,
               borderRadius: '50%',
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 10.5,
+              fontSize: 9.5,
               fontWeight: 800,
               background: done ? G.green : now ? G.blue : '#fff',
               color: done || now ? '#fff' : G.faint,
@@ -151,7 +151,7 @@ export const GoogleSteps = ({ steps, current }: { steps: string[]; current: numb
           </span>
           <span
             style={{
-              fontSize: 11.5,
+              fontSize: 11,
               fontWeight: now ? 800 : 600,
               color: now ? G.ink : done ? G.green : G.faint,
               whiteSpace: 'nowrap',
@@ -175,7 +175,7 @@ export const GoogleShell = ({ children }: { children: ReactNode }) => (
     className="gads"
     style={{
       ...font,
-      padding: '14px 16px 16px',
+      padding: '10px 14px 12px',
       background: G.panel,
       borderRadius: '0 0 12px 12px',
       border: `1.5px solid ${G.blue}33`,
@@ -192,27 +192,24 @@ export const GoogleShell = ({ children }: { children: ReactNode }) => (
 );
 
 const Tick = ({ children }: { children: ReactNode }) => (
-  <li style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, color: G.body, lineHeight: 1.45 }}>
-    <span
-      aria-hidden
-      style={{
-        width: 16,
-        height: 16,
-        borderRadius: '50%',
-        background: G.greenSoft,
-        color: G.green,
-        fontSize: 10,
-        fontWeight: 900,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        marginTop: 1,
-      }}
-    >
+  <li
+    style={{
+      display: 'inline-flex',
+      gap: 5,
+      alignItems: 'center',
+      padding: '2px 9px 2px 6px',
+      borderRadius: 999,
+      background: G.greenSoft,
+      fontSize: 11,
+      fontWeight: 600,
+      color: '#14532D',
+      lineHeight: '17px',
+    }}
+  >
+    <span aria-hidden style={{ color: G.green, fontSize: 10, fontWeight: 900 }}>
       ✓
     </span>
-    <span>{children}</span>
+    {children}
   </li>
 );
 
@@ -225,15 +222,14 @@ export const UnverifiedNote = () => (
   <div
     style={{
       ...font,
-      marginTop: 9,
-      maxWidth: 330,
-      padding: '8px 10px',
-      borderRadius: 9,
+      marginTop: 8,
+      padding: '6px 10px',
+      borderRadius: 8,
       background: G.amberSoft,
       border: '1px solid #F5E1B5',
-      fontSize: 11.5,
+      fontSize: 11,
       color: G.amber,
-      lineHeight: 1.5,
+      lineHeight: 1.45,
       textAlign: 'left',
     }}
   >
@@ -250,10 +246,10 @@ const input: React.CSSProperties = {
   ...font,
   flex: '1 1 200px',
   minWidth: 0,
-  padding: '9px 11px',
-  borderRadius: 9,
+  padding: '7px 10px',
+  borderRadius: 8,
   border: `1px solid ${G.line}`,
-  fontSize: 13,
+  fontSize: 12.5,
   outline: 'none',
   background: '#fff',
 };
@@ -375,8 +371,15 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
   };
 
   const picking = accounts.length > 0;
-  // Until Google has verified the sign-in, the route with no warning screen starts open.
-  const way: Way = wayChosen ?? (signinVerified === false && !picking ? 'customer_id' : '');
+  // Both other routes start closed, so the panel stays small until one is wanted.
+  const way: Way = wayChosen ?? '';
+  const sub: React.CSSProperties = {
+    marginTop: 8,
+    padding: '11px 13px',
+    background: '#fff',
+    border: `1px solid ${G.line}`,
+    borderRadius: 10,
+  };
   const tile = (key: Way, title: string, text: string, icon: string) => {
     const active = way === key;
     return (
@@ -387,14 +390,14 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
         onClick={() => setWay(active ? '' : key)}
         style={{
           ...font,
-          flex: '1 1 240px',
+          flex: '1 1 230px',
           display: 'flex',
           alignItems: 'center',
-          gap: 11,
+          gap: 9,
           textAlign: 'left',
-          padding: '11px 13px',
-          borderRadius: 12,
-          border: `1.5px solid ${active ? G.blue : G.line}`,
+          padding: '7px 10px',
+          borderRadius: 10,
+          border: `1px solid ${active ? G.blue : G.line}`,
           background: active ? G.blueSoft : '#fff',
           cursor: 'pointer',
           transition: 'border-color .15s, box-shadow .15s, background .15s',
@@ -403,30 +406,33 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
         <span
           aria-hidden
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: 9,
+            width: 24,
+            height: 24,
+            borderRadius: 7,
             background: active ? '#fff' : G.blueSoft,
             color: G.blue,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 15,
+            fontSize: 13,
             fontWeight: 800,
             flexShrink: 0,
           }}
         >
           {icon}
         </span>
-        <span style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ display: 'block', fontSize: 13, fontWeight: 800, color: G.ink }}>{title}</span>
-          <span style={{ display: 'block', fontSize: 11.5, color: G.muted, marginTop: 1 }}>{text}</span>
+        <span style={{ minWidth: 0, flex: 1, fontSize: 12.5, color: G.ink, fontWeight: 700 }}>
+          {title}
+          <span className="gads-wide" style={{ fontWeight: 500, color: G.muted }}>
+            {' '}
+            · {text}
+          </span>
         </span>
         <span
           aria-hidden
           style={{
             color: G.faint,
-            fontSize: 14,
+            fontSize: 13,
             transform: active ? 'rotate(90deg)' : 'none',
             transition: 'transform .2s',
           }}
@@ -443,166 +449,164 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
 
       {/* The main way */}
       <div
-        className="gads-hero"
         style={{
-          marginTop: 12,
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) auto',
-          gap: 18,
-          alignItems: 'center',
-          padding: '16px 18px',
-          borderRadius: 14,
+          marginTop: 9,
+          padding: '12px 14px',
+          borderRadius: 12,
           background: '#fff',
           border: `1px solid ${G.line}`,
-          boxShadow: '0 6px 24px rgba(26,115,232,.07)',
+          boxShadow: '0 4px 16px rgba(26,115,232,.06)',
         }}
       >
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: G.ink }}>
-            {picking ? 'Which Google Ads account should URI use?' : 'Give URI permission to run your Google ads'}
+        <div
+          className="gads-hero"
+          style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 14, alignItems: 'center' }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: G.ink }}>
+              {picking ? 'Which Google Ads account should URI use?' : 'Give URI permission to run your Google ads'}
+            </div>
+            <div style={{ fontSize: 12, color: G.muted, marginTop: 1, lineHeight: 1.45 }}>
+              {picking
+                ? 'These are the accounts your Google login can use. Pick one and it’s linked.'
+                : 'Sign in with the Google account you use for Google Ads, then pick your account. That’s all.'}
+            </div>
           </div>
-          <div style={{ fontSize: 12.5, color: G.muted, margin: '3px 0 10px', lineHeight: 1.5 }}>
-            {picking
-              ? 'These are the accounts your Google login can use. Pick one and it’s linked.'
-              : 'Sign in with the Google account you use for Google Ads, then pick your account. That’s all.'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {!picking && signinVerified !== false && (
+              <span className="gads-wide" style={{ fontSize: 11, color: G.faint }}>
+                About 20 seconds
+              </span>
+            )}
+            <GoogleButton
+              label={picking ? 'Use a different Google login' : 'Continue with Google'}
+              busy={busy === 'signin'}
+              disabled={!!busy && busy !== 'signin'}
+              onClick={signIn}
+            />
           </div>
-          {!picking && (
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 5 }}>
-              <Tick>No Customer ID to look up, nothing to approve in Google Ads.</Tick>
-              <Tick>URI creates and manages your ads. Your billing and your login stay yours.</Tick>
-              <Tick>Disconnect any time, in one click.</Tick>
-            </ul>
-          )}
-          {picking && (
-            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-              {accounts.map((a) => (
-                <button
-                  key={a.customer_id}
-                  type="button"
-                  className="gads-acct"
-                  disabled={!!busy}
-                  onClick={() => pick(a)}
+        </div>
+
+        {!picking && (
+          <ul style={{ listStyle: 'none', margin: '9px 0 0', padding: 0, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <Tick>No Customer ID to look up, nothing to approve in Google Ads</Tick>
+            <Tick>URI creates and manages your ads — billing and login stay yours</Tick>
+            <Tick>Disconnect any time, in one click</Tick>
+          </ul>
+        )}
+
+        {picking && (
+          <div
+            style={{
+              display: 'grid',
+              gap: 7,
+              gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+              marginTop: 10,
+            }}
+          >
+            {accounts.map((a) => (
+              <button
+                key={a.customer_id}
+                type="button"
+                className="gads-acct"
+                disabled={!!busy}
+                onClick={() => pick(a)}
+                style={{
+                  ...font,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 9,
+                  textAlign: 'left',
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  border: `1px solid ${busy === a.customer_id ? G.blue : G.line}`,
+                  background: busy === a.customer_id ? G.blueSoft : '#fff',
+                  cursor: busy ? 'default' : 'pointer',
+                  opacity: busy && busy !== a.customer_id ? 0.5 : 1,
+                  transition: 'border-color .15s',
+                }}
+              >
+                <span
+                  aria-hidden
                   style={{
-                    ...font,
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    background: G.blueSoft,
+                    color: G.blue,
+                    fontWeight: 800,
+                    fontSize: 12,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 10,
-                    textAlign: 'left',
-                    padding: '10px 12px',
-                    borderRadius: 11,
-                    border: `1.5px solid ${busy === a.customer_id ? G.blue : G.line}`,
-                    background: busy === a.customer_id ? G.blueSoft : '#fff',
-                    cursor: busy ? 'default' : 'pointer',
-                    opacity: busy && busy !== a.customer_id ? 0.5 : 1,
-                    transition: 'border-color .15s',
+                    justifyContent: 'center',
+                    flexShrink: 0,
                   }}
                 >
+                  {(a.name || 'G').trim().charAt(0).toUpperCase()}
+                </span>
+                <span style={{ minWidth: 0 }}>
                   <span
-                    aria-hidden
                     style={{
-                      width: 30,
-                      height: 30,
-                      borderRadius: '50%',
-                      background: G.blueSoft,
-                      color: G.blue,
+                      display: 'block',
+                      fontSize: 12.5,
                       fontWeight: 800,
-                      fontSize: 13,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
+                      color: G.ink,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
                   >
-                    {(a.name || 'G').trim().charAt(0).toUpperCase()}
+                    {busy === a.customer_id ? 'Linking…' : a.name || 'Google Ads account'}
                   </span>
-                  <span style={{ minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: 'block',
-                        fontSize: 13,
-                        fontWeight: 800,
-                        color: G.ink,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {busy === a.customer_id ? 'Linking…' : a.name || 'Google Ads account'}
-                    </span>
-                    <span style={{ display: 'block', fontSize: 11.5, color: G.muted }}>
-                      {formatGoogleId(a.customer_id)}
-                      {a.currency_code ? ` · ${a.currency_code}` : ''}
-                    </span>
+                  <span style={{ display: 'block', fontSize: 11, color: G.muted }}>
+                    {formatGoogleId(a.customer_id)}
+                    {a.currency_code ? ` · ${a.currency_code}` : ''}
                   </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-          <GoogleButton
-            label={picking ? 'Use a different Google login' : 'Continue with Google'}
-            busy={busy === 'signin'}
-            disabled={!!busy && busy !== 'signin'}
-            onClick={signIn}
-          />
-          {!picking && signinVerified !== false && (
-            <span style={{ fontSize: 11, color: G.faint }}>Takes about 20 seconds</span>
-          )}
-        </div>
-      </div>
-      {signinVerified === false && !picking && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <UnverifiedNote />
-        </div>
-      )}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
-      {signedIn && !picking && (
-        <div
-          role="status"
-          style={{
-            marginTop: 10,
-            padding: '9px 12px',
-            borderRadius: 10,
-            background: G.amberSoft,
-            border: '1px solid #F5E1B5',
-            fontSize: 12.5,
-            color: G.amber,
-            lineHeight: 1.5,
-          }}
-        >
-          We didn&apos;t find a Google Ads account on that Google login
-          {others > 0 ? ' (only manager or closed accounts)' : ''}. Try the Google account you use for Google Ads, or
-          use &ldquo;I don&apos;t have a Google Ads account&rdquo; below.
-        </div>
-      )}
+        {signinVerified === false && !picking && <UnverifiedNote />}
+
+        {signedIn && !picking && (
+          <div
+            role="status"
+            style={{
+              marginTop: 8,
+              padding: '6px 10px',
+              borderRadius: 8,
+              background: G.amberSoft,
+              border: '1px solid #F5E1B5',
+              fontSize: 11.5,
+              color: G.amber,
+              lineHeight: 1.45,
+            }}
+          >
+            We didn&apos;t find a Google Ads account on that Google login
+            {others > 0 ? ' (only manager or closed accounts)' : ''}. Try the Google account you use for Google Ads, or
+            use &ldquo;I don&apos;t have a Google Ads account&rdquo; below.
+          </div>
+        )}
+      </div>
 
       {/* The other two ways */}
-      <div style={{ fontSize: 10.5, fontWeight: 800, color: G.faint, letterSpacing: 0.6, margin: '14px 0 7px' }}>
-        OTHER WAYS
-      </div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {tile('no_account', 'I don’t have a Google Ads account', 'Make one in about two minutes', '+')}
-        {tile('customer_id', 'Enter my Customer ID', 'When someone else holds the Google login', '#')}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 9 }}>
+        <span style={{ fontSize: 10, fontWeight: 800, color: G.faint, letterSpacing: 0.6 }}>OTHER WAYS</span>
+        {tile('no_account', 'I don’t have a Google Ads account', 'make one in two minutes', '+')}
+        {tile('customer_id', 'Enter my Customer ID', 'if someone else holds the Google login', '#')}
       </div>
 
       {way === 'no_account' && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: '14px 16px',
-            background: '#fff',
-            border: `1px solid ${G.line}`,
-            borderRadius: 12,
-          }}
-        >
+        <div style={sub}>
           {!createBlocked && (
-            <div style={{ paddingBottom: 12, marginBottom: 12, borderBottom: `1px solid ${G.line}` }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: G.ink }}>Let URI create one for you</div>
-              <div style={{ fontSize: 12, color: G.muted, margin: '2px 0 8px' }}>
-                A new Google Ads account in naira, ready straight away.
+            <div style={{ paddingBottom: 10, marginBottom: 10, borderBottom: `1px solid ${G.line}` }}>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: G.ink }}>
+                Let URI create one for you{' '}
+                <span style={{ fontWeight: 500, color: G.muted }}>· in naira, ready straight away</span>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                 <input
                   value={accountName}
                   onChange={(e) => setAccountName(e.target.value)}
@@ -623,10 +627,10 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
               </div>
             </div>
           )}
-          <div style={{ fontSize: 13, fontWeight: 800, color: G.ink, marginBottom: 8 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: G.ink, marginBottom: 6 }}>
             {createBlocked ? 'Make a Google Ads account — about two minutes' : 'Or make it yourself'}
           </div>
-          <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 }}>
+          <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 5 }}>
             {[
               <>
                 Open{' '}
@@ -645,16 +649,16 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
               </>,
               <>Come back here and continue with Google.</>,
             ].map((step, i) => (
-              <li key={i} style={{ display: 'flex', gap: 10, fontSize: 12.5, color: G.body, lineHeight: 1.5 }}>
+              <li key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: G.body, lineHeight: 1.45 }}>
                 <span
                   aria-hidden
                   style={{
-                    width: 20,
-                    height: 20,
+                    width: 17,
+                    height: 17,
                     borderRadius: '50%',
                     background: G.blueSoft,
                     color: G.blue,
-                    fontSize: 10.5,
+                    fontSize: 9.5,
                     fontWeight: 800,
                     display: 'flex',
                     alignItems: 'center',
@@ -669,37 +673,27 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
               </li>
             ))}
           </ol>
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 9 }}>
             <GoogleButton label="I’ve made it — Continue with Google" busy={busy === 'signin'} onClick={signIn} />
           </div>
         </div>
       )}
 
       {way === 'customer_id' && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: '14px 16px',
-            background: '#fff',
-            border: `1px solid ${G.line}`,
-            borderRadius: 12,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 800, color: G.ink }}>Enter your Google Ads Customer ID</div>
-          <div style={{ fontSize: 12, color: G.muted, margin: '2px 0 9px', lineHeight: 1.5 }}>
-            It&apos;s the 10-digit number at the top right of Google Ads, like 123-456-7890. We&apos;ll send a request
-            that an admin of that account approves — this page updates by itself when they do.
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={sub}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label htmlFor="gads-customer-id" style={{ fontSize: 12.5, fontWeight: 800, color: G.ink }}>
+              Google Ads Customer ID
+            </label>
             <input
+              id="gads-customer-id"
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && linkById()}
               placeholder="123-456-7890"
               inputMode="numeric"
-              aria-label="Google Ads Customer ID"
               maxLength={14}
-              style={input}
+              style={{ ...input, flex: '1 1 160px' }}
             />
             <button
               type="button"
@@ -710,6 +704,10 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
               {busy === 'id' ? 'Sending…' : 'Send request'}
             </button>
           </div>
+          <div style={{ fontSize: 11.5, color: G.muted, marginTop: 6, lineHeight: 1.45 }}>
+            It&apos;s the 10-digit number at the top right of Google Ads. We&apos;ll send a request that an admin of
+            that account approves — this page updates by itself when they do.
+          </div>
         </div>
       )}
 
@@ -717,12 +715,12 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
         <div
           role="alert"
           style={{
-            marginTop: 10,
-            padding: '9px 12px',
-            borderRadius: 10,
+            marginTop: 8,
+            padding: '7px 10px',
+            borderRadius: 8,
             background: G.redSoft,
             border: '1px solid #F3C7C7',
-            fontSize: 12.5,
+            fontSize: 12,
             color: G.red,
           }}
         >
