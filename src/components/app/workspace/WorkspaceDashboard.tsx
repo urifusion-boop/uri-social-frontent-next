@@ -11812,7 +11812,7 @@ export default function WorkspaceDashboard() {
       {/* Guided Tour */}
       {/* The tour waits for the plan popup: its full-screen "click to skip" layer
           sat above the popup and made its buttons unclickable. */}
-      {tourOpen && !isMobile && !trialExpiredOpen && <GuidedTour onDone={closeTour} />}
+      {tourOpen && !isMobile && !trialExpiredOpen && nav === 'workspace' && <GuidedTour onDone={closeTour} />}
 
       {/* Trial Expired Modal */}
       <TrialExpiredModal
