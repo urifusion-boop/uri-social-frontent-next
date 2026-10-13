@@ -12,26 +12,10 @@ import {
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { C, font, GRADIENT, pill, PlaybookPanel, usePanelOpen } from './PlaybookPanel';
 
 /* ── Look ─────────────────────────────────────────────────────────────── */
 
-const C = {
-  pink: '#C2185B',
-  plum: '#7B0D3D',
-  ink: '#111827',
-  body: '#374151',
-  muted: '#6B7280',
-  faint: '#9CA3AF',
-  line: '#EEEAE6',
-  soft: '#FBF7F9',
-  green: '#047857',
-  greenBg: '#ECFDF5',
-  red: '#B91C1C',
-  redBg: '#FEF2F2',
-  amber: '#92400E',
-  amberBg: '#FFFBEB',
-};
-const GRADIENT = `linear-gradient(135deg, ${C.pink} 0%, ${C.plum} 100%)`;
 const OPEN_KEY = 'uri_tell_jane_open';
 
 const EXAMPLES = [
@@ -63,34 +47,19 @@ const PLATFORM_LABELS: Record<string, string> = {
 
 type Tab = 'tell' | 'remembers' | 'suggestions' | 'history';
 
-const font: React.CSSProperties = { fontFamily: 'var(--wf)' };
-
 const button = (kind: 'primary' | 'ghost' | 'quiet' = 'ghost'): React.CSSProperties => ({
   ...font,
-  padding: kind === 'quiet' ? '5px 10px' : '8px 14px',
+  padding: kind === 'quiet' ? '4px 9px' : '6px 12px',
   borderRadius: 9,
   border: kind === 'primary' ? 'none' : `1px solid ${kind === 'ghost' ? '#F0C9D9' : C.line}`,
   background: kind === 'primary' ? GRADIENT : '#fff',
   color: kind === 'primary' ? '#fff' : kind === 'ghost' ? C.pink : C.muted,
-  fontSize: 12.5,
+  fontSize: 12,
   fontWeight: 700,
   cursor: 'pointer',
   boxShadow: kind === 'primary' ? '0 4px 14px rgba(194,24,91,.25)' : 'none',
   transition: 'transform .15s ease, box-shadow .15s ease, opacity .15s',
   whiteSpace: 'nowrap',
-});
-
-const pill = (bg: string, color: string): React.CSSProperties => ({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  padding: '2px 9px',
-  borderRadius: 999,
-  background: bg,
-  color,
-  fontSize: 11,
-  fontWeight: 700,
-  lineHeight: '18px',
 });
 
 const errorText = (err: unknown, fallback: string): string => {
@@ -142,20 +111,8 @@ const Avatar = ({ size = 34 }: { size?: number }) => (
   </div>
 );
 
-const Chevron = ({ open }: { open: boolean }) => (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    aria-hidden
-    style={{ transition: 'transform .25s ease', transform: open ? 'rotate(180deg)' : 'none', flexShrink: 0 }}
-  >
-    <path d="M6 9l6 6 6-6" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
 const Empty = ({ title, text }: { title: string; text: string }) => (
-  <div style={{ textAlign: 'center', padding: '26px 12px', color: C.muted }}>
+  <div style={{ textAlign: 'center', padding: '18px 12px', color: C.muted }}>
     <div style={{ fontSize: 13.5, fontWeight: 700, color: C.body, marginBottom: 4 }}>{title}</div>
     <div style={{ fontSize: 12.5, lineHeight: 1.6, maxWidth: 420, margin: '0 auto' }}>{text}</div>
   </div>
@@ -224,7 +181,7 @@ interface Props {
  * work, and the history of changes — every one undoable.
  */
 const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, source = 'playbook' }: Props) => {
-  const [open, setOpen] = useState(compact);
+  const [open, toggle] = usePanelOpen(OPEN_KEY);
   const [tab, setTab] = useState<Tab>('tell');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -234,26 +191,6 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
   const [history, setHistory] = useState<PlaybookChangeLog[]>([]);
   const [suggestions, setSuggestions] = useState<PlaybookSuggestion[]>([]);
   const [working, setWorking] = useState('');
-
-  // Remember whether the owner keeps it open.
-  useEffect(() => {
-    if (compact) return;
-    try {
-      if (localStorage.getItem(OPEN_KEY) === '1') setOpen(true);
-    } catch {
-      // storage unavailable — starts closed
-    }
-  }, [compact]);
-  const toggle = () => {
-    setOpen((o) => {
-      try {
-        localStorage.setItem(OPEN_KEY, o ? '0' : '1');
-      } catch {
-        // ignore
-      }
-      return !o;
-    });
-  };
 
   const refresh = useCallback(() => {
     if (compact) return;
@@ -390,18 +327,18 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit();
           }}
           maxLength={2000}
-          rows={compact ? 2 : 3}
+          rows={2}
           placeholder={`Tell Jane what you want… e.g. "${EXAMPLES[0]}. On LinkedIn be more formal."`}
           aria-label="Tell Jane what you want"
           style={{
             ...font,
             width: '100%',
             boxSizing: 'border-box',
-            padding: '12px 14px 44px',
+            padding: '10px 12px 40px',
             border: 'none',
             borderRadius: 14,
-            fontSize: 13.5,
-            lineHeight: 1.55,
+            fontSize: 13,
+            lineHeight: 1.5,
             resize: 'vertical',
             outline: 'none',
             background: 'transparent',
@@ -423,7 +360,7 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
         >
           <span style={{ fontSize: 11, color: C.faint }}>
             {text.length > 0 ? `${text.length}/2000` : ''}
-            <span className="tj-wide">{text.length > 0 ? ' · ' : ''}Ctrl + Enter</span>
+            <span className="pb-wide">{text.length > 0 ? ' · ' : ''}Ctrl + Enter</span>
           </span>
           <button
             type="button"
@@ -450,12 +387,12 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
               onClick={() => setText(ex)}
               style={{
                 ...font,
-                padding: '4px 10px',
+                padding: '3px 9px',
                 borderRadius: 999,
                 border: `1px solid ${C.line}`,
                 background: '#fff',
                 color: C.body,
-                fontSize: 11.5,
+                fontSize: 11,
                 cursor: 'pointer',
               }}
             >
@@ -468,7 +405,7 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
   );
 
   const answer = result && (
-    <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'flex-start' }} role="status">
+    <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'flex-start' }} role="status">
       <Avatar size={28} />
       <div
         style={{
@@ -477,7 +414,7 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
           background: result.change_id ? '#fff' : C.soft,
           border: `1px solid ${result.change_id ? '#D1FAE5' : C.line}`,
           borderRadius: '4px 14px 14px 14px',
-          padding: '11px 13px',
+          padding: '9px 12px',
         }}
       >
         <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.55, marginBottom: result.change_id ? 10 : 0 }}>
@@ -546,368 +483,299 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
     .join(' · ');
 
   return (
-    <section
-      className="tell-jane"
-      style={{
-        ...font,
-        marginBottom: 12,
-        borderRadius: 16,
-        padding: 1.5,
-        background: open ? GRADIENT : `linear-gradient(135deg, #F3C6D8, ${C.line})`,
-        boxShadow: open ? '0 14px 40px rgba(123,13,61,.12)' : '0 2px 8px rgba(17,24,39,.04)',
-        transition: 'box-shadow .25s ease',
-      }}
+    <PlaybookPanel
+      id="tell-jane-panel"
+      open={open}
+      onToggle={toggle}
+      icon={<Avatar size={32} />}
+      title="Tell Jane what you want"
+      tags={
+        <span className="pb-wide" style={pill('#FCE4EC', C.pink)}>
+          AI
+        </span>
+      }
+      subtitle={summary || 'Describe it in your own words — Jane updates your Playbook and remembers it everywhere.'}
+      badges={
+        suggestions.length > 0 && (
+          <span
+            title={`${suggestions.length} suggestion${suggestions.length === 1 ? '' : 's'} from Jane`}
+            style={{ ...pill(C.amberBg, C.amber), border: '1px solid #FDE68A', flexShrink: 0 }}
+          >
+            {suggestions.length}
+            <span className="pb-wide">&nbsp;suggestion{suggestions.length === 1 ? '' : 's'}</span>
+          </span>
+        )
+      }
     >
-      <style>{`
-        @media (max-width: 520px) {
-          .tell-jane .tj-wide { display: none !important; }
-          .tell-jane .tj-title { font-size: 13.5px !important; }
-        }
-      `}</style>
-      <div style={{ background: '#fff', borderRadius: 14.5, overflow: 'hidden' }}>
-        {/* Header — the dropdown toggle */}
-        <button
-          type="button"
-          onClick={toggle}
-          aria-expanded={open}
-          aria-controls="tell-jane-panel"
-          style={{
-            ...font,
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '14px 16px',
-            border: 'none',
-            background: open ? 'linear-gradient(180deg, #FDF2F7 0%, #fff 100%)' : '#fff',
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
-        >
-          <Avatar />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span className="tj-title" style={{ fontSize: 14.5, fontWeight: 800, color: C.ink }}>
-                Tell Jane what you want
-              </span>
-              <span className="tj-wide" style={pill('#FCE4EC', C.pink)}>
-                AI
-              </span>
-            </div>
-            <div
+      {/* Tabs */}
+      <div
+        role="tablist"
+        aria-label="Jane"
+        style={{
+          display: 'flex',
+          gap: 4,
+          padding: 4,
+          margin: '10px 0 12px',
+          background: '#F6F3F1',
+          borderRadius: 11,
+          overflowX: 'auto',
+          width: 'fit-content',
+          maxWidth: '100%',
+        }}
+      >
+        {tabs.map((t) => {
+          const active = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setTab(t.key)}
               style={{
+                ...font,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 11px',
+                borderRadius: 7,
+                border: 'none',
+                background: active ? '#fff' : 'transparent',
+                color: active ? C.ink : C.muted,
                 fontSize: 12.5,
-                color: C.muted,
-                marginTop: 2,
+                fontWeight: 700,
+                cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+                boxShadow: active ? '0 1px 4px rgba(17,24,39,.08)' : 'none',
               }}
             >
-              {summary || 'Describe it in your own words — Jane updates your Playbook and remembers it everywhere.'}
-            </div>
-          </div>
-          {suggestions.length > 0 && (
-            <span
-              title={`${suggestions.length} suggestion${suggestions.length === 1 ? '' : 's'} from Jane`}
-              style={{ ...pill(C.amberBg, C.amber), border: '1px solid #FDE68A', flexShrink: 0 }}
-            >
-              {suggestions.length}
-              <span className="tj-wide">&nbsp;suggestion{suggestions.length === 1 ? '' : 's'}</span>
-            </span>
-          )}
-          <Chevron open={open} />
-        </button>
+              {t.label}
+              {!!t.count && (
+                <span
+                  style={{
+                    ...pill(active ? '#FCE4EC' : '#ECE8E5', active ? C.pink : C.muted),
+                    padding: '0 7px',
+                  }}
+                >
+                  {t.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Body — animates open/closed */}
-        <div
-          id="tell-jane-panel"
-          style={{
-            display: 'grid',
-            gridTemplateRows: open ? '1fr' : '0fr',
-            transition: 'grid-template-rows .3s ease',
-          }}
-        >
-          <div style={{ overflow: 'hidden', minHeight: 0 }} inert={!open}>
-            <div style={{ padding: '4px 16px 18px', borderTop: `1px solid ${C.line}` }}>
-              {/* Tabs */}
-              <div
-                role="tablist"
-                aria-label="Jane"
-                style={{
-                  display: 'flex',
-                  gap: 4,
-                  padding: 4,
-                  margin: '12px 0 16px',
-                  background: '#F6F3F1',
-                  borderRadius: 11,
-                  overflowX: 'auto',
-                  width: 'fit-content',
-                  maxWidth: '100%',
-                }}
-              >
-                {tabs.map((t) => {
-                  const active = tab === t.key;
-                  return (
-                    <button
-                      key={t.key}
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
-                      onClick={() => setTab(t.key)}
+      {/* Tell Jane */}
+      {tab === 'tell' && (
+        <div role="tabpanel">
+          {composer}
+          {answer}
+        </div>
+      )}
+
+      {/* Remembers — grouped by where it applies */}
+      {tab === 'remembers' && (
+        <div role="tabpanel">
+          {grouped.length === 0 ? (
+            <Empty
+              title="Nothing remembered yet"
+              text="Anything you tell Jane that isn't a Playbook setting — how to start captions, what to always mention, how to sign off replies — is kept here and followed everywhere it applies."
+            />
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                gap: 10,
+              }}
+            >
+              {grouped.map((g) => (
+                <div key={g.key} style={{ border: `1px solid ${C.line}`, borderRadius: 10, padding: '9px 10px 3px' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>{g.label}</span>
+                    <span style={{ fontSize: 11, color: C.faint }}>{g.hint}</span>
+                  </div>
+                  {g.items.map((i) => (
+                    <div
+                      key={`${g.key}-${i.id}`}
                       style={{
-                        ...font,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '7px 13px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: active ? '#fff' : 'transparent',
-                        color: active ? C.ink : C.muted,
-                        fontSize: 12.5,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        boxShadow: active ? '0 1px 4px rgba(17,24,39,.08)' : 'none',
+                        display: 'flex',
+                        gap: 8,
+                        alignItems: 'flex-start',
+                        padding: '8px 0',
+                        borderTop: `1px solid ${C.line}`,
                       }}
                     >
-                      {t.label}
-                      {!!t.count && (
-                        <span
-                          style={{
-                            ...pill(active ? '#FCE4EC' : '#ECE8E5', active ? C.pink : C.muted),
-                            padding: '0 7px',
-                          }}
-                        >
-                          {t.count}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Tell Jane */}
-              {tab === 'tell' && (
-                <div role="tabpanel">
-                  {composer}
-                  {answer}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, color: C.body, lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+                          {i.text}
+                        </div>
+                        {(i.platforms ?? []).length > 0 && (
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                            {(i.platforms ?? []).map((p) => (
+                              <span key={p} style={pill('#FCE4EC', C.pink)}>
+                                {PLATFORM_LABELS[p] ?? p}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        aria-label={`Stop following: ${i.text}`}
+                        title="Stop following this"
+                        disabled={working === i.id}
+                        onClick={() => forget(i)}
+                        style={{
+                          border: 'none',
+                          background: '#F6F3F1',
+                          color: C.muted,
+                          width: 24,
+                          height: 24,
+                          borderRadius: 7,
+                          fontSize: 15,
+                          lineHeight: '24px',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              )}
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-              {/* Remembers — grouped by where it applies */}
-              {tab === 'remembers' && (
-                <div role="tabpanel">
-                  {grouped.length === 0 ? (
-                    <Empty
-                      title="Nothing remembered yet"
-                      text="Anything you tell Jane that isn't a Playbook setting — how to start captions, what to always mention, how to sign off replies — is kept here and followed everywhere it applies."
+      {/* Suggestions — "Jane noticed" */}
+      {tab === 'suggestions' && (
+        <div role="tabpanel">
+          {suggestions.length === 0 ? (
+            <Empty
+              title="No suggestions right now"
+              text="Jane watches how you edit her drafts and when your posts do best. When she spots a pattern, she'll suggest a Playbook change here — nothing changes unless you apply it."
+            />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {suggestions.map((s) => (
+                <div
+                  key={s.id}
+                  style={{
+                    border: '1px solid #FDE68A',
+                    background: 'linear-gradient(180deg, #FFFBEB 0%, #fff 100%)',
+                    borderRadius: 12,
+                    padding: '12px 14px',
+                  }}
+                >
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink }}>{s.title}</div>
+                  <div style={{ fontSize: 12.5, color: C.muted, margin: '3px 0 6px', lineHeight: 1.5 }}>
+                    {s.evidence}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: C.body, marginBottom: 10 }}>{s.change}</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      style={button('primary')}
+                      disabled={working === s.id}
+                      onClick={() => applySuggestion(s)}
+                    >
+                      {working === s.id ? 'Working…' : 'Apply'}
+                    </button>
+                    <button
+                      type="button"
+                      style={button('quiet')}
+                      disabled={working === s.id}
+                      onClick={() => dismissSuggestion(s)}
+                    >
+                      Not now
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* History — a timeline, each undoable */}
+      {tab === 'history' && (
+        <div role="tabpanel">
+          {history.length === 0 ? (
+            <Empty
+              title="No changes yet"
+              text="Every update you make by telling Jane shows here, with exactly what changed — and a way to undo it."
+            />
+          ) : (
+            <ol style={{ listStyle: 'none', margin: 0, padding: 0, position: 'relative' }}>
+              <span
+                aria-hidden
+                style={{ position: 'absolute', left: 6, top: 6, bottom: 6, width: 2, background: C.line }}
+              />
+              {history.map((h) => {
+                const isUndone = Boolean(h.undone_at) || undone[h.id];
+                return (
+                  <li key={h.id} style={{ position: 'relative', paddingLeft: 22, paddingBottom: 12 }}>
+                    <span
+                      aria-hidden
+                      style={{
+                        position: 'absolute',
+                        left: 1,
+                        top: 4,
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        background: isUndone ? '#D1D5DB' : GRADIENT,
+                        boxShadow: '0 0 0 3px #fff',
+                      }}
                     />
-                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11.5, color: C.faint, fontWeight: 600 }}>{when(h.created_at)}</span>
+                      {isUndone && <span style={pill('#F3F4F6', C.muted)}>Undone</span>}
+                    </div>
                     <div
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                        gap: 12,
+                        fontSize: 13,
+                        color: C.ink,
+                        fontWeight: 600,
+                        margin: '3px 0 8px',
+                        overflowWrap: 'anywhere',
+                        opacity: isUndone ? 0.6 : 1,
                       }}
                     >
-                      {grouped.map((g) => (
-                        <div
-                          key={g.key}
-                          style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 12px 6px' }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-                            <span style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>{g.label}</span>
-                            <span style={{ fontSize: 11, color: C.faint }}>{g.hint}</span>
-                          </div>
-                          {g.items.map((i) => (
-                            <div
-                              key={`${g.key}-${i.id}`}
-                              style={{
-                                display: 'flex',
-                                gap: 8,
-                                alignItems: 'flex-start',
-                                padding: '8px 0',
-                                borderTop: `1px solid ${C.line}`,
-                              }}
-                            >
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 13, color: C.body, lineHeight: 1.5, overflowWrap: 'anywhere' }}>
-                                  {i.text}
-                                </div>
-                                {(i.platforms ?? []).length > 0 && (
-                                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
-                                    {(i.platforms ?? []).map((p) => (
-                                      <span key={p} style={pill('#FCE4EC', C.pink)}>
-                                        {PLATFORM_LABELS[p] ?? p}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              <button
-                                type="button"
-                                aria-label={`Stop following: ${i.text}`}
-                                title="Stop following this"
-                                disabled={working === i.id}
-                                onClick={() => forget(i)}
-                                style={{
-                                  border: 'none',
-                                  background: '#F6F3F1',
-                                  color: C.muted,
-                                  width: 24,
-                                  height: 24,
-                                  borderRadius: 7,
-                                  fontSize: 15,
-                                  lineHeight: '24px',
-                                  cursor: 'pointer',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
+                      “{h.text}”
                     </div>
-                  )}
-                </div>
-              )}
-
-              {/* Suggestions — "Jane noticed" */}
-              {tab === 'suggestions' && (
-                <div role="tabpanel">
-                  {suggestions.length === 0 ? (
-                    <Empty
-                      title="No suggestions right now"
-                      text="Jane watches how you edit her drafts and when your posts do best. When she spots a pattern, she'll suggest a Playbook change here — nothing changes unless you apply it."
-                    />
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {suggestions.map((s) => (
-                        <div
-                          key={s.id}
-                          style={{
-                            border: '1px solid #FDE68A',
-                            background: 'linear-gradient(180deg, #FFFBEB 0%, #fff 100%)',
-                            borderRadius: 12,
-                            padding: '12px 14px',
-                          }}
-                        >
-                          <div style={{ fontSize: 13.5, fontWeight: 800, color: C.ink }}>{s.title}</div>
-                          <div style={{ fontSize: 12.5, color: C.muted, margin: '3px 0 6px', lineHeight: 1.5 }}>
-                            {s.evidence}
-                          </div>
-                          <div style={{ fontSize: 12.5, color: C.body, marginBottom: 10 }}>{s.change}</div>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                              type="button"
-                              style={button('primary')}
-                              disabled={working === s.id}
-                              onClick={() => applySuggestion(s)}
-                            >
-                              {working === s.id ? 'Working…' : 'Apply'}
-                            </button>
-                            <button
-                              type="button"
-                              style={button('quiet')}
-                              disabled={working === s.id}
-                              onClick={() => dismissSuggestion(s)}
-                            >
-                              Not now
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                    <div
+                      style={{
+                        background: C.soft,
+                        border: `1px solid ${C.line}`,
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        opacity: isUndone ? 0.6 : 1,
+                      }}
+                    >
+                      <ChangeList r={h} />
                     </div>
-                  )}
-                </div>
-              )}
-
-              {/* History — a timeline, each undoable */}
-              {tab === 'history' && (
-                <div role="tabpanel">
-                  {history.length === 0 ? (
-                    <Empty
-                      title="No changes yet"
-                      text="Every update you make by telling Jane shows here, with exactly what changed — and a way to undo it."
-                    />
-                  ) : (
-                    <ol style={{ listStyle: 'none', margin: 0, padding: 0, position: 'relative' }}>
-                      <span
-                        aria-hidden
-                        style={{ position: 'absolute', left: 6, top: 6, bottom: 6, width: 2, background: C.line }}
-                      />
-                      {history.map((h) => {
-                        const isUndone = Boolean(h.undone_at) || undone[h.id];
-                        return (
-                          <li key={h.id} style={{ position: 'relative', paddingLeft: 24, paddingBottom: 16 }}>
-                            <span
-                              aria-hidden
-                              style={{
-                                position: 'absolute',
-                                left: 1,
-                                top: 4,
-                                width: 12,
-                                height: 12,
-                                borderRadius: '50%',
-                                background: isUndone ? '#D1D5DB' : GRADIENT,
-                                boxShadow: '0 0 0 3px #fff',
-                              }}
-                            />
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 11.5, color: C.faint, fontWeight: 600 }}>
-                                {when(h.created_at)}
-                              </span>
-                              {isUndone && <span style={pill('#F3F4F6', C.muted)}>Undone</span>}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 13,
-                                color: C.ink,
-                                fontWeight: 600,
-                                margin: '3px 0 8px',
-                                overflowWrap: 'anywhere',
-                                opacity: isUndone ? 0.6 : 1,
-                              }}
-                            >
-                              “{h.text}”
-                            </div>
-                            <div
-                              style={{
-                                background: C.soft,
-                                border: `1px solid ${C.line}`,
-                                borderRadius: 10,
-                                padding: '10px 12px',
-                                opacity: isUndone ? 0.6 : 1,
-                              }}
-                            >
-                              <ChangeList r={h} />
-                            </div>
-                            {!isUndone && (
-                              <button
-                                type="button"
-                                style={{ ...button('quiet'), marginTop: 8 }}
-                                disabled={working === h.id}
-                                onClick={() => undo(h.id)}
-                              >
-                                {working === h.id ? 'Undoing…' : 'Undo'}
-                              </button>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+                    {!isUndone && (
+                      <button
+                        type="button"
+                        style={{ ...button('quiet'), marginTop: 8 }}
+                        disabled={working === h.id}
+                        onClick={() => undo(h.id)}
+                      >
+                        {working === h.id ? 'Undoing…' : 'Undo'}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
         </div>
-      </div>
-    </section>
+      )}
+    </PlaybookPanel>
   );
 };
 
