@@ -2434,7 +2434,18 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         </div>
       )}
       {agentInfo?.needsHuman && agentInfo.handoffReason && (
-        <div style={{ color: '#666' }}>Not auto-replied: {agentInfo.handoffReason}</div>
+        <div
+          style={{
+            color: '#7A4B00',
+            background: '#FFF7E6',
+            border: '1px solid #F5D9A8',
+            borderRadius: 8,
+            padding: '6px 10px',
+          }}
+        >
+          <strong>Not sent automatically:</strong> {agentInfo.handoffReason}. Check the draft below and send it
+          yourself. Auto-replies only send when URI is sure the reply is right.
+        </div>
       )}
       {agentError && <div style={{ color: '#C62828' }}>{agentError}</div>}
     </div>

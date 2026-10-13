@@ -429,10 +429,28 @@ export default function InboxSettingsPage({
           ))}
         </div>
 
-        <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
-          An auto-reply only goes out when it answers from an FAQ you approved below, nobody on your team has replied or
-          been assigned, and the customer hasn&apos;t already had 3 auto-replies. Anything else is drafted for you to
-          review.
+        <div
+          style={{
+            fontSize: 11.5,
+            color: '#7A4B00',
+            lineHeight: 1.55,
+            background: '#FFF7E6',
+            border: '1px solid #F5D9A8',
+            borderRadius: 10,
+            padding: '10px 12px',
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Why some messages still ask you to send</div>
+          Turning auto-replies on doesn&apos;t mean every message sends itself. URI only sends a reply it&apos;s sure
+          is right, and drafts the rest for you to check, with the reason shown in the conversation. That happens when:
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            <li>no approved FAQ below answers the message, or URI is less sure than your confidence threshold</li>
+            <li>it&apos;s about a refund, payment dispute, safety, a legal threat or an unclear price or stock</li>
+            <li>someone on your team has been assigned, or replied in the last 24 hours</li>
+            <li>it&apos;s outside your business hours, or past Meta&apos;s 24-hour reply window</li>
+            <li>the customer has already had 3 auto-replies in this conversation</li>
+          </ul>
+          <div style={{ marginTop: 6 }}>Adding FAQs for the questions you get most is the quickest way to auto-reply to more of them.</div>
         </div>
 
         <div>
