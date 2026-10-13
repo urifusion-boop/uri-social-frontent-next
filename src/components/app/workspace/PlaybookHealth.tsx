@@ -1,6 +1,6 @@
 'use client';
 
-import { BrandProfileService, PlaybookHealthData } from '@/src/api/BrandProfileService';
+import { BrandProfileData, BrandProfileService, PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { useState } from 'react';
@@ -51,8 +51,271 @@ const Ring = ({ score, size = 38 }: { score: number; size?: number }) => {
   );
 };
 
+type Suggestion = PlaybookHealthData['suggestions'][number];
+
+/**
+ * Settings simple enough to fill straight from the card. They save into the
+ * very same Playbook field the editor below uses. Anything else (logo,
+ * colours, styles, dates, choices, posting times...) opens the editor at
+ * the right section instead.
+ */
+const QUICK_FILL: Record<string, { kind: 'text' | 'long' | 'list'; placeholder: string }> = {
+  brand_name: { kind: 'text', placeholder: 'Your brand name' },
+  product_description: {
+    kind: 'long',
+    placeholder: 'What your business does, for whom, and what makes it worth buying…',
+  },
+  key_products_services: { kind: 'list', placeholder: 'e.g. Jollof bowls — press Enter after each' },
+  tagline: { kind: 'text', placeholder: 'e.g. Hot jollof. No stories.' },
+  website: { kind: 'text', placeholder: 'https://…' },
+  price_range: { kind: 'text', placeholder: 'e.g. Mid-range, ₦5,000–₦15,000' },
+  unique_selling_proposition: { kind: 'long', placeholder: 'What you do that others don’t…' },
+  business_priorities: { kind: 'list', placeholder: 'e.g. Grow repeat orders — press Enter after each' },
+  voice_sample: { kind: 'long', placeholder: 'Paste a caption or message you wrote that sounds like you…' },
+  content_pillars: { kind: 'list', placeholder: 'e.g. Behind the scenes — press Enter after each' },
+  ideal_customer_profile: { kind: 'long', placeholder: 'Who buys from you most — age, job, what they care about…' },
+  customer_pain_points: { kind: 'list', placeholder: 'e.g. No time to cook — press Enter after each' },
+  customer_needs: { kind: 'list', placeholder: 'e.g. Fast delivery — press Enter after each' },
+  customer_objections: { kind: 'list', placeholder: 'e.g. Too expensive — press Enter after each' },
+  why_customers_choose_us: { kind: 'long', placeholder: 'What customers say when they recommend you…' },
+  common_questions: { kind: 'list', placeholder: 'e.g. Do you deliver to Lekki? — press Enter after each' },
+  words_to_avoid: { kind: 'list', placeholder: 'e.g. cheap — press Enter after each' },
+  competitor_handles: { kind: 'list', placeholder: 'e.g. @competitor — press Enter after each' },
+  cta_styles: { kind: 'list', placeholder: 'e.g. Order on WhatsApp — press Enter after each' },
+  default_link: { kind: 'text', placeholder: 'https://… (where “order now” should send people)' },
+};
+
+const smallBtn = (primary = false): React.CSSProperties => ({
+  ...font,
+  padding: '4px 10px',
+  borderRadius: 7,
+  border: primary ? 'none' : '1px solid #F0C9D9',
+  background: primary ? C.pink : '#fff',
+  color: primary ? '#fff' : C.pink,
+  fontSize: 11.5,
+  fontWeight: 700,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+});
+
+const inputStyle: React.CSSProperties = {
+  ...font,
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '7px 9px',
+  borderRadius: 8,
+  border: `1px solid ${C.line}`,
+  fontSize: 12.5,
+  color: C.ink,
+  outline: 'none',
+  background: '#fff',
+};
+
+interface CardProps {
+  s: Suggestion;
+  index: number;
+  canFill: boolean;
+  onJump: (section: string) => void;
+  onSave: (key: string, value: string | string[]) => Promise<boolean>;
+}
+
+/** One "add next" card: what's missing, why it matters, and how to fill it. */
+const AddNextCard = ({ s, index, canFill, onJump, onSave }: CardProps) => {
+  const quick = QUICK_FILL[s.key];
+  const [filling, setFilling] = useState(false);
+  const [text, setText] = useState('');
+  const [items, setItems] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const addItem = () => {
+    const parts = text
+      .split(/[,\n]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (!parts.length) return;
+    setItems((prev) => [...prev, ...parts.filter((x) => !prev.some((p) => p.toLowerCase() === x.toLowerCase()))]);
+    setText('');
+  };
+
+  const value: string | string[] =
+    quick?.kind === 'list' ? [...items, ...(text.trim() ? [text.trim()] : [])] : text.trim();
+  const ready = Array.isArray(value) ? value.length > 0 : value.length > 0;
+
+  const save = async () => {
+    if (!ready || saving) return;
+    setSaving(true);
+    const ok = await onSave(s.key, value);
+    setSaving(false);
+    if (ok) {
+      setFilling(false);
+      setText('');
+      setItems([]);
+    }
+  };
+
+  return (
+    <li
+      style={{
+        display: 'flex',
+        gap: 10,
+        padding: '9px 10px',
+        border: `1px solid ${filling ? '#F0C9D9' : C.line}`,
+        borderRadius: 10,
+        background: index === 0 || filling ? C.soft : '#fff',
+        transition: 'border-color .2s, background .2s',
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          flexShrink: 0,
+          background: index === 0 ? C.pink : '#F1EEEB',
+          color: index === 0 ? '#fff' : C.muted,
+          fontSize: 10.5,
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginTop: 1,
+        }}
+      >
+        {index + 1}
+      </span>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>
+          {s.label} <span style={{ fontWeight: 500, color: C.faint }}>· {s.section}</span>
+        </div>
+        <div style={{ fontSize: 12, color: C.body, lineHeight: 1.45, margin: '2px 0 6px' }}>{s.why}</div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10.5, color: C.faint, marginRight: 2 }}>Improves</span>
+          {s.improves.map((job) => (
+            <span key={job} style={pill('#FCE4EC', C.pink)}>
+              {job}
+            </span>
+          ))}
+        </div>
+
+        {filling && quick ? (
+          <div style={{ marginTop: 9 }}>
+            {quick.kind === 'long' && (
+              <textarea
+                autoFocus
+                rows={3}
+                value={text}
+                maxLength={2000}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={quick.placeholder}
+                aria-label={s.label}
+                style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+              />
+            )}
+            {quick.kind === 'text' && (
+              <input
+                autoFocus
+                value={text}
+                maxLength={300}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && save()}
+                placeholder={quick.placeholder}
+                aria-label={s.label}
+                style={inputStyle}
+              />
+            )}
+            {quick.kind === 'list' && (
+              <>
+                {items.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
+                    {items.map((it) => (
+                      <span key={it} style={{ ...pill('#fff', C.body), border: `1px solid ${C.line}` }}>
+                        {it}
+                        <button
+                          type="button"
+                          aria-label={`Remove ${it}`}
+                          onClick={() => setItems((prev) => prev.filter((x) => x !== it))}
+                          style={{
+                            border: 'none',
+                            background: 'none',
+                            color: C.faint,
+                            cursor: 'pointer',
+                            padding: 0,
+                            fontSize: 13,
+                            lineHeight: 1,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <input
+                  autoFocus
+                  value={text}
+                  maxLength={200}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ',') {
+                      e.preventDefault();
+                      addItem();
+                    }
+                  }}
+                  onBlur={addItem}
+                  placeholder={quick.placeholder}
+                  aria-label={s.label}
+                  style={inputStyle}
+                />
+              </>
+            )}
+            <div style={{ display: 'flex', gap: 6, marginTop: 7, alignItems: 'center' }}>
+              <button
+                type="button"
+                style={{ ...smallBtn(true), opacity: ready && !saving ? 1 : 0.5 }}
+                disabled={!ready || saving}
+                onClick={save}
+              >
+                {saving ? 'Saving…' : 'Save to Playbook'}
+              </button>
+              <button
+                type="button"
+                style={{ ...smallBtn(), border: 'none', color: C.muted }}
+                onClick={() => setFilling(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            {quick && canFill && (
+              <button type="button" style={smallBtn(true)} onClick={() => setFilling(true)}>
+                Fill here
+              </button>
+            )}
+            <button type="button" style={smallBtn()} onClick={() => onJump(s.section)}>
+              Go to field →
+            </button>
+          </div>
+        )}
+      </div>
+    </li>
+  );
+};
+
 /** Brand Playbook → strength: a score, what to add next (and what it improves), and a voice preview. */
-const PlaybookHealth = ({ health }: { health: PlaybookHealthData | null }) => {
+interface Props {
+  health: PlaybookHealthData | null;
+  profile?: BrandProfileData | null;
+  onProfileUpdate?: (p: BrandProfileData) => void;
+  /** The Playbook is being edited by hand: filling from a card would be overwritten by that Save. */
+  editing?: boolean;
+  /** Open the editor at a section ("Go to field"). */
+  onJump?: (section: string) => void;
+}
+
+const PlaybookHealth = ({ health, profile, onProfileUpdate, editing = false, onJump }: Props) => {
   const [open, toggle] = usePanelOpen('uri_pb_strength_open');
   const [previewing, setPreviewing] = useState(false);
   const [preview, setPreview] = useState<{ caption: string; banned_words_used: string[] } | null>(null);
@@ -60,6 +323,25 @@ const PlaybookHealth = ({ health }: { health: PlaybookHealthData | null }) => {
   if (!health) return null;
   const color = colorFor(health.score);
   const next = health.suggestions.length;
+
+  // "Fill here": saves into the same Playbook field the editor uses. The page
+  // re-reads the strength after the profile changes, so the card drops off.
+  const saveField = async (key: string, value: string | string[]): Promise<boolean> => {
+    try {
+      const res = await BrandProfileService.save({ [key]: value } as Partial<BrandProfileData>);
+      if (!res.status) {
+        ToastService.showToast(res.responseMessage || 'Could not save it', ToastTypeEnum.Error);
+        return false;
+      }
+      onProfileUpdate?.({ ...(profile ?? {}), ...(res.responseData ?? {}), [key]: value } as BrandProfileData);
+      ToastService.showToast('Saved to your Playbook — Jane uses it from now on.', ToastTypeEnum.Success);
+      return true;
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      ToastService.showToast(e?.response?.data?.detail || 'Could not save it', ToastTypeEnum.Error);
+      return false;
+    }
+  };
 
   const runPreview = async () => {
     setPreviewing(true);
@@ -216,52 +498,15 @@ const PlaybookHealth = ({ health }: { health: PlaybookHealthData | null }) => {
               gap: 8,
             }}
           >
-            {health.suggestions.map((s, i) => (
-              <li
-                key={s.key}
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  padding: '9px 10px',
-                  border: `1px solid ${C.line}`,
-                  borderRadius: 10,
-                  background: i === 0 ? C.soft : '#fff',
-                }}
-              >
-                <span
-                  aria-hidden
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    flexShrink: 0,
-                    background: i === 0 ? C.pink : '#F1EEEB',
-                    color: i === 0 ? '#fff' : C.muted,
-                    fontSize: 10.5,
-                    fontWeight: 800,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginTop: 1,
-                  }}
-                >
-                  {i + 1}
-                </span>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>
-                    {s.label} <span style={{ fontWeight: 500, color: C.faint }}>· {s.section}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: C.body, lineHeight: 1.45, margin: '2px 0 6px' }}>{s.why}</div>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: 10.5, color: C.faint, marginRight: 2 }}>Improves</span>
-                    {s.improves.map((job) => (
-                      <span key={job} style={pill('#FCE4EC', C.pink)}>
-                        {job}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </li>
+            {health.suggestions.map((sug, i) => (
+              <AddNextCard
+                key={sug.key}
+                s={sug}
+                index={i}
+                canFill={!editing && !!onProfileUpdate}
+                onJump={(section) => onJump?.(section)}
+                onSave={saveField}
+              />
             ))}
           </ol>
         </>
