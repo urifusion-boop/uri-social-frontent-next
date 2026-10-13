@@ -999,7 +999,7 @@ export class CampaignService {
   /** The active brand's Google Ads connection state — mirrors getMetaConnectionStatus's
    * shape, but Google's state machine has an extra step Meta's doesn't (choosing/linking
    * an actual Ads account), reflected in `state` and `customer_id`. */
-  static async getGoogleConnectionStatus(): Promise<{
+  static async getGoogleConnectionStatus(refresh = false): Promise<{
     state: string;
     account_name: string;
     customer_id: string;
@@ -1009,15 +1009,34 @@ export class CampaignService {
      * (needs a spend-qualified account linked first) — gates whether "Create one for
      * me" should be offered at all. */
     can_create_account?: boolean | null;
+    currency_code?: string;
+    /** Why Google refused the link, when it did. */
+    detail?: string;
+    /** URI created this account for the brand (it can't be swapped out). */
+    created_by_uri?: boolean;
+    /** URI's manager account ID as Google Ads shows it. */
+    manager_customer_id?: string;
+    /** Set when Google couldn't be asked just now; the state is then our last known one. */
+    sync_error?: string;
   }> {
-    const res = await UriHttpClient.getClient().get('/jane-ads/google/connection/status');
-    return res.data as {
-      state: string;
-      account_name: string;
-      customer_id: string;
-      whatsapp_number: string;
-      can_create_account?: boolean | null;
-    };
+    // refresh=true ("Check again") asks Google for the link's real status now.
+    const res = await UriHttpClient.getClient().get('/jane-ads/google/connection/status', {
+      params: refresh ? { refresh: true } : undefined,
+    });
+    return res.data;
+  }
+
+  /** Let go of the chosen account and go back to choosing one (also withdraws the
+   * request / removes the link on Google's side). */
+  static async googleChangeAccount(): Promise<{ released: boolean; removed: boolean; google_note: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connection/change-account');
+    return res.data as { released: boolean; removed: boolean; google_note: string };
+  }
+
+  /** Disconnect Google Ads for this brand altogether. */
+  static async googleDisconnect(): Promise<{ released: boolean; removed: boolean; google_note: string }> {
+    const res = await UriHttpClient.getClient().delete('/jane-ads/google/connection');
+    return res.data as { released: boolean; removed: boolean; google_note: string };
   }
 
   /** Marks the brand as wanting Google Ads. No OAuth redirect — Google Ads API calls

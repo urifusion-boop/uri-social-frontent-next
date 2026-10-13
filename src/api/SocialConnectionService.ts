@@ -63,6 +63,9 @@ export interface PlatformStatus {
   // account with real spend + clean policy history first). undefined/null means
   // never checked yet; gates whether "Create one for me" should be offered.
   google_can_create_account?: boolean | null;
+  google_manager_id?: string;
+  google_link_detail?: string;
+  google_created_by_uri?: boolean;
 }
 
 export interface LinkedInPage {

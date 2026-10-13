@@ -6,6 +6,7 @@ import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } 
 import PlaybookNotifications from './PlaybookNotifications';
 import PlaybookHealth from './PlaybookHealth';
 import { pbSectionId } from './PlaybookPanel';
+import GoogleAdsLinkPanel from './GoogleAdsLinkPanel';
 import TellJane from './TellJane';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
@@ -2607,6 +2608,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           google_customer_id: gAds.customer_id || undefined,
           google_whatsapp_number: gAds.whatsapp_number || undefined,
           google_can_create_account: gAds.can_create_account,
+          google_manager_id: gAds.manager_customer_id || undefined,
+          google_link_detail: gAds.detail || undefined,
+          google_created_by_uri: !!gAds.created_by_uri,
         };
       }
       next.linkedin = li?.responseData ?? { linked: false };
@@ -3880,7 +3884,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                           <span style={{ color: '#a15c00' }}> — waiting for you to accept the link in Google Ads</span>
                         )}
                         {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_refused' && (
-                          <span style={{ color: '#c62828' }}> — already linked to another manager</span>
+                          <span style={{ color: '#c62828' }}> — Google would not link this account</span>
+                        )}
+                        {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_declined' && (
+                          <span style={{ color: '#c62828' }}> — link request declined or removed</span>
                         )}
                         {p.id === 'google_ads' &&
                           s?.google_connection_state === 'ready' &&
@@ -4536,41 +4543,16 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     )}
                   </div>
                 )}
-                {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_pending' && (
-                  <div
-                    style={{
-                      padding: '10px 16px',
-                      background: '#fffaf0',
-                      borderRadius: '0 0 12px 12px',
-                      border: '1.5px solid #4285F444',
-                      borderTop: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                    }}
-                  >
-                    <span style={{ fontSize: 12, color: '#a15c00' }}>
-                      Waiting for you to accept the link request in Google Ads.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => loadStatuses()}
-                      style={{
-                        padding: '5px 10px',
-                        borderRadius: 7,
-                        border: '1px solid #edecea',
-                        background: '#fff',
-                        fontSize: 11.5,
-                        color: '#4285F4',
-                        cursor: 'pointer',
-                        fontFamily: 'var(--wf)',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Check again
-                    </button>
-                  </div>
+                {p.id === 'google_ads' && linked && s?.google_connection_state !== 'needs_account_selection' && (
+                  <GoogleAdsLinkPanel
+                    state={s?.google_connection_state ?? ''}
+                    customerId={s?.google_customer_id}
+                    accountName={s?.account_name}
+                    managerId={s?.google_manager_id}
+                    detail={s?.google_link_detail}
+                    createdByUri={s?.google_created_by_uri}
+                    onChanged={loadStatuses}
+                  />
                 )}
                 {p.id === 'linkedin' && linked && liPages && liPages.pages.length > 0 && (
                   <div
