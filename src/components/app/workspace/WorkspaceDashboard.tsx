@@ -2594,6 +2594,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           google_manager_id: gAds.manager_customer_id || undefined,
           google_link_detail: gAds.detail || undefined,
           google_created_by_uri: !!gAds.created_by_uri,
+          google_currency: gAds.currency_code || undefined,
+          google_signin_verified: gAds.signin_verified,
         };
       }
       next.linkedin = li?.responseData ?? { linked: false };
@@ -3002,6 +3004,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       return;
     }
     if (flow === 'google_ads_direct') {
+      const googleSigninVerified = statuses.google_ads?.google_signin_verified === true;
       setConnecting(id);
       // No OAuth redirect: Google Ads API calls authenticate as URI's own admin
       // identity, never the brand's own Google login (Google's agency/MCC model —
@@ -3011,7 +3014,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       // One click: straight to Google sign-in, where they pick their Ads account by
       // name. If that can't open, fall back to the panel below (enter a Customer ID).
       try {
-        if (await continueWithGoogle()) return;
+        if (googleSigninVerified && (await continueWithGoogle())) return;
         await CampaignService.connectGoogleAds();
         await loadStatuses();
       } catch {
@@ -4202,7 +4205,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         with what the user has entered. */}
                     {adsWaNumber && s?.whatsapp_linked_to_page !== true && (
                       <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5 }}>
-                        Must match the WhatsApp number linked to your {s?.account_name || 'Facebook'} Page in Meta.{' '}
+                        {p.id === 'google_ads'
+                          ? 'This is the number people message when they tap your Google ad.'
+                          : `Must match the WhatsApp number linked to your ${s?.account_name || 'Facebook'} Page in Meta.`}{' '}
                         {s?.whatsapp_link_url && (
                           <a
                             href={s.whatsapp_link_url}
@@ -4225,17 +4230,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                 )}
                 {p.id === 'google_ads' && <GoogleAdsReturn onChanged={loadStatuses} />}
                 {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
-                  <div
-                    style={{
-                      padding: '12px 16px',
-                      background: '#f7faff',
-                      borderRadius: '0 0 12px 12px',
-                      border: '1.5px solid #4285F444',
-                      borderTop: 'none',
-                    }}
-                  >
-                    <GoogleAdsChooser onChanged={loadStatuses} canCreate={s?.google_can_create_account} />
-                  </div>
+                  <GoogleAdsChooser
+                    onChanged={loadStatuses}
+                    canCreate={s?.google_can_create_account}
+                    signinVerified={s?.google_signin_verified}
+                  />
                 )}
                 {p.id === 'google_ads' && linked && s?.google_connection_state !== 'needs_account_selection' && (
                   <GoogleAdsLinkPanel
@@ -4245,6 +4244,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     managerId={s?.google_manager_id}
                     detail={s?.google_link_detail}
                     createdByUri={s?.google_created_by_uri}
+                    currency={s?.google_currency}
+                    signinVerified={s?.google_signin_verified}
                     onChanged={loadStatuses}
                   />
                 )}

@@ -1023,6 +1023,8 @@ export class CampaignService {
     manager_customer_id?: string;
     /** Set when Google couldn't be asked just now; the state is then our last known one. */
     sync_error?: string;
+    /** false while Google hasn't verified URI's sign-in app (it shows a warning screen first). */
+    signin_verified?: boolean;
   }> {
     // refresh=true ("Check again") asks Google for the link's real status now.
     const res = await UriHttpClient.getClient().get('/jane-ads/google/connection/status', {

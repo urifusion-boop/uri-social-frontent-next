@@ -4,61 +4,72 @@ import { CampaignService } from '@/src/api/CampaignService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { useEffect, useState } from 'react';
-import { continueWithGoogle } from './GoogleAdsChooser';
-
-const BLUE = '#4285F4';
-
-const formatId = (id?: string) => {
-  const d = (id ?? '').replace(/\D/g, '');
-  return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}` : (id ?? '');
-};
-
-const errorDetail = (err: unknown, fallback: string) => {
-  const e = err as { data?: { detail?: string }; response?: { data?: { detail?: string } } };
-  return e?.data?.detail ?? e?.response?.data?.detail ?? fallback;
-};
-
-const btn = (kind: 'primary' | 'plain' | 'danger' = 'plain'): React.CSSProperties => ({
-  padding: '5px 11px',
-  borderRadius: 7,
-  border: kind === 'primary' ? 'none' : `1px solid ${kind === 'danger' ? '#f3c7c7' : '#e3e1dd'}`,
-  background: kind === 'primary' ? BLUE : '#fff',
-  color: kind === 'primary' ? '#fff' : kind === 'danger' ? '#c62828' : '#444',
-  fontSize: 11.5,
-  fontWeight: 600,
-  cursor: 'pointer',
-  fontFamily: 'var(--wf)',
-  whiteSpace: 'nowrap',
-});
+import {
+  continueWithGoogle,
+  formatGoogleId,
+  G,
+  gBtn,
+  GoogleButton,
+  googleErrorDetail,
+  GoogleShell,
+  GoogleSteps,
+  UnverifiedNote,
+} from './GoogleAdsChooser';
 
 interface Props {
-  /** manager_link_pending | manager_link_declined | manager_link_refused | ready | no_whatsapp */
+  /** manager_link_pending | manager_link_declined | manager_link_refused | ready */
   state: string;
   customerId?: string;
   accountName?: string;
+  currency?: string;
   /** URI's manager account ID, as shown in Google Ads (123-456-7890). */
   managerId?: string;
   /** Why Google refused, when it did. */
   detail?: string;
   /** URI created this account for the brand — it can't be swapped out here. */
   createdByUri?: boolean;
+  /** false while Google hasn't verified URI's sign-in app yet (it shows a warning screen). */
+  signinVerified?: boolean;
   /** Reload the page's connection statuses (after anything changed). */
   onChanged: () => void;
 }
 
+const chip = (bg: string, color: string): React.CSSProperties => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 5,
+  padding: '2px 9px',
+  borderRadius: 999,
+  background: bg,
+  color,
+  fontSize: 11,
+  fontWeight: 800,
+  whiteSpace: 'nowrap',
+});
+
 /**
  * Everything under the Google Ads card once an account has been chosen:
- * waiting for the owner to accept the link (with the exact steps, and a
- * "Check again" that really asks Google), declined, refused, or linked —
- * plus Change account and Disconnect.
+ * linked (the account, with change / disconnect), one approval left (the
+ * fastest way plus the exact steps and a picture — and it notices by itself
+ * when it's done), or the request ended / was refused.
  */
-const GoogleAdsLinkPanel = ({ state, customerId, accountName, managerId, detail, createdByUri, onChanged }: Props) => {
+const GoogleAdsLinkPanel = ({
+  state,
+  customerId,
+  accountName,
+  currency,
+  managerId,
+  detail,
+  createdByUri,
+  signinVerified,
+  onChanged,
+}: Props) => {
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
   const [confirm, setConfirm] = useState<'' | 'change' | 'disconnect'>('');
 
   // While waiting, keep asking Google quietly so the card turns to "Linked" by
-  // itself the moment the request is accepted — no need to come back and press
+  // itself the moment the request is approved — no need to come back and press
   // Check again. Stops after ten minutes; the button still works after that.
   useEffect(() => {
     if (state !== 'manager_link_pending') return;
@@ -101,21 +112,18 @@ const GoogleAdsLinkPanel = ({ state, customerId, accountName, managerId, detail,
       // Toasts, not an inline note: reloading the statuses redraws this panel.
       if (s.sync_error) ToastService.showToast(s.sync_error, ToastTypeEnum.Warning);
       else if (s.state === 'manager_link_pending') {
-        ToastService.showToast(
-          'Not accepted yet. Accept the request in Google Ads, then press Check again.',
-          ToastTypeEnum.Warning
-        );
+        ToastService.showToast('Not approved yet. Approve it in Google Ads, then check again.', ToastTypeEnum.Warning);
       } else if (s.state === 'ready') {
         ToastService.showToast(
-          `Google Ads linked${s.account_name ? ` — ${s.account_name}` : ''}.`,
+          `Google Ads is linked${s.account_name ? ` — ${s.account_name}` : ''}.`,
           ToastTypeEnum.Success
         );
       } else if (s.state === 'manager_link_declined') {
-        ToastService.showToast('The link request was declined or removed in Google Ads.', ToastTypeEnum.Error);
+        ToastService.showToast('URI no longer has permission on this Google Ads account.', ToastTypeEnum.Error);
       }
       onChanged();
     } catch (err) {
-      setNote(errorDetail(err, 'Could not check right now. Try again in a minute.'));
+      setNote(googleErrorDetail(err, 'Could not check right now. Try again in a minute.'));
     } finally {
       setBusy('');
     }
@@ -128,10 +136,10 @@ const GoogleAdsLinkPanel = ({ state, customerId, accountName, managerId, detail,
     try {
       const r = await CampaignService.googleLinkExistingAccount(customerId);
       if (r.manager_link_status === 'refused') setNote(r.detail || 'Google would not accept the request.');
-      else ToastService.showToast('Link request sent again — accept it in Google Ads.', ToastTypeEnum.Success);
+      else ToastService.showToast('Request sent again — approve it in Google Ads.', ToastTypeEnum.Success);
       onChanged();
     } catch (err) {
-      setNote(errorDetail(err, 'Could not send the request. Try again.'));
+      setNote(googleErrorDetail(err, 'Could not send the request. Try again.'));
     } finally {
       setBusy('');
     }
@@ -149,227 +157,289 @@ const GoogleAdsLinkPanel = ({ state, customerId, accountName, managerId, detail,
       setConfirm('');
       onChanged();
     } catch (err) {
-      setNote(errorDetail(err, 'Could not do that right now. Try again.'));
+      setNote(googleErrorDetail(err, 'Could not do that right now. Try again.'));
     } finally {
       setBusy('');
     }
   };
 
-  const tone = pending
-    ? { bg: '#fffaf0', fg: '#a15c00' }
-    : linked
-      ? { bg: '#f6faff', fg: '#1a56b0' }
-      : { bg: '#fff5f5', fg: '#c62828' };
+  const signIn = async () => {
+    setBusy('signin');
+    if (!(await continueWithGoogle())) setBusy('');
+  };
+
+  const name = accountName || 'Google Ads account';
+  const status = linked ? chip(G.greenSoft, G.green) : pending ? chip(G.amberSoft, G.amber) : chip(G.redSoft, G.red);
 
   return (
-    <div
-      style={{
-        padding: '11px 16px',
-        background: tone.bg,
-        borderRadius: '0 0 12px 12px',
-        border: `1.5px solid ${BLUE}44`,
-        borderTop: 'none',
-        fontFamily: 'var(--wf)',
-      }}
-    >
+    <GoogleShell>
+      <GoogleSteps
+        steps={['Account chosen', 'Approve URI in Google Ads', 'Ready to run ads']}
+        current={linked ? 3 : 1}
+      />
+
+      {/* The account */}
       <div
         style={{
-          display: 'flex',
-          gap: 12,
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
+          marginTop: 12,
+          padding: '14px 16px',
+          borderRadius: 14,
+          background: '#fff',
+          border: `1px solid ${linked ? '#CDEBD8' : G.line}`,
+          boxShadow: '0 6px 24px rgba(26,115,232,.07)',
         }}
       >
-        <div style={{ minWidth: 0, flex: '1 1 260px' }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: tone.fg }}>
-            {pending && 'One step left: approve URI in your Google Ads account'}
-            {declined && 'URI no longer has permission on this Google Ads account'}
-            {refused && 'Google would not link this account'}
-            {linked && (accountName ? `Linked — ${accountName}` : 'Linked to your Google Ads account')}
-          </div>
-          {customerId && (
-            <div style={{ fontSize: 11.5, color: '#666', marginTop: 2 }}>
-              Google Ads account <b>{formatId(customerId)}</b>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span
+            aria-hidden
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 11,
+              background: linked ? G.greenSoft : G.blueSoft,
+              color: linked ? G.green : G.blue,
+              fontSize: 17,
+              fontWeight: 800,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {name.trim().charAt(0).toUpperCase()}
+          </span>
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 14.5, fontWeight: 800, color: G.ink }}>{name}</span>
+              <span style={status}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+                {linked ? 'Linked' : pending ? 'One approval left' : refused ? 'Not linked' : 'Permission ended'}
+              </span>
             </div>
-          )}
-          {pending && (
-            <ol
-              style={{
-                fontSize: 11.5,
-                color: '#555',
-                margin: '7px 0 0',
-                paddingLeft: 18,
-                lineHeight: 1.6,
-                listStyle: 'decimal',
-              }}
-            >
-              <li>
-                Open{' '}
-                <a
-                  href="https://ads.google.com/aw/accountaccess/managers"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: BLUE }}
-                >
-                  Google Ads → Admin → Access and security → Managers
-                </a>{' '}
-                (signed in as an admin of account {formatId(customerId)}).
-              </li>
-              <li>
-                Find the request from <b>URI{managerId ? ` (${managerId})` : ''}</b> and click <b>Accept</b>.
-              </li>
-              <li>That&apos;s it — this page updates by itself within a few seconds.</li>
-            </ol>
-          )}
-          {pending && (
-            <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>
+              {customerId ? formatGoogleId(customerId) : ''}
+              {currency ? ` · billed in ${currency}` : ''}
+              {linked && ' · your billing and login stay yours'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(pending || linked) && (
+              <button type="button" style={gBtn('plain', !!busy)} disabled={!!busy} onClick={check}>
+                {busy === 'check' ? 'Checking…' : 'Check again'}
+              </button>
+            )}
+            {(declined || refused) && customerId && (
+              <button type="button" style={gBtn('primary', !!busy)} disabled={!!busy} onClick={resend}>
+                {busy === 'resend' ? 'Sending…' : 'Send request again'}
+              </button>
+            )}
+            {!createdByUri && (
               <button
                 type="button"
-                onClick={async () => {
-                  setBusy('signin');
-                  if (!(await continueWithGoogle())) setBusy('');
-                }}
+                style={gBtn('plain', !!busy)}
                 disabled={!!busy}
-                style={{ ...btn('primary'), padding: '7px 13px', fontSize: 12 }}
+                onClick={() => setConfirm('change')}
               >
-                {busy === 'signin' ? 'Opening Google…' : 'Fastest: Continue with Google and we approve it for you'}
+                Change account
               </button>
-              {/* What the page in Google Ads looks like, so they know what to press. */}
-              <div
-                aria-label="What you will see in Google Ads"
-                style={{
-                  marginTop: 10,
-                  maxWidth: 440,
-                  border: '1px solid #e3e1dd',
-                  borderRadius: 9,
-                  background: '#fff',
-                  overflow: 'hidden',
-                  fontSize: 11,
-                }}
+            )}
+            {!createdByUri && (
+              <button
+                type="button"
+                style={gBtn('danger', !!busy)}
+                disabled={!!busy}
+                onClick={() => setConfirm('disconnect')}
               >
-                <div style={{ padding: '6px 10px', background: '#f6f7f9', color: '#5f6368', fontWeight: 700 }}>
-                  Google Ads · Access and security · <span style={{ color: '#1a73e8' }}>Managers</span>
+                Disconnect
+              </button>
+            )}
+          </div>
+        </div>
+
+        {linked && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: G.greenSoft,
+              fontSize: 12.5,
+              color: '#14532D',
+              lineHeight: 1.5,
+            }}
+          >
+            Jane can now run Google Search ads for you — shown to people searching for what you sell.{' '}
+            <a href="/workspace/?tab=campaigns" style={{ color: G.green, fontWeight: 800 }}>
+              Create a campaign →
+            </a>
+          </div>
+        )}
+
+        {(declined || refused) && (
+          <div style={{ marginTop: 12, fontSize: 12.5, color: G.body, lineHeight: 1.5 }}>
+            {refused
+              ? detail || 'Google would not let URI link this account.'
+              : 'The request was declined or cancelled, or URI was removed as a manager in Google Ads. Send the request again, or choose a different account.'}
+          </div>
+        )}
+
+        {pending && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${G.line}` }}>
+            <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 800, color: G.blue, letterSpacing: 0.6 }}>
+                  APPROVE IT IN GOOGLE ADS
                 </div>
-                <div style={{ padding: '5px 10px', color: '#5f6368', borderTop: '1px solid #eee' }}>Link request</div>
-                <div
+                <ol
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                    padding: '8px 10px',
-                    borderTop: '1px solid #eee',
+                    fontSize: 12.5,
+                    color: G.body,
+                    margin: '6px 0 0',
+                    paddingLeft: 18,
+                    lineHeight: 1.7,
+                    listStyle: 'decimal',
                   }}
                 >
-                  <span style={{ color: '#202124' }}>
-                    <b>URI</b>
-                    {managerId ? ` · ${managerId}` : ''}
-                  </span>
-                  <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span
-                      style={{
-                        padding: '3px 9px',
-                        borderRadius: 4,
-                        background: '#1a73e8',
-                        color: '#fff',
-                        fontWeight: 700,
-                        boxShadow: '0 0 0 3px rgba(26,115,232,.25)',
-                      }}
+                  <li>
+                    Open{' '}
+                    <a
+                      href="https://ads.google.com/aw/accountaccess/managers"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: G.blue, fontWeight: 700 }}
                     >
-                      Accept
+                      Admin → Access and security → Managers
+                    </a>
+                    .
+                  </li>
+                  <li>
+                    Find <b>URI{managerId ? ` (${managerId})` : ''}</b> and click <b>Accept</b>.
+                  </li>
+                  <li>That&apos;s it — this page updates by itself.</li>
+                </ol>
+                {/* What that page looks like, so they know what to press. */}
+                <div
+                  aria-label="What you will see in Google Ads"
+                  style={{
+                    marginTop: 9,
+                    border: `1px solid ${G.line}`,
+                    borderRadius: 9,
+                    background: '#fff',
+                    overflow: 'hidden',
+                    fontSize: 11,
+                  }}
+                >
+                  <div style={{ padding: '6px 10px', background: '#F6F7F9', color: '#5F6368', fontWeight: 700 }}>
+                    Access and security · <span style={{ color: G.blue }}>Managers</span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      padding: '8px 10px',
+                      borderTop: `1px solid ${G.line}`,
+                    }}
+                  >
+                    <span style={{ color: '#202124' }}>
+                      <b>URI</b>
+                      {managerId ? ` · ${managerId}` : ''}
                     </span>
-                    <span style={{ color: '#5f6368' }}>Decline</span>
-                  </span>
+                    <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span
+                        style={{
+                          padding: '3px 10px',
+                          borderRadius: 4,
+                          background: G.blue,
+                          color: '#fff',
+                          fontWeight: 700,
+                          boxShadow: '0 0 0 3px rgba(26,115,232,.22)',
+                        }}
+                      >
+                        Accept
+                      </span>
+                      <span style={{ color: '#5F6368' }}>Decline</span>
+                    </span>
+                  </div>
                 </div>
               </div>
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 800, color: G.faint, letterSpacing: 0.6 }}>
+                  OR LET URI APPROVE IT FOR YOU
+                </div>
+                <div style={{ fontSize: 12.5, color: G.body, lineHeight: 1.5, margin: '6px 0 10px' }}>
+                  Sign in with the Google account that manages{' '}
+                  {customerId ? formatGoogleId(customerId) : 'this account'} and it&apos;s approved for you.
+                </div>
+                <GoogleButton
+                  label="Continue with Google"
+                  busy={busy === 'signin'}
+                  disabled={!!busy}
+                  onClick={signIn}
+                />
+                {signinVerified === false && <UnverifiedNote />}
+              </div>
             </div>
-          )}
-          {declined && (
-            <div style={{ fontSize: 11.5, color: '#555', marginTop: 5 }}>
-              The request was declined or cancelled, or URI was removed as a manager in Google Ads. Send the request
-              again, or choose a different account.
-            </div>
-          )}
-          {refused && detail && <div style={{ fontSize: 11.5, color: '#555', marginTop: 5 }}>{detail}</div>}
-          {note && (
-            <div role="status" style={{ fontSize: 11.5, color: tone.fg, marginTop: 6 }}>
-              {note}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          {(pending || linked) && (
-            <button type="button" style={btn(pending ? 'primary' : 'plain')} disabled={!!busy} onClick={check}>
-              {busy === 'check' ? 'Checking…' : 'Check again'}
-            </button>
-          )}
-          {(declined || refused) && customerId && (
-            <button type="button" style={btn('primary')} disabled={!!busy} onClick={resend}>
-              {busy === 'resend' ? 'Sending…' : 'Send request again'}
-            </button>
-          )}
-          {!createdByUri && (
-            <button type="button" style={btn()} disabled={!!busy} onClick={() => setConfirm('change')}>
-              Change account
-            </button>
-          )}
-          {!createdByUri && (
-            <button type="button" style={btn('danger')} disabled={!!busy} onClick={() => setConfirm('disconnect')}>
-              Disconnect
-            </button>
-          )}
-        </div>
+        {confirm && (
+          <div
+            role="alertdialog"
+            aria-label={confirm === 'disconnect' ? 'Disconnect Google Ads' : 'Change Google Ads account'}
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              background: G.redSoft,
+              border: '1px solid #F3C7C7',
+              borderRadius: 10,
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+            }}
+          >
+            <span style={{ fontSize: 12.5, color: G.body, flex: '1 1 240px', lineHeight: 1.5 }}>
+              <b>
+                {confirm === 'disconnect'
+                  ? 'Disconnect Google Ads from this brand?'
+                  : 'Stop using this account and choose another?'}
+              </b>{' '}
+              {pending
+                ? 'The pending request will be withdrawn.'
+                : linked
+                  ? 'URI will be removed as a manager of this account in Google Ads. Your account and its ads are not deleted.'
+                  : ''}
+            </span>
+            <span style={{ display: 'flex', gap: 6 }}>
+              <button type="button" style={gBtn('plain', !!busy)} disabled={!!busy} onClick={() => setConfirm('')}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={gBtn('danger', !!busy)}
+                disabled={!!busy}
+                onClick={() => release(confirm === 'disconnect')}
+              >
+                {busy === 'change' || busy === 'disconnect'
+                  ? 'Working…'
+                  : confirm === 'disconnect'
+                    ? 'Yes, disconnect'
+                    : 'Yes, change'}
+              </button>
+            </span>
+          </div>
+        )}
+
+        {note && (
+          <div role="alert" style={{ marginTop: 10, fontSize: 12.5, color: G.red }}>
+            {note}
+          </div>
+        )}
       </div>
-
-      {confirm && (
-        <div
-          role="alertdialog"
-          aria-label={confirm === 'disconnect' ? 'Disconnect Google Ads' : 'Change Google Ads account'}
-          style={{
-            marginTop: 10,
-            padding: '9px 11px',
-            background: '#fff',
-            border: '1px solid #e3e1dd',
-            borderRadius: 9,
-            display: 'flex',
-            gap: 10,
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-          }}
-        >
-          <span style={{ fontSize: 11.5, color: '#444', flex: '1 1 240px' }}>
-            {confirm === 'disconnect'
-              ? 'Disconnect Google Ads from this brand?'
-              : 'Stop using this Google Ads account and choose another?'}{' '}
-            {pending
-              ? 'The pending request will be withdrawn.'
-              : linked
-                ? 'URI will be removed as a manager of this account in Google Ads.'
-                : ''}
-          </span>
-          <span style={{ display: 'flex', gap: 6 }}>
-            <button type="button" style={btn()} disabled={!!busy} onClick={() => setConfirm('')}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              style={btn('danger')}
-              disabled={!!busy}
-              onClick={() => release(confirm === 'disconnect')}
-            >
-              {busy === 'change' || busy === 'disconnect'
-                ? 'Working…'
-                : confirm === 'disconnect'
-                  ? 'Yes, disconnect'
-                  : 'Yes, change'}
-            </button>
-          </span>
-        </div>
-      )}
-    </div>
+    </GoogleShell>
   );
 };
 
