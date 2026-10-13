@@ -5,6 +5,7 @@ import { BillingService } from '@/src/api/BillingService';
 import posthog from 'posthog-js';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
+import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import {
   Box,
@@ -81,6 +82,15 @@ function _friendlyGenerationError(msg?: string): string {
 const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadContentFormProps) => {
   const [contextText, setContextText] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
+
+  // Start with the brand's own target platforms (Brand Playbook) selected,
+  // unless the user has already picked something themselves.
+  const platformsTouched = useRef(false);
+  useEffect(() => {
+    BrandProfileService.getTargetPlatformKeys().then((keys) => {
+      if (keys.length && !platformsTouched.current) setSelectedPlatforms(keys);
+    });
+  }, []);
   const [loading, setLoading] = useState(false);
   const [statusIdx, setStatusIdx] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ file: File; preview: string }>>([]);
@@ -171,8 +181,10 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
     });
   };
 
-  const togglePlatform = (key: string) =>
+  const togglePlatform = (key: string) => {
+    platformsTouched.current = true;
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
+  };
 
   const processFile = (file: File): boolean => {
     // Check if it's image or video
