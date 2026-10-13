@@ -560,7 +560,7 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
     >
       <style>{`
         @media (max-width: 520px) {
-          .tell-jane .tj-wide { display: none; }
+          .tell-jane .tj-wide { display: none !important; }
           .tell-jane .tj-title { font-size: 13.5px !important; }
         }
       `}</style>
