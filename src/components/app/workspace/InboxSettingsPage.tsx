@@ -373,7 +373,7 @@ export default function InboxSettingsPage({
 
       <SectionCard
         title="Auto-reply policy"
-        desc="Opt-in auto-replies only ever cover approved, factual FAQs — anything below the confidence threshold, or in an excluded category, goes to a human instead."
+        desc="When on, URI replies to every message itself: questions, interest, greetings, thanks and complaints. Facts come only from your approved FAQs and Brand Playbook. Anything below the confidence threshold, or in an excluded category, goes to a person instead."
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
@@ -444,7 +444,8 @@ export default function InboxSettingsPage({
           Turning auto-replies on doesn&apos;t mean every message sends itself. URI only sends a reply it&apos;s sure
           is right, and drafts the rest for you to check, with the reason shown in the conversation. That happens when:
           <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-            <li>no approved FAQ below answers the message, or URI is less sure than your confidence threshold</li>
+            <li>the customer asks something no approved FAQ below answers, or URI is less sure than your confidence threshold</li>
+            <li>it looks like spam</li>
             <li>it&apos;s about a refund, payment dispute, safety, a legal threat or an unclear price or stock</li>
             <li>someone on your team has been assigned, or replied in the last 24 hours</li>
             <li>it&apos;s outside your business hours, or past Meta&apos;s 24-hour reply window</li>
