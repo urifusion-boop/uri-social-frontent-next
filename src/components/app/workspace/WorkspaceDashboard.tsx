@@ -10218,6 +10218,7 @@ export default function WorkspaceDashboard() {
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [trialExpiredOpen, setTrialExpiredOpen] = useState(false);
+  const [planPromptReason, setPlanPromptReason] = useState<'credits_out' | 'no_plan' | null>(null);
   const [trialEndingDismissed, setTrialEndingDismissed] = useState(false);
   const [janeMessage, setJaneMessage] = useState<JaneFirstMessageResponse | null>(null);
   const [janeGenerating, setJaneGenerating] = useState(false);
@@ -10324,18 +10325,39 @@ export default function WorkspaceDashboard() {
     [goTo]
   );
 
-  // No active plan: invite them to choose one (once per session). Closes by
-  // itself if the plan loads after the trial status does.
+  // Plan popup, shown ONCE per situation — not on every visit:
+  //  • credits_out — they've had a plan or bought credits and used them all
+  //    (never called a "trial"); shown again only after they top up and run
+  //    out again.
+  //  • no_plan — never paid and the free trial is over.
+  // Waits for the balance (hasHadPlan) so it can't guess before it knows, and
+  // closes by itself if a plan loads after the trial status.
+  const planPromptKey = (reason: string) => `uri_plan_prompt:${userDetails?.userId ?? ''}:${reason}`;
   useEffect(() => {
-    if (hasActiveSubscription(userDetails?.subscriptionTier)) {
-      setTrialExpiredOpen(false);
-      return;
+    if (!userDetails || userDetails.hasHadPlan === undefined) return;
+    const credits = userDetails.creditsRemaining ?? 0;
+    let reason: 'credits_out' | 'no_plan' | null = null;
+    if (!hasActiveSubscription(userDetails.subscriptionTier)) {
+      if (userDetails.hasHadPlan) reason = credits <= 0 ? 'credits_out' : null;
+      else if (userDetails.trialExpired && credits <= 0) reason = 'no_plan';
     }
-    if (userDetails?.trialExpired) {
-      const dismissed = sessionStorage.getItem('trial_expired_dismissed');
-      if (!dismissed) setTrialExpiredOpen(true);
+    try {
+      // Credits back above zero: the next time they run out deserves one reminder.
+      if (credits > 0) localStorage.removeItem(planPromptKey('credits_out'));
+      if (reason && localStorage.getItem(planPromptKey(reason))) reason = null;
+    } catch {
+      // storage unavailable: fall back to showing it once for this page load
     }
-  }, [userDetails?.trialExpired, userDetails?.subscriptionTier]);
+    setPlanPromptReason(reason);
+    setTrialExpiredOpen(!!reason);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    userDetails?.userId,
+    userDetails?.hasHadPlan,
+    userDetails?.trialExpired,
+    userDetails?.subscriptionTier,
+    userDetails?.creditsRemaining,
+  ]);
 
   // PRD: Jane's First Message - fetch on workspace load if eligible
   useEffect(() => {
@@ -11789,10 +11811,15 @@ export default function WorkspaceDashboard() {
       {/* Trial Expired Modal */}
       <TrialExpiredModal
         open={trialExpiredOpen}
+        reason={planPromptReason ?? 'no_plan'}
         trialEndDate={userDetails?.trialEndDate}
         onClose={() => {
           setTrialExpiredOpen(false);
-          sessionStorage.setItem('trial_expired_dismissed', '1');
+          try {
+            if (planPromptReason) localStorage.setItem(planPromptKey(planPromptReason), new Date().toISOString());
+          } catch {
+            // storage unavailable — it simply may show again next visit
+          }
         }}
       />
 

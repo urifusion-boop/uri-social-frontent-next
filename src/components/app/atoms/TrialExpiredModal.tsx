@@ -15,12 +15,14 @@ import { MdTimerOff } from 'react-icons/md';
 interface TrialExpiredModalProps {
   open: boolean;
   onClose: () => void;
+  /** credits_out: had a plan / bought credits and used them all. no_plan: never paid, trial over. */
+  reason?: 'credits_out' | 'no_plan';
   trialEndDate?: string | null;
 }
 
 const RECENT_TRIAL_DAYS = 14;
 
-const TrialExpiredModal = ({ open, onClose, trialEndDate }: TrialExpiredModalProps) => {
+const TrialExpiredModal = ({ open, onClose, reason = 'no_plan', trialEndDate }: TrialExpiredModalProps) => {
   const router = useRouter();
   const [now] = useState(() => Date.now());
   const ended = trialEndDate ? new Date(trialEndDate.endsWith('Z') ? trialEndDate : `${trialEndDate}Z`) : null;
@@ -28,10 +30,17 @@ const TrialExpiredModal = ({ open, onClose, trialEndDate }: TrialExpiredModalPro
     ended && !Number.isNaN(ended.getTime()) && now - ended.getTime() < RECENT_TRIAL_DAYS * 86400000
       ? ended.toLocaleDateString(undefined, { day: 'numeric', month: 'long' })
       : null;
-  const title = endedLabel ? 'Your free trial has ended' : "You don't have an active plan";
-  const body = endedLabel
-    ? `Your free trial ended on ${endedLabel}. Choose a plan to keep creating with URI Agent.`
-    : 'Choose a plan to keep creating posts, ads and replies with URI Agent.';
+  const creditsOut = reason === 'credits_out';
+  const title = creditsOut
+    ? "You've used all your credits"
+    : endedLabel
+      ? 'Your free trial has ended'
+      : "You don't have an active plan";
+  const body = creditsOut
+    ? 'Top up or choose a plan to keep creating posts, ads and replies with URI Agent.'
+    : endedLabel
+      ? `Your free trial ended on ${endedLabel}. Choose a plan to keep creating with URI Agent.`
+      : 'Choose a plan to keep creating posts, ads and replies with URI Agent.';
 
   const handleUpgrade = () => {
     onClose();
@@ -85,7 +94,7 @@ const TrialExpiredModal = ({ open, onClose, trialEndDate }: TrialExpiredModalPro
             '&:hover': { background: 'linear-gradient(135deg, #A01560 0%, #CD1B78 100%)' },
           }}
         >
-          View Plans
+          {creditsOut ? 'Get more credits' : 'View Plans'}
         </Button>
       </DialogActions>
     </Dialog>

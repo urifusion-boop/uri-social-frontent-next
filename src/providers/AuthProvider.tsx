@@ -73,6 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         creditBalance: balance.total_credits,
         subscriptionTier: balance.subscription_tier,
         lowCreditWarning: balance.low_credit_warning,
+        hasHadPlan: balance.has_had_plan ?? false,
       };
 
       setUserDetails((prev) => {

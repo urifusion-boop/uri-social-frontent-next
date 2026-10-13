@@ -20,6 +20,8 @@ export interface UserDto {
   creditsRemaining?: number;
   subscriptionTier?: string | null;
   lowCreditWarning?: boolean; // PRD 7.3: True when credits ≤ 3
+  // Ever had a plan or bought credits (beyond the free trial). Undefined until the balance loads.
+  hasHadPlan?: boolean;
   // Free Trial fields
   isTrial?: boolean;
   trialActive?: boolean;

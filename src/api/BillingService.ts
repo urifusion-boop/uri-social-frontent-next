@@ -30,6 +30,8 @@ export interface CreditBalanceResponse {
   end_date?: string | null; // PRD 8.3: Auto-expire after end_date
   next_renewal: string | null;
   low_credit_warning: boolean; // PRD 7.3: True when credits ≤ 3
+  // Ever had a plan or bought credits — tells "trial ended" from "credits ran out".
+  has_had_plan?: boolean;
 }
 
 export interface CreditTransaction {
