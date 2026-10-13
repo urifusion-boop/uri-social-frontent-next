@@ -5891,16 +5891,60 @@ const PbSection = ({ title, children }: { title: string; children: ReactNode }) 
       {title}
     </h3>
     {children}
+    <PbSectionPowers title={title} />
   </div>
 );
 
-/** Playbook field label -> which of Jane's jobs use it (from /brand-profile/health). */
-const PbUsedInContext = React.createContext<Record<string, string[]>>({});
+/** What each Playbook setting powers (from /brand-profile/health). */
+const PbUsedInContext = React.createContext<{
+  usedIn: Record<string, string[]>;
+  sections: Record<string, string[]>;
+}>({ usedIn: {}, sections: {} });
 
 const PbUsedIn = ({ label }: { label: string }) => {
-  const usedIn = React.useContext(PbUsedInContext)[label];
+  const usedIn = React.useContext(PbUsedInContext).usedIn[label];
   if (!usedIn?.length) return null;
   return <div style={{ fontSize: 10.5, color: '#b3b0aa', marginTop: 3 }}>Used in: {usedIn.join(' · ')}</div>;
+};
+
+// Settings that sit in a labelled <PbRow> show their own "Used in" line. The
+// rest (colour pickers, chips, uploads…) are listed in their section's footer.
+// Keep in step with the PbRow labels on the Playbook page.
+const PB_ROW_LABELS = new Set([
+  'Brand name',
+  'Industry',
+  'Website',
+  'Description',
+  'Tagline',
+  'Key products / services',
+  'Price range',
+  'What makes you different',
+  'Business stage',
+  'Current business priorities',
+  'Voice sample',
+  'Customer pain points',
+  'Customer needs',
+  'Common objections',
+  'Why customers choose you',
+  'Common questions customers ask',
+  'Words/phrases to avoid',
+  'Default link',
+]);
+
+/** Section footer: what the section's non-row settings power. */
+const PbSectionPowers = ({ title }: { title: string }) => {
+  const { usedIn, sections } = React.useContext(PbUsedInContext);
+  const labels = (sections[title] ?? []).filter((l) => !PB_ROW_LABELS.has(l) && usedIn[l]?.length);
+  if (labels.length === 0) return null;
+  return (
+    <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed #edecea', fontSize: 10.5, color: '#a8a49d' }}>
+      {labels.map((l) => (
+        <div key={l}>
+          {l} — used in: {usedIn[l].join(' · ')}
+        </div>
+      ))}
+    </div>
+  );
 };
 
 const PbRow = ({
@@ -6663,7 +6707,7 @@ const PlaybookPage = ({
   const ALL_APPROVAL = APPROVAL_OPTIONS;
 
   return (
-    <PbUsedInContext.Provider value={health?.used_in ?? {}}>
+    <PbUsedInContext.Provider value={{ usedIn: health?.used_in ?? {}, sections: health?.sections ?? {} }}>
       <SubPage title="Brand Playbook" icon="book" desc="Everything URI Agent knows about your brand" onJane={onJane}>
         {/* Action bar - Sticky */}
         <div
