@@ -175,7 +175,7 @@ export const GoogleShell = ({ children }: { children: ReactNode }) => (
     className="gads"
     style={{
       ...font,
-      padding: '10px 14px 12px',
+      padding: '12px 14px 14px',
       background: G.panel,
       borderRadius: '0 0 12px 12px',
       border: `1.5px solid ${G.blue}33`,
@@ -191,25 +191,31 @@ export const GoogleShell = ({ children }: { children: ReactNode }) => (
   </div>
 );
 
-const Tick = ({ children }: { children: ReactNode }) => (
-  <li
-    style={{
-      display: 'inline-flex',
-      gap: 5,
-      alignItems: 'center',
-      padding: '2px 9px 2px 6px',
-      borderRadius: 999,
-      background: G.greenSoft,
-      fontSize: 11,
-      fontWeight: 600,
-      color: '#14532D',
-      lineHeight: '17px',
-    }}
-  >
-    <span aria-hidden style={{ color: G.green, fontSize: 10, fontWeight: 900 }}>
+const Tick = ({ title, children }: { title: string; children: ReactNode }) => (
+  <li style={{ display: 'flex', gap: 8, alignItems: 'flex-start', minWidth: 0 }}>
+    <span
+      aria-hidden
+      style={{
+        width: 16,
+        height: 16,
+        borderRadius: '50%',
+        background: G.greenSoft,
+        color: G.green,
+        fontSize: 9.5,
+        fontWeight: 900,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        marginTop: 1,
+      }}
+    >
       ✓
     </span>
-    {children}
+    <span style={{ minWidth: 0 }}>
+      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: G.ink }}>{title}</span>
+      <span style={{ display: 'block', fontSize: 11.5, color: G.muted, lineHeight: 1.4 }}>{children}</span>
+    </span>
   </li>
 );
 
@@ -218,26 +224,60 @@ const Tick = ({ children }: { children: ReactNode }) => (
  * app. Without it people meet Google's red "hasn't verified this app" screen
  * cold and, reasonably, stop.
  */
-export const UnverifiedNote = () => (
-  <div
-    style={{
-      ...font,
-      marginTop: 8,
-      padding: '6px 10px',
-      borderRadius: 8,
-      background: G.amberSoft,
-      border: '1px solid #F5E1B5',
-      fontSize: 11,
-      color: G.amber,
-      lineHeight: 1.45,
-      textAlign: 'left',
-    }}
-  >
-    <b style={{ marginRight: 4 }}>Heads up:</b> Google is still reviewing URI&apos;s sign-in, so it shows a
-    &ldquo;Google hasn&apos;t verified this app&rdquo; screen first. It&apos;s safe to continue: click <b>Advanced</b>,
-    then <b>Go to URI Social</b>. Prefer to skip that? Use your Customer ID instead.
-  </div>
-);
+export const UnverifiedNote = () => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      style={{
+        ...font,
+        marginTop: 12,
+        paddingTop: 10,
+        borderTop: `1px dashed ${G.line}`,
+        fontSize: 11.5,
+        color: G.muted,
+        lineHeight: 1.5,
+        textAlign: 'left',
+      }}
+    >
+      <span style={{ color: G.amber, fontWeight: 700 }}>Heads up</span>
+      <span style={{ margin: '0 6px', color: G.faint }}>·</span>
+      Google shows a &ldquo;hasn&apos;t verified this app&rdquo; screen first while it reviews URI&apos;s sign-in.
+      It&apos;s safe to continue.{' '}
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          ...font,
+          border: 'none',
+          background: 'none',
+          padding: 0,
+          color: G.blue,
+          fontSize: 11.5,
+          fontWeight: 700,
+          cursor: 'pointer',
+        }}
+      >
+        {open ? 'Hide' : 'How to continue'}
+      </button>
+      {open && (
+        <div
+          style={{
+            marginTop: 7,
+            padding: '8px 10px',
+            borderRadius: 8,
+            background: G.amberSoft,
+            color: G.amber,
+            fontSize: 11.5,
+          }}
+        >
+          On Google&apos;s screen click <b>Advanced</b>, then <b>Go to URI Social</b>. Prefer to skip that screen? Use
+          your Customer ID instead (below).
+        </div>
+      )}
+    </div>
+  );
+};
 
 type Account = { customer_id: string; name: string; currency_code: string };
 type Way = '' | 'no_account' | 'customer_id';
@@ -450,8 +490,8 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
       {/* The main way */}
       <div
         style={{
-          marginTop: 9,
-          padding: '12px 14px',
+          marginTop: 12,
+          padding: '16px 18px',
           borderRadius: 12,
           background: '#fff',
           border: `1px solid ${G.line}`,
@@ -466,7 +506,7 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
             <div style={{ fontSize: 13.5, fontWeight: 800, color: G.ink }}>
               {picking ? 'Which Google Ads account should URI use?' : 'Give URI permission to run your Google ads'}
             </div>
-            <div style={{ fontSize: 12, color: G.muted, marginTop: 1, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12, color: G.muted, marginTop: 3, lineHeight: 1.45 }}>
               {picking
                 ? 'These are the accounts your Google login can use. Pick one and it’s linked.'
                 : 'Sign in with the Google account you use for Google Ads, then pick your account. That’s all.'}
@@ -488,10 +528,20 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
         </div>
 
         {!picking && (
-          <ul style={{ listStyle: 'none', margin: '9px 0 0', padding: 0, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <Tick>No Customer ID to look up, nothing to approve in Google Ads</Tick>
-            <Tick>URI creates and manages your ads — billing and login stay yours</Tick>
-            <Tick>Disconnect any time, in one click</Tick>
+          <ul
+            style={{
+              listStyle: 'none',
+              margin: '14px 0 0',
+              padding: '12px 0 0',
+              borderTop: `1px solid ${G.line}`,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+              gap: '10px 18px',
+            }}
+          >
+            <Tick title="Nothing to look up">No Customer ID, and nothing to approve in Google Ads.</Tick>
+            <Tick title="You stay in control">URI creates and manages your ads. Billing and login stay yours.</Tick>
+            <Tick title="Leave any time">Disconnect in one click.</Tick>
           </ul>
         )}
 
@@ -592,7 +642,7 @@ const GoogleAdsChooser = ({ onChanged, canCreate, signinVerified }: Props) => {
       </div>
 
       {/* The other two ways */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 9 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 12 }}>
         <span style={{ fontSize: 10, fontWeight: 800, color: G.faint, letterSpacing: 0.6 }}>OTHER WAYS</span>
         {tile('no_account', 'I don’t have a Google Ads account', 'make one in two minutes', '+')}
         {tile('customer_id', 'Enter my Customer ID', 'if someone else holds the Google login', '#')}
