@@ -226,7 +226,12 @@ export interface LaunchFromMessageResult {
     // Explicit "put this on TikTok" request (preferred_platform: 'tiktok') that
     // couldn't be honoured right now — see MetaLaunchFromMessageBody.preferred_platform.
     | 'tiktok_needs_video'
-    | 'tiktok_not_configured';
+    | 'tiktok_not_configured'
+    // Google Search asked for (or the only platform connected) but it can't run as
+    // asked — each carries a plain-words `question` saying what to do.
+    | 'google_not_connected'
+    | 'google_budget_too_low'
+    | 'google_connection_no_whatsapp';
   plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
   /** Set once the client edits the plan in the review panel. */
   plan_edited?: boolean;
@@ -299,7 +304,7 @@ export interface LaunchFromMessageResult {
     status: string;
     note: string;
     ads_manager_url: string;
-    platform?: 'tiktok' | 'meta'; // which platform this campaign actually launched on
+    platform?: 'tiktok' | 'meta' | 'google'; // which platform this campaign actually launched on
   };
 }
 
@@ -348,7 +353,7 @@ export interface CampaignMetrics {
 
 export interface CampaignRow {
   campaign_id: string;
-  platform: 'tiktok' | 'meta';
+  platform: 'tiktok' | 'meta' | 'google';
   name: string;
   headline: string;
   primary_text: string;
@@ -630,7 +635,7 @@ export class CampaignService {
     // "" (default/omitted) keeps today's behaviour exactly as-is. "tiktok" asks for
     // TikTok specifically; the backend returns a tiktok_not_configured or
     // tiktok_needs_video early_return if that can't be honoured right now.
-    preferred_platform?: '' | 'tiktok';
+    preferred_platform?: '' | 'tiktok' | 'google';
     // TikTok Carousel Ads (2+ photos, no video) — additive, TikTok-only. TikTok has
     // no single-static-image ad unit at all (video or Carousel Ads only), so this is
     // how a photo-only business reaches TikTok without shooting a video. Ignored

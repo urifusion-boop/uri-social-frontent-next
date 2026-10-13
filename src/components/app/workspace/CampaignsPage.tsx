@@ -351,9 +351,9 @@ export default function CampaignsPage({
   // the backend forgets it" reasoning as the refs above (_build_campaign_plan reads
   // preferred_platform fresh off each request, with no server-side memory of an
   // earlier turn's choice).
-  const preferredPlatformRef = useRef<'' | 'tiktok'>('');
-  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'tiktok'>('');
-  const setPreferredPlatform = (v: '' | 'tiktok') => {
+  const preferredPlatformRef = useRef<'' | 'tiktok' | 'google'>('');
+  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'tiktok' | 'google'>('');
+  const setPreferredPlatform = (v: '' | 'tiktok' | 'google') => {
     preferredPlatformRef.current = v;
     setPreferredPlatformUi(v);
   };
@@ -2159,6 +2159,23 @@ export default function CampaignsPage({
                   <Music2 size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 4 }} />
                   TikTok
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setPreferredPlatform('google')}
+                  title="Run this as a Google Search ad — shown to people searching for what you sell. Text only, no image needed."
+                  style={{
+                    padding: '3px 10px',
+                    borderRadius: 20,
+                    border: `1.5px solid ${preferredPlatformUi === 'google' ? PINK : '#e0dcd9'}`,
+                    background: preferredPlatformUi === 'google' ? '#FCE7F3' : '#fff',
+                    color: preferredPlatformUi === 'google' ? PINK : '#666',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Google Search
+                </button>
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                 <textarea
@@ -3725,6 +3742,25 @@ function ResultCard({
     if (result.stage === 'tiktok_not_configured') {
       return <JaneBubble>TikTok Ads isn&rsquo;t connected right now — try again shortly.</JaneBubble>;
     }
+    if (
+      result.stage === 'google_not_connected' ||
+      result.stage === 'google_budget_too_low' ||
+      result.stage === 'google_connection_no_whatsapp'
+    ) {
+      return (
+        <JaneBubble>
+          {result.question || 'Google Search can’t run this as asked yet.'}
+          {result.stage !== 'google_budget_too_low' && (
+            <>
+              {' '}
+              <a href="/workspace/?tab=connections" style={{ color: PINK, fontWeight: 600 }}>
+                Open Connected Accounts →
+              </a>
+            </>
+          )}
+        </JaneBubble>
+      );
+    }
     return null;
   };
 
@@ -3811,6 +3847,21 @@ function ResultCard({
           background: '#fff',
         }}
       >
+        {!creative?.image_url && plan?.platforms?.[0]?.platform === 'google' && (
+          <div style={{ padding: '14px 16px', background: '#f8f9fa', borderBottom: '1px solid #eee' }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: '#5f6368', letterSpacing: 0.4, marginBottom: 6 }}>
+              GOOGLE SEARCH AD — HOW IT APPEARS
+            </div>
+            <div style={{ fontSize: 11.5, color: '#202124' }}>
+              <b>Sponsored</b> · <span style={{ color: '#5f6368' }}>your link</span>
+            </div>
+            <div style={{ fontSize: 16, color: '#1a0dab', margin: '2px 0', lineHeight: 1.3 }}>{creative?.headline}</div>
+            <div style={{ fontSize: 12.5, color: '#4d5156', lineHeight: 1.45 }}>{creative?.primary_text}</div>
+            <div style={{ fontSize: 11, color: '#5f6368', marginTop: 6 }}>
+              Text only — no image needed. Google mixes this with extra headlines from your keywords.
+            </div>
+          </div>
+        )}
         {creative?.image_url && (
           <ZoomableImage
             src={creative.image_url}
@@ -4534,7 +4585,8 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   // TikTok gained real live-targeting-edit support 2026-09-25 (location/gender/
   // age — see live_edit.py's TikTok-native functions), so this is no longer
   // Meta-only. Only campaigns that exist on the provider can be edited either way.
-  const canEditTargeting = !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
+  // Not for Google Search campaigns yet: changing the audience or the end date isn't supported there.
+  const canEditTargeting = c.platform !== 'google' && !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
 
   return (
     <div>
@@ -4556,6 +4608,26 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               style={{ width: 84, height: 84, borderRadius: 8, objectFit: 'cover' }}
             />
           </div>
+        ) : c.platform === 'google' ? (
+          <div
+            title="Google Search ads are text — there is no image"
+            style={{
+              width: 84,
+              height: 84,
+              borderRadius: 8,
+              background: '#f1f6ff',
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#4285F4',
+              fontWeight: 800,
+            }}
+          >
+            <span style={{ fontSize: 26, lineHeight: 1 }}>G</span>
+            <span style={{ fontSize: 9.5, fontWeight: 700, marginTop: 4 }}>SEARCH AD</span>
+          </div>
         ) : (
           <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
         )}
@@ -4576,14 +4648,25 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               {displayStatus}
             </span>
             <span
-              title={c.platform === 'tiktok' ? 'Running on TikTok' : 'Running on Meta (Facebook/Instagram)'}
+              title={
+                c.platform === 'tiktok'
+                  ? 'Running on TikTok'
+                  : c.platform === 'google'
+                    ? 'Running on Google Search, in your own Google Ads account'
+                    : 'Running on Meta (Facebook/Instagram)'
+              }
               style={{
                 fontSize: 10.5,
                 fontWeight: 700,
                 padding: '2px 8px',
                 borderRadius: 20,
-                background: c.platform === 'tiktok' ? 'rgba(0,0,0,.06)' : 'rgba(24,119,242,.1)',
-                color: c.platform === 'tiktok' ? '#111' : '#1877F2',
+                background:
+                  c.platform === 'tiktok'
+                    ? 'rgba(0,0,0,.06)'
+                    : c.platform === 'google'
+                      ? 'rgba(66,133,244,.12)'
+                      : 'rgba(24,119,242,.1)',
+                color: c.platform === 'tiktok' ? '#111' : c.platform === 'google' ? '#4285F4' : '#1877F2',
               }}
             >
               {c.platform === 'tiktok' ? (
@@ -4591,6 +4674,8 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
                   <Music2 size={11} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 3 }} />
                   TikTok
                 </>
+              ) : c.platform === 'google' ? (
+                'Google'
               ) : (
                 'Meta'
               )}
@@ -4694,7 +4779,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               rel="noopener noreferrer"
               style={{ display: 'inline-block', marginTop: 8, fontSize: 11.5, color: PINK, fontWeight: 600 }}
             >
-              View in {c.platform === 'tiktok' ? 'TikTok' : 'Meta'} Ads Manager →
+              {c.platform === 'google'
+                ? 'View in Google Ads →'
+                : `View in ${c.platform === 'tiktok' ? 'TikTok' : 'Meta'} Ads Manager →`}
             </a>
           )}
         </div>
@@ -4812,7 +4899,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
         <LiveTargetingEditor
           campaignId={c.campaign_id}
           campaignName={c.name}
-          platform={c.platform}
+          platform={c.platform === 'google' ? undefined : c.platform}
           onClose={() => setEditingTargeting(false)}
           onSaved={onChanged}
         />
@@ -4820,7 +4907,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
       {keepingRunning && (
         <KeepRunningPanel
           campaignId={c.campaign_id}
-          platform={c.platform}
+          platform={c.platform === 'google' ? undefined : c.platform}
           onClose={() => setKeepingRunning(false)}
           onExtended={onChanged}
         />
@@ -4833,7 +4920,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
         isOpen={confirmingStart}
         title="Start running this campaign?"
         message={`"${c.name}" will begin spending its ₦${(c.budget_ngn ?? 0).toLocaleString()} budget${
-          c.platform === 'tiktok' ? ' on TikTok' : ''
+          c.platform === 'tiktok' ? ' on TikTok' : c.platform === 'google' ? ' on Google Search' : ''
         }.`}
         confirmText="Start running"
         cancelText="Not yet"
