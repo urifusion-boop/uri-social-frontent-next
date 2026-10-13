@@ -4,6 +4,7 @@ import { CalendarDayItem, ContentCalendarPlan, SocialMediaAgentService } from '@
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { useEffect, useState } from 'react';
+import SlideCountPicker from '../atoms/SlideCountPicker';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -257,6 +258,9 @@ const DayDetailModal = ({
   const [regenerating, setRegenerating] = useState(false);
   const [creating, setCreating] = useState(false);
   const [includeImages, setIncludeImages] = useState(false);
+  // Carousel days only: the user's own slide count (2-10). Left unset, Jane
+  // picks the count from the idea, as before.
+  const [numSlides, setNumSlides] = useState<number | null>(null);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -283,7 +287,8 @@ const DayDetailModal = ({
         planId,
         day.day_index,
         plan.platforms,
-        includeImages
+        includeImages,
+        day.format === 'carousel' && numSlides ? numSlides : undefined
       );
       if (res.status) {
         ToastService.showToast('Draft created — switching to Drafts', ToastTypeEnum.Success);
@@ -725,6 +730,17 @@ const DayDetailModal = ({
           <PlatformDots platforms={day.platforms} />
         </div>
 
+        {day.format === 'carousel' && (
+          <div style={{ marginBottom: 14 }}>
+            <SlideCountPicker value={numSlides ?? 0} onChange={setNumSlides} />
+            <div style={{ fontSize: 11.5, color: '#888', marginTop: 6 }}>
+              {numSlides
+                ? `Jane will write ${numSlides} slides.`
+                : 'Pick a slide count, or leave it and Jane will choose one that fits the idea.'}
+            </div>
+          </div>
+        )}
+
         {/* Include image toggle */}
         <div
           onClick={() => setIncludeImages((v) => !v)}
@@ -1151,6 +1167,7 @@ const ContentCalendarTab = ({ onGenerated }: ContentCalendarTabProps) => {
       {/* Day detail modal */}
       {selectedDay && (
         <DayDetailModal
+          key={selectedDay.day_index}
           day={selectedDay}
           planId={plan.plan_id}
           plan={plan}

@@ -23,6 +23,7 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { useEffect, useRef, useState } from 'react';
+import SlideCountPicker from '../../atoms/SlideCountPicker';
 
 // ── Constants (deliberately a standalone copy, not shared with v1 — same
 // isolation principle as the backend's _cal_v2_scope) ──────────────────────
@@ -313,7 +314,11 @@ const ItemDetailModal = ({
   // rule, deliberately diverging from v1 (which charges 1 credit per
   // PLATFORM draft for a carousel): here it's 1 credit per SLIDE, flat
   // across every platform selected.
-  const draftCreditCost = item.format === 'carousel' ? Math.max(item.carousel?.slides.length || 3, 1) : 1;
+  // Carousels default to the plan's slide count (2-5), but the user can pick
+  // their own (2-10) before drafting — the backend charges for what's picked.
+  const plannedSlides = Math.max(item.carousel?.slides.length || 3, 1);
+  const [numSlides, setNumSlides] = useState(Math.min(10, Math.max(2, plannedSlides)));
+  const draftCreditCost = item.format === 'carousel' ? numSlides : 1;
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -355,7 +360,8 @@ const ItemDetailModal = ({
         planId,
         item.day_index,
         plan.platforms,
-        includeImages
+        includeImages,
+        item.format === 'carousel' ? numSlides : undefined
       );
       if (res.status) {
         ToastService.showToast('Draft created — switching to Drafts', ToastTypeEnum.Success);
@@ -745,6 +751,16 @@ const ItemDetailModal = ({
                 platform selected (V2-only rule; the former calendar charges per platform
                 instead). Shown up front so the user isn't surprised by the deduction or
                 the eventual 402. */}
+            {item.format === 'carousel' && (
+              <div style={{ marginTop: 16 }}>
+                <SlideCountPicker value={numSlides} onChange={setNumSlides} />
+                {numSlides !== plannedSlides && (
+                  <div style={{ fontSize: 11.5, color: GRAY, marginTop: 6 }}>
+                    The plan suggested {plannedSlides} slides — Jane will write {numSlides} instead.
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ fontSize: 11.5, color: GRAY, marginTop: 16 }}>
               💳 Creating this draft will use{' '}
               <strong style={{ color: '#374151' }}>
@@ -1111,6 +1127,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
 
       {selectedItem && plan && (
         <ItemDetailModal
+          key={selectedItem.day_index}
           item={selectedItem}
           planId={plan.plan_id}
           plan={plan}

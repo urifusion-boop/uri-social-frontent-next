@@ -26,6 +26,7 @@ import {
 import { useRef, useState, useEffect } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { MdAdd, MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
+import SlideCountPicker from '../atoms/SlideCountPicker';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
 import LowCreditWarning from '../atoms/LowCreditWarning';
 import ConfirmDialog from '../workspace/ConfirmDialog';
@@ -49,8 +50,6 @@ const POST_TYPES: Array<{
   { key: 'story', label: 'Story', icon: '📱', subtitle: '24-hour full-screen story' },
 ];
 
-// 10 is Instagram's carousel limit; the backend clamps to the same range.
-const NUM_SLIDES_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
 const MAX_REFERENCE_IMAGES = 10;
 
 interface ReferenceImage {
@@ -846,33 +845,8 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
 
           {/* Carousel num_slides selector */}
           {postType === 'carousel' && (
-            <Box mt={1.5} display="flex" alignItems="center" flexWrap="wrap" gap={1}>
-              <Typography fontSize="13px" color="#374151" fontWeight={500}>
-                Number of slides:
-              </Typography>
-              {NUM_SLIDES_OPTIONS.map((n) => (
-                <Box
-                  key={n}
-                  onClick={() => setNumSlides(n)}
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: '6px',
-                    border: '1px solid',
-                    borderColor: numSlides === n ? '#CD1B78' : '#E5E7EB',
-                    background: numSlides === n ? '#FDF2F8' : '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                  }}
-                >
-                  <Typography fontSize="13px" fontWeight={600} color={numSlides === n ? '#CD1B78' : '#374151'}>
-                    {n}
-                  </Typography>
-                </Box>
-              ))}
+            <Box mt={1.5}>
+              <SlideCountPicker value={numSlides} onChange={setNumSlides} />
             </Box>
           )}
 

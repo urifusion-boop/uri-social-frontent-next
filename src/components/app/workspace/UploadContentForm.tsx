@@ -13,6 +13,8 @@ import {
   CircularProgress,
   FormControlLabel,
   IconButton,
+  Menu,
+  MenuItem,
   TextField,
   Tooltip,
   Typography,
@@ -21,6 +23,7 @@ import { useRef, useState, useEffect } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { MdChevronLeft, MdChevronRight, MdClose, MdImage, MdInfoOutline, MdUpload, MdVideocam } from 'react-icons/md';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
+import SlideCountPicker from '../atoms/SlideCountPicker';
 import LowCreditWarning from '../atoms/LowCreditWarning';
 
 const PLATFORMS = [
@@ -85,6 +88,15 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   const [postType, setPostType] = useState<'feed' | 'carousel' | 'story'>('feed');
   const [isDragging, setIsDragging] = useState(false);
 
+  // Carousel slides — same controls as Create Post: how many slides (2-10),
+  // and optionally which uploaded photo goes on each one. Until the user picks
+  // a count it follows the number of photos (one slide per photo).
+  const [numSlides, setNumSlides] = useState(2);
+  const [slideCountChosen, setSlideCountChosen] = useState(false);
+  const [manualSlideAssignment, setManualSlideAssignment] = useState(false);
+  const [slideImageOverrides, setSlideImageOverrides] = useState<Record<number, number>>({});
+  const [assignMenu, setAssignMenu] = useState<{ anchorEl: HTMLElement; slideIndex: number } | null>(null);
+
   // Overlay options
   const [addLogo, setAddLogo] = useState(false);
   const [addCTA, setAddCTA] = useState(false);
@@ -131,6 +143,33 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
       setPostType('feed');
     }
   }, [uploadedFiles.length, postType]);
+
+  // Adding, removing or reordering photos shifts their indices, so per-slide
+  // picks are reset; the slide count keeps following the photo count until
+  // the user chooses one.
+  useEffect(() => {
+    setSlideImageOverrides({});
+    if (!slideCountChosen) setNumSlides(Math.max(2, Math.min(10, uploadedFiles.length)));
+  }, [uploadedFiles, slideCountChosen]);
+
+  // Which uploaded photo (index) a slide shows: the user's pick, otherwise the
+  // photos cycle in order (photo 1 -> slide 1, wrapping if there are more slides).
+  const slideImageIndex = (slideIndex: number): number => {
+    if (slideIndex in slideImageOverrides) return slideImageOverrides[slideIndex];
+    return uploadedFiles.length ? slideIndex % uploadedFiles.length : 0;
+  };
+
+  const handleSlideCountChange = (n: number) => {
+    setSlideCountChosen(true);
+    setNumSlides(n);
+  };
+
+  const toggleManualSlideAssignment = () => {
+    setManualSlideAssignment((prev) => {
+      if (prev) setSlideImageOverrides({});
+      return !prev;
+    });
+  };
 
   const togglePlatform = (key: string) =>
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
@@ -264,6 +303,12 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
         add_cta: addCTA,
         custom_cta: customCTA.trim(),
         logo_position_override: logoPositionOverride,
+        ...(postType === 'carousel'
+          ? {
+              num_slides: numSlides,
+              slide_image_map: Array.from({ length: numSlides }, (_, i) => slideImageIndex(i)),
+            }
+          : {}),
       };
 
       const response = await SocialMediaAgentService.uploadUserContent(payload);
@@ -274,6 +319,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
           platforms: selectedPlatforms,
           post_type: postType,
           num_files: uploadedFiles.length,
+          ...(postType === 'carousel' ? { num_slides: numSlides, manual_slide_assignment: manualSlideAssignment } : {}),
           has_context: !!contextText.trim(),
         });
         onGenerated();
@@ -291,6 +337,8 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
         // Reset form
         setUploadedFiles([]);
         setContextText('');
+        setSlideCountChosen(false);
+        setManualSlideAssignment(false);
       } else {
         if (response.responseCode === 402) {
           posthog.capture('out_of_credits', { source: 'upload_content' });
@@ -398,7 +446,8 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
             >
               <MdInfoOutline size={16} color="#CD1B78" />
               <Typography sx={{ fontSize: 12.5, color: '#111', fontWeight: 500 }}>
-                This is your carousel's slide order — use the ‹ › buttons below each photo to rearrange them.
+                Photos are used in this order — use the ‹ › buttons below each photo to rearrange them. Choose the
+                number of slides and which photo goes on each slide under Post Type.
               </Typography>
             </Box>
           )}
@@ -441,7 +490,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
                         borderRadius: 1,
                       }}
                     >
-                      {postType === 'carousel' ? `Slide ${idx + 1}` : `${idx + 1} of ${uploadedFiles.length}`}
+                      {postType === 'carousel' ? `Photo ${idx + 1}` : `${idx + 1} of ${uploadedFiles.length}`}
                     </Typography>
                     <IconButton
                       onClick={() => removeFile(idx)}
@@ -723,6 +772,91 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
               );
             })}
           </Box>
+        </Box>
+      )}
+
+      {/* Carousel slides: count + which photo goes on each slide (same as Create Post) */}
+      {postType === 'carousel' && !hasVideo && uploadedFiles.length > 1 && (
+        <Box sx={{ marginBottom: 2 }}>
+          <SlideCountPicker value={numSlides} onChange={handleSlideCountChange} />
+          <Box
+            mt={1.5}
+            sx={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', px: 1.5, py: 1.25 }}
+          >
+            <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+              <Typography fontSize="12px" color="#4B5563">
+                {manualSlideAssignment
+                  ? 'Click a slide below to choose which photo it uses.'
+                  : `By default, your photos cycle across slides: ${Array.from(
+                      { length: numSlides },
+                      (_, i) => `Slide ${i + 1} → Photo ${slideImageIndex(i) + 1}`
+                    ).join(', ')}.`}
+              </Typography>
+              <Button
+                size="small"
+                onClick={toggleManualSlideAssignment}
+                sx={{ textTransform: 'none', fontSize: '12px', fontWeight: 600, color: '#CD1B78', minWidth: 0, px: 1 }}
+              >
+                {manualSlideAssignment ? 'Use default (auto)' : 'Customize per slide'}
+              </Button>
+            </Box>
+
+            {manualSlideAssignment && (
+              <Box display="flex" flexWrap="wrap" gap={1} mt={1}>
+                {Array.from({ length: numSlides }, (_, slideIndex) => {
+                  const photo = uploadedFiles[slideImageIndex(slideIndex)];
+                  return (
+                    <Box
+                      key={slideIndex}
+                      onClick={(e) => setAssignMenu({ anchorEl: e.currentTarget, slideIndex })}
+                      sx={{
+                        width: 76,
+                        cursor: 'pointer',
+                        borderRadius: '8px',
+                        border: '1px solid #E5E7EB',
+                        background: '#fff',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        '&:hover': { borderColor: '#CD1B78' },
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        src={photo?.preview}
+                        alt={`Slide ${slideIndex + 1}`}
+                        sx={{ width: '100%', height: 56, objectFit: 'cover', display: 'block' }}
+                      />
+                      <Typography fontSize="10px" fontWeight={600} color="#374151" textAlign="center" py={0.5}>
+                        Slide {slideIndex + 1}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </Box>
+
+          {/* Per-slide photo picker */}
+          <Menu anchorEl={assignMenu?.anchorEl} open={!!assignMenu} onClose={() => setAssignMenu(null)}>
+            {uploadedFiles.map((uf, index) => (
+              <MenuItem
+                key={index}
+                onClick={() => {
+                  if (assignMenu) setSlideImageOverrides((prev) => ({ ...prev, [assignMenu.slideIndex]: index }));
+                  setAssignMenu(null);
+                }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+              >
+                <Box
+                  component="img"
+                  src={uf.preview}
+                  alt={`Photo ${index + 1}`}
+                  sx={{ width: 28, height: 28, objectFit: 'cover', borderRadius: '4px' }}
+                />
+                <Typography fontSize="13px">Photo {index + 1}</Typography>
+              </MenuItem>
+            ))}
+          </Menu>
         </Box>
       )}
 

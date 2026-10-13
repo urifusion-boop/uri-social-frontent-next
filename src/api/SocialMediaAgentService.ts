@@ -49,6 +49,13 @@ export interface UploadUserContentPayload {
   context_text?: string;
   platforms: string[];
   post_type?: 'feed' | 'carousel' | 'story';
+  add_logo?: boolean;
+  add_cta?: boolean;
+  custom_cta?: string;
+  logo_position_override?: string;
+  // Carousel only: slide count (2-10) and which uploaded image (index) each slide shows.
+  num_slides?: number;
+  slide_image_map?: number[];
 }
 
 export interface StoryboardScene {
@@ -789,12 +796,13 @@ export class SocialMediaAgentService {
     planId: string,
     dayIndex: number,
     platforms: string[],
-    includeImages = false
+    includeImages = false,
+    numSlides?: number
   ): Promise<UriResponse<{ drafts: ContentDraft[] }>> {
     const response: Awaited<AxiosResponse<UriResponse<{ drafts: ContentDraft[] }>>> =
       await UriHttpClient.getClient().post(
         `${socialMediaAgentRoutes.calendarDayBase}/${planId}/day/${dayIndex}/create-draft`,
-        { platforms, include_images: includeImages },
+        { platforms, include_images: includeImages, ...(numSlides ? { num_slides: numSlides } : {}) },
         { timeout: 300000 }
       );
     return response.data;
@@ -874,12 +882,13 @@ export class SocialMediaAgentService {
     planId: string,
     itemIndex: number,
     platforms: string[],
-    includeImages = false
+    includeImages = false,
+    numSlides?: number
   ): Promise<UriResponse<{ drafts: ContentDraft[] }>> {
     const response: Awaited<AxiosResponse<UriResponse<{ drafts: ContentDraft[] }>>> =
       await UriHttpClient.getClient().post(
         `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/create-draft`,
-        { platforms, include_images: includeImages },
+        { platforms, include_images: includeImages, ...(numSlides ? { num_slides: numSlides } : {}) },
         { timeout: 300000 }
       );
     return response.data;
