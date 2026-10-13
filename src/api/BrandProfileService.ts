@@ -175,6 +175,17 @@ export interface BrandProfileData {
   updated_at?: string;
 }
 
+export interface PlaybookHealthData {
+  score: number;
+  level: string;
+  filled: number;
+  total: number;
+  missing_count: number;
+  suggestions: { key: string; label: string; section: string; improves: string[]; why: string }[];
+  /** Playbook field label -> which of Jane's jobs use it. */
+  used_in: Record<string, string[]>;
+}
+
 export class BrandProfileService {
   static async get(): Promise<UriResponse<BrandProfileData | null>> {
     const res: AxiosResponse<UriResponse<BrandProfileData | null>> = await UriHttpClient.getClient().get(BASE);
@@ -275,6 +286,51 @@ export class BrandProfileService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * The brand's target platforms (Brand Playbook → Audience) as the platform
+   * keys the create forms use. Empty when none are set or they can't be read,
+   * so callers keep their own default.
+   */
+  static async getTargetPlatformKeys(): Promise<string[]> {
+    const KEYS: Record<string, string> = {
+      instagram: 'instagram',
+      facebook: 'facebook',
+      'x / twitter': 'twitter',
+      twitter: 'twitter',
+      x: 'twitter',
+      linkedin: 'linkedin',
+      tiktok: 'tiktok',
+    };
+    try {
+      const res = await BrandProfileService.get();
+      const keys = (res.responseData?.target_platforms ?? [])
+        .map((p) => KEYS[p.trim().toLowerCase()])
+        .filter((k): k is string => !!k);
+      return Array.from(new Set(keys));
+    } catch {
+      return [];
+    }
+  }
+
+  /** How complete the Playbook is, what to add next, and what each field powers. */
+  static async getHealth(): Promise<PlaybookHealthData | null> {
+    try {
+      const res: AxiosResponse<UriResponse<PlaybookHealthData>> = await UriHttpClient.getClient().get(`${BASE}/health`);
+      return res.data?.responseData ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** One sample caption from the saved Playbook. No draft, no credits. */
+  static async previewVoice(
+    platform = 'instagram'
+  ): Promise<UriResponse<{ caption: string; platform: string; banned_words_used: string[] }>> {
+    const res: AxiosResponse<UriResponse<{ caption: string; platform: string; banned_words_used: string[] }>> =
+      await UriHttpClient.getClient().post(`${BASE}/preview-voice`, { platform }, { timeout: 60000 });
+    return res.data;
   }
 
   static async saveBusinessPulse(data: Partial<BusinessPulseData>): Promise<UriResponse<BrandProfileData>> {

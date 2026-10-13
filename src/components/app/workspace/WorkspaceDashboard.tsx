@@ -4,6 +4,8 @@ import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
 import PlaybookNotifications from './PlaybookNotifications';
+import PlaybookHealth from './PlaybookHealth';
+import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
 import {
   AccountMetricItem,
@@ -5846,6 +5848,15 @@ const PbSection = ({ title, children }: { title: string; children: ReactNode }) 
   </div>
 );
 
+/** Playbook field label -> which of Jane's jobs use it (from /brand-profile/health). */
+const PbUsedInContext = React.createContext<Record<string, string[]>>({});
+
+const PbUsedIn = ({ label }: { label: string }) => {
+  const usedIn = React.useContext(PbUsedInContext)[label];
+  if (!usedIn?.length) return null;
+  return <div style={{ fontSize: 10.5, color: '#b3b0aa', marginTop: 3 }}>Used in: {usedIn.join(' · ')}</div>;
+};
+
 const PbRow = ({
   label,
   value,
@@ -5898,6 +5909,7 @@ const PbRow = ({
         {Array.isArray(value) ? (value.length > 0 ? value.join(', ') : '—') : value || '—'}
       </div>
     )}
+    <PbUsedIn label={label} />
   </div>
 );
 
@@ -5995,6 +6007,11 @@ const PlaybookPage = ({
   const [industry, setIndustry] = useState('');
   const [website, setWebsite] = useState('');
   const [description, setDescription] = useState('');
+  // Playbook strength + the "used in" map; re-read whenever the saved profile changes.
+  const [health, setHealth] = useState<PlaybookHealthData | null>(null);
+  useEffect(() => {
+    BrandProfileService.getHealth().then(setHealth);
+  }, [profile]);
   const [tagline, setTagline] = useState('');
   const [keyProducts, setKeyProducts] = useState<string[]>([]);
   const [sameToneEverywhere, setSameToneEverywhere] = useState(true);
@@ -6470,731 +6487,426 @@ const PlaybookPage = ({
   const ALL_APPROVAL = APPROVAL_OPTIONS;
 
   return (
-    <SubPage title="Brand Playbook" icon="book" desc="Everything URI Agent knows about your brand" onJane={onJane}>
-      {/* Action bar - Sticky */}
-      <div
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-          paddingTop: 12,
-          paddingBottom: 12,
-          backgroundColor: '#fff',
-          borderBottom: editing ? '1px solid #f0f0f0' : 'none',
-        }}
-      >
-        {saved && !editing && (
-          <span style={{ fontSize: 12.5, color: '#16a34a', fontWeight: 600 }}>✓ Changes saved</span>
-        )}
-        {!saved && <span />}
-        {!editing ? (
-          <button
-            onClick={startEdit}
-            style={{
-              padding: '7px 16px',
-              borderRadius: 8,
-              border: '1.5px solid #C2185B',
-              background: '#fff',
-              color: '#C2185B',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'var(--wf)',
-            }}
-          >
-            Edit Profile
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 8 }}>
+    <PbUsedInContext.Provider value={health?.used_in ?? {}}>
+      <SubPage title="Brand Playbook" icon="book" desc="Everything URI Agent knows about your brand" onJane={onJane}>
+        {/* Action bar - Sticky */}
+        <div
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 16,
+            paddingTop: 12,
+            paddingBottom: 12,
+            backgroundColor: '#fff',
+            borderBottom: editing ? '1px solid #f0f0f0' : 'none',
+          }}
+        >
+          {saved && !editing && (
+            <span style={{ fontSize: 12.5, color: '#16a34a', fontWeight: 600 }}>✓ Changes saved</span>
+          )}
+          {!saved && <span />}
+          {!editing ? (
             <button
-              onClick={() => setEditing(false)}
-              style={{
-                padding: '7px 14px',
-                borderRadius: 8,
-                border: '1.5px solid #e5e3df',
-                background: '#fff',
-                color: '#666',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'var(--wf)',
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
+              onClick={startEdit}
               style={{
                 padding: '7px 16px',
                 borderRadius: 8,
-                border: 'none',
-                background: '#C2185B',
-                color: '#fff',
+                border: '1.5px solid #C2185B',
+                background: '#fff',
+                color: '#C2185B',
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
                 fontFamily: 'var(--wf)',
-                opacity: saving ? 0.7 : 1,
               }}
             >
-              {saving ? 'Saving...' : 'Save Changes'}
+              Edit Profile
             </button>
-          </div>
-        )}
-      </div>
-
-      {/* Brand Identity */}
-      <PbSection title="Brand Identity">
-        {/* Logo row */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '10px 0',
-            borderBottom: '1px solid #f3f1ee',
-          }}
-        >
-          <span style={{ fontSize: 12.5, color: '#888', fontWeight: 600, minWidth: 120 }}>Logo</span>
-          {!editing ? (
-            p?.logo_url ? (
-              <img
-                src={p.logo_url}
-                alt="brand logo"
-                style={{ maxHeight: 44, maxWidth: 140, objectFit: 'contain', borderRadius: 6 }}
-              />
-            ) : (
-              <span style={{ fontSize: 13, color: '#bbb' }}>—</span>
-            )
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-              <input
-                ref={logoInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
-                style={{ display: 'none' }}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  setLogoError('');
-                  setLogoUploading(true);
-                  try {
-                    const res = await BrandProfileService.uploadLogo(file);
-                    if (res.status && res.responseData?.logo_url) {
-                      setLogoUrl(res.responseData.logo_url);
-                    } else {
-                      setLogoError('Upload failed. Please try again.');
-                    }
-                  } catch {
-                    setLogoError('Upload failed. Please try again.');
-                  } finally {
-                    setLogoUploading(false);
-                    e.target.value = '';
-                  }
-                }}
-              />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {logoUrl && (
-                  <img
-                    src={logoUrl}
-                    alt="logo preview"
-                    style={{ maxHeight: 36, maxWidth: 120, objectFit: 'contain', borderRadius: 4 }}
-                  />
-                )}
-                <button
-                  onClick={() => logoInputRef.current?.click()}
-                  disabled={logoUploading}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: 7,
-                    border: '1.5px solid #C2185B',
-                    background: '#fff',
-                    color: '#C2185B',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    cursor: logoUploading ? 'not-allowed' : 'pointer',
-                    fontFamily: 'var(--wf)',
-                    opacity: logoUploading ? 0.6 : 1,
-                  }}
-                >
-                  {logoUploading ? 'Uploading…' : logoUrl ? 'Replace logo' : 'Upload logo'}
-                </button>
-                {logoUrl && !logoUploading && (
-                  <button
-                    onClick={() => setLogoUrl('')}
-                    style={{
-                      padding: '5px 12px',
-                      borderRadius: 7,
-                      border: '1.5px solid #edecea',
-                      background: '#fff',
-                      color: '#888',
-                      fontSize: 12.5,
-                      cursor: 'pointer',
-                      fontFamily: 'var(--wf)',
-                    }}
-                  >
-                    Remove logo
-                  </button>
-                )}
-              </div>
-              {logoError && <span style={{ fontSize: 11.5, color: '#EF4444' }}>{logoError}</span>}
-            </div>
-          )}
-        </div>
-
-        {/* Logo Position */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            padding: '10px 0',
-            borderBottom: '1px solid #f3f1ee',
-          }}
-        >
-          <span style={{ fontSize: 12.5, color: '#888', fontWeight: 600, minWidth: 120, paddingTop: 4 }}>
-            Logo Position
-          </span>
-          {!editing ? (
-            <span style={{ fontSize: 13, color: '#555', textTransform: 'capitalize' }}>
-              {(p?.logo_position ?? 'bottom_right').replace(/_/g, ' ')}
-            </span>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-              {(() => {
-                const positions = [
-                  { value: 'top_left', label: '↖', title: 'Top Left' },
-                  { value: 'top_center', label: '↑', title: 'Top Center' },
-                  { value: 'top_right', label: '↗', title: 'Top Right' },
-                  { value: 'center', label: '✛', title: 'Center' },
-                  { value: 'bottom_left', label: '↙', title: 'Bottom Left' },
-                  { value: 'bottom_center', label: '↓', title: 'Bottom Center' },
-                  { value: 'bottom_right', label: '↘', title: 'Bottom Right' },
-                ];
-                return (
-                  <div style={{ display: 'inline-grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
-                    {positions.map((pos) => (
-                      <button
-                        key={pos.value}
-                        title={pos.title}
-                        onClick={() => setLogoPosition(pos.value)}
-                        style={{
-                          width: 38,
-                          height: 38,
-                          borderRadius: 8,
-                          border: `2px solid ${logoPosition === pos.value ? '#C2185B' : '#e5e3df'}`,
-                          background: logoPosition === pos.value ? '#fce4ec' : '#fff',
-                          color: logoPosition === pos.value ? '#C2185B' : '#9CA3AF',
-                          fontSize: 14,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontFamily: 'var(--wf)',
-                        }}
-                      >
-                        {pos.label}
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
-              <span style={{ fontSize: 11, color: '#C2185B', fontWeight: 600 }}>{logoPosition.replace(/_/g, ' ')}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Logo Size */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            padding: '10px 0',
-            borderBottom: '1px solid #f3f1ee',
-          }}
-        >
-          <span style={{ fontSize: 12.5, color: '#888', fontWeight: 600, minWidth: 120, paddingTop: 4 }}>
-            Logo Size
-          </span>
-          {!editing ? (
-            <span style={{ fontSize: 13, color: '#555', textTransform: 'capitalize' }}>{logoSize}</span>
-          ) : (
-            <div style={{ display: 'flex', gap: 6 }}>
-              {(['small', 'medium', 'large'] as const).map((size) => (
-                <button
-                  key={size}
-                  onClick={() => {
-                    console.log('🎯 Logo size button clicked:', size);
-                    setLogoSize(size);
-                  }}
-                  style={{
-                    padding: '6px 16px',
-                    borderRadius: 6,
-                    border: logoSize === size ? '1.5px solid #C2185B' : '1.5px solid #e5e7eb',
-                    background: logoSize === size ? '#FFF5F9' : '#fff',
-                    color: logoSize === size ? '#C2185B' : '#6b7280',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    textTransform: 'capitalize',
-                    fontFamily: 'var(--wf)',
-                  }}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <PbRow
-          label="Brand name"
-          value={p?.brand_name}
-          editing={editing}
-          input={<PbInput value={brandName} onChange={setBrandName} placeholder="e.g. Paystack" />}
-          tooltip="The name the AI will use to refer to your brand in every generated post"
-        />
-        <PbRow
-          label="Industry"
-          value={p?.industry}
-          editing={editing}
-          input={<PbInput value={industry} onChange={setIndustry} placeholder="e.g. Fintech" />}
-          tooltip="Used to find relevant trending topics in Market Intel and tune content tone to your sector"
-        />
-        <PbRow
-          label="Website"
-          value={p?.website}
-          editing={editing}
-          input={<PbInput value={website} onChange={setWebsite} placeholder="https://..." />}
-          tooltip="Included when the AI adds a link to your posts or CTAs"
-        />
-        <PbRow
-          label="Description"
-          value={p?.product_description}
-          editing={editing}
-          input={
-            <PbInput value={description} onChange={setDescription} placeholder="What does your business do?" textarea />
-          }
-          tooltip="A short summary of what your business does — the AI reads this to keep every post on-brand and accurate"
-        />
-        <PbRow
-          label="Tagline"
-          value={p?.tagline}
-          editing={editing}
-          input={<PbInput value={tagline} onChange={setTagline} placeholder="e.g. Fresh food, fast." />}
-          tooltip="Your brand's short slogan — the AI may close posts with it and shows it on poster-style images"
-        />
-        <PbRow
-          label="Key products / services"
-          value={p?.key_products_services}
-          editing={editing}
-          input={
-            <PbInput
-              value={keyProducts.join(', ')}
-              onChange={(v) =>
-                setKeyProducts(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. jollof rice bowls, party trays, catering"
-            />
-          }
-          tooltip="What you sell, comma-separated — posts mention the most relevant one, the inbox can quote it, and Market Intel uses it to find buyers"
-        />
-      </PbSection>
-
-      <PbSection title="Business Details">
-        <PbRow
-          label="Price range"
-          value={p?.price_range}
-          editing={editing}
-          input={
-            <PbInput
-              value={priceRange}
-              onChange={setPriceRange}
-              placeholder="e.g. Budget-friendly / Mid-range / Premium"
-            />
-          }
-          tooltip="Helps the AI match tone and vocabulary to your price tier"
-        />
-        <PbRow
-          label="What makes you different"
-          value={p?.unique_selling_proposition}
-          editing={editing}
-          input={
-            <PbInput value={usp} onChange={setUsp} placeholder="e.g. Only same-day delivery bakery in Lekki" textarea />
-          }
-          tooltip="Your unique selling proposition — the AI weaves this into hooks and CTAs"
-        />
-        <PbRow
-          label="Business stage"
-          value={p?.business_stage}
-          editing={editing}
-          input={
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {[
-                { v: 'new', l: 'Just starting out' },
-                { v: 'growing', l: 'Growing' },
-                { v: 'established', l: 'Established' },
-                { v: 'market_leader', l: 'Market leader' },
-              ].map((s) => (
-                <PbChip key={s.v} label={s.l} active={businessStage === s.v} onClick={() => setBusinessStage(s.v)} />
-              ))}
-            </div>
-          }
-          tooltip="Shapes calendar tone — e.g. trust-building for a new business vs. authority for an established one"
-        />
-        <PbRow
-          label="Current business priorities"
-          value={p?.business_priorities}
-          editing={editing}
-          input={
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {[
-                'Growing revenue',
-                'Building brand awareness',
-                'Launching new offerings',
-                'Retaining customers',
-                'Expanding to new markets',
-              ].map((pr) => (
-                <PbChip
-                  key={pr}
-                  label={pr}
-                  active={businessPriorities.includes(pr)}
-                  onClick={() => pbTgl(businessPriorities, setBusinessPriorities, pr)}
-                />
-              ))}
-            </div>
-          }
-        />
-      </PbSection>
-
-      {/* Brand Colors */}
-      <PbSection title="Brand Colors">
-        {!editing ? (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {(p?.brand_colors ?? []).length > 0 ? (
-              (p?.brand_colors ?? []).map((c, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 22, height: 22, borderRadius: 6, background: c, border: '1px solid #edecea' }} />
-                  <span style={{ fontSize: 12.5, color: '#555' }}>{c}</span>
-                </div>
-              ))
-            ) : (
-              <span style={{ fontSize: 13, color: '#bbb' }}>—</span>
-            )}
-          </div>
-        ) : (
-          <div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-              {colors.map((c, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '4px 10px',
-                    borderRadius: 8,
-                    border: '1.5px solid #e5e3df',
-                    background: '#fff',
-                  }}
-                >
-                  <div style={{ width: 16, height: 16, borderRadius: 4, background: c }} />
-                  <span style={{ fontSize: 12.5 }}>{hexToColorName(c)}</span>
-                  <span style={{ fontSize: 11, color: '#999', marginLeft: 2 }}>({c})</span>
-                  <button
-                    onClick={() => setColors(colors.filter((_, j) => j !== i))}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#bbb',
-                      cursor: 'pointer',
-                      fontSize: 14,
-                      lineHeight: 1,
-                      padding: 0,
-                      marginLeft: 2,
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start', position: 'relative' }}>
-              <div style={{ flex: 1, position: 'relative' }}>
-                <label style={{ fontSize: 12, color: '#666', marginBottom: 4, display: 'block', fontWeight: 500 }}>
-                  Click to pick a color
-                </label>
-                <div
-                  onClick={() => setShowColorPicker(!showColorPicker)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: '1.5px solid #e5e3df',
-                    background: '#fff',
-                    cursor: 'pointer',
-                    fontFamily: 'var(--wf)',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#C2185B';
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(194, 24, 91, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#e5e3df';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 6,
-                      background: newColor,
-                      border: '1px solid #ddd',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                    }}
-                  />
-                  <span style={{ fontSize: 13, flex: 1, fontWeight: 500 }}>{hexToColorName(newColor)}</span>
-                  <span style={{ fontSize: 11, color: '#999' }}>{newColor}</span>
-                  <span style={{ fontSize: 10, color: '#999', marginLeft: 4 }}>▼</span>
-                </div>
-                {showColorPicker && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      marginTop: 8,
-                      padding: 12,
-                      borderRadius: 12,
-                      background: '#fff',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                      zIndex: 1000,
-                    }}
-                  >
-                    <HexColorPicker color={newColor} onChange={setNewColor} />
-                    <input
-                      value={newColor}
-                      onChange={(e) => {
-                        let v = e.target.value;
-                        if (v && !v.startsWith('#')) v = '#' + v;
-                        setNewColor(v);
-                      }}
-                      placeholder="#CD1B78"
-                      spellCheck={false}
-                      style={{
-                        marginTop: 10,
-                        width: '100%',
-                        padding: '7px 10px',
-                        borderRadius: 6,
-                        border: isValidHexColor(newColor) ? '1px solid #ddd' : '1.5px solid #e57373',
-                        fontSize: 12.5,
-                        fontFamily: 'var(--mono, monospace)',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                    <button
-                      onClick={() => setShowColorPicker(false)}
-                      style={{
-                        marginTop: 8,
-                        width: '100%',
-                        padding: '6px 12px',
-                        borderRadius: 6,
-                        border: '1px solid #ddd',
-                        background: '#f5f5f5',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        fontFamily: 'var(--wf)',
-                      }}
-                    >
-                      Close
-                    </button>
-                  </div>
-                )}
-              </div>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
-                onClick={() => {
-                  if (isValidHexColor(newColor)) {
-                    setColors([...colors, newColor.trim()]);
-                    setShowColorPicker(false);
-                  }
-                }}
-                disabled={!isValidHexColor(newColor)}
+                onClick={() => setEditing(false)}
                 style={{
-                  padding: '8px 14px',
+                  padding: '7px 14px',
                   borderRadius: 8,
-                  border: '1.5px solid #C2185B',
+                  border: '1.5px solid #e5e3df',
                   background: '#fff',
-                  color: '#C2185B',
+                  color: '#666',
                   fontSize: 13,
-                  fontWeight: 700,
-                  cursor: isValidHexColor(newColor) ? 'pointer' : 'not-allowed',
-                  opacity: isValidHexColor(newColor) ? 1 : 0.5,
-                  whiteSpace: 'nowrap',
+                  fontWeight: 600,
+                  cursor: 'pointer',
                   fontFamily: 'var(--wf)',
                 }}
               >
-                + Add
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                style={{
+                  padding: '7px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#C2185B',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--wf)',
+                  opacity: saving ? 0.7 : 1,
+                }}
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
-          </div>
-        )}
-      </PbSection>
-
-      {/* Brand Voice */}
-      <PbSection title="Brand Voice">
-        <div style={{ marginBottom: 4 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 4,
-            }}
-          >
-            Personality traits
-          </div>
-          <div style={{ fontSize: 13, color: '#111' }}>
-            {p?.derived_voice || (p?.personality_quiz ? Object.values(p.personality_quiz).join(', ') : '—')}
-          </div>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <PbRow
-            label="Voice sample"
-            value={p?.voice_sample}
-            editing={editing}
-            input={
-              <PbInput
-                value={voiceSample}
-                onChange={setVoiceSample}
-                placeholder="A sample of how your brand writes..."
-                textarea
-              />
-            }
-            tooltip="Paste an example of your brand writing — a past caption, email, or ad copy. The AI mimics this style in every post it generates."
-          />
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 6,
-            }}
-          >
-            Tone per platform
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: '#111' }}>
-              {p?.same_tone_everywhere === false && Object.values(p?.platform_tones ?? {}).some(Boolean)
-                ? Object.entries(p?.platform_tones ?? {})
-                    .filter(([, t]) => t)
-                    .map(([pl, t]) => `${TONE_PLATFORM_LABELS[pl] ?? pl}: ${t}`)
-                    .join(' · ')
-                : 'Same tone on every platform'}
-            </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                <PbChip
-                  label="Same tone everywhere"
-                  active={sameToneEverywhere}
-                  onClick={() => setSameToneEverywhere(true)}
-                />
-                <PbChip
-                  label="Different tone per platform"
-                  active={!sameToneEverywhere}
-                  onClick={() => setSameToneEverywhere(false)}
-                />
-              </div>
-              {!sameToneEverywhere &&
-                Object.entries(TONE_PLATFORM_LABELS).map(([pl, label]) => (
-                  <PbRow
-                    key={pl}
-                    label={label}
-                    value={p?.platform_tones?.[pl]}
-                    editing={editing}
-                    input={
-                      <PbInput
-                        value={platformTones[pl] ?? ''}
-                        onChange={(v) => setPlatformTones((prev) => ({ ...prev, [pl]: v }))}
-                        placeholder="e.g. professional and insightful"
-                      />
-                    }
-                    tooltip={`How posts on ${label} should sound. Leave empty to use your main brand voice there.`}
-                  />
-                ))}
-            </>
           )}
         </div>
-      </PbSection>
 
-      {/* Content Strategy */}
-      <PbSection title="Content Strategy">
-        <div style={{ marginBottom: 12 }}>
+        <PlaybookHealth health={health} />
+
+        {/* Brand Identity */}
+        <PbSection title="Brand Identity">
+          {/* Logo row */}
           <div
             style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 0',
+              borderBottom: '1px solid #f3f1ee',
             }}
           >
-            Content pillars
-            <BrandTooltip
-              title="The core themes your brand posts about — e.g. 'Product Tips', 'Customer Stories', 'Industry News'. The AI rotates through these to keep your feed varied."
-              arrow
-              placement="right"
-            >
-              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4M12 8h.01" />
-                </svg>
-              </span>
-            </BrandTooltip>
-          </div>
-          {!editing ? (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {(p?.content_pillars ?? []).length > 0 ? (
-                (p?.content_pillars ?? []).map((pl, i) => (
-                  <span
-                    key={i}
+            <span style={{ fontSize: 12.5, color: '#888', fontWeight: 600, minWidth: 120 }}>Logo</span>
+            {!editing ? (
+              p?.logo_url ? (
+                <img
+                  src={p.logo_url}
+                  alt="brand logo"
+                  style={{ maxHeight: 44, maxWidth: 140, objectFit: 'contain', borderRadius: 6 }}
+                />
+              ) : (
+                <span style={{ fontSize: 13, color: '#bbb' }}>—</span>
+              )
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                  style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setLogoError('');
+                    setLogoUploading(true);
+                    try {
+                      const res = await BrandProfileService.uploadLogo(file);
+                      if (res.status && res.responseData?.logo_url) {
+                        setLogoUrl(res.responseData.logo_url);
+                      } else {
+                        setLogoError('Upload failed. Please try again.');
+                      }
+                    } catch {
+                      setLogoError('Upload failed. Please try again.');
+                    } finally {
+                      setLogoUploading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {logoUrl && (
+                    <img
+                      src={logoUrl}
+                      alt="logo preview"
+                      style={{ maxHeight: 36, maxWidth: 120, objectFit: 'contain', borderRadius: 4 }}
+                    />
+                  )}
+                  <button
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={logoUploading}
                     style={{
-                      padding: '4px 12px',
-                      borderRadius: 20,
-                      background: '#fdf0f6',
+                      padding: '5px 12px',
+                      borderRadius: 7,
+                      border: '1.5px solid #C2185B',
+                      background: '#fff',
                       color: '#C2185B',
                       fontSize: 12.5,
                       fontWeight: 600,
+                      cursor: logoUploading ? 'not-allowed' : 'pointer',
+                      fontFamily: 'var(--wf)',
+                      opacity: logoUploading ? 0.6 : 1,
                     }}
                   >
-                    {typeof pl === 'string' ? pl : ((pl as { theme?: string }).theme ?? String(pl))}
-                  </span>
+                    {logoUploading ? 'Uploading…' : logoUrl ? 'Replace logo' : 'Upload logo'}
+                  </button>
+                </div>
+                {logoError && <span style={{ fontSize: 11.5, color: '#EF4444' }}>{logoError}</span>}
+              </div>
+            )}
+          </div>
+
+          {/* Logo Position */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              padding: '10px 0',
+              borderBottom: '1px solid #f3f1ee',
+            }}
+          >
+            <span style={{ fontSize: 12.5, color: '#888', fontWeight: 600, minWidth: 120, paddingTop: 4 }}>
+              Logo Position
+            </span>
+            {!editing ? (
+              <span style={{ fontSize: 13, color: '#555', textTransform: 'capitalize' }}>
+                {(p?.logo_position ?? 'bottom_right').replace(/_/g, ' ')}
+              </span>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                {(() => {
+                  const positions = [
+                    { value: 'top_left', label: '↖', title: 'Top Left' },
+                    { value: 'top_center', label: '↑', title: 'Top Center' },
+                    { value: 'top_right', label: '↗', title: 'Top Right' },
+                    { value: 'center', label: '✛', title: 'Center' },
+                    { value: 'bottom_left', label: '↙', title: 'Bottom Left' },
+                    { value: 'bottom_center', label: '↓', title: 'Bottom Center' },
+                    { value: 'bottom_right', label: '↘', title: 'Bottom Right' },
+                  ];
+                  return (
+                    <div style={{ display: 'inline-grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
+                      {positions.map((pos) => (
+                        <button
+                          key={pos.value}
+                          title={pos.title}
+                          onClick={() => setLogoPosition(pos.value)}
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 8,
+                            border: `2px solid ${logoPosition === pos.value ? '#C2185B' : '#e5e3df'}`,
+                            background: logoPosition === pos.value ? '#fce4ec' : '#fff',
+                            color: logoPosition === pos.value ? '#C2185B' : '#9CA3AF',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontFamily: 'var(--wf)',
+                          }}
+                        >
+                          {pos.label}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <span style={{ fontSize: 11, color: '#C2185B', fontWeight: 600 }}>
+                  {logoPosition.replace(/_/g, ' ')}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Logo Size */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              padding: '10px 0',
+              borderBottom: '1px solid #f3f1ee',
+            }}
+          >
+            <span style={{ fontSize: 12.5, color: '#888', fontWeight: 600, minWidth: 120, paddingTop: 4 }}>
+              Logo Size
+            </span>
+            {!editing ? (
+              <span style={{ fontSize: 13, color: '#555', textTransform: 'capitalize' }}>{logoSize}</span>
+            ) : (
+              <div style={{ display: 'flex', gap: 6 }}>
+                {(['small', 'medium', 'large'] as const).map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => {
+                      console.log('🎯 Logo size button clicked:', size);
+                      setLogoSize(size);
+                    }}
+                    style={{
+                      padding: '6px 16px',
+                      borderRadius: 6,
+                      border: logoSize === size ? '1.5px solid #C2185B' : '1.5px solid #e5e7eb',
+                      background: logoSize === size ? '#FFF5F9' : '#fff',
+                      color: logoSize === size ? '#C2185B' : '#6b7280',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textTransform: 'capitalize',
+                      fontFamily: 'var(--wf)',
+                    }}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <PbRow
+            label="Brand name"
+            value={p?.brand_name}
+            editing={editing}
+            input={<PbInput value={brandName} onChange={setBrandName} placeholder="e.g. Paystack" />}
+            tooltip="The name the AI will use to refer to your brand in every generated post"
+          />
+          <PbRow
+            label="Industry"
+            value={p?.industry}
+            editing={editing}
+            input={<PbInput value={industry} onChange={setIndustry} placeholder="e.g. Fintech" />}
+            tooltip="Used to find relevant trending topics in Market Intel and tune content tone to your sector"
+          />
+          <PbRow
+            label="Website"
+            value={p?.website}
+            editing={editing}
+            input={<PbInput value={website} onChange={setWebsite} placeholder="https://..." />}
+            tooltip="Included when the AI adds a link to your posts or CTAs"
+          />
+          <PbRow
+            label="Description"
+            value={p?.product_description}
+            editing={editing}
+            input={
+              <PbInput
+                value={description}
+                onChange={setDescription}
+                placeholder="What does your business do?"
+                textarea
+              />
+            }
+            tooltip="A short summary of what your business does — the AI reads this to keep every post on-brand and accurate"
+          />
+          <PbRow
+            label="Tagline"
+            value={p?.tagline}
+            editing={editing}
+            input={<PbInput value={tagline} onChange={setTagline} placeholder="e.g. Fresh food, fast." />}
+            tooltip="Your brand's short slogan — the AI may close posts with it and shows it on poster-style images"
+          />
+          <PbRow
+            label="Key products / services"
+            value={p?.key_products_services}
+            editing={editing}
+            input={
+              <PbInput
+                value={keyProducts.join(', ')}
+                onChange={(v) =>
+                  setKeyProducts(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. jollof rice bowls, party trays, catering"
+              />
+            }
+            tooltip="What you sell, comma-separated — posts mention the most relevant one, the inbox can quote it, and Market Intel uses it to find buyers"
+          />
+        </PbSection>
+
+        {/* Business Details */}
+        <PbSection title="Business Details">
+          <PbRow
+            label="Price range"
+            value={p?.price_range}
+            editing={editing}
+            input={
+              <PbInput
+                value={priceRange}
+                onChange={setPriceRange}
+                placeholder="e.g. Budget-friendly / Mid-range / Premium"
+              />
+            }
+            tooltip="Helps the AI match tone and vocabulary to your price tier"
+          />
+          <PbRow
+            label="What makes you different"
+            value={p?.unique_selling_proposition}
+            editing={editing}
+            input={
+              <PbInput
+                value={usp}
+                onChange={setUsp}
+                placeholder="e.g. Only same-day delivery bakery in Lekki"
+                textarea
+              />
+            }
+            tooltip="Your unique selling proposition — the AI weaves this into hooks and CTAs"
+          />
+          <PbRow
+            label="Business stage"
+            value={p?.business_stage}
+            editing={editing}
+            input={
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {[
+                  { v: 'new', l: 'Just starting out' },
+                  { v: 'growing', l: 'Growing' },
+                  { v: 'established', l: 'Established' },
+                  { v: 'market_leader', l: 'Market leader' },
+                ].map((s) => (
+                  <PbChip key={s.v} label={s.l} active={businessStage === s.v} onClick={() => setBusinessStage(s.v)} />
+                ))}
+              </div>
+            }
+            tooltip="Shapes calendar tone — e.g. trust-building for a new business vs. authority for an established one"
+          />
+          <PbRow
+            label="Current business priorities"
+            value={p?.business_priorities}
+            editing={editing}
+            input={
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {[
+                  'Growing revenue',
+                  'Building brand awareness',
+                  'Launching new offerings',
+                  'Retaining customers',
+                  'Expanding to new markets',
+                ].map((pr) => (
+                  <PbChip
+                    key={pr}
+                    label={pr}
+                    active={businessPriorities.includes(pr)}
+                    onClick={() => pbTgl(businessPriorities, setBusinessPriorities, pr)}
+                  />
+                ))}
+              </div>
+            }
+          />
+        </PbSection>
+
+        {/* Brand Colors */}
+        <PbSection title="Brand Colors">
+          {!editing ? (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(p?.brand_colors ?? []).length > 0 ? (
+                (p?.brand_colors ?? []).map((c, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div
+                      style={{ width: 22, height: 22, borderRadius: 6, background: c, border: '1px solid #edecea' }}
+                    />
+                    <span style={{ fontSize: 12.5, color: '#555' }}>{c}</span>
+                  </div>
                 ))
               ) : (
                 <span style={{ fontSize: 13, color: '#bbb' }}>—</span>
@@ -7202,49 +6914,147 @@ const PlaybookPage = ({
             </div>
           ) : (
             <div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                {pillars.map((pl, i) => (
-                  <span
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                {colors.map((c, i) => (
+                  <div
                     key={i}
                     style={{
-                      padding: '4px 10px',
-                      borderRadius: 20,
-                      background: '#fdf0f6',
-                      color: '#C2185B',
-                      fontSize: 12.5,
-                      fontWeight: 600,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 5,
+                      gap: 6,
+                      padding: '4px 10px',
+                      borderRadius: 8,
+                      border: '1.5px solid #e5e3df',
+                      background: '#fff',
                     }}
                   >
-                    {pl}
+                    <div style={{ width: 16, height: 16, borderRadius: 4, background: c }} />
+                    <span style={{ fontSize: 12.5 }}>{hexToColorName(c)}</span>
+                    <span style={{ fontSize: 11, color: '#999', marginLeft: 2 }}>({c})</span>
                     <button
-                      onClick={() => setPillars(pillars.filter((_, j) => j !== i))}
+                      onClick={() => setColors(colors.filter((_, j) => j !== i))}
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: '#C2185B',
+                        color: '#bbb',
                         cursor: 'pointer',
                         fontSize: 14,
                         lineHeight: 1,
                         padding: 0,
+                        marginLeft: 2,
                       }}
                     >
                       ×
                     </button>
-                  </span>
+                  </div>
                 ))}
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <PbInput value={newPillar} onChange={setNewPillar} placeholder="e.g. Education" />
+              <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start', position: 'relative' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <label style={{ fontSize: 12, color: '#666', marginBottom: 4, display: 'block', fontWeight: 500 }}>
+                    Click to pick a color
+                  </label>
+                  <div
+                    onClick={() => setShowColorPicker(!showColorPicker)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      border: '1.5px solid #e5e3df',
+                      background: '#fff',
+                      cursor: 'pointer',
+                      fontFamily: 'var(--wf)',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#C2185B';
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(194, 24, 91, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = '#e5e3df';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 6,
+                        background: newColor,
+                        border: '1px solid #ddd',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      }}
+                    />
+                    <span style={{ fontSize: 13, flex: 1, fontWeight: 500 }}>{hexToColorName(newColor)}</span>
+                    <span style={{ fontSize: 11, color: '#999' }}>{newColor}</span>
+                    <span style={{ fontSize: 10, color: '#999', marginLeft: 4 }}>▼</span>
+                  </div>
+                  {showColorPicker && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        marginTop: 8,
+                        padding: 12,
+                        borderRadius: 12,
+                        background: '#fff',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                        zIndex: 1000,
+                      }}
+                    >
+                      <HexColorPicker color={newColor} onChange={setNewColor} />
+                      <input
+                        value={newColor}
+                        onChange={(e) => {
+                          let v = e.target.value;
+                          if (v && !v.startsWith('#')) v = '#' + v;
+                          setNewColor(v);
+                        }}
+                        placeholder="#CD1B78"
+                        spellCheck={false}
+                        style={{
+                          marginTop: 10,
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: 6,
+                          border: isValidHexColor(newColor) ? '1px solid #ddd' : '1.5px solid #e57373',
+                          fontSize: 12.5,
+                          fontFamily: 'var(--mono, monospace)',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      <button
+                        onClick={() => setShowColorPicker(false)}
+                        style={{
+                          marginTop: 8,
+                          width: '100%',
+                          padding: '6px 12px',
+                          borderRadius: 6,
+                          border: '1px solid #ddd',
+                          background: '#f5f5f5',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--wf)',
+                        }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => {
-                    if (newPillar.trim()) {
-                      setPillars([...pillars, newPillar.trim()]);
-                      setNewPillar('');
+                    if (isValidHexColor(newColor)) {
+                      setColors([...colors, newColor.trim()]);
+                      setShowColorPicker(false);
                     }
                   }}
+                  disabled={!isValidHexColor(newColor)}
                   style={{
                     padding: '8px 14px',
                     borderRadius: 8,
@@ -7253,7 +7063,8 @@ const PlaybookPage = ({
                     color: '#C2185B',
                     fontSize: 13,
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: isValidHexColor(newColor) ? 'pointer' : 'not-allowed',
+                    opacity: isValidHexColor(newColor) ? 1 : 0.5,
                     whiteSpace: 'nowrap',
                     fontFamily: 'var(--wf)',
                   }}
@@ -7263,791 +7074,1032 @@ const PlaybookPage = ({
               </div>
             </div>
           )}
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Preferred formats
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: (p?.preferred_formats ?? []).length > 0 ? '#111' : '#bbb' }}>
-              {(p?.preferred_formats ?? []).join(', ') || '—'}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_FORMATS.map((f) => (
-                <PbChip key={f} label={f} active={formats.includes(f)} onClick={() => pbTgl(formats, setFormats, f)} />
-              ))}
-            </div>
-          )}
-        </div>
-      </PbSection>
+        </PbSection>
 
-      <PbSection title="Important Dates">
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Key dates
-            <BrandTooltip
-              title="Product launches, sales, anniversaries — the content calendar plans around these automatically when they fall in an upcoming week."
-              arrow
-              placement="right"
+        {/* Brand Voice */}
+        <PbSection title="Brand Voice">
+          <div style={{ marginBottom: 4 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 4,
+              }}
             >
-              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4M12 8h.01" />
-                </svg>
-              </span>
-            </BrandTooltip>
+              Personality traits
+            </div>
+            <div style={{ fontSize: 13, color: '#111' }}>
+              {p?.derived_voice || (p?.personality_quiz ? Object.values(p.personality_quiz).join(', ') : '—')}
+            </div>
           </div>
-          {!editing ? (
-            (p?.key_dates ?? []).length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {(p?.key_dates ?? []).map((d, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                    <span style={{ fontWeight: 600, color: '#111' }}>{d.date}</span>
-                    <span style={{ color: '#ccc' }}>—</span>
-                    <span style={{ color: '#555' }}>{d.label}</span>
-                  </div>
-                ))}
+          <div style={{ marginTop: 12 }}>
+            <PbRow
+              label="Voice sample"
+              value={p?.voice_sample}
+              editing={editing}
+              input={
+                <PbInput
+                  value={voiceSample}
+                  onChange={setVoiceSample}
+                  placeholder="A sample of how your brand writes..."
+                  textarea
+                />
+              }
+              tooltip="Paste an example of your brand writing — a past caption, email, or ad copy. The AI mimics this style in every post it generates."
+            />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 6,
+              }}
+            >
+              Tone per platform
+            </div>
+            {!editing ? (
+              <div style={{ fontSize: 13, color: '#111' }}>
+                {p?.same_tone_everywhere === false && Object.values(p?.platform_tones ?? {}).some(Boolean)
+                  ? Object.entries(p?.platform_tones ?? {})
+                      .filter(([, t]) => t)
+                      .map(([pl, t]) => `${TONE_PLATFORM_LABELS[pl] ?? pl}: ${t}`)
+                      .join(' · ')
+                  : 'Same tone on every platform'}
               </div>
             ) : (
-              <span style={{ fontSize: 13, color: '#bbb' }}>—</span>
-            )
-          ) : (
-            <div>
-              {keyDates.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-                  {keyDates.map((d, i) => (
-                    <div
+              <>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <PbChip
+                    label="Same tone everywhere"
+                    active={sameToneEverywhere}
+                    onClick={() => setSameToneEverywhere(true)}
+                  />
+                  <PbChip
+                    label="Different tone per platform"
+                    active={!sameToneEverywhere}
+                    onClick={() => setSameToneEverywhere(false)}
+                  />
+                </div>
+                {!sameToneEverywhere &&
+                  Object.entries(TONE_PLATFORM_LABELS).map(([pl, label]) => (
+                    <PbRow
+                      key={pl}
+                      label={label}
+                      value={p?.platform_tones?.[pl]}
+                      editing={editing}
+                      input={
+                        <PbInput
+                          value={platformTones[pl] ?? ''}
+                          onChange={(v) => setPlatformTones((prev) => ({ ...prev, [pl]: v }))}
+                          placeholder="e.g. professional and insightful"
+                        />
+                      }
+                      tooltip={`How posts on ${label} should sound. Leave empty to use your main brand voice there.`}
+                    />
+                  ))}
+              </>
+            )}
+          </div>
+        </PbSection>
+
+        {/* Content Strategy */}
+        <PbSection title="Content Strategy">
+          <div style={{ marginBottom: 12 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Content pillars
+              <BrandTooltip
+                title="The core themes your brand posts about — e.g. 'Product Tips', 'Customer Stories', 'Industry News'. The AI rotates through these to keep your feed varied."
+                arrow
+                placement="right"
+              >
+                <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 16v-4M12 8h.01" />
+                  </svg>
+                </span>
+              </BrandTooltip>
+            </div>
+            {!editing ? (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {(p?.content_pillars ?? []).length > 0 ? (
+                  (p?.content_pillars ?? []).map((pl, i) => (
+                    <span
                       key={i}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        background: '#fafaf8',
-                        border: '1.5px solid #e5e3df',
-                        borderRadius: 8,
-                        padding: '6px 10px',
+                        padding: '4px 12px',
+                        borderRadius: 20,
+                        background: '#fdf0f6',
+                        color: '#C2185B',
+                        fontSize: 12.5,
+                        fontWeight: 600,
                       }}
                     >
-                      <span style={{ fontWeight: 600, fontSize: 12.5, color: '#111' }}>{d.date}</span>
-                      <span style={{ color: '#ccc', fontSize: 12.5 }}>—</span>
-                      <span style={{ flex: 1, fontSize: 12.5, color: '#555' }}>{d.label}</span>
+                      {typeof pl === 'string' ? pl : ((pl as { theme?: string }).theme ?? String(pl))}
+                    </span>
+                  ))
+                ) : (
+                  <span style={{ fontSize: 13, color: '#bbb' }}>—</span>
+                )}
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {pillars.map((pl, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 20,
+                        background: '#fdf0f6',
+                        color: '#C2185B',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                      }}
+                    >
+                      {pl}
                       <button
-                        onClick={() => setKeyDates(keyDates.filter((_, j) => j !== i))}
+                        onClick={() => setPillars(pillars.filter((_, j) => j !== i))}
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: '#999',
+                          color: '#C2185B',
                           cursor: 'pointer',
-                          fontSize: 15,
+                          fontSize: 14,
                           lineHeight: 1,
                           padding: 0,
                         }}
                       >
                         ×
                       </button>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <PbInput value={newPillar} onChange={setNewPillar} placeholder="e.g. Education" />
+                  <button
+                    onClick={() => {
+                      if (newPillar.trim()) {
+                        setPillars([...pillars, newPillar.trim()]);
+                        setNewPillar('');
+                      }
+                    }}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: 8,
+                      border: '1.5px solid #C2185B',
+                      background: '#fff',
+                      color: '#C2185B',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      fontFamily: 'var(--wf)',
+                    }}
+                  >
+                    + Add
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Preferred formats
+            </div>
+            {!editing ? (
+              <div style={{ fontSize: 13, color: (p?.preferred_formats ?? []).length > 0 ? '#111' : '#bbb' }}>
+                {(p?.preferred_formats ?? []).join(', ') || '—'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ALL_FORMATS.map((f) => (
+                  <PbChip
+                    key={f}
+                    label={f}
+                    active={formats.includes(f)}
+                    onClick={() => pbTgl(formats, setFormats, f)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </PbSection>
+
+        {/* Important Dates */}
+        <PbSection title="Important Dates">
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Key dates
+              <BrandTooltip
+                title="Product launches, sales, anniversaries — the content calendar plans around these automatically when they fall in an upcoming week."
+                arrow
+                placement="right"
+              >
+                <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 16v-4M12 8h.01" />
+                  </svg>
+                </span>
+              </BrandTooltip>
+            </div>
+            {!editing ? (
+              (p?.key_dates ?? []).length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(p?.key_dates ?? []).map((d, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                      <span style={{ fontWeight: 600, color: '#111' }}>{d.date}</span>
+                      <span style={{ color: '#ccc' }}>—</span>
+                      <span style={{ color: '#555' }}>{d.label}</span>
                     </div>
                   ))}
                 </div>
-              )}
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  type="date"
-                  value={newKeyDate}
-                  onChange={(e) => setNewKeyDate(e.target.value)}
-                  style={{
-                    flex: '0 0 150px',
-                    padding: '8px 11px',
-                    borderRadius: 8,
-                    border: '1.5px solid #e5e3df',
-                    fontSize: 13,
-                    fontFamily: 'var(--wf)',
-                    outline: 'none',
-                    background: '#fafaf8',
-                    color: '#111',
-                  }}
-                />
-                <PbInput value={newKeyDateLabel} onChange={setNewKeyDateLabel} placeholder="e.g. Summer Sale Launch" />
-                <button
-                  onClick={() => {
-                    if (newKeyDate && newKeyDateLabel.trim()) {
-                      setKeyDates([...keyDates, { date: newKeyDate, label: newKeyDateLabel.trim() }]);
-                      setNewKeyDate('');
-                      setNewKeyDateLabel('');
-                    }
-                  }}
-                  disabled={!newKeyDate || !newKeyDateLabel.trim()}
-                  style={{
-                    padding: '8px 14px',
-                    borderRadius: 8,
-                    border: '1.5px solid #C2185B',
-                    background: '#fff',
-                    color: '#C2185B',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: !newKeyDate || !newKeyDateLabel.trim() ? 'not-allowed' : 'pointer',
-                    opacity: !newKeyDate || !newKeyDateLabel.trim() ? 0.5 : 1,
-                    whiteSpace: 'nowrap',
-                    fontFamily: 'var(--wf)',
-                  }}
-                >
-                  + Add
-                </button>
+              ) : (
+                <span style={{ fontSize: 13, color: '#bbb' }}>—</span>
+              )
+            ) : (
+              <div>
+                {keyDates.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                    {keyDates.map((d, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          background: '#fafaf8',
+                          border: '1.5px solid #e5e3df',
+                          borderRadius: 8,
+                          padding: '6px 10px',
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: 12.5, color: '#111' }}>{d.date}</span>
+                        <span style={{ color: '#ccc', fontSize: 12.5 }}>—</span>
+                        <span style={{ flex: 1, fontSize: 12.5, color: '#555' }}>{d.label}</span>
+                        <button
+                          onClick={() => setKeyDates(keyDates.filter((_, j) => j !== i))}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#999',
+                            cursor: 'pointer',
+                            fontSize: 15,
+                            lineHeight: 1,
+                            padding: 0,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    type="date"
+                    value={newKeyDate}
+                    onChange={(e) => setNewKeyDate(e.target.value)}
+                    style={{
+                      flex: '0 0 150px',
+                      padding: '8px 11px',
+                      borderRadius: 8,
+                      border: '1.5px solid #e5e3df',
+                      fontSize: 13,
+                      fontFamily: 'var(--wf)',
+                      outline: 'none',
+                      background: '#fafaf8',
+                      color: '#111',
+                    }}
+                  />
+                  <PbInput
+                    value={newKeyDateLabel}
+                    onChange={setNewKeyDateLabel}
+                    placeholder="e.g. Summer Sale Launch"
+                  />
+                  <button
+                    onClick={() => {
+                      if (newKeyDate && newKeyDateLabel.trim()) {
+                        setKeyDates([...keyDates, { date: newKeyDate, label: newKeyDateLabel.trim() }]);
+                        setNewKeyDate('');
+                        setNewKeyDateLabel('');
+                      }
+                    }}
+                    disabled={!newKeyDate || !newKeyDateLabel.trim()}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: 8,
+                      border: '1.5px solid #C2185B',
+                      background: '#fff',
+                      color: '#C2185B',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: !newKeyDate || !newKeyDateLabel.trim() ? 'not-allowed' : 'pointer',
+                      opacity: !newKeyDate || !newKeyDateLabel.trim() ? 0.5 : 1,
+                      whiteSpace: 'nowrap',
+                      fontFamily: 'var(--wf)',
+                    }}
+                  >
+                    + Add
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </PbSection>
+            )}
+          </div>
+        </PbSection>
 
-      {/* Audience */}
-      <PbSection title="Audience">
-        <div style={{ marginBottom: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Age range
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: ageDisplay.length > 0 ? '#111' : '#bbb' }}>
-              {ageDisplay.join(', ') || '—'}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_AGES.map((a) => (
-                <PbChip
-                  key={a}
-                  label={a}
-                  active={audienceAge.includes(a)}
-                  onClick={() => pbTgl(audienceAge, setAudienceAge, a)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Primary goal
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: p?.primary_goal ? '#111' : '#bbb' }}>{p?.primary_goal || '—'}</div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_GOALS.map((g) => (
-                <PbChip
-                  key={g}
-                  label={g}
-                  active={primaryGoal === g}
-                  onClick={() => setPrimaryGoal(g === primaryGoal ? '' : g)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Priority platforms
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: (p?.target_platforms ?? []).length > 0 ? '#111' : '#bbb' }}>
-              {(p?.target_platforms ?? []).join(', ') || '—'}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_PLATFORMS.map((pl) => (
-                <PbChip
-                  key={pl}
-                  label={pl}
-                  active={targetPlatforms.includes(pl)}
-                  onClick={() => pbTgl(targetPlatforms, setTargetPlatforms, pl)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Ideal Customer Profile
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: p?.ideal_customer_profile ? '#111' : '#bbb', whiteSpace: 'pre-wrap' }}>
-              {p?.ideal_customer_profile || '—'}
-            </div>
-          ) : (
-            <textarea
-              value={idealCustomerProfile}
-              onChange={(e) => setIdealCustomerProfile(e.target.value)}
-              placeholder="e.g. Female entrepreneurs aged 25–40 in Lagos interested in business growth and productivity tools"
-              style={{
-                width: '100%',
-                minHeight: 80,
-                padding: 12,
-                fontSize: 13,
-                border: '1.5px solid #e5e7eb',
-                borderRadius: 8,
-                fontFamily: 'inherit',
-                resize: 'vertical',
-                outline: 'none',
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#C2185B';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#e5e7eb';
-              }}
-            />
-          )}
-        </div>
-        <PbRow
-          label="Customer gender"
-          value={p?.customer_gender}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerGender}
-              onChange={setCustomerGender}
-              placeholder="e.g. Primarily women (only if relevant)"
-            />
-          }
-        />
-        <PbRow
-          label="Customer location"
-          value={p?.customer_location}
-          editing={editing}
-          input={<PbInput value={customerLocation} onChange={setCustomerLocation} placeholder="e.g. Lagos, Nigeria" />}
-        />
-        <PbRow
-          label="Customer occupation"
-          value={p?.customer_occupation}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerOccupation}
-              onChange={setCustomerOccupation}
-              placeholder="e.g. Young professionals"
-            />
-          }
-        />
-        <PbRow
-          label="Customer income level"
-          value={p?.customer_income_level}
-          editing={editing}
-          input={
-            <PbInput value={customerIncomeLevel} onChange={setCustomerIncomeLevel} placeholder="e.g. Middle income" />
-          }
-        />
-        <PbRow
-          label="Customer interests"
-          value={p?.customer_interests}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerInterests.join(', ')}
-              onChange={(v) =>
-                setCustomerInterests(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. fitness, wellness, personal finance (comma-separated)"
-            />
-          }
-        />
-        <PbRow
-          label="Customer pain points"
-          value={p?.customer_pain_points}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerPainPoints.join(', ')}
-              onChange={(v) =>
-                setCustomerPainPoints(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. no time to cook, hard to find reliable delivery"
-            />
-          }
-        />
-        <PbRow
-          label="Customer needs"
-          value={p?.customer_needs}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerNeeds.join(', ')}
-              onChange={(v) =>
-                setCustomerNeeds(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. fast turnaround, transparent pricing"
-            />
-          }
-        />
-        <PbRow
-          label="Common objections"
-          value={p?.customer_objections}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerObjections.join(', ')}
-              onChange={(v) =>
-                setCustomerObjections(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. too expensive, not sure it works"
-            />
-          }
-        />
-        <PbRow
-          label="Why customers choose you"
-          value={p?.why_customers_choose_us}
-          editing={editing}
-          input={
-            <PbInput
-              value={whyChooseUs}
-              onChange={setWhyChooseUs}
-              placeholder="e.g. We deliver same-day, still warm from the oven"
-              textarea
-            />
-          }
-        />
-        {/* URI Content Calendar Generation addendum §1-4 — customer psychology
-            fields with no prior slot, distinct from pain points/needs/objections above */}
-        <PbRow
-          label="Customer desires"
-          value={p?.customer_desires}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerDesires.join(', ')}
-              onChange={(v) =>
-                setCustomerDesires(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. glowing skin without a 10-step routine (comma-separated)"
-            />
-          }
-        />
-        <PbRow
-          label="Customer fears"
-          value={p?.customer_fears}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerFears.join(', ')}
-              onChange={(v) =>
-                setCustomerFears(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. wasting money on something that doesn't work (comma-separated)"
-            />
-          }
-        />
-        <PbRow
-          label="Customer frustrations"
-          value={p?.customer_frustrations}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerFrustrations.join(', ')}
-              onChange={(v) =>
-                setCustomerFrustrations(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. slow delivery times, confusing pricing (comma-separated)"
-            />
-          }
-        />
-        <PbRow
-          label="Customer aspirations"
-          value={p?.customer_aspirations}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerAspirations.join(', ')}
-              onChange={(v) =>
-                setCustomerAspirations(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. running a business that runs without them (comma-separated)"
-            />
-          }
-        />
-        <PbRow
-          label="Reasons customers hesitate"
-          value={p?.customer_hesitations}
-          editing={editing}
-          input={
-            <PbInput
-              value={customerHesitations.join(', ')}
-              onChange={(v) =>
-                setCustomerHesitations(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. not sure it's worth the price, want to compare options first (comma-separated) — distinct from objections, these are reasons they stall rather than refuse"
-            />
-          }
-        />
-        <PbRow
-          label="Common questions customers ask"
-          value={p?.common_questions}
-          editing={editing}
-          input={
-            <PbInput
-              value={commonQuestions.join(', ')}
-              onChange={(v) =>
-                setCommonQuestions(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. is this safe for sensitive skin?, how long does shipping take? (comma-separated)"
-            />
-          }
-        />
-        <PbRow
-          label="Buying triggers"
-          value={p?.buying_triggers}
-          editing={editing}
-          input={
-            <PbInput
-              value={buyingTriggers.join(', ')}
-              onChange={(v) =>
-                setBuyingTriggers(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. seeing a visible result, a limited-time offer (comma-separated)"
-            />
-          }
-        />
-        <PbRow
-          label="Words/phrases to avoid"
-          value={p?.words_to_avoid}
-          editing={editing}
-          input={
-            <PbInput
-              value={wordsToAvoid.join(', ')}
-              onChange={(v) =>
-                setWordsToAvoid(
-                  v
-                    .split(',')
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                )
-              }
-              placeholder="e.g. cheap, miracle, revolutionary (comma-separated)"
-            />
-          }
-        />
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Competitor handles
-          </div>
-          {!editing ? (
+        {/* Audience */}
+        <PbSection title="Audience">
+          <div style={{ marginBottom: 12 }}>
             <div
               style={{
-                fontSize: 13,
-                color: (p?.competitor_handles ?? []).filter(Boolean).length > 0 ? '#111' : '#bbb',
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
               }}
             >
-              {(p?.competitor_handles ?? [])
-                .filter(Boolean)
-                .map((c) => `@${c}`)
-                .join(', ') || '—'}
+              Age range
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {competitors.map((c, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 13, color: '#999' }}>@</span>
-                  <PbInput
-                    value={c}
-                    onChange={(v) => {
-                      const cp = [...competitors];
-                      cp[i] = v;
-                      setCompetitors(cp);
-                    }}
-                    placeholder={['e.g. competitor_brand', 'e.g. aspirational_brand', 'e.g. another_brand'][i]}
+            {!editing ? (
+              <div style={{ fontSize: 13, color: ageDisplay.length > 0 ? '#111' : '#bbb' }}>
+                {ageDisplay.join(', ') || '—'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ALL_AGES.map((a) => (
+                  <PbChip
+                    key={a}
+                    label={a}
+                    active={audienceAge.includes(a)}
+                    onClick={() => pbTgl(audienceAge, setAudienceAge, a)}
                   />
-                </div>
-              ))}
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Primary goal
             </div>
-          )}
-        </div>
-      </PbSection>
+            {!editing ? (
+              <div style={{ fontSize: 13, color: p?.primary_goal ? '#111' : '#bbb' }}>{p?.primary_goal || '—'}</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ALL_GOALS.map((g) => (
+                  <PbChip
+                    key={g}
+                    label={g}
+                    active={primaryGoal === g}
+                    onClick={() => setPrimaryGoal(g === primaryGoal ? '' : g)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Priority platforms
+            </div>
+            {!editing ? (
+              <div style={{ fontSize: 13, color: (p?.target_platforms ?? []).length > 0 ? '#111' : '#bbb' }}>
+                {(p?.target_platforms ?? []).join(', ') || '—'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ALL_PLATFORMS.map((pl) => (
+                  <PbChip
+                    key={pl}
+                    label={pl}
+                    active={targetPlatforms.includes(pl)}
+                    onClick={() => pbTgl(targetPlatforms, setTargetPlatforms, pl)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Ideal Customer Profile
+            </div>
+            {!editing ? (
+              <div style={{ fontSize: 13, color: p?.ideal_customer_profile ? '#111' : '#bbb', whiteSpace: 'pre-wrap' }}>
+                {p?.ideal_customer_profile || '—'}
+              </div>
+            ) : (
+              <textarea
+                value={idealCustomerProfile}
+                onChange={(e) => setIdealCustomerProfile(e.target.value)}
+                placeholder="e.g. Female entrepreneurs aged 25–40 in Lagos interested in business growth and productivity tools"
+                style={{
+                  width: '100%',
+                  minHeight: 80,
+                  padding: 12,
+                  fontSize: 13,
+                  border: '1.5px solid #e5e7eb',
+                  borderRadius: 8,
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  outline: 'none',
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#C2185B';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#e5e7eb';
+                }}
+              />
+            )}
+          </div>
+          <PbRow
+            label="Customer gender"
+            value={p?.customer_gender}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerGender}
+                onChange={setCustomerGender}
+                placeholder="e.g. Primarily women (only if relevant)"
+              />
+            }
+          />
+          <PbRow
+            label="Customer location"
+            value={p?.customer_location}
+            editing={editing}
+            input={
+              <PbInput value={customerLocation} onChange={setCustomerLocation} placeholder="e.g. Lagos, Nigeria" />
+            }
+          />
+          <PbRow
+            label="Customer occupation"
+            value={p?.customer_occupation}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerOccupation}
+                onChange={setCustomerOccupation}
+                placeholder="e.g. Young professionals"
+              />
+            }
+          />
+          <PbRow
+            label="Customer income level"
+            value={p?.customer_income_level}
+            editing={editing}
+            input={
+              <PbInput value={customerIncomeLevel} onChange={setCustomerIncomeLevel} placeholder="e.g. Middle income" />
+            }
+          />
+          <PbRow
+            label="Customer interests"
+            value={p?.customer_interests}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerInterests.join(', ')}
+                onChange={(v) =>
+                  setCustomerInterests(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. fitness, wellness, personal finance (comma-separated)"
+              />
+            }
+          />
+          <PbRow
+            label="Customer pain points"
+            value={p?.customer_pain_points}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerPainPoints.join(', ')}
+                onChange={(v) =>
+                  setCustomerPainPoints(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. no time to cook, hard to find reliable delivery"
+              />
+            }
+          />
+          <PbRow
+            label="Customer needs"
+            value={p?.customer_needs}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerNeeds.join(', ')}
+                onChange={(v) =>
+                  setCustomerNeeds(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. fast turnaround, transparent pricing"
+              />
+            }
+          />
+          <PbRow
+            label="Common objections"
+            value={p?.customer_objections}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerObjections.join(', ')}
+                onChange={(v) =>
+                  setCustomerObjections(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. too expensive, not sure it works"
+              />
+            }
+          />
+          <PbRow
+            label="Why customers choose you"
+            value={p?.why_customers_choose_us}
+            editing={editing}
+            input={
+              <PbInput
+                value={whyChooseUs}
+                onChange={setWhyChooseUs}
+                placeholder="e.g. We deliver same-day, still warm from the oven"
+                textarea
+              />
+            }
+          />
+          {/* URI Content Calendar Generation addendum §1-4 — customer psychology
+            fields with no prior slot, distinct from pain points/needs/objections above */}
+          <PbRow
+            label="Customer desires"
+            value={p?.customer_desires}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerDesires.join(', ')}
+                onChange={(v) =>
+                  setCustomerDesires(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. glowing skin without a 10-step routine (comma-separated)"
+              />
+            }
+          />
+          <PbRow
+            label="Customer fears"
+            value={p?.customer_fears}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerFears.join(', ')}
+                onChange={(v) =>
+                  setCustomerFears(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. wasting money on something that doesn't work (comma-separated)"
+              />
+            }
+          />
+          <PbRow
+            label="Customer frustrations"
+            value={p?.customer_frustrations}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerFrustrations.join(', ')}
+                onChange={(v) =>
+                  setCustomerFrustrations(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. slow delivery times, confusing pricing (comma-separated)"
+              />
+            }
+          />
+          <PbRow
+            label="Customer aspirations"
+            value={p?.customer_aspirations}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerAspirations.join(', ')}
+                onChange={(v) =>
+                  setCustomerAspirations(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. running a business that runs without them (comma-separated)"
+              />
+            }
+          />
+          <PbRow
+            label="Reasons customers hesitate"
+            value={p?.customer_hesitations}
+            editing={editing}
+            input={
+              <PbInput
+                value={customerHesitations.join(', ')}
+                onChange={(v) =>
+                  setCustomerHesitations(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. not sure it's worth the price, want to compare options first (comma-separated) — distinct from objections, these are reasons they stall rather than refuse"
+              />
+            }
+          />
+          <PbRow
+            label="Common questions customers ask"
+            value={p?.common_questions}
+            editing={editing}
+            input={
+              <PbInput
+                value={commonQuestions.join(', ')}
+                onChange={(v) =>
+                  setCommonQuestions(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. is this safe for sensitive skin?, how long does shipping take? (comma-separated)"
+              />
+            }
+          />
+          <PbRow
+            label="Buying triggers"
+            value={p?.buying_triggers}
+            editing={editing}
+            input={
+              <PbInput
+                value={buyingTriggers.join(', ')}
+                onChange={(v) =>
+                  setBuyingTriggers(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. seeing a visible result, a limited-time offer (comma-separated)"
+              />
+            }
+          />
+          <PbRow
+            label="Words/phrases to avoid"
+            value={p?.words_to_avoid}
+            editing={editing}
+            input={
+              <PbInput
+                value={wordsToAvoid.join(', ')}
+                onChange={(v) =>
+                  setWordsToAvoid(
+                    v
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  )
+                }
+                placeholder="e.g. cheap, miracle, revolutionary (comma-separated)"
+              />
+            }
+          />
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Competitor handles
+            </div>
+            {!editing ? (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: (p?.competitor_handles ?? []).filter(Boolean).length > 0 ? '#111' : '#bbb',
+                }}
+              >
+                {(p?.competitor_handles ?? [])
+                  .filter(Boolean)
+                  .map((c) => `@${c}`)
+                  .join(', ') || '—'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {competitors.map((c, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 13, color: '#999' }}>@</span>
+                    <PbInput
+                      value={c}
+                      onChange={(v) => {
+                        const cp = [...competitors];
+                        cp[i] = v;
+                        setCompetitors(cp);
+                      }}
+                      placeholder={['e.g. competitor_brand', 'e.g. aspirational_brand', 'e.g. another_brand'][i]}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </PbSection>
 
-      {/* Business Pulse — a separate, always-editable surface (own save button,
+        {/* Business Pulse — a separate, always-editable surface (own save button,
           own load/save calls) nested here rather than given its own top-level
           nav destination. It renders its own header/subtitle, so it isn't
           wrapped in a titled PbSection like the sections below (that would
           duplicate the heading) — just contained so its internal
           height:'100%' resolves against this box instead of the full page. */}
-      <div
-        style={{
-          border: '1px solid #edecea',
-          borderRadius: 14,
-          marginBottom: 20,
-          minHeight: 560,
-          background: '#fff',
-          overflow: 'hidden',
-        }}
-      >
-        <BusinessPulsePanel />
-      </div>
-
-      {/* Language & Region */}
-      <PbSection title="Language & Region">
-        <div style={{ marginBottom: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Languages
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: (p?.languages ?? []).length > 0 ? '#111' : '#bbb' }}>
-              {(p?.languages ?? []).join(', ') || '—'}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_LANGS.map((l) => (
-                <PbChip
-                  key={l}
-                  label={l}
-                  active={languages.includes(l)}
-                  onClick={() => pbTgl(languages, setLanguages, l)}
-                />
-              ))}
-            </div>
-          )}
+        <div
+          style={{
+            border: '1px solid #edecea',
+            borderRadius: 14,
+            marginBottom: 20,
+            minHeight: 560,
+            background: '#fff',
+            overflow: 'hidden',
+          }}
+        >
+          <BusinessPulsePanel />
         </div>
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Region / market
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: regDisplay.length > 0 ? '#111' : '#bbb' }}>
-              {regDisplay.join(', ') || '—'}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_REGIONS.map((r) => (
-                <PbChip key={r} label={r} active={region.includes(r)} onClick={() => pbTgl(region, setRegion, r)} />
-              ))}
-            </div>
-          )}
-        </div>
-      </PbSection>
 
-      {/* Guardrails */}
-      <PbSection title="Guardrails">
-        <PbRow
-          label="Topics to avoid"
-          value={p?.guardrails?.avoid_topics}
-          editing={editing}
-          input={<PbInput value={avoidTopics} onChange={setAvoidTopics} placeholder="e.g. Politics, religion..." />}
-          tooltip="Subjects the AI will never bring up or reference — e.g. competitor names, sensitive social issues, or off-brand themes"
-        />
-        <PbRow
-          label="Banned words / phrases"
-          value={p?.guardrails?.banned_words}
-          editing={editing}
-          input={<PbInput value={bannedWords} onChange={setBannedWords} placeholder="Comma separated" />}
-          tooltip="Specific words or phrases that must never appear in generated content — e.g. informal slang, competitor brand names, or legally restricted terms"
-        />
-        <PbRow
-          label="Emoji usage"
-          value={p?.guardrails?.emoji_usage}
-          editing={editing}
-          input={<PbInput value={emojiUsage} onChange={setEmojiUsage} placeholder="e.g. Minimal, 1–2 per post" />}
-          tooltip="Tell the AI how liberally to use emojis — e.g. 'None', 'Minimal (1–2)', 'Moderate', or 'Heavy'"
-        />
-        <PbRow
-          label="Max hashtags"
-          value={p?.guardrails?.max_hashtags}
-          editing={editing}
-          input={<PbInput value={maxHash} onChange={setMaxHash} placeholder="e.g. 5" />}
-          tooltip="The maximum number of hashtags the AI should add per post — helps avoid spam-like posts on platforms like LinkedIn"
-        />
-        <PbRow
-          label="Compliance notes"
-          value={p?.guardrails?.compliance_notes}
-          editing={editing}
-          input={
-            <PbInput
-              value={compliance}
-              onChange={setCompliance}
-              placeholder="Any regulatory or legal notes..."
-              textarea
-            />
-          }
-          tooltip="Any legal, regulatory, or industry-specific rules the AI must follow — e.g. 'Always include pricing disclaimers' or 'Do not make medical claims'"
-        />
-      </PbSection>
-
-      {/* CTAs */}
-      <PbSection title="Call to Action">
-        <div style={{ marginBottom: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            CTA styles
-            <BrandTooltip
-              title="The types of calls-to-action the AI should use — e.g. 'Shop Now', 'Learn More', 'Book a Call'. Keeps your posts action-oriented and consistent."
-              arrow
-              placement="right"
+        {/* Language & Region */}
+        <PbSection title="Language & Region">
+          <div style={{ marginBottom: 12 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
             >
-              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4M12 8h.01" />
-                </svg>
-              </span>
-            </BrandTooltip>
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: (p?.cta_styles ?? []).length > 0 ? '#111' : '#bbb' }}>
-              {(p?.cta_styles ?? []).join(', ') || '—'}
+              Languages
             </div>
-          ) : (
-            <div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                {ALL_CTA.map((c) => (
+            {!editing ? (
+              <div style={{ fontSize: 13, color: (p?.languages ?? []).length > 0 ? '#111' : '#bbb' }}>
+                {(p?.languages ?? []).join(', ') || '—'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ALL_LANGS.map((l) => (
                   <PbChip
-                    key={c}
-                    label={c}
-                    active={ctaStyles.includes(c)}
-                    onClick={() => pbTgl(ctaStyles, setCtaStyles, c)}
+                    key={l}
+                    label={l}
+                    active={languages.includes(l)}
+                    onClick={() => pbTgl(languages, setLanguages, l)}
                   />
                 ))}
               </div>
+            )}
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Region / market
+            </div>
+            {!editing ? (
+              <div style={{ fontSize: 13, color: regDisplay.length > 0 ? '#111' : '#bbb' }}>
+                {regDisplay.join(', ') || '—'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ALL_REGIONS.map((r) => (
+                  <PbChip key={r} label={r} active={region.includes(r)} onClick={() => pbTgl(region, setRegion, r)} />
+                ))}
+              </div>
+            )}
+          </div>
+        </PbSection>
 
-              {/* Display selected CTAs (including custom ones) */}
-              {ctaStyles.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
+        {/* Guardrails */}
+        <PbSection title="Guardrails">
+          <PbRow
+            label="Topics to avoid"
+            value={p?.guardrails?.avoid_topics}
+            editing={editing}
+            input={<PbInput value={avoidTopics} onChange={setAvoidTopics} placeholder="e.g. Politics, religion..." />}
+            tooltip="Subjects the AI will never bring up or reference — e.g. competitor names, sensitive social issues, or off-brand themes"
+          />
+          <PbRow
+            label="Banned words / phrases"
+            value={p?.guardrails?.banned_words}
+            editing={editing}
+            input={<PbInput value={bannedWords} onChange={setBannedWords} placeholder="Comma separated" />}
+            tooltip="Specific words or phrases that must never appear in generated content — e.g. informal slang, competitor brand names, or legally restricted terms"
+          />
+          <PbRow
+            label="Emoji usage"
+            value={p?.guardrails?.emoji_usage}
+            editing={editing}
+            input={<PbInput value={emojiUsage} onChange={setEmojiUsage} placeholder="e.g. Minimal, 1–2 per post" />}
+            tooltip="Tell the AI how liberally to use emojis — e.g. 'None', 'Minimal (1–2)', 'Moderate', or 'Heavy'"
+          />
+          <PbRow
+            label="Max hashtags"
+            value={p?.guardrails?.max_hashtags}
+            editing={editing}
+            input={<PbInput value={maxHash} onChange={setMaxHash} placeholder="e.g. 5" />}
+            tooltip="The maximum number of hashtags the AI should add per post — helps avoid spam-like posts on platforms like LinkedIn"
+          />
+          <PbRow
+            label="Compliance notes"
+            value={p?.guardrails?.compliance_notes}
+            editing={editing}
+            input={
+              <PbInput
+                value={compliance}
+                onChange={setCompliance}
+                placeholder="Any regulatory or legal notes..."
+                textarea
+              />
+            }
+            tooltip="Any legal, regulatory, or industry-specific rules the AI must follow — e.g. 'Always include pricing disclaimers' or 'Do not make medical claims'"
+          />
+        </PbSection>
+
+        {/* CTAs */}
+        <PbSection title="Call to Action">
+          <div style={{ marginBottom: 12 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              CTA styles
+              <BrandTooltip
+                title="The types of calls-to-action the AI should use — e.g. 'Shop Now', 'Learn More', 'Book a Call'. Keeps your posts action-oriented and consistent."
+                arrow
+                placement="right"
+              >
+                <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 16v-4M12 8h.01" />
+                  </svg>
+                </span>
+              </BrandTooltip>
+            </div>
+            {!editing ? (
+              <div style={{ fontSize: 13, color: (p?.cta_styles ?? []).length > 0 ? '#111' : '#bbb' }}>
+                {(p?.cta_styles ?? []).join(', ') || '—'}
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                  {ALL_CTA.map((c) => (
+                    <PbChip
+                      key={c}
+                      label={c}
+                      active={ctaStyles.includes(c)}
+                      onClick={() => pbTgl(ctaStyles, setCtaStyles, c)}
+                    />
+                  ))}
+                </div>
+
+                {/* Display selected CTAs (including custom ones) */}
+                {ctaStyles.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: '#666',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                        marginBottom: 6,
+                      }}
+                    >
+                      Selected CTAs (click to remove)
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {ctaStyles.map((c) => (
+                        <PbChip key={c} label={c} active={true} onClick={() => removeCtaPlaybook(c)} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add custom CTA input */}
+                <div>
                   <div
                     style={{
                       fontSize: 10,
@@ -8058,666 +8110,749 @@ const PlaybookPage = ({
                       marginBottom: 6,
                     }}
                   >
-                    Selected CTAs (click to remove)
+                    Add custom CTA
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {ctaStyles.map((c) => (
-                      <PbChip key={c} label={c} active={true} onClick={() => removeCtaPlaybook(c)} />
-                    ))}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <PbInput
+                      value={customCta}
+                      onChange={setCustomCta}
+                      placeholder="e.g., Get 20% off today"
+                      onKeyDown={(e: React.KeyboardEvent) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addCustomCtaPlaybook();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={addCustomCtaPlaybook}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#CD1B78',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Add
+                    </button>
                   </div>
-                </div>
-              )}
-
-              {/* Add custom CTA input */}
-              <div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: '#666',
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                    marginBottom: 6,
-                  }}
-                >
-                  Add custom CTA
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <PbInput
-                    value={customCta}
-                    onChange={setCustomCta}
-                    placeholder="e.g., Get 20% off today"
-                    onKeyDown={(e: React.KeyboardEvent) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addCustomCtaPlaybook();
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={addCustomCtaPlaybook}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: '#CD1B78',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 6,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Add
-                  </button>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-        <PbRow
-          label="Default link"
-          value={p?.default_link}
-          editing={editing}
-          input={<PbInput value={defaultLink} onChange={setDefaultLink} placeholder="https://..." />}
-          tooltip="The URL appended to posts when no specific link is provided — e.g. your homepage or a campaign landing page"
-        />
-      </PbSection>
+            )}
+          </div>
+          <PbRow
+            label="Default link"
+            value={p?.default_link}
+            editing={editing}
+            input={<PbInput value={defaultLink} onChange={setDefaultLink} placeholder="https://..." />}
+            tooltip="The URL appended to posts when no specific link is provided — e.g. your homepage or a campaign landing page"
+          />
+        </PbSection>
 
-      {/* Posting & Workflow */}
-      <PbSection title="Posting & Workflow">
-        <div style={{ marginBottom: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Posting cadence
-            <BrandTooltip
-              title="How often you want to post — the Auto tab generates new posts at this pace"
-              arrow
-              placement="right"
+        {/* Posting & Workflow */}
+        <PbSection title="Posting & Workflow">
+          <div style={{ marginBottom: 12 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
             >
-              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4M12 8h.01" />
-                </svg>
-              </span>
-            </BrandTooltip>
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: p?.posting_cadence ? '#111' : '#bbb' }}>{p?.posting_cadence || '—'}</div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_CADENCE.map((c) => (
-                <PbChip key={c} label={c} active={cadence === c} onClick={() => setCadence(c === cadence ? '' : c)} />
-              ))}
+              Posting cadence
+              <BrandTooltip
+                title="How often you want to post — the Auto tab generates new posts at this pace"
+                arrow
+                placement="right"
+              >
+                <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 16v-4M12 8h.01" />
+                  </svg>
+                </span>
+              </BrandTooltip>
             </div>
-          )}
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Approval workflow
-            <BrandTooltip
-              title="Review first: every post waits in Drafts for you. Auto-publish / Hybrid: posts the Auto tab creates on its own are scheduled at your preferred posting time without review. Posts you create yourself always wait as drafts."
-              arrow
-              placement="right"
-            >
-              <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
-                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4M12 8h.01" />
-                </svg>
-              </span>
-            </BrandTooltip>
-          </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: p?.approval_workflow ? '#111' : '#bbb' }}>
-              {p?.approval_workflow ? approvalLabel(p.approval_workflow) : '—'}
-            </div>
-          ) : (
-            <>
+            {!editing ? (
+              <div style={{ fontSize: 13, color: p?.posting_cadence ? '#111' : '#bbb' }}>
+                {p?.posting_cadence || '—'}
+              </div>
+            ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {ALL_APPROVAL.map((a) => (
-                  <PbChip
-                    key={a.value}
-                    label={a.label}
-                    active={approval === a.value}
-                    onClick={() => setApproval(a.value === approval ? '' : a.value)}
-                  />
+                {ALL_CADENCE.map((c) => (
+                  <PbChip key={c} label={c} active={cadence === c} onClick={() => setCadence(c === cadence ? '' : c)} />
                 ))}
               </div>
-              {approval && (
-                <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>
-                  {ALL_APPROVAL.find((a) => a.value === approval)?.desc}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#999',
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              marginBottom: 8,
-            }}
-          >
-            Posting times
+            )}
           </div>
-          {!editing ? (
-            <div style={{ fontSize: 13, color: '#111' }}>
-              {describePostingTimes(p?.posting_time_mode, p?.posting_time_prefs)}
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Approval workflow
+              <BrandTooltip
+                title="Review first: every post waits in Drafts for you. Auto-publish / Hybrid: posts the Auto tab creates on its own are scheduled at your preferred posting time without review. Posts you create yourself always wait as drafts."
+                arrow
+                placement="right"
+              >
+                <span style={{ display: 'inline-flex', cursor: 'help', marginLeft: 4 }}>
+                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 16v-4M12 8h.01" />
+                  </svg>
+                </span>
+              </BrandTooltip>
             </div>
-          ) : (
-            <>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {POSTING_TIME_MODES.map((m) => (
-                  <PbChip
-                    key={m.value}
-                    label={m.label}
-                    active={(postingTimeMode || 'ai') === m.value}
-                    onClick={() => setPostingTimeMode(m.value)}
-                  />
-                ))}
+            {!editing ? (
+              <div style={{ fontSize: 13, color: p?.approval_workflow ? '#111' : '#bbb' }}>
+                {p?.approval_workflow ? approvalLabel(p.approval_workflow) : '—'}
               </div>
-              {postingTimeMode === 'general' && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                  {POSTING_TIME_SLOTS.map((slot) => (
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {ALL_APPROVAL.map((a) => (
                     <PbChip
-                      key={slot}
-                      label={slot}
-                      active={slotsOf(postingTimePrefs.general).includes(slot)}
-                      onClick={() =>
-                        setPostingTimePrefs((prev) => ({ ...prev, general: toggleSlot(prev.general, slot) }))
-                      }
+                      key={a.value}
+                      label={a.label}
+                      active={approval === a.value}
+                      onClick={() => setApproval(a.value === approval ? '' : a.value)}
                     />
                   ))}
                 </div>
-              )}
-              {postingTimeMode === 'custom' &&
-                Object.entries(TONE_PLATFORM_LABELS).map(([pl, label]) => (
-                  <div key={pl} style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>{label}</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {POSTING_TIME_SLOTS.map((slot) => (
-                        <PbChip
-                          key={slot}
-                          label={slot}
-                          active={slotsOf(postingTimePrefs[pl]).includes(slot)}
-                          onClick={() => setPostingTimePrefs((prev) => ({ ...prev, [pl]: toggleSlot(prev[pl], slot) }))}
-                        />
-                      ))}
-                    </div>
+                {approval && (
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>
+                    {ALL_APPROVAL.find((a) => a.value === approval)?.desc}
                   </div>
-                ))}
-              <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>
-                Used as the default time when you schedule a post, and when Auto-publish schedules posts for you.
-              </div>
-            </>
-          )}
-        </div>
-      </PbSection>
-
-      <PbSection title="Notifications">
-        <PlaybookNotifications profile={profile} onProfileUpdate={onProfileUpdate} />
-      </PbSection>
-
-      <PbSection title="Visual Style">
-        <div style={{ marginBottom: 8, fontSize: 12.5, color: '#888' }}>
-          Up to 3 styles — Uri rotates through them when generating images.
-        </div>
-        {!editing ? (
-          // Custom guides (V1 or V2) take priority over library styles at
-          // generation time — if either is selected, the library styles below
-          // are never actually used, so show the guides here instead, not the
-          // stale library-style cards from before a guide was selected.
-          (p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {previewGuidesV2.map((g) => (
-                <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
-              ))}
-              {previewGuidesV1.map((g) => (
-                <CustomGuidePreviewCard key={g.id} guide={g} compact />
-              ))}
+                )}
+              </>
+            )}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#999',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Posting times
             </div>
-          ) : p?.style_selections && p.style_selections.length > 0 ? (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {p.style_selections.map((slug) => {
-                const s = getStyle(slug);
-                if (!s) return null;
-                const [from, to] = s.gradient;
-                return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
-              })}
+            {!editing ? (
+              <div style={{ fontSize: 13, color: '#111' }}>
+                {describePostingTimes(p?.posting_time_mode, p?.posting_time_prefs)}
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {POSTING_TIME_MODES.map((m) => (
+                    <PbChip
+                      key={m.value}
+                      label={m.label}
+                      active={(postingTimeMode || 'ai') === m.value}
+                      onClick={() => setPostingTimeMode(m.value)}
+                    />
+                  ))}
+                </div>
+                {postingTimeMode === 'general' && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                    {POSTING_TIME_SLOTS.map((slot) => (
+                      <PbChip
+                        key={slot}
+                        label={slot}
+                        active={slotsOf(postingTimePrefs.general).includes(slot)}
+                        onClick={() =>
+                          setPostingTimePrefs((prev) => ({ ...prev, general: toggleSlot(prev.general, slot) }))
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+                {postingTimeMode === 'custom' &&
+                  Object.entries(TONE_PLATFORM_LABELS).map(([pl, label]) => (
+                    <div key={pl} style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>{label}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {POSTING_TIME_SLOTS.map((slot) => (
+                          <PbChip
+                            key={slot}
+                            label={slot}
+                            active={slotsOf(postingTimePrefs[pl]).includes(slot)}
+                            onClick={() =>
+                              setPostingTimePrefs((prev) => ({ ...prev, [pl]: toggleSlot(prev[pl], slot) }))
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>
+                  Used as the default time when you schedule a post, and when Auto-publish schedules posts for you.
+                </div>
+              </>
+            )}
+          </div>
+        </PbSection>
+
+        <PbSection title="Notifications">
+          <PlaybookNotifications profile={profile} onProfileUpdate={onProfileUpdate} />
+        </PbSection>
+
+        <PbSection title="Visual Style">
+          <div style={{ marginBottom: 8, fontSize: 12.5, color: '#888' }}>
+            Up to 3 styles — Uri rotates through them when generating images.
+          </div>
+          {!editing ? (
+            <>
+              {/* Custom guides (V1 or V2) take priority over library styles at
+                generation time — if either is selected, the library styles below
+                are never actually used, so show the guides here instead, not the
+                stale library-style cards from before a guide was selected. This
+                is always the Default (brand-wide fallback) — see the summary
+                line below for which platforms, if any, use something else. */}
+              {(p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {previewGuidesV2.map((g) => (
+                    <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
+                  ))}
+                  {previewGuidesV1.map((g) => (
+                    <CustomGuidePreviewCard key={g.id} guide={g} compact />
+                  ))}
+                </div>
+              ) : p?.style_selections && p.style_selections.length > 0 ? (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {p.style_selections.map((slug) => {
+                    const s = getStyle(slug);
+                    if (!s) return null;
+                    const [from, to] = s.gradient;
+                    return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
+                  })}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+              )}
+              {(() => {
+                const customizedPlatforms = STYLE_PLATFORM_TABS.filter(
+                  (t) =>
+                    t.key !== 'default' &&
+                    ((p?.style_selections_by_platform?.[t.key]?.length ?? 0) > 0 ||
+                      (p?.selected_custom_guides_by_platform?.[t.key]?.length ?? 0) > 0 ||
+                      (p?.selected_custom_guides_v2_by_platform?.[t.key]?.length ?? 0) > 0)
+                );
+                if (customizedPlatforms.length === 0) return null;
+                return (
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                    {customizedPlatforms.map((t) => t.label).join(', ')} — using a different style than the Default
+                    shown above. Edit to see or change.
+                  </div>
+                );
+              })()}
+            </>
+          ) : (
+            <div>
+              {/* Per-platform tabs — 'default' is the brand-wide fallback used
+                by any platform below that has nothing of its own. Switching
+                tabs swaps what styleSelections/selectedCustomGuides(V2) hold
+                (see loadStyleTab) — everything below (the badge, the
+                gallery) is already reading whichever tab is active, no
+                further wiring needed. */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                {STYLE_PLATFORM_TABS.map((tab) => {
+                  const hasOverride =
+                    tab.key !== 'default' &&
+                    ((profile?.style_selections_by_platform?.[tab.key]?.length ?? 0) > 0 ||
+                      (profile?.selected_custom_guides_by_platform?.[tab.key]?.length ?? 0) > 0 ||
+                      (profile?.selected_custom_guides_v2_by_platform?.[tab.key]?.length ?? 0) > 0);
+                  return (
+                    <div key={tab.key} style={{ position: 'relative' }}>
+                      <PbChip
+                        label={tab.label}
+                        active={activeStyleTab === tab.key}
+                        onClick={() => handleStyleTabSwitch(tab.key)}
+                      />
+                      {hasOverride && (
+                        <span
+                          title={`${tab.label} has its own style, different from your Default`}
+                          style={{
+                            position: 'absolute',
+                            top: -3,
+                            right: -3,
+                            width: 8,
+                            height: 8,
+                            borderRadius: 99,
+                            background: '#C2185B',
+                            border: '1.5px solid #fff',
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 10, lineHeight: 1.5 }}>
+                {activeStyleTab === 'default' ? (
+                  'Your Default — used for any platform below that hasn’t been customized.'
+                ) : (
+                  <>
+                    {styleSelections.length > 0 ||
+                    selectedCustomGuides.length > 0 ||
+                    selectedCustomGuidesV2.length > 0 ? (
+                      <>
+                        {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label} uses its own style below,
+                        instead of your Default.{' '}
+                        <button
+                          onClick={() => {
+                            setStyleSelections([]);
+                            handleCustomGuideChange([]);
+                            handleCustomGuideV2Change([]);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#C2185B',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: 0,
+                            fontSize: 12,
+                          }}
+                        >
+                          Remove override, use Default instead
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        Not customized — {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label} currently
+                        uses your Default. Pick styles or guides below to use something different just for{' '}
+                        {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label}.
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span
+                  style={{
+                    background:
+                      styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
+                        ? '#C2185B'
+                        : '#e5e7eb',
+                    color:
+                      styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
+                        ? '#fff'
+                        : '#6b7280',
+                    borderRadius: 99,
+                    padding: '2px 10px',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                  }}
+                >
+                  {styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length}/3 selected
+                </span>
+                {(styleSelections.length > 0 ||
+                  selectedCustomGuides.length > 0 ||
+                  selectedCustomGuidesV2.length > 0) && (
+                  <button
+                    onClick={() => {
+                      setStyleSelections([]);
+                      handleCustomGuideChange([]);
+                      handleCustomGuideV2Change([]);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: 11.5,
+                      color: '#9ca3af',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      padding: 0,
+                    }}
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+              <StylePickerGallery
+                industry={industry || p?.industry || 'general_other'}
+                selected={styleSelections}
+                onChange={handleStyleSelectionChange}
+                selectedCustomGuides={selectedCustomGuides}
+                onCustomGuideChange={handleCustomGuideChange}
+                selectedCustomGuidesV2={selectedCustomGuidesV2}
+                onCustomGuideV2Change={handleCustomGuideV2Change}
+                brandId={profile?.id}
+              />
+            </div>
+          )}
+        </PbSection>
+
+        <PbSection title="Visual Styles — Ads">
+          <div style={{ marginBottom: 10, fontSize: 12.5, color: '#888' }}>
+            Pick up to 3 — Jane tries your picks first whenever they're eligible for the campaign, before falling back
+            to whatever the corpus ranks best.
+          </div>
+          {adFormats.length === 0 ? (
+            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+          ) : (
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              {[...adFormats]
+                .sort((a, b) => {
+                  const rank = { live: 0, built: 1, planned: 2 } as const;
+                  return rank[a.status] - rank[b.status];
+                })
+                .map((f) => {
+                  const adFormatSelections = profile?.ad_format_selections ?? [];
+                  const isSelected = adFormatSelections.includes(f.format_id);
+                  return (
+                    <AdFormatGalleryCard
+                      key={f.format_id}
+                      format={f}
+                      isSelected={isSelected}
+                      onToggleSelect={() => handleAdFormatToggle(f.format_id)}
+                      selectionDisabled={!isSelected && adFormatSelections.length >= 3}
+                    />
+                  );
+                })}
+            </div>
+          )}
+        </PbSection>
+
+        <PbSection title="Typography">
+          <style>{`@import url('${GOOGLE_FONTS_URL}');`}</style>
+          <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888' }}>
+            Control the visual hierarchy of text on images.
+          </div>
+
+          {!editing ? (
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {/* Primary Font Display */}
+              {p?.primary_font && getFont(p.primary_font) && (
+                <div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: '#999',
+                      marginBottom: 4,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    Primary (Headlines)
+                  </div>
+                  {(() => {
+                    const f = getFont(p.primary_font)!;
+                    return (
+                      <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
+                        <div
+                          style={{
+                            height: 64,
+                            background: '#f9f9fb',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderBottom: '1px solid #f0eef8',
+                          }}
+                        >
+                          <span style={{ fontFamily: f.fontFamily, fontSize: 20, color: '#0d0e0f' }}>
+                            {f.previewText}
+                          </span>
+                        </div>
+                        <div style={{ padding: '6px 10px' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{f.name}</div>
+                          <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                            {f.description}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Primary Custom Font Display */}
+              {p?.primary_custom_font_selected_url &&
+                (() => {
+                  const font = (p.primary_custom_fonts ?? []).find((f) => f.url === p.primary_custom_font_selected_url);
+                  if (!font) return null;
+                  return (
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: '#999',
+                          marginBottom: 4,
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                        }}
+                      >
+                        Primary (Headlines) — Custom
+                      </div>
+                      <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
+                        <div
+                          style={{
+                            height: 64,
+                            background: '#f9f9fb',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderBottom: '1px solid #f0eef8',
+                          }}
+                        >
+                          <FaCheckCircle size={22} color="#C2185B" />
+                        </div>
+                        <div style={{ padding: '6px 10px' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{font.filename}</div>
+                          <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                            {font.analysis?.overall_feel || 'Uploaded font'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              {/* Secondary Font Display */}
+              {p?.secondary_font && getFont(p.secondary_font) && (
+                <div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: '#999',
+                      marginBottom: 4,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    Secondary (Body)
+                  </div>
+                  {(() => {
+                    const f = getFont(p.secondary_font)!;
+                    return (
+                      <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
+                        <div
+                          style={{
+                            height: 64,
+                            background: '#f9f9fb',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderBottom: '1px solid #f0eef8',
+                          }}
+                        >
+                          <span style={{ fontFamily: f.fontFamily, fontSize: 20, color: '#0d0e0f' }}>
+                            {f.previewText}
+                          </span>
+                        </div>
+                        <div style={{ padding: '6px 10px' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{f.name}</div>
+                          <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                            {f.description}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Secondary Custom Font Display */}
+              {p?.secondary_custom_font_selected_url &&
+                (() => {
+                  const font = (p.secondary_custom_fonts ?? []).find(
+                    (f) => f.url === p.secondary_custom_font_selected_url
+                  );
+                  if (!font) return null;
+                  return (
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: '#999',
+                          marginBottom: 4,
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                        }}
+                      >
+                        Secondary (Body) — Custom
+                      </div>
+                      <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
+                        <div
+                          style={{
+                            height: 64,
+                            background: '#f9f9fb',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderBottom: '1px solid #f0eef8',
+                          }}
+                        >
+                          <FaCheckCircle size={22} color="#C2185B" />
+                        </div>
+                        <div style={{ padding: '6px 10px' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{font.filename}</div>
+                          <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
+                            {font.analysis?.overall_feel || 'Uploaded font'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              {!p?.primary_font &&
+                !p?.secondary_font &&
+                !p?.primary_custom_font_selected_url &&
+                !p?.secondary_custom_font_selected_url && <div style={{ fontSize: 13, color: '#bbb' }}>—</div>}
             </div>
           ) : (
-            <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
-          )
-        ) : (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <span
-                style={{
-                  background:
-                    styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
-                      ? '#C2185B'
-                      : '#e5e7eb',
-                  color:
-                    styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length > 0
-                      ? '#fff'
-                      : '#6b7280',
-                  borderRadius: 99,
-                  padding: '2px 10px',
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                }}
-              >
-                {styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length}/3 selected
-              </span>
-              {(styleSelections.length > 0 || selectedCustomGuides.length > 0 || selectedCustomGuidesV2.length > 0) && (
-                <button
-                  onClick={() => {
-                    setStyleSelections([]);
-                    handleCustomGuideChange([]);
-                    handleCustomGuideV2Change([]);
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    fontSize: 11.5,
-                    color: '#9ca3af',
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    padding: 0,
-                  }}
-                >
-                  Clear all
-                </button>
-              )}
-            </div>
-            <StylePickerGallery
-              industry={industry || p?.industry || 'general_other'}
-              selected={styleSelections}
-              onChange={setStyleSelections}
-              selectedCustomGuides={selectedCustomGuides}
-              onCustomGuideChange={handleCustomGuideChange}
-              selectedCustomGuidesV2={selectedCustomGuidesV2}
-              onCustomGuideV2Change={handleCustomGuideV2Change}
-              brandId={profile?.id}
-            />
-          </div>
-        )}
-      </PbSection>
-
-      <PbSection title="Visual Styles — Ads">
-        <div style={{ marginBottom: 10, fontSize: 12.5, color: '#888' }}>
-          Pick up to 3 — Jane tries your picks first whenever they're eligible for the campaign, before falling back to
-          whatever the corpus ranks best.
-        </div>
-        {adFormats.length === 0 ? (
-          <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
-        ) : (
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            {[...adFormats]
-              .sort((a, b) => {
-                const rank = { live: 0, built: 1, planned: 2 } as const;
-                return rank[a.status] - rank[b.status];
-              })
-              .map((f) => {
-                const adFormatSelections = profile?.ad_format_selections ?? [];
-                const isSelected = adFormatSelections.includes(f.format_id);
-                return (
-                  <AdFormatGalleryCard
-                    key={f.format_id}
-                    format={f}
-                    isSelected={isSelected}
-                    onToggleSelect={() => handleAdFormatToggle(f.format_id)}
-                    selectionDisabled={!isSelected && adFormatSelections.length >= 3}
-                  />
-                );
-              })}
-          </div>
-        )}
-      </PbSection>
-
-      <PbSection title="Typography">
-        <style>{`@import url('${GOOGLE_FONTS_URL}');`}</style>
-        <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888' }}>
-          Control the visual hierarchy of text on images.
-        </div>
-
-        {!editing ? (
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {/* Primary Font Display */}
-            {p?.primary_font && getFont(p.primary_font) && (
-              <div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: '#999',
-                    marginBottom: 4,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Primary (Headlines)
-                </div>
-                {(() => {
-                  const f = getFont(p.primary_font)!;
-                  return (
-                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
-                      <div
-                        style={{
-                          height: 64,
-                          background: '#f9f9fb',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderBottom: '1px solid #f0eef8',
-                        }}
-                      >
-                        <span style={{ fontFamily: f.fontFamily, fontSize: 20, color: '#0d0e0f' }}>
-                          {f.previewText}
-                        </span>
-                      </div>
-                      <div style={{ padding: '6px 10px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{f.name}</div>
-                        <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
-                          {f.description}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* Primary Custom Font Display */}
-            {p?.primary_custom_font_selected_url &&
-              (() => {
-                const font = (p.primary_custom_fonts ?? []).find((f) => f.url === p.primary_custom_font_selected_url);
-                if (!font) return null;
-                return (
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: '#999',
-                        marginBottom: 4,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Primary (Headlines) — Custom
-                    </div>
-                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
-                      <div
-                        style={{
-                          height: 64,
-                          background: '#f9f9fb',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderBottom: '1px solid #f0eef8',
-                        }}
-                      >
-                        <FaCheckCircle size={22} color="#C2185B" />
-                      </div>
-                      <div style={{ padding: '6px 10px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{font.filename}</div>
-                        <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
-                          {font.analysis?.overall_feel || 'Uploaded font'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-            {/* Secondary Font Display */}
-            {p?.secondary_font && getFont(p.secondary_font) && (
-              <div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: '#999',
-                    marginBottom: 4,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Secondary (Body)
-                </div>
-                {(() => {
-                  const f = getFont(p.secondary_font)!;
-                  return (
-                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
-                      <div
-                        style={{
-                          height: 64,
-                          background: '#f9f9fb',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderBottom: '1px solid #f0eef8',
-                        }}
-                      >
-                        <span style={{ fontFamily: f.fontFamily, fontSize: 20, color: '#0d0e0f' }}>
-                          {f.previewText}
-                        </span>
-                      </div>
-                      <div style={{ padding: '6px 10px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{f.name}</div>
-                        <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
-                          {f.description}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* Secondary Custom Font Display */}
-            {p?.secondary_custom_font_selected_url &&
-              (() => {
-                const font = (p.secondary_custom_fonts ?? []).find(
-                  (f) => f.url === p.secondary_custom_font_selected_url
-                );
-                if (!font) return null;
-                return (
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: '#999',
-                        marginBottom: 4,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Secondary (Body) — Custom
-                    </div>
-                    <div style={{ borderRadius: 10, overflow: 'hidden', border: '1.5px solid #f0ede8', width: 200 }}>
-                      <div
-                        style={{
-                          height: 64,
-                          background: '#f9f9fb',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderBottom: '1px solid #f0eef8',
-                        }}
-                      >
-                        <FaCheckCircle size={22} color="#C2185B" />
-                      </div>
-                      <div style={{ padding: '6px 10px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{font.filename}</div>
-                        <div style={{ fontSize: 10.5, color: '#888', marginTop: 2, lineHeight: 1.3 }}>
-                          {font.analysis?.overall_feel || 'Uploaded font'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-            {!p?.primary_font &&
-              !p?.secondary_font &&
-              !p?.primary_custom_font_selected_url &&
-              !p?.secondary_custom_font_selected_url && <div style={{ fontSize: 13, color: '#bbb' }}>—</div>}
-          </div>
-        ) : (
-          <div>
-            {/* Primary Font Selector */}
-            <div style={{ marginBottom: 20 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: '#999',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  marginBottom: 8,
-                }}
-              >
-                Primary Font (Headlines)
-              </div>
-              {primaryFont && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <span
-                    style={{
-                      background: '#C2185B',
-                      color: '#fff',
-                      borderRadius: 99,
-                      padding: '2px 10px',
-                      fontSize: 11.5,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {getFont(primaryFont)?.name} selected
-                  </span>
-                  <button
-                    onClick={() => setPrimaryFont('')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      fontSize: 11.5,
-                      color: '#9ca3af',
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                      padding: 0,
-                    }}
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
-              <FontPickerGallery
-                selected={primaryFont}
-                onChange={setPrimaryFont}
-                customFonts={primaryCustomFonts}
-                selectedCustomFontUrl={primaryCustomFontSelectedUrl}
-                onSelectCustomFont={setPrimaryCustomFontSelectedUrl}
-                onCustomFontUpload={(data) => {
-                  const entry: CustomFontEntry = {
-                    url: data.fontUrl,
-                    filename: data.filename,
-                    analysis: data.analysis,
-                    directive: data.promptDirective,
-                  };
-                  setPrimaryCustomFonts((prev) => [...prev, entry]);
-                  setPrimaryCustomFontSelectedUrl(entry.url);
-                }}
-              />
-            </div>
-
-            {/* Secondary Font Selector */}
             <div>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: '#999',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  marginBottom: 8,
-                }}
-              >
-                Secondary Font (Body Text)
-              </div>
-              {secondaryFont && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <span
-                    style={{
-                      background: '#C2185B',
-                      color: '#fff',
-                      borderRadius: 99,
-                      padding: '2px 10px',
-                      fontSize: 11.5,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {getFont(secondaryFont)?.name} selected
-                  </span>
-                  <button
-                    onClick={() => setSecondaryFont('')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      fontSize: 11.5,
-                      color: '#9ca3af',
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                      padding: 0,
-                    }}
-                  >
-                    Clear
-                  </button>
+              {/* Primary Font Selector */}
+              <div style={{ marginBottom: 20 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#999',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    marginBottom: 8,
+                  }}
+                >
+                  Primary Font (Headlines)
                 </div>
-              )}
-              <FontPickerGallery
-                selected={secondaryFont}
-                onChange={setSecondaryFont}
-                customFonts={secondaryCustomFonts}
-                selectedCustomFontUrl={secondaryCustomFontSelectedUrl}
-                onSelectCustomFont={setSecondaryCustomFontSelectedUrl}
-                onCustomFontUpload={(data) => {
-                  const entry: CustomFontEntry = {
-                    url: data.fontUrl,
-                    filename: data.filename,
-                    analysis: data.analysis,
-                    directive: data.promptDirective,
-                  };
-                  setSecondaryCustomFonts((prev) => [...prev, entry]);
-                  setSecondaryCustomFontSelectedUrl(entry.url);
-                }}
-              />
-            </div>
-          </div>
-        )}
-      </PbSection>
+                {primaryFont && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <span
+                      style={{
+                        background: '#C2185B',
+                        color: '#fff',
+                        borderRadius: 99,
+                        padding: '2px 10px',
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {getFont(primaryFont)?.name} selected
+                    </span>
+                    <button
+                      onClick={() => setPrimaryFont('')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        fontSize: 11.5,
+                        color: '#9ca3af',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: 0,
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+                <FontPickerGallery
+                  selected={primaryFont}
+                  onChange={setPrimaryFont}
+                  customFonts={primaryCustomFonts}
+                  selectedCustomFontUrl={primaryCustomFontSelectedUrl}
+                  onSelectCustomFont={setPrimaryCustomFontSelectedUrl}
+                  onCustomFontUpload={(data) => {
+                    const entry: CustomFontEntry = {
+                      url: data.fontUrl,
+                      filename: data.filename,
+                      analysis: data.analysis,
+                      directive: data.promptDirective,
+                    };
+                    setPrimaryCustomFonts((prev) => [...prev, entry]);
+                    setPrimaryCustomFontSelectedUrl(entry.url);
+                  }}
+                />
+              </div>
 
-      {/* V3 Enhanced Prompts - Hidden on main branch (develop-only feature) */}
-      {false && (
+              {/* Secondary Font Selector */}
+              <div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#999',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    marginBottom: 8,
+                  }}
+                >
+                  Secondary Font (Body Text)
+                </div>
+                {secondaryFont && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <span
+                      style={{
+                        background: '#C2185B',
+                        color: '#fff',
+                        borderRadius: 99,
+                        padding: '2px 10px',
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {getFont(secondaryFont)?.name} selected
+                    </span>
+                    <button
+                      onClick={() => setSecondaryFont('')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        fontSize: 11.5,
+                        color: '#9ca3af',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: 0,
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+                <FontPickerGallery
+                  selected={secondaryFont}
+                  onChange={setSecondaryFont}
+                  customFonts={secondaryCustomFonts}
+                  selectedCustomFontUrl={secondaryCustomFontSelectedUrl}
+                  onSelectCustomFont={setSecondaryCustomFontSelectedUrl}
+                  onCustomFontUpload={(data) => {
+                    const entry: CustomFontEntry = {
+                      url: data.fontUrl,
+                      filename: data.filename,
+                      analysis: data.analysis,
+                      directive: data.promptDirective,
+                    };
+                    setSecondaryCustomFonts((prev) => [...prev, entry]);
+                    setSecondaryCustomFontSelectedUrl(entry.url);
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </PbSection>
+
+        {/* V3 Enhanced Prompts */}
         <PbSection title="Enhanced Image Prompts (V3)">
           <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
             Our new 10-block prompt system for richer, more detailed images. Includes expanded aesthetic vocabulary,
@@ -8840,10 +8975,8 @@ const PlaybookPage = ({
             </div>
           )}
         </PbSection>
-      )}
 
-      {/* Canvas Editor Toggle - Hidden on main branch (develop-only feature) */}
-      {false && (
+        {/* Canvas Editor Toggle */}
         <PbSection title="Canvas Editor (Beta)">
           <p style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6, marginBottom: 16 }}>
             Enable advanced post editing with drag-drop layers, text editing, and multi-format export
@@ -8968,8 +9101,8 @@ const PlaybookPage = ({
             </div>
           )}
         </PbSection>
-      )}
-    </SubPage>
+      </SubPage>
+    </PbUsedInContext.Provider>
   );
 };
 

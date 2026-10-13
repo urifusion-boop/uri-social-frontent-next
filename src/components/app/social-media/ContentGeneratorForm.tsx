@@ -81,6 +81,15 @@ function _friendlyGenerationError(msg?: string): string {
 const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: ContentGeneratorFormProps) => {
   const [seedContent, setSeedContent] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
+
+  // Start with the brand's own target platforms (Brand Playbook) selected,
+  // unless the user has already picked something themselves.
+  const platformsTouched = useRef(false);
+  useEffect(() => {
+    BrandProfileService.getTargetPlatformKeys().then((keys) => {
+      if (keys.length && !platformsTouched.current) setSelectedPlatforms(keys);
+    });
+  }, []);
   const [includeImages, setIncludeImages] = useState(false);
   const [loading, setLoading] = useState(false);
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
@@ -149,8 +158,10 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     });
   };
 
-  const togglePlatform = (key: string) =>
+  const togglePlatform = (key: string) => {
+    platformsTouched.current = true;
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
+  };
 
   const processImageFile = (file: File, showSuccessToast: boolean = false) => {
     if (!file.type.startsWith('image/')) {
