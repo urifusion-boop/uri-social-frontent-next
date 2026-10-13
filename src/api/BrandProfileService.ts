@@ -114,6 +114,8 @@ export interface BrandProfileData {
   notification_events?: string[];
   notification_channel?: string;
   slack_webhook_url?: string;
+  /** What the owner told Jane in their own words ("Tell Jane"). */
+  playbook_instructions?: PlaybookInstruction[];
   telegram_chat_id?: string;
   telegram_username?: string;
   team_members?: BrandTeamMember[];
@@ -199,6 +201,45 @@ export interface PlaybookSuggestion {
   title: string;
   evidence: string;
   change: string;
+}
+
+/** Something the owner told Jane that has no Playbook field of its own. */
+export interface PlaybookInstruction {
+  id: string;
+  text: string;
+  /** posts | ads | blog | video | replies | all */
+  applies_to: string[];
+  platforms: string[];
+  created_at?: string;
+}
+
+export interface PlaybookFieldChange {
+  field: string;
+  label: string;
+  before: string;
+  after: string;
+}
+
+export interface PlaybookInstructResult {
+  understood: boolean;
+  reply: string;
+  changes: PlaybookFieldChange[];
+  added: PlaybookInstruction[];
+  removed: PlaybookInstruction[];
+  change_id: string | null;
+  profile: BrandProfileData;
+}
+
+export interface PlaybookChangeLog {
+  id: string;
+  text: string;
+  reply?: string;
+  source?: string;
+  changes: PlaybookFieldChange[];
+  added: { id: string; text: string }[];
+  removed: { id: string; text: string }[];
+  created_at: string;
+  undone_at?: string | null;
 }
 
 export class BrandProfileService {
@@ -360,6 +401,43 @@ export class BrandProfileService {
 
   static async dismissSuggestion(id: string): Promise<void> {
     await UriHttpClient.getClient().post(`${BASE}/suggestions/dismiss`, { id });
+  }
+
+  /** "Tell Jane": update the Playbook from the owner's own words. Throws on HTTP errors (detail in the message). */
+  static async instruct(
+    text: string,
+    source: 'playbook' | 'create' | 'drafts' = 'playbook'
+  ): Promise<PlaybookInstructResult> {
+    const res: AxiosResponse<UriResponse<PlaybookInstructResult>> = await UriHttpClient.getClient().post(
+      `${BASE}/instruct`,
+      { text, source }
+    );
+    return res.data.responseData as PlaybookInstructResult;
+  }
+
+  static async getInstructions(): Promise<{ instructions: PlaybookInstruction[]; history: PlaybookChangeLog[] }> {
+    try {
+      const res: AxiosResponse<UriResponse<{ instructions: PlaybookInstruction[]; history: PlaybookChangeLog[] }>> =
+        await UriHttpClient.getClient().get(`${BASE}/instructions`);
+      return res.data?.responseData ?? { instructions: [], history: [] };
+    } catch {
+      return { instructions: [], history: [] };
+    }
+  }
+
+  static async deleteInstruction(id: string): Promise<PlaybookInstruction[]> {
+    const res: AxiosResponse<UriResponse<{ instructions: PlaybookInstruction[] }>> =
+      await UriHttpClient.getClient().delete(`${BASE}/instructions/${encodeURIComponent(id)}`);
+    return res.data?.responseData?.instructions ?? [];
+  }
+
+  /** Put back what one "Tell Jane" update changed; returns the updated profile. */
+  static async undoInstruct(
+    changeId: string
+  ): Promise<{ restored: string[]; skipped: string[]; profile: BrandProfileData }> {
+    const res: AxiosResponse<UriResponse<{ restored: string[]; skipped: string[]; profile: BrandProfileData }>> =
+      await UriHttpClient.getClient().post(`${BASE}/instruct/undo`, { change_id: changeId });
+    return res.data.responseData as { restored: string[]; skipped: string[]; profile: BrandProfileData };
   }
 
   /** One sample caption from the saved Playbook. No draft, no credits. */
