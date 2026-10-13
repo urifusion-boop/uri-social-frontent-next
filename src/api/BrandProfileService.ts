@@ -184,6 +184,8 @@ export interface PlaybookHealthData {
   suggestions: { key: string; label: string; section: string; improves: string[]; why: string }[];
   /** Playbook field label -> which of Jane's jobs use it. */
   used_in: Record<string, string[]>;
+  /** Playbook section title -> the labels of its settings. */
+  sections?: Record<string, string[]>;
 }
 
 /** A Playbook change Jane suggests from the user's own edits and results. */
