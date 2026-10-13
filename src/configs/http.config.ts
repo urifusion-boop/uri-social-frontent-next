@@ -119,6 +119,14 @@ class UriHttpClient {
 
   private static async handleErrorResponse(error: AxiosError) {
     if (error.response) {
+      // Callers receive the response itself (err.data.detail), but many read
+      // it the standard axios way (err.response.data.detail) and so lost the
+      // server's message — e.g. "You've previewed a lot today" became "Could
+      // not write a preview". Point .response back at itself (non-enumerable,
+      // so logging/serialising is unaffected) and both ways work.
+      if (!Object.prototype.hasOwnProperty.call(error.response, 'response')) {
+        Object.defineProperty(error.response, 'response', { value: error.response, enumerable: false });
+      }
       switch (error.response.status) {
         case 401:
           // A 401 on a JWT-protected endpoint always means the token is
