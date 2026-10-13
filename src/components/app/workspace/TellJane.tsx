@@ -422,7 +422,8 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
           }}
         >
           <span style={{ fontSize: 11, color: C.faint }}>
-            {text.length > 0 ? `${text.length}/2000 · ` : ''}Ctrl + Enter
+            {text.length > 0 ? `${text.length}/2000` : ''}
+            <span className="tj-wide">{text.length > 0 ? ' · ' : ''}Ctrl + Enter</span>
           </span>
           <button
             type="button"
@@ -546,6 +547,7 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
 
   return (
     <section
+      className="tell-jane"
       style={{
         ...font,
         marginBottom: 12,
@@ -556,6 +558,12 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
         transition: 'box-shadow .25s ease',
       }}
     >
+      <style>{`
+        @media (max-width: 520px) {
+          .tell-jane .tj-wide { display: none; }
+          .tell-jane .tj-title { font-size: 13.5px !important; }
+        }
+      `}</style>
       <div style={{ background: '#fff', borderRadius: 14.5, overflow: 'hidden' }}>
         {/* Header — the dropdown toggle */}
         <button
@@ -579,8 +587,12 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
           <Avatar />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 14.5, fontWeight: 800, color: C.ink }}>Tell Jane what you want</span>
-              <span style={pill('#FCE4EC', C.pink)}>AI</span>
+              <span className="tj-title" style={{ fontSize: 14.5, fontWeight: 800, color: C.ink }}>
+                Tell Jane what you want
+              </span>
+              <span className="tj-wide" style={pill('#FCE4EC', C.pink)}>
+                AI
+              </span>
             </div>
             <div
               style={{
@@ -596,8 +608,12 @@ const TellJane = ({ profile, onProfileUpdate, compact = false, disabledReason, s
             </div>
           </div>
           {suggestions.length > 0 && (
-            <span style={{ ...pill(C.amberBg, C.amber), border: '1px solid #FDE68A' }}>
-              {suggestions.length} suggestion{suggestions.length === 1 ? '' : 's'}
+            <span
+              title={`${suggestions.length} suggestion${suggestions.length === 1 ? '' : 's'} from Jane`}
+              style={{ ...pill(C.amberBg, C.amber), border: '1px solid #FDE68A', flexShrink: 0 }}
+            >
+              {suggestions.length}
+              <span className="tj-wide">&nbsp;suggestion{suggestions.length === 1 ? '' : 's'}</span>
             </span>
           )}
           <Chevron open={open} />
