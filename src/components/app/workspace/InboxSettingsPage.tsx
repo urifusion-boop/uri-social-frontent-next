@@ -449,7 +449,7 @@ export default function InboxSettingsPage({
             <li>it&apos;s about a refund, payment dispute, safety, a legal threat or an unclear price or stock</li>
             <li>someone on your team has been assigned, or replied in the last 24 hours</li>
             <li>it&apos;s outside your business hours, or past Meta&apos;s 24-hour reply window</li>
-            <li>the customer has already had 3 auto-replies in this conversation</li>
+            <li>10 auto-replies have gone out in this conversation in the last hour, which looks like another bot</li>
           </ul>
           <div style={{ marginTop: 6 }}>Adding FAQs for the questions you get most is the quickest way to auto-reply to more of them.</div>
         </div>
