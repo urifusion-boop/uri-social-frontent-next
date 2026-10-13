@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
+import { BrandProfileService } from '@/src/api/BrandProfileService';
 import {
   Box,
   Button,
@@ -1807,6 +1808,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           onClick={() => {
             setApproveAnchor(null);
             setScheduleOpen(true);
+            // Start from the brand's next preferred posting time (Brand Playbook).
+            if (!scheduledAt) {
+              BrandProfileService.getNextPostingTime(draft.platform ?? '').then((t) => {
+                if (t) setScheduledAt((cur) => cur || t);
+              });
+            }
           }}
         >
           Schedule
@@ -1823,7 +1830,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         </DialogTitle>
         <DialogContent>
           <Typography fontSize="13px" color="#6B7280" mb={2}>
-            Pick when this post should be published.
+            Pick when this post should be published. We start you at your next preferred posting time from your Brand
+            Playbook.
           </Typography>
           <TextField
             type="datetime-local"

@@ -3065,6 +3065,46 @@ function BrandSetupPageContent() {
                   </Box>
                 </Box>
               )}
+              {/* "Set Per-Platform" had no inputs, so choosing it saved nothing. */}
+              {timeMode === 'custom' && (
+                <Box mb={2}>
+                  {[
+                    { k: 'instagram', l: 'Instagram' },
+                    { k: 'facebook', l: 'Facebook' },
+                    { k: 'linkedin', l: 'LinkedIn' },
+                    { k: 'twitter', l: 'X (Twitter)' },
+                    { k: 'tiktok', l: 'TikTok' },
+                  ].map((pl) => (
+                    <Box key={pl.k} mb={1.25}>
+                      <FieldLabel>{pl.l}</FieldLabel>
+                      <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.5}>
+                        {[
+                          'Early Morning (6-9am)',
+                          'Late Morning (9am-12pm)',
+                          'Afternoon (12-4pm)',
+                          'Evening (4-8pm)',
+                          'Night (8pm-12am)',
+                        ].map((slot) => (
+                          <Chip
+                            key={slot}
+                            label={slot}
+                            active={(timePrefs[pl.k] || '').includes(slot)}
+                            onClick={() =>
+                              setTimePrefs((p) => ({
+                                ...p,
+                                [pl.k]: (p[pl.k] || '').includes(slot)
+                                  ? (p[pl.k] || '').replace(slot + ',', '')
+                                  : `${p[pl.k] || ''}${slot},`,
+                              }))
+                            }
+                            primary={primary}
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              )}
               {timeMode === 'ai' && (
                 <Box sx={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', p: 1.5, mb: 2 }}>
                   <Typography sx={{ fontSize: 12.5, color: '#166534' }}>

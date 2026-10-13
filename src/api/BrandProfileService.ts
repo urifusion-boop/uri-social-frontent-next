@@ -58,6 +58,8 @@ export interface BrandProfileData {
   industry?: string;
   website?: string;
   product_description?: string;
+  tagline?: string;
+  key_products_services?: string[];
   // Business Details
   price_range?: string;
   unique_selling_proposition?: string;
@@ -248,6 +250,28 @@ export class BrandProfileService {
       `${BASE}/business-pulse`
     );
     return res.data;
+  }
+
+  /**
+   * The brand's next preferred posting time (Brand Playbook → Posting times),
+   * as a `datetime-local` input value in the viewer's local time. Null when
+   * it can't be fetched — the picker just starts empty, as before.
+   */
+  static async getNextPostingTime(platform = ''): Promise<string | null> {
+    try {
+      const res: AxiosResponse<UriResponse<{ scheduled_datetime: string }>> = await UriHttpClient.getClient().get(
+        `${BASE}/next-posting-time`,
+        { params: { platform } }
+      );
+      const iso = res.data?.responseData?.scheduled_datetime;
+      if (!iso) return null;
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return null;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch {
+      return null;
+    }
   }
 
   static async saveBusinessPulse(data: Partial<BusinessPulseData>): Promise<UriResponse<BrandProfileData>> {
