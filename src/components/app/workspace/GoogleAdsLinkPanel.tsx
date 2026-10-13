@@ -4,6 +4,7 @@ import { CampaignService } from '@/src/api/CampaignService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { useEffect, useState } from 'react';
+import { continueWithGoogle } from './GoogleAdsChooser';
 
 const BLUE = '#4285F4';
 
@@ -220,6 +221,69 @@ const GoogleAdsLinkPanel = ({ state, customerId, accountName, managerId, detail,
               </li>
               <li>That&apos;s it — this page updates by itself within a few seconds.</li>
             </ol>
+          )}
+          {pending && (
+            <div style={{ marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={async () => {
+                  setBusy('signin');
+                  if (!(await continueWithGoogle())) setBusy('');
+                }}
+                disabled={!!busy}
+                style={{ ...btn('primary'), padding: '7px 13px', fontSize: 12 }}
+              >
+                {busy === 'signin' ? 'Opening Google…' : 'Fastest: Continue with Google and we approve it for you'}
+              </button>
+              {/* What the page in Google Ads looks like, so they know what to press. */}
+              <div
+                aria-label="What you will see in Google Ads"
+                style={{
+                  marginTop: 10,
+                  maxWidth: 440,
+                  border: '1px solid #e3e1dd',
+                  borderRadius: 9,
+                  background: '#fff',
+                  overflow: 'hidden',
+                  fontSize: 11,
+                }}
+              >
+                <div style={{ padding: '6px 10px', background: '#f6f7f9', color: '#5f6368', fontWeight: 700 }}>
+                  Google Ads · Access and security · <span style={{ color: '#1a73e8' }}>Managers</span>
+                </div>
+                <div style={{ padding: '5px 10px', color: '#5f6368', borderTop: '1px solid #eee' }}>Link request</div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    padding: '8px 10px',
+                    borderTop: '1px solid #eee',
+                  }}
+                >
+                  <span style={{ color: '#202124' }}>
+                    <b>URI</b>
+                    {managerId ? ` · ${managerId}` : ''}
+                  </span>
+                  <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span
+                      style={{
+                        padding: '3px 9px',
+                        borderRadius: 4,
+                        background: '#1a73e8',
+                        color: '#fff',
+                        fontWeight: 700,
+                        boxShadow: '0 0 0 3px rgba(26,115,232,.25)',
+                      }}
+                    >
+                      Accept
+                    </span>
+                    <span style={{ color: '#5f6368' }}>Decline</span>
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
           {declined && (
             <div style={{ fontSize: 11.5, color: '#555', marginTop: 5 }}>
