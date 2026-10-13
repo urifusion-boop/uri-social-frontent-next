@@ -116,6 +116,9 @@ export interface BrandProfileData {
   approval_channels?: string[];
   notification_events?: string[];
   notification_channel?: string;
+  slack_webhook_url?: string;
+  telegram_chat_id?: string;
+  telegram_username?: string;
   team_members?: BrandTeamMember[];
   languages?: string[];
   region?: string | string[];

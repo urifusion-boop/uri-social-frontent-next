@@ -3,6 +3,7 @@
 import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
+import PlaybookNotifications from './PlaybookNotifications';
 import { V3Service } from '@/src/api/V3Service';
 import {
   AccountMetricItem,
@@ -8274,6 +8275,10 @@ const PlaybookPage = ({
             </>
           )}
         </div>
+      </PbSection>
+
+      <PbSection title="Notifications">
+        <PlaybookNotifications profile={profile} onProfileUpdate={onProfileUpdate} />
       </PbSection>
 
       <PbSection title="Visual Style">

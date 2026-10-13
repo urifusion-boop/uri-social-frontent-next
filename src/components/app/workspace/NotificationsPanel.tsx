@@ -20,6 +20,10 @@ const TYPE_META: Record<string, { icon: string; color: string; bg: string; label
   trial_start: { icon: '🎉', color: '#C2185B', bg: 'rgba(194,24,91,.08)', label: 'Trial Started' },
   trial_ending: { icon: '⏰', color: '#EA580C', bg: 'rgba(234,88,12,.08)', label: 'Trial Ending' },
   trial_expired: { icon: '⚠️', color: '#DC2626', bg: 'rgba(220,38,38,.08)', label: 'Trial Expired' },
+  weekly_report: { icon: '📊', color: '#0E7490', bg: 'rgba(14,116,144,.08)', label: 'Weekly Report' },
+  trending_topic: { icon: '📈', color: '#D97706', bg: 'rgba(217,119,6,.08)', label: 'Trending' },
+  calendar_refill: { icon: '🗓️', color: '#6366F1', bg: 'rgba(99,102,241,.08)', label: 'Calendar' },
+  engagement_spike: { icon: '🔥', color: '#DC2626', bg: 'rgba(220,38,38,.08)', label: 'Engagement Spike' },
 };
 
 const TYPE_FILTERS = [
@@ -32,6 +36,10 @@ const TYPE_FILTERS = [
   { value: 'trial_start', label: 'Trial' },
   { value: 'trial_ending', label: 'Trial Ending' },
   { value: 'trial_expired', label: 'Trial Expired' },
+  { value: 'weekly_report', label: 'Weekly Reports' },
+  { value: 'trending_topic', label: 'Trending' },
+  { value: 'calendar_refill', label: 'Calendar' },
+  { value: 'engagement_spike', label: 'Engagement Spikes' },
 ];
 
 /* ── Helpers ────────────────────────────────────────────────────── */

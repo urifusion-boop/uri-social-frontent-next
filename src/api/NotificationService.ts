@@ -18,8 +18,12 @@ export interface Notification {
     | 'trial_start'
     | 'trial_ending'
     | 'trial_expired'
+    | 'weekly_report'
+    | 'trending_topic'
+    | 'calendar_refill'
+    | 'engagement_spike'
     | 'connection_disconnected';
-  channel: 'email' | 'whatsapp';
+  channel: 'email' | 'whatsapp' | 'sms' | 'push' | 'slack' | 'telegram' | 'dashboard';
   status: 'pending' | 'sent' | 'failed' | 'rate_limited';
   subject: string;
   metadata: Record<string, unknown>;
