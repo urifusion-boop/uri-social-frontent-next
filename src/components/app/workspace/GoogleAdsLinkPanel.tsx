@@ -3,7 +3,7 @@
 import { CampaignService } from '@/src/api/CampaignService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const BLUE = '#4285F4';
 
@@ -55,6 +55,36 @@ const GoogleAdsLinkPanel = ({ state, customerId, accountName, managerId, detail,
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
   const [confirm, setConfirm] = useState<'' | 'change' | 'disconnect'>('');
+
+  // While waiting, keep asking Google quietly so the card turns to "Linked" by
+  // itself the moment the request is accepted — no need to come back and press
+  // Check again. Stops after ten minutes; the button still works after that.
+  useEffect(() => {
+    if (state !== 'manager_link_pending') return;
+    let tries = 0;
+    const timer = setInterval(async () => {
+      tries += 1;
+      if (tries > 50) return clearInterval(timer);
+      if (document.hidden) return;
+      try {
+        const s = await CampaignService.getGoogleConnectionStatus(true);
+        if (s.state !== 'manager_link_pending') {
+          clearInterval(timer);
+          if (s.state === 'ready') {
+            ToastService.showToast(
+              `Google Ads linked${s.account_name ? ` — ${s.account_name}` : ''}.`,
+              ToastTypeEnum.Success
+            );
+          }
+          onChanged();
+        }
+      } catch {
+        // a quiet check: try again next time
+      }
+    }, 12000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   const pending = state === 'manager_link_pending';
   const declined = state === 'manager_link_declined';
@@ -152,8 +182,8 @@ const GoogleAdsLinkPanel = ({ state, customerId, accountName, managerId, detail,
       >
         <div style={{ minWidth: 0, flex: '1 1 260px' }}>
           <div style={{ fontSize: 12.5, fontWeight: 700, color: tone.fg }}>
-            {pending && 'Waiting for you to accept the link request in Google Ads'}
-            {declined && 'The link request was declined, cancelled, or the link was removed'}
+            {pending && 'One step left: approve URI in your Google Ads account'}
+            {declined && 'URI no longer has permission on this Google Ads account'}
             {refused && 'Google would not link this account'}
             {linked && (accountName ? `Linked — ${accountName}` : 'Linked to your Google Ads account')}
           </div>
@@ -188,12 +218,13 @@ const GoogleAdsLinkPanel = ({ state, customerId, accountName, managerId, detail,
               <li>
                 Find the request from <b>URI{managerId ? ` (${managerId})` : ''}</b> and click <b>Accept</b>.
               </li>
-              <li>Come back here and press Check again.</li>
+              <li>That&apos;s it — this page updates by itself within a few seconds.</li>
             </ol>
           )}
           {declined && (
             <div style={{ fontSize: 11.5, color: '#555', marginTop: 5 }}>
-              Send the request again and accept it in Google Ads, or choose a different account.
+              The request was declined or cancelled, or URI was removed as a manager in Google Ads. Send the request
+              again, or choose a different account.
             </div>
           )}
           {refused && detail && <div style={{ fontSize: 11.5, color: '#555', marginTop: 5 }}>{detail}</div>}

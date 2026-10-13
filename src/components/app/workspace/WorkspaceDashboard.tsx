@@ -6,6 +6,7 @@ import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } 
 import PlaybookNotifications from './PlaybookNotifications';
 import PlaybookHealth from './PlaybookHealth';
 import { pbSectionId } from './PlaybookPanel';
+import GoogleAdsChooser, { continueWithGoogle, GoogleAdsReturn } from './GoogleAdsChooser';
 import GoogleAdsLinkPanel from './GoogleAdsLinkPanel';
 import TellJane from './TellJane';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
@@ -3025,7 +3026,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       // see the backend's google_ads_connection.py module docstring), so there's
       // nothing for the brand to personally authorize. Synchronous call straight
       // to the account-selection state.
+      // One click: straight to Google sign-in, where they pick their Ads account by
+      // name. If that can't open, fall back to the panel below (enter a Customer ID).
       try {
+        if (await continueWithGoogle()) return;
         await CampaignService.connectGoogleAds();
         await loadStatuses();
       } catch {
@@ -4303,6 +4307,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     )}
                   </div>
                 )}
+                {p.id === 'google_ads' && <GoogleAdsReturn onChanged={loadStatuses} />}
                 {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
                   <div
                     style={{
@@ -4313,6 +4318,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       borderTop: 'none',
                     }}
                   >
+                    <GoogleAdsChooser onChanged={loadStatuses} />
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: '#9ca3af', margin: '4px 0 8px' }}>
+                      OR SET IT UP ANOTHER WAY
+                    </div>
                     {googleAccountChoice === 'none' ? (
                       <div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -4335,7 +4344,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                               fontFamily: 'var(--wf)',
                             }}
                           >
-                            I already have a Google Ads account
+                            Enter my Customer ID instead
                           </button>
                           {/* Hidden (not disabled) once the backend has confirmed URI's
                            * Manager Account can't mint fresh accounts yet — showing it

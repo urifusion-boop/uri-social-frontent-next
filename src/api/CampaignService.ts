@@ -1033,6 +1033,35 @@ export class CampaignService {
     return res.data as { released: boolean; removed: boolean; google_note: string };
   }
 
+  /** "Continue with Google": the Google sign-in URL. The browser comes back to
+   * Connected Accounts with ?google=linked|pending|choose|no_accounts|error. */
+  static async googleSigninStart(returnTo: string): Promise<{ auth_url: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect/signin/start', {
+      return_to: returnTo,
+    });
+    return res.data as { auth_url: string };
+  }
+
+  /** The Google Ads accounts the owner's sign-in found, by name. */
+  static async googleSigninAccounts(): Promise<{
+    signed_in: boolean;
+    accounts: { customer_id: string; name: string; currency_code: string }[];
+    other_accounts: number;
+  }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/google/connect/signin/accounts');
+    return res.data;
+  }
+
+  /** Link the picked account — URI sends the request and accepts it for the owner. */
+  static async googleSigninSelect(
+    customerId: string
+  ): Promise<{ state: string; auto_accepted: boolean; account_name: string; detail: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connect/signin/select', {
+      customer_id: customerId,
+    });
+    return res.data;
+  }
+
   /** Disconnect Google Ads for this brand altogether. */
   static async googleDisconnect(): Promise<{ released: boolean; removed: boolean; google_note: string }> {
     const res = await UriHttpClient.getClient().delete('/jane-ads/google/connection');
