@@ -845,6 +845,15 @@ const ContentManagerPage = ({
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
   const [scheduleAllOpen, setScheduleAllOpen] = useState(false);
   const [scheduleAllAt, setScheduleAllAt] = useState('');
+  // Opens "Schedule all", starting from the brand's next preferred posting time.
+  const openScheduleAll = () => {
+    setScheduleAllOpen(true);
+    if (!scheduleAllAt) {
+      BrandProfileService.getNextPostingTime().then((t) => {
+        if (t) setScheduleAllAt((cur) => cur || t);
+      });
+    }
+  };
   const [scheduleAllLoading, setScheduleAllLoading] = useState(false);
   const scheduleAllInProgress = useRef(false);
   // per-draft progress: null = pending, true = done, false = failed
@@ -1746,7 +1755,7 @@ const ContentManagerPage = ({
                         <div style={{ display: 'flex', gap: 6 }}>
                           {syncBtn}
                           <button
-                            onClick={() => setScheduleAllOpen(true)}
+                            onClick={openScheduleAll}
                             style={{
                               flex: 1,
                               background: '#CD1B78',
@@ -1781,7 +1790,7 @@ const ContentManagerPage = ({
                         </span>
                         {syncBtn}
                         <button
-                          onClick={() => setScheduleAllOpen(true)}
+                          onClick={openScheduleAll}
                           style={{
                             background: '#CD1B78',
                             color: '#fff',
@@ -5936,6 +5945,73 @@ const PbRow = ({
   </div>
 );
 
+// Approval modes. Onboarding saved review/auto/hybrid; older Playbook saves
+// used the labels themselves — normalizeApproval reads both.
+const APPROVAL_OPTIONS = [
+  { value: 'review', label: 'Review first', desc: 'Every post waits in Drafts for you to approve.' },
+  {
+    value: 'auto',
+    label: 'Auto-publish',
+    desc: 'Posts the Auto tab creates on its own are scheduled at your posting time without review. Posts you create yourself still wait as drafts.',
+  },
+  {
+    value: 'hybrid',
+    label: 'Hybrid',
+    desc: 'Recurring Auto-tab posts publish on schedule; anything you create yourself (campaigns, one-offs) waits for review.',
+  },
+];
+const normalizeApproval = (v?: string): string => {
+  const s = (v ?? '').trim().toLowerCase();
+  if (s === 'auto' || s === 'auto-publish' || s === 'auto publish') return 'auto';
+  if (s === 'hybrid') return 'hybrid';
+  if (s === 'review' || s === 'review first' || s === 'review before publishing') return 'review';
+  return '';
+};
+const approvalLabel = (v?: string): string =>
+  APPROVAL_OPTIONS.find((a) => a.value === normalizeApproval(v))?.label ?? v ?? '';
+
+const TONE_PLATFORM_LABELS: Record<string, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  linkedin: 'LinkedIn',
+  twitter: 'X (Twitter)',
+  tiktok: 'TikTok',
+};
+
+// Same slot labels onboarding saves; the backend maps each to a local posting hour.
+const POSTING_TIME_SLOTS = [
+  'Early Morning (6-9am)',
+  'Late Morning (9am-12pm)',
+  'Afternoon (12-4pm)',
+  'Evening (4-8pm)',
+  'Night (8pm-12am)',
+];
+const POSTING_TIME_MODES = [
+  { value: 'ai', label: 'Best times for each platform' },
+  { value: 'general', label: 'My preferred times' },
+  { value: 'custom', label: 'Different times per platform' },
+];
+const slotsOf = (v?: string): string[] =>
+  (v ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+const toggleSlot = (v: string | undefined, slot: string): string => {
+  const current = slotsOf(v);
+  const next = current.includes(slot) ? current.filter((s) => s !== slot) : [...current, slot];
+  return next.length ? `${next.join(',')},` : '';
+};
+const describePostingTimes = (mode?: string, prefs?: Record<string, string>): string => {
+  if (mode === 'general' && slotsOf(prefs?.general).length) return slotsOf(prefs?.general).join(' · ');
+  if (mode === 'custom') {
+    const parts = Object.entries(TONE_PLATFORM_LABELS)
+      .filter(([pl]) => slotsOf(prefs?.[pl]).length)
+      .map(([pl, label]) => `${label}: ${slotsOf(prefs?.[pl]).join(', ')}`);
+    if (parts.length) return parts.join(' · ');
+  }
+  return 'Best times for each platform';
+};
+
 const PlaybookPage = ({
   onJane,
   profile,
@@ -5963,7 +6039,12 @@ const PlaybookPage = ({
   const [industry, setIndustry] = useState('');
   const [website, setWebsite] = useState('');
   const [description, setDescription] = useState('');
-  const [, setTagline] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [keyProducts, setKeyProducts] = useState<string[]>([]);
+  const [sameToneEverywhere, setSameToneEverywhere] = useState(true);
+  const [platformTones, setPlatformTones] = useState<Record<string, string>>({});
+  const [postingTimeMode, setPostingTimeMode] = useState('');
+  const [postingTimePrefs, setPostingTimePrefs] = useState<Record<string, string>>({});
   // Business Details
   const [priceRange, setPriceRange] = useState('');
   const [usp, setUsp] = useState('');
@@ -6267,7 +6348,12 @@ const PlaybookPage = ({
     setIndustry(profile.industry ?? '');
     setWebsite(profile.website ?? '');
     setDescription(profile.product_description ?? '');
-    setTagline((profile as BrandProfileData & { tagline?: string }).tagline ?? '');
+    setTagline(profile.tagline ?? '');
+    setKeyProducts([...(profile.key_products_services ?? [])]);
+    setSameToneEverywhere(profile.same_tone_everywhere ?? true);
+    setPlatformTones({ ...(profile.platform_tones ?? {}) });
+    setPostingTimeMode(profile.posting_time_mode ?? '');
+    setPostingTimePrefs({ ...(profile.posting_time_prefs ?? {}) });
     setPriceRange(profile.price_range ?? '');
     setUsp(profile.unique_selling_proposition ?? '');
     setBusinessStage(profile.business_stage ?? '');
@@ -6332,7 +6418,7 @@ const PlaybookPage = ({
     setLanguages([...(profile.languages ?? [])]);
     setRegion(splitList(profile.region));
     setCadence(profile.posting_cadence ?? '');
-    setApproval(profile.approval_workflow ?? '');
+    setApproval(normalizeApproval(profile.approval_workflow));
     setLogoUrl(profile.logo_url ?? '');
     setLogoPosition(profile.logo_position ?? 'bottom_right');
     setLogoSize((profile.logo_size ?? 'small') as 'small' | 'medium' | 'large');
@@ -6397,6 +6483,12 @@ const PlaybookPage = ({
         industry,
         website,
         product_description: description,
+        tagline,
+        key_products_services: keyProducts,
+        same_tone_everywhere: sameToneEverywhere,
+        platform_tones: platformTones,
+        posting_time_mode: postingTimeMode,
+        posting_time_prefs: postingTimePrefs,
         price_range: priceRange,
         unique_selling_proposition: usp,
         business_stage: (businessStage || '') as BrandProfileData['business_stage'],
@@ -6549,7 +6641,7 @@ const PlaybookPage = ({
     'Other',
   ];
   const ALL_CADENCE = ['Daily', '3–4x per week', '2–3x per week', 'Weekly', 'Bi-weekly'];
-  const ALL_APPROVAL = ['Auto-publish', 'Review before publishing'];
+  const ALL_APPROVAL = APPROVAL_OPTIONS;
 
   return (
     <SubPage title="Brand Playbook" icon="book" desc="Everything URI Agent knows about your brand" onJane={onJane}>
@@ -6849,6 +6941,33 @@ const PlaybookPage = ({
           }
           tooltip="A short summary of what your business does — the AI reads this to keep every post on-brand and accurate"
         />
+        <PbRow
+          label="Tagline"
+          value={p?.tagline}
+          editing={editing}
+          input={<PbInput value={tagline} onChange={setTagline} placeholder="e.g. Fresh food, fast." />}
+          tooltip="Your brand's short slogan — the AI may close posts with it and shows it on poster-style images"
+        />
+        <PbRow
+          label="Key products / services"
+          value={p?.key_products_services}
+          editing={editing}
+          input={
+            <PbInput
+              value={keyProducts.join(', ')}
+              onChange={(v) =>
+                setKeyProducts(
+                  v
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. jollof rice bowls, party trays, catering"
+            />
+          }
+          tooltip="What you sell, comma-separated — posts mention the most relevant one, the inbox can quote it, and Market Intel uses it to find buyers"
+        />
       </PbSection>
 
       {/* Business Details */}
@@ -7131,6 +7250,62 @@ const PlaybookPage = ({
             }
             tooltip="Paste an example of your brand writing — a past caption, email, or ad copy. The AI mimics this style in every post it generates."
           />
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#999',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              marginBottom: 6,
+            }}
+          >
+            Tone per platform
+          </div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: '#111' }}>
+              {p?.same_tone_everywhere === false && Object.values(p?.platform_tones ?? {}).some(Boolean)
+                ? Object.entries(p?.platform_tones ?? {})
+                    .filter(([, t]) => t)
+                    .map(([pl, t]) => `${TONE_PLATFORM_LABELS[pl] ?? pl}: ${t}`)
+                    .join(' · ')
+                : 'Same tone on every platform'}
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                <PbChip
+                  label="Same tone everywhere"
+                  active={sameToneEverywhere}
+                  onClick={() => setSameToneEverywhere(true)}
+                />
+                <PbChip
+                  label="Different tone per platform"
+                  active={!sameToneEverywhere}
+                  onClick={() => setSameToneEverywhere(false)}
+                />
+              </div>
+              {!sameToneEverywhere &&
+                Object.entries(TONE_PLATFORM_LABELS).map(([pl, label]) => (
+                  <PbRow
+                    key={pl}
+                    label={label}
+                    value={p?.platform_tones?.[pl]}
+                    editing={editing}
+                    input={
+                      <PbInput
+                        value={platformTones[pl] ?? ''}
+                        onChange={(v) => setPlatformTones((prev) => ({ ...prev, [pl]: v }))}
+                        placeholder="e.g. professional and insightful"
+                      />
+                    }
+                    tooltip={`How posts on ${label} should sound. Leave empty to use your main brand voice there.`}
+                  />
+                ))}
+            </>
+          )}
         </div>
       </PbSection>
 
@@ -8123,7 +8298,7 @@ const PlaybookPage = ({
           >
             Posting cadence
             <BrandTooltip
-              title="How often you want to post — the AI uses this to pace auto-generated drafts and suggest a realistic schedule"
+              title="How often you want to post — the Auto tab generates new posts at this pace"
               arrow
               placement="right"
             >
@@ -8158,7 +8333,7 @@ const PlaybookPage = ({
           >
             Approval workflow
             <BrandTooltip
-              title="Controls who reviews drafts before they publish — 'Auto-approve' publishes immediately, 'Manual review' sends drafts to your Drafts tab first"
+              title="Review first: every post waits in Drafts for you. Auto-publish / Hybrid: posts the Auto tab creates on its own are scheduled at your preferred posting time without review. Posts you create yourself always wait as drafts."
               arrow
               placement="right"
             >
@@ -8172,19 +8347,91 @@ const PlaybookPage = ({
           </div>
           {!editing ? (
             <div style={{ fontSize: 13, color: p?.approval_workflow ? '#111' : '#bbb' }}>
-              {p?.approval_workflow || '—'}
+              {p?.approval_workflow ? approvalLabel(p.approval_workflow) : '—'}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {ALL_APPROVAL.map((a) => (
-                <PbChip
-                  key={a}
-                  label={a}
-                  active={approval === a}
-                  onClick={() => setApproval(a === approval ? '' : a)}
-                />
-              ))}
+            <>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ALL_APPROVAL.map((a) => (
+                  <PbChip
+                    key={a.value}
+                    label={a.label}
+                    active={approval === a.value}
+                    onClick={() => setApproval(a.value === approval ? '' : a.value)}
+                  />
+                ))}
+              </div>
+              {approval && (
+                <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>
+                  {ALL_APPROVAL.find((a) => a.value === approval)?.desc}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#999',
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              marginBottom: 8,
+            }}
+          >
+            Posting times
+          </div>
+          {!editing ? (
+            <div style={{ fontSize: 13, color: '#111' }}>
+              {describePostingTimes(p?.posting_time_mode, p?.posting_time_prefs)}
             </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {POSTING_TIME_MODES.map((m) => (
+                  <PbChip
+                    key={m.value}
+                    label={m.label}
+                    active={(postingTimeMode || 'ai') === m.value}
+                    onClick={() => setPostingTimeMode(m.value)}
+                  />
+                ))}
+              </div>
+              {postingTimeMode === 'general' && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {POSTING_TIME_SLOTS.map((slot) => (
+                    <PbChip
+                      key={slot}
+                      label={slot}
+                      active={slotsOf(postingTimePrefs.general).includes(slot)}
+                      onClick={() =>
+                        setPostingTimePrefs((prev) => ({ ...prev, general: toggleSlot(prev.general, slot) }))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+              {postingTimeMode === 'custom' &&
+                Object.entries(TONE_PLATFORM_LABELS).map(([pl, label]) => (
+                  <div key={pl} style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>{label}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {POSTING_TIME_SLOTS.map((slot) => (
+                        <PbChip
+                          key={slot}
+                          label={slot}
+                          active={slotsOf(postingTimePrefs[pl]).includes(slot)}
+                          onClick={() => setPostingTimePrefs((prev) => ({ ...prev, [pl]: toggleSlot(prev[pl], slot) }))}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>
+                Used as the default time when you schedule a post, and when Auto-publish schedules posts for you.
+              </div>
+            </>
           )}
         </div>
       </PbSection>

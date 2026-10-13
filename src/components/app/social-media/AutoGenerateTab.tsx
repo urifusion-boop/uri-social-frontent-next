@@ -19,7 +19,8 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { MdAutoAwesome, MdInfoOutline, MdLinkOff, MdVerified } from 'react-icons/md';
 
@@ -45,6 +46,18 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
   const [frequency, setFrequency] = useState<'daily' | 'weekly'>(settings?.frequency ?? 'daily');
   const [includeImages, setIncludeImages] = useState(settings?.include_images ?? false);
   const [savingSettings, setSavingSettings] = useState(false);
+  // Brand Playbook settings that now drive Auto: posting cadence and approval mode.
+  const [playbookCadence, setPlaybookCadence] = useState('');
+  const [playbookApproval, setPlaybookApproval] = useState('');
+  useEffect(() => {
+    BrandProfileService.get()
+      .then((res) => {
+        setPlaybookCadence(res.responseData?.posting_cadence ?? '');
+        setPlaybookApproval((res.responseData?.approval_workflow ?? '').trim().toLowerCase());
+      })
+      .catch(() => {});
+  }, []);
+  const autoPublishes = ['auto', 'auto-publish', 'auto publish', 'hybrid'].includes(playbookApproval);
   const [triggering, setTriggering] = useState(false);
 
   const togglePlatform = (key: string) =>
@@ -223,11 +236,22 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
             </Box>
           </Tooltip>
         </Box>
+        {playbookCadence && (
+          <Typography fontSize="12px" color="#6B7280" mb={1}>
+            Following your Brand Playbook cadence: <strong>{playbookCadence}</strong>. Change it in Brand Playbook →
+            Posting &amp; Workflow.
+          </Typography>
+        )}
+        <Typography fontSize="12px" color={autoPublishes ? '#B45309' : '#6B7280'} mb={1}>
+          {autoPublishes
+            ? 'Your Brand Playbook is set to auto-publish: these posts are scheduled at your posting time without review.'
+            : 'These posts wait in Drafts for your approval (Brand Playbook → Posting & Workflow).'}
+        </Typography>
         <RadioGroup
           row
           value={frequency}
           onChange={(e) => setFrequency(e.target.value as 'daily' | 'weekly')}
-          sx={{ mb: 2.5 }}
+          sx={{ mb: 2.5, display: playbookCadence ? 'none' : undefined }}
         >
           {(['daily', 'weekly'] as const).map((f) => (
             <FormControlLabel
