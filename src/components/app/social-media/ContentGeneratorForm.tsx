@@ -26,6 +26,7 @@ import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-
 import { MdAdd, MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
 import SlideCountPicker from '../atoms/SlideCountPicker';
 import OutOfCreditsModal from '../atoms/OutOfCreditsModal';
+import TellJane from '../workspace/TellJane';
 import LowCreditWarning from '../atoms/LowCreditWarning';
 import ConfirmDialog from '../workspace/ConfirmDialog';
 
@@ -81,6 +82,9 @@ function _friendlyGenerationError(msg?: string): string {
 const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: ContentGeneratorFormProps) => {
   const [seedContent, setSeedContent] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
+  // "Tell Jane": a lasting preference ("always…", "never…") belongs in the
+  // Playbook, not in one post's topic — this saves it for every post after.
+  const [showTellJane, setShowTellJane] = useState(false);
 
   // Start with the brand's own target platforms (Brand Playbook) selected,
   // unless the user has already picked something themselves.
@@ -438,8 +442,30 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
         onChange={(e) => setSeedContent(e.target.value)}
         slotProps={{ htmlInput: { maxLength: 5000 } }}
         helperText={`${charCount}/5000 characters (min 10)`}
-        sx={{ mb: 3 }}
+        sx={{ mb: showTellJane ? 1.5 : 1 }}
       />
+      {showTellJane ? (
+        <TellJane compact source="create" />
+      ) : (
+        <Box mb={3}>
+          <Typography
+            component="button"
+            type="button"
+            onClick={() => setShowTellJane(true)}
+            sx={{
+              border: 'none',
+              background: 'none',
+              p: 0,
+              cursor: 'pointer',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              color: '#C2185B',
+            }}
+          >
+            Want every post written a certain way? Tell Jane once →
+          </Typography>
+        </Box>
+      )}
 
       {/* Reference image upload */}
       <Typography fontSize="14px" color="#374151" mb={1} fontWeight={500}>

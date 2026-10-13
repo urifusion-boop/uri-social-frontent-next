@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
 import PlaybookNotifications from './PlaybookNotifications';
 import PlaybookHealth from './PlaybookHealth';
+import TellJane from './TellJane';
 import PlaybookSuggestions from './PlaybookSuggestions';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
@@ -6611,6 +6612,11 @@ const PlaybookPage = ({
           )}
         </div>
 
+        <TellJane
+          profile={profile}
+          onProfileUpdate={onProfileUpdate}
+          disabledReason={editing ? 'Save or cancel your edits first, then tell Jane.' : undefined}
+        />
         <PlaybookHealth health={health} />
         <PlaybookSuggestions profile={profile} onProfileUpdate={onProfileUpdate} />
 
