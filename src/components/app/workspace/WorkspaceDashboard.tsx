@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
 import PlaybookNotifications from './PlaybookNotifications';
 import PlaybookHealth from './PlaybookHealth';
+import { pbSectionId } from './PlaybookPanel';
 import TellJane from './TellJane';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
@@ -5871,12 +5872,14 @@ const PlaybookStyleCard = ({
 
 const PbSection = ({ title, children }: { title: string; children: ReactNode }) => (
   <div
+    id={pbSectionId(title)}
     style={{
       background: '#fff',
       borderRadius: 12,
       border: '1px solid #edecea',
       padding: '16px 18px',
       marginBottom: 10,
+      scrollMarginTop: 84,
     }}
   >
     <h3
@@ -6401,6 +6404,25 @@ const PlaybookPage = ({
     }
   };
 
+  // "Go to field" from the Playbook strength cards: open the editor (Business
+  // Pulse has its own always-on editor) and bring the section into view.
+  const jumpToSection = (section: string) => {
+    if (section !== 'Business Pulse' && !editing) startEdit();
+    setTimeout(() => {
+      const el = document.getElementById(pbSectionId(section));
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.animate(
+        [
+          { boxShadow: '0 0 0 3px rgba(194,24,91,.55)' },
+          { boxShadow: '0 0 0 3px rgba(194,24,91,.55)', offset: 0.6 },
+          { boxShadow: '0 0 0 0 rgba(194,24,91,0)' },
+        ],
+        { duration: 2200, easing: 'ease-out' }
+      );
+    }, 250);
+  };
+
   const startEdit = () => {
     if (!profile) return;
     console.log('📖 LOAD PLAYBOOK DEBUG:', {
@@ -6792,7 +6814,13 @@ const PlaybookPage = ({
           onProfileUpdate={onProfileUpdate}
           disabledReason={editing ? 'Save or cancel your edits first, then tell Jane.' : undefined}
         />
-        <PlaybookHealth health={health} />
+        <PlaybookHealth
+          health={health}
+          profile={profile}
+          onProfileUpdate={onProfileUpdate}
+          editing={editing}
+          onJump={jumpToSection}
+        />
 
         {/* Brand Identity */}
         <PbSection title="Brand Identity">
@@ -8140,6 +8168,7 @@ const PlaybookPage = ({
           duplicate the heading) — just contained so its internal
           height:'100%' resolves against this box instead of the full page. */}
         <div
+          id={pbSectionId('Business Pulse')}
           style={{
             border: '1px solid #edecea',
             borderRadius: 14,
@@ -8147,6 +8176,7 @@ const PlaybookPage = ({
             minHeight: 560,
             background: '#fff',
             overflow: 'hidden',
+            scrollMarginTop: 84,
           }}
         >
           <BusinessPulsePanel />

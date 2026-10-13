@@ -27,6 +27,9 @@ export const C = {
 export const GRADIENT = `linear-gradient(135deg, ${C.pink} 0%, ${C.plum} 100%)`;
 export const font: React.CSSProperties = { fontFamily: 'var(--wf)' };
 
+/** DOM id of a Brand Playbook section, so other parts of the page can take the user there. */
+export const pbSectionId = (title: string) => `pb-sec-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
 export const pill = (bg: string, color: string): React.CSSProperties => ({
   display: 'inline-flex',
   alignItems: 'center',
