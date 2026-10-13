@@ -6,7 +6,6 @@ import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } 
 import PlaybookNotifications from './PlaybookNotifications';
 import PlaybookHealth from './PlaybookHealth';
 import TellJane from './TellJane';
-import PlaybookSuggestions from './PlaybookSuggestions';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
 import {
@@ -6794,7 +6793,6 @@ const PlaybookPage = ({
           disabledReason={editing ? 'Save or cancel your edits first, then tell Jane.' : undefined}
         />
         <PlaybookHealth health={health} />
-        <PlaybookSuggestions profile={profile} onProfileUpdate={onProfileUpdate} />
 
         {/* Brand Identity */}
         <PbSection title="Brand Identity">
