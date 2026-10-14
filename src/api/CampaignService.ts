@@ -370,6 +370,8 @@ export interface CampaignRow {
   created_at: string | null;
   ads_manager_url: string;
   metrics: CampaignMetrics | null;
+  /** Google only: the brand let go of that Google Ads account — URI can't reach it any more. */
+  detached?: boolean;
 }
 
 export interface DraftSummary {
@@ -547,6 +549,30 @@ export interface DigestView {
   campaigns: number;
   items: { kind: string; text: string }[];
 }
+
+/** What to do with URI campaigns still in the Google Ads account being let go of. */
+export type GoogleReleaseOptions = { pauseCampaigns?: boolean; keepRunning?: boolean };
+
+export type GoogleReleaseResult = {
+  released: boolean;
+  removed: boolean;
+  google_note: string;
+  campaigns_paused?: number;
+  campaigns_left_running?: number;
+};
+
+/** The 409 detail when URI campaigns are still in that account. */
+export type GoogleCampaignsInAccount = {
+  code: 'google_campaigns_in_account';
+  message: string;
+  running: number;
+  campaigns: { campaign_id: string; name: string; delivery: string }[];
+};
+
+const googleReleaseParams = (o: GoogleReleaseOptions) => ({
+  ...(o.pauseCampaigns ? { pause_campaigns: true } : {}),
+  ...(o.keepRunning ? { keep_running: true } : {}),
+});
 
 export class CampaignService {
   /** Conversational planning: Jane parses a plain-English message and returns her plan
@@ -1037,9 +1063,11 @@ export class CampaignService {
 
   /** Let go of the chosen account and go back to choosing one (also withdraws the
    * request / removes the link on Google's side). */
-  static async googleChangeAccount(): Promise<{ released: boolean; removed: boolean; google_note: string }> {
-    const res = await UriHttpClient.getClient().post('/jane-ads/google/connection/change-account');
-    return res.data as { released: boolean; removed: boolean; google_note: string };
+  static async googleChangeAccount(opts: GoogleReleaseOptions = {}): Promise<GoogleReleaseResult> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/connection/change-account', null, {
+      params: googleReleaseParams(opts),
+    });
+    return res.data as GoogleReleaseResult;
   }
 
   /** "Continue with Google": the Google sign-in URL. The browser comes back to
@@ -1072,9 +1100,11 @@ export class CampaignService {
   }
 
   /** Disconnect Google Ads for this brand altogether. */
-  static async googleDisconnect(): Promise<{ released: boolean; removed: boolean; google_note: string }> {
-    const res = await UriHttpClient.getClient().delete('/jane-ads/google/connection');
-    return res.data as { released: boolean; removed: boolean; google_note: string };
+  static async googleDisconnect(opts: GoogleReleaseOptions = {}): Promise<GoogleReleaseResult> {
+    const res = await UriHttpClient.getClient().delete('/jane-ads/google/connection', {
+      params: googleReleaseParams(opts),
+    });
+    return res.data as GoogleReleaseResult;
   }
 
   /** Marks the brand as wanting Google Ads. No OAuth redirect — Google Ads API calls

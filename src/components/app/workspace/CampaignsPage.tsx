@@ -4491,6 +4491,7 @@ const _STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   'needs billing info': { bg: '#fdecea', color: '#c62828' },
   archived: { bg: '#f0eded', color: '#666' },
   deleted: { bg: '#f0eded', color: '#666' },
+  'not managed by uri': { bg: '#f0eded', color: '#666' },
 };
 
 function statusStyle(status: string) {
@@ -4569,7 +4570,11 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
 
   const remove = async () => {
     if (busy) return;
-    const ok = window.confirm(`Delete "${c.name}"? This can't be undone.`);
+    const ok = window.confirm(
+      c.detached
+        ? `Remove "${c.name}" from this list? It stays in your Google Ads account — URI no longer has access to it.`
+        : `Delete "${c.name}"? This can't be undone.`
+    );
     if (!ok) return;
     setError('');
     setDeleting(true);
@@ -4587,6 +4592,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   // Meta-only. Only campaigns that exist on the provider can be edited either way.
   // Not for Google Search campaigns yet: changing the audience or the end date isn't supported there.
   const canEditTargeting = c.platform !== 'google' && !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
+  const detachedNote = c.detached
+    ? 'This brand disconnected that Google Ads account, so URI can no longer pause or track this campaign. Manage it in Google Ads.'
+    : '';
 
   return (
     <div>
@@ -4754,6 +4762,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               </p>
             );
           })()}
+          {detachedNote && (
+            <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#666', lineHeight: 1.45 }}>{detachedNote}</p>
+          )}
           {justToggled && (
             <p
               style={{

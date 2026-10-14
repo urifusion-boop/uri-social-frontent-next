@@ -1,6 +1,6 @@
 'use client';
 
-import { CampaignService } from '@/src/api/CampaignService';
+import { CampaignService, GoogleCampaignsInAccount, GoogleReleaseOptions } from '@/src/api/CampaignService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { useEffect, useState } from 'react';
@@ -11,6 +11,7 @@ import {
   gBtn,
   GoogleButton,
   googleErrorDetail,
+  googleErrorRaw,
   GoogleShell,
   GoogleSteps,
   UnverifiedNote,
@@ -70,6 +71,8 @@ const GoogleAdsLinkPanel = ({
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
   const [confirm, setConfirm] = useState<'' | 'change' | 'disconnect'>('');
+  // URI campaigns still in this account: asked about before letting go of it.
+  const [inAccount, setInAccount] = useState<GoogleCampaignsInAccount | null>(null);
 
   // While waiting, keep asking Google quietly so the card turns to "Linked" by
   // itself the moment the request is approved — no need to come back and press
@@ -157,22 +160,42 @@ const GoogleAdsLinkPanel = ({
     }
   };
 
-  const release = async (remove: boolean) => {
-    setBusy(remove ? 'disconnect' : 'change');
+  const release = async (remove: boolean, opts: GoogleReleaseOptions = {}) => {
+    setBusy(opts.pauseCampaigns ? 'pause' : opts.keepRunning ? 'keep' : remove ? 'disconnect' : 'change');
     setNote('');
     try {
-      const r = remove ? await CampaignService.googleDisconnect() : await CampaignService.googleChangeAccount();
+      const r = remove ? await CampaignService.googleDisconnect(opts) : await CampaignService.googleChangeAccount(opts);
+      const done = remove ? 'Google Ads disconnected.' : 'Choose the Google Ads account to use.';
+      const paused = r.campaigns_paused
+        ? ` ${r.campaigns_paused} campaign${r.campaigns_paused === 1 ? '' : 's'} paused.`
+        : '';
+      const left = r.campaigns_left_running
+        ? ` ${r.campaigns_left_running} campaign${r.campaigns_left_running === 1 ? ' is' : 's are'} still running — manage ${
+            r.campaigns_left_running === 1 ? 'it' : 'them'
+          } in Google Ads.`
+        : '';
       ToastService.showToast(
-        r.google_note || (remove ? 'Google Ads disconnected.' : 'Choose the Google Ads account to use.'),
-        r.google_note ? ToastTypeEnum.Warning : ToastTypeEnum.Success
+        r.google_note || done + paused + left,
+        r.google_note || left ? ToastTypeEnum.Warning : ToastTypeEnum.Success
       );
       setConfirm('');
+      setInAccount(null);
       onChanged();
     } catch (err) {
-      setNote(googleErrorDetail(err, 'Could not do that right now. Try again.'));
+      const raw = googleErrorRaw(err) as GoogleCampaignsInAccount | undefined;
+      if (raw && typeof raw === 'object' && raw.code === 'google_campaigns_in_account') {
+        setInAccount(raw);
+      } else {
+        setNote(googleErrorDetail(err, 'Could not do that right now. Try again.'));
+      }
     } finally {
       setBusy('');
     }
+  };
+
+  const cancelRelease = () => {
+    setConfirm('');
+    setInAccount(null);
   };
 
   const signIn = async () => {
@@ -422,7 +445,101 @@ const GoogleAdsLinkPanel = ({
           </div>
         )}
 
-        {confirm && (
+        {confirm && inAccount && (
+          <div
+            role="alertdialog"
+            aria-label="URI campaigns are still in this account"
+            style={{
+              marginTop: 12,
+              padding: '12px 14px',
+              background: G.amberSoft,
+              border: '1px solid #F2D9A8',
+              borderRadius: 10,
+            }}
+          >
+            <div style={{ fontSize: 12.5, color: G.body, lineHeight: 1.5 }}>
+              <b style={{ color: G.amber }}>Your URI campaigns are still in this account.</b> {inAccount.message}
+            </div>
+            <ul style={{ listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'grid', gap: 6 }}>
+              {inAccount.campaigns.map((c) => {
+                const running = c.delivery === 'Active' || c.delivery === 'Unknown';
+                return (
+                  <li
+                    key={c.campaign_id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      padding: '7px 10px',
+                      background: '#fff',
+                      border: `1px solid ${G.line}`,
+                      borderRadius: 8,
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: G.ink,
+                        fontWeight: 600,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {c.name}
+                    </span>
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        background: running ? G.greenSoft : '#F1F3F4',
+                        color: running ? G.green : G.muted,
+                      }}
+                    >
+                      {c.delivery === 'Unknown' ? 'Status unknown' : c.delivery}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+              <button
+                type="button"
+                style={gBtn('primary', !!busy)}
+                disabled={!!busy}
+                onClick={() => release(confirm === 'disconnect', { pauseCampaigns: true })}
+              >
+                {busy === 'pause'
+                  ? 'Pausing…'
+                  : inAccount.running
+                    ? `Pause ${inAccount.running === 1 ? 'it' : 'them'} and ${confirm === 'disconnect' ? 'disconnect' : 'change'}`
+                    : confirm === 'disconnect'
+                      ? 'Disconnect'
+                      : 'Change account'}
+              </button>
+              {inAccount.running > 0 && (
+                <button
+                  type="button"
+                  style={gBtn('plain', !!busy)}
+                  disabled={!!busy}
+                  onClick={() => release(confirm === 'disconnect', { keepRunning: true })}
+                >
+                  {busy === 'keep' ? 'Working…' : 'Keep running, I’ll manage in Google Ads'}
+                </button>
+              )}
+              <button type="button" style={gBtn('plain', !!busy)} disabled={!!busy} onClick={cancelRelease}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {confirm && !inAccount && (
           <div
             role="alertdialog"
             aria-label={confirm === 'disconnect' ? 'Disconnect Google Ads' : 'Change Google Ads account'}
@@ -452,7 +569,7 @@ const GoogleAdsLinkPanel = ({
                   : ''}
             </span>
             <span style={{ display: 'flex', gap: 6 }}>
-              <button type="button" style={gBtn('plain', !!busy)} disabled={!!busy} onClick={() => setConfirm('')}>
+              <button type="button" style={gBtn('plain', !!busy)} disabled={!!busy} onClick={cancelRelease}>
                 Cancel
               </button>
               <button

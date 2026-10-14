@@ -32,9 +32,17 @@ export const formatGoogleId = (id?: string) => {
   return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}` : (id ?? '');
 };
 
-export const googleErrorDetail = (err: unknown, fallback: string) => {
-  const e = err as { data?: { detail?: string }; response?: { data?: { detail?: string } } };
-  return e?.data?.detail ?? e?.response?.data?.detail ?? fallback;
+/** The backend's `detail` — a string, or an object for the few structured answers. */
+export const googleErrorRaw = (err: unknown): unknown => {
+  const e = err as { data?: { detail?: unknown }; response?: { data?: { detail?: unknown } } };
+  return e?.data?.detail ?? e?.response?.data?.detail;
+};
+
+export const googleErrorDetail = (err: unknown, fallback: string): string => {
+  const d = googleErrorRaw(err);
+  if (typeof d === 'string') return d;
+  const m = (d as { message?: unknown } | undefined)?.message;
+  return typeof m === 'string' ? m : fallback;
 };
 
 /** Send the browser to Google to sign in; it comes back to Connected Accounts. */
