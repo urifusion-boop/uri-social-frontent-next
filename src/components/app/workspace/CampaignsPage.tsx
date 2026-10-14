@@ -2126,61 +2126,42 @@ export default function CampaignsPage({
                   )}
                 </div>
               )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#888' }}>PLATFORM</span>
-                <button
-                  type="button"
-                  onClick={() => setPreferredPlatform('')}
-                  title="Let Jane pick the best platform for this campaign"
-                  style={{
-                    padding: '3px 10px',
-                    borderRadius: 20,
-                    border: `1.5px solid ${preferredPlatformUi === '' ? PINK : '#e0dcd9'}`,
-                    background: preferredPlatformUi === '' ? '#FCE7F3' : '#fff',
-                    color: preferredPlatformUi === '' ? PINK : '#666',
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Jane picks
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreferredPlatform('tiktok')}
-                  title="Run this campaign on TikTok — needs video creative"
-                  style={{
-                    padding: '3px 10px',
-                    borderRadius: 20,
-                    border: `1.5px solid ${preferredPlatformUi === 'tiktok' ? PINK : '#e0dcd9'}`,
-                    background: preferredPlatformUi === 'tiktok' ? '#FCE7F3' : '#fff',
-                    color: preferredPlatformUi === 'tiktok' ? PINK : '#666',
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Music2 size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 4 }} />
-                  TikTok
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreferredPlatform('google')}
-                  title="Run this as a Google Search ad — shown to people searching for what you sell. Text only, no image needed."
-                  style={{
-                    padding: '3px 10px',
-                    borderRadius: 20,
-                    border: `1.5px solid ${preferredPlatformUi === 'google' ? PINK : '#e0dcd9'}`,
-                    background: preferredPlatformUi === 'google' ? '#FCE7F3' : '#fff',
-                    color: preferredPlatformUi === 'google' ? PINK : '#666',
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Google Search
-                </button>
+                {PLATFORM_CHOICES.map((c) => {
+                  const on = preferredPlatformUi === c.value;
+                  return (
+                    <button
+                      key={c.value || 'auto'}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setPreferredPlatform(c.value)}
+                      title={c.hint}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '4px 11px',
+                        borderRadius: 20,
+                        border: `1.5px solid ${on ? PINK : '#e0dcd9'}`,
+                        background: on ? PINK : '#fff',
+                        color: on ? '#fff' : '#666',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: on ? '0 2px 8px rgba(194,24,91,.25)' : 'none',
+                      }}
+                    >
+                      {on && <Check size={12} strokeWidth={3} />}
+                      {c.value === 'tiktok' && !on && <Music2 size={12} strokeWidth={2} />}
+                      {c.label}
+                    </button>
+                  );
+                })}
               </div>
+              <p style={{ margin: '5px 0 8px', fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>
+                {platformChoice(preferredPlatformUi).hint}
+              </p>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                 <textarea
                   value={input}
@@ -2191,7 +2172,7 @@ export default function CampaignsPage({
                       send();
                     }
                   }}
-                  placeholder="Tell Jane what you want to promote…"
+                  placeholder={platformChoice(preferredPlatformUi).placeholder}
                   rows={1}
                   disabled={busy}
                   style={{
@@ -3851,6 +3832,27 @@ function ResultCard({
           background: '#fff',
         }}
       >
+        {plan?.platforms?.[0]?.platform && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '9px 16px',
+              background: '#1a0a12',
+              color: '#fff',
+              fontSize: 12.5,
+            }}
+          >
+            <span style={{ opacity: 0.7, fontWeight: 600 }}>Runs on</span>
+            <strong style={{ fontWeight: 800 }}>{runsOnLabel(plan.platforms[0].platform)}</strong>
+            {result.stage === 'planned' && (
+              <span style={{ marginLeft: 'auto', opacity: 0.7, fontSize: 11.5 }}>
+                Not right? Pick another platform below and ask again.
+              </span>
+            )}
+          </div>
+        )}
         {!creative?.image_url && plan?.platforms?.[0]?.platform === 'google' && (
           <div style={{ padding: '14px 16px', background: '#f8f9fa', borderBottom: '1px solid #eee' }}>
             <div style={{ fontSize: 10.5, fontWeight: 700, color: '#5f6368', letterSpacing: 0.4, marginBottom: 6 }}>
@@ -3995,7 +3997,7 @@ function ResultCard({
                 ) : (
                   <>
                     <Check size={14} strokeWidth={2.5} />
-                    <span>Looks good — launch it</span>
+                    <span>Looks good — launch on {runsOnLabel(plan?.platforms?.[0]?.platform)}</span>
                   </>
                 )}
               </button>
@@ -4075,7 +4077,7 @@ function ResultCard({
             <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
               <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>
                 <Check size={13} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 5 }} />
-                Campaign created, paused, no spend yet
+                Campaign created on {runsOnLabel(plan?.platforms?.[0]?.platform)} — paused, no spend yet
               </p>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>{launch?.note}</p>
             </div>
@@ -4482,6 +4484,38 @@ function TotalCard({ label, value, accent }: { label: string; value: string; acc
       <div style={{ fontSize: 18, fontWeight: 800, color: accent ? '#1e7e34' : '#1a0a12', marginTop: 2 }}>{value}</div>
     </div>
   );
+}
+
+type PlatformChoice = { value: '' | 'tiktok' | 'google'; label: string; hint: string; placeholder: string };
+
+const PLATFORM_CHOICES: PlatformChoice[] = [
+  {
+    value: '',
+    label: 'Jane picks',
+    hint: 'Jane chooses where this runs — usually Instagram & Facebook. The plan shows which before anything launches.',
+    placeholder: 'Tell Jane what you want to promote…',
+  },
+  {
+    value: 'tiktok',
+    label: 'TikTok',
+    hint: 'This campaign will run on TikTok. It needs a video.',
+    placeholder: 'Tell Jane what to promote on TikTok…',
+  },
+  {
+    value: 'google',
+    label: 'Google Search',
+    hint: 'This campaign will run on Google Search — a text ad shown to people searching for what you sell. No image needed.',
+    placeholder: 'Tell Jane what to promote on Google Search…',
+  },
+];
+
+const platformChoice = (v: string) => PLATFORM_CHOICES.find((c) => c.value === v) ?? PLATFORM_CHOICES[0];
+
+/** Where a planned or launched campaign actually runs, in plain words. */
+function runsOnLabel(platform?: string): string {
+  if (platform === 'google') return 'Google Search';
+  if (platform === 'tiktok') return 'TikTok';
+  return 'Instagram & Facebook';
 }
 
 const _STATUS_STYLES: Record<string, { bg: string; color: string }> = {
