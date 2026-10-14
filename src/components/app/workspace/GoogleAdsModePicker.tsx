@@ -110,7 +110,8 @@ export default function GoogleAdsModePicker({ mode, uriReady, ownReady, onChange
         style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}
       >
         {options.map((o) => {
-          const on = mode === o.value;
+          // The one just clicked shows as chosen straight away; it reverts if saving fails.
+          const on = (saving || mode) === o.value;
           return (
             <button
               key={o.value}

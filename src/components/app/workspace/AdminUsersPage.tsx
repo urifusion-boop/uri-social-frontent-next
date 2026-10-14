@@ -802,11 +802,15 @@ function AccessCodesPanel() {
   const [reassigning, setReassigning] = useState(false);
   const [revokingUserId, setRevokingUserId] = useState<string | null>(null);
 
+  const codesLoadedRef = useRef(false);
   const loadCodes = async () => {
-    setLoading(true);
+    // Spinner on the first load only; after creating or revoking a code the
+    // table updates in place.
+    if (!codesLoadedRef.current) setLoading(true);
     try {
       const res = await AdminService.listAccessCodes();
       setCodes(res.codes);
+      codesLoadedRef.current = true;
     } catch (error) {
       console.error('Failed to load access codes:', error);
       setMessage({ type: 'err', text: 'Failed to load access codes.' });

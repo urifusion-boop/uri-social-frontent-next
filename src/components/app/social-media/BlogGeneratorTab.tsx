@@ -61,7 +61,8 @@ export default function BlogGeneratorTab() {
   }, []);
 
   const fetchDNA = async () => {
-    setDnaLoading(true);
+    // Only the first load hides the card; a refresh after the quiz updates it in place.
+    if (dna === null) setDnaLoading(true);
     try {
       const res = await SocialMediaAgentService.getWritingDNA();
       if (res.status && res.responseData) {

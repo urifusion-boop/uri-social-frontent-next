@@ -2559,8 +2559,12 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }
   };
 
+  // Spinner on the first load only. Every later refresh (after connecting,
+  // choosing an option, saving a number...) updates the cards in place —
+  // swapping the whole list for a spinner on each click read as a page reload.
+  const statusesLoadedRef = useRef(false);
   const loadStatuses = async () => {
-    setLoading(true);
+    if (!statusesLoadedRef.current) setLoading(true);
     try {
       const [li, x, wa, fbIg, fbAds, gAds] = await Promise.all([
         withTimeout(SocialConnectionService.linkedinStatus()),
@@ -2655,6 +2659,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         next.tiktok = { linked: false };
       }
       setStatuses(next);
+      statusesLoadedRef.current = true;
     } finally {
       setLoading(false);
     }

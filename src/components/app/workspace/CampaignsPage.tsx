@@ -386,24 +386,43 @@ export default function CampaignsPage({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, busy]);
 
+  // Spinner on the first load only; after starting/pausing/deleting a campaign or
+  // pressing Refresh the cards update in place. A failed refresh keeps the list
+  // that's on screen (emptying it read as "you have no campaigns").
+  const campaignsLoadedRef = useRef(false);
   const loadCampaigns = useCallback(async () => {
-    setLoadingList(true);
+    if (!campaignsLoadedRef.current) setLoadingList(true);
     try {
       const res = await CampaignService.listCampaigns();
       setCampaigns(res.campaigns || []);
-    } catch {
-      setCampaigns([]);
+      campaignsLoadedRef.current = true;
+    } catch (e) {
+      if (campaignsLoadedRef.current) {
+        ToastService.showToast(
+          extractErrorMessage(e, 'Couldn’t refresh your campaigns. Showing the last ones loaded.'),
+          ToastTypeEnum.Error
+        );
+      } else {
+        setCampaigns([]);
+      }
     } finally {
       setLoadingList(false);
     }
   }, []);
 
+  // Same: the wallet shows a spinner once, then refreshes in place (after a top-up).
+  const walletLoadedRef = useRef(false);
   const loadWallet = useCallback(async () => {
-    setLoadingWallet(true);
+    if (!walletLoadedRef.current) setLoadingWallet(true);
     try {
       setWallet(await CampaignService.getWallet());
-    } catch {
-      setWallet(null);
+      walletLoadedRef.current = true;
+    } catch (e) {
+      if (walletLoadedRef.current) {
+        ToastService.showToast(extractErrorMessage(e, 'Couldn’t refresh your wallet. Try again.'), ToastTypeEnum.Error);
+      } else {
+        setWallet(null);
+      }
     } finally {
       setLoadingWallet(false);
     }
