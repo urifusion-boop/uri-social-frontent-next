@@ -25,6 +25,13 @@ import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
 import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
 import KeepRunningPanel from '@/src/components/app/workspace/KeepRunningPanel';
 import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
+import {
+  GooglePlacement,
+  GooglePlacementPicker,
+  GooglePlacementPreview,
+  GOOGLE_PLACEMENTS,
+  placementLabel,
+} from '@/src/components/app/workspace/GooglePlacementPreview';
 import ObjectivePicker from '@/src/components/app/workspace/ObjectivePicker';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -357,6 +364,21 @@ export default function CampaignsPage({
     preferredPlatformRef.current = v;
     setPreferredPlatformUi(v);
   };
+  // Where on Google, when Google is chosen.
+  const googlePlacementRef = useRef<GooglePlacement>('search');
+  const [googlePlacementUi, setGooglePlacementUi] = useState<GooglePlacement>('search');
+  const setGooglePlacement = (v: GooglePlacement) => {
+    googlePlacementRef.current = v;
+    setGooglePlacementUi(v);
+  };
+  // What every Jane request says about where the campaign should run.
+  const platformFields = () =>
+    preferredPlatformRef.current
+      ? {
+          preferred_platform: preferredPlatformRef.current,
+          ...(preferredPlatformRef.current === 'google' ? { google_placement: googlePlacementRef.current } : {}),
+        }
+      : {};
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -736,7 +758,7 @@ export default function CampaignsPage({
     saveMsg(userMsg);
     try {
       const result = await CampaignService.planFromMessage({
-        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: combinedMessage,
@@ -810,7 +832,7 @@ export default function CampaignsPage({
           ? [attachedMedia.url, ...carouselExtraUrls]
           : [];
       const result = await CampaignService.planFromMessage({
-        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar || clean,
@@ -869,7 +891,7 @@ export default function CampaignsPage({
           ? [attachedMedia.url, ...carouselExtraUrls]
           : [];
       const result = await CampaignService.planFromMessage({
-        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
@@ -928,7 +950,7 @@ export default function CampaignsPage({
       const variants = pendingVariants ? pendingVariants.variants : [null];
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
-          ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+          ...platformFields(),
           ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
           message: brief,
           thread_id: activeThreadRef.current ?? undefined,
@@ -1061,7 +1083,7 @@ export default function CampaignsPage({
         : [];
     try {
       const result = await CampaignService.planFromMessage({
-        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
@@ -1145,7 +1167,7 @@ export default function CampaignsPage({
       // to signal "a choice was made" and skip regeneration) — continueWithSource
       // below still builds each pending variant with its own correct data.
       const result = await CampaignService.planFromMessage({
-        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
@@ -1205,7 +1227,7 @@ export default function CampaignsPage({
         : [];
     try {
       const result = await CampaignService.planFromMessage({
-        ...(preferredPlatformRef.current ? { preferred_platform: preferredPlatformRef.current } : {}),
+        ...platformFields(),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
         message: briefSoFar,
@@ -1715,6 +1737,7 @@ export default function CampaignsPage({
                         ownAudienceRef.current = null;
                         preferredPlatformRef.current = '';
                         setPreferredPlatformUi('');
+                        setGooglePlacement('search');
                         // A fresh conversation starts with NO objective chosen. Carrying the
                         // last one over launches a campaign against a goal nobody picked for it.
                         setObjective('');
@@ -2160,8 +2183,24 @@ export default function CampaignsPage({
                 })}
               </div>
               <p style={{ margin: '5px 0 8px', fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>
-                {platformChoice(preferredPlatformUi).hint}
+                {preferredPlatformUi === 'google'
+                  ? `This campaign will run on ${placementLabel(googlePlacementUi)}. ${
+                      GOOGLE_PLACEMENTS.find((g) => g.value === googlePlacementUi)?.where ?? ''
+                    } Pick where:`
+                  : platformChoice(preferredPlatformUi).hint}
               </p>
+              {preferredPlatformUi === 'google' && (
+                <GooglePlacementPicker
+                  value={googlePlacementUi}
+                  onChange={setGooglePlacement}
+                  ad={{
+                    headline: 'Your headline here',
+                    text: 'A short line about what you offer and why to tap.',
+                    imageUrl: media && !media.isVideo ? media.url : undefined,
+                    business: 'Your business',
+                  }}
+                />
+              )}
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                 <textarea
                   value={input}
@@ -2172,7 +2211,11 @@ export default function CampaignsPage({
                       send();
                     }
                   }}
-                  placeholder={platformChoice(preferredPlatformUi).placeholder}
+                  placeholder={
+                    preferredPlatformUi === 'google'
+                      ? `Tell Jane what to promote on ${placementLabel(googlePlacementUi)}…`
+                      : platformChoice(preferredPlatformUi).placeholder
+                  }
                   rows={1}
                   disabled={busy}
                   style={{
@@ -3845,7 +3888,9 @@ function ResultCard({
             }}
           >
             <span style={{ opacity: 0.7, fontWeight: 600 }}>Runs on</span>
-            <strong style={{ fontWeight: 800 }}>{runsOnLabel(plan.platforms[0].platform)}</strong>
+            <strong style={{ fontWeight: 800 }}>
+              {runsOnLabel(plan.platforms[0].platform, plan.google_keyword_context?.placement)}
+            </strong>
             {result.stage === 'planned' && (
               <span style={{ marginLeft: 'auto', opacity: 0.7, fontSize: 11.5 }}>
                 Not right? Pick another platform below and ask again.
@@ -3853,22 +3898,18 @@ function ResultCard({
             )}
           </div>
         )}
-        {!creative?.image_url && plan?.platforms?.[0]?.platform === 'google' && (
-          <div style={{ padding: '14px 16px', background: '#f8f9fa', borderBottom: '1px solid #eee' }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: '#5f6368', letterSpacing: 0.4, marginBottom: 6 }}>
-              GOOGLE SEARCH AD — HOW IT APPEARS
-            </div>
-            <div style={{ fontSize: 11.5, color: '#202124' }}>
-              <b>Sponsored</b> · <span style={{ color: '#5f6368' }}>your link</span>
-            </div>
-            <div style={{ fontSize: 16, color: '#1a0dab', margin: '2px 0', lineHeight: 1.3 }}>{creative?.headline}</div>
-            <div style={{ fontSize: 12.5, color: '#4d5156', lineHeight: 1.45 }}>{creative?.primary_text}</div>
-            <div style={{ fontSize: 11, color: '#5f6368', marginTop: 6 }}>
-              Text only — no image needed. Google mixes this with extra headlines from your keywords.
-            </div>
-          </div>
+        {plan?.platforms?.[0]?.platform === 'google' && (
+          <GooglePlacementPreview
+            placement={(plan.google_keyword_context?.placement as GooglePlacement) || 'search'}
+            ad={{
+              headline: creative?.headline,
+              text: creative?.primary_text,
+              imageUrl: creative?.image_url && !creative.is_video ? creative.image_url : undefined,
+              business: plan.google_keyword_context?.business_name,
+            }}
+          />
         )}
-        {creative?.image_url && (
+        {creative?.image_url && plan?.platforms?.[0]?.platform !== 'google' && (
           <ZoomableImage
             src={creative.image_url}
             alt="campaign visual"
@@ -3997,7 +4038,10 @@ function ResultCard({
                 ) : (
                   <>
                     <Check size={14} strokeWidth={2.5} />
-                    <span>Looks good — launch on {runsOnLabel(plan?.platforms?.[0]?.platform)}</span>
+                    <span>
+                      Looks good — launch on{' '}
+                      {runsOnLabel(plan?.platforms?.[0]?.platform, plan?.google_keyword_context?.placement)}
+                    </span>
                   </>
                 )}
               </button>
@@ -4077,7 +4121,9 @@ function ResultCard({
             <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
               <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>
                 <Check size={13} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 5 }} />
-                Campaign created on {runsOnLabel(plan?.platforms?.[0]?.platform)} — paused, no spend yet
+                Campaign created on{' '}
+                {runsOnLabel(plan?.platforms?.[0]?.platform, plan?.google_keyword_context?.placement)} — paused, no
+                spend yet
               </p>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>{launch?.note}</p>
             </div>
@@ -4503,17 +4549,17 @@ const PLATFORM_CHOICES: PlatformChoice[] = [
   },
   {
     value: 'google',
-    label: 'Google Search',
-    hint: 'This campaign will run on Google Search — a text ad shown to people searching for what you sell. No image needed.',
-    placeholder: 'Tell Jane what to promote on Google Search…',
+    label: 'Google',
+    hint: 'This campaign will run on Google.',
+    placeholder: 'Tell Jane what to promote on Google…',
   },
 ];
 
 const platformChoice = (v: string) => PLATFORM_CHOICES.find((c) => c.value === v) ?? PLATFORM_CHOICES[0];
 
 /** Where a planned or launched campaign actually runs, in plain words. */
-function runsOnLabel(platform?: string): string {
-  if (platform === 'google') return 'Google Search';
+function runsOnLabel(platform?: string, googlePlacement?: string): string {
+  if (platform === 'google') return placementLabel(googlePlacement);
   if (platform === 'tiktok') return 'TikTok';
   return 'Instagram & Facebook';
 }
@@ -4657,7 +4703,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
           </div>
         ) : c.platform === 'google' ? (
           <div
-            title="Google Search ads are text — there is no image"
+            title={`${placementLabel(c.placement)} ad`}
             style={{
               width: 84,
               height: 84,
@@ -4673,7 +4719,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
             }}
           >
             <span style={{ fontSize: 26, lineHeight: 1 }}>G</span>
-            <span style={{ fontSize: 9.5, fontWeight: 700, marginTop: 4 }}>SEARCH AD</span>
+            <span style={{ fontSize: 9.5, fontWeight: 700, marginTop: 4, textAlign: 'center' }}>
+              {c.placement && c.placement !== 'search' ? placementLabel(c.placement).toUpperCase() : 'SEARCH AD'}
+            </span>
           </div>
         ) : (
           <div style={{ width: 84, height: 84, borderRadius: 8, background: '#f4f2f0', flexShrink: 0 }} />
@@ -4699,7 +4747,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
                 c.platform === 'tiktok'
                   ? 'Running on TikTok'
                   : c.platform === 'google'
-                    ? 'Running on Google Search, in your own Google Ads account'
+                    ? `Running on ${placementLabel(c.placement)}`
                     : 'Running on Meta (Facebook/Instagram)'
               }
               style={{
@@ -4987,7 +5035,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
         isOpen={confirmingStart}
         title="Start running this campaign?"
         message={`"${c.name}" will begin spending its ₦${(c.budget_ngn ?? 0).toLocaleString()} budget${
-          c.platform === 'tiktok' ? ' on TikTok' : c.platform === 'google' ? ' on Google Search' : ''
+          c.platform === 'tiktok' ? ' on TikTok' : c.platform === 'google' ? ` on ${placementLabel(c.placement)}` : ''
         }.`}
         confirmText="Start running"
         cancelText="Not yet"

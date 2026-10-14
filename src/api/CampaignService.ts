@@ -270,6 +270,8 @@ export interface LaunchFromMessageResult {
     platforms: CampaignPlatform[];
     geo?: { pins?: { name: string; reason?: string }[]; explanation?: string } | null;
     trace?: string[];
+    /** Google only: where it runs (placement) and the business name the ad shows. */
+    google_keyword_context?: { placement?: string; business_name?: string } | null;
   };
   creative?: {
     image_url: string;
@@ -374,6 +376,8 @@ export interface CampaignRow {
   detached?: boolean;
   /** Google only: Google's own reason a campaign isn't showing, in plain words. */
   serving_note?: string;
+  /** Google only: search | display | demand_gen | pmax. */
+  placement?: string;
 }
 
 export interface DraftSummary {
@@ -664,6 +668,8 @@ export class CampaignService {
     // TikTok specifically; the backend returns a tiktok_not_configured or
     // tiktok_needs_video early_return if that can't be honoured right now.
     preferred_platform?: '' | 'tiktok' | 'google';
+    // Where on Google: search | display | demand_gen (YouTube & Discover) | pmax (everywhere).
+    google_placement?: 'search' | 'display' | 'demand_gen' | 'pmax';
     // TikTok Carousel Ads (2+ photos, no video) — additive, TikTok-only. TikTok has
     // no single-static-image ad unit at all (video or Carousel Ads only), so this is
     // how a photo-only business reaches TikTok without shooting a video. Ignored
