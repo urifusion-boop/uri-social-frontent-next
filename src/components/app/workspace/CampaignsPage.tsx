@@ -3777,7 +3777,7 @@ function ResultCard({
     ) {
       return (
         <JaneBubble>
-          {result.question || 'Google Search can’t run this as asked yet.'}
+          {result.question || 'Google can’t run this as asked yet.'}
           {result.stage !== 'google_budget_too_low' && (
             <>
               {' '}
