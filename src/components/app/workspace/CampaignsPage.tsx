@@ -435,13 +435,13 @@ export default function CampaignsPage({
 
   // Fire-and-forget save — the chat must keep working locally even if this fails. Every
   // message is tagged with the active thread (Tier E) so it lands in the right conversation.
-  const saveMsg = (msg: ChatMsg) => {
+  const saveMsg = (msg: ChatMsg): Promise<void> | undefined => {
     // A pending style_choice is transient UI state, not history — it either
     // resolves into a real 'result' message (which IS saved) or the user
     // never answers it and a reload has nothing useful to restore anyway.
     if (msg.role === 'jane' && msg.kind === 'style_choice') return;
     const thread_id = activeThreadRef.current || undefined;
-    CampaignService.saveChatMessage(
+    return CampaignService.saveChatMessage(
       msg.role === 'user'
         ? { message_id: msg.id, role: 'user', kind: 'text', text: msg.text, thread_id }
         : msg.kind === 'result'
@@ -1524,7 +1524,11 @@ export default function CampaignsPage({
     );
     // Same message_id — the backend upserts, so this replaces the saved "planned"
     // row with "launched" in place rather than creating a second saved message.
-    saveMsg({ id, role: 'jane', kind: 'result', result });
+    // The save is what moves the thread to "launched", so the rail is re-read
+    // only once it has landed — refreshing straight away still read "planned".
+    saveMsg({ id, role: 'jane', kind: 'result', result })?.then(() => {
+      if (result.stage === 'launched') refreshThreads();
+    });
   };
 
   // The newest interactive card (a 'result' choice/plan card OR a 'style_choice'
