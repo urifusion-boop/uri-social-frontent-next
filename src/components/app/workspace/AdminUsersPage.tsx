@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef, Fragment } from 'react';
+import GoogleUriAccountsPanel from './GoogleUriAccountsPanel';
 import { useAuth } from '@/src/providers/AuthProvider';
 import {
   AdminService,
@@ -182,7 +183,7 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
   const { isAdminUser, isAdminStatusPending } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<'stats' | 'all-users' | 'recent' | 'access-codes'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'all-users' | 'recent' | 'access-codes' | 'google-ads'>('stats');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [recentUsers, setRecentUsers] = useState<AdminUser[]>([]);
@@ -410,12 +411,13 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
           flexShrink: 0,
         }}
       >
-        {(['stats', 'all-users', 'recent', 'access-codes'] as const).map((tab) => {
+        {(['stats', 'all-users', 'recent', 'access-codes', 'google-ads'] as const).map((tab) => {
           const labels = {
             stats: 'Overview',
             'all-users': 'All Users',
             recent: 'Recent Signups',
             'access-codes': 'Access Codes',
+            'google-ads': 'Google Ads accounts',
           };
           const active = activeTab === tab;
           return (
@@ -726,6 +728,13 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
         {activeTab === 'access-codes' && (
           <div style={{ maxWidth: 1200, margin: '0 auto' }}>
             <AccessCodesPanel />
+          </div>
+        )}
+
+        {/* URI's own Google Ads accounts for "Run by URI" */}
+        {activeTab === 'google-ads' && (
+          <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+            <GoogleUriAccountsPanel />
           </div>
         )}
       </div>

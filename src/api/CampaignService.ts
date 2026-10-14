@@ -584,6 +584,17 @@ const googleReleaseParams = (o: GoogleReleaseOptions) => ({
   ...(o.keepRunning ? { keep_running: true } : {}),
 });
 
+/** One of URI's own Google Ads accounts ("Run by URI"), as the admin screen lists it. */
+export type GoogleUriAccount = {
+  customer_id: string;
+  name: string;
+  currency_code: string;
+  billing_ready: boolean;
+  brand_id: string | null;
+  brand_name?: string;
+  added_at?: string;
+};
+
 export class CampaignService {
   /** Conversational planning: Jane parses a plain-English message and returns her plan
    * (or asks a follow-up). Does NOT create anything — used for the chat preview. */
@@ -1113,6 +1124,26 @@ export class CampaignService {
       customer_id: customerId,
     });
     return res.data;
+  }
+
+  /** Admin: URI's own Google Ads accounts and which business uses each. */
+  static async adminGoogleUriAccounts(): Promise<{ accounts: GoogleUriAccount[]; free: number }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/admin/google/uri-accounts');
+    return res.data as { accounts: GoogleUriAccount[]; free: number };
+  }
+
+  /** Admin: add an account created in Google Ads (checked with Google first). */
+  static async adminAddGoogleUriAccount(customerId: string): Promise<{ account: GoogleUriAccount }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/admin/google/uri-accounts', {
+      customer_id: customerId,
+    });
+    return res.data as { account: GoogleUriAccount };
+  }
+
+  /** Admin: ask Google to create a blank account (works once Google allows it). */
+  static async adminCreateGoogleUriAccount(name: string): Promise<{ account: GoogleUriAccount }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/admin/google/uri-accounts/create', { name });
+    return res.data as { account: GoogleUriAccount };
   }
 
   /** How this brand's Google ads run: 'uri' (URI's account, wallet pays all) or
