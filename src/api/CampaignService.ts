@@ -300,6 +300,10 @@ export interface LaunchFromMessageResult {
     service_fee_ngn?: number;
     total_due_ngn?: number; // budget + fee — what the wallet must cover
     sufficient: boolean;
+    /** Google only: 'uri' = wallet pays everything; 'own' = wallet pays URI's fee and
+     * Google bills the brand's own Google Ads account for ad_spend_ngn. */
+    google_billing?: '' | 'uri' | 'own';
+    ad_spend_ngn?: number;
   };
   launch?: {
     campaign_id: string;
@@ -1039,6 +1043,10 @@ export class CampaignService {
    * shape, but Google's state machine has an extra step Meta's doesn't (choosing/linking
    * an actual Ads account), reflected in `state` and `customer_id`. */
   static async getGoogleConnectionStatus(refresh = false): Promise<{
+    /** How this brand's Google ads run: 'uri' or 'own'. */
+    mode?: 'uri' | 'own';
+    /** A URI Google Ads account is ready for this brand. */
+    uri_managed?: boolean;
     state: string;
     account_name: string;
     customer_id: string;
@@ -1105,6 +1113,13 @@ export class CampaignService {
       customer_id: customerId,
     });
     return res.data;
+  }
+
+  /** How this brand's Google ads run: 'uri' (URI's account, wallet pays all) or
+   * 'own' (their account, Google bills them, wallet pays URI's fee). */
+  static async googleSetMode(mode: 'uri' | 'own'): Promise<{ mode: string; ready: boolean; detail: string }> {
+    const res = await UriHttpClient.getClient().post('/jane-ads/google/mode', { mode });
+    return res.data as { mode: string; ready: boolean; detail: string };
   }
 
   /** Disconnect Google Ads for this brand altogether. */

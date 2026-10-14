@@ -3982,8 +3982,17 @@ function ResultCard({
                   itemise. This used to read "X ad spend + Y service fee = Z from your
                   wallet", which asked them to fund more than the figure they gave. */}
               {wallet && (
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#777' }}>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#777', lineHeight: 1.5 }}>
                   <strong>{naira(wallet.total_due_ngn ?? wallet.budget_ngn)}</strong> from your wallet
+                  {wallet.google_billing === 'own' ? (
+                    <>
+                      {' '}
+                      — URI&rsquo;s fee. Google bills your own Google Ads account for the{' '}
+                      <strong>{naira(wallet.ad_spend_ngn ?? wallet.budget_ngn)}</strong> ad spend.
+                    </>
+                  ) : wallet.google_billing === 'uri' ? (
+                    <> — covers everything. Runs in URI&rsquo;s Google Ads account; there&rsquo;s no Google bill.</>
+                  ) : null}
                 </p>
               )}
               {wallet && !wallet.sufficient && (

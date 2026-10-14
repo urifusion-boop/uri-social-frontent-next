@@ -8,6 +8,7 @@ import PlaybookHealth from './PlaybookHealth';
 import { pbSectionId } from './PlaybookPanel';
 import GoogleAdsChooser, { continueWithGoogle, GoogleAdsReturn } from './GoogleAdsChooser';
 import GoogleAdsLinkPanel from './GoogleAdsLinkPanel';
+import GoogleAdsModePicker from './GoogleAdsModePicker';
 import TellJane from './TellJane';
 import type { PlaybookHealthData } from '@/src/api/BrandProfileService';
 import { V3Service } from '@/src/api/V3Service';
@@ -2434,7 +2435,7 @@ const PLATFORMS = [
     bg: '#E8F0FE',
     flow: 'google_ads_direct',
     tooltip:
-      "The Google Ads account Jane's Search campaigns run from — separate from any other Google connection. Links to (or creates) an account under URI's manager account.",
+      'Where Jane runs your Google ads (Search, Display, YouTube & Discover). Run by URI: nothing to connect, you pay only from your URI wallet. Or use your own Google Ads account: Google bills you for the ad spend and URI charges only its fee.',
   },
   {
     id: 'instagram',
@@ -2584,9 +2585,15 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         // Same "linked = anything beyond nothing at all" convention as facebook_ads —
         // the card's own state-specific subtext (see the render below) carries the
         // detail for every state short of fully ready.
+        // Two ways to run Google ads: by URI (nothing to connect) or in the brand's
+        // own account. "Linked" means the chosen way is ready.
+        const googleMode = gAds.mode === 'own' ? 'own' : 'uri';
         next.google_ads = {
-          linked: gAds.state !== 'none',
-          account_name: gAds.account_name || undefined,
+          linked: googleMode === 'uri' ? !!gAds.uri_managed : gAds.state !== 'none',
+          account_name:
+            googleMode === 'uri' ? (gAds.uri_managed ? 'Run by URI' : undefined) : gAds.account_name || undefined,
+          google_mode: googleMode,
+          google_uri_managed: !!gAds.uri_managed,
           google_connection_state: gAds.state,
           google_customer_id: gAds.customer_id || undefined,
           google_whatsapp_number: gAds.whatsapp_number || undefined,
@@ -3801,9 +3808,17 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                             admin, then reconnect.
                           </span>
                         )}
-                        {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
-                          <span style={{ color: '#4285F4' }}> — choose or create your Ads account below</span>
+                        {p.id === 'google_ads' && s?.google_mode === 'uri' && (
+                          <span style={{ color: '#1a7f37' }}>
+                            {' '}
+                            — nothing to connect; you pay only from your URI wallet
+                          </span>
                         )}
+                        {p.id === 'google_ads' &&
+                          s?.google_mode === 'own' &&
+                          s?.google_connection_state === 'needs_account_selection' && (
+                            <span style={{ color: '#4285F4' }}> — choose or create your Ads account below</span>
+                          )}
                         {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_pending' && (
                           <span style={{ color: '#a15c00' }}> — waiting for you to accept the link in Google Ads</span>
                         )}
@@ -3824,7 +3839,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         {p.id === 'facebook_ads'
                           ? 'No ads Page connected yet'
                           : p.id === 'google_ads'
-                            ? 'No ads account connected yet'
+                            ? s?.google_mode === 'own'
+                              ? 'Your Google Ads account isn’t connected yet'
+                              : 'Google ads run by URI are being set up'
                             : 'Not connected'}
                       </div>
                     )}
@@ -3878,7 +3895,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                       >
                         Reconnect
                       </button>
-                    ) : linked && p.id === 'google_ads' ? (
+                    ) : p.id === 'google_ads' && (linked || s?.google_mode !== 'own') ? (
                       // No button here on purpose — Google Ads has no per-brand token
                       // to expire (it authenticates as URI's own admin identity, see
                       // the backend's google_ads_connection.py) and no disconnect
@@ -4230,27 +4247,50 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                   </div>
                 )}
                 {p.id === 'google_ads' && <GoogleAdsReturn onChanged={loadStatuses} />}
-                {p.id === 'google_ads' && s?.google_connection_state === 'needs_account_selection' && (
-                  <GoogleAdsChooser
-                    onChanged={loadStatuses}
-                    canCreate={s?.google_can_create_account}
-                    signinVerified={s?.google_signin_verified}
-                  />
+                {p.id === 'google_ads' && (
+                  <div
+                    style={{
+                      padding: '12px 14px 4px',
+                      background: '#F7FAFF',
+                      border: '1.5px solid #1A73E833',
+                      borderTop: 'none',
+                      borderBottom: 'none',
+                    }}
+                  >
+                    <GoogleAdsModePicker
+                      mode={s?.google_mode === 'own' ? 'own' : 'uri'}
+                      uriReady={!!s?.google_uri_managed}
+                      ownReady={s?.google_connection_state === 'ready'}
+                      onChanged={loadStatuses}
+                    />
+                  </div>
                 )}
-                {p.id === 'google_ads' && linked && s?.google_connection_state !== 'needs_account_selection' && (
-                  <GoogleAdsLinkPanel
-                    state={s?.google_connection_state ?? ''}
-                    customerId={s?.google_customer_id}
-                    accountName={s?.account_name}
-                    managerId={s?.google_manager_id}
-                    detail={s?.google_link_detail}
-                    createdByUri={s?.google_created_by_uri}
-                    currency={s?.google_currency}
-                    signinVerified={s?.google_signin_verified}
-                    finishing={s?.google_finishing}
-                    onChanged={loadStatuses}
-                  />
-                )}
+                {p.id === 'google_ads' &&
+                  s?.google_mode === 'own' &&
+                  s?.google_connection_state === 'needs_account_selection' && (
+                    <GoogleAdsChooser
+                      onChanged={loadStatuses}
+                      canCreate={s?.google_can_create_account}
+                      signinVerified={s?.google_signin_verified}
+                    />
+                  )}
+                {p.id === 'google_ads' &&
+                  s?.google_mode === 'own' &&
+                  linked &&
+                  s?.google_connection_state !== 'needs_account_selection' && (
+                    <GoogleAdsLinkPanel
+                      state={s?.google_connection_state ?? ''}
+                      customerId={s?.google_customer_id}
+                      accountName={s?.account_name}
+                      managerId={s?.google_manager_id}
+                      detail={s?.google_link_detail}
+                      createdByUri={s?.google_created_by_uri}
+                      currency={s?.google_currency}
+                      signinVerified={s?.google_signin_verified}
+                      finishing={s?.google_finishing}
+                      onChanged={loadStatuses}
+                    />
+                  )}
                 {p.id === 'linkedin' && linked && liPages && liPages.pages.length > 0 && (
                   <div
                     style={{
