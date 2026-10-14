@@ -4000,6 +4000,7 @@ function ResultCard({
                   campaign is planned, so there is nothing to add on and nothing to
                   itemise. This used to read "X ad spend + Y service fee = Z from your
                   wallet", which asked them to fund more than the figure they gave. */}
+              {wallet && <BudgetBreakdown wallet={wallet} />}
               {wallet && (
                 <p style={{ margin: '0 0 8px', fontSize: 12, color: '#777', lineHeight: 1.5 }}>
                   <strong>{naira(wallet.total_due_ngn ?? wallet.budget_ngn)}</strong> from your wallet
@@ -4158,6 +4159,57 @@ function ResultCard({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Where the budget goes. The plan above is built on the ad spend (what the ads
+ * themselves get), so it reads ₦6,300 when the owner typed ₦7,000 — this says
+ * why, in one glance, instead of leaving them to wonder where ₦700 went.
+ */
+function BudgetBreakdown({ wallet }: { wallet: NonNullable<LaunchFromMessageResult['wallet']> }) {
+  const ads = wallet.ad_spend_ngn ?? wallet.budget_ngn;
+  const own = wallet.google_billing === 'own';
+  const due = wallet.total_due_ngn ?? ads;
+  const fee = Math.round((own ? due : due - ads) * 100) / 100;
+  if (!ads || fee <= 0) return null;
+  const total = ads + fee;
+  const row = (label: string, value: number, hint: string, strong = false) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+      <span style={{ color: strong ? '#1a0a12' : '#555', fontWeight: strong ? 700 : 500 }}>
+        {label}
+        {hint && <span style={{ display: 'block', fontSize: 11, color: '#999', fontWeight: 400 }}>{hint}</span>}
+      </span>
+      <span style={{ fontWeight: strong ? 800 : 600, color: '#1a0a12', whiteSpace: 'nowrap' }}>{naira(value)}</span>
+    </div>
+  );
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gap: 7,
+        fontSize: 12.5,
+        background: '#fff',
+        border: '1px solid #f0e3d0',
+        borderRadius: 8,
+        padding: '9px 11px',
+        marginBottom: 9,
+      }}
+    >
+      <div style={{ fontSize: 10.5, fontWeight: 800, color: '#a15c00', letterSpacing: 0.4 }}>
+        WHERE YOUR BUDGET GOES
+      </div>
+      {row(
+        'Your ads',
+        ads,
+        own
+          ? 'Billed by Google to your Google Ads account. This is the figure in the plan above.'
+          : 'What the ads themselves get to spend. This is the figure in the plan above.'
+      )}
+      {row('URI service', fee, 'Jane’s planning, the ad itself, and running and tracking it for you.')}
+      <div style={{ borderTop: '1px dashed #eadfcd' }} />
+      {row('Your budget', total, '', true)}
     </div>
   );
 }
