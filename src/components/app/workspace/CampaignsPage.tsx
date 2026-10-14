@@ -4530,6 +4530,7 @@ const _STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   archived: { bg: '#f0eded', color: '#666' },
   deleted: { bg: '#f0eded', color: '#666' },
   'not managed by uri': { bg: '#f0eded', color: '#666' },
+  'status unavailable': { bg: '#f0eded', color: '#666' },
 };
 
 function statusStyle(status: string) {
@@ -4800,6 +4801,23 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               </p>
             );
           })()}
+          {c.serving_note && (
+            <p
+              role="status"
+              style={{
+                margin: '8px 0 0',
+                padding: '7px 10px',
+                borderRadius: 8,
+                background: '#FFF8EB',
+                border: '1px solid #F2D9A8',
+                fontSize: 12,
+                color: '#7a4a00',
+                lineHeight: 1.45,
+              }}
+            >
+              {c.serving_note}
+            </p>
+          )}
           {detachedNote && (
             <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#666', lineHeight: 1.45 }}>{detachedNote}</p>
           )}

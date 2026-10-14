@@ -372,6 +372,8 @@ export interface CampaignRow {
   metrics: CampaignMetrics | null;
   /** Google only: the brand let go of that Google Ads account — URI can't reach it any more. */
   detached?: boolean;
+  /** Google only: Google's own reason a campaign isn't showing, in plain words. */
+  serving_note?: string;
 }
 
 export interface DraftSummary {
