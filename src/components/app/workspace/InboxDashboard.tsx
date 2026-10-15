@@ -9,6 +9,7 @@ import InboxConnectionsPage, {
 } from './InboxConnectionsPage';
 import InboxInsightsPage, { type InsightsConversation } from './InboxInsightsPage';
 import InboxSettingsPage from './InboxSettingsPage';
+import { InboxPersonalityPage } from './personality/InboxPersonalityPage';
 
 /*
  * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
@@ -251,6 +252,8 @@ interface AgentInfo {
   exclusions: string[];
   needsHuman: boolean;
   handoffReason: string;
+  situationLabel: string;
+  voiceName: string;
 }
 
 interface PostContext {
@@ -725,6 +728,8 @@ function agentFields(
           exclusions: view.exclusions ?? [],
           needsHuman: Boolean(view.needs_human),
           handoffReason: view.handoff_reason || '',
+          situationLabel: view.situation_label || '',
+          voiceName: view.voice_name || '',
         }
       : undefined,
     aiSuggestion:
@@ -845,7 +850,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [leadFormNotes, setLeadFormNotes] = useState('');
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights' | 'settings'>('inbox');
+  const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights' | 'settings' | 'voice'>('inbox');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [channelConnections, setChannelConnections] = useState<ChannelConnection[]>(INITIAL_CHANNEL_CONNECTIONS);
   const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set(['c1']));
@@ -2401,6 +2406,20 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             </span>
             {agentInfo.urgency === 'high' && <span style={{ fontWeight: 700, color: '#C62828' }}>Urgent</span>}
             {agentInfo.language === 'pcm' && <span style={{ color: '#999' }}>Pidgin</span>}
+            {agentInfo.situationLabel && agentInfo.situationLabel !== 'General' && (
+              <span
+                title={agentInfo.voiceName ? `Replying as ${agentInfo.voiceName}` : undefined}
+                style={{
+                  color: '#AD1457',
+                  background: 'rgba(194,24,91,.08)',
+                  borderRadius: 6,
+                  padding: '1px 7px',
+                  fontWeight: 600,
+                }}
+              >
+                {agentInfo.situationLabel}
+              </span>
+            )}
             <select
               aria-label="Correct the label"
               value=""
@@ -3013,7 +3032,13 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               textOverflow: 'ellipsis',
             }}
           >
-            {subView === 'connections' ? 'Channel Connections' : subView === 'insights' ? 'Insights' : 'Inbox Settings'}
+            {subView === 'connections'
+              ? 'Channel Connections'
+              : subView === 'insights'
+                ? 'Insights'
+                : subView === 'voice'
+                  ? 'Brand Voice'
+                  : 'Inbox Settings'}
           </div>
           {notificationBell}
         </div>
@@ -3026,6 +3051,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             />
           ) : subView === 'insights' ? (
             <InboxInsightsPage isMobile={isMobile} conversations={conversations} />
+          ) : subView === 'voice' ? (
+            <InboxPersonalityPage isMobile={isMobile} />
           ) : (
             <InboxSettingsPage
               isMobile={isMobile}
@@ -3957,6 +3984,32 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 <button
                   type="button"
                   onClick={() => {
+                    setSubView('voice');
+                    setFilterDrawerOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '11px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#333',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: FONT,
+                  }}
+                >
+                  <I n="sparkle" s={16} c="#888" />
+                  Brand Voice
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setSubView('settings');
                     setFilterDrawerOpen(false);
                   }}
@@ -4351,6 +4404,29 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             >
               <I n="chart" s={16} c="#888" />
               Insights
+            </button>
+            <button
+              type="button"
+              onClick={() => setSubView('voice')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 10px',
+                border: 'none',
+                background: 'transparent',
+                color: '#444',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 8,
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: FONT,
+              }}
+            >
+              <I n="sparkle" s={16} c="#888" />
+              Brand Voice
             </button>
             <button
               type="button"

@@ -28,6 +28,10 @@ export interface InboxConversationDTO {
   needs_human?: boolean;
   handoff_reason?: string;
   ai_suggestion?: InboxSuggestionDTO | null;
+  emotion?: string;
+  situation?: string;
+  situation_label?: string;
+  voice_name?: string;
 }
 
 export interface InboxSuggestionDTO {
@@ -53,6 +57,10 @@ export type InboxAgentView = Pick<
   | 'needs_human'
   | 'handoff_reason'
   | 'ai_suggestion'
+  | 'emotion'
+  | 'situation'
+  | 'situation_label'
+  | 'voice_name'
 >;
 
 export interface InboxAgentSettings {
