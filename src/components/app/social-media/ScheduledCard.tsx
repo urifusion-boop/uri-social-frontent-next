@@ -82,6 +82,10 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
   // alone, even for a post that had already failed hours ago with a clear
   // reason sitting right there in the data.
   const isFailed = draft.status === 'publish_failed';
+  // Sent to the network, its confirmation not back yet. Never shown as
+  // failed just for being slow — only the network's own answer decides.
+  const isConfirming = draft.status === 'confirming';
+  const reconnectHint = isFailed && /reconnect/i.test(draft.error_message ?? '');
 
   const handleUnschedule = async () => {
     if (!confirmUnschedule) {
@@ -123,7 +127,9 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
         sx={{
           background: isFailed
             ? 'linear-gradient(135deg, #DC2626 0%, #991B1B 100%)'
-            : 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
+            : isConfirming
+              ? 'linear-gradient(135deg, #2563EB 0%, #1E40AF 100%)'
+              : 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
           px: 2.5,
           py: 1.25,
           display: 'flex',
@@ -136,11 +142,29 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
         <Box display="flex" alignItems="center" gap={1}>
           <MdCalendarToday color="#fff" size={15} />
           <Typography fontSize="13px" fontWeight={700} color="#fff">
-            {formatScheduledDate(scheduledDate)}
+            {isConfirming && !scheduledDate
+              ? `Sent ${formatScheduledDate(draft.publish_submitted_at)}`
+              : formatScheduledDate(scheduledDate)}
           </Typography>
         </Box>
         <Box display="flex" alignItems="center" gap={0.75}>
-          {isFailed ? (
+          {isConfirming ? (
+            <>
+              <Box
+                sx={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: '#fff',
+                  animation: 'uriPulse 1.4s ease-in-out infinite',
+                  '@keyframes uriPulse': { '0%,100%': { opacity: 0.35 }, '50%': { opacity: 1 } },
+                }}
+              />
+              <Typography fontSize="11px" color="rgba(255,255,255,0.92)" fontWeight={700}>
+                Publishing…
+              </Typography>
+            </>
+          ) : isFailed ? (
             <>
               <MdErrorOutline color="rgba(255,255,255,0.9)" size={13} />
               <Typography fontSize="11px" color="rgba(255,255,255,0.9)" fontWeight={700}>
@@ -169,15 +193,36 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
             sx={{ background: pc.bg, color: pc.color, fontWeight: 600, fontSize: '11px', height: 24 }}
           />
           <Chip
-            label={isFailed ? 'Failed' : 'Scheduled'}
+            label={isFailed ? 'Failed' : isConfirming ? 'Publishing' : 'Scheduled'}
             size="small"
             sx={
               isFailed
                 ? { background: '#FEE2E2', color: '#B91C1C', fontWeight: 600, fontSize: '11px', height: 24 }
-                : { background: '#EDE9FE', color: '#5B21B6', fontWeight: 600, fontSize: '11px', height: 24 }
+                : isConfirming
+                  ? { background: '#DBEAFE', color: '#1E40AF', fontWeight: 600, fontSize: '11px', height: 24 }
+                  : { background: '#EDE9FE', color: '#5B21B6', fontWeight: 600, fontSize: '11px', height: 24 }
             }
           />
         </Box>
+
+        {isConfirming && (
+          <Box
+            sx={{
+              background: '#EFF6FF',
+              border: '1px solid #BFDBFE',
+              borderRadius: '8px',
+              px: 1.5,
+              py: 1.25,
+              mb: 1.5,
+            }}
+          >
+            <Typography fontSize="13px" color="#1E3A8A" sx={{ lineHeight: 1.5 }}>
+              {draft.publish_slow
+                ? `${draft.platform.charAt(0).toUpperCase() + draft.platform.slice(1)} is taking longer than usual to confirm this post. We're still checking and will update it as soon as it answers — no need to publish it again.`
+                : `Sent to ${draft.platform.charAt(0).toUpperCase() + draft.platform.slice(1)}. We're confirming it's live and will update this card in a minute or two.`}
+            </Typography>
+          </Box>
+        )}
 
         {/* Failure reason — the actual point of this card knowing about
             isFailed at all. error_message is already the friendly,
@@ -197,6 +242,24 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
             <Typography fontSize="13px" color="#991B1B" sx={{ lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
               {draft.error_message}
             </Typography>
+            {reconnectHint && (
+              <Button
+                size="small"
+                variant="contained"
+                href="/workspace/?tab=connections"
+                sx={{
+                  mt: 1,
+                  textTransform: 'none',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  background: '#991B1B',
+                  boxShadow: 'none',
+                  '&:hover': { background: '#7F1D1D', boxShadow: 'none' },
+                }}
+              >
+                Reconnect {draft.platform.charAt(0).toUpperCase() + draft.platform.slice(1)}
+              </Button>
+            )}
           </Box>
         )}
 
@@ -309,8 +372,8 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
             );
           })()}
 
-        {/* Action */}
-        <Box display="flex" justifyContent="flex-end">
+        {/* Action — nothing to unschedule once it's on its way to the network */}
+        <Box display={isConfirming ? 'none' : 'flex'} justifyContent="flex-end">
           <Button
             size="small"
             variant={confirmUnschedule ? 'contained' : 'outlined'}

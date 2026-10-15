@@ -76,6 +76,7 @@ const statusColors: Record<string, { bg: string; color: string }> = {
   denied: { bg: '#FEE2E2', color: '#991B1B' },
   publish_failed: { bg: '#FEE2E2', color: '#991B1B' },
   scheduled: { bg: '#EDE9FE', color: '#5B21B6' },
+  confirming: { bg: '#DBEAFE', color: '#1E40AF' },
 };
 
 // Industry-standard aspect ratios per platform
@@ -427,6 +428,24 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               onRefresh(); // refresh anyway — draft status may have changed server-side
               return;
             }
+            // Any other network (e.g. Facebook refusing an expired login): say
+            // so — this used to fall through to "Published!".
+            ToastService.showToast(
+              thisResult.publish_result.error || `Couldn't publish to ${draft.platform}. Please try again.`,
+              ToastTypeEnum.Error
+            );
+            onRefresh();
+            return;
+          }
+          if (thisResult?.publish_result?.status === 'confirming') {
+            const name = draft.platform.charAt(0).toUpperCase() + draft.platform.slice(1);
+            ToastService.showToast(
+              `Sent to ${name} — confirming it's live. Track it in Scheduled.`,
+              ToastTypeEnum.Success
+            );
+            posthog.capture('draft_approved', { option, platform: draft.platform });
+            onRefresh();
+            return;
           }
         }
 

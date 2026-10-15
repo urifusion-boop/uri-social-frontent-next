@@ -12,6 +12,7 @@ export interface Notification {
     | 'signup'
     | 'content_created'
     | 'content_posted'
+    | 'post_failed'
     | 'daily_suggestion'
     | 'inactivity'
     | 'trial_start'

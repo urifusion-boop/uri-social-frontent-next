@@ -1032,7 +1032,8 @@ const ContentManagerPage = ({
       ]);
       if (calendarRes.status && calendarRes.responseData) {
         const allDrafts = calendarRes.responseData.drafts ?? [];
-        const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'denied', 'replaced']);
+        // confirming: sent to the network, shown in Scheduled as "Publishing…" until it's confirmed.
+        const EXCLUDE = new Set(['published', 'scheduled', 'approved', 'denied', 'replaced', 'confirming']);
         const filtered = allDrafts.filter((d: ContentDraft) => {
           const s = d.status;
           const a = d.approval_status;
@@ -1092,7 +1093,9 @@ const ContentManagerPage = ({
       if (r.status && r.responseData) {
         const items: ContentDraft[] = r.responseData.scheduled_drafts ?? [];
         setScheduled(items);
-        const stillPending = items.some(hasPendingImage);
+        // Keep refreshing while a post's confirmation is due, so "Publishing…"
+        // turns into Published or Failed without a page reload.
+        const stillPending = items.some((i) => hasPendingImage(i) || i.status === 'confirming');
         if (stillPending && activeTabRef.current === 'scheduled' && pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
           const attempt = pollAttemptsRef.current;
           pollAttemptsRef.current += 1;
