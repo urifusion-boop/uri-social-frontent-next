@@ -397,60 +397,97 @@ const PlaybookHealth = ({ health, profile, onProfileUpdate, editing = false, onJ
       }
       actions={previewButton}
       below={
-        preview && (
+        previewing && !preview ? (
           <div style={{ padding: '0 12px 12px' }}>
+            <style>{`@keyframes pb-shimmer { 0% { background-position: -400px 0 } 100% { background-position: 400px 0 } }`}</style>
             <div
+              role="status"
+              aria-live="polite"
               style={{
-                position: 'relative',
-                padding: '10px 32px 10px 12px',
+                padding: '12px 14px',
                 borderRadius: 10,
                 background: '#FDF2F8',
                 border: '1px solid #F3D4E4',
-                fontSize: 12.5,
-                lineHeight: 1.55,
-                color: C.ink,
-                whiteSpace: 'pre-wrap',
               }}
             >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 800,
-                  color: C.pink,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.6,
-                  marginBottom: 4,
-                }}
-              >
-                Sample Instagram caption from your saved Playbook
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: C.pink }}>
+                Jane is writing a sample Instagram caption from your Playbook…
               </div>
-              {preview.caption}
-              {preview.banned_words_used.length > 0 && (
-                <div style={{ fontSize: 11.5, color: C.red, marginTop: 6 }}>
-                  This sample used words you asked Jane to avoid: {preview.banned_words_used.join(', ')}
-                </div>
-              )}
-              <button
-                type="button"
-                aria-label="Close preview"
-                onClick={() => setPreview(null)}
-                style={{
-                  position: 'absolute',
-                  top: 6,
-                  right: 6,
-                  border: 'none',
-                  background: 'transparent',
-                  color: C.faint,
-                  fontSize: 16,
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  padding: 4,
-                }}
-              >
-                ×
-              </button>
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
+                She writes it, checks it against every rule, and fixes anything off — this can take up to a minute.
+              </div>
+              {[92, 78, 85, 60].map((w, i) => (
+                <div
+                  key={i}
+                  style={{
+                    height: 9,
+                    width: `${w}%`,
+                    borderRadius: 6,
+                    marginTop: i ? 7 : 12,
+                    background: 'linear-gradient(90deg,#f6e3ec 0px,#fbeff5 120px,#f6e3ec 240px)',
+                    backgroundSize: '800px 100%',
+                    animation: 'pb-shimmer 1.4s linear infinite',
+                  }}
+                />
+              ))}
             </div>
           </div>
+        ) : (
+          preview && (
+            <div style={{ padding: '0 12px 12px' }}>
+              <div
+                style={{
+                  position: 'relative',
+                  padding: '10px 32px 10px 12px',
+                  borderRadius: 10,
+                  background: '#FDF2F8',
+                  border: '1px solid #F3D4E4',
+                  fontSize: 12.5,
+                  lineHeight: 1.55,
+                  color: C.ink,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: C.pink,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.6,
+                    marginBottom: 4,
+                  }}
+                >
+                  Sample Instagram caption from your saved Playbook
+                </div>
+                {preview.caption}
+                {preview.banned_words_used.length > 0 && (
+                  <div style={{ fontSize: 11.5, color: C.red, marginTop: 6 }}>
+                    This sample used words you asked Jane to avoid: {preview.banned_words_used.join(', ')}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  aria-label="Close preview"
+                  onClick={() => setPreview(null)}
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    border: 'none',
+                    background: 'transparent',
+                    color: C.faint,
+                    fontSize: 16,
+                    lineHeight: 1,
+                    cursor: 'pointer',
+                    padding: 4,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )
         )
       }
     >
