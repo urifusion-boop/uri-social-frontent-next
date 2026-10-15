@@ -319,6 +319,8 @@ export interface ApprovePublishResult {
   success: boolean;
   error?: string;
   post_id?: string;
+  // 'confirming': the network accepted it; whether it's live is confirmed shortly after.
+  status?: string;
 }
 
 export interface ApprovedDraft {
@@ -414,7 +416,12 @@ export interface ContentDraft {
     | 'ready_to_publish'
     | 'replaced'
     | 'publish_failed'
-    | 'refined';
+    | 'refined'
+    // Sent to the network, waiting for it to confirm the post is live.
+    | 'confirming';
+  // Still confirming more than 30 minutes after it was sent.
+  publish_slow?: boolean;
+  publish_submitted_at?: string;
   approval_status?: 'pending' | 'approved' | 'denied';
   image_url?: string;
   image_version?: number;
