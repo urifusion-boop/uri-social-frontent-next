@@ -3752,6 +3752,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             const s = statuses[p.id];
             const linked = s?.linked ?? false;
             const isBusy = disconnecting === p.id || connecting === p.id;
+            const adsExpired = p.id === 'facebook_ads' && s?.meta_connection_state === 'expired';
             return (
               <div key={p.id}>
                 <div
@@ -3761,8 +3762,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                     gap: 14,
                     padding: '14px 16px',
                     borderRadius: 12,
-                    border: `1.5px solid ${linked ? p.color + '44' : '#edecea'}`,
-                    background: linked ? p.bg : '#fff',
+                    border: `1.5px solid ${adsExpired ? '#E8A5A5' : linked ? p.color + '44' : '#edecea'}`,
+                    background: adsExpired ? '#FFF5F5' : linked ? p.bg : '#fff',
                     transition: 'all .15s',
                   }}
                 >
@@ -3799,8 +3800,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         {p.id === 'facebook_ads' && s?.meta_connection_state === 'ads_no_whatsapp' && (
                           <span style={{ color: '#a15c00' }}> — WhatsApp not linked yet</span>
                         )}
-                        {p.id === 'facebook_ads' && s?.meta_connection_state === 'expired' && (
-                          <span style={{ color: '#c62828' }}> — needs reconnecting</span>
+                        {adsExpired && (
+                          <div style={{ color: '#c62828', marginTop: 3, lineHeight: 1.45 }}>
+                            Your connection has expired. Reconnect so your ads run from this Page and its messages reach
+                            your inbox. Until you do, you can&rsquo;t launch new ads.
+                          </div>
                         )}
                         {/* Meta refused to give URI advertising access to the Page.
                             Reconnecting re-runs the identical grant and is refused
@@ -3857,8 +3861,12 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         width: 8,
                         height: 8,
                         borderRadius: '50%',
-                        background: linked ? '#4caf50' : '#ddd',
-                        boxShadow: linked ? '0 0 6px rgba(76,175,80,.5)' : 'none',
+                        background: adsExpired ? '#c62828' : linked ? '#4caf50' : '#ddd',
+                        boxShadow: adsExpired
+                          ? '0 0 6px rgba(198,40,40,.4)'
+                          : linked
+                            ? '0 0 6px rgba(76,175,80,.5)'
+                            : 'none',
                       }}
                     />
                     {p.comingSoon ? (
@@ -3889,10 +3897,11 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         style={{
                           padding: '5px 12px',
                           borderRadius: 7,
-                          border: '1px solid #edecea',
-                          background: '#fff',
+                          border: adsExpired ? '1px solid #C2185B' : '1px solid #edecea',
+                          background: adsExpired ? '#C2185B' : '#fff',
                           fontSize: 12,
-                          color: '#888',
+                          color: adsExpired ? '#fff' : '#888',
+                          fontWeight: adsExpired ? 700 : 400,
                           cursor: 'pointer',
                           fontFamily: 'var(--wf)',
                           opacity: isBusy ? 0.5 : 1,
