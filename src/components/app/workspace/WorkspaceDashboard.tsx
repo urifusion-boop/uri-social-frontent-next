@@ -6220,6 +6220,16 @@ const TONE_PLATFORM_LABELS: Record<string, string> = {
   tiktok: 'TikTok',
 };
 
+// A fitting example for each platform's tone box (they all said "professional
+// and insightful", an odd suggestion for Instagram or TikTok).
+const TONE_EXAMPLES: Record<string, string> = {
+  instagram: 'e.g. playful, warm and visual',
+  facebook: 'e.g. friendly and conversational',
+  linkedin: 'e.g. professional and insightful',
+  twitter: 'e.g. punchy and witty',
+  tiktok: 'e.g. casual, energetic, trend-aware',
+};
+
 // Same slot labels onboarding saves; the backend maps each to a local posting hour.
 const POSTING_TIME_SLOTS = [
   'Early Morning (6-9am)',
@@ -7554,7 +7564,7 @@ const PlaybookPage = ({
                           <PbInput
                             value={platformTones[pl] ?? ''}
                             onChange={(v) => setPlatformTones((prev) => ({ ...prev, [pl]: v }))}
-                            placeholder="e.g. professional and insightful"
+                            placeholder={TONE_EXAMPLES[pl] ?? 'e.g. friendly and clear'}
                           />
                         }
                         tooltip={`How posts on ${label} should sound. Leave empty to use your main brand voice there.`}
