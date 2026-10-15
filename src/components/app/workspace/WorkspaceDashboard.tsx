@@ -5773,6 +5773,134 @@ const PbInput = ({
   );
 };
 
+/** A list field: type an item and press Enter (or a comma) to add it as a
+ * chip; paste a comma list to add several; × or Backspace removes one. The
+ * old comma-separated text box re-split on every keystroke, which swallowed
+ * commas and spaces as they were typed ("fast delivery" became "fastdelivery"). */
+const PbListInput = ({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string[];
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+}) => {
+  const [draft, setDraft] = useState('');
+  const add = (raw: string) => {
+    const items = raw
+      .split(/[,\n]/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (!items.length) return;
+    const seen = new Set(value.map((v) => v.toLowerCase()));
+    const next = [...value];
+    for (const item of items) {
+      if (!seen.has(item.toLowerCase())) {
+        seen.add(item.toLowerCase());
+        next.push(item);
+      }
+    }
+    onChange(next);
+  };
+  return (
+    <div
+      className="pb-list-input"
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 8px',
+        borderRadius: 8,
+        border: '1.5px solid #e5e3df',
+        background: '#fafaf8',
+        minHeight: 38,
+        cursor: 'text',
+      }}
+      onClick={(e) => (e.currentTarget.querySelector('input') as HTMLInputElement | null)?.focus()}
+    >
+      {value.map((item, i) => (
+        <span
+          key={`${item}-${i}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '3px 4px 3px 10px',
+            borderRadius: 999,
+            background: 'rgba(194,24,91,.08)',
+            color: '#8E1545',
+            fontSize: 12.5,
+            fontWeight: 600,
+            maxWidth: '100%',
+          }}
+        >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item}</span>
+          <button
+            type="button"
+            aria-label={`Remove ${item}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(value.filter((_, j) => j !== i));
+            }}
+            style={{
+              border: 'none',
+              background: 'none',
+              color: '#C2185B',
+              cursor: 'pointer',
+              fontSize: 14,
+              lineHeight: 1,
+              padding: '0 4px',
+            }}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        value={draft}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v.includes(',')) {
+            add(v);
+            setDraft('');
+          } else {
+            setDraft(v);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            add(draft);
+            setDraft('');
+          } else if (e.key === 'Backspace' && !draft && value.length) {
+            onChange(value.slice(0, -1));
+          }
+        }}
+        onBlur={() => {
+          if (draft.trim()) {
+            add(draft);
+            setDraft('');
+          }
+        }}
+        placeholder={value.length ? 'Add another…' : placeholder}
+        style={{
+          flex: '1 1 160px',
+          minWidth: 120,
+          border: 'none',
+          outline: 'none',
+          background: 'transparent',
+          fontSize: 13,
+          fontFamily: 'var(--wf)',
+          color: '#111',
+          padding: '4px 2px',
+        }}
+      />
+    </div>
+  );
+};
+
 const PbChip = ({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) => (
   <button
     onClick={onClick}
@@ -7078,20 +7206,13 @@ const PlaybookPage = ({
               value={p?.key_products_services}
               editing={editing}
               input={
-                <PbInput
-                  value={keyProducts.join(', ')}
-                  onChange={(v) =>
-                    setKeyProducts(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. jollof rice bowls, party trays, catering"
+                <PbListInput
+                  value={keyProducts}
+                  onChange={setKeyProducts}
+                  placeholder="e.g. jollof rice bowls, party trays, catering — press Enter after each"
                 />
               }
-              tooltip="What you sell, comma-separated — posts mention the most relevant one, the inbox can quote it, and Market Intel uses it to find buyers"
+              tooltip="What you sell — posts mention the most relevant one, the inbox can quote it, and Market Intel uses it to find buyers"
             />
           </PbSection>
 
@@ -7904,17 +8025,10 @@ const PlaybookPage = ({
               value={p?.customer_interests}
               editing={editing}
               input={
-                <PbInput
-                  value={customerInterests.join(', ')}
-                  onChange={(v) =>
-                    setCustomerInterests(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. fitness, wellness, personal finance (comma-separated)"
+                <PbListInput
+                  value={customerInterests}
+                  onChange={setCustomerInterests}
+                  placeholder="e.g. fitness, wellness, personal finance — press Enter after each"
                 />
               }
             />
@@ -7923,17 +8037,10 @@ const PlaybookPage = ({
               value={p?.customer_pain_points}
               editing={editing}
               input={
-                <PbInput
-                  value={customerPainPoints.join(', ')}
-                  onChange={(v) =>
-                    setCustomerPainPoints(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. no time to cook, hard to find reliable delivery"
+                <PbListInput
+                  value={customerPainPoints}
+                  onChange={setCustomerPainPoints}
+                  placeholder="e.g. no time to cook, hard to find reliable delivery — press Enter after each"
                 />
               }
             />
@@ -7942,17 +8049,10 @@ const PlaybookPage = ({
               value={p?.customer_needs}
               editing={editing}
               input={
-                <PbInput
-                  value={customerNeeds.join(', ')}
-                  onChange={(v) =>
-                    setCustomerNeeds(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. fast turnaround, transparent pricing"
+                <PbListInput
+                  value={customerNeeds}
+                  onChange={setCustomerNeeds}
+                  placeholder="e.g. fast turnaround, transparent pricing — press Enter after each"
                 />
               }
             />
@@ -7961,17 +8061,10 @@ const PlaybookPage = ({
               value={p?.customer_objections}
               editing={editing}
               input={
-                <PbInput
-                  value={customerObjections.join(', ')}
-                  onChange={(v) =>
-                    setCustomerObjections(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. too expensive, not sure it works"
+                <PbListInput
+                  value={customerObjections}
+                  onChange={setCustomerObjections}
+                  placeholder="e.g. too expensive, not sure it works — press Enter after each"
                 />
               }
             />
@@ -7995,17 +8088,10 @@ const PlaybookPage = ({
               value={p?.customer_desires}
               editing={editing}
               input={
-                <PbInput
-                  value={customerDesires.join(', ')}
-                  onChange={(v) =>
-                    setCustomerDesires(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. glowing skin without a 10-step routine (comma-separated)"
+                <PbListInput
+                  value={customerDesires}
+                  onChange={setCustomerDesires}
+                  placeholder="e.g. glowing skin without a 10-step routine — press Enter after each"
                 />
               }
             />
@@ -8014,17 +8100,10 @@ const PlaybookPage = ({
               value={p?.customer_fears}
               editing={editing}
               input={
-                <PbInput
-                  value={customerFears.join(', ')}
-                  onChange={(v) =>
-                    setCustomerFears(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. wasting money on something that doesn't work (comma-separated)"
+                <PbListInput
+                  value={customerFears}
+                  onChange={setCustomerFears}
+                  placeholder="e.g. wasting money on something that doesn't work — press Enter after each"
                 />
               }
             />
@@ -8033,17 +8112,10 @@ const PlaybookPage = ({
               value={p?.customer_frustrations}
               editing={editing}
               input={
-                <PbInput
-                  value={customerFrustrations.join(', ')}
-                  onChange={(v) =>
-                    setCustomerFrustrations(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. slow delivery times, confusing pricing (comma-separated)"
+                <PbListInput
+                  value={customerFrustrations}
+                  onChange={setCustomerFrustrations}
+                  placeholder="e.g. slow delivery times, confusing pricing — press Enter after each"
                 />
               }
             />
@@ -8052,17 +8124,10 @@ const PlaybookPage = ({
               value={p?.customer_aspirations}
               editing={editing}
               input={
-                <PbInput
-                  value={customerAspirations.join(', ')}
-                  onChange={(v) =>
-                    setCustomerAspirations(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. running a business that runs without them (comma-separated)"
+                <PbListInput
+                  value={customerAspirations}
+                  onChange={setCustomerAspirations}
+                  placeholder="e.g. running a business that runs without them — press Enter after each"
                 />
               }
             />
@@ -8071,17 +8136,10 @@ const PlaybookPage = ({
               value={p?.customer_hesitations}
               editing={editing}
               input={
-                <PbInput
-                  value={customerHesitations.join(', ')}
-                  onChange={(v) =>
-                    setCustomerHesitations(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. not sure it's worth the price, want to compare options first (comma-separated) — distinct from objections, these are reasons they stall rather than refuse"
+                <PbListInput
+                  value={customerHesitations}
+                  onChange={setCustomerHesitations}
+                  placeholder="e.g. not sure it's worth the price, want to compare options first. Distinct from objections, these are reasons they stall rather than refuse — press Enter after each"
                 />
               }
             />
@@ -8090,17 +8148,10 @@ const PlaybookPage = ({
               value={p?.common_questions}
               editing={editing}
               input={
-                <PbInput
-                  value={commonQuestions.join(', ')}
-                  onChange={(v) =>
-                    setCommonQuestions(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. is this safe for sensitive skin?, how long does shipping take? (comma-separated)"
+                <PbListInput
+                  value={commonQuestions}
+                  onChange={setCommonQuestions}
+                  placeholder="e.g. is this safe for sensitive skin?, how long does shipping take? — press Enter after each"
                 />
               }
             />
@@ -8109,17 +8160,10 @@ const PlaybookPage = ({
               value={p?.buying_triggers}
               editing={editing}
               input={
-                <PbInput
-                  value={buyingTriggers.join(', ')}
-                  onChange={(v) =>
-                    setBuyingTriggers(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. seeing a visible result, a limited-time offer (comma-separated)"
+                <PbListInput
+                  value={buyingTriggers}
+                  onChange={setBuyingTriggers}
+                  placeholder="e.g. seeing a visible result, a limited-time offer — press Enter after each"
                 />
               }
             />
@@ -8128,17 +8172,10 @@ const PlaybookPage = ({
               value={p?.words_to_avoid}
               editing={editing}
               input={
-                <PbInput
-                  value={wordsToAvoid.join(', ')}
-                  onChange={(v) =>
-                    setWordsToAvoid(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  placeholder="e.g. cheap, miracle, revolutionary (comma-separated)"
+                <PbListInput
+                  value={wordsToAvoid}
+                  onChange={setWordsToAvoid}
+                  placeholder="e.g. cheap, miracle, revolutionary — press Enter after each"
                 />
               }
             />
