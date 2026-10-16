@@ -8,6 +8,7 @@ import posthog from 'posthog-js';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
+import { takeContentSeed } from '@/src/utils/contentSeed';
 import {
   Box,
   Button,
@@ -110,6 +111,20 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     BrandProfileService.getTargetPlatformKeys().then((keys) => {
       if (keys.length && !platformsTouched.current) setSelectedPlatforms(keys);
     });
+  }, []);
+
+  // A brief handed over from elsewhere (e.g. a Market Intelligence opportunity
+  // card's "Create this"): fill the form so the owner only reviews and generates.
+  useEffect(() => {
+    const handed = takeContentSeed();
+    if (!handed?.seed) return;
+    setSeedContent(handed.seed);
+    const known = handed.platforms?.filter((p) => ['facebook', 'instagram', 'linkedin', 'twitter', 'tiktok'].includes(p));
+    if (known?.length) {
+      platformsTouched.current = true;
+      setSelectedPlatforms(known);
+    }
+    ToastService.showToast('Brief from your market opportunity is ready — review it and generate.', ToastTypeEnum.Success);
   }, []);
   const [includeImages, setIncludeImages] = useState(false);
   const [loading, setLoading] = useState(false);

@@ -57,6 +57,7 @@ import {
   Topic,
 } from '@/src/api/MarketIntelligenceService';
 import { BrandProfileService } from '@/src/api/BrandProfileService';
+import ListeningOpportunities from '@/src/components/app/workspace/ListeningOpportunities';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -1593,7 +1594,7 @@ function AccessControlPanel() {
 
 // ─── Main page ──────────────────────────────────────────────────────────────
 
-type TabId = 'overview' | 'topics' | 'upcoming' | 'settings';
+type TabId = 'opportunities' | 'overview' | 'topics' | 'upcoming' | 'settings';
 
 // Survives a component remount (switching workspace tabs and coming back)
 // within the same browser tab, so "leave and return" (PRD §9) actually
@@ -1622,7 +1623,8 @@ function writeStoredScan(value: StoredScan | null) {
 }
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'opportunities', label: 'Opportunities', icon: Lightbulb },
+  { id: 'overview', label: 'Research', icon: LayoutDashboard },
   { id: 'topics', label: 'Topics & Sources', icon: Layers },
   { id: 'upcoming', label: 'Upcoming Items', icon: CalendarClock },
   { id: 'settings', label: 'Settings', icon: Settings2 },
@@ -1637,7 +1639,7 @@ const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
  * real provider adapter lands in uri-social-backend's scan_runner.ADAPTER_REGISTRY.
  */
 export default function MarketIntelligencePage() {
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [activeTab, setActiveTab] = useState<TabId>('opportunities');
   const [topics, setTopics] = useState<Topic[]>([]);
   const [insights, setInsights] = useState<InsightVersion[]>([]);
   const [developments, setDevelopments] = useState<Development[]>([]);
@@ -1981,6 +1983,7 @@ export default function MarketIntelligencePage() {
 
         {/* Tab content */}
         <div className="mt-5">
+          {activeTab === 'opportunities' && <ListeningOpportunities />}
           {activeTab === 'overview' &&
             (loading ? (
               <div className="flex items-center gap-2 py-16 text-sm text-muted-foreground">

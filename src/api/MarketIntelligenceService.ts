@@ -305,6 +305,64 @@ export interface AccessGrant {
 
 const BASE = '/market-intelligence';
 
+// ── Listening Intelligence (market-level listening -> action cards) ─────────
+export type ListeningSignalType = 'rising' | 'spike' | 'emerging' | 'new_entity' | 'recurring_need';
+export type ListeningCardAction = 'saved' | 'dismissed' | 'snoozed' | 'acted' | 'created' | 'shown';
+
+export interface ListeningCard {
+  id: string;
+  market: string;
+  market_label?: string;
+  topic: string;
+  topic_name?: string;
+  type: ListeningSignalType;
+  observation: string;
+  why: string;
+  action: {
+    type: string;
+    title: string;
+    platforms: string[];
+    format: string;
+    hook: string;
+    outline: string[];
+    cta: string;
+    caption: string;
+  };
+  evidence: {
+    current?: Record<string, number>;
+    baseline?: { median_per_day?: number; days?: number } | null;
+    window_start?: string;
+    window_end?: string;
+    samples?: { url?: string; text?: string; author?: string; published_at?: string }[];
+    needs?: string[];
+    intent_mix?: Record<string, number>;
+    source?: string;
+    scope_note?: string;
+  };
+  scores: { R: number; M: number; C: number; E: number; B: number; total: number };
+  confidence?: number;
+  status: string;
+  created_at?: string;
+  expires_at?: string;
+}
+
+export interface ListeningMarketStatus {
+  key: string;
+  label?: string;
+  last_collected_at?: string | null;
+  topics: number;
+  active_signals: number;
+  learned_terms: string[];
+  last_run?: { status?: string; started_at?: string; items_returned?: number; new_items?: number; note?: string } | null;
+}
+
+export interface ListeningStatus {
+  profile: { brand_id: string; markets: string[]; country: string; status: string; updated_at?: string } | null;
+  markets: ListeningMarketStatus[];
+  cadence_hours: number;
+  budget: { monthly_usd: number; spent_usd: number };
+}
+
 export class MarketIntelligenceService {
   static async listSources(): Promise<UriResponse<SourceCapability[]>> {
     const res: AxiosResponse<UriResponse<SourceCapability[]>> = await UriHttpClient.getClient().get(`${BASE}/sources`);
@@ -476,6 +534,47 @@ export class MarketIntelligenceService {
     const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().post(
       `${BASE}/access`,
       { email, level }
+    );
+    return res.data;
+  }
+
+  // ── Listening Intelligence ────────────────────────────────────────────────
+  static async getListeningStatus(): Promise<UriResponse<ListeningStatus>> {
+    const res: AxiosResponse<UriResponse<ListeningStatus>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/status`
+    );
+    return res.data;
+  }
+
+  static async enableListening(): Promise<UriResponse<Record<string, unknown>>> {
+    const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().post(
+      `${BASE}/listening/enable`,
+      {}
+    );
+    return res.data;
+  }
+
+  static async runListeningNow(): Promise<UriResponse<{ started: boolean; markets: string[] }>> {
+    const res: AxiosResponse<UriResponse<{ started: boolean; markets: string[] }>> =
+      await UriHttpClient.getClient().post(`${BASE}/listening/run`, {});
+    return res.data;
+  }
+
+  static async listListeningCards(): Promise<UriResponse<ListeningCard[]>> {
+    const res: AxiosResponse<UriResponse<ListeningCard[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/cards`
+    );
+    return res.data;
+  }
+
+  static async actOnListeningCard(
+    cardId: string,
+    action: ListeningCardAction,
+    reason?: string
+  ): Promise<UriResponse<Record<string, unknown>>> {
+    const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().post(
+      `${BASE}/listening/cards/${cardId}/action`,
+      { action, reason }
     );
     return res.data;
   }
