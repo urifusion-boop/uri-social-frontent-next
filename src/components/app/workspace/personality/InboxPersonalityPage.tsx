@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useState } from 'react';
 import {
   BrandVoiceService,
   VoiceAuditEntry,
@@ -22,19 +22,20 @@ import { Btn, Card, Chip, FONT, PINK, PINK_SOFT, TRAIT_NAMES, errorText, statusO
  * version; every publish is kept and any one can be restored.
  */
 
-type Tab = 'overview' | 'templates' | 'assessment' | 'learn' | 'playground' | 'advanced' | 'history';
+type Step = 'templates' | 'assessment' | 'learn' | 'playground' | 'advanced' | 'publish';
+type Tab = 'overview' | 'history' | Step;
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'templates', label: 'Templates' },
-  { id: 'assessment', label: 'Discover my voice' },
-  { id: 'learn', label: 'Learn from conversations' },
-  { id: 'playground', label: 'Playground' },
-  { id: 'advanced', label: 'Advanced' },
-  { id: 'history', label: 'History' },
+const STEPS: { id: Step; label: string; next: string; optional?: boolean }[] = [
+  { id: 'templates', label: 'Choose a style', next: 'Choose a style' },
+  { id: 'learn', label: 'Teach it', next: 'Teach it your replies', optional: true },
+  { id: 'playground', label: 'Test it', next: 'Test it' },
+  { id: 'advanced', label: 'Fine-tune', next: 'Fine-tune', optional: true },
+  { id: 'publish', label: 'Publish', next: 'Review and publish' },
 ];
 
-const NEEDS_PROFILE: Tab[] = ['learn', 'playground', 'advanced', 'history'];
+function stepIndex(tab: Tab): number {
+  return STEPS.findIndex((s) => s.id === (tab === 'assessment' ? 'templates' : tab));
+}
 
 const AUDIT_LABELS: Record<string, string> = {
   created: 'Created',
@@ -52,6 +53,14 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
   const [canPublish, setCanPublish] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const [notice, setNotice] = useState('');
+
+  function go(t: Tab) {
+    setTab(t);
+    setNotice('');
+    setError('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   const load = useCallback(async () => {
     const [cat, ov] = await Promise.all([BrandVoiceService.catalog(), BrandVoiceService.overview()]);
@@ -84,7 +93,9 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
         ? await BrandVoiceService.updateProfile(profile.id, { template_id: templateId, apply_template: true })
         : await BrandVoiceService.createProfile(templateId);
       upsert(p);
-      setTab('playground');
+      setNotice(
+        `${catalog?.templates.find((t) => t.id === templateId)?.name ?? 'Template'} applied. Click Next to continue.`
+      );
     } catch (e) {
       setError(errorText(e, "Couldn't use that template."));
     }
@@ -95,7 +106,7 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
     setBusy(`new:${templateId}`);
     try {
       upsert(await BrandVoiceService.createProfile(templateId));
-      setTab('playground');
+      setNotice('New profile created. Click Next to continue.');
     } catch (e) {
       setError(errorText(e, "Couldn't create that profile."));
     }
@@ -108,6 +119,8 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
     setError('');
     try {
       upsert(await BrandVoiceService.publish(profile.id));
+      setTab('overview');
+      setNotice('Published. Your inbox agent now replies in this voice.');
     } catch (e) {
       setError(errorText(e, "Couldn't publish. Try again."));
     }
@@ -135,34 +148,24 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
         fontFamily: FONT,
       }}
     >
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-        {TABS.map((t) => {
-          const locked = NEEDS_PROFILE.includes(t.id) && !profile;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              disabled={locked}
-              onClick={() => setTab(t.id)}
-              title={locked ? 'Pick a template or take the assessment first' : undefined}
-              style={{
-                padding: '7px 12px',
-                borderRadius: 999,
-                border: tab === t.id ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                background: tab === t.id ? PINK_SOFT : '#fff',
-                color: locked ? '#ccc' : tab === t.id ? PINK : '#555',
-                fontSize: 12.5,
-                fontWeight: 700,
-                fontFamily: FONT,
-                cursor: locked ? 'not-allowed' : 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {t.label}
-            </button>
-          );
-        })}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        {(['overview', 'history'] as Tab[]).map((t) => (
+          <Chip key={t} active={tab === t} onClick={t === 'history' && !profile ? undefined : () => go(t)}>
+            {t === 'overview' ? 'Overview' : 'History'}
+          </Chip>
+        ))}
+        <div style={{ flex: 1 }} />
+        {stepIndex(tab) < 0 && (
+          <Btn
+            small
+            onClick={() => go(profile ? (profile.has_unpublished_changes ? 'publish' : 'playground') : 'templates')}
+          >
+            {profile ? (profile.active_version ? 'Edit voice' : 'Continue setup') : 'Start setup'}
+          </Btn>
+        )}
       </div>
+
+      {stepIndex(tab) >= 0 && <Stepper current={stepIndex(tab)} hasProfile={Boolean(profile)} onGo={go} />}
 
       {profiles.length > 1 && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5, color: '#666' }}>
@@ -178,6 +181,7 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
       )}
 
       {error && <div style={{ color: '#C62828', fontSize: 12.5 }}>{error}</div>}
+      {notice && tab === 'overview' && <Notice>{notice}</Notice>}
 
       {tab === 'overview' && (
         <Overview
@@ -185,9 +189,20 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
           canPublish={canPublish}
           busy={busy}
           onPublish={publish}
-          onGo={setTab}
+          onGo={go}
           onProfileChange={upsert}
         />
+      )}
+
+      {(tab === 'templates' || tab === 'assessment') && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <Chip active={tab === 'templates'} onClick={() => go('templates')}>
+            Pick a template
+          </Chip>
+          <Chip active={tab === 'assessment'} onClick={() => go('assessment')}>
+            Answer questions instead
+          </Chip>
+        </div>
       )}
 
       {tab === 'templates' && (
@@ -248,10 +263,13 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
           currentProfileId={profile?.id}
           onGenerated={(p) => {
             upsert(p);
-            setTab('overview');
+            go('learn');
+            setNotice('Your voice profile is ready. Next, teach it with replies you have sent, or skip ahead.');
           }}
         />
       )}
+
+      {notice && stepIndex(tab) >= 0 && <Notice>{notice}</Notice>}
 
       {tab === 'learn' && profile && <PersonalityLearn profile={profile} catalog={catalog} onProfileChange={upsert} />}
       {tab === 'playground' && profile && (
@@ -260,8 +278,216 @@ export function InboxPersonalityPage({ isMobile }: { isMobile: boolean }) {
       {tab === 'advanced' && profile && (
         <PersonalityAdvanced profile={profile} catalog={catalog} canPublish={canPublish} onProfileChange={upsert} />
       )}
+      {tab === 'publish' && profile && (
+        <PublishStep
+          profile={profile}
+          canPublish={canPublish}
+          busy={busy}
+          onPublish={publish}
+          onDone={() => go('overview')}
+        />
+      )}
       {tab === 'history' && profile && <History profile={profile} canPublish={canPublish} onProfileChange={upsert} />}
+
+      {stepIndex(tab) >= 0 && tab !== 'assessment' && (
+        <StepNav current={stepIndex(tab)} hasProfile={Boolean(profile)} onGo={go} />
+      )}
     </div>
+  );
+}
+
+function Notice({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        background: '#E8F5E9',
+        border: '1px solid #A5D6A7',
+        color: '#1B5E20',
+        borderRadius: 10,
+        padding: '9px 12px',
+        fontSize: 12.5,
+        fontWeight: 600,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Stepper({ current, hasProfile, onGo }: { current: number; hasProfile: boolean; onGo: (t: Tab) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
+      {STEPS.map((s, i) => {
+        const locked = i > 0 && !hasProfile;
+        const state = i === current ? 'current' : i < current ? 'done' : 'todo';
+        return (
+          <button
+            key={s.id}
+            type="button"
+            disabled={locked}
+            onClick={() => onGo(s.id)}
+            title={locked ? 'Choose a style first' : undefined}
+            style={{
+              flex: '1 0 auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '8px 10px',
+              borderRadius: 10,
+              border: state === 'current' ? '1px solid #E91E63' : '1px solid rgba(0,0,0,.08)',
+              background: state === 'current' ? PINK_SOFT : '#fff',
+              color: locked ? '#bbb' : state === 'todo' ? '#666' : PINK,
+              fontSize: 12.5,
+              fontWeight: 700,
+              fontFamily: FONT,
+              cursor: locked ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 999,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
+                background: state === 'todo' ? '#eee' : PINK,
+                color: state === 'todo' ? '#888' : '#fff',
+              }}
+            >
+              {state === 'done' ? '✓' : i + 1}
+            </span>
+            {s.label}
+            {s.optional && <span style={{ fontWeight: 500, color: '#aaa' }}>optional</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function StepNav({ current, hasProfile, onGo }: { current: number; hasProfile: boolean; onGo: (t: Tab) => void }) {
+  const prev = STEPS[current - 1];
+  const next = STEPS[current + 1];
+  const step = STEPS[current];
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        flexWrap: 'wrap',
+        borderTop: '1px solid rgba(0,0,0,.08)',
+        paddingTop: 14,
+      }}
+    >
+      {prev ? (
+        <Btn kind="ghost" onClick={() => onGo(prev.id)}>
+          ← Back
+        </Btn>
+      ) : (
+        <Btn kind="ghost" onClick={() => onGo('overview')}>
+          Cancel
+        </Btn>
+      )}
+      <span style={{ fontSize: 12, color: '#999' }}>
+        Step {current + 1} of {STEPS.length}
+      </span>
+      <div style={{ flex: 1 }} />
+      {next && (
+        <>
+          {!hasProfile && <span style={{ fontSize: 12, color: '#999' }}>Pick a template to continue</span>}
+          {step.optional && hasProfile && (
+            <Btn kind="ghost" onClick={() => onGo(next.id)}>
+              Skip
+            </Btn>
+          )}
+          <Btn onClick={() => onGo(next.id)} disabled={!hasProfile}>
+            Next: {next.next} →
+          </Btn>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PublishStep({
+  profile,
+  canPublish,
+  busy,
+  onPublish,
+  onDone,
+}: {
+  profile: VoiceProfile;
+  canPublish: boolean;
+  busy: string;
+  onPublish: () => void;
+  onDone: () => void;
+}) {
+  const upToDate = Boolean(profile.active_version) && !profile.has_unpublished_changes;
+  return (
+    <Card
+      title="Review and publish"
+      desc="Customers only hear a published voice. You can change it or restore an earlier version any time."
+      right={<Chip tone={statusOf(profile).tone}>{statusOf(profile).text}</Chip>}
+    >
+      <div style={{ fontSize: 13.5, fontWeight: 800, color: '#1a1a1a' }}>{profile.name}</div>
+      {profile.summary && <div style={{ fontSize: 12.5, color: '#555', lineHeight: 1.5 }}>{profile.summary}</div>}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {topTraits(profile).map(([k, v]) => (
+          <Chip key={k} tone="pink">
+            {TRAIT_NAMES[k] ?? k} {v}
+          </Chip>
+        ))}
+      </div>
+      <div style={{ fontSize: 12.5, color: '#555' }}>
+        <strong>Language:</strong> {languageOf(profile)}
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {upToDate ? (
+          <>
+            <span style={{ fontSize: 12.5, color: '#1B5E20' }}>This version is already live.</span>
+            <div style={{ flex: 1 }} />
+            <Btn onClick={onDone}>Finish</Btn>
+          </>
+        ) : canPublish ? (
+          <>
+            <span style={{ fontSize: 12.5, color: '#7A4B00' }}>
+              {profile.active_version
+                ? 'You have changes that customers are not hearing yet.'
+                : 'Not live yet: replies use your Brand Playbook’s voice until you publish.'}
+            </span>
+            <div style={{ flex: 1 }} />
+            <Btn onClick={onPublish} disabled={busy === 'publish'}>
+              {busy === 'publish' ? 'Publishing…' : 'Publish and finish'}
+            </Btn>
+          </>
+        ) : (
+          <>
+            <span style={{ fontSize: 12.5, color: '#7A4B00' }}>
+              Your draft is saved. An admin needs to publish it before customers hear it.
+            </span>
+            <div style={{ flex: 1 }} />
+            <Btn onClick={onDone}>Finish</Btn>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function topTraits(profile: VoiceProfile): [string, number][] {
+  return Object.entries(profile.traits)
+    .sort((a, b) => Math.abs(b[1] - 50) - Math.abs(a[1] - 50))
+    .slice(0, 6);
+}
+
+function languageOf(profile: VoiceProfile): string {
+  return (
+    (profile.language.default === 'en-NG' ? 'Nigerian English' : 'Standard English') +
+    (profile.language.allowed.includes('pcm') ? ' · Pidgin when the customer uses it' : '')
   );
 }
 
@@ -324,12 +550,8 @@ function Overview({
   }
 
   const status = statusOf(profile);
-  const top = Object.entries(profile.traits)
-    .sort((a, b) => Math.abs(b[1] - 50) - Math.abs(a[1] - 50))
-    .slice(0, 6);
-  const language =
-    (profile.language.default === 'en-NG' ? 'Nigerian English' : 'Standard English') +
-    (profile.language.allowed.includes('pcm') ? ' · Pidgin when the customer uses it' : '');
+  const top = topTraits(profile);
+  const language = languageOf(profile);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
