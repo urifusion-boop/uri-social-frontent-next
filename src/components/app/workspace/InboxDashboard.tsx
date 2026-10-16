@@ -1049,6 +1049,189 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
 
+  const notificationBell = (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        aria-label="Notifications"
+        onClick={() => setNotificationsOpen((o) => !o)}
+        style={{
+          width: 36,
+          height: 36,
+          border: 'none',
+          background: 'transparent',
+          borderRadius: 8,
+          color: '#555',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          position: 'relative',
+        }}
+      >
+        <I n="bell" s={18} />
+        <span
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: '#E91E63',
+          }}
+        />
+      </button>
+      {notificationsOpen && (
+        <>
+          <div onClick={() => setNotificationsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+          <div
+            style={{
+              position: 'absolute',
+              top: '110%',
+              right: 0,
+              zIndex: 999,
+              background: '#fff',
+              borderRadius: 12,
+              boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+              border: '1px solid rgba(0,0,0,.06)',
+              width: 300,
+              maxWidth: '85vw',
+              padding: 8,
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#333', padding: '6px 8px 10px' }}>Recent activity</div>
+            {[
+              { text: 'Tobi O. sent a new message', time: '2h', icon: 'inbox' as const, color: '#C62828' },
+              { text: 'Ifeoma B. commented on your ad', time: '24m', icon: 'megaphone' as const, color: '#AD1457' },
+              { text: 'Ngozi U. resolved a conversation', time: '3h', icon: 'check' as const, color: '#2E7D32' },
+            ].map((n, idx) => (
+              <div
+                key={idx}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px', borderRadius: 8 }}
+              >
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: `${n.color}1a`,
+                    color: n.color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flex: '0 0 auto',
+                  }}
+                >
+                  <I n={n.icon} s={13} c={n.color} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, color: '#333' }}>{n.text}</div>
+                  <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>{n.time} ago</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CONNECTIONS / INSIGHTS — full-width sub-screens, same for mobile and desktop
+  // ═══════════════════════════════════════════════════════════════════════
+  if (subView !== 'inbox') {
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          fontFamily: FONT,
+          background: '#fafafa',
+          color: '#1a1a1a',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            height: 56,
+            flex: '0 0 56px',
+            background: '#fff',
+            borderBottom: '1px solid rgba(0,0,0,.08)',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 16px',
+            gap: 10,
+            boxSizing: 'border-box',
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Back to Customer Messages"
+            onClick={() => setSubView('inbox')}
+            style={{
+              width: 34,
+              height: 34,
+              border: 'none',
+              background: 'transparent',
+              color: '#444',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              borderRadius: 8,
+              flex: '0 0 auto',
+            }}
+          >
+            <I n="chevronLeft" s={20} />
+          </button>
+          <div
+            style={{
+              flex: 1,
+              fontSize: isMobile ? 16 : 18,
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {subView === 'connections'
+              ? 'Channel Connections'
+              : subView === 'insights'
+                ? 'Insights'
+                : subView === 'voice'
+                  ? 'Brand Voice'
+                  : 'Inbox Settings'}
+          </div>
+          {notificationBell}
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          {subView === 'connections' ? (
+            <InboxConnectionsPage
+              isMobile={isMobile}
+              connections={channelConnections}
+              onConnected={handleChannelConnected}
+            />
+          ) : subView === 'insights' ? (
+            <InboxInsightsPage isMobile={isMobile} conversations={conversations} />
+          ) : subView === 'voice' ? (
+            <InboxPersonalityPage isMobile={isMobile} />
+          ) : (
+            <InboxSettingsPage
+              isMobile={isMobile}
+              savedReplies={savedReplies}
+              onSavedRepliesChange={setSavedReplies}
+              tagPresets={tagPresets}
+              onTagPresetsChange={setTagPresets}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Nothing to show yet. This has to come before selectedConv: with an empty
   // list the old `?? conversations[0]` was undefined and the next line crashed.
   if (loadingList || !conversations.length) {
@@ -1102,6 +1285,35 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             <p style={{ margin: 0, fontSize: 14, maxWidth: 420 }}>
               Messages and comments from your connected Instagram and Facebook accounts will appear here as they arrive.
             </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 10 }}>
+              {(
+                [
+                  ['connections', 'Connections'],
+                  ['voice', 'Brand Voice'],
+                  ['settings', 'Inbox Settings'],
+                  ['insights', 'Insights'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setSubView(id)}
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: 8,
+                    border: id === 'voice' ? 'none' : '1px solid rgba(0,0,0,.12)',
+                    background: id === 'voice' ? '#C2185B' : '#fff',
+                    color: id === 'voice' ? '#fff' : '#333',
+                    fontFamily: FONT,
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </>
         )}
       </div>
@@ -2728,94 +2940,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           dot: '#B26A00',
         };
 
-  const notificationBell = (
-    <div style={{ position: 'relative' }}>
-      <button
-        type="button"
-        aria-label="Notifications"
-        onClick={() => setNotificationsOpen((o) => !o)}
-        style={{
-          width: 36,
-          height: 36,
-          border: 'none',
-          background: 'transparent',
-          borderRadius: 8,
-          color: '#555',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          position: 'relative',
-        }}
-      >
-        <I n="bell" s={18} />
-        <span
-          style={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: '#E91E63',
-          }}
-        />
-      </button>
-      {notificationsOpen && (
-        <>
-          <div onClick={() => setNotificationsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-          <div
-            style={{
-              position: 'absolute',
-              top: '110%',
-              right: 0,
-              zIndex: 999,
-              background: '#fff',
-              borderRadius: 12,
-              boxShadow: '0 8px 24px rgba(0,0,0,.15)',
-              border: '1px solid rgba(0,0,0,.06)',
-              width: 300,
-              maxWidth: '85vw',
-              padding: 8,
-            }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#333', padding: '6px 8px 10px' }}>Recent activity</div>
-            {[
-              { text: 'Tobi O. sent a new message', time: '2h', icon: 'inbox' as const, color: '#C62828' },
-              { text: 'Ifeoma B. commented on your ad', time: '24m', icon: 'megaphone' as const, color: '#AD1457' },
-              { text: 'Ngozi U. resolved a conversation', time: '3h', icon: 'check' as const, color: '#2E7D32' },
-            ].map((n, idx) => (
-              <div
-                key={idx}
-                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px', borderRadius: 8 }}
-              >
-                <div
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: `${n.color}1a`,
-                    color: n.color,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flex: '0 0 auto',
-                  }}
-                >
-                  <I n={n.icon} s={13} c={n.color} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, color: '#333' }}>{n.text}</div>
-                  <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>{n.time} ago</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-
   const leadModal = leadModalOpen && (
     <>
       <div
@@ -2971,101 +3095,6 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
       </div>
     </>
   );
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // CONNECTIONS / INSIGHTS — full-width sub-screens, same for mobile and desktop
-  // ═══════════════════════════════════════════════════════════════════════
-  if (subView !== 'inbox') {
-    return (
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          fontFamily: FONT,
-          background: '#fafafa',
-          color: '#1a1a1a',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            height: 56,
-            flex: '0 0 56px',
-            background: '#fff',
-            borderBottom: '1px solid rgba(0,0,0,.08)',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 16px',
-            gap: 10,
-            boxSizing: 'border-box',
-          }}
-        >
-          <button
-            type="button"
-            aria-label="Back to Customer Messages"
-            onClick={() => setSubView('inbox')}
-            style={{
-              width: 34,
-              height: 34,
-              border: 'none',
-              background: 'transparent',
-              color: '#444',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              borderRadius: 8,
-              flex: '0 0 auto',
-            }}
-          >
-            <I n="chevronLeft" s={20} />
-          </button>
-          <div
-            style={{
-              flex: 1,
-              fontSize: isMobile ? 16 : 18,
-              fontWeight: 800,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {subView === 'connections'
-              ? 'Channel Connections'
-              : subView === 'insights'
-                ? 'Insights'
-                : subView === 'voice'
-                  ? 'Brand Voice'
-                  : 'Inbox Settings'}
-          </div>
-          {notificationBell}
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          {subView === 'connections' ? (
-            <InboxConnectionsPage
-              isMobile={isMobile}
-              connections={channelConnections}
-              onConnected={handleChannelConnected}
-            />
-          ) : subView === 'insights' ? (
-            <InboxInsightsPage isMobile={isMobile} conversations={conversations} />
-          ) : subView === 'voice' ? (
-            <InboxPersonalityPage isMobile={isMobile} />
-          ) : (
-            <InboxSettingsPage
-              isMobile={isMobile}
-              savedReplies={savedReplies}
-              onSavedRepliesChange={setSavedReplies}
-              tagPresets={tagPresets}
-              onTagPresetsChange={setTagPresets}
-            />
-          )}
-        </div>
-      </div>
-    );
-  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // MOBILE
