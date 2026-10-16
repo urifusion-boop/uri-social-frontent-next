@@ -21,6 +21,7 @@ import {
   Search,
   Settings2,
   ShieldAlert,
+  Sparkles,
   ShoppingCart,
   ThumbsUp,
   Trash2,
@@ -810,6 +811,21 @@ function ChipInput({
   );
 }
 
+// Plain names for the source chips (provider keys come from the backend).
+const SOURCE_LABELS: Record<string, string> = {
+  mock: 'Sample data',
+  x: 'X (Twitter)',
+  x_pro: 'X (Twitter) · Pro',
+};
+
+// One source by default, never every paid one at once: the cheapest real one
+// if the server has it, otherwise whatever is first.
+const defaultSourceSelection = (list: SourceCapability[]): Set<string> => {
+  const keys = list.map((s) => s.provider);
+  const pick = keys.includes('x') ? 'x' : keys.find((k) => k !== 'mock') ?? keys[0];
+  return new Set(pick ? [pick] : []);
+};
+
 function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => void; onCancel: () => void }) {
   const [question, setQuestion] = useState('');
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -826,15 +842,49 @@ function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => vo
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [keepUpdating, setKeepUpdating] = useState(true);
+  const [fromBrand, setFromBrand] = useState<'loading' | 'filled' | 'none'>('loading');
+  const [brandNote, setBrandNote] = useState('');
+
+  // Fill the form from the brand's Playbook straight away, so the owner
+  // reviews a ready topic instead of starting from a blank page.
+  const fillFromBrand = async (sourceList?: SourceCapability[]) => {
+    setFromBrand('loading');
+    try {
+      const res = await MarketIntelligenceService.suggestFromBrand();
+      if (res.status && res.responseData) {
+        const t = res.responseData;
+        setQuestion(t.question);
+        setKeywords(t.keywords ?? []);
+        setExcludedKeywords(t.excluded_keywords ?? []);
+        setGeographicScope(t.geographic_scope ?? '');
+        setCompetitors(t.competitors ?? []);
+        setLanguages(t.languages?.length ? t.languages : ['en']);
+        setDays(t.requested_days || 7);
+        setUsingCustomDays(false);
+        setKeepUpdating(t.keep_updating ?? true);
+        const known = new Set((sourceList ?? sources).map((s) => s.provider));
+        const wanted = (t.sources ?? []).filter((s) => known.size === 0 || known.has(s));
+        if (wanted.length) setSelectedSources(new Set(wanted));
+        if ((t.competitors ?? []).length || t.geographic_scope) setShowAdvanced(true);
+        setFromBrand('filled');
+      } else {
+        setFromBrand('none');
+        setBrandNote(res.responseMessage || '');
+      }
+    } catch {
+      setFromBrand('none');
+    }
+  };
 
   useEffect(() => {
     MarketIntelligenceService.listSources().then((res) => {
-      if (res.status) {
-        const list = res.responseData ?? [];
-        setSources(list);
-        setSelectedSources(new Set(list.map((s) => s.provider)));
-      }
+      const list = res.status ? res.responseData ?? [] : [];
+      setSources(list);
+      setSelectedSources(defaultSourceSelection(list));
+      fillFromBrand(list);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSuggestKeywords = async () => {
@@ -865,6 +915,7 @@ function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => vo
         sources: selectedSources.size > 0 ? Array.from(selectedSources) : ['mock'],
         geographic_scope: geographicScope.trim() || undefined,
         requested_days: requestedDays,
+        keep_updating: keepUpdating,
         competitors,
         languages,
         notification_sensitivity: sensitivity,
@@ -885,9 +936,30 @@ function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => vo
   return (
     <Card>
       <CardContent className="space-y-3.5 p-4">
-        <div className="text-[12.5px] text-muted-foreground">
-          Ask a plain question, e.g. &ldquo;What stops Lagos customers from ordering ready-to-wear clothes
-          online?&rdquo;
+        <div className="flex items-start justify-between gap-3">
+          <div className="text-[12.5px] text-muted-foreground">
+            {fromBrand === 'loading' ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3 w-3 animate-spin" /> Setting this up from your Brand Playbook…
+              </span>
+            ) : fromBrand === 'filled' ? (
+              <span className="inline-flex items-center gap-1.5 text-foreground">
+                <Sparkles className="h-3.5 w-3.5 text-primary" /> Filled in from your Brand Playbook — check it,
+                change anything, then create.
+              </span>
+            ) : (
+              <>
+                {brandNote ? `${brandNote} ` : ''}Ask a plain question, e.g. &ldquo;What stops Lagos customers from
+                ordering ready-to-wear clothes online?&rdquo;
+              </>
+            )}
+          </div>
+          {fromBrand !== 'loading' && (
+            <Button variant="ghost" size="xs" onClick={() => fillFromBrand()}>
+              <Sparkles className="h-3 w-3" />
+              {fromBrand === 'filled' ? 'Refill from Playbook' : 'Use my Brand Playbook'}
+            </Button>
+          )}
         </div>
         <Textarea
           value={question}
@@ -979,13 +1051,29 @@ function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => vo
                     )}
                     title={s.notes}
                   >
-                    {s.provider} · {s.verified_lookback_days}d lookback
+                    {SOURCE_LABELS[s.provider] ?? s.provider} · {s.verified_lookback_days}d lookback
                   </button>
                 );
               })}
             </div>
           </div>
         )}
+
+        <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5">
+          <input
+            type="checkbox"
+            checked={keepUpdating}
+            onChange={(e) => setKeepUpdating(e.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5 accent-[hsl(var(--primary))]"
+          />
+          <span>
+            <span className="block text-[12.5px] font-medium text-foreground">Keep updating</span>
+            <span className="block text-[11px] text-muted-foreground">
+              Uri re-checks this topic automatically and adds new posts to the same insights. Each check uses a
+              little of your monthly budget.
+            </span>
+          </span>
+        </label>
 
         <button
           type="button"

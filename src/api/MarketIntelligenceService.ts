@@ -255,12 +255,25 @@ export interface SourceCoveragePreview {
   estimated_cost_usd: number;
 }
 
+export interface BrandTopicSuggestion {
+  question: string;
+  keywords: string[];
+  excluded_keywords: string[];
+  geographic_scope?: string | null;
+  competitors: string[];
+  languages: string[];
+  requested_days: number;
+  keep_updating: boolean;
+  sources: string[];
+  built_from: string[];
+}
+
 export interface TopicCreateRequest {
   question: string;
   keywords?: string[];
   excluded_keywords?: string[];
-  // Provider names only, e.g. ['mock'] — 'mock' is the only registered
-  // adapter today (see uri-social-backend's scan_runner.ADAPTER_REGISTRY).
+  // Provider names, e.g. ['x'] — see uri-social-backend's
+  // scan_runner.ADAPTER_REGISTRY (mock, x = X test actor, x_pro = X at scale).
   sources?: string[];
   geographic_scope?: string;
   requested_days?: number;
@@ -302,6 +315,15 @@ export class MarketIntelligenceService {
     const res: AxiosResponse<UriResponse<KeywordSuggestion>> = await UriHttpClient.getClient().post(
       `${BASE}/topics/suggest-keywords`,
       { question }
+    );
+    return res.data;
+  }
+
+  // A starter topic built from the brand's own Playbook, for the owner to review.
+  static async suggestFromBrand(): Promise<UriResponse<BrandTopicSuggestion>> {
+    const res: AxiosResponse<UriResponse<BrandTopicSuggestion>> = await UriHttpClient.getClient().post(
+      `${BASE}/topics/suggest-from-brand`,
+      {}
     );
     return res.data;
   }
