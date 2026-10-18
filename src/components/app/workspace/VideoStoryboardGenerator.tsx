@@ -136,6 +136,136 @@ export const AVATAR_VOICES = [
   'Bill',
 ];
 
+// These voices are ElevenLabs' own stock "Default" library (confirmed —
+// fal-ai/ai-avatar/single-text's voice enum uses ElevenLabs for TTS under
+// the hood) and ElevenLabs hosts a public, no-auth preview sample for each
+// one at a stable CDN URL. Only the ones confirmed here get a preview button
+// in AvatarVoicePicker below — George, Brian, Bill, and Laura are still
+// valid, selectable voices, they just don't have a confirmed preview URL yet.
+// NOTE: ElevenLabs is retiring this entire legacy default-voice set on
+// 2026-12-31 (e.g. Callum -> Kellan, Brian -> Sawyer) — once AVATAR_VOICES
+// is updated to the replacement set, these URLs need replacing too.
+export const VOICE_PREVIEWS: Record<string, string> = {
+  Aria: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/9BWtsMINqrJLrRacOk9x/405766b8-1f4e-4d3c-aba1-6f25333823ec.mp3',
+  Roger:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/CwhRBWXzGAHq8TQ4Fs17/58ee3ff5-f6f2-4628-93b8-e38eb31806b0.mp3',
+  Sarah:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/EXAVITQu4vr4xnSDxMaL/01a3e33c-6e99-4ee7-8543-ff2216a32186.mp3',
+  Charlie:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/IKne3meq5aSn9XLyUdCD/102de6f2-22ed-43e0-a1f1-111fa75c5481.mp3',
+  Callum:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/N2lVS1w4EtoT3dr4eOWO/ac833bd8-ffda-4938-9ebc-b0f99ca25481.mp3',
+  River:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/SAz9YHcvj6GT2YYXdXww/e6c95f0b-2227-491a-b3d7-2249240decb7.mp3',
+  Liam: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/TX3LPaxmHKxFdv7VOQHJ/63148076-6363-42db-aea8-31424308b92c.mp3',
+  Charlotte:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/XB0fDUnXU5powFXDhCwa/942356dc-f10d-4d89-bda5-4f8505ee038b.mp3',
+  Alice:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/Xb7hH8MSUJpSbSDYk0k2/d10f7534-11f6-41fe-a012-2de1e482d336.mp3',
+  Matilda:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/XrExE9yKIg1WjnnlVkGX/b930e18d-6b4d-466e-bab2-0ae97c6d8535.mp3',
+  Will: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/bIHbv24MWmeRgasZH58o/8caf8f3d-ad29-4980-af41-53f20c72d7a4.mp3',
+  Jessica:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/cgSgspJ2msm6clMCkdW9/56a97bf8-b69b-448f-846c-c3a11683d45a.mp3',
+  Eric: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/cjVigY5qzO86Huf0OWal/d098fda0-6456-4030-b3d8-63aa048c9070.mp3',
+  Chris:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/iP95p4xoKVk53GoZ742B/3f4bde72-cc48-40dd-829f-57fbf906f4d7.mp3',
+  Daniel:
+    'https://storage.googleapis.com/eleven-public-prod/premade/voices/onwK4e9ZLuTAKqWW03F9/7eee0236-1a72-4b86-b303-5dcadc007ba9.mp3',
+  Lily: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/pFZP5JQG7iQjIQuC4Bku/89b68b35-b3dd-4348-a84a-a3c13a3c2b30.mp3',
+};
+
+// Shared by VideoStoryboardGenerator and DescribeVideoGenerator — a chip grid
+// in place of a native <select> so a small play/pause control can sit inline
+// per voice. Clicking a chip selects that voice; clicking its ▶/⏸ (only
+// rendered when VOICE_PREVIEWS has an entry) plays/stops a short sample
+// without changing the selection.
+export function AvatarVoicePicker({ value, onChange }: { value: string; onChange: (voice: string) => void }) {
+  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      audioRef.current?.pause();
+    };
+  }, []);
+
+  const togglePreview = (voice: string) => {
+    const url = VOICE_PREVIEWS[voice];
+    if (!url) return;
+    if (playingVoice === voice) {
+      audioRef.current?.pause();
+      setPlayingVoice(null);
+      return;
+    }
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.onended = () => setPlayingVoice(null);
+    }
+    audioRef.current.src = url;
+    audioRef.current.play().catch(() => setPlayingVoice(null));
+    setPlayingVoice(voice);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {AVATAR_VOICES.map((v) => {
+        const isSelected = value === v;
+        const hasPreview = Boolean(VOICE_PREVIEWS[v]);
+        const isPlaying = playingVoice === v;
+        return (
+          <div
+            key={v}
+            onClick={() => onChange(v)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') onChange(v);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 10px',
+              borderRadius: 8,
+              border: `1.5px solid ${isSelected ? PRIMARY : BORDER}`,
+              background: '#fff',
+              color: isSelected ? PRIMARY : DARK,
+              fontSize: 12.5,
+              fontWeight: isSelected ? 600 : 500,
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
+            {v}
+            {hasPreview && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePreview(v);
+                }}
+                aria-label={`${isPlaying ? 'Stop' : 'Play'} a sample of ${v}'s voice`}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontSize: 11,
+                  lineHeight: 1,
+                  color: isSelected ? PRIMARY : GREY,
+                }}
+              >
+                {isPlaying ? '⏸' : '▶'}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export const DURATIONS = [
   { value: 10, label: '10s' },
   { value: 15, label: '15s' },
@@ -1168,26 +1298,7 @@ export default function VideoStoryboardGenerator() {
                     >
                       Avatar Voice
                     </p>
-                    <select
-                      value={selectedVoice}
-                      onChange={(e) => setSelectedVoice(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '9px 10px',
-                        borderRadius: 8,
-                        border: `1px solid ${BORDER}`,
-                        fontSize: 13,
-                        fontFamily: 'inherit',
-                        color: DARK,
-                        background: '#fff',
-                      }}
-                    >
-                      {AVATAR_VOICES.map((v) => (
-                        <option key={v} value={v}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
+                    <AvatarVoicePicker value={selectedVoice} onChange={setSelectedVoice} />
                     {storyboard && !storyboard.scenes.some((s) => s.dialogue) && (
                       <p style={{ fontSize: 11, color: '#B45309', margin: '6px 0 0' }}>
                         This storyboard has no scripted dialogue yet — pick the "Testimonial Style" video style and

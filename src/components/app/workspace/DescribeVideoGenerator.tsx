@@ -17,7 +17,7 @@ import {
   PLATFORMS,
   DURATIONS,
   VIDEO_OUTCOMES,
-  AVATAR_VOICES,
+  AvatarVoicePicker,
   MODEL_LABELS,
   Section,
   Spinner,
@@ -1028,26 +1028,7 @@ export default function DescribeVideoGenerator() {
                     >
                       Avatar Voice
                     </p>
-                    <select
-                      value={selectedVoice}
-                      onChange={(e) => setSelectedVoice(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '9px 10px',
-                        borderRadius: 8,
-                        border: `1px solid ${BORDER}`,
-                        fontSize: 13,
-                        fontFamily: 'inherit',
-                        color: DARK,
-                        background: '#fff',
-                      }}
-                    >
-                      {AVATAR_VOICES.map((v) => (
-                        <option key={v} value={v}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
+                    <AvatarVoicePicker value={selectedVoice} onChange={setSelectedVoice} />
                     {storyboard && !storyboard.scenes.some((s) => s.dialogue) && (
                       <p style={{ fontSize: 11, color: '#B45309', margin: '6px 0 0' }}>
                         This script has no scripted dialogue yet — describe a speaking person in your brief (or pick
