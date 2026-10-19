@@ -400,6 +400,20 @@ export interface CarouselSlide {
   logo_placement?: LogoPlacement;
 }
 
+export interface ExpandPromptPayload {
+  idea: string;
+  platforms: string[];
+  post_type: string;
+  num_slides?: number;
+  include_images: boolean;
+  style_override?: string[];
+}
+
+export interface ExpandedPrompt {
+  expanded_prompt: string;
+  used: string[];
+}
+
 export interface ContentDraft {
   id?: string;
   draft_id?: string;
@@ -565,6 +579,16 @@ export class SocialMediaAgentService {
   static async disconnectTikTokDirect(): Promise<UriResponse<string>> {
     const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
       `/social-media/connections/tiktok-direct`
+    );
+    return response.data;
+  }
+
+  // Turn a short idea into a fuller, brand-guided brief for the owner to review before generating.
+  static async expandPrompt(payload: ExpandPromptPayload): Promise<UriResponse<ExpandedPrompt>> {
+    const response: Awaited<AxiosResponse<UriResponse<ExpandedPrompt>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.expandPrompt,
+      payload,
+      { timeout: 60000 }
     );
     return response.data;
   }

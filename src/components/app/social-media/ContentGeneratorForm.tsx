@@ -99,6 +99,10 @@ function _friendlyGenerationError(msg?: string): string {
 
 const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: ContentGeneratorFormProps) => {
   const [seedContent, setSeedContent] = useState('');
+  // "Expand with Jane": the short idea it replaced (for Undo) and what it drew on.
+  const [expanding, setExpanding] = useState(false);
+  const [ideaBeforeExpand, setIdeaBeforeExpand] = useState<string | null>(null);
+  const [expandedFrom, setExpandedFrom] = useState<string[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
   // "Tell Jane": a lasting preference ("always…", "never…") belongs in the
   // Playbook, not in one post's topic — this saves it for every post after.
@@ -352,6 +356,42 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     refreshCredits();
   }, []);
 
+  const handleExpand = async () => {
+    const idea = seedContent.trim();
+    if (idea.length < 3 || expanding) return;
+    setExpanding(true);
+    try {
+      const res = await SocialMediaAgentService.expandPrompt({
+        idea,
+        platforms: selectedPlatforms,
+        post_type: postType,
+        ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
+        include_images: includeImages,
+        ...(useStyleOverride && selectedOverrideStyles.length > 0 ? { style_override: selectedOverrideStyles } : {}),
+      });
+      if (res.status && res.responseData?.expanded_prompt) {
+        setIdeaBeforeExpand(idea);
+        setSeedContent(res.responseData.expanded_prompt);
+        setExpandedFrom(res.responseData.used ?? []);
+        posthog.capture('prompt_expanded', { platforms: selectedPlatforms, post_type: postType });
+      } else {
+        ToastService.showToast(res.responseMessage || "Jane couldn't expand that — try again.", ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      const detail = (err as { data?: { detail?: string } })?.data?.detail;
+      ToastService.showToast(detail || "Jane couldn't expand that — try again.", ToastTypeEnum.Error);
+    } finally {
+      setExpanding(false);
+    }
+  };
+
+  const undoExpand = () => {
+    if (ideaBeforeExpand === null) return;
+    setSeedContent(ideaBeforeExpand);
+    setIdeaBeforeExpand(null);
+    setExpandedFrom([]);
+  };
+
   const doGenerate = async (acknowledgedIncomplete = false) => {
     setLoading(true);
     try {
@@ -503,6 +543,32 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
             <MdInfoOutline size={15} color="#9CA3AF" />
           </Box>
         </Tooltip>
+        <Tooltip
+          title="Write a short idea (e.g. “Happy Mother’s Day post”) and Jane turns it into a full brief using your Brand Playbook and chosen visual style. You can edit it before generating."
+          arrow
+          enterTouchDelay={0}
+        >
+          <span style={{ marginLeft: 'auto' }}>
+            <Button
+              size="small"
+              onClick={handleExpand}
+              disabled={expanding || seedContent.trim().length < 3}
+              startIcon={expanding ? <CircularProgress size={13} color="inherit" /> : <span aria-hidden>✨</span>}
+              sx={{
+                textTransform: 'none',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                borderRadius: '999px',
+                px: 1.5,
+                color: '#B0185A',
+                background: 'rgba(176,24,90,0.08)',
+                '&:hover': { background: 'rgba(176,24,90,0.14)' },
+              }}
+            >
+              {expanding ? 'Expanding…' : 'Expand with Jane'}
+            </Button>
+          </span>
+        </Tooltip>
       </Box>
       <TextField
         placeholder="Describe the topic, share a link, or paste existing content to repurpose..."
@@ -511,10 +577,43 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
         rows={6}
         value={seedContent}
         onChange={(e) => setSeedContent(e.target.value)}
+        disabled={expanding}
         slotProps={{ htmlInput: { maxLength: 5000 } }}
         helperText={`${charCount}/5000 characters (min 10)`}
         sx={{ mb: showTellJane ? 1.5 : 1 }}
       />
+      {ideaBeforeExpand !== null && (
+        <Box
+          display="flex"
+          alignItems="center"
+          flexWrap="wrap"
+          gap={1}
+          mb={1}
+          sx={{ fontSize: '12px', color: '#6B7280' }}
+        >
+          <span>
+            ✨ Expanded with your Brand Playbook
+            {expandedFrom.length ? ` (${expandedFrom.slice(0, 4).join(', ')})` : ''} — edit anything before
+            generating.
+          </span>
+          <Typography
+            component="button"
+            type="button"
+            onClick={undoExpand}
+            sx={{
+              border: 0,
+              background: 'none',
+              p: 0,
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: '#B0185A',
+            }}
+          >
+            Undo
+          </Typography>
+        </Box>
+      )}
       {showTellJane ? (
         <TellJane compact source="create" />
       ) : (
