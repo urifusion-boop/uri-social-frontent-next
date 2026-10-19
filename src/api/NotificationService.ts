@@ -13,6 +13,7 @@ export interface Notification {
     | 'content_created'
     | 'content_posted'
     | 'post_failed'
+    | 'inbox_needs_reply'
     | 'daily_suggestion'
     | 'inactivity'
     | 'trial_start'
