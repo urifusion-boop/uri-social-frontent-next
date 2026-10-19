@@ -3789,6 +3789,16 @@ function ResultCard({
     if (result.stage === 'tiktok_not_configured') {
       return <JaneBubble>TikTok Ads isn&rsquo;t connected right now — try again shortly.</JaneBubble>;
     }
+    if (result.stage === 'tiktok_connection_no_whatsapp') {
+      return (
+        <JaneBubble>
+          {result.question || 'I need a WhatsApp number to run this TikTok ad.'}{' '}
+          <a href="/workspace/?tab=connections" style={{ color: PINK, fontWeight: 600 }}>
+            Open Connected Accounts →
+          </a>
+        </JaneBubble>
+      );
+    }
     if (
       result.stage === 'google_not_connected' ||
       result.stage === 'google_budget_too_low' ||

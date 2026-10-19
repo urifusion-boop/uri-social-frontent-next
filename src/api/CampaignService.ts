@@ -227,6 +227,9 @@ export interface LaunchFromMessageResult {
     // couldn't be honoured right now — see MetaLaunchFromMessageBody.preferred_platform.
     | 'tiktok_needs_video'
     | 'tiktok_not_configured'
+    // TikTok's own ad account has no Facebook Page concept — this is TikTok's
+    // counterpart to meta_connection_ads_no_whatsapp, not routed through Meta at all.
+    | 'tiktok_connection_no_whatsapp'
     // Google Search asked for (or the only platform connected) but it can't run as
     // asked — each carries a plain-words `question` saying what to do.
     | 'google_not_connected'
