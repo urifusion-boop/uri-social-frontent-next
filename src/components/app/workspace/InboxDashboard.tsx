@@ -10,6 +10,8 @@ import InboxConnectionsPage, {
 import InboxInsightsPage, { type InsightsConversation } from './InboxInsightsPage';
 import InboxSettingsPage from './InboxSettingsPage';
 import { InboxPersonalityPage } from './personality/InboxPersonalityPage';
+import { useNotifications } from '@/src/providers/NotificationProvider';
+import type { Notification } from '@/src/api/NotificationService';
 
 /*
  * Unified Social Inbox — a tab inside WorkspaceDashboard (PAGES.messages),
@@ -852,6 +854,10 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights' | 'settings' | 'voice'>('inbox');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { notifications, fetchNotifications, markAsRead } = useNotifications();
+  useEffect(() => {
+    fetchNotifications(1);
+  }, [fetchNotifications]);
   const [channelConnections, setChannelConnections] = useState<ChannelConnection[]>(INITIAL_CHANNEL_CONNECTIONS);
   const [openedIds, setOpenedIds] = useState<Set<string>>(() => new Set(['c1']));
   const [tagPresets, setTagPresets] = useState<string[]>(DEFAULT_TAG_PRESETS);
@@ -1049,12 +1055,25 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
 
   const groups = useMemo(() => buildGroups(filteredConversations, groupBy), [filteredConversations, groupBy]);
 
+  const waiting = notifications.filter((n) => n.type === 'inbox_needs_reply' && !n.read);
+
+  function openWaiting(n: Notification) {
+    markAsRead(n.notification_id);
+    setNotificationsOpen(false);
+    const id = n.metadata?.conversation_id;
+    setSubView('inbox');
+    if (typeof id === 'string' && conversations.some((c) => c.id === id)) setSelectedId(id);
+  }
+
   const notificationBell = (
     <div style={{ position: 'relative' }}>
       <button
         type="button"
-        aria-label="Notifications"
-        onClick={() => setNotificationsOpen((o) => !o)}
+        aria-label={`Customers waiting${waiting.length ? ` (${waiting.length})` : ''}`}
+        onClick={() => {
+          if (!notificationsOpen) fetchNotifications(1);
+          setNotificationsOpen((o) => !o);
+        }}
         style={{
           width: 36,
           height: 36,
@@ -1070,17 +1089,29 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
         }}
       >
         <I n="bell" s={18} />
-        <span
-          style={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: '#E91E63',
-          }}
-        />
+        {waiting.length > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: 2,
+              right: 2,
+              minWidth: 16,
+              height: 16,
+              padding: '0 4px',
+              boxSizing: 'border-box',
+              borderRadius: 999,
+              background: '#E91E63',
+              color: '#fff',
+              fontSize: 10,
+              fontWeight: 800,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {waiting.length > 9 ? '9+' : waiting.length}
+          </span>
+        )}
       </button>
       {notificationsOpen && (
         <>
@@ -1095,41 +1126,73 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               borderRadius: 12,
               boxShadow: '0 8px 24px rgba(0,0,0,.15)',
               border: '1px solid rgba(0,0,0,.06)',
-              width: 300,
+              width: 320,
               maxWidth: '85vw',
               padding: 8,
             }}
           >
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#333', padding: '6px 8px 10px' }}>Recent activity</div>
-            {[
-              { text: 'Tobi O. sent a new message', time: '2h', icon: 'inbox' as const, color: '#C62828' },
-              { text: 'Ifeoma B. commented on your ad', time: '24m', icon: 'megaphone' as const, color: '#AD1457' },
-              { text: 'Ngozi U. resolved a conversation', time: '3h', icon: 'check' as const, color: '#2E7D32' },
-            ].map((n, idx) => (
-              <div
-                key={idx}
-                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px', borderRadius: 8 }}
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#333', padding: '6px 8px 10px' }}>
+              Customers waiting for you
+            </div>
+            {waiting.length === 0 && (
+              <div style={{ fontSize: 12.5, color: '#888', padding: '4px 8px 10px' }}>
+                Nobody&apos;s waiting. When Jane can&apos;t answer a message, it shows up here.
+              </div>
+            )}
+            {waiting.map((n) => (
+              <button
+                key={n.notification_id}
+                type="button"
+                onClick={() => openWaiting(n)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  padding: 8,
+                  borderRadius: 8,
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                }}
               >
                 <div
                   style={{
                     width: 28,
                     height: 28,
                     borderRadius: '50%',
-                    background: `${n.color}1a`,
-                    color: n.color,
+                    background: '#C2185B1a',
+                    color: '#C2185B',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flex: '0 0 auto',
                   }}
                 >
-                  <I n={n.icon} s={13} c={n.color} />
+                  <I n="inbox" s={13} c="#C2185B" />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, color: '#333' }}>{n.text}</div>
-                  <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>{n.time} ago</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#333' }}>{n.subject}</div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: '#666',
+                      marginTop: 2,
+                      overflow: 'hidden',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                    }}
+                  >
+                    {String(n.metadata?.message ?? '')}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: '#999', marginTop: 2 }}>
+                    {new Date(n.created_at).toLocaleString()}
+                  </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </>
