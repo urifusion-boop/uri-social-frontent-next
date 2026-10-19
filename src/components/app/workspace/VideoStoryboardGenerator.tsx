@@ -139,9 +139,10 @@ export const AVATAR_VOICES = [
 // These voices are ElevenLabs' own stock "Default" library (confirmed —
 // fal-ai/ai-avatar/single-text's voice enum uses ElevenLabs for TTS under
 // the hood) and ElevenLabs hosts a public, no-auth preview sample for each
-// one at a stable CDN URL. Only the ones confirmed here get a preview button
-// in AvatarVoicePicker below — George, Brian, Bill, and Laura are still
-// valid, selectable voices, they just don't have a confirmed preview URL yet.
+// one at a stable CDN URL. AvatarVoicePicker below only renders (and only
+// lets a user pick) voices with a confirmed entry here — George, Brian,
+// Bill, and Laura are still valid values the backend accepts, they're just
+// not offered in this picker until their preview URL is confirmed too.
 // NOTE: ElevenLabs is retiring this entire legacy default-voice set on
 // 2026-12-31 (e.g. Callum -> Kellan, Brian -> Sawyer) — once AVATAR_VOICES
 // is updated to the replacement set, these URLs need replacing too.
@@ -176,10 +177,10 @@ export const VOICE_PREVIEWS: Record<string, string> = {
 };
 
 // Shared by VideoStoryboardGenerator and DescribeVideoGenerator — a chip grid
-// in place of a native <select> so a small play/pause control can sit inline
-// per voice. Clicking a chip selects that voice; clicking its ▶/⏸ (only
-// rendered when VOICE_PREVIEWS has an entry) plays/stops a short sample
-// without changing the selection.
+// in place of a native <select>, listing only the voices with a confirmed
+// VOICE_PREVIEWS entry, so a small play/pause control can sit inline per
+// voice. Clicking a chip selects that voice; clicking its ▶/⏸ plays/stops a
+// short sample without changing the selection.
 export function AvatarVoicePicker({ value, onChange }: { value: string; onChange: (voice: string) => void }) {
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -209,9 +210,8 @@ export function AvatarVoicePicker({ value, onChange }: { value: string; onChange
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-      {AVATAR_VOICES.map((v) => {
+      {AVATAR_VOICES.filter((v) => VOICE_PREVIEWS[v]).map((v) => {
         const isSelected = value === v;
-        const hasPreview = Boolean(VOICE_PREVIEWS[v]);
         const isPlaying = playingVoice === v;
         return (
           <div
@@ -238,27 +238,25 @@ export function AvatarVoicePicker({ value, onChange }: { value: string; onChange
             }}
           >
             {v}
-            {hasPreview && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePreview(v);
-                }}
-                aria-label={`${isPlaying ? 'Stop' : 'Play'} a sample of ${v}'s voice`}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  padding: 0,
-                  fontSize: 11,
-                  lineHeight: 1,
-                  color: isSelected ? PRIMARY : GREY,
-                }}
-              >
-                {isPlaying ? '⏸' : '▶'}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePreview(v);
+              }}
+              aria-label={`${isPlaying ? 'Stop' : 'Play'} a sample of ${v}'s voice`}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                padding: 0,
+                fontSize: 11,
+                lineHeight: 1,
+                color: isSelected ? PRIMARY : GREY,
+              }}
+            >
+              {isPlaying ? '⏸' : '▶'}
+            </button>
           </div>
         );
       })}
