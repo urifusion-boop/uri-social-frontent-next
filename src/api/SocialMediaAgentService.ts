@@ -407,6 +407,9 @@ export interface ExpandPromptPayload {
   num_slides?: number;
   include_images: boolean;
   style_override?: string[];
+  override_cta?: string;
+  // one entry per uploaded photo that will be used ("" when unlabelled)
+  reference_image_labels?: string[];
 }
 
 export interface ExpandedPrompt {

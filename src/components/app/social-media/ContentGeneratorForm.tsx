@@ -103,6 +103,8 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
   const [expanding, setExpanding] = useState(false);
   const [ideaBeforeExpand, setIdeaBeforeExpand] = useState<string | null>(null);
   const [expandedFrom, setExpandedFrom] = useState<string[]>([]);
+  // The post settings the brief was written for, to offer Re-expand if they change.
+  const [expandedFor, setExpandedFor] = useState<string | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
   // "Tell Jane": a lasting preference ("always…", "never…") belongs in the
   // Playbook, not in one post's topic — this saves it for every post after.
@@ -356,8 +358,24 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     refreshCredits();
   }, []);
 
-  const handleExpand = async () => {
-    const idea = seedContent.trim();
+  // Photos that will actually be sent with the post (carousel: all; single: the included ones).
+  const photosForPost = (postType === 'carousel' ? referenceImages : referenceImages.filter((img) => img.included)).map(
+    (img) => img.label?.trim() ?? ''
+  );
+  const ctaForPost = useCustomCta ? customCta.trim() : '';
+  const stylesForPost = useStyleOverride ? selectedOverrideStyles : [];
+  const settingsKey = JSON.stringify([
+    [...selectedPlatforms].sort(),
+    postType,
+    postType === 'carousel' ? numSlides : null,
+    stylesForPost,
+    photosForPost,
+    ctaForPost,
+  ]);
+  const settingsChangedSinceExpand = ideaBeforeExpand !== null && expandedFor !== null && expandedFor !== settingsKey;
+
+  const handleExpand = async (fromIdea?: string) => {
+    const idea = (fromIdea ?? seedContent).trim();
     if (idea.length < 3 || expanding) return;
     setExpanding(true);
     try {
@@ -367,12 +385,15 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
         post_type: postType,
         ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
         include_images: includeImages,
-        ...(useStyleOverride && selectedOverrideStyles.length > 0 ? { style_override: selectedOverrideStyles } : {}),
+        ...(stylesForPost.length > 0 ? { style_override: stylesForPost } : {}),
+        ...(ctaForPost ? { override_cta: ctaForPost } : {}),
+        ...(photosForPost.length > 0 ? { reference_image_labels: photosForPost } : {}),
       });
       if (res.status && res.responseData?.expanded_prompt) {
         setIdeaBeforeExpand(idea);
         setSeedContent(res.responseData.expanded_prompt);
         setExpandedFrom(res.responseData.used ?? []);
+        setExpandedFor(settingsKey);
         posthog.capture('prompt_expanded', { platforms: selectedPlatforms, post_type: postType });
       } else {
         ToastService.showToast(res.responseMessage || "Jane couldn't expand that — try again.", ToastTypeEnum.Error);
@@ -390,6 +411,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     setSeedContent(ideaBeforeExpand);
     setIdeaBeforeExpand(null);
     setExpandedFrom([]);
+    setExpandedFor(null);
   };
 
   const doGenerate = async (acknowledgedIncomplete = false) => {
@@ -551,7 +573,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
           <span style={{ marginLeft: 'auto' }}>
             <Button
               size="small"
-              onClick={handleExpand}
+              onClick={() => handleExpand()}
               disabled={expanding || seedContent.trim().length < 3}
               startIcon={expanding ? <CircularProgress size={13} color="inherit" /> : <span aria-hidden>✨</span>}
               sx={{
@@ -612,6 +634,30 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
           >
             Undo
           </Typography>
+          {settingsChangedSinceExpand && (
+            <Box
+              component="span"
+              sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, color: '#92400E', width: '100%' }}
+            >
+              You changed the post settings since Jane expanded this.
+              <Typography
+                component="button"
+                type="button"
+                onClick={() => handleExpand(ideaBeforeExpand ?? undefined)}
+                sx={{
+                  border: 0,
+                  background: 'none',
+                  p: 0,
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#B0185A',
+                }}
+              >
+                Re-expand for the new settings
+              </Typography>
+            </Box>
+          )}
         </Box>
       )}
       {showTellJane ? (
