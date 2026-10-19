@@ -2,6 +2,7 @@
 
 import { GenerateContentPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { BillingService } from '@/src/api/BillingService';
+import { BrandProfileService } from '@/src/api/BrandProfileService';
 import posthog from 'posthog-js';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';

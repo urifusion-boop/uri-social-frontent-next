@@ -8655,133 +8655,33 @@ const PlaybookPage = ({
               Up to 3 styles — Uri rotates through them when generating images.
             </div>
             {!editing ? (
-              <>
-                {/* Custom guides (V1 or V2) take priority over library styles at
-                generation time — if either is selected, the library styles below
-                are never actually used, so show the guides here instead, not the
-                stale library-style cards from before a guide was selected. This
-                is always the Default (brand-wide fallback) — see the summary
-                line below for which platforms, if any, use something else. */}
-                {(p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {previewGuidesV2.map((g) => (
-                      <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
-                    ))}
-                    {previewGuidesV1.map((g) => (
-                      <CustomGuidePreviewCard key={g.id} guide={g} compact />
-                    ))}
-                  </div>
-                ) : p?.style_selections && p.style_selections.length > 0 ? (
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {p.style_selections.map((slug) => {
-                      const s = getStyle(slug);
-                      if (!s) return null;
-                      const [from, to] = s.gradient;
-                      return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
-                    })}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
-                )}
-                {(() => {
-                  const customizedPlatforms = STYLE_PLATFORM_TABS.filter(
-                    (t) =>
-                      t.key !== 'default' &&
-                      ((p?.style_selections_by_platform?.[t.key]?.length ?? 0) > 0 ||
-                        (p?.selected_custom_guides_by_platform?.[t.key]?.length ?? 0) > 0 ||
-                        (p?.selected_custom_guides_v2_by_platform?.[t.key]?.length ?? 0) > 0)
-                  );
-                  if (customizedPlatforms.length === 0) return null;
-                  return (
-                    <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
-                      {customizedPlatforms.map((t) => t.label).join(', ')} — using a different style than the Default
-                      shown above. Edit to see or change.
-                    </div>
-                  );
-                })()}
-              </>
-            ) : (
-              <div>
-                {/* Per-platform tabs — 'default' is the brand-wide fallback used
-                by any platform below that has nothing of its own. Switching
-                tabs swaps what styleSelections/selectedCustomGuides(V2) hold
-                (see loadStyleTab) — everything below (the badge, the
-                gallery) is already reading whichever tab is active, no
-                further wiring needed. */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                  {STYLE_PLATFORM_TABS.map((tab) => {
-                    const hasOverride =
-                      tab.key !== 'default' &&
-                      ((profile?.style_selections_by_platform?.[tab.key]?.length ?? 0) > 0 ||
-                        (profile?.selected_custom_guides_by_platform?.[tab.key]?.length ?? 0) > 0 ||
-                        (profile?.selected_custom_guides_v2_by_platform?.[tab.key]?.length ?? 0) > 0);
-                    return (
-                      <div key={tab.key} style={{ position: 'relative' }}>
-                        <PbChip
-                          label={tab.label}
-                          active={activeStyleTab === tab.key}
-                          onClick={() => handleStyleTabSwitch(tab.key)}
-                        />
-                        {hasOverride && (
-                          <span
-                            title={`${tab.label} has its own style, different from your Default`}
-                            style={{
-                              position: 'absolute',
-                              top: -3,
-                              right: -3,
-                              width: 8,
-                              height: 8,
-                              borderRadius: 99,
-                              background: '#C2185B',
-                              border: '1.5px solid #fff',
-                            }}
-                          />
-                        )}
-                      </div>
-                    );
+              // Custom guides (V1 or V2) take priority over library styles at
+              // generation time — if either is selected, the library styles below
+              // are never actually used, so show the guides here instead, not the
+              // stale library-style cards from before a guide was selected.
+              (p?.selected_custom_guides_v2?.length ?? 0) > 0 || (p?.selected_custom_guides?.length ?? 0) > 0 ? (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {previewGuidesV2.map((g) => (
+                    <CustomGuideV2PreviewCard key={g.id} guide={g} compact />
+                  ))}
+                  {previewGuidesV1.map((g) => (
+                    <CustomGuidePreviewCard key={g.id} guide={g} compact />
+                  ))}
+                </div>
+              ) : p?.style_selections && p.style_selections.length > 0 ? (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {p.style_selections.map((slug) => {
+                    const s = getStyle(slug);
+                    if (!s) return null;
+                    const [from, to] = s.gradient;
+                    return <PlaybookStyleCard key={slug} s={s} from={from} to={to} />;
                   })}
                 </div>
-                <div style={{ fontSize: 12, color: '#888', marginBottom: 10, lineHeight: 1.5 }}>
-                  {activeStyleTab === 'default' ? (
-                    'Your Default — used for any platform below that hasn’t been customized.'
-                  ) : (
-                    <>
-                      {styleSelections.length > 0 ||
-                      selectedCustomGuides.length > 0 ||
-                      selectedCustomGuidesV2.length > 0 ? (
-                        <>
-                          {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label} uses its own style below,
-                          instead of your Default.{' '}
-                          <button
-                            onClick={() => {
-                              setStyleSelections([]);
-                              handleCustomGuideChange([]);
-                              handleCustomGuideV2Change([]);
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#C2185B',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textDecoration: 'underline',
-                              padding: 0,
-                              fontSize: 12,
-                            }}
-                          >
-                            Remove override, use Default instead
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          Not customized — {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label} currently
-                          uses your Default. Pick styles or guides below to use something different just for{' '}
-                          {STYLE_PLATFORM_TABS.find((t) => t.key === activeStyleTab)?.label}.
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: '#bbb' }}>—</div>
+              )
+            ) : (
+              <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <span
                     style={{
@@ -8801,9 +8701,7 @@ const PlaybookPage = ({
                   >
                     {styleSelections.length + selectedCustomGuides.length + selectedCustomGuidesV2.length}/3 selected
                   </span>
-                  {(styleSelections.length > 0 ||
-                    selectedCustomGuides.length > 0 ||
-                    selectedCustomGuidesV2.length > 0) && (
+                  {(styleSelections.length > 0 || selectedCustomGuides.length > 0 || selectedCustomGuidesV2.length > 0) && (
                     <button
                       onClick={() => {
                         setStyleSelections([]);
@@ -8827,7 +8725,7 @@ const PlaybookPage = ({
                 <StylePickerGallery
                   industry={industry || p?.industry || 'general_other'}
                   selected={styleSelections}
-                  onChange={handleStyleSelectionChange}
+                  onChange={setStyleSelections}
                   selectedCustomGuides={selectedCustomGuides}
                   onCustomGuideChange={handleCustomGuideChange}
                   selectedCustomGuidesV2={selectedCustomGuidesV2}
@@ -9197,142 +9095,19 @@ const PlaybookPage = ({
             )}
           </PbSection>
 
-          {/* V3 Enhanced Prompts */}
-          <PbSection title="Enhanced Image Prompts (V3)">
-            <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
-              Our new 10-block prompt system for richer, more detailed images. Includes expanded aesthetic vocabulary,
-              better African representation, enhanced product preservation, and 100+ safety rules.
-            </div>
-            {!editing ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div
-                  style={{
-                    background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
-                    color: p?.use_v3_prompts ? '#fff' : '#6b7280',
-                    borderRadius: 8,
-                    padding: '8px 16px',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
-                  {p?.use_v3_prompts ? (
-                    <>
-                      <span>✨</span>
-                      <span>V3 Enabled</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>V2 Standard</span>
-                    </>
-                  )}
-                </div>
-                <div style={{ fontSize: 12, color: '#666' }}>
-                  {p?.use_v3_prompts
-                    ? 'Using V3 10-block architecture with enhanced vocabulary'
-                    : 'Using V2 6-section prompt system'}
-                </div>
+          {/* V3 Enhanced Prompts - Hidden on main branch (develop-only feature) */}
+          {false && (
+            <PbSection title="Enhanced Image Prompts (V3)">
+              <div style={{ marginBottom: 12, fontSize: 12.5, color: '#888', lineHeight: 1.6 }}>
+                Our new 10-block prompt system for richer, more detailed images. Includes expanded aesthetic vocabulary,
+                better African representation, enhanced product preservation, and 100+ safety rules.
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <button
-                  onClick={async () => {
-                    const newValue = !(p?.use_v3_prompts ?? false);
-                    try {
-                      const response = await V3Service.toggleV3(newValue);
-                      if (response.status && response.responseData) {
-                        if (onProfileUpdate && p) {
-                          onProfileUpdate({ ...p, use_v3_prompts: newValue });
-                        }
-                        ToastService.showToast(
-                          newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
-                          ToastTypeEnum.Success
-                        );
-                        posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'playbook' });
-                      } else {
-                        throw new Error(response.responseMessage || 'Failed to toggle V3');
-                      }
-                    } catch (error) {
-                      console.error('[Playbook] V3 toggle failed:', error);
-                      ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
-                    }
-                  }}
-                  style={{
-                    background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
-                    color: p?.use_v3_prompts ? '#fff' : '#111',
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '12px 20px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    transition: 'all 0.2s',
-                    alignSelf: 'flex-start',
-                  }}
-                >
-                  {p?.use_v3_prompts ? (
-                    <>
-                      <span>✨</span>
-                      <span>V3 Enabled</span>
-                      <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Enable V3</span>
-                      <span style={{ fontSize: 11, opacity: 0.7 }}>(Recommended)</span>
-                    </>
-                  )}
-                </button>
-                <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
-                  {p?.use_v3_prompts
-                    ? 'V3 is active. All future image generations will use the enhanced 10-block prompt system.'
-                    : 'Enable V3 for richer prompts with better quality, cultural sensitivity, and product preservation.'}
-                </div>
-              </div>
-            )}
-            {p?.use_v3_prompts && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 12,
-                  background: '#F7F7FD',
-                  border: '1px solid #E0DEF7',
-                  borderRadius: 8,
-                  fontSize: 11.5,
-                  color: '#555',
-                  lineHeight: 1.6,
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Enhancements Active:</div>
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  <li>10-block prompt architecture (vs. 6-section)</li>
-                  <li>400+ aesthetic vocabulary terms (vs. ~150)</li>
-                  <li>11-dimensional style system with parametric control</li>
-                  <li>100+ context-aware safety & exclusion rules</li>
-                  <li>Enhanced African realism vocabulary for authentic representation</li>
-                  <li>Improved product preservation with forensic analysis</li>
-                </ul>
-              </div>
-            )}
-          </PbSection>
-
-          {/* Canvas Editor Toggle */}
-          <PbSection title="Canvas Editor (Beta)">
-            <p style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6, marginBottom: 16 }}>
-              Enable advanced post editing with drag-drop layers, text editing, and multi-format export
-            </p>
-            {p && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {!editing ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   <div
                     style={{
-                      background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
-                      color: p?.canvas_editor_enabled ? '#fff' : '#6b7280',
+                      background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                      color: p?.use_v3_prompts ? '#fff' : '#6b7280',
                       borderRadius: 8,
                       padding: '8px 16px',
                       fontSize: 12.5,
@@ -9342,110 +9117,237 @@ const PlaybookPage = ({
                       gap: 8,
                     }}
                   >
+                    {p?.use_v3_prompts ? (
+                      <>
+                        <span>✨</span>
+                        <span>V3 Enabled</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>V2 Standard</span>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#666' }}>
+                    {p?.use_v3_prompts
+                      ? 'Using V3 10-block architecture with enhanced vocabulary'
+                      : 'Using V2 6-section prompt system'}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <button
+                    onClick={async () => {
+                      const newValue = !(p?.use_v3_prompts ?? false);
+                      try {
+                        const response = await V3Service.toggleV3(newValue);
+                        if (response.status && response.responseData) {
+                          if (onProfileUpdate && p) {
+                            onProfileUpdate({ ...p, use_v3_prompts: newValue });
+                          }
+                          ToastService.showToast(
+                            newValue ? '✨ V3 Enhanced Prompts Enabled!' : 'Switched to V2 Standard Prompts',
+                            ToastTypeEnum.Success
+                          );
+                          posthog.capture('v3_toggle_changed', { enabled: newValue, location: 'playbook' });
+                        } else {
+                          throw new Error(response.responseMessage || 'Failed to toggle V3');
+                        }
+                      } catch (error) {
+                        console.error('[Playbook] V3 toggle failed:', error);
+                        ToastService.showToast('Failed to update V3 setting. Please try again.', ToastTypeEnum.Error);
+                      }
+                    }}
+                    style={{
+                      background: p?.use_v3_prompts ? 'linear-gradient(135deg, #C2185B, #8E1545)' : '#e5e7eb',
+                      color: p?.use_v3_prompts ? '#fff' : '#111',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '12px 20px',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      transition: 'all 0.2s',
+                      alignSelf: 'flex-start',
+                    }}
+                  >
+                    {p?.use_v3_prompts ? (
+                      <>
+                        <span>✨</span>
+                        <span>V3 Enabled</span>
+                        <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Enable V3</span>
+                        <span style={{ fontSize: 11, opacity: 0.7 }}>(Recommended)</span>
+                      </>
+                    )}
+                  </button>
+                  <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+                    {p?.use_v3_prompts
+                      ? 'V3 is active. All future image generations will use the enhanced 10-block prompt system.'
+                      : 'Enable V3 for richer prompts with better quality, cultural sensitivity, and product preservation.'}
+                  </div>
+                </div>
+              )}
+              {p?.use_v3_prompts && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: 12,
+                    background: '#F7F7FD',
+                    border: '1px solid #E0DEF7',
+                    borderRadius: 8,
+                    fontSize: 11.5,
+                    color: '#555',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <div style={{ fontWeight: 600, marginBottom: 6, color: '#C2185B' }}>✨ V3 Enhancements Active:</div>
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    <li>10-block prompt architecture (vs. 6-section)</li>
+                    <li>400+ aesthetic vocabulary terms (vs. ~150)</li>
+                    <li>11-dimensional style system with parametric control</li>
+                    <li>100+ context-aware safety & exclusion rules</li>
+                    <li>Enhanced African realism vocabulary for authentic representation</li>
+                    <li>Improved product preservation with forensic analysis</li>
+                  </ul>
+                </div>
+              )}
+            </PbSection>
+          )}
+
+          {/* Canvas Editor Toggle - Hidden on main branch (develop-only feature) */}
+          {false && (
+            <PbSection title="Canvas Editor (Beta)">
+              <p style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6, marginBottom: 16 }}>
+                Enable advanced post editing with drag-drop layers, text editing, and multi-format export
+              </p>
+              {p && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div
+                      style={{
+                        background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                        color: p?.canvas_editor_enabled ? '#fff' : '#6b7280',
+                        borderRadius: 8,
+                        padding: '8px 16px',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      {p?.canvas_editor_enabled ? (
+                        <>
+                          <span>✨</span>
+                          <span>Canvas Enabled</span>
+                        </>
+                      ) : (
+                        <span>Disabled</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      const newValue = !(p?.canvas_editor_enabled ?? false);
+                      console.log('🎨 Canvas Editor Toggle:', {
+                        currentValue: p?.canvas_editor_enabled,
+                        newValue,
+                        profileData: p,
+                      });
+                      try {
+                        const updatedProfile = { ...p, canvas_editor_enabled: newValue };
+                        console.log('🎨 Saving profile:', updatedProfile);
+                        const response = await BrandProfileService.save(updatedProfile);
+                        console.log('🎨 Save response:', response);
+                        if (response.status) {
+                          onProfileUpdate({ ...p, canvas_editor_enabled: newValue });
+                          ToastService.showToast(
+                            newValue ? '✨ Canvas Editor Enabled!' : 'Canvas Editor Disabled',
+                            ToastTypeEnum.Success
+                          );
+                          posthog.capture('canvas_editor_toggle', { enabled: newValue });
+                        } else {
+                          console.error('🎨 Save failed - response.status is false:', response);
+                          ToastService.showToast(
+                            'Failed to save: ' + (response.responseMessage || 'Unknown error'),
+                            ToastTypeEnum.Error
+                          );
+                        }
+                      } catch (error) {
+                        console.error('🎨 Canvas Editor save error:', error);
+                        ToastService.showToast('Failed to update Canvas Editor setting', ToastTypeEnum.Error);
+                      }
+                    }}
+                    style={{
+                      background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
+                      color: p?.canvas_editor_enabled ? '#fff' : '#111',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '12px 20px',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      transition: 'all 0.2s',
+                      alignSelf: 'flex-start',
+                    }}
+                  >
                     {p?.canvas_editor_enabled ? (
                       <>
                         <span>✨</span>
                         <span>Canvas Enabled</span>
+                        <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
                       </>
                     ) : (
-                      <span>Disabled</span>
+                      <>
+                        <span>Enable Canvas Editor</span>
+                        <span style={{ fontSize: 11, opacity: 0.7 }}>(Beta)</span>
+                      </>
                     )}
+                  </button>
+                  <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
+                    {p?.canvas_editor_enabled
+                      ? 'Canvas Editor is active. Generated posts will have editable layers for text, logo, and background.'
+                      : 'Enable Canvas Editor to edit posts with drag-drop layers and export to multiple aspect ratios.'}
                   </div>
                 </div>
-
-                <button
-                  onClick={async () => {
-                    const newValue = !(p?.canvas_editor_enabled ?? false);
-                    console.log('🎨 Canvas Editor Toggle:', {
-                      currentValue: p?.canvas_editor_enabled,
-                      newValue,
-                      profileData: p,
-                    });
-                    try {
-                      const updatedProfile = { ...p, canvas_editor_enabled: newValue };
-                      console.log('🎨 Saving profile:', updatedProfile);
-                      const response = await BrandProfileService.save(updatedProfile);
-                      console.log('🎨 Save response:', response);
-                      if (response.status) {
-                        onProfileUpdate({ ...p, canvas_editor_enabled: newValue });
-                        ToastService.showToast(
-                          newValue ? '✨ Canvas Editor Enabled!' : 'Canvas Editor Disabled',
-                          ToastTypeEnum.Success
-                        );
-                        posthog.capture('canvas_editor_toggle', { enabled: newValue });
-                      } else {
-                        console.error('🎨 Save failed - response.status is false:', response);
-                        ToastService.showToast(
-                          'Failed to save: ' + (response.responseMessage || 'Unknown error'),
-                          ToastTypeEnum.Error
-                        );
-                      }
-                    } catch (error) {
-                      console.error('🎨 Canvas Editor save error:', error);
-                      ToastService.showToast('Failed to update Canvas Editor setting', ToastTypeEnum.Error);
-                    }
-                  }}
+              )}
+              {p?.canvas_editor_enabled && (
+                <div
                   style={{
-                    background: p?.canvas_editor_enabled ? 'linear-gradient(135deg, #EA580C, #C2410C)' : '#e5e7eb',
-                    color: p?.canvas_editor_enabled ? '#fff' : '#111',
-                    border: 'none',
+                    marginTop: 12,
+                    padding: 12,
+                    background: '#FFF7ED',
+                    border: '1px solid #FED7AA',
                     borderRadius: 8,
-                    padding: '12px 20px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    transition: 'all 0.2s',
-                    alignSelf: 'flex-start',
+                    fontSize: 11.5,
+                    color: '#555',
+                    lineHeight: 1.6,
                   }}
                 >
-                  {p?.canvas_editor_enabled ? (
-                    <>
-                      <span>✨</span>
-                      <span>Canvas Enabled</span>
-                      <span style={{ fontSize: 11, opacity: 0.8 }}>(Click to disable)</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Enable Canvas Editor</span>
-                      <span style={{ fontSize: 11, opacity: 0.7 }}>(Beta)</span>
-                    </>
-                  )}
-                </button>
-                <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.5 }}>
-                  {p?.canvas_editor_enabled
-                    ? 'Canvas Editor is active. Generated posts will have editable layers for text, logo, and background.'
-                    : 'Enable Canvas Editor to edit posts with drag-drop layers and export to multiple aspect ratios.'}
+                  <div style={{ fontWeight: 600, marginBottom: 6, color: '#EA580C' }}>✨ Canvas Editor Features:</div>
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    <li>Edit text content, fonts, colors, and positions</li>
+                    <li>Drag & drop repositioning for all layers</li>
+                    <li>Undo/redo support (50 operations)</li>
+                    <li>Export to multiple formats (1:1, 9:16, 4:5, 16:9)</li>
+                    <li>Layer management (show/hide, delete, reorder)</li>
+                    <li>Visual editing without regenerating (saves credits)</li>
+                  </ul>
                 </div>
-              </div>
-            )}
-            {p?.canvas_editor_enabled && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 12,
-                  background: '#FFF7ED',
-                  border: '1px solid #FED7AA',
-                  borderRadius: 8,
-                  fontSize: 11.5,
-                  color: '#555',
-                  lineHeight: 1.6,
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 6, color: '#EA580C' }}>✨ Canvas Editor Features:</div>
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  <li>Edit text content, fonts, colors, and positions</li>
-                  <li>Drag & drop repositioning for all layers</li>
-                  <li>Undo/redo support (50 operations)</li>
-                  <li>Export to multiple formats (1:1, 9:16, 4:5, 16:9)</li>
-                  <li>Layer management (show/hide, delete, reorder)</li>
-                  <li>Visual editing without regenerating (saves credits)</li>
-                </ul>
-              </div>
-            )}
-          </PbSection>
+              )}
+            </PbSection>
+          )}
         </SubPage>
       </PbEditContext.Provider>
     </PbUsedInContext.Provider>

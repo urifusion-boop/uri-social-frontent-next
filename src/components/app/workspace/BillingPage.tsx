@@ -1214,11 +1214,7 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                           letterSpacing: '0.05em',
                         }}
                       >
-                        {userDetails.trialActive
-                          ? '✦ Free Trial Active'
-                          : balance?.has_had_plan
-                            ? '✦ Out of credits'
-                            : '✦ Free Trial Expired'}
+                        {userDetails.trialActive ? '✦ Free Trial Active' : '✦ Free Trial Expired'}
                       </span>
                     </div>
                     <div style={{ fontSize: 14, color: '#374151', fontWeight: 500 }}>
@@ -1230,8 +1226,6 @@ export default function BillingPage({ onBack, initialTab = 'overview' }: Billing
                           <strong>{userDetails.trialCreditsRemaining ?? 0}</strong> credit
                           {(userDetails.trialCreditsRemaining ?? 0) !== 1 ? 's' : ''} left
                         </>
-                      ) : balance?.has_had_plan ? (
-                        'You’ve used all your credits. Top up or choose a plan to keep creating.'
                       ) : (
                         'Upgrade to a plan to continue creating content.'
                       )}
