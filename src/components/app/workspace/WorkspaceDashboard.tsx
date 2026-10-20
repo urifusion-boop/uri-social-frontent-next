@@ -27,7 +27,6 @@ import {
 } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import ContentCalendarTab from '@/src/components/app/social-media/ContentCalendarTab';
 import ContentCalendarV2Tab from '@/src/components/app/social-media/content-calendar-v2/ContentCalendarV2Tab';
 import {
   ConnectedAccountEntry,
@@ -785,7 +784,7 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar' | 'calendar-v2' | 'video';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar-v2' | 'video';
 
 // A chosen (but not yet built) multi-plan audience selection from CampaignsPage —
 // mirrors that file's own PendingVariants type. Threaded through here because it
@@ -1267,9 +1266,6 @@ const ContentManagerPage = ({
       count: scheduled.length,
       tooltip: 'Posts approved and queued to go live at a specific time',
     },
-    // v1's 'calendar' tab is hidden (not removed — see the render switch and
-    // ContentTab type below, both still handle it) now that the rewritten
-    // engine below has replaced it as the visible Calendar tab.
     {
       key: 'calendar-v2',
       label: 'Calendar',
@@ -1373,7 +1369,6 @@ const ContentManagerPage = ({
               drafts: 'edit',
               saved: 'bookmark',
               scheduled: 'clock',
-              calendar: 'calendar',
               'calendar-v2': 'calendar',
               auto: 'sparkle',
               video: 'video',
@@ -2177,8 +2172,6 @@ const ContentManagerPage = ({
             )}
           </>
         )}
-
-        {activeTab === 'calendar' && <ContentCalendarTab onGenerated={handleGenerated} />}
 
         {activeTab === 'calendar-v2' && <ContentCalendarV2Tab onGenerated={handleGenerated} />}
 
@@ -6966,6 +6959,23 @@ const PlaybookPage = ({
                     >
                       {logoUploading ? 'Uploading…' : logoUrl ? 'Replace logo' : 'Upload logo'}
                     </button>
+                    {logoUrl && !logoUploading && (
+                      <button
+                        onClick={() => setLogoUrl('')}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: 7,
+                          border: '1.5px solid #edecea',
+                          background: '#fff',
+                          color: '#888',
+                          fontSize: 12.5,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--wf)',
+                        }}
+                      >
+                        Remove logo
+                      </button>
+                    )}
                   </div>
                   {logoError && <span style={{ fontSize: 11.5, color: '#EF4444' }}>{logoError}</span>}
                 </div>
