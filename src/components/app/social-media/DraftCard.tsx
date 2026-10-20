@@ -1411,18 +1411,81 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           </Box>
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1 }}>
-            {/* Consolidated into one free-text edit entry point — the
-             * category-preset buttons (Text/Colours/Background/Add/Remove/
-             * Redesign) that used to sit here each force-skipped the
-             * backend's own AI classification step (image_editing_service.
-             * classify_edit_intent) by locking in a category up front, and
-             * pre-filled generic text ("Change colours", "Add element")
-             * that often got submitted as-is. Reported as producing weak
-             * edits. This button is exactly what "Other" already did —
-             * empty feedback, no forced category — so the backend classifies
+            {/* Text is kept separate, unlike Colours/Background/Add/Remove/
+             * Redesign (removed below, consolidated into Edit Image): this
+             * one genuinely does something the others didn't — it runs OCR
+             * on the image first and pre-fills the ACTUAL extracted text, so
+             * the user edits the real string directly (fix a typo, change a
+             * price) instead of describing the change in words and hoping
+             * the model finds the right text element. The others only ever
+             * pre-filled a generic phrase ("Change colours") with no
+             * extraction behind it — that's what made them redundant with
+             * just typing it yourself, this isn't. */}
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={editLoading}
+              startIcon={<MdEdit size={14} />}
+              onClick={async () => {
+                // Open dialog immediately with loading placeholder
+                setEditFeedback('Extracting text from image...');
+                setEditForceCategory('text_edit');
+                setEditImageOpen(true);
+
+                // Extract actual text from the image using Vision API in background
+                try {
+                  const imageUrl = isCarousel ? currentSlide?.image_url : draft.image_url;
+                  if (imageUrl) {
+                    const response = await SocialMediaAgentService.extractImageText(imageUrl);
+                    if (response.status && response.responseData?.text) {
+                      const extractedText = response.responseData.text;
+                      if (extractedText !== 'No text found') {
+                        setEditFeedback(extractedText);
+                      } else {
+                        setEditFeedback('');
+                      }
+                    } else {
+                      setEditFeedback('');
+                    }
+                  }
+                } catch (error) {
+                  console.error('Failed to extract image text:', error);
+                  setEditFeedback('');
+                }
+              }}
+              sx={{
+                textTransform: 'none',
+                fontSize: 11.5,
+                fontWeight: 600,
+                py: 1,
+                px: 1.5,
+                borderRadius: '10px',
+                borderColor: '#E9D5FF',
+                color: '#7C3AED',
+                background: '#FEFCFF',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  borderColor: '#A855F7',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
+                  color: '#7C3AED',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
+                },
+                '&:disabled': {
+                  borderColor: '#F3E8FF',
+                  color: '#C4B5FD',
+                  background: '#FEFCFF',
+                },
+              }}
+            >
+              Text
+            </Button>
+
+            {/* Consolidated into one free-text edit entry point for
+             * everything else — "Other" also already did exactly this:
+             * empty feedback, no forced category, so the backend classifies
              * whatever the user actually types and picks the matching
-             * prompt template itself, instead of a one-word guess forcing
-             * the wrong template regardless of what's typed. */}
+             * prompt template itself. */}
             <Button
               size="small"
               variant="outlined"
