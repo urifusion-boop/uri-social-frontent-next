@@ -87,7 +87,7 @@ export default function NotificationBell({
       router.push(n.metadata?.reconnect ? '/workspace/?tab=connections' : '/workspace/?tab=content');
     } else if (n.type === 'content_posted') {
       setOpen(false);
-      router.push('/workspace/?tab=calendar');
+      router.push('/workspace/?tab=content');
     } else if (n.type === 'trial_ending' || n.type === 'trial_expired') {
       setOpen(false);
       router.push('/workspace/?tab=billing');
