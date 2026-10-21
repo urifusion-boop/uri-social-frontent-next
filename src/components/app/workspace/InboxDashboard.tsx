@@ -11,6 +11,7 @@ import InboxInsightsPage, { type InsightsConversation } from './InboxInsightsPag
 import InboxSettingsPage from './InboxSettingsPage';
 import { InboxPersonalityPage } from './personality/InboxPersonalityPage';
 import { useNotifications } from '@/src/providers/NotificationProvider';
+import { GrowthService } from '@/src/api/GrowthService';
 import type { Notification } from '@/src/api/NotificationService';
 
 /*
@@ -280,6 +281,7 @@ interface Conversation {
   assignee: string | null;
   isComplaint?: boolean;
   sourceLabel?: string;
+  leadStage?: string;
   messages?: ThreadMessage[];
   post?: PostContext;
   comments?: ThreadComment[];
@@ -765,6 +767,7 @@ function toConversation(dto: InboxConversationDTO): Conversation {
     status: urgent ? 'urgent' : asStatus(dto.status),
     assignee: dto.assignee_id || null,
     sourceLabel: dto.source_ad_id ? 'an ad' : dto.source_post_id ? 'a post' : undefined,
+    leadStage: dto.lead_stage || '',
     tags: dto.tags ?? [],
     messages: dto.kind === 'dm' ? [] : undefined,
     comments: dto.kind === 'comment' ? [] : undefined,
@@ -2649,6 +2652,37 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
     >
       <I n="paperclip" s={13} />
       Sourced from {selectedConv.sourceLabel}
+      {selectedConv.sourceLabel === 'an ad' && !DEMO_INBOX && (
+        <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+          Lead
+          <select
+            value={selectedConv.leadStage || ''}
+            onChange={async (e) => {
+              const stage = e.target.value;
+              const id = selectedConv.id;
+              if (!stage) return;
+              setBaseConversations((prev) => prev.map((c) => (c.id === id ? { ...c, leadStage: stage } : c)));
+              await GrowthService.setLeadStage(id, stage).catch(() => undefined);
+            }}
+            style={{
+              fontSize: 12,
+              fontFamily: FONT,
+              border: '1px solid rgba(194,24,91,.3)',
+              borderRadius: 6,
+              padding: '2px 6px',
+              color: '#AD1457',
+              background: '#fff',
+            }}
+          >
+            <option value="">Not set</option>
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="qualified">Qualified</option>
+            <option value="converted">Converted</option>
+            <option value="lost">Lost</option>
+          </select>
+        </label>
+      )}
     </div>
   );
 
