@@ -10,7 +10,7 @@ import {
   VideoPublishJob,
 } from '@/src/api/SocialMediaAgentService';
 import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 // Exported — reused as-is by DescribeVideoGenerator.tsx so the two entry
 // points (upload-first vs. describe-it) share one "turn a storyboard into
@@ -51,6 +51,10 @@ export const MODEL_LABELS: Record<string, string> = {
   'alibaba/wan-3.0/image-to-video': 'Wan 3.0',
   'fal-ai/veo3.1/fast/image-to-video': 'Veo 3.1 Fast',
   'bytedance/seedance-2.0/image-to-video': 'Seedance 2.0 Fast',
+  // Both missing before this fix — a completed Talking / Dialogue generation
+  // showed the raw model id instead of a clean name.
+  'fal-ai/ai-avatar/single-text': 'Talking Avatar',
+  'minimax/h3-max/lip-sync/image-to-video': 'Talking Avatar (Nigerian)',
 };
 
 export const VIDEO_OUTCOMES = [
@@ -176,6 +180,20 @@ export const VOICE_PREVIEWS: Record<string, string> = {
   Lily: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/pFZP5JQG7iQjIQuC4Bku/89b68b35-b3dd-4348-a84a-a3c13a3c2b30.mp3',
 };
 
+// Real Nigerian-accented voices — ElevenLabs' stock library (AVATAR_VOICES
+// above) has no African accents at all. These clone a real reference sample
+// (YarnGPT, a Nigerian-built TTS model) per-generation instead of using a
+// fixed voice enum — see NIGERIAN_VOICE_REFS in video_generation_service.py
+// for the backend half of this. Keep this list in sync with that dict.
+export const NIGERIAN_VOICES = ['Idera (Nigerian)', 'Jude (Nigerian)'];
+
+// The raw reference clips themselves, same spirit as VOICE_PREVIEWS above —
+// a representative sample of the voice, not a generated line.
+export const NIGERIAN_VOICE_PREVIEWS: Record<string, string> = {
+  'Idera (Nigerian)': 'https://v3b.fal.media/files/b/0aaf4340/2-A31OjeKxJX1mCVu8jEs_xrxy8rhkfgbh5ftdh91u.wav',
+  'Jude (Nigerian)': 'https://v3b.fal.media/files/b/0aaf4340/dptLL3gm-UU3Syor1fUyF_fthsxkvq959bw7zvwi6d.wav',
+};
+
 // Shared by VideoStoryboardGenerator and DescribeVideoGenerator — a chip grid
 // in place of a native <select>, listing only the voices with a confirmed
 // VOICE_PREVIEWS entry, so a small play/pause control can sit inline per
@@ -191,8 +209,10 @@ export function AvatarVoicePicker({ value, onChange }: { value: string; onChange
     };
   }, []);
 
+  const allPreviews: Record<string, string> = { ...VOICE_PREVIEWS, ...NIGERIAN_VOICE_PREVIEWS };
+
   const togglePreview = (voice: string) => {
-    const url = VOICE_PREVIEWS[voice];
+    const url = allPreviews[voice];
     if (!url) return;
     if (playingVoice === voice) {
       audioRef.current?.pause();
@@ -208,58 +228,78 @@ export function AvatarVoicePicker({ value, onChange }: { value: string; onChange
     setPlayingVoice(voice);
   };
 
+  const renderChip = (v: string) => {
+    const isSelected = value === v;
+    const isPlaying = playingVoice === v;
+    return (
+      <div
+        key={v}
+        onClick={() => onChange(v)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') onChange(v);
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 10px',
+          borderRadius: 8,
+          border: `1.5px solid ${isSelected ? PRIMARY : BORDER}`,
+          background: '#fff',
+          color: isSelected ? PRIMARY : DARK,
+          fontSize: 12.5,
+          fontWeight: isSelected ? 600 : 500,
+          cursor: 'pointer',
+          userSelect: 'none',
+        }}
+      >
+        {v}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            togglePreview(v);
+          }}
+          aria-label={`${isPlaying ? 'Stop' : 'Play'} a sample of ${v}'s voice`}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            padding: 0,
+            fontSize: 11,
+            lineHeight: 1,
+            color: isSelected ? PRIMARY : GREY,
+          }}
+        >
+          {isPlaying ? '⏸' : '▶'}
+        </button>
+      </div>
+    );
+  };
+
+  const labelStyle: CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: GREY,
+    marginBottom: 4,
+  };
+
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-      {AVATAR_VOICES.filter((v) => VOICE_PREVIEWS[v]).map((v) => {
-        const isSelected = value === v;
-        const isPlaying = playingVoice === v;
-        return (
-          <div
-            key={v}
-            onClick={() => onChange(v)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') onChange(v);
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 10px',
-              borderRadius: 8,
-              border: `1.5px solid ${isSelected ? PRIMARY : BORDER}`,
-              background: '#fff',
-              color: isSelected ? PRIMARY : DARK,
-              fontSize: 12.5,
-              fontWeight: isSelected ? 600 : 500,
-              cursor: 'pointer',
-              userSelect: 'none',
-            }}
-          >
-            {v}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                togglePreview(v);
-              }}
-              aria-label={`${isPlaying ? 'Stop' : 'Play'} a sample of ${v}'s voice`}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-                padding: 0,
-                fontSize: 11,
-                lineHeight: 1,
-                color: isSelected ? PRIMARY : GREY,
-              }}
-            >
-              {isPlaying ? '⏸' : '▶'}
-            </button>
-          </div>
-        );
-      })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div>
+        <div style={labelStyle}>Nigerian</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{NIGERIAN_VOICES.map(renderChip)}</div>
+      </div>
+      <div>
+        <div style={labelStyle}>Default</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {AVATAR_VOICES.filter((v) => VOICE_PREVIEWS[v]).map(renderChip)}
+        </div>
+      </div>
     </div>
   );
 }
