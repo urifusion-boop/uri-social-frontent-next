@@ -41,18 +41,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTwitter } from 'react-icons/fa';
 import { MdFileDownload } from 'react-icons/md';
-import {
-  MdChevronLeft,
-  MdChevronRight,
-  MdEdit,
-  MdPalette,
-  MdImage,
-  MdAdd,
-  MdRemove,
-  MdMoreHoriz,
-  MdAutorenew,
-  MdOpenWith,
-} from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdEdit, MdOpenWith } from 'react-icons/md';
 import DraftEditor from './DraftEditor';
 import CanvasEditor from './canvas-editor/CanvasEditor';
 
@@ -1422,6 +1411,16 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           </Box>
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1 }}>
+            {/* Text is kept separate, unlike Colours/Background/Add/Remove/
+             * Redesign (removed below, consolidated into Edit Image): this
+             * one genuinely does something the others didn't — it runs OCR
+             * on the image first and pre-fills the ACTUAL extracted text, so
+             * the user edits the real string directly (fix a typo, change a
+             * price) instead of describing the change in words and hoping
+             * the model finds the right text element. The others only ever
+             * pre-filled a generic phrase ("Change colours") with no
+             * extraction behind it — that's what made them redundant with
+             * just typing it yourself, this isn't. */}
             <Button
               size="small"
               variant="outlined"
@@ -1481,14 +1480,20 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             >
               Text
             </Button>
+
+            {/* Consolidated into one free-text edit entry point for
+             * everything else — "Other" also already did exactly this:
+             * empty feedback, no forced category, so the backend classifies
+             * whatever the user actually types and picks the matching
+             * prompt template itself. */}
             <Button
               size="small"
               variant="outlined"
               disabled={editLoading}
-              startIcon={<MdPalette size={14} />}
+              startIcon={<MdEdit size={14} />}
               onClick={() => {
-                setEditFeedback('Change colours');
-                setEditForceCategory('style_edit');
+                setEditFeedback('');
+                setEditForceCategory(undefined);
                 setEditImageOpen(true);
               }}
               sx={{
@@ -1516,44 +1521,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 },
               }}
             >
-              Colours
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={editLoading}
-              startIcon={<MdImage size={14} />}
-              onClick={() => {
-                setEditFeedback('Change background');
-                setEditForceCategory('style_edit');
-                setEditImageOpen(true);
-              }}
-              sx={{
-                textTransform: 'none',
-                fontSize: 11.5,
-                fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '10px',
-                borderColor: '#E9D5FF',
-                color: '#7C3AED',
-                background: '#FEFCFF',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                '&:hover': {
-                  borderColor: '#A855F7',
-                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
-                  color: '#7C3AED',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
-                },
-                '&:disabled': {
-                  borderColor: '#F3E8FF',
-                  color: '#C4B5FD',
-                  background: '#FEFCFF',
-                },
-              }}
-            >
-              Background
+              Edit Image
             </Button>
 
             {/* Canvas Editor Button - Only show if draft has layered document */}
@@ -1621,156 +1589,6 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
                 Move Logo
               </Button>
             )}
-
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={editLoading}
-              startIcon={<MdAdd size={14} />}
-              onClick={() => {
-                setEditFeedback('Add element');
-                setEditForceCategory('content_edit');
-                setEditImageOpen(true);
-              }}
-              sx={{
-                textTransform: 'none',
-                fontSize: 11.5,
-                fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '10px',
-                borderColor: '#E9D5FF',
-                color: '#7C3AED',
-                background: '#FEFCFF',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                '&:hover': {
-                  borderColor: '#A855F7',
-                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
-                  color: '#7C3AED',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
-                },
-                '&:disabled': {
-                  borderColor: '#F3E8FF',
-                  color: '#C4B5FD',
-                  background: '#FEFCFF',
-                },
-              }}
-            >
-              Add
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={editLoading}
-              startIcon={<MdRemove size={14} />}
-              onClick={() => {
-                setEditFeedback('Remove element');
-                setEditForceCategory('content_edit');
-                setEditImageOpen(true);
-              }}
-              sx={{
-                textTransform: 'none',
-                fontSize: 11.5,
-                fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '10px',
-                borderColor: '#E9D5FF',
-                color: '#7C3AED',
-                background: '#FEFCFF',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                '&:hover': {
-                  borderColor: '#A855F7',
-                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
-                  color: '#7C3AED',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
-                },
-                '&:disabled': {
-                  borderColor: '#F3E8FF',
-                  color: '#C4B5FD',
-                  background: '#FEFCFF',
-                },
-              }}
-            >
-              Remove
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={editLoading}
-              startIcon={<MdMoreHoriz size={14} />}
-              onClick={() => {
-                setEditFeedback('');
-                setEditForceCategory(undefined);
-                setEditImageOpen(true);
-              }}
-              sx={{
-                textTransform: 'none',
-                fontSize: 11.5,
-                fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '10px',
-                borderColor: '#E9D5FF',
-                color: '#7C3AED',
-                background: '#FEFCFF',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                '&:hover': {
-                  borderColor: '#A855F7',
-                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FDF2F8 100%)',
-                  color: '#7C3AED',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.15)',
-                },
-                '&:disabled': {
-                  borderColor: '#F3E8FF',
-                  color: '#C4B5FD',
-                  background: '#FEFCFF',
-                },
-              }}
-            >
-              Other
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={editLoading}
-              startIcon={<MdAutorenew size={14} />}
-              onClick={() => {
-                setEditFeedback('Start over completely');
-                setEditForceCategory('full_redesign');
-                setEditImageOpen(true);
-              }}
-              sx={{
-                textTransform: 'none',
-                fontSize: 11.5,
-                fontWeight: 600,
-                py: 1,
-                px: 1.5,
-                borderRadius: '10px',
-                gridColumn: { xs: '1 / -1', sm: 'auto' },
-                borderColor: '#FCE7F3',
-                color: '#CD1B78',
-                background: '#FEF7FB',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                '&:hover': {
-                  borderColor: '#EC4899',
-                  background: 'linear-gradient(135deg, #FDF2F8 0%, #FEF7FB 100%)',
-                  color: '#BE185D',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 16px rgba(205, 27, 120, 0.20)',
-                },
-                '&:disabled': {
-                  borderColor: '#FCE7F3',
-                  color: '#F9A8D4',
-                  background: '#FEF7FB',
-                },
-              }}
-            >
-              Redesign
-            </Button>
           </Box>
         </Box>
       )}

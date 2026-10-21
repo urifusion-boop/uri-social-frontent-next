@@ -15,6 +15,7 @@ export interface InboxConversationDTO {
   excerpt: string;
   source_post_id: string;
   source_ad_id: string;
+  lead_stage?: string;
   last_direction?: 'inbound' | 'outbound' | '';
   intent?: string;
   intent_confidence?: number | null;
@@ -68,6 +69,7 @@ export interface InboxAgentSettings {
   confidence_threshold: number;
   auto_reply_channels: { dm: boolean; comment: boolean };
   business_hours: { timezone: string; days: Record<string, boolean>; open: string; close: string };
+  alert_emails: string[];
 }
 
 export interface InboxKnowledgeEntry {

@@ -19,6 +19,7 @@ import {
   ContentCalendarV2Plan,
   SocialMediaAgentService,
 } from '@/src/api/SocialMediaAgentService';
+import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
@@ -853,14 +854,28 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
 
   useEffect(() => {
     (async () => {
+      // The next plan is for the platforms in the brand's Playbook; the last
+      // plan's platforms (or Facebook + Instagram) only when it has none.
+      let playbookPlatforms: string[] = [];
+      try {
+        const pb = await BrandProfileService.get();
+        playbookPlatforms = (pb.responseData?.target_platforms ?? [])
+          .map((p) => p.toLowerCase())
+          .filter((p) => PLATFORMS.some((x) => x.key === p));
+      } catch {
+        // no Playbook yet
+      }
       try {
         const res = await SocialMediaAgentService.getCalendarPlanV2();
         if (res.status && res.responseData) {
           setPlan(res.responseData);
-          setPlatforms(res.responseData.platforms);
+          setPlatforms(playbookPlatforms.length ? playbookPlatforms : res.responseData.platforms);
+        } else if (playbookPlatforms.length) {
+          setPlatforms(playbookPlatforms);
         }
       } catch {
         // 404 — no active plan yet, show the empty state
+        if (playbookPlatforms.length) setPlatforms(playbookPlatforms);
       } finally {
         setLoading(false);
       }

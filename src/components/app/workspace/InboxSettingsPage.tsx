@@ -165,6 +165,7 @@ export default function InboxSettingsPage({
 
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [confidenceThreshold, setConfidenceThreshold] = useState(90);
+  const [alertEmails, setAlertEmails] = useState('');
   const [autoDm, setAutoDm] = useState(true);
   const [autoComments, setAutoComments] = useState(false);
   const [timezone, setTimezone] = useState(TIMEZONE);
@@ -192,6 +193,7 @@ export default function InboxSettingsPage({
         setConfidenceThreshold(settings.confidence_threshold);
         setAutoDm(settings.auto_reply_channels.dm);
         setAutoComments(settings.auto_reply_channels.comment);
+        setAlertEmails((settings.alert_emails ?? []).join(', '));
         setFaqs(entries);
         setSettingsLoaded(true);
       } catch {
@@ -206,7 +208,7 @@ export default function InboxSettingsPage({
   // "Saved" stops being true the moment anything changes again.
   useEffect(() => {
     setSaveState((prev) => (prev === 'saved' ? 'idle' : prev));
-  }, [openDays, openTime, closeTime, autoReplyEnabled, confidenceThreshold, autoDm, autoComments]);
+  }, [openDays, openTime, closeTime, autoReplyEnabled, confidenceThreshold, autoDm, autoComments, alertEmails]);
 
   async function saveAgentSettings() {
     if (DEMO_INBOX) return;
@@ -217,6 +219,10 @@ export default function InboxSettingsPage({
         confidence_threshold: confidenceThreshold,
         auto_reply_channels: { dm: autoDm, comment: autoComments },
         business_hours: { timezone, days: openDays, open: openTime, close: closeTime },
+        alert_emails: alertEmails
+          .split(/[\s,;]+/)
+          .map((e) => e.trim())
+          .filter(Boolean),
       });
       setSaveState('saved');
     } catch {
@@ -429,6 +435,29 @@ export default function InboxSettingsPage({
           ))}
         </div>
 
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: '#444' }}>Also email escalations to</div>
+          <div style={{ fontSize: 11, color: '#999', marginTop: 2, marginBottom: 6 }}>
+            When a customer is waiting for a person, the account owner is emailed and sent a WhatsApp. Add up to 5 more
+            addresses, separated by commas.
+          </div>
+          <input
+            type="text"
+            value={alertEmails}
+            onChange={(e) => setAlertEmails(e.target.value)}
+            placeholder="e.g. support@yourbusiness.com, manager@yourbusiness.com"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              border: '1px solid rgba(0,0,0,.12)',
+              borderRadius: 8,
+              padding: '8px 10px',
+              fontSize: 13,
+              fontFamily: 'inherit',
+            }}
+          />
+        </div>
+
         <div
           style={{
             fontSize: 11.5,
@@ -441,17 +470,22 @@ export default function InboxSettingsPage({
           }}
         >
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Why some messages still ask you to send</div>
-          Turning auto-replies on doesn&apos;t mean every message sends itself. URI only sends a reply it&apos;s sure
-          is right, and drafts the rest for you to check, with the reason shown in the conversation. That happens when:
+          Turning auto-replies on doesn&apos;t mean every message sends itself. URI only sends a reply it&apos;s sure is
+          right, and drafts the rest for you to check, with the reason shown in the conversation. That happens when:
           <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-            <li>the customer asks something no approved FAQ below answers, or URI is less sure than your confidence threshold</li>
+            <li>
+              the customer asks something no approved FAQ below answers, or URI is less sure than your confidence
+              threshold
+            </li>
             <li>it looks like spam</li>
             <li>it&apos;s about a refund, payment dispute, safety, a legal threat or an unclear price or stock</li>
             <li>someone on your team has been assigned, or replied in the last 24 hours</li>
             <li>it&apos;s outside your business hours, or past Meta&apos;s 24-hour reply window</li>
             <li>10 auto-replies have gone out in this conversation in the last hour, which looks like another bot</li>
           </ul>
-          <div style={{ marginTop: 6 }}>Adding FAQs for the questions you get most is the quickest way to auto-reply to more of them.</div>
+          <div style={{ marginTop: 6 }}>
+            Adding FAQs for the questions you get most is the quickest way to auto-reply to more of them.
+          </div>
         </div>
 
         <div>
