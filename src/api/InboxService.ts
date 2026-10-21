@@ -68,6 +68,7 @@ export interface InboxAgentSettings {
   confidence_threshold: number;
   auto_reply_channels: { dm: boolean; comment: boolean };
   business_hours: { timezone: string; days: Record<string, boolean>; open: string; close: string };
+  alert_emails: string[];
 }
 
 export interface InboxKnowledgeEntry {
