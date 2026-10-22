@@ -87,6 +87,11 @@ function OpportunityCard({
   const [creating, setCreating] = useState(false);
   const meta = TYPE_META[card.type] ?? TYPE_META.emerging;
   const Icon = meta.icon;
+  // Only post/carousel/faq route through the content generator today —
+  // video and ad_test need their own generators that don't exist here yet.
+  // Say so up front rather than let the owner click "Create this" on a
+  // video-labelled card and quietly get a text draft instead.
+  const unsupportedAction = card.action.type === 'video' ? 'video' : card.action.type === 'ad_test' ? 'ad_test' : null;
 
   const create = async () => {
     if (creating) return;
@@ -210,10 +215,18 @@ function OpportunityCard({
           </button>
         </div>
 
+        {unsupportedAction && (
+          <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-[11.5px] text-muted-foreground">
+            {unsupportedAction === 'video'
+              ? "One-click video creation from Listening isn't available yet — use the brief above in Create Video."
+              : "One-click ad tests from Listening aren't available yet — use the brief above in Campaigns."}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={create} disabled={creating}>
+          <Button size="sm" onClick={create} disabled={creating || !!unsupportedAction}>
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {creating ? 'Creating…' : 'Create this'}
+            {creating ? 'Creating…' : unsupportedAction ? 'Create this (unavailable)' : 'Create this'}
           </Button>
           <Button size="sm" variant="outline" onClick={() => onAct(card, 'saved')} disabled={creating}>
             <Bookmark className="h-3.5 w-3.5" /> Save

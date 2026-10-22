@@ -224,60 +224,111 @@ function TopicsTab({ markets, market }: { markets: CurationMarket[]; market: str
           description="Topics appear here once they're observed or candidate — words and phrases Uri has seen but hasn't promoted to a monitored search term yet."
         />
       ) : (
-        <Card className="overflow-hidden py-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Topic</TableHead>
-                <TableHead>Market</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last seen</TableHead>
-                <TableHead>Decided by</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {topics.map((t) => {
-                const meta = TOPIC_STATUS_META[t.status] ?? TOPIC_STATUS_META.observed;
-                const busy = decidingKey === t.key;
-                return (
-                  <TableRow key={`${t.market}:${t.key}`}>
-                    <TableCell className="font-medium text-foreground">{t.name || t.key}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {markets.find((m) => m.key === t.market)?.label || t.market}
-                    </TableCell>
-                    <TableCell>
+        <>
+          {/* Table on wider screens — dense and scannable for many rows. */}
+          <Card className="hidden overflow-hidden py-0 md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Topic</TableHead>
+                  <TableHead>Market</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last seen</TableHead>
+                  <TableHead>Decided by</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {topics.map((t) => {
+                  const meta = TOPIC_STATUS_META[t.status] ?? TOPIC_STATUS_META.observed;
+                  const busy = decidingKey === t.key;
+                  return (
+                    <TableRow key={`${t.market}:${t.key}`}>
+                      <TableCell className="font-medium text-foreground">{t.name || t.key}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {markets.find((m) => m.key === t.market)?.label || t.market}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                            meta.className
+                          )}
+                        >
+                          {meta.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{fmtDate(t.last_seen)}</TableCell>
+                      <TableCell className="text-muted-foreground">{t.decided_by || '—'}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1.5">
+                          {t.status !== 'monitored' && (
+                            <Button size="xs" variant="outline" disabled={busy} onClick={() => decide(t, 'monitored')}>
+                              Promote
+                            </Button>
+                          )}
+                          {t.status !== 'retired' && (
+                            <Button size="xs" variant="ghost" disabled={busy} onClick={() => decide(t, 'retired')}>
+                              Retire
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
+
+          {/* Card stack on narrow screens — a wide table here either clips
+              the Status/Action columns off-screen with no scroll hint, or
+              forces a side-scroll nobody expects on a phone. */}
+          <div className="space-y-2.5 md:hidden">
+            {topics.map((t) => {
+              const meta = TOPIC_STATUS_META[t.status] ?? TOPIC_STATUS_META.observed;
+              const busy = decidingKey === t.key;
+              return (
+                <Card key={`${t.market}:${t.key}`}>
+                  <CardContent className="space-y-2 p-3.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-[13.5px] font-medium text-foreground">{t.name || t.key}</div>
+                        <div className="truncate text-[11.5px] text-muted-foreground">
+                          {markets.find((m) => m.key === t.market)?.label || t.market}
+                        </div>
+                      </div>
                       <span
                         className={cn(
-                          'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                          'shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
                           meta.className
                         )}
                       >
                         {meta.label}
                       </span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{fmtDate(t.last_seen)}</TableCell>
-                    <TableCell className="text-muted-foreground">{t.decided_by || '—'}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1.5">
-                        {t.status !== 'monitored' && (
-                          <Button size="xs" variant="outline" disabled={busy} onClick={() => decide(t, 'monitored')}>
-                            Promote
-                          </Button>
-                        )}
-                        {t.status !== 'retired' && (
-                          <Button size="xs" variant="ghost" disabled={busy} onClick={() => decide(t, 'retired')}>
-                            Retire
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Last seen {fmtDate(t.last_seen)}
+                      {t.decided_by ? ` · decided by ${t.decided_by}` : ''}
+                    </div>
+                    <div className="flex gap-1.5">
+                      {t.status !== 'monitored' && (
+                        <Button size="xs" variant="outline" disabled={busy} onClick={() => decide(t, 'monitored')}>
+                          Promote
+                        </Button>
+                      )}
+                      {t.status !== 'retired' && (
+                        <Button size="xs" variant="ghost" disabled={busy} onClick={() => decide(t, 'retired')}>
+                          Retire
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
