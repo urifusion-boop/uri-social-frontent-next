@@ -4665,6 +4665,7 @@ function runsOnLabel(platform?: string, googlePlacement?: string): string {
 const _STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   active: { bg: '#e6f7ec', color: '#1e7e34' },
   paused: { bg: '#fff3e0', color: '#e65100' },
+  'ad paused': { bg: '#fff3e0', color: '#e65100' },
   'in review': { bg: '#e8f0fe', color: '#1a56db' },
   processing: { bg: '#e8f0fe', color: '#1a56db' },
   scheduled: { bg: '#e8f0fe', color: '#1a56db' },
@@ -4689,7 +4690,8 @@ function formatEnds(endsAt: string | null | undefined) {
     : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const _TOGGLABLE_STATUSES = new Set(['active', 'paused']);
+// 'ad paused' = the campaign is on but its ads are off; resuming turns them back on.
+const _TOGGLABLE_STATUSES = new Set(['active', 'paused', 'ad paused']);
 
 function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void }) {
   const [working, setWorking] = useState(false);
