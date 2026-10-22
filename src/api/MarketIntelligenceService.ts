@@ -351,6 +351,11 @@ export interface ListeningMarketStatus {
   label?: string;
   last_collected_at?: string | null;
   topics: number;
+  // Counts within `topics` by lifecycle stage (PRD §6.3): observed -> seen,
+  // not yet searched for; candidate -> repeated enough to be watched;
+  // monitored -> added to the market's own searches; paused/retired ->
+  // dropped out. Absent keys mean 0 in that stage, not unknown.
+  topic_statuses?: Record<string, number>;
   active_signals: number;
   learned_terms: string[];
   last_run?: {
@@ -360,6 +365,42 @@ export interface ListeningMarketStatus {
     new_items?: number;
     note?: string;
   } | null;
+}
+
+export interface MarketPulseTopic {
+  topic: string;
+  accounts: number;
+  posts: number;
+  intents: Record<string, number>;
+  needs: string[];
+}
+
+export interface MarketPulse {
+  market: string;
+  label?: string;
+  covered_hours: number;
+  window_days: number;
+  topics: MarketPulseTopic[];
+}
+
+export interface ListeningRunQuery {
+  id?: string;
+  q: string;
+  kind: string;
+  role: string;
+  status: 'pending' | 'done';
+  items: number | null;
+  capped: boolean | null;
+  cost: number | null;
+  error: string | null;
+}
+
+export interface ListeningRun {
+  id: string;
+  market: string;
+  status: string;
+  started_at: string;
+  per_query: ListeningRunQuery[];
 }
 
 export interface ListeningStatus {
@@ -552,6 +593,17 @@ export class MarketIntelligenceService {
     return res.data;
   }
 
+  // What's real and measured in this business's market right now, whether
+  // or not any of it has cleared the bar for a full opportunity card yet —
+  // built this session already, just never connected to any screen before.
+  static async getMarketPulse(days = 7): Promise<UriResponse<MarketPulse[]>> {
+    const res: AxiosResponse<UriResponse<MarketPulse[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/pulse`,
+      { params: { days } }
+    );
+    return res.data;
+  }
+
   static async enableListening(): Promise<UriResponse<Record<string, unknown>>> {
     const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().post(
       `${BASE}/listening/enable`,
@@ -563,6 +615,15 @@ export class MarketIntelligenceService {
   static async runListeningNow(): Promise<UriResponse<{ started: boolean; markets: string[] }>> {
     const res: AxiosResponse<UriResponse<{ started: boolean; markets: string[] }>> =
       await UriHttpClient.getClient().post(`${BASE}/listening/run`, {});
+    return res.data;
+  }
+
+  // Real in-progress state, not a simulated percentage — see
+  // GET /listening/run/active's own docstring.
+  static async getActiveListeningRuns(): Promise<UriResponse<ListeningRun[]>> {
+    const res: AxiosResponse<UriResponse<ListeningRun[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/run/active`
+    );
     return res.data;
   }
 

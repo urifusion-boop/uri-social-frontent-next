@@ -11,7 +11,7 @@
  * multi-step, user-reviewed flow) — "Start this video" hands the brief to
  * Describe It pre-filled instead. ad_test has nowhere to route to yet.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bookmark,
@@ -36,9 +36,11 @@ import { cn } from '@/lib/utils';
 import {
   ListeningCard,
   ListeningCardAction,
+  ListeningRun,
   ListeningSignalType,
   ListeningStatus,
   MarketIntelligenceService,
+  MarketPulse,
 } from '@/src/api/MarketIntelligenceService';
 import { setVideoSeed } from '@/src/utils/contentSeed';
 import { ToastService } from '@/src/utils/toast.util';
@@ -275,11 +277,160 @@ function OpportunityCard({
   );
 }
 
+// A real, live strip of what's actually happening during a collection run —
+// every entry here traces to collector.py's own per_query writes (each
+// query flips from "pending" to "done" the moment it genuinely finishes),
+// never a client-side simulated percentage. Kept deliberately slim: a
+// progress count plus the few most recently finished searches, not a wall
+// of every query.
+function ActiveRunStrip({ runItem, marketLabel }: { runItem: ListeningRun; marketLabel?: string }) {
+  const queries = runItem.per_query || [];
+  const done = queries.filter((q) => q.status === 'done');
+  const total = queries.length;
+  const recentlyDone = done.slice(-4);
+
+  return (
+    <div className="space-y-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11.5px]">
+      <div className="flex flex-wrap items-center gap-2">
+        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" />
+        <span className="font-medium text-foreground">Collecting from {marketLabel ?? runItem.market}</span>
+        <span className="text-muted-foreground">
+          — {done.length} of {total || '…'} searches done
+        </span>
+      </div>
+      {recentlyDone.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pl-5">
+          {recentlyDone.map((q, i) => (
+            <span
+              key={`${q.id ?? i}`}
+              className={cn(
+                'rounded-full border px-2 py-0.5 text-[10px]',
+                q.error
+                  ? 'border-rose-200 bg-rose-50 text-rose-700'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              )}
+            >
+              {q.error ? '!' : '✓'} {q.kind} {q.items != null ? `(${q.items})` : ''}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TOPIC_STATUS_LABEL: Record<string, string> = {
+  observed: 'Observed',
+  candidate: 'Candidate',
+  monitored: 'Monitored',
+  paused: 'Paused',
+  retired: 'Retired',
+};
+
+// Answers "178 topics, but I can't see any of it" directly: the real
+// status breakdown of the topic graph (already computed by GET
+// /listening/status, just never shown before) plus real measured activity
+// from GET /listening/pulse — topics with actual conversation in the last
+// week, how many distinct accounts, and what they actually want. Nothing
+// here is invented; a topic below the bar for a full opportunity card is
+// still real, measured activity, and now the owner can see it as such
+// instead of it just vanishing into an opaque count.
+function WatchingPanel({
+  status,
+  pulse,
+  loading,
+}: {
+  status: ListeningStatus | null;
+  pulse: MarketPulse[] | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-4 text-[12px] text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading what Uri is watching…
+      </div>
+    );
+  }
+
+  const pulseByMarket = new Map((pulse ?? []).map((p) => [p.market, p]));
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border bg-background p-3">
+      {(status?.markets ?? []).map((m) => {
+        const ts = m.topic_statuses || {};
+        const p = pulseByMarket.get(m.key);
+        return (
+          <div key={m.key} className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[12.5px] font-medium text-foreground">{m.label ?? m.key}</span>
+              {Object.entries(ts)
+                .filter(([, n]) => n > 0)
+                .map(([s, n]) => (
+                  <span
+                    key={s}
+                    className="rounded-full border border-border px-2 py-0.5 text-[10.5px] text-muted-foreground"
+                  >
+                    {n} {TOPIC_STATUS_LABEL[s] ?? s}
+                  </span>
+                ))}
+            </div>
+            {!p || p.topics.length === 0 ? (
+              <p className="pl-0.5 text-[11.5px] text-muted-foreground">
+                No real conversation measured in this market in the last week yet — topics above are being watched, but
+                nothing has enough recent activity to show.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {p.topics.slice(0, 10).map((t) => (
+                  <div key={t.topic} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
+                    <span className="font-medium text-foreground">{t.topic}</span>
+                    <span className="text-muted-foreground">
+                      {t.accounts} account{t.accounts === 1 ? '' : 's'} · {t.posts} post{t.posts === 1 ? '' : 's'}
+                    </span>
+                    {t.needs.length > 0 && (
+                      <span className="text-muted-foreground">— asking about: {t.needs.join(', ')}</span>
+                    )}
+                  </div>
+                ))}
+                <p className="pt-1 text-[10.5px] text-muted-foreground">
+                  Real activity over the last {p.window_days} days, {p.covered_hours}h actually covered by collection.
+                  This is context — none of it is an alert until it clears the evidence bar above.
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {(status?.markets ?? []).length === 0 && <p className="text-[12px] text-muted-foreground">No markets yet.</p>}
+    </div>
+  );
+}
+
 export default function ListeningOpportunities() {
   const [status, setStatus] = useState<ListeningStatus | null>(null);
   const [cards, setCards] = useState<ListeningCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<'enable' | 'run' | null>(null);
+  const [activeRuns, setActiveRuns] = useState<ListeningRun[]>([]);
+  const [watchingOpen, setWatchingOpen] = useState(false);
+  const [pulse, setPulse] = useState<MarketPulse[] | null>(null);
+  const [pulseLoading, setPulseLoading] = useState(false);
+
+  const toggleWatching = async () => {
+    const opening = !watchingOpen;
+    setWatchingOpen(opening);
+    if (opening && pulse === null) {
+      setPulseLoading(true);
+      try {
+        const res = await MarketIntelligenceService.getMarketPulse(7);
+        setPulse(res.status ? (res.responseData ?? []) : []);
+      } catch {
+        setPulse([]);
+      } finally {
+        setPulseLoading(false);
+      }
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -297,6 +448,56 @@ export default function ListeningOpportunities() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Real collection progress, not a simulated percentage — polls the actual
+  // run doc (GET /listening/run/active), which collector.py updates query
+  // by query as each one genuinely finishes. Fast (4s) while something is
+  // actually running; slow (30s) otherwise, in case the scheduled cycle —
+  // not this tab's own "Check now" — starts one while the page is open, per
+  // "you can leave this page and return later."
+  const wasActiveRef = useRef(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      let runs: ListeningRun[] = [];
+      try {
+        const res = await MarketIntelligenceService.getActiveListeningRuns();
+        runs = res.status ? (res.responseData ?? []) : [];
+      } catch {
+        /* transient — next tick retries */
+      }
+      if (cancelled) return;
+      setActiveRuns(runs);
+      if (runs.length > 0) {
+        wasActiveRef.current = true;
+        pollTimerRef.current = setTimeout(tick, 4000);
+      } else {
+        if (wasActiveRef.current) {
+          wasActiveRef.current = false;
+          load(); // a run that was active just finished — pull in whatever it found
+        }
+        pollTimerRef.current = setTimeout(tick, 30000);
+      }
+    };
+    tick();
+    return () => {
+      cancelled = true;
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, [load]);
+
+  // Jump straight to a fast poll tick instead of waiting up to 30s for the
+  // slow background one to notice the run this exact click just started.
+  const pollSoon = () => {
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    pollTimerRef.current = setTimeout(async () => {
+      const res = await MarketIntelligenceService.getActiveListeningRuns().catch(() => null);
+      const runs = res?.status ? (res.responseData ?? []) : [];
+      setActiveRuns(runs);
+      if (runs.length > 0) wasActiveRef.current = true;
+    }, 1500);
+  };
 
   const enable = async () => {
     setBusy('enable');
@@ -323,11 +524,8 @@ export default function ListeningOpportunities() {
     setBusy('run');
     try {
       await MarketIntelligenceService.runListeningNow();
-      ToastService.showToast(
-        'Checking your market now — new opportunities appear here in a few minutes.',
-        ToastTypeEnum.Success
-      );
-      setTimeout(load, 90_000);
+      ToastService.showToast('Checking your market now — see progress below.', ToastTypeEnum.Success);
+      pollSoon(); // the strip below picks up real progress; load() fires on its own once the run completes
     } catch (err) {
       ToastService.showToast(errMsg(err, 'Could not start a check'), ToastTypeEnum.Warning);
     } finally {
@@ -397,16 +595,35 @@ export default function ListeningOpportunities() {
         <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
           <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> Listening
         </span>
-        {(status?.markets ?? []).map((m) => (
-          <span key={m.key}>
-            {m.label ?? m.key} · checked {ago(m.last_collected_at)} · {m.topics} topics
-          </span>
-        ))}
+        {(status?.markets ?? []).map((m) => {
+          const ts = m.topic_statuses || {};
+          const interesting = (ts.candidate || 0) + (ts.monitored || 0);
+          return (
+            <span key={m.key}>
+              {m.label ?? m.key} · checked {ago(m.last_collected_at)} · {m.topics} topics
+              {interesting > 0 ? ` (${interesting} worth watching)` : ''}
+            </span>
+          );
+        })}
+        <button
+          type="button"
+          onClick={toggleWatching}
+          className="inline-flex items-center gap-1 text-[11.5px] font-medium text-primary"
+        >
+          <ChevronDown className={cn('h-3 w-3 transition-transform', watchingOpen && 'rotate-180')} />
+          {watchingOpen ? 'Hide' : 'What is Uri watching?'}
+        </button>
         <Button variant="ghost" size="xs" className="ml-auto" onClick={runNow} disabled={busy === 'run'}>
           {busy === 'run' ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
           Check now
         </Button>
       </div>
+
+      {watchingOpen && <WatchingPanel status={status} pulse={pulse} loading={pulseLoading} />}
+
+      {activeRuns.map((r) => (
+        <ActiveRunStrip key={r.id} runItem={r} marketLabel={status?.markets.find((m) => m.key === r.market)?.label} />
+      ))}
 
       {cards.length === 0 ? (
         <Card>
