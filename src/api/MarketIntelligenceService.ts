@@ -633,6 +633,13 @@ export class MarketIntelligenceService {
     return res.data;
   }
 
+  static async getTopicHistory(marketKey: string, topicKey: string): Promise<UriResponse<TopicHistoryEntry[]>> {
+    const res: AxiosResponse<UriResponse<TopicHistoryEntry[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/curation/topics/${encodeURIComponent(marketKey)}/${encodeURIComponent(topicKey)}/history`
+    );
+    return res.data;
+  }
+
   static async getSourcePermissions(): Promise<UriResponse<SourcePermission[]>> {
     const res: AxiosResponse<UriResponse<SourcePermission[]>> = await UriHttpClient.getClient().get(
       `${BASE}/listening/curation/sources`
@@ -754,6 +761,16 @@ export interface CurationTopic {
   low_yield_windows?: number;
   decided_by?: string;
   decision_reason?: string;
+}
+
+export interface TopicHistoryEntry {
+  market: string;
+  topic: string;
+  old_status: TopicStatus | null;
+  new_status: TopicStatus;
+  reason?: string | null;
+  actor: string;
+  at: string;
 }
 
 export interface SourcePermission {

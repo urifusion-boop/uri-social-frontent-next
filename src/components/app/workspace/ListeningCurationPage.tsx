@@ -18,6 +18,7 @@ import {
   FlaskConical,
   Gauge,
   Globe2,
+  History,
   Inbox,
   Loader2,
   Radio,
@@ -46,6 +47,7 @@ import {
   ProductMetrics,
   ReplayResult,
   SourcePermission,
+  TopicHistoryEntry,
   TopicStatus,
 } from '@/src/api/MarketIntelligenceService';
 import { ToastService } from '@/src/utils/toast.util';
@@ -150,11 +152,63 @@ const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
 
 /* ══════════════════════════════════ Topics tab ══════════════════════════ */
 
+function TopicHistoryPanel({ market, topic }: { market: string; topic: string }) {
+  const [entries, setEntries] = useState<TopicHistoryEntry[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    MarketIntelligenceService.getTopicHistory(market, topic)
+      .then((res) => {
+        if (!cancelled) setEntries(res.status ? (res.responseData ?? []) : []);
+      })
+      .catch(() => {
+        if (!cancelled) setEntries([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [market, topic]);
+
+  if (entries === null) {
+    return (
+      <div className="flex items-center gap-2 py-2 text-[11.5px] text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" /> Loading history…
+      </div>
+    );
+  }
+  if (entries.length === 0) {
+    return <div className="py-2 text-[11.5px] text-muted-foreground">No recorded transitions yet.</div>;
+  }
+  return (
+    <ol className="space-y-1.5 py-1">
+      {entries.map((e, i) => (
+        <li key={i} className="text-[11.5px] text-muted-foreground">
+          <span className="font-medium text-foreground">
+            {e.old_status ?? 'new'} → {e.new_status}
+          </span>{' '}
+          by {e.actor} · {fmtDate(e.at)}
+          {e.reason ? <span className="italic"> — {e.reason}</span> : null}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function TopicsTab({ markets, market }: { markets: CurationMarket[]; market: string }) {
   const [status, setStatus] = useState<string>('');
   const [topics, setTopics] = useState<CurationTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const [decidingKey, setDecidingKey] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleHistory = (t: CurationTopic) => {
+    const id = `${t.market}:${t.key}`;
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -242,39 +296,58 @@ function TopicsTab({ markets, market }: { markets: CurationMarket[]; market: str
                 {topics.map((t) => {
                   const meta = TOPIC_STATUS_META[t.status] ?? TOPIC_STATUS_META.observed;
                   const busy = decidingKey === t.key;
+                  const id = `${t.market}:${t.key}`;
+                  const isOpen = expanded.has(id);
                   return (
-                    <TableRow key={`${t.market}:${t.key}`}>
-                      <TableCell className="font-medium text-foreground">{t.name || t.key}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {markets.find((m) => m.key === t.market)?.label || t.market}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold',
-                            meta.className
-                          )}
-                        >
-                          {meta.label}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{fmtDate(t.last_seen)}</TableCell>
-                      <TableCell className="text-muted-foreground">{t.decided_by || '—'}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1.5">
-                          {t.status !== 'monitored' && (
-                            <Button size="xs" variant="outline" disabled={busy} onClick={() => decide(t, 'monitored')}>
-                              Promote
+                    <React.Fragment key={id}>
+                      <TableRow>
+                        <TableCell className="font-medium text-foreground">{t.name || t.key}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {markets.find((m) => m.key === t.market)?.label || t.market}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={cn(
+                              'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                              meta.className
+                            )}
+                          >
+                            {meta.label}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{fmtDate(t.last_seen)}</TableCell>
+                        <TableCell className="text-muted-foreground">{t.decided_by || '—'}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1.5">
+                            <Button size="xs" variant="ghost" onClick={() => toggleHistory(t)}>
+                              <History className="h-3 w-3" />
                             </Button>
-                          )}
-                          {t.status !== 'retired' && (
-                            <Button size="xs" variant="ghost" disabled={busy} onClick={() => decide(t, 'retired')}>
-                              Retire
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                            {t.status !== 'monitored' && (
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                disabled={busy}
+                                onClick={() => decide(t, 'monitored')}
+                              >
+                                Promote
+                              </Button>
+                            )}
+                            {t.status !== 'retired' && (
+                              <Button size="xs" variant="ghost" disabled={busy} onClick={() => decide(t, 'retired')}>
+                                Retire
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isOpen && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="bg-muted/20">
+                            <TopicHistoryPanel market={t.market} topic={t.key} />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </TableBody>
@@ -288,8 +361,10 @@ function TopicsTab({ markets, market }: { markets: CurationMarket[]; market: str
             {topics.map((t) => {
               const meta = TOPIC_STATUS_META[t.status] ?? TOPIC_STATUS_META.observed;
               const busy = decidingKey === t.key;
+              const id = `${t.market}:${t.key}`;
+              const isOpen = expanded.has(id);
               return (
-                <Card key={`${t.market}:${t.key}`}>
+                <Card key={id}>
                   <CardContent className="space-y-2 p-3.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -322,7 +397,15 @@ function TopicsTab({ markets, market }: { markets: CurationMarket[]; market: str
                           Retire
                         </Button>
                       )}
+                      <Button size="xs" variant="ghost" className="ml-auto" onClick={() => toggleHistory(t)}>
+                        <History className="h-3 w-3" /> History
+                      </Button>
                     </div>
+                    {isOpen && (
+                      <div className="border-t border-border pt-2">
+                        <TopicHistoryPanel market={t.market} topic={t.key} />
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );
