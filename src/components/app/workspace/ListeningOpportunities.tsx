@@ -4,8 +4,12 @@
  * Market opportunities from Listening Intelligence: what's rising, emerging or
  * repeatedly asked in this business's market, why it matters to them, and a
  * ready action. Every number shown comes from measured data (the backend
- * builds the observation sentence); "Create this" hands the brief straight to
- * the content generator.
+ * builds the observation sentence). A post/carousel/FAQ card's "Create this"
+ * generates the draft server-side in one click (POST /listening/cards/{id}/
+ * create) and lands on Create where it's already waiting. A video card has
+ * no equivalent single call (storyboard -> frames -> render is a genuine
+ * multi-step, user-reviewed flow) — "Start this video" hands the brief to
+ * Describe It pre-filled instead. ad_test has nowhere to route to yet.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -36,7 +40,7 @@ import {
   ListeningStatus,
   MarketIntelligenceService,
 } from '@/src/api/MarketIntelligenceService';
-import { setContentSeed } from '@/src/utils/contentSeed';
+import { setVideoSeed } from '@/src/utils/contentSeed';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -44,11 +48,17 @@ const TYPE_META: Record<ListeningSignalType, { label: string; icon: LucideIcon; 
   rising: { label: 'Rising', icon: TrendingUp, className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   spike: { label: 'Spike today', icon: Zap, className: 'bg-amber-50 text-amber-700 border-amber-200' },
   emerging: { label: 'Emerging signal', icon: Sparkles, className: 'bg-sky-50 text-sky-700 border-sky-200' },
-  new_entity: { label: 'New in your market', icon: Flame, className: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200' },
-  recurring_need: { label: 'Customers keep asking', icon: HelpCircle, className: 'bg-violet-50 text-violet-700 border-violet-200' },
+  new_entity: {
+    label: 'New in your market',
+    icon: Flame,
+    className: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+  },
+  recurring_need: {
+    label: 'Customers keep asking',
+    icon: HelpCircle,
+    className: 'bg-violet-50 text-violet-700 border-violet-200',
+  },
 };
-
-const PLATFORM_KEY: Record<string, string> = { x: 'twitter', twitter: 'twitter', instagram: 'instagram', facebook: 'facebook', linkedin: 'linkedin', tiktok: 'tiktok' };
 
 const errMsg = (err: unknown, fallback: string): string => {
   const detail =
@@ -66,30 +76,34 @@ const ago = (iso?: string | null): string => {
   return h < 48 ? `${h}h ago` : `${Math.round(h / 24)} days ago`;
 };
 
-function briefText(c: ListeningCard): string {
-  const a = c.action;
-  return [
-    `${a.title} (${a.format}).`,
-    `Why now: ${c.observation} ${c.why}`,
-    `Hook: ${a.hook}`,
-    a.outline?.length ? `Outline: ${a.outline.join(' → ')}` : '',
-    `CTA: ${a.cta}`,
-    a.caption ? `Caption idea: ${a.caption}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
-}
-
-function OpportunityCard({ card, onAct }: { card: ListeningCard; onAct: (c: ListeningCard, a: ListeningCardAction) => void }) {
+function OpportunityCard({
+  card,
+  onAct,
+  onCreated,
+}: {
+  card: ListeningCard;
+  onAct: (c: ListeningCard, a: ListeningCardAction) => void;
+  onCreated: (c: ListeningCard) => void;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const meta = TYPE_META[card.type] ?? TYPE_META.emerging;
   const Icon = meta.icon;
+  // post/carousel/faq route through the server-side content generator
+  // (one real click, drafts land in Create). video has no equivalent
+  // single call — it's a genuine multi-step, user-reviewed flow (storyboard
+  // -> frames -> render) — so its honest "one click" is handing the brief
+  // to Describe It pre-filled, not pretending a finished video exists.
+  // ad_test has no destination to route to at all yet (no draft-ad-campaign
+  // flow wired to Listening) — stays disabled with a clear explanation.
+  const isVideo = card.action.type === 'video';
+  const unsupportedAction = card.action.type === 'ad_test' ? 'ad_test' : null;
 
-  const create = () => {
-    setContentSeed({
-      seed: briefText(card),
-      platforms: (card.action.platforms ?? []).map((p) => PLATFORM_KEY[p.toLowerCase()]).filter(Boolean),
+  const createVideo = () => {
+    const parts = [card.action.hook, ...(card.action.outline ?? []), card.action.cta].filter(Boolean);
+    setVideoSeed({
+      brief: parts.join('. ') || card.why || card.observation,
       source: 'listening',
       cardId: card.id,
     });
@@ -97,17 +111,56 @@ function OpportunityCard({ card, onAct }: { card: ListeningCard; onAct: (c: List
     router.push('/workspace/?tab=schedule');
   };
 
+  const create = async () => {
+    if (creating) return;
+    if (isVideo) {
+      createVideo();
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await MarketIntelligenceService.createFromListeningCard(card.id);
+      if (res.status && res.responseData) {
+        ToastService.showToast('Draft created — opening it in Create now.', ToastTypeEnum.Success);
+        onCreated(card);
+        router.push('/workspace/?tab=schedule');
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not create a draft from this', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 409) {
+        // Already created from this card on an earlier click — not an error,
+        // just route to where it already landed.
+        onCreated(card);
+        router.push('/workspace/?tab=schedule');
+      } else {
+        ToastService.showToast(errMsg(err, 'Could not create a draft from this'), ToastTypeEnum.Error);
+      }
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <Card className="overflow-hidden py-0">
       <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold', meta.className)}>
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+              meta.className
+            )}
+          >
             <Icon className="h-3 w-3" /> {meta.label}
           </span>
           <Badge variant="outline" className="text-[11px] font-medium">
             {card.topic_name || card.topic}
           </Badge>
-          <span className="ml-auto text-[11px] text-muted-foreground" title="Opportunity score (relevance, momentum, buying intent, evidence, brand fit)">
+          <span
+            className="ml-auto text-[11px] text-muted-foreground"
+            title="Opportunity score (relevance, momentum, buying intent, evidence, brand fit)"
+          >
             Score {Math.round(card.scores.total)}
           </span>
         </div>
@@ -153,7 +206,12 @@ function OpportunityCard({ card, onAct }: { card: ListeningCard; onAct: (c: List
                       <li key={i} className="rounded-md bg-background p-2 text-muted-foreground">
                         “{s.text}”{' '}
                         {s.url && (
-                          <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-primary">
+                          <a
+                            href={s.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-0.5 text-primary"
+                          >
                             view <ExternalLink className="h-3 w-3" />
                           </a>
                         )}
@@ -163,9 +221,9 @@ function OpportunityCard({ card, onAct }: { card: ListeningCard; onAct: (c: List
                 </div>
               )}
               <div className="text-[11px] text-muted-foreground">
-                Source: {card.evidence.source}. {card.evidence.scope_note} Relevance {Math.round(card.scores.R)} · momentum{' '}
-                {Math.round(card.scores.M)} · buying intent {Math.round(card.scores.C)} · evidence {Math.round(card.scores.E)} ·
-                brand fit {Math.round(card.scores.B)}
+                Source: {card.evidence.source}. {card.evidence.scope_note} Relevance {Math.round(card.scores.R)} ·
+                momentum {Math.round(card.scores.M)} · buying intent {Math.round(card.scores.C)} · evidence{' '}
+                {Math.round(card.scores.E)} · brand fit {Math.round(card.scores.B)}
               </div>
             </div>
           )}
@@ -179,17 +237,36 @@ function OpportunityCard({ card, onAct }: { card: ListeningCard; onAct: (c: List
           </button>
         </div>
 
+        {unsupportedAction && (
+          <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-[11.5px] text-muted-foreground">
+            One-click ad tests from Listening aren&apos;t available yet — use the brief above in Campaigns.
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={create}>
-            <Sparkles className="h-3.5 w-3.5" /> Create this
+          <Button size="sm" onClick={create} disabled={creating || !!unsupportedAction}>
+            {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {creating
+              ? 'Creating…'
+              : unsupportedAction
+                ? 'Create this (unavailable)'
+                : isVideo
+                  ? 'Start this video'
+                  : 'Create this'}
           </Button>
-          <Button size="sm" variant="outline" onClick={() => onAct(card, 'saved')}>
+          <Button size="sm" variant="outline" onClick={() => onAct(card, 'saved')} disabled={creating}>
             <Bookmark className="h-3.5 w-3.5" /> Save
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onAct(card, 'snoozed')}>
+          <Button size="sm" variant="ghost" onClick={() => onAct(card, 'snoozed')} disabled={creating}>
             <Clock className="h-3.5 w-3.5" /> Later
           </Button>
-          <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground" onClick={() => onAct(card, 'dismissed')}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto text-muted-foreground"
+            onClick={() => onAct(card, 'dismissed')}
+            disabled={creating}
+          >
             <X className="h-3.5 w-3.5" /> Not relevant
           </Button>
         </div>
@@ -230,7 +307,10 @@ export default function ListeningOpportunities() {
         return;
       }
       await MarketIntelligenceService.runListeningNow().catch(() => undefined);
-      ToastService.showToast('Listening is on. Uri is reading your market — first findings arrive shortly.', ToastTypeEnum.Success);
+      ToastService.showToast(
+        'Listening is on. Uri is reading your market — first findings arrive shortly.',
+        ToastTypeEnum.Success
+      );
       await load();
     } catch (err) {
       ToastService.showToast(errMsg(err, 'Could not turn on listening'), ToastTypeEnum.Error);
@@ -243,7 +323,10 @@ export default function ListeningOpportunities() {
     setBusy('run');
     try {
       await MarketIntelligenceService.runListeningNow();
-      ToastService.showToast('Checking your market now — new opportunities appear here in a few minutes.', ToastTypeEnum.Success);
+      ToastService.showToast(
+        'Checking your market now — new opportunities appear here in a few minutes.',
+        ToastTypeEnum.Success
+      );
       setTimeout(load, 90_000);
     } catch (err) {
       ToastService.showToast(errMsg(err, 'Could not start a check'), ToastTypeEnum.Warning);
@@ -253,15 +336,28 @@ export default function ListeningOpportunities() {
   };
 
   const act = async (card: ListeningCard, action: ListeningCardAction) => {
-    setCards((cs) => (action === 'saved' ? cs.map((c) => (c.id === card.id ? { ...c, status: 'saved' } : c)) : cs.filter((c) => c.id !== card.id)));
+    setCards((cs) =>
+      action === 'saved'
+        ? cs.map((c) => (c.id === card.id ? { ...c, status: 'saved' } : c))
+        : cs.filter((c) => c.id !== card.id)
+    );
     try {
       await MarketIntelligenceService.actOnListeningCard(card.id, action);
-      if (action === 'dismissed') ToastService.showToast('Got it — Uri will show you less like this.', ToastTypeEnum.Success);
+      if (action === 'dismissed')
+        ToastService.showToast('Got it — Uri will show you less like this.', ToastTypeEnum.Success);
       if (action === 'saved') ToastService.showToast('Saved.', ToastTypeEnum.Success);
     } catch (err) {
       ToastService.showToast(errMsg(err, 'Could not update'), ToastTypeEnum.Error);
       load();
     }
+  };
+
+  // The create-draft call already recorded the action and advanced the
+  // card's status server-side — this just mirrors that locally so the card
+  // leaves the list without a second round-trip through the generic
+  // /action endpoint (which would double-log the same action).
+  const markCreated = (card: ListeningCard) => {
+    setCards((cs) => cs.filter((c) => c.id !== card.id));
   };
 
   if (loading) {
@@ -283,8 +379,8 @@ export default function ListeningOpportunities() {
           </div>
           <p className="max-w-2xl text-[13px] text-muted-foreground">
             Uri reads public conversations in your market every few hours, spots what is rising and what customers keep
-            asking, and turns it into ready content ideas for your business. It uses your Brand Playbook — nothing to set
-            up.
+            asking, and turns it into ready content ideas for your business. It uses your Brand Playbook — nothing to
+            set up.
           </p>
           <Button size="sm" onClick={enable} disabled={busy === 'enable'}>
             {busy === 'enable' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />}
@@ -315,15 +411,15 @@ export default function ListeningOpportunities() {
       {cards.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-[13px] text-muted-foreground">
-            No strong opportunities yet. Uri checks your market every {status?.cadence_hours ?? 12} hours and only
-            shows something when there is enough real evidence — trends need a few days of history before they can be
-            called trends.
+            No strong opportunities yet. Uri checks your market every {status?.cadence_hours ?? 12} hours and only shows
+            something when there is enough real evidence — trends need a few days of history before they can be called
+            trends.
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {cards.map((c) => (
-            <OpportunityCard key={c.id} card={c} onAct={act} />
+            <OpportunityCard key={c.id} card={c} onAct={act} onCreated={markCreated} />
           ))}
         </div>
       )}

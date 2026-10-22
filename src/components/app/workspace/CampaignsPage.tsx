@@ -4088,7 +4088,11 @@ function ResultCard({
                   </>
                 )}
               </button>
-              {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
+              {launchError && (
+                <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828', whiteSpace: 'pre-line' }}>
+                  {launchError}
+                </p>
+              )}
               {fixingWhatsapp && (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ display: 'flex', gap: 8 }}>

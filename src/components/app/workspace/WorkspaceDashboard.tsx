@@ -72,6 +72,8 @@ import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductio
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
 import MarketIntelligencePage from '@/src/components/app/workspace/MarketIntelligencePage';
 import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
+import ListeningCurationPage from '@/src/components/app/workspace/ListeningCurationPage';
+import { hasVideoSeed } from '@/src/utils/contentSeed';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -894,6 +896,20 @@ const ContentManagerPage = ({
       setVideoTab('chat');
     }
   }, [videoPolishHandoff]);
+  // A Listening opportunity card recommended as a video lands here with its
+  // brief pre-filled on Describe It — the honest "one click" for video,
+  // since (unlike text) there's no single server-side call that produces a
+  // finished video; the real flow is storyboard -> frames -> render, and the
+  // owner reviews each step. Checked once on mount only.
+  useEffect(() => {
+    // Peek only — DescribeVideoGenerator does the real (destructive) read
+    // itself once it mounts; taking it here would clear it first.
+    if (hasVideoSeed()) {
+      setActiveTab('video');
+      setVideoTab('generate');
+      setGenerateMode('describe');
+    }
+  }, []);
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
   // Keep JaneVideoChat mounted after first visit so in-progress sessions survive tab switches
   const [janeEverMounted, setJaneEverMounted] = useState(false);
@@ -10179,6 +10195,18 @@ const NAV = [
     tooltip: 'User management, credit/trial adjustment, and partner access codes',
     platformAdminOnly: true,
   },
+  {
+    // Same platform-admin gate as `admin` above — a market and its topics,
+    // sources and readings are shared across every subscribed business,
+    // not any one tenant's own data, so this lives outside the brand-
+    // scoped Market Intelligence page. ListeningCurationPage.tsx also
+    // re-checks server-side and self-redirects non-admins away.
+    id: 'listening-curation',
+    icon: 'eye',
+    label: 'Listening Curation',
+    tooltip: 'Topics, sources, review queue, golden datasets, replay and product metrics for Listening Intelligence',
+    platformAdminOnly: true,
+  },
 ];
 
 const MOBILE_TABS = [
@@ -10727,6 +10755,7 @@ export default function WorkspaceDashboard() {
     ),
     'market-intelligence': <MarketIntelligencePage />,
     admin: <AdminUsersPage onBack={goWorkspace} />,
+    'listening-curation': <ListeningCurationPage onBack={goWorkspace} />,
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,

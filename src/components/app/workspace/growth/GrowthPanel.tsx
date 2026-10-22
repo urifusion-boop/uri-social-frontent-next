@@ -101,7 +101,16 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
           </Chip>
         ))}
         <div style={{ flex: 1 }} />
-        <Chip tone={policy.mode === 'autonomous' ? 'amber' : 'grey'}>{MODE_LABELS[policy.mode]}</Chip>
+        <Btn
+          small
+          kind="ghost"
+          onClick={() => {
+            setView('automation');
+            setSelected('');
+          }}
+        >
+          Mode: {MODE_LABELS[policy.mode]} ▾
+        </Btn>
         {canChange && (
           <Btn small kind={policy.emergency_stop ? 'primary' : 'danger'} onClick={toggleStop} disabled={stopping}>
             {policy.emergency_stop ? 'Resume automation' : 'Emergency stop'}

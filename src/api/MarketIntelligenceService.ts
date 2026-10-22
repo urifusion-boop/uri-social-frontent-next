@@ -353,7 +353,13 @@ export interface ListeningMarketStatus {
   topics: number;
   active_signals: number;
   learned_terms: string[];
-  last_run?: { status?: string; started_at?: string; items_returned?: number; new_items?: number; note?: string } | null;
+  last_run?: {
+    status?: string;
+    started_at?: string;
+    items_returned?: number;
+    new_items?: number;
+    note?: string;
+  } | null;
 }
 
 export interface ListeningStatus {
@@ -578,4 +584,253 @@ export class MarketIntelligenceService {
     );
     return res.data;
   }
+
+  // One click, server-side: generates real drafts from the card's
+  // evidence-backed brief (no re-typing, no separate "now press Generate"
+  // step) and returns the ids so the caller can route straight to them.
+  static async createFromListeningCard(
+    cardId: string
+  ): Promise<UriResponse<{ card_id: string; draft_ids: string[]; request_id?: string }>> {
+    const res: AxiosResponse<UriResponse<{ card_id: string; draft_ids: string[]; request_id?: string }>> =
+      await UriHttpClient.getClient().post(`${BASE}/listening/cards/${cardId}/create`, {});
+    return res.data;
+  }
+
+  // ── Listening curation console (admin-only) ─────────────────────────────
+  // A market and its topics/sources/readings are shared across every
+  // subscribed business, not any one tenant's own data — these endpoints
+  // are gated server-side by platform-admin status, not brand context.
+
+  static async getCurationMarkets(): Promise<UriResponse<CurationMarket[]>> {
+    const res: AxiosResponse<UriResponse<CurationMarket[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/curation/markets`
+    );
+    return res.data;
+  }
+
+  static async getCurationTopics(params: {
+    status?: string;
+    market?: string;
+    limit?: number;
+  }): Promise<UriResponse<CurationTopic[]>> {
+    const res: AxiosResponse<UriResponse<CurationTopic[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/curation/topics`,
+      { params }
+    );
+    return res.data;
+  }
+
+  static async decideCurationTopic(
+    marketKey: string,
+    topicKey: string,
+    body: { status: TopicStatus; reason?: string }
+  ): Promise<UriResponse<{ found: boolean; status: string; market: string; topic: string }>> {
+    const res: AxiosResponse<UriResponse<{ found: boolean; status: string; market: string; topic: string }>> =
+      await UriHttpClient.getClient().post(
+        `${BASE}/listening/curation/topics/${encodeURIComponent(marketKey)}/${encodeURIComponent(topicKey)}/decide`,
+        body
+      );
+    return res.data;
+  }
+
+  static async getTopicHistory(marketKey: string, topicKey: string): Promise<UriResponse<TopicHistoryEntry[]>> {
+    const res: AxiosResponse<UriResponse<TopicHistoryEntry[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/curation/topics/${encodeURIComponent(marketKey)}/${encodeURIComponent(topicKey)}/history`
+    );
+    return res.data;
+  }
+
+  static async getSourcePermissions(): Promise<UriResponse<SourcePermission[]>> {
+    const res: AxiosResponse<UriResponse<SourcePermission[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/curation/sources`
+    );
+    return res.data;
+  }
+
+  static async setSourceApproval(
+    source: string,
+    body: { approved: boolean; notes?: string }
+  ): Promise<UriResponse<SourcePermission>> {
+    const res: AxiosResponse<UriResponse<SourcePermission>> = await UriHttpClient.getClient().post(
+      `${BASE}/listening/curation/sources/${encodeURIComponent(source)}/approval`,
+      body
+    );
+    return res.data;
+  }
+
+  static async getPendingReviews(params: { market?: string; limit?: number }): Promise<UriResponse<PendingReview[]>> {
+    const res: AxiosResponse<UriResponse<PendingReview[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/curation/reviews`,
+      { params }
+    );
+    return res.data;
+  }
+
+  static async resolveReview(
+    marketKey: string,
+    sourceId: string,
+    body: { on_topic?: boolean; intent?: string; topics?: string[]; note?: string }
+  ): Promise<UriResponse<{ found: boolean; corrected_fields: string[] }>> {
+    const res: AxiosResponse<UriResponse<{ found: boolean; corrected_fields: string[] }>> =
+      await UriHttpClient.getClient().post(
+        `${BASE}/listening/curation/reviews/${encodeURIComponent(marketKey)}/${encodeURIComponent(sourceId)}/resolve`,
+        body
+      );
+    return res.data;
+  }
+
+  static async replayDetection(body: {
+    market: string;
+    at: string[];
+    candidate_overrides?: Record<string, unknown>;
+  }): Promise<UriResponse<ReplayResult[]>> {
+    const res: AxiosResponse<UriResponse<ReplayResult[]>> = await UriHttpClient.getClient().post(
+      `${BASE}/listening/curation/replay`,
+      body
+    );
+    return res.data;
+  }
+
+  static async getGoldenExamples(params: { market?: string; limit?: number }): Promise<UriResponse<GoldenExample[]>> {
+    const res: AxiosResponse<UriResponse<GoldenExample[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/curation/golden`,
+      { params }
+    );
+    return res.data;
+  }
+
+  static async markGolden(
+    marketKey: string,
+    sourceId: string
+  ): Promise<UriResponse<{ found: boolean; marked: boolean }>> {
+    const res: AxiosResponse<UriResponse<{ found: boolean; marked: boolean }>> = await UriHttpClient.getClient().post(
+      `${BASE}/listening/curation/golden/${encodeURIComponent(marketKey)}/${encodeURIComponent(sourceId)}`,
+      {}
+    );
+    return res.data;
+  }
+
+  static async unmarkGolden(marketKey: string, sourceId: string): Promise<UriResponse<{ removed: boolean }>> {
+    const res: AxiosResponse<UriResponse<{ removed: boolean }>> = await UriHttpClient.getClient().delete(
+      `${BASE}/listening/curation/golden/${encodeURIComponent(marketKey)}/${encodeURIComponent(sourceId)}`
+    );
+    return res.data;
+  }
+
+  static async getProductMetrics(params: {
+    market?: string;
+    window_days?: number;
+  }): Promise<UriResponse<ProductMetrics>> {
+    const res: AxiosResponse<UriResponse<ProductMetrics>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/curation/metrics`,
+      { params }
+    );
+    return res.data;
+  }
+}
+
+export type TopicStatus = 'observed' | 'candidate' | 'monitored' | 'paused' | 'retired';
+
+export interface CurationMarket {
+  key: string;
+  category_id?: string;
+  country?: string;
+  label?: string;
+  status?: string;
+  pilot?: boolean;
+  learned_terms?: string[];
+  cadence_hours?: number;
+  created_at?: string;
+  last_collected_at?: string | null;
+  subscriber_count: number;
+}
+
+export interface CurationTopic {
+  market: string;
+  key: string;
+  name?: string;
+  aliases?: string[];
+  status: TopicStatus;
+  first_seen?: string;
+  last_seen?: string;
+  candidate_at?: string;
+  monitored_at?: string;
+  retired_at?: string;
+  paused_at?: string;
+  retired_reason?: string;
+  low_yield_windows?: number;
+  decided_by?: string;
+  decision_reason?: string;
+}
+
+export interface TopicHistoryEntry {
+  market: string;
+  topic: string;
+  old_status: TopicStatus | null;
+  new_status: TopicStatus;
+  reason?: string | null;
+  actor: string;
+  at: string;
+}
+
+export interface SourcePermission {
+  source: string;
+  terms_url?: string;
+  allowed_use?: string[];
+  retention_days?: number;
+  display_rules?: { max_excerpt_chars?: number; require_link?: boolean; require_attribution?: boolean };
+  approved: boolean;
+  approved_by?: string;
+  approved_at?: string;
+  notes?: string;
+}
+
+export interface PendingReview {
+  source_id: string;
+  market: string;
+  on_topic?: boolean;
+  intent?: string;
+  topics?: string[];
+  confidence?: number;
+  sentiment?: string;
+  buying_intent?: string;
+  published_at?: string;
+  reviewed?: boolean;
+  text?: string;
+  url?: string;
+}
+
+export interface ReplayResult {
+  market: string;
+  day: string;
+  candidate_signal_count: number;
+  compared_signal_count: number;
+  new_signals: { topic: string; type: string }[];
+  missed_signals: { topic: string; type: string }[];
+  agreement_count: number;
+}
+
+export interface GoldenExample {
+  source_id: string;
+  market: string;
+  text?: string;
+  on_topic?: boolean;
+  intent?: string;
+  sentiment?: string;
+  buying_intent?: string;
+  topics?: string[];
+  marked_by?: string;
+  marked_at?: string;
+  prompt_version?: string;
+}
+
+export interface ProductMetrics {
+  window_days: number;
+  cards_shown: number;
+  useful_or_acted_on_rate?: number;
+  dismissal_rate?: number;
+  dismissal_reasons?: Record<string, number>;
+  content_created_count?: number;
+  content_created_rate?: number;
+  not_available: Record<string, string>;
 }

@@ -12,6 +12,7 @@ import InboxSettingsPage from './InboxSettingsPage';
 import { InboxPersonalityPage } from './personality/InboxPersonalityPage';
 import { useNotifications } from '@/src/providers/NotificationProvider';
 import { GrowthService } from '@/src/api/GrowthService';
+import { WhatsAppTemplatePicker } from './WhatsAppTemplates';
 import type { Notification } from '@/src/api/NotificationService';
 
 /*
@@ -2307,6 +2308,9 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
           <I n="checkCheck" s={12} c="#2E7D32" />
           Delivery reflects what the channel reports
         </div>
+      )}
+      {selectedConv.channel === 'whatsapp' && !DEMO_INBOX && (
+        <WhatsAppTemplatePicker conversationId={selectedConv.id} />
       )}
     </div>
   );

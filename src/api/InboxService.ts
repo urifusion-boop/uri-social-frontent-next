@@ -198,7 +198,49 @@ const linkChannels = async (): Promise<{ linked: number }> => {
   return r.data;
 };
 
+export interface WhatsAppTemplate {
+  name: string;
+  language: string;
+  category: string;
+  body: string;
+  variables: number;
+}
+
+const whatsappConfig = async (): Promise<{
+  app_id: string;
+  config_id: string;
+  graph_version: string;
+  available: boolean;
+}> => (await UriHttpClient.getClient().get('/inbox/whatsapp/config')).data;
+
+const connectWhatsApp = async (
+  body: Record<string, unknown>
+): Promise<{ connected: { name: string; display_phone_number: string } }> =>
+  (await UriHttpClient.getClient().post('/inbox/whatsapp/connect', body)).data;
+
+const whatsappTemplates = async (conversationId: string): Promise<WhatsAppTemplate[]> =>
+  (await UriHttpClient.getClient().get(`/inbox/conversations/${conversationId}/whatsapp-templates`)).data?.templates ??
+  [];
+
+const sendWhatsAppTemplate = async (
+  conversationId: string,
+  name: string,
+  language: string,
+  params: string[]
+): Promise<{ delivery: string; failure_reason: string }> =>
+  (
+    await UriHttpClient.getClient().post(`/inbox/conversations/${conversationId}/whatsapp-template`, {
+      name,
+      language,
+      params,
+    })
+  ).data;
+
 export const InboxService = {
+  whatsappConfig,
+  connectWhatsApp,
+  whatsappTemplates,
+  sendWhatsAppTemplate,
   listConversations,
   listMessages,
   sendReply,
