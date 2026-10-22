@@ -24,6 +24,7 @@ import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
 import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
 import KeepRunningPanel from '@/src/components/app/workspace/KeepRunningPanel';
+import { GrowthPanel } from '@/src/components/app/workspace/growth/GrowthPanel';
 import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import {
   GooglePlacement,
@@ -243,7 +244,7 @@ export default function CampaignsPage({
 }: CampaignsPageProps) {
   const isMobile = useIsMobile();
   const [railOpen, setRailOpen] = useState(false);
-  const [tab, setTab] = useState<'chat' | 'home' | 'manage' | 'wallet' | 'billing'>('chat');
+  const [tab, setTab] = useState<'chat' | 'home' | 'manage' | 'growth' | 'wallet' | 'billing'>('chat');
   const [isAdmin, setIsAdmin] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([makeGreeting()]);
   // Mirrors `messages` for the rare case a handler needs to read the CURRENT
@@ -1653,6 +1654,7 @@ export default function CampaignsPage({
               ['chat', 'Create with Jane'],
               ['home', 'Home'],
               ['manage', 'Campaign Manager'],
+              ['growth', 'Growth'],
               ['wallet', 'Wallet'],
               ...(isAdmin ? [['billing', 'Revenue'] as const] : []),
             ] as const
@@ -2335,6 +2337,8 @@ export default function CampaignsPage({
             else onNavigate?.(surface);
           }}
         />
+      ) : tab === 'growth' ? (
+        <GrowthPanel isMobile={isMobile} />
       ) : tab === 'wallet' ? (
         <WalletTab wallet={wallet} loading={loadingWallet} onFunded={loadWallet} />
       ) : (
@@ -4084,7 +4088,11 @@ function ResultCard({
                   </>
                 )}
               </button>
-              {launchError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828' }}>{launchError}</p>}
+              {launchError && (
+                <p style={{ margin: '8px 0 0', fontSize: 12, color: '#c62828', whiteSpace: 'pre-line' }}>
+                  {launchError}
+                </p>
+              )}
               {fixingWhatsapp && (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ display: 'flex', gap: 8 }}>

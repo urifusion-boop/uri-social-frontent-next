@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, useState } from 'react';
+import { WhatsAppConnect } from './WhatsAppConnect';
 
 /*
  * Channel Connections — per FR01 of the Unified Social Inbox PRD: connection
@@ -122,6 +123,17 @@ const CHANNEL_SHELLS: {
       { key: 'sendDM', label: 'Send DMs', ok: true },
       { key: 'receiveComment', label: 'Receive comments', ok: true },
       { key: 'replyComment', label: 'Reply to comments', ok: true },
+    ],
+  },
+  {
+    id: 'whatsapp',
+    label: 'WhatsApp',
+    color: '#25D366',
+    approved: true,
+    capabilities: [
+      { key: 'receiveDM', label: 'Receive messages', ok: true },
+      { key: 'sendDM', label: 'Reply within 24 hours', ok: true },
+      { key: 'templates', label: 'Templates after 24 hours', ok: true },
     ],
   },
 ];
@@ -571,7 +583,8 @@ export default function InboxConnectionsPage({
   onConnected: (channelId: string, accountLabel: string) => void;
 }) {
   const [wizardChannelId, setWizardChannelId] = useState<string | null>(null);
-  const wizardChannel = connections.find((c) => c.id === wizardChannelId) ?? null;
+  const wizardChannel =
+    wizardChannelId === 'whatsapp' ? null : (connections.find((c) => c.id === wizardChannelId) ?? null);
 
   return (
     <div
@@ -752,6 +765,15 @@ export default function InboxConnectionsPage({
 
       {wizardChannel && (
         <ConnectWizard channel={wizardChannel} onClose={() => setWizardChannelId(null)} onConnected={onConnected} />
+      )}
+      {wizardChannelId === 'whatsapp' && (
+        <WhatsAppConnect
+          onClose={() => setWizardChannelId(null)}
+          onConnected={(label) => {
+            setWizardChannelId(null);
+            onConnected('whatsapp', label);
+          }}
+        />
       )}
     </div>
   );
