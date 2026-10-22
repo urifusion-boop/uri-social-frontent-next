@@ -103,6 +103,7 @@ export default function DescribeVideoGenerator() {
   const [frameMap, setFrameMap] = useState<Record<number, string>>({});
   const [frameError, setFrameError] = useState('');
   const framePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const frameJobIdRef = useRef<string | null>(null);
 
   // Merge + draft state
   const [merging, setMerging] = useState(false);
@@ -125,6 +126,7 @@ export default function DescribeVideoGenerator() {
         const res = await SocialMediaAgentService.getVideoJob(videoJob.job_id);
         if (res.status && res.responseData) {
           setVideoJob(res.responseData);
+          saveSession({ videoJob: res.responseData });
           if (res.responseData.status === 'complete' || res.responseData.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current);
           }
@@ -137,6 +139,117 @@ export default function DescribeVideoGenerator() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [videoJob?.job_id, videoJob?.status]);
+
+  // Session persistence — lets every long-running step here (frame
+  // generation, scene video generation, and the finished result once both
+  // are done) survive a page refresh, a tab switch away from Create Content
+  // and back, or opening a second browser tab, instead of losing track of
+  // an in-progress or just-finished generation. Own key (not VideoStoryboard
+  // Generator's 'uri:vsg:session') so the two flows never clobber each
+  // other's saved state. Unlike that flow, this one keeps the session alive
+  // THROUGH completion (merged video + caption included) rather than wiping
+  // it the moment the video job finishes — the whole point is that coming
+  // back later still shows the finished result, not just mid-flight
+  // progress. Only cleared on a fresh brief generation or a successful
+  // draft save (see call sites below), both natural end-of-session points.
+  const SESSION_KEY = 'uri:dvg:session';
+
+  type DVGSession = {
+    storyboard: Storyboard | null;
+    platform: string;
+    duration: number;
+    selectedOutcome: string;
+    selectedVoice: string;
+    frameJobId: string | null;
+    videoJob: VideoJob | null;
+    mergedUrl: string;
+    draftCaption: string;
+  };
+
+  // Merges into whatever's already stored rather than requiring every call
+  // site to know the full current state — each step only ever has its own
+  // slice in hand (e.g. the frame-poll tick doesn't know the video job).
+  const saveSession = (patch: Partial<DVGSession>) => {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      const existing = raw ? JSON.parse(raw) : {};
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ ...existing, ...patch }));
+    } catch {
+      /* quota exceeded — ignore */
+    }
+  };
+
+  const clearSession = () => {
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Restore on mount: static fields (storyboard, platform, duration, outcome,
+  // voice, merged video, caption) come back immediately; an in-progress frame
+  // job or video job also resumes real polling instead of just showing a
+  // stale snapshot.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Partial<DVGSession>;
+      if (!saved.storyboard) {
+        clearSession();
+        return;
+      }
+
+      setStoryboard(saved.storyboard);
+      if (saved.platform) setPlatform(saved.platform);
+      if (saved.duration) setDuration(saved.duration);
+      if (saved.selectedOutcome) setSelectedOutcome(saved.selectedOutcome);
+      if (saved.selectedVoice) setSelectedVoice(saved.selectedVoice);
+      if (saved.mergedUrl) setMergedUrl(saved.mergedUrl);
+      if (saved.draftCaption) setDraftCaption(saved.draftCaption);
+
+      if (saved.frameJobId) {
+        frameJobIdRef.current = saved.frameJobId;
+        SocialMediaAgentService.getStoryboardFrameJob(saved.frameJobId)
+          .then((res) => {
+            if (res.status && res.responseData) {
+              const map: Record<number, string> = {};
+              for (const f of res.responseData.frames) {
+                if (f.frame_image_url) map[f.scene_number] = f.frame_image_url;
+              }
+              setFrameMap(map);
+              if (res.responseData.status === 'complete') {
+                saveSession({ frameJobId: null });
+              } else {
+                startFramePolling(saved.frameJobId!);
+              }
+            }
+          })
+          .catch(() => {});
+      }
+
+      if (saved.videoJob) {
+        setVideoJob(saved.videoJob);
+        if (saved.videoJob.job_id && saved.videoJob.status !== 'complete' && saved.videoJob.status !== 'failed') {
+          // One eager fetch for an immediate up-to-date status; the poll
+          // effect above takes over the recurring 10s interval once its own
+          // [videoJob?.job_id, videoJob?.status] dependency changes.
+          SocialMediaAgentService.getVideoJob(saved.videoJob.job_id)
+            .then((res) => {
+              if (res.status && res.responseData) {
+                setVideoJob(res.responseData);
+                saveSession({ videoJob: res.responseData });
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    } catch {
+      /* corrupted storage — ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const generateCaption = async () => {
     if (!storyboard) return;
@@ -157,6 +270,7 @@ export default function DescribeVideoGenerator() {
       });
       if (res.status && res.responseData?.caption) {
         setDraftCaption(res.responseData.caption);
+        saveSession({ draftCaption: res.responseData.caption });
       }
     } catch {
       /* silently fail — user can write caption manually */
@@ -175,6 +289,7 @@ export default function DescribeVideoGenerator() {
       const res = await SocialMediaAgentService.mergeVideoJob(videoJob.job_id);
       if (res.status && res.responseData) {
         setMergedUrl(res.responseData.merged_video_url);
+        saveSession({ mergedUrl: res.responseData.merged_video_url });
         generateCaption();
       } else {
         setMergeError(res.responseMessage || 'Merge failed. Please try again.');
@@ -197,6 +312,7 @@ export default function DescribeVideoGenerator() {
       });
       if (res.status && res.responseData) {
         setSavedDraft(res.responseData);
+        clearSession(); // draft saved — the flow is done, it now lives in Saved Video Drafts
       }
     } catch {
       setMergeError('Failed to save draft.');
@@ -258,6 +374,7 @@ export default function DescribeVideoGenerator() {
           setFrameMap(map);
           if (res.responseData.status === 'complete') {
             clearInterval(framePollRef.current!);
+            saveSession({ frameJobId: null });
             return;
           }
         }
@@ -297,6 +414,7 @@ export default function DescribeVideoGenerator() {
     setFrameError('');
     setOutcomeSuggestionReason('');
     if (framePollRef.current) clearInterval(framePollRef.current);
+    clearSession(); // starting over — any prior session is no longer the thing to resume
     try {
       const res = await SocialMediaAgentService.generateCreativeStoryboard({
         brief: brief.trim(),
@@ -313,12 +431,25 @@ export default function DescribeVideoGenerator() {
         const suggestion = suggestOutcome(res.responseData);
         setSelectedOutcome(suggestion.outcome);
         setOutcomeSuggestionReason(suggestion.reason);
+        saveSession({
+          storyboard: res.responseData,
+          platform,
+          duration,
+          selectedOutcome: suggestion.outcome,
+          selectedVoice,
+          frameJobId: null,
+          videoJob: null,
+          mergedUrl: '',
+          draftCaption: '',
+        });
         SocialMediaAgentService.generateCreativeFrames(
           res.responseData.scenes,
           images.map((img) => img.dataUrl)
         )
           .then((frameRes) => {
             if (frameRes.status && frameRes.responseData) {
+              frameJobIdRef.current = frameRes.responseData.job_id;
+              saveSession({ frameJobId: frameRes.responseData.job_id });
               startFramePolling(frameRes.responseData.job_id);
             }
           })
@@ -371,6 +502,7 @@ export default function DescribeVideoGenerator() {
     setMergeError('');
     setSavedDraft(null);
     if (pollRef.current) clearInterval(pollRef.current);
+    saveSession({ videoJob: null, mergedUrl: '', draftCaption: '' });
     try {
       const enrichedStoryboard = {
         ...storyboard,
@@ -387,6 +519,7 @@ export default function DescribeVideoGenerator() {
       });
       if (res.status && res.responseData) {
         setVideoJob(res.responseData);
+        saveSession({ videoJob: res.responseData, selectedOutcome, selectedVoice });
       } else {
         setVideoError(res.responseMessage || 'Could not start video generation.');
       }
