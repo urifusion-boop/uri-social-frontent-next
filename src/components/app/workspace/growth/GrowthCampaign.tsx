@@ -401,7 +401,7 @@ function ChangePanel({
       const a = await GrowthService.change(data.campaign_id, action, params);
       onNotice(
         a.status === 'executed'
-          ? `${a.requested_change} — confirmed on Meta. Ads Manager shows the same.`
+          ? `${a.requested_change} — confirmed on Meta, live now.`
           : a.status === 'unverified'
             ? `${a.requested_change} — sent to Meta, not confirmed yet.`
             : `Meta refused: ${a.error ?? 'unknown error'}`
