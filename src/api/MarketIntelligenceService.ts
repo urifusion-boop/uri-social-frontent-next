@@ -353,7 +353,13 @@ export interface ListeningMarketStatus {
   topics: number;
   active_signals: number;
   learned_terms: string[];
-  last_run?: { status?: string; started_at?: string; items_returned?: number; new_items?: number; note?: string } | null;
+  last_run?: {
+    status?: string;
+    started_at?: string;
+    items_returned?: number;
+    new_items?: number;
+    note?: string;
+  } | null;
 }
 
 export interface ListeningStatus {
@@ -576,6 +582,17 @@ export class MarketIntelligenceService {
       `${BASE}/listening/cards/${cardId}/action`,
       { action, reason }
     );
+    return res.data;
+  }
+
+  // One click, server-side: generates real drafts from the card's
+  // evidence-backed brief (no re-typing, no separate "now press Generate"
+  // step) and returns the ids so the caller can route straight to them.
+  static async createFromListeningCard(
+    cardId: string
+  ): Promise<UriResponse<{ card_id: string; draft_ids: string[]; request_id?: string }>> {
+    const res: AxiosResponse<UriResponse<{ card_id: string; draft_ids: string[]; request_id?: string }>> =
+      await UriHttpClient.getClient().post(`${BASE}/listening/cards/${cardId}/create`, {});
     return res.data;
   }
 }
