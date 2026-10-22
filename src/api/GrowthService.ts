@@ -144,7 +144,6 @@ export interface GrowthCampaignDetail {
     status: string | null;
     daily_budget_ngn: number | null;
     ads: { id: string; name: string; status: string; effective_status?: string }[];
-    ads_manager_url: string;
     error: string;
   };
   forecast: {

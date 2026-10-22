@@ -417,18 +417,6 @@ function ChangePanel({
     <Card
       title="Make a change"
       desc="Changes apply to the live campaign on Meta, are read back to confirm, and appear in History where you can undo them."
-      right={
-        c.ads_manager_url ? (
-          <a
-            href={c.ads_manager_url}
-            target="_blank"
-            rel="noreferrer"
-            style={{ fontSize: 12.5, color: '#AD1457', fontWeight: 700 }}
-          >
-            Open in Ads Manager ↗
-          </a>
-        ) : undefined
-      }
     >
       {c.error && (
         <div style={{ fontSize: 12.5, color: '#C62828' }}>Couldn’t read the campaign from Meta: {c.error}</div>
