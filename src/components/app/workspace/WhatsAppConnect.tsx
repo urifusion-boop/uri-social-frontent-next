@@ -58,6 +58,7 @@ export function WhatsAppConnect({
   const [manual, setManual] = useState(false);
   const [waba, setWaba] = useState('');
   const [phone, setPhone] = useState('');
+  const [token, setToken] = useState('');
   const session = useRef<{ waba_id?: string; phone_number_id?: string }>({});
 
   useEffect(() => {
@@ -127,7 +128,12 @@ export function WhatsAppConnect({
     setBusy(true);
     setError('');
     try {
-      await finish({ waba_id: waba.trim(), phone_number_id: phone.trim(), coexistence: keepApp });
+      await finish({
+        waba_id: waba.trim(),
+        phone_number_id: phone.trim(),
+        access_token: token.trim(),
+        coexistence: keepApp,
+      });
     } catch (e) {
       setError(errorText(e, "Couldn't connect that number."));
     }
@@ -211,6 +217,13 @@ export function WhatsAppConnect({
               placeholder="Phone number ID"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+            />
+            <input
+              style={input}
+              type="password"
+              placeholder="Access token (from Meta's API Setup or a system user)"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
             />
             <button
               type="button"

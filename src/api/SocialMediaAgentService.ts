@@ -1870,6 +1870,11 @@ export interface CalendarV2Item {
   customer_journey_stage: string;
   promised_business_outcome: string;
   creative_concept_name: string;
+  // Present only when this idea started life as a real Listening
+  // opportunity card (Listening PRD §18) rather than autonomous ideation —
+  // see _listening_candidate_concepts in content_calendar_v2_service.py.
+  source?: 'listening';
+  source_card_id?: string;
   carousel: { slides: CarouselSlideV2[] } | null;
   creative_direction: {
     visual_style?: string;

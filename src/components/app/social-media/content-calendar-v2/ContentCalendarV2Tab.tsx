@@ -135,6 +135,28 @@ const VideoBadge = () => (
   </span>
 );
 
+// This idea started from a real Listening opportunity card — real customer
+// signal measured in this business's own market, not autonomous ideation
+// (Listening PRD §18, §15's "why am I seeing this" explainability principle).
+const ListeningBadge = () => (
+  <span
+    title="Grounded in a real Listening opportunity from this business's own market"
+    style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 3,
+      padding: '2px 7px',
+      borderRadius: 20,
+      fontSize: 10.5,
+      fontWeight: 700,
+      background: 'rgba(16,185,129,.1)',
+      color: '#047857',
+    }}
+  >
+    📡 From Listening
+  </span>
+);
+
 const TerritoryBadge = ({ territory }: { territory: string }) => {
   if (!territory) return null;
   return (
@@ -219,6 +241,7 @@ const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 'auto' }}>
         <TypeBadge type={item.content_type} />
         <TerritoryBadge territory={item.territory} />
+        {item.source === 'listening' && <ListeningBadge />}
         {item.series_name && <SeriesBadge name={item.series_name} />}
         {item.ad_opportunity?.is_ad_candidate && <AdBadge score={item.ad_opportunity.score} />}
         {!item.diversity_check.passed && (
@@ -418,6 +441,7 @@ const ItemDetailModal = ({
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               <TypeBadge type={item.content_type} />
               <TerritoryBadge territory={item.territory} />
+              {item.source === 'listening' && <ListeningBadge />}
               {item.series_name && <SeriesBadge name={item.series_name} />}
               {isVideoFormat(item.format) && <VideoBadge />}
             </div>
