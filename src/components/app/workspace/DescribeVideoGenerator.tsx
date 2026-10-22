@@ -25,6 +25,9 @@ import {
   suggestOutcome,
 } from '@/src/components/app/workspace/VideoStoryboardGenerator';
 import { useEffect, useRef, useState } from 'react';
+import { takeVideoSeed } from '@/src/utils/contentSeed';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 // "Describe it" flow: a free-text brief is the primary input (reference
 // images are optional, unlike VideoStoryboardGenerator's upload-first flow
@@ -72,6 +75,21 @@ export default function DescribeVideoGenerator() {
   const [regeneratingDirection, setRegeneratingDirection] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // A brief handed over from a Market Intelligence / Listening opportunity
+  // card recommended as a video — see contentSeed.ts's VideoSeed docstring
+  // for why this is the honest "one click" for video instead of a server-
+  // side generate-everything call.
+  useEffect(() => {
+    const seed = takeVideoSeed();
+    if (seed?.brief) {
+      setBrief(seed.brief);
+      ToastService.showToast(
+        'Brief from your market opportunity is ready — review it and generate.',
+        ToastTypeEnum.Success
+      );
+    }
+  }, []);
 
   // Video generation state
   const [selectedOutcome, setSelectedOutcome] = useState('quick_video');

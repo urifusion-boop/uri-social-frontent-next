@@ -73,6 +73,7 @@ import UploadContentForm from '@/src/components/app/workspace/UploadContentForm'
 import MarketIntelligencePage from '@/src/components/app/workspace/MarketIntelligencePage';
 import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
 import ListeningCurationPage from '@/src/components/app/workspace/ListeningCurationPage';
+import { hasVideoSeed } from '@/src/utils/contentSeed';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -895,6 +896,20 @@ const ContentManagerPage = ({
       setVideoTab('chat');
     }
   }, [videoPolishHandoff]);
+  // A Listening opportunity card recommended as a video lands here with its
+  // brief pre-filled on Describe It — the honest "one click" for video,
+  // since (unlike text) there's no single server-side call that produces a
+  // finished video; the real flow is storyboard -> frames -> render, and the
+  // owner reviews each step. Checked once on mount only.
+  useEffect(() => {
+    // Peek only — DescribeVideoGenerator does the real (destructive) read
+    // itself once it mounts; taking it here would clear it first.
+    if (hasVideoSeed()) {
+      setActiveTab('video');
+      setVideoTab('generate');
+      setGenerateMode('describe');
+    }
+  }, []);
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
   // Keep JaneVideoChat mounted after first visit so in-progress sessions survive tab switches
   const [janeEverMounted, setJaneEverMounted] = useState(false);

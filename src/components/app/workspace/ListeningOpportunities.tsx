@@ -4,10 +4,12 @@
  * Market opportunities from Listening Intelligence: what's rising, emerging or
  * repeatedly asked in this business's market, why it matters to them, and a
  * ready action. Every number shown comes from measured data (the backend
- * builds the observation sentence); "Create this" generates the draft
- * server-side in one click (POST /listening/cards/{id}/create) and lands on
- * the Create tab where it's already waiting — no re-typing, no second
- * "press Generate" step.
+ * builds the observation sentence). A post/carousel/FAQ card's "Create this"
+ * generates the draft server-side in one click (POST /listening/cards/{id}/
+ * create) and lands on Create where it's already waiting. A video card has
+ * no equivalent single call (storyboard -> frames -> render is a genuine
+ * multi-step, user-reviewed flow) — "Start this video" hands the brief to
+ * Describe It pre-filled instead. ad_test has nowhere to route to yet.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -38,6 +40,7 @@ import {
   ListeningStatus,
   MarketIntelligenceService,
 } from '@/src/api/MarketIntelligenceService';
+import { setVideoSeed } from '@/src/utils/contentSeed';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -87,14 +90,33 @@ function OpportunityCard({
   const [creating, setCreating] = useState(false);
   const meta = TYPE_META[card.type] ?? TYPE_META.emerging;
   const Icon = meta.icon;
-  // Only post/carousel/faq route through the content generator today —
-  // video and ad_test need their own generators that don't exist here yet.
-  // Say so up front rather than let the owner click "Create this" on a
-  // video-labelled card and quietly get a text draft instead.
-  const unsupportedAction = card.action.type === 'video' ? 'video' : card.action.type === 'ad_test' ? 'ad_test' : null;
+  // post/carousel/faq route through the server-side content generator
+  // (one real click, drafts land in Create). video has no equivalent
+  // single call — it's a genuine multi-step, user-reviewed flow (storyboard
+  // -> frames -> render) — so its honest "one click" is handing the brief
+  // to Describe It pre-filled, not pretending a finished video exists.
+  // ad_test has no destination to route to at all yet (no draft-ad-campaign
+  // flow wired to Listening) — stays disabled with a clear explanation.
+  const isVideo = card.action.type === 'video';
+  const unsupportedAction = card.action.type === 'ad_test' ? 'ad_test' : null;
+
+  const createVideo = () => {
+    const parts = [card.action.hook, ...(card.action.outline ?? []), card.action.cta].filter(Boolean);
+    setVideoSeed({
+      brief: parts.join('. ') || card.why || card.observation,
+      source: 'listening',
+      cardId: card.id,
+    });
+    onAct(card, 'acted');
+    router.push('/workspace/?tab=schedule');
+  };
 
   const create = async () => {
     if (creating) return;
+    if (isVideo) {
+      createVideo();
+      return;
+    }
     setCreating(true);
     try {
       const res = await MarketIntelligenceService.createFromListeningCard(card.id);
@@ -217,16 +239,20 @@ function OpportunityCard({
 
         {unsupportedAction && (
           <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-[11.5px] text-muted-foreground">
-            {unsupportedAction === 'video'
-              ? "One-click video creation from Listening isn't available yet — use the brief above in Create Video."
-              : "One-click ad tests from Listening aren't available yet — use the brief above in Campaigns."}
+            One-click ad tests from Listening aren&apos;t available yet — use the brief above in Campaigns.
           </div>
         )}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={create} disabled={creating || !!unsupportedAction}>
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {creating ? 'Creating…' : unsupportedAction ? 'Create this (unavailable)' : 'Create this'}
+            {creating
+              ? 'Creating…'
+              : unsupportedAction
+                ? 'Create this (unavailable)'
+                : isVideo
+                  ? 'Start this video'
+                  : 'Create this'}
           </Button>
           <Button size="sm" variant="outline" onClick={() => onAct(card, 'saved')} disabled={creating}>
             <Bookmark className="h-3.5 w-3.5" /> Save
