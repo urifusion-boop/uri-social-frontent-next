@@ -143,6 +143,7 @@ export interface GrowthCampaignDetail {
   controls: {
     status: string | null;
     daily_budget_ngn: number | null;
+    min_daily_budget_ngn?: number;
     ads: { id: string; name: string; status: string; effective_status?: string }[];
     error: string;
   };

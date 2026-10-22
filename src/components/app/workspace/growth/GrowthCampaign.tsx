@@ -389,6 +389,8 @@ function ChangePanel({
   const [error, setError] = useState('');
   if (!c) return null;
   const running = (c.status || '').toUpperCase() === 'ACTIVE';
+  const minBudget = c.min_daily_budget_ngn ?? 2000;
+  const tooLow = Boolean(budget) && Number(budget) < minBudget;
 
   async function run(
     key: string,
@@ -444,7 +446,7 @@ function ChangePanel({
           <>
             <input
               type="number"
-              min={1}
+              min={minBudget}
               value={budget}
               onChange={(e) => setBudget(e.target.value)}
               style={{ ...inputStyle, width: 120 }}
@@ -452,13 +454,16 @@ function ChangePanel({
             <Btn
               small
               kind="secondary"
-              disabled={busy !== '' || !Number(budget) || Number(budget) === c.daily_budget_ngn}
+              disabled={busy !== '' || !Number(budget) || tooLow || Number(budget) === c.daily_budget_ngn}
               onClick={() => run('budget', 'set_daily_budget', { to_ngn: Number(budget) })}
             >
               {busy === 'budget' ? 'Updating…' : 'Set budget'}
             </Btn>
           </>
         )}
+      </div>
+      <div style={{ fontSize: 11.5, color: tooLow ? '#C62828' : '#999', marginTop: -6 }}>
+        Minimum {naira(minBudget)} a day — below that the ad barely delivers, and Meta refuses budgets this low.
       </div>
       {c.ads.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
