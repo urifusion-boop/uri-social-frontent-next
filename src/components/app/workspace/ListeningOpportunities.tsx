@@ -319,22 +319,28 @@ function ActiveRunStrip({ runItem, marketLabel }: { runItem: ListeningRun; marke
   );
 }
 
+// Plain language for a business owner, not the internal lifecycle names
+// (observed/candidate/monitored) curators use in the admin console. paused/
+// retired are deliberately left out here — they're housekeeping states
+// ("stopped getting enough real activity"), not something an owner needs
+// to parse; the admin curation console still shows the full picture.
 const TOPIC_STATUS_LABEL: Record<string, string> = {
-  observed: 'Observed',
-  candidate: 'Candidate',
-  monitored: 'Monitored',
-  paused: 'Paused',
-  retired: 'Retired',
+  monitored: 'Actively tracked',
+  candidate: 'Coming up repeatedly',
+  observed: 'New mentions',
 };
+const TOPIC_STATUS_ORDER = ['monitored', 'candidate', 'observed'];
 
-// Answers "178 topics, but I can't see any of it" directly: the real
-// status breakdown of the topic graph (already computed by GET
-// /listening/status, just never shown before) plus real measured activity
-// from GET /listening/pulse — topics with actual conversation in the last
-// week, how many distinct accounts, and what they actually want. Nothing
-// here is invented; a topic below the bar for a full opportunity card is
-// still real, measured activity, and now the owner can see it as such
-// instead of it just vanishing into an opaque count.
+// Answers "178 topics, but I can't see any of it" directly, in words a
+// business owner — not an engineer — actually understands: the real status
+// breakdown of the topic graph (already computed by GET /listening/status,
+// just never shown before) plus real measured activity from GET
+// /listening/pulse — topics with actual conversation in the last week, how
+// many distinct accounts, and what they actually want. Nothing here is
+// invented; a topic below the bar for a full opportunity card is still
+// real, measured activity, now shown as such instead of vanishing into an
+// opaque count the system's own internal vocabulary made harder to read,
+// not easier.
 function WatchingPanel({
   status,
   pulse,
@@ -355,29 +361,34 @@ function WatchingPanel({
   const pulseByMarket = new Map((pulse ?? []).map((p) => [p.market, p]));
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-background p-3">
+    <div className="space-y-4 rounded-lg border border-border bg-background p-3">
+      <p className="text-[12px] leading-relaxed text-muted-foreground">
+        <span className="font-medium text-foreground">How this works:</span> Uri reads real public conversations in your
+        market. A word or phrase becomes a topic the moment someone says it — most start and stay small. The more
+        different accounts keep bringing up the same thing, the more closely Uri tracks it. Only once something is
+        well-established does it turn into an opportunity below; everything here is what&apos;s building toward that, in
+        plain sight.
+      </p>
       {(status?.markets ?? []).map((m) => {
         const ts = m.topic_statuses || {};
         const p = pulseByMarket.get(m.key);
         return (
-          <div key={m.key} className="space-y-2">
+          <div key={m.key} className="space-y-2 border-t border-border pt-3 first:border-t-0 first:pt-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[12.5px] font-medium text-foreground">{m.label ?? m.key}</span>
-              {Object.entries(ts)
-                .filter(([, n]) => n > 0)
-                .map(([s, n]) => (
-                  <span
-                    key={s}
-                    className="rounded-full border border-border px-2 py-0.5 text-[10.5px] text-muted-foreground"
-                  >
-                    {n} {TOPIC_STATUS_LABEL[s] ?? s}
-                  </span>
-                ))}
+              {TOPIC_STATUS_ORDER.filter((s) => (ts[s] || 0) > 0).map((s) => (
+                <span
+                  key={s}
+                  className="rounded-full border border-border px-2 py-0.5 text-[10.5px] text-muted-foreground"
+                >
+                  {ts[s]} {TOPIC_STATUS_LABEL[s]}
+                </span>
+              ))}
             </div>
             {!p || p.topics.length === 0 ? (
               <p className="pl-0.5 text-[11.5px] text-muted-foreground">
-                No real conversation measured in this market in the last week yet — topics above are being watched, but
-                nothing has enough recent activity to show.
+                Nothing in this market has had enough recent real activity to show yet — the topics above are still
+                being watched.
               </p>
             ) : (
               <div className="space-y-1">
@@ -385,16 +396,16 @@ function WatchingPanel({
                   <div key={t.topic} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
                     <span className="font-medium text-foreground">{t.topic}</span>
                     <span className="text-muted-foreground">
-                      {t.accounts} account{t.accounts === 1 ? '' : 's'} · {t.posts} post{t.posts === 1 ? '' : 's'}
+                      {t.accounts} account{t.accounts === 1 ? '' : 's'} mentioned this in the last week
                     </span>
                     {t.needs.length > 0 && (
-                      <span className="text-muted-foreground">— asking about: {t.needs.join(', ')}</span>
+                      <span className="text-muted-foreground">— mainly asking about {t.needs.join(', ')}</span>
                     )}
                   </div>
                 ))}
                 <p className="pt-1 text-[10.5px] text-muted-foreground">
-                  Real activity over the last {p.window_days} days, {p.covered_hours}h actually covered by collection.
-                  This is context — none of it is an alert until it clears the evidence bar above.
+                  This is background, not an alert — nothing here gets sent to you until it clears the same bar a full
+                  opportunity needs.
                 </p>
               </div>
             )}
