@@ -140,6 +140,13 @@ export interface GrowthCampaignDetail {
   leads: GrowthLeads;
   follow_ups: { waiting: number; oldest_hours: number };
   creative_test: { variants: GrowthVariantResult[]; winner: string | null; reason: string } | null;
+  controls: {
+    status: string | null;
+    daily_budget_ngn: number | null;
+    ads: { id: string; name: string; status: string; effective_status?: string }[];
+    ads_manager_url: string;
+    error: string;
+  };
   forecast: {
     available: boolean;
     reason?: string;
@@ -191,6 +198,14 @@ export const GrowthService = {
   },
   async decide(recId: string, decision: 'rejected' | 'done', note = ''): Promise<void> {
     await UriHttpClient.getClient().post(`${BASE}/recommendations/${recId}/decide`, { decision, note });
+  },
+  async change(
+    campaignId: string,
+    action_type: 'pause_ad' | 'resume_ad' | 'pause_campaign' | 'resume_campaign' | 'set_daily_budget',
+    params: { ad_id?: string; to_ngn?: number } = {}
+  ): Promise<GrowthAction> {
+    return (await UriHttpClient.getClient().post(`${BASE}/campaigns/${campaignId}/changes`, { action_type, ...params }))
+      .data.action;
   },
   async undo(actionId: string): Promise<GrowthAction> {
     return (await UriHttpClient.getClient().post(`${BASE}/actions/${actionId}/undo`, {})).data.action;
