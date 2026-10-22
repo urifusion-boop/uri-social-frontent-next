@@ -37,6 +37,7 @@ type ISocialMediaAgentApi =
   | 'generateStoryboardFrames'
   | 'storyboardFrameJob'
   | 'generateCreativeStoryboard'
+  | 'creativeStoryboardJob'
   | 'generateCreativeFrames'
   | 'publishVideoDraft'
   | 'videoPublishJob'
@@ -135,6 +136,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   generateStoryboardFrames: '/generate-storyboard-frames',
   storyboardFrameJob: '/storyboard-frame-job',
   generateCreativeStoryboard: '/generate-creative-storyboard',
+  creativeStoryboardJob: '/creative-storyboard-job',
   generateCreativeFrames: '/generate-creative-frames',
   publishVideoDraft: '/publish-video-draft',
   videoPublishJob: '/video-publish-job',

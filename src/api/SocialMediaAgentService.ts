@@ -1282,12 +1282,19 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async generateCreativeStoryboard(payload: CreativeStoryboardPayload): Promise<UriResponse<Storyboard>> {
-    const response: Awaited<AxiosResponse<UriResponse<Storyboard>>> = await UriHttpClient.getClient().post(
-      socialMediaAgentRoutes.generateCreativeStoryboard,
-      payload,
-      { timeout: 60000 }
-    );
+  // Job-based (was a plain blocking call) — returns a job_id immediately,
+  // poll with getCreativeStoryboardJob below.
+  static async generateCreativeStoryboard(
+    payload: CreativeStoryboardPayload
+  ): Promise<UriResponse<{ job_id: string; status: string }>> {
+    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateCreativeStoryboard, payload);
+    return response.data;
+  }
+
+  static async getCreativeStoryboardJob(
+    jobId: string
+  ): Promise<UriResponse<{ job_id: string; status: string; storyboard: Storyboard | null; error: string | null }>> {
+    const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.creativeStoryboardJob}/${jobId}`);
     return response.data;
   }
 
