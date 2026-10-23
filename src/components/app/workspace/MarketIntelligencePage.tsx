@@ -52,6 +52,7 @@ import {
   MIAccessLevel,
   MINotificationPreferences,
   NotificationSensitivity,
+  ScanSourceProgress,
   ScoreBreakdown,
   SourceCapability,
   Topic,
@@ -823,7 +824,7 @@ const SOURCE_LABELS: Record<string, string> = {
 // if the server has it, otherwise whatever is first.
 const defaultSourceSelection = (list: SourceCapability[]): Set<string> => {
   const keys = list.map((s) => s.provider);
-  const pick = keys.includes('x') ? 'x' : keys.find((k) => k !== 'mock') ?? keys[0];
+  const pick = keys.includes('x') ? 'x' : (keys.find((k) => k !== 'mock') ?? keys[0]);
   return new Set(pick ? [pick] : []);
 };
 
@@ -880,7 +881,7 @@ function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => vo
 
   useEffect(() => {
     MarketIntelligenceService.listSources().then((res) => {
-      const list = res.status ? res.responseData ?? [] : [];
+      const list = res.status ? (res.responseData ?? []) : [];
       setSources(list);
       setSelectedSources(defaultSourceSelection(list));
       fillFromBrand(list);
@@ -945,8 +946,8 @@ function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => vo
               </span>
             ) : fromBrand === 'filled' ? (
               <span className="inline-flex items-center gap-1.5 text-foreground">
-                <Sparkles className="h-3.5 w-3.5 text-primary" /> Filled in from your Brand Playbook — check it,
-                change anything, then create.
+                <Sparkles className="h-3.5 w-3.5 text-primary" /> Filled in from your Brand Playbook — check it, change
+                anything, then create.
               </span>
             ) : (
               <>
@@ -1070,8 +1071,8 @@ function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => vo
           <span>
             <span className="block text-[12.5px] font-medium text-foreground">Keep updating</span>
             <span className="block text-[11px] text-muted-foreground">
-              Uri re-checks this topic automatically and adds new posts to the same insights. Each check uses a
-              little of your monthly budget.
+              Uri re-checks this topic automatically and adds new posts to the same insights. Each check uses a little
+              of your monthly budget.
             </span>
           </span>
         </label>
@@ -1132,9 +1133,41 @@ function NewTopicForm({ onCreated, onCancel }: { onCreated: (topic: Topic) => vo
   );
 }
 
+// Plain-language line for one source's live state — written for the same
+// audience as the rest of this page, not a raw status enum.
+function sourceProgressLine(s: ScanSourceProgress): string {
+  if (s.status === 'pending') return `${s.provider} — waiting its turn`;
+  if (s.status === 'collecting') return `${s.provider} — reading posts now…`;
+  if (s.status === 'failed') return `${s.provider} — could not complete${s.error ? ` (${s.error})` : ''}`;
+  const count = s.items ?? 0;
+  return `${s.provider} — done, found ${count} ${count === 1 ? 'post' : 'posts'}`;
+}
+
+function ScanProgressLog({ sources }: { sources: ScanSourceProgress[] }) {
+  return (
+    <ul className="mt-1.5 space-y-1">
+      {sources.map((s) => (
+        <li key={s.provider} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          {s.status === 'done' ? (
+            <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
+          ) : s.status === 'failed' ? (
+            <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
+          ) : s.status === 'collecting' ? (
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" />
+          ) : (
+            <span className="ml-0.5 mr-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
+          )}
+          <span>{sourceProgressLine(s)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function TopicsPanel({
   topics,
   scanningTopicId,
+  scanProgress,
   onRunScan,
   showNewTopic,
   setShowNewTopic,
@@ -1145,6 +1178,7 @@ function TopicsPanel({
 }: {
   topics: Topic[];
   scanningTopicId: string | null;
+  scanProgress: ScanSourceProgress[] | null;
   onRunScan: (topicId: string) => void;
   showNewTopic: boolean;
   setShowNewTopic: (v: boolean) => void;
@@ -1203,11 +1237,20 @@ function TopicsPanel({
                     )}
                     <span className="text-[11px] text-muted-foreground">{t.requested_days}d window</span>
                   </div>
-                  {scanningTopicId === t.id && (
-                    <div className="mt-1.5 text-[11px] text-muted-foreground">
-                      Collecting conversations from your selected sources. You can leave this page and return later.
-                    </div>
-                  )}
+                  {scanningTopicId === t.id &&
+                    (scanProgress && scanProgress.length > 0 ? (
+                      <div className="mt-1.5">
+                        <div className="text-[11px] text-muted-foreground">
+                          Collecting conversations from your selected sources — real progress below. You can leave this
+                          page and return later.
+                        </div>
+                        <ScanProgressLog sources={scanProgress} />
+                      </div>
+                    ) : (
+                      <div className="mt-1.5 text-[11px] text-muted-foreground">
+                        Collecting conversations from your selected sources. You can leave this page and return later.
+                      </div>
+                    ))}
                   {staleScan?.topicId === t.id && (
                     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11.5px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
                       <span>Still working on this scan. It&apos;s safe to leave and come back — check anytime.</span>
@@ -1649,6 +1692,10 @@ export default function MarketIntelligencePage() {
   const [loading, setLoading] = useState(true);
   const [showNewTopic, setShowNewTopic] = useState(false);
   const [scanningTopicId, setScanningTopicId] = useState<string | null>(null);
+  // Live per-source log for the scan currently running — each entry flips
+  // pending -> collecting -> done/failed on its own as that source actually
+  // finishes, polled alongside the scan's overall status.
+  const [scanProgress, setScanProgress] = useState<ScanSourceProgress[] | null>(null);
   const [staleScan, setStaleScan] = useState<{ topicId: string; scanId: string } | null>(null);
   const [checkingStale, setCheckingStale] = useState(false);
   const [lastScanHadGaps, setLastScanHadGaps] = useState(false);
@@ -1749,16 +1796,19 @@ export default function MarketIntelligencePage() {
     const mySeq = pollSeqRef.current;
     writeStoredScan({ topicId, scanId });
     setScanningTopicId(topicId);
+    setScanProgress(null);
     setStaleScan(null);
 
     const poll = async (attempt: number) => {
       if (pollSeqRef.current !== mySeq) return;
       const scanRes = await MarketIntelligenceService.getScan(scanId);
       if (pollSeqRef.current !== mySeq) return;
+      setScanProgress(scanRes.responseData?.per_source ?? null);
 
       const status = scanRes.responseData?.status;
       if (status === 'completed' || status === 'partial' || status === 'failed' || status === 'budget_limited') {
         setScanningTopicId(null);
+        setScanProgress(null);
         writeStoredScan(null);
         setLastScanHadGaps(status === 'partial' || status === 'budget_limited');
         await loadAll();
@@ -1782,6 +1832,7 @@ export default function MarketIntelligencePage() {
         // background, but leave a real, checkable status instead of a
         // one-shot toast that disappears and leaves no trace.
         setScanningTopicId(null);
+        setScanProgress(null);
         setStaleScan({ topicId, scanId });
         return;
       }
@@ -2067,6 +2118,7 @@ export default function MarketIntelligencePage() {
             <TopicsPanel
               topics={topics}
               scanningTopicId={scanningTopicId}
+              scanProgress={scanProgress}
               onRunScan={handleRunScan}
               showNewTopic={showNewTopic}
               setShowNewTopic={setShowNewTopic}

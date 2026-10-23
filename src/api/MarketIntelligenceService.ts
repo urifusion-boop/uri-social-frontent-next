@@ -145,6 +145,14 @@ export interface Topic {
   notification_sensitivity: NotificationSensitivity;
 }
 
+export interface ScanSourceProgress {
+  provider: string;
+  status: 'pending' | 'collecting' | 'done' | 'failed';
+  items: number | null;
+  cost: number | null;
+  error: string | null;
+}
+
 export interface CollectionRun {
   id: string;
   topic_id: string;
@@ -156,6 +164,10 @@ export interface CollectionRun {
   evidence_collected: number;
   gaps: string[];
   estimated_cost_usd: number;
+  // Live per-source log (new): each source flips from "pending" through
+  // "collecting" to "done"/"failed" independently as it actually finishes —
+  // absent on older runs collected before this existed.
+  per_source?: ScanSourceProgress[];
 }
 
 export interface ActionBrief {
