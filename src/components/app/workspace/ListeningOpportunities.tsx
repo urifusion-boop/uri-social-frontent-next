@@ -378,11 +378,11 @@ function WatchingPanel({
   return (
     <div className="space-y-4 rounded-lg border border-border bg-background p-3">
       <p className="text-[12px] leading-relaxed text-muted-foreground">
-        <span className="font-medium text-foreground">How this works:</span> Uri reads real public conversations in your
-        market. A word or phrase becomes a topic the moment someone says it — most start and stay small. The more
-        different accounts keep bringing up the same thing, the more closely Uri tracks it. Only once something is
-        well-established does it turn into an opportunity below; everything here is what&apos;s building toward that, in
-        plain sight.
+        <span className="font-medium text-foreground">How this works: </span>
+        Uri reads real public conversations in your market. A word or phrase becomes a topic the moment someone says it
+        — most start and stay small. The more different accounts keep bringing up the same thing, the more closely Uri
+        tracks it. Only once something is well-established does it turn into an opportunity below; everything here is
+        what&apos;s building toward that, in plain sight.
       </p>
       {(status?.markets ?? []).map((m) => {
         const ts = m.topic_statuses || {};
