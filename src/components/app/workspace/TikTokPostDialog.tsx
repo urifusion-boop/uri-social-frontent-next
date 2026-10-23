@@ -2,6 +2,7 @@
 
 import { SocialMediaAgentService, TikTokCreatorInfo, TikTokPostSettings } from '@/src/api/SocialMediaAgentService';
 import { useEffect, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 
 // "Post to TikTok" screen. Everything here follows TikTok's Content Sharing
 // Guidelines ("Required UX Implementation"): creator info fetched fresh on open,
@@ -195,7 +196,10 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
     </label>
   );
 
-  return (
+  // Rendered at the page root: this dialog is opened from inside list cards, and a
+  // fixed overlay nested in a card can be trapped by an ancestor's transform/overflow.
+  if (typeof document === 'undefined') return null;
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -501,6 +505,7 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
           </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
