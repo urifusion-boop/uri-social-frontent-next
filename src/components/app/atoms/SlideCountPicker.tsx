@@ -10,6 +10,11 @@ interface SlideCountPickerProps {
   onChange: (n: number) => void;
   label?: string;
   disabled?: boolean;
+  // Defaults to every option (2-10, Instagram's platform limit). A caller
+  // with its own tighter business rule (e.g. the Content Calendar's
+  // "carousels never exceed 3 slides") passes a narrower list instead of
+  // this component silently offering choices that rule doesn't allow.
+  options?: number[];
 }
 
 /** "Number of slides: 2 3 4 … 10" — the carousel slide-count selector used across the app. */
@@ -18,12 +23,13 @@ const SlideCountPicker = ({
   onChange,
   label = 'Number of slides:',
   disabled = false,
+  options = CAROUSEL_SLIDE_OPTIONS,
 }: SlideCountPickerProps) => (
   <Box display="flex" alignItems="center" flexWrap="wrap" gap={1}>
     <Typography fontSize="13px" color="#374151" fontWeight={500}>
       {label}
     </Typography>
-    {CAROUSEL_SLIDE_OPTIONS.map((n) => (
+    {options.map((n) => (
       <Box
         key={n}
         role="button"

@@ -338,10 +338,14 @@ const ItemDetailModal = ({
   // rule, deliberately diverging from v1 (which charges 1 credit per
   // PLATFORM draft for a carousel): here it's 1 credit per SLIDE, flat
   // across every platform selected.
-  // Carousels default to the plan's slide count (2-5), but the user can pick
-  // their own (2-10) before drafting — the backend charges for what's picked.
+  // Carousels default to the plan's slide count, but the user can pick their
+  // own before drafting — the backend charges for what's picked. Clamped to
+  // 2-3: the business rule is "carousels never exceed 3 slides" (the plan's
+  // own cap too), and the backend now enforces this at creation regardless
+  // of what's sent, so offering up to 10 here just invited a 402-style
+  // mismatch between what looked selectable and what would actually ship.
   const plannedSlides = Math.max(item.carousel?.slides.length || 3, 1);
-  const [numSlides, setNumSlides] = useState(Math.min(10, Math.max(2, plannedSlides)));
+  const [numSlides, setNumSlides] = useState(Math.min(3, Math.max(2, plannedSlides)));
   const draftCreditCost = item.format === 'carousel' ? numSlides : 1;
 
   const handleRegenerate = async () => {
@@ -778,7 +782,7 @@ const ItemDetailModal = ({
                 the eventual 402. */}
             {item.format === 'carousel' && (
               <div style={{ marginTop: 16 }}>
-                <SlideCountPicker value={numSlides} onChange={setNumSlides} />
+                <SlideCountPicker value={numSlides} onChange={setNumSlides} options={[2, 3]} />
                 {numSlides !== plannedSlides && (
                   <div style={{ fontSize: 11.5, color: GRAY, marginTop: 6 }}>
                     The plan suggested {plannedSlides} slides — Jane will write {numSlides} instead.
