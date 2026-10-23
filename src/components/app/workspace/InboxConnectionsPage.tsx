@@ -179,8 +179,11 @@ export function channelsFromApi(
     let statusNote = 'Not connected';
     if (connected) statusNote = `Connected — ${names(live) || shell.label}`;
     else if (stale.length) statusNote = 'Reconnect needed';
+    const who = names(stale) || 'that account';
     const warning = stale.length
-      ? `${names(stale) || shell.label} has disconnected, so its messages aren't reaching this inbox. Reconnect ${shell.label} and choose ${names(stale) || 'that account'} to start receiving them again.`
+      ? shell.id === 'instagram'
+        ? `${who} has disconnected, so its messages aren't reaching this inbox. Log in to instagram.com as ${who}, then connect Instagram again in Connected Accounts. Come back here and click Reconnect.`
+        : `${who} has disconnected, so its messages aren't reaching this inbox. Connect Facebook again in Connected Accounts and choose the ${who} Page, then come back here and click Reconnect.`
       : '';
     return {
       ...shell,
@@ -728,7 +731,9 @@ export default function InboxConnectionsPage({
                   </span>
                   <button
                     type="button"
-                    onClick={() => setWizardChannelId(c.id)}
+                    onClick={() => {
+                      window.location.href = '/workspace/?tab=connections';
+                    }}
                     style={{
                       background: '#B26A00',
                       color: '#fff',
@@ -741,7 +746,7 @@ export default function InboxConnectionsPage({
                       fontFamily: FONT,
                     }}
                   >
-                    Reconnect {c.label}
+                    Go to Connected Accounts
                   </button>
                 </div>
               )}
