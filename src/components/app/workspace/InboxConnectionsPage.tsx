@@ -621,8 +621,8 @@ export default function InboxConnectionsPage({
       }}
     >
       <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>
-        A channel only shows as connected here once real inbound events, history and replies have been verified end to
-        end — never a partial setup pretending to work.
+        Instagram and Facebook here are the accounts in Connected Accounts — connect, switch or disconnect them there
+        and the inbox follows. WhatsApp is connected here.
       </div>
 
       {connections.map((c) => {
@@ -685,7 +685,13 @@ export default function InboxConnectionsPage({
               </span>
               <button
                 type="button"
-                onClick={() => setWizardChannelId(c.id)}
+                onClick={() =>
+                  // Instagram and Facebook are connected in ONE place — Connected
+                  // Accounts — and the inbox follows whatever is connected there.
+                  c.id === 'instagram' || c.id === 'facebook'
+                    ? (window.location.href = '/workspace/?tab=connections')
+                    : setWizardChannelId(c.id)
+                }
                 style={{
                   padding: '7px 14px',
                   borderRadius: 8,
