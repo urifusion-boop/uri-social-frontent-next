@@ -237,7 +237,42 @@ const sendWhatsAppTemplate = async (
     })
   ).data;
 
+export interface OneboxUsage {
+  plan_id: string;
+  plan_name: string;
+  status: 'trial' | 'active' | 'expired';
+  allowance: number;
+  used: number;
+  remaining: number;
+  percent_used: number;
+  period_start: string;
+  period_end: string;
+  warning: boolean;
+  exhausted: boolean;
+  message_cap: number;
+  queued_plan: string | null;
+  conversations: number;
+  at_message_cap: number;
+  median_messages: number;
+  average_messages: number;
+}
+
+export interface OneboxPlan {
+  plan_id: string;
+  name: string;
+  price_ngn: number;
+  conversations: number;
+}
+
+const oneboxUsage = async (): Promise<{ usage: OneboxUsage; plans: OneboxPlan[]; can_manage: boolean }> =>
+  (await UriHttpClient.getClient().get('/inbox/onebox/usage')).data;
+
+const oneboxSubscribe = async (planId: string): Promise<{ payment_url: string; transaction_ref: string }> =>
+  (await UriHttpClient.getClient().post('/inbox/onebox/subscribe', { plan_id: planId })).data;
+
 export const InboxService = {
+  oneboxUsage,
+  oneboxSubscribe,
   whatsappConfig,
   connectWhatsApp,
   whatsappTemplates,
