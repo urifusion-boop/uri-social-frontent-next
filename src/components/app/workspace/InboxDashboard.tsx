@@ -13,6 +13,7 @@ import { InboxPersonalityPage } from './personality/InboxPersonalityPage';
 import { useNotifications } from '@/src/providers/NotificationProvider';
 import { GrowthService } from '@/src/api/GrowthService';
 import { WhatsAppTemplatePicker } from './WhatsAppTemplates';
+import { OneboxUsagePanel } from './OneboxUsage';
 import type { Notification } from '@/src/api/NotificationService';
 
 /*
@@ -856,7 +857,9 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [leadFormNotes, setLeadFormNotes] = useState('');
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights' | 'settings' | 'voice'>('inbox');
+  const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights' | 'settings' | 'voice' | 'usage'>(
+    'inbox'
+  );
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { notifications, fetchNotifications, markAsRead } = useNotifications();
   useEffect(() => {
@@ -1270,7 +1273,9 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 ? 'Insights'
                 : subView === 'voice'
                   ? 'Brand Voice'
-                  : 'Inbox Settings'}
+                  : subView === 'usage'
+                    ? 'AI Usage'
+                    : 'Inbox Settings'}
           </div>
           {notificationBell}
         </div>
@@ -1285,6 +1290,8 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             <InboxInsightsPage isMobile={isMobile} conversations={conversations} />
           ) : subView === 'voice' ? (
             <InboxPersonalityPage isMobile={isMobile} />
+          ) : subView === 'usage' ? (
+            <OneboxUsagePanel isMobile={isMobile} />
           ) : (
             <InboxSettingsPage
               isMobile={isMobile}
@@ -1357,6 +1364,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 [
                   ['connections', 'Connections'],
                   ['voice', 'Brand Voice'],
+                  ['usage', 'AI Usage'],
                   ['settings', 'Inbox Settings'],
                   ['insights', 'Insights'],
                 ] as const
@@ -4145,6 +4153,32 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
                 <button
                   type="button"
                   onClick={() => {
+                    setSubView('usage');
+                    setFilterDrawerOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '11px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#333',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: FONT,
+                  }}
+                >
+                  <I n="chart" s={16} c="#888" />
+                  AI Usage
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setSubView('settings');
                     setFilterDrawerOpen(false);
                   }}
@@ -4562,6 +4596,29 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             >
               <I n="sparkle" s={16} c="#888" />
               Brand Voice
+            </button>
+            <button
+              type="button"
+              onClick={() => setSubView('usage')}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 10px',
+                border: 'none',
+                background: 'transparent',
+                color: '#444',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 8,
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: FONT,
+              }}
+            >
+              <I n="chart" s={16} c="#888" />
+              AI Usage
             </button>
             <button
               type="button"

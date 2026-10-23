@@ -333,21 +333,37 @@ const ItemDetailModal = ({
   const [creating, setCreating] = useState(false);
   const [includeImages, setIncludeImages] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+  // What "↻ New idea" actually touches — default 'full' matches the old,
+  // only-ever-existed behavior exactly; the others are PRD-specified
+  // regeneration levels (hook only / copy only / creative only / convert
+  // format) that previously had no way to trigger at all.
+  const [regenScope, setRegenScope] = useState<'full' | 'hook' | 'copy' | 'creative' | 'format'>('full');
+  const [regenNewFormat, setRegenNewFormat] = useState<string>(item.format === 'carousel' ? 'image' : 'carousel');
 
   // Same cost math create_draft_from_item_v2 actually charges — a V2-only
   // rule, deliberately diverging from v1 (which charges 1 credit per
   // PLATFORM draft for a carousel): here it's 1 credit per SLIDE, flat
   // across every platform selected.
-  // Carousels default to the plan's slide count (2-5), but the user can pick
-  // their own (2-10) before drafting — the backend charges for what's picked.
+  // Carousels default to the plan's slide count, but the user can pick their
+  // own before drafting — the backend charges for what's picked. Clamped to
+  // 2-3: the business rule is "carousels never exceed 3 slides" (the plan's
+  // own cap too), and the backend now enforces this at creation regardless
+  // of what's sent, so offering up to 10 here just invited a 402-style
+  // mismatch between what looked selectable and what would actually ship.
   const plannedSlides = Math.max(item.carousel?.slides.length || 3, 1);
-  const [numSlides, setNumSlides] = useState(Math.min(10, Math.max(2, plannedSlides)));
+  const [numSlides, setNumSlides] = useState(Math.min(3, Math.max(2, plannedSlides)));
   const draftCreditCost = item.format === 'carousel' ? numSlides : 1;
 
   const handleRegenerate = async () => {
     setRegenerating(true);
     try {
-      const res = await SocialMediaAgentService.regenerateCalendarItemV2(planId, item.day_index, 'manual regenerate');
+      const res = await SocialMediaAgentService.regenerateCalendarItemV2(
+        planId,
+        item.day_index,
+        'manual regenerate',
+        regenScope,
+        regenScope === 'format' ? regenNewFormat : undefined
+      );
       if (res.status && res.responseData) {
         onPlanUpdated(res.responseData);
         onClose();
@@ -778,7 +794,7 @@ const ItemDetailModal = ({
                 the eventual 402. */}
             {item.format === 'carousel' && (
               <div style={{ marginTop: 16 }}>
-                <SlideCountPicker value={numSlides} onChange={setNumSlides} />
+                <SlideCountPicker value={numSlides} onChange={setNumSlides} options={[2, 3]} />
                 {numSlides !== plannedSlides && (
                   <div style={{ fontSize: 11.5, color: GRAY, marginTop: 6 }}>
                     The plan suggested {plannedSlides} slides — Jane will write {numSlides} instead.
@@ -823,23 +839,70 @@ const ItemDetailModal = ({
               {creating ? 'Creating…' : 'Create Draft'}
             </button>
           )}
-          <button
-            onClick={handleRegenerate}
-            disabled={regenerating}
-            style={{
-              background: '#fff',
-              color: '#374151',
-              border: `1.5px solid ${BORDER}`,
-              borderRadius: 8,
-              padding: '10px 16px',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              opacity: regenerating ? 0.6 : 1,
-            }}
-          >
-            {regenerating ? 'Regenerating…' : '↻ New idea'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select
+              value={regenScope}
+              onChange={(e) => setRegenScope(e.target.value as typeof regenScope)}
+              disabled={regenerating}
+              title="What should regenerating actually change?"
+              style={{
+                border: `1.5px solid ${BORDER}`,
+                borderRadius: 8,
+                padding: '10px 8px',
+                fontSize: 12.5,
+                color: '#374151',
+                background: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="full">Everything</option>
+              <option value="hook">Hook only</option>
+              <option value="copy">Copy only (keep visuals)</option>
+              <option value="creative">Visuals only (keep copy)</option>
+              <option value="format">Convert format…</option>
+            </select>
+            {regenScope === 'format' && (
+              <select
+                value={regenNewFormat}
+                onChange={(e) => setRegenNewFormat(e.target.value)}
+                disabled={regenerating}
+                style={{
+                  border: `1.5px solid ${BORDER}`,
+                  borderRadius: 8,
+                  padding: '10px 8px',
+                  fontSize: 12.5,
+                  color: '#374151',
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                {['image', 'carousel', 'video', 'product_video', 'ai_video']
+                  .filter((f) => f !== item.format)
+                  .map((f) => (
+                    <option key={f} value={f}>
+                      → {f.replace('_', ' ')}
+                    </option>
+                  ))}
+              </select>
+            )}
+            <button
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              style={{
+                background: '#fff',
+                color: '#374151',
+                border: `1.5px solid ${BORDER}`,
+                borderRadius: 8,
+                padding: '10px 16px',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                opacity: regenerating ? 0.6 : 1,
+              }}
+            >
+              {regenerating ? 'Regenerating…' : '↻ New idea'}
+            </button>
+          </div>
           <button
             onClick={handleApprove}
             disabled={approving || item.status === 'approved'}
