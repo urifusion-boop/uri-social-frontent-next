@@ -17,6 +17,7 @@ type ISocialMediaAgentApi =
   | 'expandPrompt'
   | 'uploadUserContent'
   | 'generateStoryboard'
+  | 'storyboardJob'
   | 'generateVideoFromStoryboard'
   | 'videoJob'
   | 'refineContent'
@@ -117,6 +118,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   expandPrompt: '/expand-prompt',
   uploadUserContent: '/upload-user-content',
   generateStoryboard: '/generate-storyboard',
+  storyboardJob: '/storyboard-job',
   generateVideoFromStoryboard: '/generate-video-from-storyboard',
   videoJob: '/video-job',
   refineContent: '/refine',

@@ -367,10 +367,23 @@ export default function VideoStoryboardGenerator() {
 
   const SESSION_KEY = 'uri:vsg:session';
 
-  const saveSession = (job: VideoJob | null, sb: Storyboard | null, plt: string) => {
-    if (!sb) return;
+  type VSGSession = {
+    storyboard: Storyboard | null;
+    platform: string;
+    storyboardJobId: string | null;
+    frameJobId: string | null;
+    frameMap: Record<number, string>;
+    job: VideoJob | null;
+  };
+
+  // Merges into whatever's already stored rather than requiring every call site
+  // to know the full current state — each step only ever has its own slice in
+  // hand (e.g. the frame-poll tick doesn't know the video job).
+  const saveSession = (patch: Partial<VSGSession>) => {
     try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ job, storyboard: sb, platform: plt }));
+      const raw = localStorage.getItem(SESSION_KEY);
+      const existing = raw ? JSON.parse(raw) : {};
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ ...existing, ...patch }));
     } catch {
       /* quota exceeded — ignore */
     }
@@ -384,30 +397,85 @@ export default function VideoStoryboardGenerator() {
     }
   };
 
-  // Restore in-progress session on mount
+  // Restore on mount: static fields (storyboard, platform) come back
+  // immediately; an in-progress storyboard-generation job, frame job, or video
+  // job also resumes real polling instead of just showing a stale snapshot.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return;
-      const {
-        job,
-        storyboard: sb,
-        platform: plt,
-      } = JSON.parse(raw) as {
-        job: VideoJob | null;
-        storyboard: Storyboard;
-        platform: string;
-      };
-      if (!sb) {
+      const saved = JSON.parse(raw) as Partial<VSGSession>;
+      if (!saved.storyboard && !saved.storyboardJobId) {
         clearSession();
         return;
       }
 
-      // Always restore storyboard + platform
-      setStoryboard(sb);
-      setPlatform(plt);
+      if (saved.storyboard) setStoryboard(saved.storyboard);
+      if (saved.platform) setPlatform(saved.platform);
+      // Restored unconditionally, same as storyboard/platform — once the frame
+      // job finishes, frameJobId gets cleared from the session (nothing left to
+      // poll for), but the actual completed images still need to come back from
+      // SOMEWHERE on a later refresh, which is this.
+      if (saved.frameMap) setFrameMap(saved.frameMap);
+
+      if (saved.storyboardJobId && !saved.storyboard) {
+        // Storyboard-script generation itself was still running when the page
+        // was last open — resume waiting for it rather than leaving the form
+        // looking idle while the backend job keeps working regardless.
+        setLoading(true);
+        pollStoryboardJob(saved.storyboardJobId).then((result) => {
+          setLoading(false);
+          if (result && result.status === 'complete' && result.storyboard) {
+            setStoryboard(result.storyboard);
+            const suggestion = suggestOutcome({ ...result.storyboard, video_style: selectedStyle });
+            setSelectedOutcome(suggestion.outcome);
+            setOutcomeSuggestionReason(suggestion.reason);
+            saveSession({ storyboard: result.storyboard, storyboardJobId: null });
+            // images isn't restored from session (raw uploaded photos are form
+            // input, not job state) — a resume through this specific path
+            // loses the brand photos for frame generation, degrading to a
+            // from-scratch generation instead of a hard failure.
+            SocialMediaAgentService.generateStoryboardFrames(
+              result.storyboard.scenes,
+              images.map((img) => img.dataUrl)
+            )
+              .then((frameRes) => {
+                if (frameRes.status && frameRes.responseData) {
+                  saveSession({ frameJobId: frameRes.responseData.job_id });
+                  startFramePolling(frameRes.responseData.job_id);
+                }
+              })
+              .catch(() => {});
+          } else {
+            setError((result && result.error) || 'Storyboard generation failed. Please try again.');
+            saveSession({ storyboardJobId: null });
+          }
+        });
+      }
+
+      if (saved.frameJobId) {
+        frameJobIdRef.current = saved.frameJobId;
+        SocialMediaAgentService.getStoryboardFrameJob(saved.frameJobId)
+          .then((res) => {
+            if (res.status && res.responseData) {
+              const map: Record<number, string> = {};
+              for (const f of res.responseData.frames) {
+                if (f.frame_image_url) map[f.scene_number] = f.frame_image_url;
+              }
+              setFrameMap(map);
+              saveSession({ frameMap: map });
+              if (res.responseData.status === 'complete') {
+                saveSession({ frameJobId: null });
+              } else {
+                startFramePolling(saved.frameJobId!);
+              }
+            }
+          })
+          .catch(() => {});
+      }
 
       // Only resume job polling if there's an active job
+      const job = saved.job;
       if (job?.job_id && job.status !== 'complete' && job.status !== 'failed') {
         setVideoJob(job);
         SocialMediaAgentService.getVideoJob(job.job_id)
@@ -415,9 +483,9 @@ export default function VideoStoryboardGenerator() {
             if (res.status && res.responseData) {
               setVideoJob(res.responseData);
               if (res.responseData.status === 'complete' || res.responseData.status === 'failed') {
-                saveSession(null, sb, plt);
+                saveSession({ job: null });
               } else {
-                saveSession(res.responseData, sb, plt);
+                saveSession({ job: res.responseData });
               }
             }
           })
@@ -426,6 +494,7 @@ export default function VideoStoryboardGenerator() {
     } catch {
       /* corrupted storage — ignore */
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Poll for job status while generating
@@ -443,7 +512,7 @@ export default function VideoStoryboardGenerator() {
             if (pollRef.current) clearInterval(pollRef.current);
             clearSession();
           } else {
-            saveSession(res.responseData, storyboard, platform);
+            saveSession({ job: res.responseData, storyboard, platform });
           }
         }
       } catch {
@@ -640,8 +709,10 @@ export default function VideoStoryboardGenerator() {
             if (f.frame_image_url) map[f.scene_number] = f.frame_image_url;
           }
           setFrameMap(map);
+          saveSession({ frameMap: map });
           if (res.responseData.status === 'complete') {
             clearInterval(framePollRef.current!);
+            saveSession({ frameJobId: null });
             return;
           }
         }
@@ -659,6 +730,35 @@ export default function VideoStoryboardGenerator() {
     }, 5000);
   };
 
+  // Storyboard-script generation is job-based now (see generate-storyboard's own
+  // docstring in complete_social_manager.py) — this polls it to completion.
+  // Shared by the interactive "just kicked it off, keep the button's loading
+  // state until it's done" path in handleGenerateStoryboard below AND the
+  // mount-time restore effect above (resuming a job that was still running
+  // when the page was last open).
+  const STORYBOARD_POLL_INTERVAL_MS = 3000;
+  const MAX_STORYBOARD_POLL_ATTEMPTS = 40; // ~2 minutes
+  const pollStoryboardJob = async (
+    jobId: string
+  ): Promise<{ status: string; storyboard: Storyboard | null; error: string | null } | null> => {
+    for (let attempt = 0; attempt < MAX_STORYBOARD_POLL_ATTEMPTS; attempt++) {
+      try {
+        const res = await SocialMediaAgentService.getStoryboardJob(jobId);
+        if (
+          res.status &&
+          res.responseData &&
+          (res.responseData.status === 'complete' || res.responseData.status === 'failed')
+        ) {
+          return res.responseData;
+        }
+      } catch {
+        /* keep polling — a single failed poll isn't reason to give up */
+      }
+      await new Promise((resolve) => setTimeout(resolve, STORYBOARD_POLL_INTERVAL_MS));
+    }
+    return null; // timed out
+  };
+
   const handleGenerateStoryboard = async () => {
     if (images.length === 0) return;
     setLoading(true);
@@ -672,35 +772,47 @@ export default function VideoStoryboardGenerator() {
     clearSession();
     if (framePollRef.current) clearInterval(framePollRef.current);
     try {
-      const res = await SocialMediaAgentService.generateStoryboard({
+      const jobRes = await SocialMediaAgentService.generateStoryboard({
         brand_images: images.map((img) => img.dataUrl),
         optional_text: optionalText.trim() || undefined,
         target_platform: platform,
         target_duration_seconds: duration,
         video_style: selectedStyle,
       });
-      if (res.status && res.responseData) {
-        setStoryboard(res.responseData);
-        saveSession(null, res.responseData, platform);
+      if (!jobRes.status || !jobRes.responseData) {
+        setError(jobRes.responseMessage || 'Storyboard generation failed. Please try again.');
+        return;
+      }
+      saveSession({ storyboardJobId: jobRes.responseData.job_id, platform });
+      const result = await pollStoryboardJob(jobRes.responseData.job_id);
+      if (!result) {
+        setError('Storyboard generation is taking much longer than expected. Please try again.');
+        return;
+      }
+      if (result.status === 'complete' && result.storyboard) {
+        setStoryboard(result.storyboard);
+        saveSession({ storyboard: result.storyboard, platform, storyboardJobId: null, frameJobId: null, frameMap: {} });
         // generateStoryboard's response never carries video_style back (only
         // the "describe it" endpoint's does, since there the model picks it)
         // — selectedStyle is what was actually used here, so feed it in.
-        const suggestion = suggestOutcome({ ...res.responseData, video_style: selectedStyle });
+        const suggestion = suggestOutcome({ ...result.storyboard, video_style: selectedStyle });
         setSelectedOutcome(suggestion.outcome);
         setOutcomeSuggestionReason(suggestion.reason);
         // Fire frame image generation in the background
         SocialMediaAgentService.generateStoryboardFrames(
-          res.responseData.scenes,
+          result.storyboard.scenes,
           images.map((img) => img.dataUrl)
         )
           .then((frameRes) => {
             if (frameRes.status && frameRes.responseData) {
+              saveSession({ frameJobId: frameRes.responseData.job_id });
               startFramePolling(frameRes.responseData.job_id);
             }
           })
           .catch(() => {});
       } else {
-        setError(res.responseMessage || 'Storyboard generation failed. Please try again.');
+        setError(result.error || 'Storyboard generation failed. Please try again.');
+        saveSession({ storyboardJobId: null });
       }
     } catch {
       setError('Something went wrong. Please try again.');
@@ -734,7 +846,7 @@ export default function VideoStoryboardGenerator() {
       });
       if (res.status && res.responseData) {
         setVideoJob(res.responseData);
-        saveSession(res.responseData, storyboard, platform);
+        saveSession({ job: res.responseData, storyboard, platform });
       } else {
         setVideoError(res.responseMessage || 'Could not start video generation.');
       }
