@@ -862,11 +862,13 @@ export class SocialMediaAgentService {
   static async regenerateCalendarItemV2(
     planId: string,
     itemIndex: number,
-    reason = ''
+    reason = '',
+    scope: 'full' | 'hook' | 'copy' | 'creative' | 'format' = 'full',
+    newFormat?: string
   ): Promise<UriResponse<ContentCalendarV2Plan>> {
     const response: Awaited<AxiosResponse<UriResponse<ContentCalendarV2Plan>>> = await UriHttpClient.getClient().post(
       `${socialMediaAgentRoutes.calendarV2ItemBase}/${planId}/item/${itemIndex}/regenerate`,
-      { reason },
+      { reason, scope, new_format: newFormat },
       { timeout: 60000 }
     );
     return response.data;
