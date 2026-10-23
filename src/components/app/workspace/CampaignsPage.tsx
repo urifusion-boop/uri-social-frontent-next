@@ -3039,14 +3039,6 @@ function PlanVariantCards({
               </div>
               {isExpanded && (
                 <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {v.geo_pockets.length > 0 && (
-                    <div>
-                      <span style={label}>Where</span>
-                      <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#444' }}>
-                        {v.geo_pockets.join(', ')} <em style={{ opacity: 0.6 }}>(confirm these match you)</em>
-                      </p>
-                    </div>
-                  )}
                   <div>
                     <span style={label}>Why this could work</span>
                     <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#444', lineHeight: 1.5 }}>
