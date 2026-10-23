@@ -126,6 +126,8 @@ export function GrowthCampaign({
         <GoalEditor campaignId={campaignId} target={data.goal.target_cpl_ngn ?? null} onSaved={load} />
       </Card>
 
+      <ChangePanel data={data} canChange={canApprove} onChanged={load} onNotice={setNotice} />
+
       <Card
         title={open.length ? `What needs attention (${open.length})` : 'Nothing needs attention'}
         desc="Causes are URI's best hypotheses from the evidence, with how confident it is. They aren't proven."
@@ -367,5 +369,130 @@ function GoalEditor({
         <span style={{ color: '#999' }}>Without a target, URI compares against this campaign’s own past.</span>
       )}
     </div>
+  );
+}
+
+function ChangePanel({
+  data,
+  canChange,
+  onChanged,
+  onNotice,
+}: {
+  data: GrowthCampaignDetail;
+  canChange: boolean;
+  onChanged: () => Promise<void>;
+  onNotice: (s: string) => void;
+}) {
+  const c = data.controls;
+  const [budget, setBudget] = useState(c?.daily_budget_ngn ? String(c.daily_budget_ngn) : '');
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  if (!c) return null;
+  const running = (c.status || '').toUpperCase() === 'ACTIVE';
+  const minBudget = c.min_daily_budget_ngn ?? 2000;
+  const tooLow = Boolean(budget) && Number(budget) < minBudget;
+
+  async function run(
+    key: string,
+    action: 'pause_ad' | 'resume_ad' | 'pause_campaign' | 'resume_campaign' | 'set_daily_budget',
+    params: { ad_id?: string; to_ngn?: number } = {}
+  ) {
+    setBusy(key);
+    setError('');
+    try {
+      const a = await GrowthService.change(data.campaign_id, action, params);
+      onNotice(
+        a.status === 'executed'
+          ? `${a.requested_change} — confirmed on Meta, live now.`
+          : a.status === 'unverified'
+            ? `${a.requested_change} — sent to Meta, not confirmed yet.`
+            : `Meta refused: ${a.error ?? 'unknown error'}`
+      );
+      await onChanged();
+    } catch (e) {
+      setError(errorText(e, "Couldn't make that change."));
+    }
+    setBusy('');
+  }
+
+  return (
+    <Card
+      title="Make a change"
+      desc="Changes apply to the live campaign on Meta, are read back to confirm, and appear in History where you can undo them."
+    >
+      {c.error && (
+        <div style={{ fontSize: 12.5, color: '#C62828' }}>Couldn’t read the campaign from Meta: {c.error}</div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13 }}>
+        <strong>Campaign</strong>
+        <Chip tone={running ? 'green' : 'grey'}>{(c.status || 'unknown').toLowerCase().replace(/_/g, ' ')}</Chip>
+        <div style={{ flex: 1 }} />
+        {canChange && (
+          <Btn
+            small
+            kind={running ? 'danger' : 'primary'}
+            disabled={busy !== ''}
+            onClick={() => run('campaign', running ? 'pause_campaign' : 'resume_campaign')}
+          >
+            {busy === 'campaign' ? 'Updating…' : running ? 'Pause campaign' : 'Resume campaign'}
+          </Btn>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13 }}>
+        <strong>Daily budget</strong>
+        <span style={{ color: '#666' }}>now {naira(c.daily_budget_ngn)}</span>
+        <div style={{ flex: 1 }} />
+        {canChange && (
+          <>
+            <input
+              type="number"
+              min={minBudget}
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              style={{ ...inputStyle, width: 120 }}
+            />
+            <Btn
+              small
+              kind="secondary"
+              disabled={busy !== '' || !Number(budget) || tooLow || Number(budget) === c.daily_budget_ngn}
+              onClick={() => run('budget', 'set_daily_budget', { to_ngn: Number(budget) })}
+            >
+              {busy === 'budget' ? 'Updating…' : 'Set budget'}
+            </Btn>
+          </>
+        )}
+      </div>
+      <div style={{ fontSize: 11.5, color: tooLow ? '#C62828' : '#999', marginTop: -6 }}>
+        Minimum {naira(minBudget)} a day — below that the ad barely delivers, and Meta refuses budgets this low.
+      </div>
+      {c.ads.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <strong style={{ fontSize: 13 }}>Ads</strong>
+          {c.ads.map((ad) => {
+            const on = (ad.status || '').toUpperCase() === 'ACTIVE';
+            return (
+              <div
+                key={ad.id}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, flexWrap: 'wrap' }}
+              >
+                <span style={{ flex: 1, minWidth: 160 }}>{ad.name}</span>
+                <Chip tone={on ? 'green' : 'grey'}>{(ad.status || '').toLowerCase()}</Chip>
+                {canChange && (
+                  <Btn
+                    small
+                    kind="ghost"
+                    disabled={busy !== ''}
+                    onClick={() => run(`ad:${ad.id}`, on ? 'pause_ad' : 'resume_ad', { ad_id: ad.id })}
+                  >
+                    {busy === `ad:${ad.id}` ? 'Updating…' : on ? 'Pause ad' : 'Turn on'}
+                  </Btn>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {error && <div style={{ fontSize: 12.5, color: '#C62828' }}>{error}</div>}
+    </Card>
   );
 }

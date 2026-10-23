@@ -10,6 +10,7 @@ export function pct(v: number | null | undefined, digits = 1): string {
 
 export const ACTION_LABELS: Record<string, string> = {
   pause_ad: 'Pause an ad',
+  resume_ad: 'Turn an ad back on',
   pause_campaign: 'Pause the campaign',
   resume_campaign: 'Resume the campaign',
   set_daily_budget: 'Change the daily budget',

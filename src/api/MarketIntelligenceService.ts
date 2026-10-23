@@ -309,6 +309,32 @@ const BASE = '/market-intelligence';
 export type ListeningSignalType = 'rising' | 'spike' | 'emerging' | 'new_entity' | 'recurring_need';
 export type ListeningCardAction = 'saved' | 'dismissed' | 'snoozed' | 'acted' | 'created' | 'shown';
 
+export type CreateFromListeningCardResult =
+  | { card_id: string; draft_ids: string[]; request_id?: string }
+  | {
+      card_id: string;
+      optional_text: string;
+      target_platform: string;
+      target_duration_seconds: number;
+      video_style: string;
+    }
+  | {
+      card_id: string;
+      thread: { thread_id: string; status: string; title: string };
+      seed_message: string;
+    };
+
+export interface ListeningCardActionBrief {
+  type: string;
+  title: string;
+  platforms: string[];
+  format: string;
+  hook: string;
+  outline: string[];
+  cta: string;
+  caption: string;
+}
+
 export interface ListeningCard {
   id: string;
   market: string;
@@ -318,16 +344,12 @@ export interface ListeningCard {
   type: ListeningSignalType;
   observation: string;
   why: string;
-  action: {
-    type: string;
-    title: string;
-    platforms: string[];
-    format: string;
-    hook: string;
-    outline: string[];
-    cta: string;
-    caption: string;
-  };
+  action: ListeningCardActionBrief;
+  // PRD §9.3's "Alternatives": a second, genuinely different-shaped option
+  // for the same signal, when Jane found one worth considering — absent on
+  // most cards, since padding every card with a weaker near-duplicate isn't
+  // the point (see personalize.py's cards_for).
+  alternative?: ListeningCardActionBrief | null;
   evidence: {
     current?: Record<string, number>;
     baseline?: { median_per_day?: number; days?: number } | null;
@@ -646,14 +668,18 @@ export class MarketIntelligenceService {
     return res.data;
   }
 
-  // One click, server-side: generates real drafts from the card's
-  // evidence-backed brief (no re-typing, no separate "now press Generate"
-  // step) and returns the ids so the caller can route straight to them.
-  static async createFromListeningCard(
-    cardId: string
-  ): Promise<UriResponse<{ card_id: string; draft_ids: string[]; request_id?: string }>> {
-    const res: AxiosResponse<UriResponse<{ card_id: string; draft_ids: string[]; request_id?: string }>> =
-      await UriHttpClient.getClient().post(`${BASE}/listening/cards/${cardId}/create`, {});
+  // One click, server-side. Shape depends on the card's own action.type:
+  //   post/carousel/faq -> real drafts generated now (draft_ids)
+  //   video             -> no draft can be generated server-side (the real
+  //                        flow needs the owner's own images) — a pre-filled
+  //                        brief for the storyboard screen instead
+  //   ad_test           -> a fresh, pre-filled Jane Ads draft thread (never
+  //                        auto-launched — the owner still drives it there)
+  static async createFromListeningCard(cardId: string): Promise<UriResponse<CreateFromListeningCardResult>> {
+    const res: AxiosResponse<UriResponse<CreateFromListeningCardResult>> = await UriHttpClient.getClient().post(
+      `${BASE}/listening/cards/${cardId}/create`,
+      {}
+    );
     return res.data;
   }
 
