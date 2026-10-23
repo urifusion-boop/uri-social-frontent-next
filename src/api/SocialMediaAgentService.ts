@@ -301,6 +301,30 @@ export interface VideoPublishJob {
   error: string | null;
 }
 
+// What the TikTok Post screen shows and enforces. Fetched fresh each time that
+// screen opens (TikTok Content Sharing Guidelines).
+export interface TikTokCreatorInfo {
+  creator_nickname: string;
+  creator_username: string;
+  creator_avatar_url: string;
+  privacy_level_options: string[];
+  comment_disabled: boolean;
+  duet_disabled: boolean;
+  stitch_disabled: boolean;
+  max_video_post_duration_sec: number | null;
+}
+
+// The user's own choices on the Post to TikTok screen — nothing is defaulted for them.
+export interface TikTokPostSettings {
+  title: string;
+  privacy_level: string;
+  allow_comment: boolean;
+  allow_duet: boolean;
+  allow_stitch: boolean;
+  brand_organic: boolean; // "Your brand" → labelled Promotional content
+  brand_content: boolean; // "Branded content" → labelled Paid partnership
+}
+
 export interface RefinePayload {
   draft_id: string;
   refinements: {
@@ -1318,10 +1342,18 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  static async getTikTokCreatorInfo(): Promise<UriResponse<TikTokCreatorInfo>> {
+    const response: Awaited<AxiosResponse<UriResponse<TikTokCreatorInfo>>> = await UriHttpClient.getClient().get(
+      `/social-media/connections/tiktok-direct/creator-info`
+    );
+    return response.data;
+  }
+
   static async publishVideoDraft(payload: {
     draft_id: string;
     platform: string;
     caption?: string;
+    tiktok?: TikTokPostSettings; // required when platform === 'tiktok'
   }): Promise<UriResponse<{ job_id: string }>> {
     const response: Awaited<AxiosResponse<UriResponse<{ job_id: string }>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.publishVideoDraft,

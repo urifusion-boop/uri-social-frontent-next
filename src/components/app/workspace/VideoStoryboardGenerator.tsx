@@ -8,7 +8,9 @@ import {
   VideoClip,
   VideoJob,
   VideoPublishJob,
+  TikTokPostSettings,
 } from '@/src/api/SocialMediaAgentService';
+import TikTokPostDialog from './TikTokPostDialog';
 import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
@@ -363,6 +365,8 @@ export default function VideoStoryboardGenerator() {
   const [selectedPublishPlatform, setSelectedPublishPlatform] = useState<Record<string, string>>({});
   // publishJobs: { [draftId:platform]: VideoPublishJob }
   const [publishJobs, setPublishJobs] = useState<Record<string, VideoPublishJob>>({});
+  // The draft whose Post to TikTok screen is open, if any.
+  const [tiktokDialogDraft, setTiktokDialogDraft] = useState<VideoDraft | null>(null);
   const publishPollRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
   const SESSION_KEY = 'uri:vsg:session';
@@ -615,12 +619,16 @@ export default function VideoStoryboardGenerator() {
   const togglePlatform = (p: string) =>
     setDraftPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
 
-  const handlePublish = async (draft: VideoDraft) => {
+  const handlePublish = async (draft: VideoDraft, tiktok?: TikTokPostSettings) => {
     const platform = selectedPublishPlatform[draft.id];
     if (!platform) return;
     const key = `${draft.id}:${platform}`;
     try {
-      const res = await SocialMediaAgentService.publishVideoDraft({ draft_id: draft.id, platform });
+      const res = await SocialMediaAgentService.publishVideoDraft({
+        draft_id: draft.id,
+        platform,
+        ...(tiktok ? { tiktok } : {}),
+      });
       if (!res.status || !res.responseData) return;
       const { job_id } = res.responseData;
       setPublishJobs((prev) => ({
@@ -1860,7 +1868,10 @@ export default function VideoStoryboardGenerator() {
                           )}
 
                         <button
-                          onClick={() => handlePublish(d)}
+                          // TikTok needs the Post to TikTok screen first (privacy,
+                          // interactions, disclosure, consent); nothing is sent until
+                          // the user presses Post inside it.
+                          onClick={() => (selPlatform === 'tiktok' ? setTiktokDialogDraft(d) : handlePublish(d))}
                           disabled={
                             !selPlatform ||
                             (!!publishJobs[`${d.id}:${selPlatform}`]?.status &&
@@ -1911,6 +1922,18 @@ export default function VideoStoryboardGenerator() {
           </div>
         )}
       </div>
+
+      {tiktokDialogDraft && (
+        <TikTokPostDialog
+          draft={tiktokDialogDraft}
+          onClose={() => setTiktokDialogDraft(null)}
+          onConfirm={(settings) => {
+            const draft = tiktokDialogDraft;
+            setTiktokDialogDraft(null);
+            handlePublish(draft, settings);
+          }}
+        />
+      )}
     </div>
   );
 }
