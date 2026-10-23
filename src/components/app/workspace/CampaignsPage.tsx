@@ -107,6 +107,12 @@ interface CampaignsPageProps {
   // result — this page picks it back up as if the user had just uploaded it.
   pendingResumeVideo?: { threadId: string; url: string; pendingVariants?: PendingVariants } | null;
   onResumeVideoConsumed?: () => void;
+  // Same idea, for a Listening "ad_test" card: the thread and its seed
+  // message already exist server-side (POST /listening/cards/{id}/create) —
+  // this just resumes straight into that thread and sends the seed, same as
+  // duplicateThread() does for a re-launched campaign.
+  pendingResumeAdTest?: { threadId: string; seedMessage: string } | null;
+  onResumeAdTestConsumed?: () => void;
 }
 
 type ContinueChoice =
@@ -240,6 +246,8 @@ export default function CampaignsPage({
   onNavigate,
   onRequestVideoPolish,
   pendingResumeVideo,
+  pendingResumeAdTest,
+  onResumeAdTestConsumed,
   onResumeVideoConsumed,
 }: CampaignsPageProps) {
   const isMobile = useIsMobile();
@@ -450,15 +458,15 @@ export default function CampaignsPage({
   // so starting a campaign in one tab made any OTHER tab snap to it on reload, looking
   // like the same generation was running in both. If the brand has no threads yet, we
   // leave the greeting and create one lazily on first send. Skipped when a video
-  // hand-off is resuming (below): that effect owns which thread opens in that case,
-  // and racing both against each other let this one silently win and clobber the
-  // resumed thread back to whatever this tab last had open.
+  // or ad-test hand-off is resuming (below): that effect owns which thread opens
+  // in that case, and racing both against each other let this one silently win
+  // and clobber the resumed thread back to whatever this tab last had open.
   useEffect(() => {
     (async () => {
       try {
         const list = await CampaignService.listThreads();
         setThreads(list);
-        if (!list.length || pendingResumeVideo) return;
+        if (!list.length || pendingResumeVideo || pendingResumeAdTest) return;
         let rememberedId: string | null = null;
         try {
           rememberedId = sessionStorage.getItem(ACTIVE_THREAD_SESSION_KEY);
@@ -1538,6 +1546,20 @@ export default function CampaignsPage({
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingResumeVideo]);
+
+  // Coming from a Listening "ad_test" card: the draft thread and its seed
+  // message already exist server-side — open that exact thread and send the
+  // seed, same as duplicateThread() does for a re-launched campaign, just
+  // arriving from a different tab instead of a button in this one.
+  useEffect(() => {
+    if (!pendingResumeAdTest) return;
+    (async () => {
+      await openThread(pendingResumeAdTest.threadId);
+      await send(pendingResumeAdTest.seedMessage);
+      onResumeAdTestConsumed?.();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingResumeAdTest]);
 
   const openDrafts = async () => {
     setDraftsOpen((v) => !v);

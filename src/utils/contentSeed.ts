@@ -74,3 +74,40 @@ export const hasVideoSeed = (): boolean => {
     return false;
   }
 };
+
+/**
+ * Same hand-off idea, for a Listening "ad_test" card. Unlike video, the
+ * backend already does all the real work before this is even written
+ * (POST /listening/cards/{id}/create opens the actual draft thread and
+ * builds the seed message) — this just carries that result across the tab
+ * switch into Campaigns, which reads it once on mount and resumes straight
+ * into that thread with the brief already sent, same "no copy-pasting"
+ * promise as every other Create deep-link.
+ */
+const AD_TEST_KEY = 'uri_ad_test_seed';
+
+export interface AdTestSeed {
+  threadId: string;
+  seedMessage: string;
+  source?: string;
+  cardId?: string;
+}
+
+export const setAdTestSeed = (seed: AdTestSeed): void => {
+  try {
+    sessionStorage.setItem(AD_TEST_KEY, JSON.stringify(seed));
+  } catch {
+    /* storage unavailable — Campaigns just opens its normal last thread */
+  }
+};
+
+export const takeAdTestSeed = (): AdTestSeed | null => {
+  try {
+    const raw = sessionStorage.getItem(AD_TEST_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(AD_TEST_KEY);
+    return JSON.parse(raw) as AdTestSeed;
+  } catch {
+    return null;
+  }
+};

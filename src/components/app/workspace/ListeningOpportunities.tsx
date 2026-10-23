@@ -9,7 +9,9 @@
  * create) and lands on Create where it's already waiting. A video card has
  * no equivalent single call (storyboard -> frames -> render is a genuine
  * multi-step, user-reviewed flow) — "Start this video" hands the brief to
- * Describe It pre-filled instead. ad_test has nowhere to route to yet.
+ * Describe It pre-filled instead. An ad_test card opens a fresh, pre-filled
+ * Jane Ads draft thread (same one call, same server) — never auto-launched;
+ * the owner still drives it through Jane Ads like any other campaign.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -42,7 +44,7 @@ import {
   MarketIntelligenceService,
   MarketPulse,
 } from '@/src/api/MarketIntelligenceService';
-import { setVideoSeed } from '@/src/utils/contentSeed';
+import { setAdTestSeed, setVideoSeed } from '@/src/utils/contentSeed';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
@@ -97,10 +99,12 @@ function OpportunityCard({
   // single call — it's a genuine multi-step, user-reviewed flow (storyboard
   // -> frames -> render) — so its honest "one click" is handing the brief
   // to Describe It pre-filled, not pretending a finished video exists.
-  // ad_test has no destination to route to at all yet (no draft-ad-campaign
-  // flow wired to Listening) — stays disabled with a clear explanation.
+  // ad_test opens a real, pre-filled Jane Ads draft thread server-side —
+  // never auto-launched, same approval gate every other campaign goes
+  // through — so it's a normal click like post/carousel/faq, just routed
+  // to Campaigns instead of Create once the thread comes back.
   const isVideo = card.action.type === 'video';
-  const unsupportedAction = card.action.type === 'ad_test' ? 'ad_test' : null;
+  const isAdTest = card.action.type === 'ad_test';
 
   const createVideo = () => {
     const parts = [card.action.hook, ...(card.action.outline ?? []), card.action.cta].filter(Boolean);
@@ -123,9 +127,21 @@ function OpportunityCard({
     try {
       const res = await MarketIntelligenceService.createFromListeningCard(card.id);
       if (res.status && res.responseData) {
-        ToastService.showToast('Draft created — opening it in Create now.', ToastTypeEnum.Success);
-        onCreated(card);
-        router.push('/workspace/?tab=schedule');
+        if (isAdTest && 'thread' in res.responseData) {
+          setAdTestSeed({
+            threadId: res.responseData.thread.thread_id,
+            seedMessage: res.responseData.seed_message,
+            source: 'listening',
+            cardId: card.id,
+          });
+          ToastService.showToast('Ad draft started — opening it in Campaigns now.', ToastTypeEnum.Success);
+          onCreated(card);
+          router.push('/workspace/?tab=campaigns');
+        } else {
+          ToastService.showToast('Draft created — opening it in Create now.', ToastTypeEnum.Success);
+          onCreated(card);
+          router.push('/workspace/?tab=schedule');
+        }
       } else {
         ToastService.showToast(res.responseMessage || 'Could not create a draft from this', ToastTypeEnum.Error);
       }
@@ -133,9 +149,11 @@ function OpportunityCard({
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 409) {
         // Already created from this card on an earlier click — not an error,
-        // just route to where it already landed.
+        // just route to where it already landed (the ad-test thread already
+        // exists too, just not reachable from here without its id — the
+        // owner finds it in the Campaigns rail).
         onCreated(card);
-        router.push('/workspace/?tab=schedule');
+        router.push(isAdTest ? '/workspace/?tab=campaigns' : '/workspace/?tab=schedule');
       } else {
         ToastService.showToast(errMsg(err, 'Could not create a draft from this'), ToastTypeEnum.Error);
       }
@@ -200,6 +218,15 @@ function OpportunityCard({
                   <b>Caption idea:</b> {card.action.caption}
                 </div>
               )}
+              {card.alternative && (
+                <div className="rounded-md border border-dashed border-border bg-background p-2">
+                  <div className="mb-0.5 font-semibold text-foreground">Or instead: {card.alternative.title}</div>
+                  <div className="text-muted-foreground">
+                    {card.alternative.format} on {(card.alternative.platforms ?? []).join(', ')} —{' '}
+                    {card.alternative.hook}
+                  </div>
+                </div>
+              )}
               {(card.evidence.samples ?? []).length > 0 && (
                 <div>
                   <div className="mb-1 font-semibold">What people are saying</div>
@@ -239,22 +266,10 @@ function OpportunityCard({
           </button>
         </div>
 
-        {unsupportedAction && (
-          <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-[11.5px] text-muted-foreground">
-            One-click ad tests from Listening aren&apos;t available yet — use the brief above in Campaigns.
-          </div>
-        )}
-
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={create} disabled={creating || !!unsupportedAction}>
+          <Button size="sm" onClick={create} disabled={creating}>
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {creating
-              ? 'Creating…'
-              : unsupportedAction
-                ? 'Create this (unavailable)'
-                : isVideo
-                  ? 'Start this video'
-                  : 'Create this'}
+            {creating ? 'Creating…' : isVideo ? 'Start this video' : isAdTest ? 'Draft this ad test' : 'Create this'}
           </Button>
           <Button size="sm" variant="outline" onClick={() => onAct(card, 'saved')} disabled={creating}>
             <Bookmark className="h-3.5 w-3.5" /> Save

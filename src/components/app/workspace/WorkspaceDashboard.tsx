@@ -73,7 +73,7 @@ import UploadContentForm from '@/src/components/app/workspace/UploadContentForm'
 import MarketIntelligencePage from '@/src/components/app/workspace/MarketIntelligencePage';
 import AdminUsersPage from '@/src/components/app/workspace/AdminUsersPage';
 import ListeningCurationPage from '@/src/components/app/workspace/ListeningCurationPage';
-import { hasVideoSeed } from '@/src/utils/contentSeed';
+import { hasVideoSeed, takeAdTestSeed } from '@/src/utils/contentSeed';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
 import { useEmailVerification } from '@/src/hooks/useEmailVerification';
 import { HexColorPicker } from 'react-colorful';
@@ -10361,6 +10361,26 @@ export default function WorkspaceDashboard() {
     url: string;
     pendingVariants?: PendingVariants;
   } | null>(null);
+  const [pendingResumeAdTest, setPendingResumeAdTest] = useState<{ threadId: string; seedMessage: string } | null>(
+    null
+  );
+
+  // A Listening opportunity card recommended as an ad test lands here with a
+  // real draft thread already created server-side (POST /listening/cards/
+  // {id}/create already opened it and built the seed message) — this just
+  // carries that hand-off into Campaigns and resumes straight into it, same
+  // "bridges two independent top-level pages" reasoning as the video-polish
+  // hand-off just above. Destructive take here (unlike video's two-step
+  // peek/take): there's no separate component downstream to do the real
+  // read — CampaignsPage is both the landing tab and the consumer.
+  useEffect(() => {
+    const seed = takeAdTestSeed();
+    if (seed) {
+      goTo('campaigns');
+      setPendingResumeAdTest({ threadId: seed.threadId, seedMessage: seed.seedMessage });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRequestVideoPolish = useCallback(
     (file: File, threadId: string, pendingVariants?: PendingVariants) => {
@@ -10751,6 +10771,8 @@ export default function WorkspaceDashboard() {
         onRequestVideoPolish={handleRequestVideoPolish}
         pendingResumeVideo={pendingResumeVideo}
         onResumeVideoConsumed={() => setPendingResumeVideo(null)}
+        pendingResumeAdTest={pendingResumeAdTest}
+        onResumeAdTestConsumed={() => setPendingResumeAdTest(null)}
       />
     ),
     'market-intelligence': <MarketIntelligencePage />,
