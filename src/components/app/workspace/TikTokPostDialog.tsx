@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  SocialMediaAgentService,
-  TikTokCreatorInfo,
-  TikTokPostSettings,
-  VideoDraft,
-} from '@/src/api/SocialMediaAgentService';
+import { SocialMediaAgentService, TikTokCreatorInfo, TikTokPostSettings } from '@/src/api/SocialMediaAgentService';
 import { useEffect, useState, type CSSProperties } from 'react';
 
 // "Post to TikTok" screen. Everything here follows TikTok's Content Sharing
@@ -20,7 +15,10 @@ const DARK = '#0d0e0f';
 const GREY = '#6B7280';
 const BORDER = '#E5E7EB';
 
-const MAX_TITLE_LENGTH = 2200;
+// TikTok's limits: video titles 2200; photo titles 90 with a separate 4000-char description.
+const MAX_VIDEO_TITLE_LENGTH = 2200;
+const MAX_PHOTO_TITLE_LENGTH = 90;
+const MAX_PHOTO_DESCRIPTION_LENGTH = 4000;
 
 const MUSIC_USAGE_URL = 'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en';
 const BRANDED_CONTENT_POLICY_URL = 'https://www.tiktok.com/legal/page/global/bc-policy/en';
@@ -36,7 +34,12 @@ const BRANDED_PRIVATE_NOTICE = 'Branded content visibility cannot be set to priv
 const COMMERCIAL_REQUIRED_NOTICE = 'You need to indicate if your content promotes yourself, a third party, or both.';
 
 interface Props {
-  draft: VideoDraft;
+  // What's being posted. Photo posts (an image or carousel) differ from video: only
+  // Comment applies (no Duet/Stitch), the title is capped at 90 with a separate
+  // description, and there's no duration to check.
+  media: { kind: 'video'; url: string } | { kind: 'photo'; urls: string[] };
+  initialTitle: string;
+  initialDescription?: string; // photo only
   onClose: () => void;
   onConfirm: (settings: TikTokPostSettings) => void;
 }
@@ -45,12 +48,16 @@ const sectionLabel: CSSProperties = { fontSize: 14, fontWeight: 700, color: DARK
 const noteText: CSSProperties = { fontSize: 13, color: GREY, margin: '4px 0 0', lineHeight: 1.5 };
 const linkStyle: CSSProperties = { color: PRIMARY, fontWeight: 600 };
 
-export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
+export default function TikTokPostDialog({ media, initialTitle, initialDescription, onClose, onConfirm }: Props) {
+  const isPhoto = media.kind === 'photo';
+  const noun = isPhoto ? 'post' : 'video';
+  const maxTitle = isPhoto ? MAX_PHOTO_TITLE_LENGTH : MAX_VIDEO_TITLE_LENGTH;
   const [info, setInfo] = useState<TikTokCreatorInfo | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
 
-  const [title, setTitle] = useState(draft.content ?? '');
+  const [title, setTitle] = useState(initialTitle);
+  const [description, setDescription] = useState(initialDescription ?? '');
   const [privacy, setPrivacy] = useState(''); // no default — the user must choose
   const [allowComment, setAllowComment] = useState(false);
   const [allowDuet, setAllowDuet] = useState(false);
@@ -92,9 +99,11 @@ export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
   const maxDuration = info?.max_video_post_duration_sec ?? null;
   const tooLong = maxDuration != null && videoDuration != null && videoDuration > maxDuration;
   const commercialMissing = commercialOn && !brandOrganic && !brandContent;
-  const titleTooLong = title.length > MAX_TITLE_LENGTH;
+  const titleTooLong = title.length > maxTitle;
+  const descriptionTooLong = isPhoto && description.length > MAX_PHOTO_DESCRIPTION_LENGTH;
 
-  const canPost = !!info && !cannotPostNow && !tooLong && !!privacy && !commercialMissing && !titleTooLong;
+  const canPost =
+    !!info && !cannotPostNow && !tooLong && !!privacy && !commercialMissing && !titleTooLong && !descriptionTooLong;
 
   const toggleCommercial = (on: boolean) => {
     setCommercialOn(on);
@@ -144,10 +153,11 @@ export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
     if (!canPost) return;
     onConfirm({
       title,
+      description: isPhoto ? description : '',
       privacy_level: privacy,
       allow_comment: allowComment,
-      allow_duet: allowDuet,
-      allow_stitch: allowStitch,
+      allow_duet: !isPhoto && allowDuet,
+      allow_stitch: !isPhoto && allowStitch,
       brand_organic: commercialOn && brandOrganic,
       brand_content: commercialOn && brandContent,
     });
@@ -236,7 +246,7 @@ export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
 
         {info && (
           <>
-            {/* Which account the video will be posted to */}
+            {/* Which account this will be posted to */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
               {info.creator_avatar_url && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -272,21 +282,43 @@ export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
 
             {/* Preview */}
             <p style={sectionLabel}>Preview</p>
-            <video
-              src={draft.video_url}
-              controls
-              playsInline
-              preload="metadata"
-              onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration)}
-              style={{
-                width: '100%',
-                maxHeight: 280,
-                display: 'block',
-                background: '#000',
-                borderRadius: 10,
-                marginBottom: 6,
-              }}
-            />
+            {media.kind === 'video' ? (
+              <video
+                src={media.url}
+                controls
+                playsInline
+                preload="metadata"
+                onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration)}
+                style={{
+                  width: '100%',
+                  maxHeight: 280,
+                  display: 'block',
+                  background: '#000',
+                  borderRadius: 10,
+                  marginBottom: 6,
+                }}
+              />
+            ) : (
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 6 }}>
+                {media.urls.map((u, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={i}
+                    src={u}
+                    alt={`Photo ${i + 1} of ${media.urls.length}`}
+                    style={{
+                      height: 260,
+                      width: 'auto',
+                      maxWidth: media.urls.length === 1 ? '100%' : undefined,
+                      objectFit: 'contain',
+                      background: '#F3F4F6',
+                      borderRadius: 10,
+                      flexShrink: 0,
+                    }}
+                  />
+                ))}
+              </div>
+            )}
             {tooLong && (
               <p style={{ ...noteText, color: '#DC2626' }}>
                 This video is {Math.round(videoDuration ?? 0)}s long. This TikTok account can post videos up to{' '}
@@ -294,13 +326,13 @@ export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
               </p>
             )}
 
-            {/* Title */}
+            {/* Title (and, for photos, a separate description) */}
             <p style={{ ...sectionLabel, marginTop: 16 }}>Title</p>
             <textarea
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              rows={3}
-              placeholder="Add a title for your video"
+              rows={isPhoto ? 2 : 3}
+              placeholder={`Add a title for your ${noun}`}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -313,11 +345,36 @@ export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
               }}
             />
             <p style={{ ...noteText, color: titleTooLong ? '#DC2626' : GREY, textAlign: 'right' }}>
-              {title.length}/{MAX_TITLE_LENGTH}
+              {title.length}/{maxTitle}
             </p>
 
+            {isPhoto && (
+              <>
+                <p style={{ ...sectionLabel, marginTop: 8 }}>Description</p>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  placeholder="Add a description for your post"
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    border: `1.5px solid ${descriptionTooLong ? '#DC2626' : BORDER}`,
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    fontSize: 14,
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                  }}
+                />
+                <p style={{ ...noteText, color: descriptionTooLong ? '#DC2626' : GREY, textAlign: 'right' }}>
+                  {description.length}/{MAX_PHOTO_DESCRIPTION_LENGTH}
+                </p>
+              </>
+            )}
+
             {/* Privacy — no default */}
-            <p style={{ ...sectionLabel, marginTop: 8 }}>Who can view this video</p>
+            <p style={{ ...sectionLabel, marginTop: 8 }}>Who can view this {noun}</p>
             <select
               value={privacy}
               onChange={(e) => setPrivacy(e.target.value)}
@@ -333,7 +390,7 @@ export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
               }}
             >
               <option value="" disabled>
-                Select who can view this video
+                Select who can view this {noun}
               </option>
               {options.map((o) => {
                 const blocked = o === 'SELF_ONLY' && commercialOn && brandContent;
@@ -350,8 +407,8 @@ export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
             <p style={{ ...sectionLabel, marginTop: 16 }}>Allow users to</p>
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               {interaction('comment', 'Comment', allowComment, setAllowComment, info.comment_disabled)}
-              {interaction('duet', 'Duet', allowDuet, setAllowDuet, info.duet_disabled)}
-              {interaction('stitch', 'Stitch', allowStitch, setAllowStitch, info.stitch_disabled)}
+              {!isPhoto && interaction('duet', 'Duet', allowDuet, setAllowDuet, info.duet_disabled)}
+              {!isPhoto && interaction('stitch', 'Stitch', allowStitch, setAllowStitch, info.stitch_disabled)}
             </div>
 
             {/* Commercial content disclosure — off by default */}
@@ -363,11 +420,11 @@ export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
                   onChange={(e) => toggleCommercial(e.target.checked)}
                   style={{ width: 16, height: 16, accentColor: PRIMARY }}
                 />
-                <span style={{ fontSize: 14, fontWeight: 700, color: DARK }}>Disclose video content</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: DARK }}>Disclose {noun} content</span>
               </label>
               <p style={noteText}>
-                Turn on to disclose that this video promotes goods or services in exchange for something of value. Your
-                video could promote yourself, a third party, or both.
+                Turn on to disclose that this {noun} promotes goods or services in exchange for something of value. Your{' '}
+                {noun} could promote yourself, a third party, or both.
               </p>
 
               {commercialOn && (
@@ -398,7 +455,7 @@ export default function TikTokPostDialog({ draft, onClose, onConfirm }: Props) {
             {/* Consent + processing notice */}
             <p style={{ fontSize: 13, color: DARK, margin: '18px 0 6px', lineHeight: 1.5 }}>{consent}</p>
             <p style={{ ...noteText, margin: '0 0 16px' }}>
-              After you post, it may take a few minutes for your video to finish processing and appear on your TikTok
+              After you post, it may take a few minutes for your {noun} to finish processing and appear on your TikTok
               profile.
             </p>
           </>

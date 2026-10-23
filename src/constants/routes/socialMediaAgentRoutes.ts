@@ -41,6 +41,7 @@ type ISocialMediaAgentApi =
   | 'creativeStoryboardJob'
   | 'generateCreativeFrames'
   | 'publishVideoDraft'
+  | 'publishTikTokPhotoDraft'
   | 'videoPublishJob'
   | 'extractImageText'
   | 'uploadCustomFont'
@@ -141,6 +142,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   creativeStoryboardJob: '/creative-storyboard-job',
   generateCreativeFrames: '/generate-creative-frames',
   publishVideoDraft: '/publish-video-draft',
+  publishTikTokPhotoDraft: '/publish-tiktok-photo-draft',
   videoPublishJob: '/video-publish-job',
   extractImageText: '/extract-image-text',
   uploadCustomFont: '/upload-custom-font',

@@ -323,6 +323,7 @@ export interface TikTokPostSettings {
   allow_stitch: boolean;
   brand_organic: boolean; // "Your brand" → labelled Promotional content
   brand_content: boolean; // "Branded content" → labelled Paid partnership
+  description?: string; // photo posts only — the caption under the photo(s)
 }
 
 export interface RefinePayload {
@@ -1345,6 +1346,19 @@ export class SocialMediaAgentService {
   static async getTikTokCreatorInfo(): Promise<UriResponse<TikTokCreatorInfo>> {
     const response: Awaited<AxiosResponse<UriResponse<TikTokCreatorInfo>>> = await UriHttpClient.getClient().get(
       `/social-media/connections/tiktok-direct/creator-info`
+    );
+    return response.data;
+  }
+
+  // Direct-post an image / carousel draft to TikTok. Poll the returned job with
+  // getVideoPublishJob — it's the same job document the video flow uses.
+  static async publishTikTokPhotoDraft(payload: {
+    draft_id: string;
+    tiktok: TikTokPostSettings;
+  }): Promise<UriResponse<{ job_id: string }>> {
+    const response: Awaited<AxiosResponse<UriResponse<{ job_id: string }>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.publishTikTokPhotoDraft,
+      payload
     );
     return response.data;
   }

@@ -1925,7 +1925,8 @@ export default function VideoStoryboardGenerator() {
 
       {tiktokDialogDraft && (
         <TikTokPostDialog
-          draft={tiktokDialogDraft}
+          media={{ kind: 'video', url: tiktokDialogDraft.video_url }}
+          initialTitle={tiktokDialogDraft.content ?? ''}
           onClose={() => setTiktokDialogDraft(null)}
           onConfirm={(settings) => {
             const draft = tiktokDialogDraft;

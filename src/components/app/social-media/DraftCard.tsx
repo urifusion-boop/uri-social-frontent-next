@@ -8,8 +8,10 @@ import {
   DenyPayload,
   LogoPlacement,
   SocialMediaAgentService,
+  TikTokPostSettings,
 } from '@/src/api/SocialMediaAgentService';
 import LogoRepositionModal from './LogoRepositionModal';
+import TikTokPostDialog from '../workspace/TikTokPostDialog';
 import { trackEvent } from '@/lib/analytics';
 import posthog from 'posthog-js';
 import { SocialConnectionService } from '@/src/api/SocialConnectionService';
@@ -92,6 +94,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [scheduledAt, setScheduledAt] = useState('');
   const [loading, setLoading] = useState(false);
   const [tiktokAutoAddMusicSaving, setTiktokAutoAddMusicSaving] = useState(false);
+  // Post to TikTok screen for an image/carousel draft (TikTok's Content Sharing Guidelines).
+  const [tiktokPhotoDialogOpen, setTiktokPhotoDialogOpen] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null); // null = not yet loaded
   const [connectPromptOpen, setConnectPromptOpen] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -308,6 +312,58 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
     return `${base}${url}`;
   };
 
+  // The pictures a TikTok photo post would carry: each carousel slide, or the single image.
+  const tiktokPhotoUrls = (isCarousel ? slides.map((sl) => sl.image_url) : [draft.image_url])
+    .filter((u): u is string => !!u)
+    .map(resolveUrl);
+
+  // Sends the post once the user has confirmed on the Post to TikTok screen, then
+  // follows the job so they see its status through to the end.
+  const handleTikTokPhotoConfirm = async (settings: TikTokPostSettings) => {
+    setTiktokPhotoDialogOpen(false);
+    const draftId = draft.draft_id ?? draft.id ?? '';
+    setLoading(true);
+    try {
+      const res = await SocialMediaAgentService.publishTikTokPhotoDraft({ draft_id: draftId, tiktok: settings });
+      if (!res.status || !res.responseData) {
+        ToastService.showToast(res.responseMessage || "Couldn't send this to TikTok.", ToastTypeEnum.Error);
+        return;
+      }
+      ToastService.showToast('Sending to TikTok…', ToastTypeEnum.Warning);
+      const jobId = res.responseData.job_id;
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const poll = await SocialMediaAgentService.getVideoPublishJob(jobId);
+        const job = poll.responseData;
+        if (!job) continue;
+        if (job.status === 'published') {
+          ToastService.showToast(
+            'Posted to TikTok. It may take a few minutes to finish processing and appear on your profile.',
+            ToastTypeEnum.Success
+          );
+          posthog.capture('draft_approved', { option: 'immediate', platform: 'tiktok' });
+          onRefresh();
+          return;
+        }
+        if (job.status === 'failed') {
+          ToastService.showToast(job.error || "TikTok couldn't publish this post.", ToastTypeEnum.Error);
+          onRefresh();
+          return;
+        }
+      }
+      ToastService.showToast(
+        'TikTok is still processing this post. Check your TikTok profile in a few minutes.',
+        ToastTypeEnum.Warning
+      );
+      onRefresh();
+    } catch (err: unknown) {
+      const detail = (err as { data?: { detail?: string } })?.data?.detail;
+      ToastService.showToast(detail || "Couldn't send this to TikTok. Please try again.", ToastTypeEnum.Error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Retry loading up to 3 times with backoff before showing 'Image unavailable'.
   // Handles the race where the image file isn't yet flushed when the URL first arrives.
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -342,6 +398,14 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         setConnectPromptOpen(true);
         return;
       }
+    }
+
+    // A TikTok image/carousel post goes out through the Post to TikTok screen
+    // (privacy, comments, disclosure, consent) — nothing is sent until the user
+    // presses Post inside it. Scheduling and saving keep their own flows.
+    if (option === 'immediate' && draft.platform?.toLowerCase() === 'tiktok' && !draft.video_url) {
+      setTiktokPhotoDialogOpen(true);
+      return;
     }
 
     setLoading(true);
@@ -1698,6 +1762,21 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             </Tooltip>
           </Box>
         </Box>
+      )}
+
+      {tiktokPhotoDialogOpen && (
+        <TikTokPostDialog
+          media={{ kind: 'photo', urls: tiktokPhotoUrls }}
+          initialTitle={(draft.content ?? '').split('\n')[0].slice(0, 90)}
+          initialDescription={[
+            draft.content,
+            (draft.hashtags ?? []).map((h) => (h.startsWith('#') ? h : `#${h}`)).join(' '),
+          ]
+            .filter(Boolean)
+            .join('\n\n')}
+          onClose={() => setTiktokPhotoDialogOpen(false)}
+          onConfirm={handleTikTokPhotoConfirm}
+        />
       )}
 
       {/* Approve options popover */}
