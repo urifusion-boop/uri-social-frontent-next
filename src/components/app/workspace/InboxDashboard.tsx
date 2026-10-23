@@ -3030,12 +3030,17 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   // channel is disconnected or its token is expiring, and never counts an
   // unapproved platform (TikTok) against the total.
   const approvedConnections = channelConnections.filter((c) => c.approved);
-  const connectionIssues = approvedConnections.filter((c) => !c.connected || c.tokenHealth === 'expiring');
+  const connectionIssues = approvedConnections.filter(
+    (c) => !c.connected || c.tokenHealth === 'expiring' || Boolean(c.warning)
+  );
+  const reconnect = approvedConnections.filter((c) => c.warning).map((c) => c.label);
   const connectionsSummary =
     connectionIssues.length === 0
       ? { label: 'All channels connected', fg: '#2E7D32', bg: 'rgba(46,125,50,.08)', dot: '#2E7D32' }
       : {
-          label: `${approvedConnections.length - connectionIssues.length}/${approvedConnections.length} connected — action needed`,
+          label: reconnect.length
+            ? `Reconnect needed — ${reconnect.join(', ')}`
+            : `${approvedConnections.length - connectionIssues.length}/${approvedConnections.length} connected — action needed`,
           fg: '#B26A00',
           bg: 'rgba(237,108,2,.08)',
           dot: '#B26A00',

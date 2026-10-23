@@ -186,6 +186,7 @@ export interface InboxChannelDTO {
   updated_at: string | null;
   has_token: boolean;
   last_event_at: string | null;
+  needs_reconnect?: boolean;
 }
 
 const listChannels = async (): Promise<InboxChannelDTO[]> => {

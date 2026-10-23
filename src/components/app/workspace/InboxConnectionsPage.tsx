@@ -88,6 +88,7 @@ export interface ChannelConnection {
   tokenHealth: TokenHealth;
   capabilities: Capability[];
   approved: boolean; // false = platform hasn't granted API access yet (e.g. TikTok) — never offer a fake connect
+  warning?: string; // an account here has dropped and must be reconnected to receive messages
   mockAccounts: string[];
 }
 
@@ -159,20 +160,41 @@ export function channelsFromApi(
     external_account_id: string;
     has_token: boolean;
     last_event_at: string | null;
+    needs_reconnect?: boolean;
   }[]
 ): ChannelConnection[] {
   return CHANNEL_SHELLS.map((shell) => {
-    const row = rows.find((r) => r.platform === shell.id);
-    const connected = Boolean(row);
+    const all = rows.filter((r) => r.platform === shell.id);
+    const live = all.filter((r) => !r.needs_reconnect);
+    const stale = all.filter((r) => r.needs_reconnect);
+    // A live account wins; one left over from an old connection is named as needing
+    // a reconnect rather than shown as working.
+    const row = live[0] ?? stale[0];
+    const connected = live.length > 0;
+    const names = (list: typeof all) =>
+      list
+        .map((r) => r.name)
+        .filter(Boolean)
+        .join(', ');
+    let statusNote = 'Not connected';
+    if (connected) statusNote = `Connected — ${names(live) || shell.label}`;
+    else if (stale.length) statusNote = 'Reconnect needed';
+    const who = names(stale) || 'that account';
+    const warning = stale.length
+      ? shell.id === 'instagram'
+        ? `${who} has disconnected, so its messages aren't reaching this inbox. Log in to instagram.com as ${who}, then connect Instagram again in Connected Accounts. Come back here and click Reconnect.`
+        : `${who} has disconnected, so its messages aren't reaching this inbox. Connect Facebook again in Connected Accounts and choose the ${who} Page, then come back here and click Reconnect.`
+      : '';
     return {
       ...shell,
       connected,
-      statusNote: row ? `Connected${row.name ? ` — ${row.name}` : ''}` : 'Not connected',
+      statusNote,
+      warning,
       // Scopes are granted by Meta, not knowable from our own records, so we do
       // not print a list that might be wrong.
       scopes: [],
       lastEvent: row ? timeAgo(row.last_event_at) : '—',
-      tokenHealth: !row ? 'unavailable' : row.has_token ? 'healthy' : 'unavailable',
+      tokenHealth: !row || !connected ? 'unavailable' : row.has_token ? 'healthy' : 'unavailable',
       capabilities: shell.capabilities.map((c) => ({ ...c, ok: connected })),
       mockAccounts: row && row.name ? [row.name] : [],
     };
@@ -599,8 +621,8 @@ export default function InboxConnectionsPage({
       }}
     >
       <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>
-        A channel only shows as connected here once real inbound events, history and replies have been verified end to
-        end — never a partial setup pretending to work.
+        Instagram and Facebook here are the accounts in Connected Accounts — connect, switch or disconnect them there
+        and the inbox follows. WhatsApp is connected here.
       </div>
 
       {connections.map((c) => {
@@ -638,7 +660,13 @@ export default function InboxConnectionsPage({
               </div>
               <div style={{ flex: 1, minWidth: 160 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 800, color: '#1a1a1a' }}>{c.label}</div>
-                <div style={{ fontSize: 12, color: c.connected ? '#2E7D32' : '#999', marginTop: 2 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: c.connected ? '#2E7D32' : c.warning ? '#B26A00' : '#999',
+                    marginTop: 2,
+                  }}
+                >
                   {c.statusNote}
                 </div>
               </div>
@@ -657,7 +685,13 @@ export default function InboxConnectionsPage({
               </span>
               <button
                 type="button"
-                onClick={() => setWizardChannelId(c.id)}
+                onClick={() =>
+                  // Instagram and Facebook are connected in ONE place — Connected
+                  // Accounts — and the inbox follows whatever is connected there.
+                  c.id === 'instagram' || c.id === 'facebook'
+                    ? (window.location.href = '/workspace/?tab=connections')
+                    : setWizardChannelId(c.id)
+                }
                 style={{
                   padding: '7px 14px',
                   borderRadius: 8,
@@ -683,6 +717,45 @@ export default function InboxConnectionsPage({
                 gap: 12,
               }}
             >
+              {c.warning && (
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    background: '#FFF7E6',
+                    border: '1px solid #F5D9A8',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 12.5,
+                    color: '#7A4B00',
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 220 }}>
+                    <strong>Reconnect needed.</strong> {c.warning}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = '/workspace/?tab=connections';
+                    }}
+                    style={{
+                      background: '#B26A00',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '7px 14px',
+                      fontWeight: 700,
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      fontFamily: FONT,
+                    }}
+                  >
+                    Go to Connected Accounts
+                  </button>
+                </div>
+              )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12, color: '#666' }}>
                 <div
                   style={{
