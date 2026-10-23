@@ -1812,7 +1812,13 @@ export default function CampaignsPage({
               {/* The objective picker REPLACES the old goal chips. Keeping both asked
                 the same question twice in two different vocabularies — "Get me more
                 sales" next to "Sales" — and only one of them decided anything. */}
-              {messages.length === 1 && !busy && <ObjectivePicker selected={objective} onPick={pickObjective} />}
+              {messages.length === 1 && !busy && (
+                <ObjectivePicker
+                  selected={objective}
+                  onPick={pickObjective}
+                  platform={preferredPlatformUi === 'tiktok' ? 'tiktok' : 'meta'}
+                />
+              )}
               {busy && (
                 <JaneBubble>
                   <TypingDots />

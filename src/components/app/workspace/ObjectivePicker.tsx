@@ -15,9 +15,7 @@
  * turned the picker into a wall of warnings nobody reads; showing it on the one being
  * chosen puts it where the decision is actually made.
  */
-import {
-  Megaphone, MousePointerClick, MessageCircle, Filter, ShoppingBag, Users, LucideIcon,
-} from 'lucide-react';
+import { Megaphone, MousePointerClick, MessageCircle, Filter, ShoppingBag, Users, LucideIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 import { CampaignObjectiveChoice, CampaignService } from '@/src/api/CampaignService';
@@ -40,19 +38,29 @@ type Props = {
   /** Label and blurb travel with the value so the caller can speak the choice back in
    *  the client's own words rather than echoing a wire value like "followers". */
   onPick: (value: string, label: string, blurb: string, caveat: string) => void;
+  /** TikTok gets TikTok-accurate blurbs instead of Meta's own wording (e.g.
+   *  Engagement no longer claims "Best for WhatsApp orders" — TikTok has no native
+   *  Click-to-WhatsApp ad type). Same five choices, same values, either way. */
+  platform?: 'meta' | 'tiktok';
 };
 
-export default function ObjectivePicker({ selected, onPick }: Props) {
+export default function ObjectivePicker({ selected, onPick, platform = 'meta' }: Props) {
   const [choices, setChoices] = useState<CampaignObjectiveChoice[]>([]);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    CampaignService.getObjectives()
-      .then((c) => { if (alive) setChoices(c); })
-      .catch(() => { if (alive) setFailed(true); });
-    return () => { alive = false; };
-  }, []);
+    CampaignService.getObjectives(platform)
+      .then((c) => {
+        if (alive) setChoices(c);
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [platform]);
 
   // Never block the conversation on this. If the list cannot load, Jane falls back to
   // the objective the goal implies, which is exactly what she did before.
@@ -118,18 +126,13 @@ export default function ObjectivePicker({ selected, onPick }: Props) {
                 >
                   <Icon size={14} strokeWidth={2} />
                 </span>
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: isOn ? PINK : '#1a0a12' }}>
-                  {c.label}
-                </span>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: isOn ? PINK : '#1a0a12' }}>{c.label}</span>
               </span>
-              <span style={{ fontSize: 11.5, color: '#7a7270', lineHeight: 1.45 }}>
-                {c.blurb}
-              </span>
+              <span style={{ fontSize: 11.5, color: '#7a7270', lineHeight: 1.45 }}>{c.blurb}</span>
             </button>
           );
         })}
       </div>
-
     </div>
   );
 }

@@ -772,9 +772,10 @@ export class CampaignService {
     return res.data as ExtendResult;
   }
 
-  /** Meta's campaign objectives, for the picker Jane opens with. */
-  static async getObjectives(): Promise<CampaignObjectiveChoice[]> {
-    const res = await UriHttpClient.getClient().get('/jane-ads/objectives');
+  /** Campaign objectives, for the picker Jane opens with — platform "tiktok" gets
+   *  TikTok-accurate blurbs instead of Meta's (same five choices either way). */
+  static async getObjectives(platform: 'meta' | 'tiktok' = 'meta'): Promise<CampaignObjectiveChoice[]> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/objectives', { params: { platform } });
     return (res.data as { objectives: CampaignObjectiveChoice[] }).objectives;
   }
 
