@@ -2463,12 +2463,13 @@ const PLATFORMS = [
     label: 'TikTok',
     color: '#010101',
     bg: '#F0F0F0',
-    // Direct (FILE_UPLOAD) OAuth exists (tiktok_direct_service.py,
-    // /connect/tiktok-direct/*) but is hidden here for now — it's blocked on
-    // TikTok's redirect_uri review, and a real customer's Outstand-mediated
-    // connect surfaced a more pressing bug (no local finalize step) that
-    // needs fixing before adding a second connect path back into the UI.
-    flow: 'outstand_oauth',
+    // Direct Login Kit OAuth (tiktok_direct_service.py, /connect/tiktok-direct/*,
+    // with the pending→finalize step on return). Posting to TikTok needs this
+    // connection: the Post to TikTok screen reads creator info with its token, and
+    // TikTok's Content Sharing Guidelines require the user's own privacy/interaction
+    // choices, which the Outstand route can't carry. Previously hidden behind
+    // 'outstand_oauth' while the redirect_uri was under TikTok's review.
+    flow: 'tiktok_direct_oauth',
     tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
   },
 ];
