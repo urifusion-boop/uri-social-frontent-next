@@ -13,6 +13,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
+  BookOpen,
   CheckCircle2,
   ChevronDown,
   FlaskConical,
@@ -21,13 +22,16 @@ import {
   History,
   Inbox,
   Loader2,
+  Plus,
   Radio,
   RefreshCw,
+  Settings2,
   ShieldCheck,
   ShieldOff,
   Sparkles,
   Star,
   Tags,
+  X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -43,6 +47,7 @@ import {
   CurationTopic,
   GoldenExample,
   MarketIntelligenceService,
+  OntologyCategory,
   PendingReview,
   ProductMetrics,
   ReplayResult,
@@ -140,10 +145,12 @@ const TOPIC_STATUS_META: Record<TopicStatus, { label: string; className: string 
   retired: { label: 'Retired', className: 'bg-rose-50 text-rose-700 border-rose-200' },
 };
 
-type TabId = 'topics' | 'sources' | 'reviews' | 'golden' | 'replay' | 'metrics';
+type TabId = 'topics' | 'sources' | 'ontology' | 'settings' | 'reviews' | 'golden' | 'replay' | 'metrics';
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'topics', label: 'Topics', icon: Tags },
   { id: 'sources', label: 'Sources', icon: ShieldCheck },
+  { id: 'ontology', label: 'Ontology', icon: BookOpen },
+  { id: 'settings', label: 'Settings', icon: Settings2 },
   { id: 'reviews', label: 'Review queue', icon: Inbox },
   { id: 'golden', label: 'Golden sets', icon: Star },
   { id: 'replay', label: 'Replay', icon: FlaskConical },
@@ -539,6 +546,379 @@ function SourcesTab() {
           </CardContent>
         </Card>
       ))}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════ Settings tab ════════════════════════ */
+
+interface ListeningConfigShape {
+  monthly_budget_usd?: number;
+  cadence_hours?: number;
+  score?: { min_score?: number; min_relevance?: number; max_cards_per_run?: number; max_evergreen_cards?: number };
+  delivery?: { max_alerts_per_week?: number; alert_min_score?: number };
+}
+
+/** The budget/cadence/threshold knobs most worth an admin changing live
+ * without a deploy (PRD §4's "admin consoles" over budgets and
+ * thresholds) — not a generic editor over the whole nested config tree,
+ * which would be sprawl for value nobody's asked to change this way. */
+const SETTINGS_FIELDS: {
+  section: string;
+  key: string;
+  label: string;
+  hint: string;
+  get: (cfg: ListeningConfigShape) => number | undefined;
+}[] = [
+  {
+    section: 'root',
+    key: 'monthly_budget_usd',
+    label: 'Monthly budget (USD)',
+    hint: 'Hard ceiling across every source combined.',
+    get: (c) => c.monthly_budget_usd,
+  },
+  {
+    section: 'root',
+    key: 'cadence_hours',
+    label: 'Default cadence (hours)',
+    hint: 'How often a market collects when nothing is hot.',
+    get: (c) => c.cadence_hours,
+  },
+  {
+    section: 'score',
+    key: 'min_score',
+    label: 'Minimum card score',
+    hint: 'A signal below this never becomes a card, regardless of relevance.',
+    get: (c) => c.score?.min_score,
+  },
+  {
+    section: 'score',
+    key: 'min_relevance',
+    label: 'Minimum relevance',
+    hint: 'Gates every card independently of the overall score.',
+    get: (c) => c.score?.min_relevance,
+  },
+  {
+    section: 'score',
+    key: 'max_cards_per_run',
+    label: 'Max cards per cycle',
+    hint: 'Per business, per scheduled run.',
+    get: (c) => c.score?.max_cards_per_run,
+  },
+  {
+    section: 'score',
+    key: 'max_evergreen_cards',
+    label: 'Reserved evergreen card slots',
+    hint: "Recurring-need cards guaranteed a slot so trends can't crowd them out.",
+    get: (c) => c.score?.max_evergreen_cards,
+  },
+  {
+    section: 'delivery',
+    key: 'max_alerts_per_week',
+    label: 'Max alerts per week',
+    hint: 'Per business, across every channel.',
+    get: (c) => c.delivery?.max_alerts_per_week,
+  },
+  {
+    section: 'delivery',
+    key: 'alert_min_score',
+    label: 'Minimum score for an immediate alert',
+    hint: 'Higher bar than a plain card — only the most useful opportunities interrupt.',
+    get: (c) => c.delivery?.alert_min_score,
+  },
+];
+
+function SettingsTab() {
+  const [config, setConfig] = useState<ListeningConfigShape | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await MarketIntelligenceService.getListeningConfig();
+      const cfg = (res.status ? (res.responseData ?? {}) : {}) as ListeningConfigShape;
+      setConfig(cfg);
+      const next: Record<string, string> = {};
+      for (const f of SETTINGS_FIELDS) {
+        const v = f.get(cfg);
+        next[`${f.section}.${f.key}`] = v === undefined ? '' : String(v);
+      }
+      setValues(next);
+    } catch {
+      setConfig({});
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const overrides: Record<string, Record<string, number>> = {};
+      for (const f of SETTINGS_FIELDS) {
+        const raw = values[`${f.section}.${f.key}`];
+        if (raw === '' || raw === undefined) continue;
+        const num = Number(raw);
+        if (Number.isNaN(num)) continue;
+        if (f.section === 'root') {
+          overrides.root = overrides.root || {};
+          overrides.root[f.key] = num;
+        } else {
+          overrides[f.section] = overrides[f.section] || {};
+          overrides[f.section][f.key] = num;
+        }
+      }
+      // "root" isn't a real config section — monthly_budget_usd/cadence_hours
+      // live at the top level, so they're sent unwrapped.
+      const { root, ...rest } = overrides;
+      const body = { ...rest, ...(root || {}) };
+      const res = await MarketIntelligenceService.updateListeningConfig(body);
+      if (res.status && res.responseData) {
+        setConfig(res.responseData);
+        ToastService.showToast('Settings saved — takes effect on the next scheduled cycle.', ToastTypeEnum.Success);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not save settings', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(errMsg(err, 'Could not save settings'), ToastTypeEnum.Error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading || !config) {
+    return (
+      <div className="flex items-center gap-2 py-16 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading settings…
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
+          {SETTINGS_FIELDS.map((f) => (
+            <div key={`${f.section}.${f.key}`} className="space-y-1">
+              <div className="text-[12px] font-medium text-foreground">{f.label}</div>
+              <Input
+                type="number"
+                value={values[`${f.section}.${f.key}`] ?? ''}
+                onChange={(e) => setValues((v) => ({ ...v, [`${f.section}.${f.key}`]: e.target.value }))}
+                className="h-8 text-[13px]"
+              />
+              <div className="text-[11px] text-muted-foreground">{f.hint}</div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+      <div className="flex justify-end">
+        <Button size="sm" onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Settings2 className="h-3.5 w-3.5" />}
+          Save changes
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════ Ontology tab ════════════════════════ */
+
+function OntologyCategoryCard({
+  category,
+  onChanged,
+}: {
+  category: OntologyCategory;
+  onChanged: (c: OntologyCategory) => void;
+}) {
+  const [newTerm, setNewTerm] = useState('');
+  const [newLang, setNewLang] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const add = async () => {
+    const term = newTerm.trim();
+    if (!term) return;
+    setBusy(true);
+    try {
+      const res = await MarketIntelligenceService.addOntologyTerm(category.id, {
+        term,
+        lang: newLang.trim() || undefined,
+      });
+      if (res.status && res.responseData) {
+        onChanged(res.responseData);
+        setNewTerm('');
+        ToastService.showToast(`Added "${term}".`, ToastTypeEnum.Success);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not add term', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(errMsg(err, 'Could not add term'), ToastTypeEnum.Error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (term: string, lang?: string) => {
+    setBusy(true);
+    try {
+      const res = await MarketIntelligenceService.removeOntologyTerm(category.id, term, lang);
+      if (res.status && res.responseData) {
+        onChanged(res.responseData);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not remove term', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(errMsg(err, 'Could not remove term'), ToastTypeEnum.Error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[14px] font-semibold text-foreground">{category.label}</div>
+          <Badge variant="outline" className="text-[10px]">
+            {category.status}
+          </Badge>
+        </div>
+        <div className="space-y-1">
+          <div className="text-[11px] font-medium text-muted-foreground">Core terms</div>
+          <div className="flex flex-wrap gap-1.5">
+            {(category.core_terms || []).map((t) => (
+              <span
+                key={t}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-foreground"
+              >
+                {t}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => remove(t)}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {(category.core_terms || []).length === 0 && (
+              <span className="text-[11px] text-muted-foreground">None yet.</span>
+            )}
+          </div>
+        </div>
+        {Object.entries(category.local_terms || {}).map(([lang, terms]) => (
+          <div key={lang} className="space-y-1">
+            <div className="text-[11px] font-medium text-muted-foreground">Local terms ({lang})</div>
+            <div className="flex flex-wrap gap-1.5">
+              {terms.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-foreground"
+                >
+                  {t}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => remove(t, lang)}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div className="flex items-center gap-2 pt-1">
+          <Input
+            placeholder="New term…"
+            value={newTerm}
+            onChange={(e) => setNewTerm(e.target.value)}
+            className="h-8 flex-1 text-[12px]"
+          />
+          <Input
+            placeholder="Lang (optional)"
+            value={newLang}
+            onChange={(e) => setNewLang(e.target.value)}
+            className="h-8 w-28 text-[12px]"
+          />
+          <Button size="sm" variant="outline" disabled={busy || !newTerm.trim()} onClick={add}>
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            Add
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OntologyTab() {
+  const [categories, setCategories] = useState<OntologyCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await MarketIntelligenceService.getOntologyCategories();
+      setCategories(res.status ? (res.responseData ?? []) : []);
+    } catch {
+      setCategories([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const onChanged = (updated: OntologyCategory) => {
+    setCategories((cs) => cs.map((c) => (c.id === updated.id ? updated : c)));
+  };
+
+  const filtered = query.trim()
+    ? categories.filter((c) => c.label.toLowerCase().includes(query.trim().toLowerCase()))
+    : categories;
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 py-16 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading ontology…
+      </div>
+    );
+  }
+
+  if (categories.length === 0) {
+    return (
+      <EmptyState
+        icon={BookOpen}
+        title="No categories yet"
+        description="Categories are seeded on first use, or created automatically when a business doesn't fit any existing one."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Input
+        placeholder="Filter categories…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="h-8 max-w-xs text-[13px]"
+      />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {filtered.map((c) => (
+          <OntologyCategoryCard key={c.id} category={c} onChanged={onChanged} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -1183,6 +1563,8 @@ export default function ListeningCurationPage({ onBack }: { onBack: () => void }
         <div className="mt-5">
           {activeTab === 'topics' && <TopicsTab markets={markets} market={market} />}
           {activeTab === 'sources' && <SourcesTab />}
+          {activeTab === 'ontology' && <OntologyTab />}
+          {activeTab === 'settings' && <SettingsTab />}
           {activeTab === 'reviews' && <ReviewsTab market={market} />}
           {activeTab === 'golden' && <GoldenTab market={market} />}
           {activeTab === 'replay' && <ReplayTab markets={markets} market={market} />}

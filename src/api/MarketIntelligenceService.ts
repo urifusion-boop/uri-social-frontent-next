@@ -757,6 +757,53 @@ export class MarketIntelligenceService {
     return res.data;
   }
 
+  static async getListeningConfig(): Promise<UriResponse<Record<string, unknown>>> {
+    const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/curation/config`
+    );
+    return res.data;
+  }
+
+  static async updateListeningConfig(
+    overrides: Record<string, unknown>
+  ): Promise<UriResponse<Record<string, unknown>>> {
+    const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().put(
+      `${BASE}/listening/curation/config`,
+      { overrides }
+    );
+    return res.data;
+  }
+
+  static async getOntologyCategories(): Promise<UriResponse<OntologyCategory[]>> {
+    const res: AxiosResponse<UriResponse<OntologyCategory[]>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/curation/ontology`
+    );
+    return res.data;
+  }
+
+  static async addOntologyTerm(
+    categoryId: string,
+    body: { term: string; lang?: string }
+  ): Promise<UriResponse<OntologyCategory>> {
+    const res: AxiosResponse<UriResponse<OntologyCategory>> = await UriHttpClient.getClient().post(
+      `${BASE}/listening/curation/ontology/${encodeURIComponent(categoryId)}/terms`,
+      body
+    );
+    return res.data;
+  }
+
+  static async removeOntologyTerm(
+    categoryId: string,
+    term: string,
+    lang?: string
+  ): Promise<UriResponse<OntologyCategory>> {
+    const res: AxiosResponse<UriResponse<OntologyCategory>> = await UriHttpClient.getClient().delete(
+      `${BASE}/listening/curation/ontology/${encodeURIComponent(categoryId)}/terms/${encodeURIComponent(term)}`,
+      { params: lang ? { lang } : undefined }
+    );
+    return res.data;
+  }
+
   static async getPendingReviews(params: { market?: string; limit?: number }): Promise<UriResponse<PendingReview[]>> {
     const res: AxiosResponse<UriResponse<PendingReview[]>> = await UriHttpClient.getClient().get(
       `${BASE}/listening/curation/reviews`,
@@ -932,4 +979,13 @@ export interface ProductMetrics {
   content_created_count?: number;
   content_created_rate?: number;
   not_available: Record<string, string>;
+}
+
+export interface OntologyCategory {
+  id: string;
+  label: string;
+  core_terms: string[];
+  local_terms?: Record<string, string[]>;
+  excluded?: string[];
+  status: string;
 }
