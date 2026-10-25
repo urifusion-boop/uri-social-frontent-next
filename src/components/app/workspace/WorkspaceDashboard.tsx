@@ -2463,14 +2463,16 @@ const PLATFORMS = [
     label: 'TikTok',
     color: '#010101',
     bg: '#F0F0F0',
-    // Direct Login Kit OAuth (tiktok_direct_service.py, /connect/tiktok-direct/*,
-    // with the pending→finalize step on return). Posting to TikTok needs this
-    // connection: the Post to TikTok screen reads creator info with its token, and
-    // TikTok's Content Sharing Guidelines require the user's own privacy/interaction
-    // choices, which the Outstand route can't carry. Previously hidden behind
-    // 'outstand_oauth' while the redirect_uri was under TikTok's review.
-    flow: 'tiktok_direct_oauth',
-    tooltip: 'Connect your TikTok account to publish videos directly from your saved video drafts',
+    // TikTok can be connected two ways, offered side by side on this card (see the
+    // two buttons below): through Outstand ('outstand_oauth', the default flow here),
+    // or directly with TikTok login ('tiktok_direct_oauth', /connect/tiktok-direct/*,
+    // with the pending->finalize step on return). Posting follows whichever is
+    // connected — a direct connection posts with the Content Posting API itself,
+    // an Outstand one posts through Outstand — and both go through the Post to
+    // TikTok screen.
+    flow: 'outstand_oauth',
+    tooltip:
+      'Connect your TikTok account to publish images and videos. Choose how: through Outstand, or directly with TikTok login. Posts are sent the way the account is connected.',
   },
 ];
 
@@ -4062,6 +4064,51 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                           'Disconnect'
                         )}
                       </button>
+                    ) : p.id === 'tiktok' ? (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleConnect('tiktok', 'outstand_oauth')}
+                          disabled={isBusy}
+                          title="Connect through Outstand. Posts are sent through Outstand."
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #edecea',
+                            background: '#fff',
+                            fontSize: 12,
+                            color: '#333',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleConnect('tiktok', 'tiktok_direct_oauth')}
+                          disabled={isBusy}
+                          title="Log in with TikTok directly. Posts are sent straight to TikTok."
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: p.color,
+                            fontSize: 12,
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {connecting === p.id ? 'Connecting...' : 'Connect with TikTok login'}
+                        </button>
+                      </div>
                     ) : (
                       <button
                         type="button"
@@ -4138,6 +4185,12 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                           >
                             <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
                               {account.account_name || account.username || 'Connected page'}
+                              {p.id === 'tiktok' && (
+                                <span style={{ color: '#888', fontWeight: 400 }}>
+                                  {' · '}
+                                  {account.connected_via?.startsWith('tiktok_direct') ? 'TikTok login' : 'via Outstand'}
+                                </span>
+                              )}
                               {/* is_active is only ever explicitly false when Outstand itself
                                   has flagged this connection unhealthy — undefined/null means
                                   Outstand didn't report a status at all and must not be shown

@@ -304,6 +304,8 @@ export interface VideoPublishJob {
 // What the TikTok Post screen shows and enforces. Fetched fresh each time that
 // screen opens (TikTok Content Sharing Guidelines).
 export interface TikTokCreatorInfo {
+  // How the account is connected: direct TikTok login, or through Outstand.
+  connection_type?: 'direct' | 'outstand';
   creator_nickname: string;
   creator_username: string;
   creator_avatar_url: string;
@@ -1347,7 +1349,7 @@ export class SocialMediaAgentService {
 
   static async getTikTokCreatorInfo(): Promise<UriResponse<TikTokCreatorInfo>> {
     const response: Awaited<AxiosResponse<UriResponse<TikTokCreatorInfo>>> = await UriHttpClient.getClient().get(
-      `/social-media/connections/tiktok-direct/creator-info`
+      `/social-media/connections/tiktok/creator-info`
     );
     return response.data;
   }
