@@ -305,21 +305,38 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
             ) : (
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 6 }}>
                 {media.urls.map((u, i) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={i}
-                    src={u}
-                    alt={`Photo ${i + 1} of ${media.urls.length}`}
-                    style={{
-                      height: 260,
-                      width: 'auto',
-                      maxWidth: media.urls.length === 1 ? '100%' : undefined,
-                      objectFit: 'contain',
-                      background: '#F3F4F6',
-                      borderRadius: 10,
-                      flexShrink: 0,
-                    }}
-                  />
+                  <div key={i} style={{ position: 'relative', flexShrink: 0 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={u}
+                      alt={`Photo ${i + 1} of ${media.urls.length}`}
+                      style={{
+                        height: 260,
+                        width: 'auto',
+                        maxWidth: media.urls.length === 1 ? '100%' : undefined,
+                        objectFit: 'contain',
+                        background: '#F3F4F6',
+                        borderRadius: 10,
+                        display: 'block',
+                      }}
+                    />
+                    {/* Carousel order, with the cover (first photo) identified. */}
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        left: 8,
+                        background: i === 0 ? PRIMARY : 'rgba(13,14,15,0.7)',
+                        color: '#fff',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        borderRadius: 6,
+                        padding: '2px 7px',
+                      }}
+                    >
+                      {i === 0 ? (media.urls.length > 1 ? 'Cover · 1' : 'Cover') : i + 1}
+                    </span>
+                  </div>
                 ))}
               </div>
             )}

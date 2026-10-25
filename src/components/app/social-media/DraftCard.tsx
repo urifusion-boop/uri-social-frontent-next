@@ -345,6 +345,12 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           onRefresh();
           return;
         }
+        // Accepted by TikTok but not yet confirmed: never show this as posted.
+        if (job.status === 'processing' && job.error) {
+          ToastService.showToast(job.error, ToastTypeEnum.Warning);
+          onRefresh();
+          return;
+        }
         if (job.status === 'failed') {
           ToastService.showToast(job.error || "TikTok couldn't publish this post.", ToastTypeEnum.Error);
           onRefresh();
