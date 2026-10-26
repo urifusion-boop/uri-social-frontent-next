@@ -367,9 +367,9 @@ export default function CampaignsPage({
   // the backend forgets it" reasoning as the refs above (_build_campaign_plan reads
   // preferred_platform fresh off each request, with no server-side memory of an
   // earlier turn's choice).
-  const preferredPlatformRef = useRef<'' | 'tiktok' | 'google'>('');
-  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'tiktok' | 'google'>('');
-  const setPreferredPlatform = (v: '' | 'tiktok' | 'google') => {
+  const preferredPlatformRef = useRef<'' | 'meta' | 'tiktok' | 'google'>('');
+  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'meta' | 'tiktok' | 'google'>('');
+  const setPreferredPlatform = (v: '' | 'meta' | 'tiktok' | 'google') => {
     preferredPlatformRef.current = v;
     setPreferredPlatformUi(v);
   };
@@ -4654,19 +4654,30 @@ function TotalCard({ label, value, accent }: { label: string; value: string; acc
   );
 }
 
-type PlatformChoice = { value: '' | 'tiktok' | 'google'; label: string; hint: string; placeholder: string };
+type PlatformChoice = {
+  value: '' | 'meta' | 'tiktok' | 'google';
+  label: string;
+  hint: string;
+  placeholder: string;
+};
 
 const PLATFORM_CHOICES: PlatformChoice[] = [
   {
     value: '',
     label: 'Jane picks',
-    hint: 'Jane chooses where this runs — usually Instagram & Facebook. The plan shows which before anything launches.',
+    hint: 'Jane chooses between Instagram & Facebook and TikTok for you. The plan shows which before anything launches.',
     placeholder: 'Tell Jane what you want to promote…',
+  },
+  {
+    value: 'meta',
+    label: 'Instagram & Facebook',
+    hint: 'This campaign will run on Instagram and Facebook (Meta). A photo or a video works, and people can message you on WhatsApp, Instagram or Messenger.',
+    placeholder: 'Tell Jane what to promote on Instagram & Facebook…',
   },
   {
     value: 'tiktok',
     label: 'TikTok',
-    hint: 'This campaign will run on TikTok. It needs a video.',
+    hint: 'This campaign will run on TikTok. It needs a video, or two or more photos.',
     placeholder: 'Tell Jane what to promote on TikTok…',
   },
   {

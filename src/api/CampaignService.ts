@@ -688,7 +688,7 @@ export class CampaignService {
     // "" (default/omitted) keeps today's behaviour exactly as-is. "tiktok" asks for
     // TikTok specifically; the backend returns a tiktok_not_configured or
     // tiktok_needs_video early_return if that can't be honoured right now.
-    preferred_platform?: '' | 'tiktok' | 'google';
+    preferred_platform?: '' | 'meta' | 'tiktok' | 'google';
     // Where on Google: search | display | demand_gen (YouTube & Discover) | pmax (everywhere).
     google_placement?: 'search' | 'display' | 'demand_gen' | 'pmax';
     // TikTok Carousel Ads (2+ photos, no video) — additive, TikTok-only. TikTok has
