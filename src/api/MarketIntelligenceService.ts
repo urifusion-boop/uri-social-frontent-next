@@ -458,11 +458,55 @@ export interface ListeningRun {
   per_query: ListeningRunQuery[];
 }
 
+export type LocationScopeLevel = 'global' | 'continent' | 'country' | 'region' | 'city';
+
+export interface LocationScope {
+  level: LocationScopeLevel;
+  continent?: string | null;
+  country?: string | null;
+  place_id?: string | null;
+}
+
 export interface ListeningStatus {
-  profile: { brand_id: string; markets: string[]; country: string; status: string; updated_at?: string } | null;
+  profile: {
+    brand_id: string;
+    markets: string[];
+    country: string;
+    location_scope?: LocationScope | null;
+    location_countries?: string[];
+    status: string;
+    updated_at?: string;
+  } | null;
   markets: ListeningMarketStatus[];
   cadence_hours: number;
   budget: { monthly_usd: number; spent_usd: number };
+}
+
+export interface KnownPlace {
+  id: string;
+  level: 'region' | 'city';
+  name: string;
+  country: string;
+  continent: string;
+  aliases: string[];
+}
+
+export interface ListeningContinent {
+  code: string;
+  label: string;
+  countries: string[];
+}
+
+export interface ListeningCountry {
+  code: string;
+  name: string;
+  continent: string | null;
+}
+
+export interface ListeningLocations {
+  continents: ListeningContinent[];
+  countries: ListeningCountry[];
+  places: KnownPlace[];
 }
 
 export class MarketIntelligenceService {
@@ -644,6 +688,25 @@ export class MarketIntelligenceService {
   static async getListeningStatus(): Promise<UriResponse<ListeningStatus>> {
     const res: AxiosResponse<UriResponse<ListeningStatus>> = await UriHttpClient.getClient().get(
       `${BASE}/listening/status`
+    );
+    return res.data;
+  }
+
+  // The known-place registry for the location picker — continents,
+  // countries, and seeded cities/regions (Phase F).
+  static async getListeningLocations(): Promise<UriResponse<ListeningLocations>> {
+    const res: AxiosResponse<UriResponse<ListeningLocations>> = await UriHttpClient.getClient().get(
+      `${BASE}/listening/locations`
+    );
+    return res.data;
+  }
+
+  // Explicit override of this business's listening location scope —
+  // replaces the old fully-automatic, AI-inferred single country.
+  static async updateListeningLocationScope(scope: LocationScope): Promise<UriResponse<ListeningStatus['profile']>> {
+    const res: AxiosResponse<UriResponse<ListeningStatus['profile']>> = await UriHttpClient.getClient().put(
+      `${BASE}/listening/location-scope`,
+      scope
     );
     return res.data;
   }

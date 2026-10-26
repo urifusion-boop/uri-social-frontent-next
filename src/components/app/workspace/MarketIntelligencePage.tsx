@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronDown,
   FileText,
+  Globe,
   Inbox,
   Layers,
   LayoutDashboard,
@@ -48,6 +49,10 @@ import {
   Evidence,
   EvidenceType,
   InsightVersion,
+  KnownPlace,
+  ListeningLocations,
+  ListeningStatus,
+  LocationScope,
   MarketIntelligenceService,
   MIAccessLevel,
   MINotificationPreferences,
@@ -1298,12 +1303,18 @@ function SettingsPanel({
   onToggleEmail,
   onUpdateQuietHours,
   onToggleUrgentOverride,
+  listeningProfile,
+  locations,
+  onUpdateLocationScope,
 }: {
   budget: BrandBudget | null;
   preferences: MINotificationPreferences | null;
   onToggleEmail: () => void;
   onUpdateQuietHours: (start: number, end: number) => void;
   onToggleUrgentOverride: () => void;
+  listeningProfile: ListeningStatus['profile'];
+  locations: ListeningLocations | null;
+  onUpdateLocationScope: (scope: LocationScope) => void;
 }) {
   const hourOptions = Array.from({ length: 24 }, (_, h) => h);
   return (
@@ -1438,7 +1449,177 @@ function SettingsPanel({
           )}
         </CardContent>
       </Card>
+
+      <LocationScopeCard profile={listeningProfile} locations={locations} onUpdate={onUpdateLocationScope} />
     </div>
+  );
+}
+
+// Phase F: lets a business scope Listening to a continent, a country, or a
+// specific city, instead of only the old fully-automatic, AI-inferred single
+// country. Picking a continent collects every member country for real
+// (PRD decision: never one shared, loosely-filtered continent-wide query);
+// picking a city still collects the whole country (shared pool, unaffected
+// for other subscribers) and adds real, additional geo-scoped queries on
+// top where the source actually supports it.
+function LocationScopeCard({
+  profile,
+  locations,
+  onUpdate,
+}: {
+  profile: ListeningStatus['profile'];
+  locations: ListeningLocations | null;
+  onUpdate: (scope: LocationScope) => void;
+}) {
+  const scope = profile?.location_scope ?? { level: 'global' as const };
+  const [level, setLevel] = useState<LocationScope['level']>(scope.level);
+  const [continent, setContinent] = useState(scope.continent ?? '');
+  const [country, setCountry] = useState(scope.country ?? '');
+  const [placeId, setPlaceId] = useState(scope.place_id ?? '');
+
+  useEffect(() => {
+    setLevel(scope.level);
+    setContinent(scope.continent ?? '');
+    setCountry(scope.country ?? '');
+    setPlaceId(scope.place_id ?? '');
+  }, [scope.level, scope.continent, scope.country, scope.place_id]);
+
+  if (!locations) {
+    return (
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Globe className="h-4 w-4 text-muted-foreground" /> Listening location
+          </div>
+          <div className="mt-3 text-[12.5px] text-muted-foreground">Loading…</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const places = locations.places;
+  const placesInCountry = country ? places.filter((p) => p.country === country) : places;
+
+  const apply = (next: Partial<LocationScope> & { level: LocationScope['level'] }) => {
+    onUpdate({
+      level: next.level,
+      continent: next.level === 'continent' ? (next.continent ?? continent) : null,
+      country: next.level === 'country' ? (next.country ?? country) : null,
+      place_id: next.level === 'city' ? (next.place_id ?? placeId) : null,
+    });
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Globe className="h-4 w-4 text-muted-foreground" /> Listening location
+        </div>
+        <div className="mt-1 text-[11.5px] text-muted-foreground">
+          Scope what Listening collects — worldwide, one continent, one country, or a specific city.
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(
+            [
+              { value: 'global', label: 'Worldwide' },
+              { value: 'continent', label: 'Continent' },
+              { value: 'country', label: 'Country' },
+              { value: 'city', label: 'City' },
+            ] as { value: LocationScope['level']; label: string }[]
+          ).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                setLevel(opt.value);
+                if (opt.value === 'global') apply({ level: 'global' });
+              }}
+              className={cn(
+                'h-8 rounded-lg border px-3 text-[12.5px] font-medium transition-colors',
+                level === opt.value
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {level === 'continent' && (
+          <div className="mt-3 flex items-center gap-2">
+            <select
+              value={continent}
+              onChange={(e) => {
+                setContinent(e.target.value);
+                if (e.target.value) apply({ level: 'continent', continent: e.target.value });
+              }}
+              className="h-8 flex-1 rounded-lg border border-border bg-background px-2 text-[12.5px] text-foreground"
+              aria-label="Continent"
+            >
+              <option value="">Choose a continent…</option>
+              {locations.continents.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label} ({c.countries.length} countries collected)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {level === 'country' && (
+          <div className="mt-3 flex items-center gap-2">
+            <select
+              value={country}
+              onChange={(e) => {
+                setCountry(e.target.value);
+                if (e.target.value) apply({ level: 'country', country: e.target.value });
+              }}
+              className="h-8 flex-1 rounded-lg border border-border bg-background px-2 text-[12.5px] text-foreground"
+              aria-label="Country"
+            >
+              <option value="">Choose a country…</option>
+              {locations.countries.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {level === 'city' && (
+          <div className="mt-3 flex items-center gap-2">
+            <select
+              value={placeId}
+              onChange={(e) => {
+                setPlaceId(e.target.value);
+                if (e.target.value) apply({ level: 'city', place_id: e.target.value });
+              }}
+              className="h-8 flex-1 rounded-lg border border-border bg-background px-2 text-[12.5px] text-foreground"
+              aria-label="City"
+            >
+              <option value="">Choose a city…</option>
+              {placesInCountry.map((p: KnownPlace) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}, {locations.countries.find((c) => c.code === p.country)?.name ?? p.country}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {profile?.location_countries && profile.location_countries.length > 0 && (
+          <div className="mt-3 rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground">
+            Currently collecting: {profile.location_countries.join(', ')}
+            {profile.location_scope?.level === 'city' && placeId
+              ? ` — plus extra, city-scoped coverage for ${places.find((p) => p.id === placeId)?.name ?? placeId}`
+              : ''}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1737,6 +1918,8 @@ export default function MarketIntelligencePage() {
   const [developments, setDevelopments] = useState<Development[]>([]);
   const [budget, setBudget] = useState<BrandBudget | null>(null);
   const [preferences, setPreferences] = useState<MINotificationPreferences | null>(null);
+  const [listeningProfile, setListeningProfile] = useState<ListeningStatus['profile']>(null);
+  const [locations, setLocations] = useState<ListeningLocations | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTopic, setShowNewTopic] = useState(false);
@@ -1773,6 +1956,15 @@ export default function MarketIntelligencePage() {
   const loadBudget = async () => {
     const res = await MarketIntelligenceService.getBudget();
     if (res.status) setBudget(res.responseData ?? null);
+  };
+
+  const loadListeningLocation = async () => {
+    const [statusRes, locationsRes] = await Promise.all([
+      MarketIntelligenceService.getListeningStatus(),
+      MarketIntelligenceService.getListeningLocations(),
+    ]);
+    if (statusRes.status) setListeningProfile(statusRes.responseData?.profile ?? null);
+    if (locationsRes.status) setLocations(locationsRes.responseData ?? null);
   };
 
   const loadPreferences = async () => {
@@ -1822,6 +2014,24 @@ export default function MarketIntelligencePage() {
     }
   };
 
+  // Explicit location scoping (Phase F): replaces the old fully-automatic,
+  // AI-inferred single country with a business's own choice of continent,
+  // country, or a specific city — see geo.py's docstring for why continent
+  // means real per-country collection, not one loosely-filtered query.
+  const handleUpdateLocationScope = async (scope: LocationScope) => {
+    try {
+      const res = await MarketIntelligenceService.updateListeningLocationScope(scope);
+      if (res.status) {
+        setListeningProfile(res.responseData ?? null);
+        ToastService.showToast('Listening location updated.', ToastTypeEnum.Success);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not update the listening location', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not update the listening location'), ToastTypeEnum.Error);
+    }
+  };
+
   const handleToggleUrgentOverride = async () => {
     if (!preferences) return;
     try {
@@ -1866,6 +2076,7 @@ export default function MarketIntelligencePage() {
   useEffect(() => {
     loadAll(false);
     loadPreferences();
+    loadListeningLocation();
     // PRD §9: "Return a job identifier immediately, allow the user to leave
     // and return." A scan started before a remount (switching workspace
     // tabs and coming back) is resumed here instead of just vanishing from
@@ -2234,6 +2445,9 @@ export default function MarketIntelligencePage() {
                 onToggleEmail={handleToggleEmail}
                 onUpdateQuietHours={handleUpdateQuietHours}
                 onToggleUrgentOverride={handleToggleUrgentOverride}
+                listeningProfile={listeningProfile}
+                locations={locations}
+                onUpdateLocationScope={handleUpdateLocationScope}
               />
               <BusinessContextPanel />
               <AccessControlPanel />
