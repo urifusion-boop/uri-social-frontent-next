@@ -66,6 +66,7 @@ import { BrandProfileService } from '@/src/api/BrandProfileService';
 import ListeningOpportunities from '@/src/components/app/workspace/ListeningOpportunities';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import { CONTINENTS, COUNTRIES } from '@/src/utils/worldLocations';
 
 // A rejected MI request (e.g. a 403 from require_mi_write_access when a
 // view-only teammate tries to act) is shaped like http.config.ts's
@@ -1476,6 +1477,8 @@ function LocationScopeCard({
   const [continent, setContinent] = useState(scope.continent ?? '');
   const [country, setCountry] = useState(scope.country ?? '');
   const [placeId, setPlaceId] = useState(scope.place_id ?? '');
+  const [cityCountry, setCityCountry] = useState(scope.country ?? '');
+  const [cityName, setCityName] = useState('');
 
   useEffect(() => {
     setLevel(scope.level);
@@ -1484,29 +1487,32 @@ function LocationScopeCard({
     setPlaceId(scope.place_id ?? '');
   }, [scope.level, scope.continent, scope.country, scope.place_id]);
 
-  if (!locations) {
-    return (
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Globe className="h-4 w-4 text-muted-foreground" /> Listening location
-          </div>
-          <div className="mt-3 text-[12.5px] text-muted-foreground">Loading…</div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const places = locations.places;
-  const placesInCountry = country ? places.filter((p) => p.country === country) : places;
+  // Country/continent reference data is bundled client-side (worldLocations.ts)
+  // rather than fetched from the backend — it's static data that must render
+  // instantly and keep working even if the backend API is briefly down.
+  // `locations` (from the backend) is used only for the convenience "popular
+  // cities" shortcuts below, which is genuinely live/dynamic data; its
+  // absence never blocks picking a continent, a country, or typing any city.
+  const knownPlaces = locations?.places ?? [];
+  const popularInCountry = cityCountry ? knownPlaces.filter((p) => p.country === cityCountry) : [];
 
   const apply = (next: Partial<LocationScope> & { level: LocationScope['level'] }) => {
     onUpdate({
       level: next.level,
       continent: next.level === 'continent' ? (next.continent ?? continent) : null,
-      country: next.level === 'country' ? (next.country ?? country) : null,
-      place_id: next.level === 'city' ? (next.place_id ?? placeId) : null,
+      country:
+        next.level === 'country' ? (next.country ?? country) : next.level === 'city' ? (next.country ?? null) : null,
+      place_id: next.level === 'city' ? (next.place_id ?? null) : null,
+      city: next.level === 'city' ? (next.city ?? null) : null,
     });
+  };
+
+  const applyCity = (opts: { placeId?: string; cityName?: string }) => {
+    if (opts.placeId) {
+      apply({ level: 'city', place_id: opts.placeId });
+    } else if (opts.cityName && cityCountry) {
+      apply({ level: 'city', city: opts.cityName, country: cityCountry });
+    }
   };
 
   return (
@@ -1516,7 +1522,8 @@ function LocationScopeCard({
           <Globe className="h-4 w-4 text-muted-foreground" /> Listening location
         </div>
         <div className="mt-1 text-[11.5px] text-muted-foreground">
-          Scope what Listening collects — worldwide, one continent, one country, or a specific city.
+          Scope what Listening collects — worldwide, one continent, one country, or any city. Every country on Earth is
+          selectable, and any city can be typed in.
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -1559,9 +1566,9 @@ function LocationScopeCard({
               aria-label="Continent"
             >
               <option value="">Choose a continent…</option>
-              {locations.continents.map((c) => (
+              {CONTINENTS.map((c) => (
                 <option key={c.code} value={c.code}>
-                  {c.label} ({c.countries.length} countries collected)
+                  {c.label} ({c.countries.length} countries)
                 </option>
               ))}
             </select>
@@ -1580,7 +1587,7 @@ function LocationScopeCard({
               aria-label="Country"
             >
               <option value="">Choose a country…</option>
-              {locations.countries.map((c) => (
+              {COUNTRIES.map((c) => (
                 <option key={c.code} value={c.code}>
                   {c.name}
                 </option>
@@ -1590,32 +1597,70 @@ function LocationScopeCard({
         )}
 
         {level === 'city' && (
-          <div className="mt-3 flex items-center gap-2">
-            <select
-              value={placeId}
-              onChange={(e) => {
-                setPlaceId(e.target.value);
-                if (e.target.value) apply({ level: 'city', place_id: e.target.value });
-              }}
-              className="h-8 flex-1 rounded-lg border border-border bg-background px-2 text-[12.5px] text-foreground"
-              aria-label="City"
-            >
-              <option value="">Choose a city…</option>
-              {placesInCountry.map((p: KnownPlace) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}, {locations.countries.find((c) => c.code === p.country)?.name ?? p.country}
-                </option>
-              ))}
-            </select>
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <select
+                value={cityCountry}
+                onChange={(e) => setCityCountry(e.target.value)}
+                className="h-8 flex-1 rounded-lg border border-border bg-background px-2 text-[12.5px] text-foreground"
+                aria-label="City's country"
+              >
+                <option value="">Country…</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={cityName}
+                onChange={(e) => setCityName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && cityCountry && cityName.trim()) applyCity({ cityName: cityName.trim() });
+                }}
+                placeholder="Type any city…"
+                disabled={!cityCountry}
+                className="h-8 flex-[1.4] rounded-lg border border-border bg-background px-2 text-[12.5px] text-foreground disabled:opacity-50"
+                aria-label="City name"
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="h-8"
+                disabled={!cityCountry || !cityName.trim()}
+                onClick={() => applyCity({ cityName: cityName.trim() })}
+              >
+                Use
+              </Button>
+            </div>
+            {popularInCountry.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
+                <span className="text-muted-foreground">Popular:</span>
+                {popularInCountry.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => applyCity({ placeId: p.id })}
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 transition-colors',
+                      placeId === p.id
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {profile?.location_countries && profile.location_countries.length > 0 && (
           <div className="mt-3 rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground">
             Currently collecting: {profile.location_countries.join(', ')}
-            {profile.location_scope?.level === 'city' && placeId
-              ? ` — plus extra, city-scoped coverage for ${places.find((p) => p.id === placeId)?.name ?? placeId}`
-              : ''}
+            {profile.location_scope?.level === 'city' ? ` — plus extra, city-scoped coverage for that city` : ''}
           </div>
         )}
       </CardContent>

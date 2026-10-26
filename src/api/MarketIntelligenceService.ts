@@ -465,6 +465,7 @@ export interface LocationScope {
   continent?: string | null;
   country?: string | null;
   place_id?: string | null;
+  city?: string | null;
 }
 
 export interface ListeningStatus {
