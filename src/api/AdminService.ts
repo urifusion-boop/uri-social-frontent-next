@@ -65,6 +65,17 @@ export interface AdminStats {
   total_workspaces: number;
 }
 
+export interface PlatformAlert {
+  kind: string;
+  title: string;
+  detail: string;
+  first_seen: string;
+  last_seen: string;
+  occurrences: number;
+  last_emailed_at?: string | null;
+  dismissed_at?: string | null;
+}
+
 export interface EmailExport {
   email: string;
   name: string;
@@ -200,6 +211,23 @@ export class AdminService {
    */
   static async getStats(): Promise<AdminStats> {
     const response = await UriHttpClient.getClient().get('/api/admin/stats');
+    return response.data;
+  }
+
+  /**
+   * Platform-wide operational alerts (infrastructure/account failures like
+   * the OpenAI account running out of credit) — active (non-dismissed) by
+   * default.
+   */
+  static async getPlatformAlerts(includeDismissed = false): Promise<{ alerts: PlatformAlert[] }> {
+    const response = await UriHttpClient.getClient().get('/api/admin/alerts', {
+      params: includeDismissed ? { include_dismissed: true } : undefined,
+    });
+    return response.data;
+  }
+
+  static async dismissPlatformAlert(kind: string): Promise<{ alert: PlatformAlert }> {
+    const response = await UriHttpClient.getClient().post(`/api/admin/alerts/${encodeURIComponent(kind)}/dismiss`);
     return response.data;
   }
 

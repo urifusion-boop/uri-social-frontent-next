@@ -16,6 +16,7 @@ import {
   AdminStats,
   AccessCode,
   AccessCodeRedemption,
+  PlatformAlert,
 } from '@/src/api/AdminService';
 import { useRouter } from 'next/navigation';
 import ConfirmDialog from './ConfirmDialog';
@@ -77,6 +78,13 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       <>
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
+      </>
+    ),
+    alert: (
+      <>
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
       </>
     ),
     loader: (
@@ -185,6 +193,8 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
 
   const [activeTab, setActiveTab] = useState<'stats' | 'all-users' | 'recent' | 'access-codes' | 'google-ads'>('stats');
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [platformAlerts, setPlatformAlerts] = useState<PlatformAlert[]>([]);
+  const [dismissingAlert, setDismissingAlert] = useState<string | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [recentUsers, setRecentUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUserDetails | null>(null);
@@ -210,6 +220,7 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
   // Load stats on mount
   useEffect(() => {
     loadStats();
+    loadPlatformAlerts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -232,6 +243,27 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
       console.error('Failed to load stats:', error);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const loadPlatformAlerts = useCallback(async () => {
+    try {
+      const data = await AdminService.getPlatformAlerts();
+      setPlatformAlerts(data.alerts);
+    } catch (error) {
+      console.error('Failed to load platform alerts:', error);
+    }
+  }, []);
+
+  const dismissAlert = useCallback(async (kind: string) => {
+    setDismissingAlert(kind);
+    try {
+      await AdminService.dismissPlatformAlert(kind);
+      setPlatformAlerts((prev) => prev.filter((a) => a.kind !== kind));
+    } catch (error) {
+      console.error('Failed to dismiss alert:', error);
+    } finally {
+      setDismissingAlert(null);
     }
   }, []);
 
@@ -457,6 +489,57 @@ export default function AdminUsersPage({ onBack }: AdminUsersPageProps) {
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: 32 }}>
+        {platformAlerts.length > 0 && (
+          <div style={{ maxWidth: 1200, margin: '0 auto 24px' }}>
+            {platformAlerts.map((alert) => (
+              <div
+                key={alert.kind}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 14,
+                  background: 'rgba(220,38,38,.06)',
+                  border: '1px solid rgba(220,38,38,.2)',
+                  borderRadius: 12,
+                  padding: '16px 20px',
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ flexShrink: 0, marginTop: 2 }}>
+                  <I n="alert" s={20} c="#dc2626" />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#dc2626' }}>{alert.title}</span>
+                    <Bd v="danger">
+                      Seen {alert.occurrences}× &middot; since {new Date(alert.first_seen).toLocaleString()}
+                    </Bd>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#555', lineHeight: 1.5 }}>{alert.detail}</div>
+                </div>
+                <button
+                  onClick={() => dismissAlert(alert.kind)}
+                  disabled={dismissingAlert === alert.kind}
+                  style={{
+                    flexShrink: 0,
+                    background: 'white',
+                    color: '#dc2626',
+                    border: '1px solid rgba(220,38,38,.3)',
+                    borderRadius: 8,
+                    padding: '7px 14px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: dismissingAlert === alert.kind ? 'default' : 'pointer',
+                    opacity: dismissingAlert === alert.kind ? 0.6 : 1,
+                  }}
+                >
+                  {dismissingAlert === alert.kind ? 'Dismissing…' : 'Mark fixed'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {loading && activeTab === 'stats' ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
             <I n="loader" s={24} c="#AD1457" />
