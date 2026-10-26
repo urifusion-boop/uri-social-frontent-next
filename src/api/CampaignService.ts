@@ -222,7 +222,14 @@ export interface LaunchFromMessageResult {
     // 'expired' on purpose: the token and scopes are fine, so reconnecting re-runs the
     // same refused call — the fix is on Meta's side, usually by the Page's owner.
     | 'meta_connection_page_not_shared'
-    | 'meta_connection_no_page';
+    | 'meta_connection_no_page'
+    // Explicit "put this on TikTok" request (preferred_platform: 'tiktok') that
+    // couldn't be honoured right now — see MetaLaunchFromMessageBody.preferred_platform.
+    | 'tiktok_needs_video'
+    | 'tiktok_not_configured'
+    // TikTok's own ad account has no Facebook Page concept — this is TikTok's
+    // counterpart to meta_connection_ads_no_whatsapp, not routed through Meta at all.
+    | 'tiktok_connection_no_whatsapp';
   plan_id?: string; // present when stage === 'planned' — pass to launchPlan()
   /** Set once the client edits the plan in the review panel. */
   plan_edited?: boolean;
@@ -295,6 +302,8 @@ export interface LaunchFromMessageResult {
     status: string;
     note: string;
     ads_manager_url: string;
+    // Which platform it launched on — a named field for the platform badge.
+    platform?: 'tiktok' | 'meta';
   };
 }
 
@@ -338,11 +347,16 @@ export interface CampaignMetrics {
   impressions: number;
   reach: number;
   delivery: string;
+  /** What the status badge says when it differs from the on/off `delivery` — e.g. "In
+   * review" while `delivery` is "Active". Empty or absent means "same as delivery". */
+  delivery_display?: string;
   ends_at: string | null;
 }
 
 export interface CampaignRow {
   campaign_id: string;
+  /** Which platform runs it: "tiktok" or "meta". Absent on older responses, which means Meta. */
+  platform?: 'tiktok' | 'meta' | string;
   name: string;
   headline: string;
   primary_text: string;
@@ -359,6 +373,9 @@ export interface CampaignRow {
   created_at: string | null;
   ads_manager_url: string;
   metrics: CampaignMetrics | null;
+  /** Why a switched-on campaign isn't delivering yet, in plain words (TikTok: in review,
+   * rejected, out of balance...). Rendered on the card for any platform. */
+  serving_note?: string;
 }
 
 export interface DraftSummary {
@@ -545,6 +562,16 @@ export class CampaignService {
     // plan picker. Outranks selected_plan_variant and the brand profile, and counts
     // as having chosen, so the picker isn't presented again.
     target_audience?: string;
+    // Explicit user platform choice, additive on top of Jane's own silent pick —
+    // "" (default/omitted) keeps today's behaviour exactly as-is. "tiktok" asks for
+    // TikTok specifically; the backend returns a tiktok_not_configured or
+    // tiktok_needs_video early_return if that can't be honoured right now.
+    preferred_platform?: '' | 'tiktok';
+    // TikTok Carousel Ads (2+ photos, no video) — additive, TikTok-only. TikTok has
+    // no single-static-image ad unit at all (video or Carousel Ads only), so this is
+    // how a photo-only business reaches TikTok without shooting a video. Ignored
+    // entirely for a Meta-bound plan, and ignored here too unless there are 2+ URLs.
+    carousel_image_urls?: string[];
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
@@ -624,9 +651,10 @@ export class CampaignService {
     return res.data as ExtendResult;
   }
 
-  /** Meta's campaign objectives, for the picker Jane opens with. */
-  static async getObjectives(): Promise<CampaignObjectiveChoice[]> {
-    const res = await UriHttpClient.getClient().get('/jane-ads/objectives');
+  /** Campaign objectives, for the picker Jane opens with — platform "tiktok" gets
+   *  TikTok-accurate blurbs instead of Meta's (same five choices either way). */
+  static async getObjectives(platform: 'meta' | 'tiktok' = 'meta'): Promise<CampaignObjectiveChoice[]> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/objectives', { params: { platform } });
     return (res.data as { objectives: CampaignObjectiveChoice[] }).objectives;
   }
 

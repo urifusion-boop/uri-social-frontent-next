@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarPlus, Check, MapPin, Pencil, RotateCw } from 'lucide-react';
+import { CalendarPlus, Check, MapPin, Music2, Pencil, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AdFormat,
@@ -256,6 +256,13 @@ export default function CampaignsPage({
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [media, setMedia] = useState<SelectedMedia | null>(null);
+  // TikTok Carousel Ads (2+ photos, no video) — additive on top of `media` above, which is
+  // reused as carousel slide 1. TikTok has no single-static-image ad unit (video or Carousel
+  // Ads only), so this is how a photo-only business reaches TikTok without shooting a video.
+  // Never touches the Meta/video paths — only sent when TikTok is chosen.
+  const [carouselExtraUrls, setCarouselExtraUrls] = useState<string[]>([]);
+  const carouselExtraInputRef = useRef<HTMLInputElement>(null);
+  const [carouselUploading, setCarouselUploading] = useState(false);
   const [briefSoFar, setBriefSoFar] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -333,6 +340,48 @@ export default function CampaignsPage({
   // campaign for exactly the same reason chosenVariantRef is: it IS the choice, so every
   // later call has to carry it or the backend re-offers the picker it already answered.
   const ownAudienceRef = useRef<string | null>(null);
+  // Explicit "put this on TikTok" toggle — same "has to ride along on every call or the
+  // backend forgets it" reasoning as the refs above (_build_campaign_plan reads
+  // preferred_platform fresh off each request, with no server-side memory of an earlier
+  // turn's choice). Cleared only when a fresh conversation starts — NOT when the client
+  // answers a question mid-way (picking a plan card, typing an audience), or the very
+  // next request builds the creative with no platform preference and Jane falls back to Meta.
+  const preferredPlatformRef = useRef<'' | 'tiktok'>('');
+  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'tiktok'>('');
+  const setPreferredPlatform = (v: '' | 'tiktok') => {
+    preferredPlatformRef.current = v;
+    setPreferredPlatformUi(v);
+  };
+  // What a TikTok campaign must say on EVERY plan request, and nothing at all otherwise —
+  // so every Meta request is byte-for-byte what it was before.
+  const tiktokPlatformFields = (attached: SelectedMedia | null) => {
+    if (preferredPlatformRef.current !== 'tiktok') return {};
+    const photos =
+      attached?.source === 'upload' && !attached.isVideo && carouselExtraUrls.length > 0
+        ? [attached.url, ...carouselExtraUrls]
+        : [];
+    return {
+      preferred_platform: 'tiktok' as const,
+      ...(photos.length >= 2 ? { carousel_image_urls: photos } : {}),
+    };
+  };
+  // The attached video / photo, re-sent at the steps that used to drop it (audience,
+  // destination, WhatsApp number): TikTok judges "video or 2+ photos" from the request in
+  // front of it, so a media attachment that vanishes mid-conversation reads as "needs video".
+  // null for any non-TikTok request, which keeps exactly the behaviour those steps had.
+  const tiktokMediaFields = (attached: SelectedMedia | null) => {
+    if (preferredPlatformRef.current !== 'tiktok' || !attached) return null;
+    if (attached.source === 'upload') {
+      return {
+        creative_source: 'upload' as const,
+        reference_image_url: attached.url,
+        is_video: attached.isVideo,
+        asset_attestation: attached.assetAttestation,
+      };
+    }
+    if (attached.source === 'draft') return { creative_source: 'draft' as const, draft_id: attached.draftId };
+    return null;
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -474,6 +523,9 @@ export default function CampaignsPage({
   const openThread = useCallback(async (threadId: string): Promise<string> => {
     selectThreadId(threadId);
     setMedia(null);
+    setCarouselExtraUrls([]);
+    preferredPlatformRef.current = '';
+    setPreferredPlatformUi('');
     setBriefSoFar('');
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
@@ -523,6 +575,9 @@ export default function CampaignsPage({
   // '+ New' — start a fresh campaign thread and a clean chat.
   const startNewThread = async () => {
     setMedia(null);
+    setCarouselExtraUrls([]);
+    preferredPlatformRef.current = '';
+    setPreferredPlatformUi('');
     setBriefSoFar('');
     lastCreativeRef.current = '';
     creativeChoiceRef.current = null;
@@ -550,6 +605,9 @@ export default function CampaignsPage({
       selectThreadId(thread.thread_id);
       setThreads((prev) => [thread, ...prev]);
       setMedia(null);
+      setCarouselExtraUrls([]);
+      preferredPlatformRef.current = '';
+      setPreferredPlatformUi('');
       setBriefSoFar('');
       chosenVariantRef.current = null;
       ownAudienceRef.current = null;
@@ -573,6 +631,9 @@ export default function CampaignsPage({
       if (activeThreadRef.current === threadId) {
         selectThreadId(null);
         setMedia(null);
+        setCarouselExtraUrls([]);
+        preferredPlatformRef.current = '';
+        setPreferredPlatformUi('');
         setBriefSoFar('');
         lastCreativeRef.current = '';
         creativeChoiceRef.current = null;
@@ -688,6 +749,7 @@ export default function CampaignsPage({
     saveMsg(userMsg);
     try {
       const result = await CampaignService.planFromMessage({
+        ...tiktokPlatformFields(media),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: combinedMessage,
         thread_id: threadId,
@@ -756,6 +818,7 @@ export default function CampaignsPage({
     try {
       const attachedMedia = media;
       const result = await CampaignService.planFromMessage({
+        ...tiktokPlatformFields(media),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: briefSoFar || clean,
         whatsapp_number: clean,
@@ -805,10 +868,12 @@ export default function CampaignsPage({
       // never reached the launch at all. Live-reported.
       await CampaignService.setWhatsapp(clean);
       const result = await CampaignService.planFromMessage({
+        ...tiktokPlatformFields(media),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
         ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
+        ...(tiktokMediaFields(media) ?? {}),
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
       setMessages((m) => [...m, resultMsg]);
@@ -850,6 +915,7 @@ export default function CampaignsPage({
       const variants = pendingVariants ? pendingVariants.variants : [null];
       for (const variant of variants) {
         const result = await CampaignService.planFromMessage({
+          ...tiktokPlatformFields(media),
           ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
           message: brief,
           thread_id: activeThreadRef.current ?? undefined,
@@ -973,10 +1039,11 @@ export default function CampaignsPage({
     setBusy(true);
     try {
       const result = await CampaignService.planFromMessage({
+        ...tiktokPlatformFields(media),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
-        creative_source: 'ask',
+        ...(tiktokMediaFields(media) ?? { creative_source: 'ask' as const }),
         // Carry the audience choice, exactly as continueWithSource does — without it
         // the backend has no way to know one was made and regenerates the whole
         // variant set, dropping the user back to "pick an audience".
@@ -1028,10 +1095,11 @@ export default function CampaignsPage({
       // to signal "a choice was made" and skip regeneration) — continueWithSource
       // below still builds each pending variant with its own correct data.
       const result = await CampaignService.planFromMessage({
+        ...tiktokPlatformFields(media),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
-        creative_source: 'ask',
+        ...(tiktokMediaFields(media) ?? { creative_source: 'ask' as const }),
         selected_plan_variant: variants[0],
         variant_group_id: variantGroupId,
       });
@@ -1064,10 +1132,11 @@ export default function CampaignsPage({
     setBusy(true);
     try {
       const result = await CampaignService.planFromMessage({
+        ...tiktokPlatformFields(media),
         ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
         message: briefSoFar,
         thread_id: activeThreadRef.current ?? undefined,
-        creative_source: 'ask',
+        ...(tiktokMediaFields(media) ?? { creative_source: 'ask' as const }),
         target_audience: audience,
       });
       const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
@@ -1085,10 +1154,53 @@ export default function CampaignsPage({
   };
 
   const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
     const forChoice = uploadForChoiceRef.current;
     uploadForChoiceRef.current = false;
+    if (!files.length) return;
+
+    // TikTok carousel shortcut: picking several photos at once from the composer attach
+    // button (forChoice is only set by the choose-source card / recomposite request) builds
+    // the whole carousel in one action — file[0] becomes the base photo and the rest become
+    // slides. Its own branch, because the single-file path below (attestation prompt,
+    // video-quality check) assumes exactly one file and one decision about it, and a
+    // carousel slide is just a photo. Only reachable once TikTok is chosen (see `multiple`).
+    if (files.length > 1 && !forChoice && preferredPlatformRef.current === 'tiktok') {
+      setUploadError('');
+      setUploading(true);
+      try {
+        const results = await Promise.allSettled(files.map((f) => CampaignService.uploadMedia(f)));
+        const photos: string[] = [];
+        let videoSkipped = 0;
+        let failed = 0;
+        for (const result of results) {
+          if (result.status !== 'fulfilled') {
+            failed += 1;
+            continue;
+          }
+          if (result.value.is_video) {
+            videoSkipped += 1;
+            continue;
+          }
+          photos.push(result.value.url);
+        }
+        if (photos.length) {
+          setMedia({ source: 'upload', url: photos[0], isVideo: false, label: files[0].name });
+          setCarouselExtraUrls(photos.slice(1));
+        }
+        const notes: string[] = [];
+        if (videoSkipped > 0) notes.push(`${videoSkipped} skipped — carousel slides are photos, not video`);
+        if (failed > 0) notes.push(`${failed} failed to upload`);
+        if (!photos.length && !notes.length) notes.push('Upload failed, please try again');
+        if (notes.length) setUploadError(notes.join('; ') + '.');
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
+    const file = files[0];
     if (!file) return;
     setUploadError('');
     setUploading(true);
@@ -1126,6 +1238,56 @@ export default function CampaignsPage({
       setUploadError('Upload failed, please try again.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  // TikTok Carousel Ads — a second (third, ...) photo for the slides beyond the base `media`
+  // attachment. A plain, direct upload with none of handleFileChosen's branches
+  // (recomposite / video-quality check / attestation): a carousel slide is just a photo.
+  // Multi-select uploads them all in parallel. TikTok caps a carousel at 35 slides total
+  // (base photo included), so anything past that is dropped rather than sent to a launch
+  // that would reject it; a stray video in the selection is skipped, not a reason to fail.
+  const handleCarouselExtraFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (!files.length) return;
+
+    const remainingSlots = Math.max(0, 35 - 1 - carouselExtraUrls.length);
+    const toUpload = files.slice(0, remainingSlots);
+    const dropped = files.length - toUpload.length;
+
+    setUploadError('');
+    if (!toUpload.length) {
+      setUploadError("This carousel is already at TikTok's 35-photo limit.");
+      return;
+    }
+
+    setCarouselUploading(true);
+    try {
+      const results = await Promise.allSettled(toUpload.map((file) => CampaignService.uploadMedia(file)));
+      const uploaded: string[] = [];
+      let videoSkipped = 0;
+      let failed = 0;
+      for (const result of results) {
+        if (result.status !== 'fulfilled') {
+          failed += 1;
+          continue;
+        }
+        if (result.value.is_video) {
+          videoSkipped += 1;
+          continue;
+        }
+        uploaded.push(result.value.url);
+      }
+      if (uploaded.length) setCarouselExtraUrls((prev) => [...prev, ...uploaded]);
+
+      const notes: string[] = [];
+      if (dropped > 0) notes.push(`${dropped} skipped — TikTok carousels max out at 35 photos`);
+      if (videoSkipped > 0) notes.push(`${videoSkipped} skipped — carousel slides are photos, not video`);
+      if (failed > 0) notes.push(`${failed} failed to upload`);
+      if (notes.length) setUploadError(notes.join('; ') + '.');
+    } finally {
+      setCarouselUploading(false);
     }
   };
 
@@ -1434,6 +1596,9 @@ export default function CampaignsPage({
                         // starts a fresh campaign instead of appending to the launched one.
                         setBriefSoFar('');
                         setMedia(null);
+                        setCarouselExtraUrls([]);
+                        preferredPlatformRef.current = '';
+                        setPreferredPlatformUi('');
                         lastCreativeRef.current = '';
                         creativeChoiceRef.current = null;
                         chosenVariantRef.current = null;
@@ -1465,7 +1630,13 @@ export default function CampaignsPage({
               {/* The objective picker REPLACES the old goal chips. Keeping both asked
                 the same question twice in two different vocabularies — "Get me more
                 sales" next to "Sales" — and only one of them decided anything. */}
-              {messages.length === 1 && !busy && <ObjectivePicker selected={objective} onPick={pickObjective} />}
+              {messages.length === 1 && !busy && (
+                <ObjectivePicker
+                  selected={objective}
+                  onPick={pickObjective}
+                  platform={preferredPlatformUi === 'tiktok' ? 'tiktok' : 'meta'}
+                />
+              )}
               {busy && (
                 <JaneBubble>
                   <TypingDots />
@@ -1579,6 +1750,9 @@ export default function CampaignsPage({
                 ref={fileInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
+                // Several photos at once build a TikTok carousel; for any other platform a
+                // pick is still exactly one file, as it always was.
+                multiple={preferredPlatformUi === 'tiktok'}
                 style={{ display: 'none' }}
                 onChange={handleFileChosen}
               />
@@ -1670,7 +1844,10 @@ export default function CampaignsPage({
                       {media.source === 'draft' ? 'From drafts' : media.label}
                     </span>
                     <button
-                      onClick={() => setMedia(null)}
+                      onClick={() => {
+                        setMedia(null);
+                        setCarouselExtraUrls([]);
+                      }}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -1684,6 +1861,77 @@ export default function CampaignsPage({
                       ×
                     </button>
                   </div>
+                )}
+                {/* TikTok Carousel Ads — only offered once a real base photo is attached and
+                    TikTok is the chosen platform; a video makes this irrelevant (TikTok already
+                    accepts that directly), and Meta has no carousel path here at all. */}
+                {preferredPlatformUi === 'tiktok' && media?.source === 'upload' && !media.isVideo && (
+                  <>
+                    <input
+                      ref={carouselExtraInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={handleCarouselExtraFileChosen}
+                    />
+                    <button
+                      onClick={() => carouselExtraInputRef.current?.click()}
+                      disabled={busy || carouselUploading}
+                      title="TikTok Carousel Ads need 2+ photos — select as many as you want at once"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: '#f6f5f3',
+                        border: '1px solid #e0dcd9',
+                        borderRadius: 20,
+                        padding: '6px 12px',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: '#555',
+                        cursor: busy || carouselUploading ? 'default' : 'pointer',
+                      }}
+                    >
+                      + {carouselUploading ? 'Uploading…' : 'Add carousel photos'}
+                    </button>
+                    {carouselExtraUrls.map((url, i) => (
+                      <div
+                        key={url + i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: '#fce4ec',
+                          border: '1px solid #f5c2d8',
+                          borderRadius: 20,
+                          padding: '4px 6px 4px 4px',
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt=""
+                          style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }}
+                        />
+                        <span style={{ fontSize: 12, color: PINK, fontWeight: 600 }}>Slide {i + 2}</span>
+                        <button
+                          onClick={() => setCarouselExtraUrls((prev) => prev.filter((_, idx) => idx !== i))}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: PINK,
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            padding: '0 4px',
+                            lineHeight: 1,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </>
                 )}
               </div>
               {uploadError && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#c62828' }}>{uploadError}</p>}
@@ -1759,6 +2007,43 @@ export default function CampaignsPage({
                   )}
                 </div>
               )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#888' }}>PLATFORM</span>
+                {PLATFORM_CHOICES.map((c) => {
+                  const on = preferredPlatformUi === c.value;
+                  return (
+                    <button
+                      key={c.value || 'auto'}
+                      type="button"
+                      data-testid={`platform-chip-${c.value || 'auto'}`}
+                      aria-pressed={on}
+                      onClick={() => setPreferredPlatform(c.value)}
+                      title={c.hint}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '4px 11px',
+                        borderRadius: 20,
+                        border: `1.5px solid ${on ? PINK : '#e0dcd9'}`,
+                        background: on ? PINK : '#fff',
+                        color: on ? '#fff' : '#666',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: on ? '0 2px 8px rgba(194,24,91,.25)' : 'none',
+                      }}
+                    >
+                      {on && <Check size={12} strokeWidth={3} />}
+                      {c.value === 'tiktok' && !on && <Music2 size={12} strokeWidth={2} />}
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p style={{ margin: '5px 0 8px', fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>
+                {platformChoice(preferredPlatformUi).hint}
+              </p>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                 <textarea
                   value={input}
@@ -1769,7 +2054,7 @@ export default function CampaignsPage({
                       send();
                     }
                   }}
-                  placeholder="Tell Jane what you want to promote…"
+                  placeholder={platformChoice(preferredPlatformUi).placeholder}
                   rows={1}
                   disabled={busy}
                   style={{
@@ -3238,6 +3523,28 @@ function ResultCard({
     // Per-Brand Page Connection plan — six explicit states (never inferred from one
     // boolean), checked before Jane even builds a plan. Each state below is framed
     // as "progress not restart": what's already true stays true, one reason, one tap.
+    if (result.stage === 'tiktok_needs_video') {
+      return (
+        <JaneBubble>
+          TikTok needs either a video, or at least 2 photos for a carousel ad. Attach a video (upload your own, or ask
+          me to generate one), or use &ldquo;Add carousel photos&rdquo; after attaching a first photo — you can select
+          several at once — then send your message again.
+        </JaneBubble>
+      );
+    }
+    if (result.stage === 'tiktok_not_configured') {
+      return <JaneBubble>TikTok Ads isn&rsquo;t connected right now — try again shortly.</JaneBubble>;
+    }
+    if (result.stage === 'tiktok_connection_no_whatsapp') {
+      return (
+        <JaneBubble>
+          {result.question || 'I need a WhatsApp number to run this TikTok ad.'}{' '}
+          <a href="/workspace/?tab=connections" style={{ color: PINK, fontWeight: 600 }}>
+            Open Connected Accounts →
+          </a>
+        </JaneBubble>
+      );
+    }
     if (result.stage === 'meta_connection_none') {
       return (
         <div>
@@ -3398,6 +3705,27 @@ function ResultCard({
           background: '#fff',
         }}
       >
+        {plan?.platforms?.[0]?.platform === 'tiktok' && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '9px 16px',
+              background: '#1a0a12',
+              color: '#fff',
+              fontSize: 12.5,
+            }}
+          >
+            <span style={{ opacity: 0.7, fontWeight: 600 }}>Runs on</span>
+            <strong style={{ fontWeight: 800 }}>{runsOnLabel(plan.platforms[0].platform)}</strong>
+            {result.stage === 'planned' && (
+              <span style={{ marginLeft: 'auto', opacity: 0.7, fontSize: 11.5 }}>
+                Not right? Pick another platform below and ask again.
+              </span>
+            )}
+          </div>
+        )}
         {creative?.image_url && (
           <ZoomableImage
             src={creative.image_url}
@@ -3436,10 +3764,10 @@ function ResultCard({
                   color: PINK,
                 }}
               >
-                {naira(p.budget_ngn)} · {p.days} days
+                {naira(p.budget_ngn)} · {p.days} {p.days === 1 ? 'day' : 'days'}
               </span>
             ))}
-            {plan?.geo?.pins?.length ? (
+            {plan?.geo?.pins?.length && plan.platforms?.[0]?.platform !== 'tiktok' ? (
               <span
                 style={{
                   fontSize: 11,
@@ -3527,7 +3855,7 @@ function ResultCard({
                 ) : (
                   <>
                     <Check size={14} strokeWidth={2.5} />
-                    <span>Looks good — launch it</span>
+                    <span>Looks good — launch{plan?.platforms?.[0]?.platform === 'tiktok' ? ' on TikTok' : ' it'}</span>
                   </>
                 )}
               </button>
@@ -3577,6 +3905,9 @@ function ResultCard({
           {result.stage === 'planned' && result.plan_id && (
             <PlanReviewPanel
               planId={result.plan_id}
+              // TikTok names states and cities, not neighbourhoods, so the pockets Jane plans on
+              // (Ikoyi, Lekki, ...) are not something the client can review there.
+              hiddenFieldKeys={plan?.platforms?.[0]?.platform === 'tiktok' ? ['locations'] : undefined}
               onDirtyChange={setUnsavedEdits}
               onSaved={(refreshed) =>
                 onResultChange({
@@ -3607,7 +3938,9 @@ function ResultCard({
             <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 10, padding: '10px 12px' }}>
               <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 700 }}>
                 <Check size={13} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 5 }} />
-                Campaign created, paused, no spend yet
+                {plan?.platforms?.[0]?.platform === 'tiktok'
+                  ? `Campaign created on ${runsOnLabel('tiktok')} — paused, no spend yet`
+                  : 'Campaign created, paused, no spend yet'}
               </p>
               <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>{launch?.note}</p>
             </div>
@@ -4016,12 +4349,43 @@ function TotalCard({ label, value, accent }: { label: string; value: string; acc
   );
 }
 
+type PlatformChoice = { value: '' | 'tiktok'; label: string; hint: string; placeholder: string };
+
+const PLATFORM_CHOICES: PlatformChoice[] = [
+  {
+    value: '',
+    label: 'Jane picks',
+    hint: 'Jane chooses where this runs — usually Instagram & Facebook. The plan shows which before anything launches.',
+    placeholder: 'Tell Jane what you want to promote…',
+  },
+  {
+    value: 'tiktok',
+    label: 'TikTok',
+    hint: 'This campaign will run on TikTok. It needs a video, or 2+ photos as a carousel.',
+    placeholder: 'Tell Jane what to promote on TikTok…',
+  },
+];
+
+const platformChoice = (v: string) => PLATFORM_CHOICES.find((c) => c.value === v) ?? PLATFORM_CHOICES[0];
+
+/** Where a planned or launched campaign actually runs, in plain words. */
+function runsOnLabel(platform?: string): string {
+  if (platform === 'tiktok') return 'TikTok';
+  // Only an explicit meta plan reads as Instagram & Facebook — a plan with no platform
+  // must not be mistaken for a Meta one (it showed on TikTok plans before).
+  if (platform === 'meta') return 'Instagram & Facebook';
+  return 'your chosen platform';
+}
+
 const _STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   active: { bg: '#e6f7ec', color: '#1e7e34' },
   paused: { bg: '#fff3e0', color: '#e65100' },
+  'ad paused': { bg: '#fff3e0', color: '#e65100' },
   'in review': { bg: '#e8f0fe', color: '#1a56db' },
   processing: { bg: '#e8f0fe', color: '#1a56db' },
   scheduled: { bg: '#e8f0fe', color: '#1a56db' },
+  ended: { bg: '#f0eded', color: '#666' },
+  'budget used': { bg: '#f0eded', color: '#666' },
   'needs changes': { bg: '#fdecea', color: '#c62828' },
   'needs attention': { bg: '#fdecea', color: '#c62828' },
   'needs billing info': { bg: '#fdecea', color: '#c62828' },
@@ -4053,11 +4417,15 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   const [keepingRunning, setKeepingRunning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
-  const displayStatus = c.metrics?.delivery || c.status;
+  // The on/off state drives the pause/play button and what can be done to the campaign.
+  // What the BADGE says can differ: a TikTok campaign that is switched on but waiting in ad
+  // review or out of balance is "Active" to the button and "In review" to the client.
+  const baseStatus = c.metrics?.delivery || c.status;
+  const displayStatus = c.metrics?.delivery_display || baseStatus;
   const { bg, color } = statusStyle(displayStatus);
-  const isActive = displayStatus.toLowerCase() === 'active';
-  const canToggle = _TOGGLABLE_STATUSES.has(displayStatus.toLowerCase()) && !!c.campaign_id;
-  const canDelete = displayStatus.toLowerCase() !== 'deleted' && !!c.campaign_id;
+  const isActive = baseStatus.toLowerCase() === 'active';
+  const canToggle = _TOGGLABLE_STATUSES.has(baseStatus.toLowerCase()) && !!c.campaign_id;
+  const canDelete = baseStatus.toLowerCase() !== 'deleted' && !!c.campaign_id;
   const busy = working || deleting;
 
   const toggle = async () => {
@@ -4095,12 +4463,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
     }
   };
 
-  // Only Meta campaigns, and only ones that exist on the provider — the targeting
-  // editor talks to Meta's ad set directly and TikTok has no equivalent adapter yet.
-  // Read defensively: `platform` only exists on branches carrying the TikTok work, and
-  // absent means Meta, so this behaves the same either way.
-  const canEditTargeting =
-    (c as { platform?: string }).platform !== 'tiktok' && !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
+  // Only campaigns that exist on the provider — Meta and TikTok both have a live targeting
+  // editor and a keep-it-running adapter.
+  const canEditTargeting = !!c.campaign_id && baseStatus.toLowerCase() !== 'deleted';
 
   return (
     <div>
@@ -4141,6 +4506,22 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
             >
               {displayStatus}
             </span>
+            {c.platform === 'tiktok' && (
+              <span
+                title="Running on TikTok"
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: 20,
+                  background: 'rgba(0,0,0,.06)',
+                  color: '#111',
+                }}
+              >
+                <Music2 size={11} strokeWidth={2.5} style={{ verticalAlign: '-2px', marginRight: 3 }} />
+                TikTok
+              </span>
+            )}
           </div>
           <p
             style={{
@@ -4200,7 +4581,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
             const label =
               dest === 'website'
                 ? '🌐 Taps open your website'
-                : dest === 'instagram_dm'
+                : dest === 'instagram_dm' && c.platform !== 'tiktok'
                   ? '📩 Taps land in your Instagram DMs'
                   : '🔗 Taps open your link';
             return (
@@ -4215,6 +4596,23 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
               </p>
             );
           })()}
+          {c.serving_note && (
+            <p
+              role="status"
+              style={{
+                margin: '8px 0 0',
+                padding: '7px 10px',
+                borderRadius: 8,
+                background: '#FFF8EB',
+                border: '1px solid #F2D9A8',
+                fontSize: 12,
+                color: '#7a4a00',
+                lineHeight: 1.45,
+              }}
+            >
+              {c.serving_note}
+            </p>
+          )}
           {error && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#c62828' }}>{error}</p>}
         </div>
         {(canToggle || canDelete || canEditTargeting) && (
@@ -4325,12 +4723,18 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
         <LiveTargetingEditor
           campaignId={c.campaign_id}
           campaignName={c.name}
+          platform={c.platform === 'tiktok' ? 'tiktok' : 'meta'}
           onClose={() => setEditingTargeting(false)}
           onSaved={onChanged}
         />
       )}
       {keepingRunning && (
-        <KeepRunningPanel campaignId={c.campaign_id} onClose={() => setKeepingRunning(false)} onExtended={onChanged} />
+        <KeepRunningPanel
+          campaignId={c.campaign_id}
+          platform={c.platform === 'tiktok' ? 'tiktok' : 'meta'}
+          onClose={() => setKeepingRunning(false)}
+          onExtended={onChanged}
+        />
       )}
     </div>
   );

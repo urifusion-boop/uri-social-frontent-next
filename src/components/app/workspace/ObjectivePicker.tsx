@@ -38,15 +38,19 @@ type Props = {
   /** Label and blurb travel with the value so the caller can speak the choice back in
    *  the client's own words rather than echoing a wire value like "followers". */
   onPick: (value: string, label: string, blurb: string, caveat: string) => void;
+  /** TikTok gets TikTok-accurate blurbs instead of Meta's own wording (e.g.
+   *  Engagement no longer claims "Best for WhatsApp orders" — TikTok has no native
+   *  Click-to-WhatsApp ad type). Same five choices, same values, either way. */
+  platform?: 'meta' | 'tiktok';
 };
 
-export default function ObjectivePicker({ selected, onPick }: Props) {
+export default function ObjectivePicker({ selected, onPick, platform = 'meta' }: Props) {
   const [choices, setChoices] = useState<CampaignObjectiveChoice[]>([]);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    CampaignService.getObjectives()
+    CampaignService.getObjectives(platform)
       .then((c) => {
         if (alive) setChoices(c);
       })
@@ -56,7 +60,7 @@ export default function ObjectivePicker({ selected, onPick }: Props) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [platform]);
 
   // Never block the conversation on this. If the list cannot load, Jane falls back to
   // the objective the goal implies, which is exactly what she did before.

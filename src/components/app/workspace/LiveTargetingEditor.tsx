@@ -37,6 +37,10 @@ function errorText(e: unknown, fallback: string): string {
 type Props = {
   campaignId: string;
   campaignName: string;
+  /** Which provider this campaign runs on — TikTok supports location/gender/age edits
+   * (no interests/placement, which have no TikTok equivalent). Defaults to Meta's wording
+   * when omitted, so any caller that doesn't pass this still reads correctly. */
+  platform?: 'meta' | 'tiktok';
   onClose: () => void;
   onSaved?: () => void;
 };
@@ -70,7 +74,8 @@ function asText(field: PlanField): string {
   return field.value === null ? '' : String(field.value);
 }
 
-export default function LiveTargetingEditor({ campaignId, campaignName, onClose, onSaved }: Props) {
+export default function LiveTargetingEditor({ campaignId, campaignName, platform, onClose, onSaved }: Props) {
+  const platformLabel = platform === 'tiktok' ? 'TikTok' : 'Meta';
   const [data, setData] = useState<{ fields: PlanField[]; baseline: string; delivering: boolean; warning: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -91,9 +96,9 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
         warning: live.learning_warning,
       });
     } catch (e) {
-      setLoadError(errorText(e, 'Could not read this campaign from Meta.'));
+      setLoadError(errorText(e, `Could not read this campaign from ${platformLabel}.`));
     }
-  }, [campaignId]);
+  }, [campaignId, platformLabel]);
 
   useEffect(() => {
     void load();
@@ -174,12 +179,12 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
         <div style={{ background: '#f6fbf6', border: '1px solid #cde9cd', borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
           <p style={{ margin: 0, fontSize: 12.5, color: '#2e7d32', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Check size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-            <span>{spoken(savedFields)} updated on Meta — checked and confirmed, not just submitted.</span>
+            <span>{spoken(savedFields)} updated on {platformLabel} — checked and confirmed, not just submitted.</span>
           </p>
         </div>
       )}
 
-      {!data && !loadError && <p style={{ margin: 0, fontSize: 12.5, color: '#666' }}>Reading the campaign from Meta…</p>}
+      {!data && !loadError && <p style={{ margin: 0, fontSize: 12.5, color: '#666' }}>Reading the campaign from {platformLabel}…</p>}
 
       {data?.fields.map((field) => (
         <div key={field.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 0', borderTop: '1px solid #f2f2f2' }}>
@@ -267,7 +272,7 @@ export default function LiveTargetingEditor({ campaignId, campaignName, onClose,
               opacity: dirty && !saving ? 1 : 0.45,
             }}
           >
-            {saving ? 'Applying on Meta…' : 'Apply to the live campaign'}
+            {saving ? `Applying on ${platformLabel}…` : 'Apply to the live campaign'}
           </button>
           <span style={{ fontSize: 11.5, color: '#888' }}>
             Budget, schedule and objective can&rsquo;t be changed after launch.

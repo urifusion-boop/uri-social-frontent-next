@@ -3,8 +3,12 @@
  *
  * Users top up and carry on running an ad that works, and until now the only way to do
  * that was to start a brand-new campaign: new plan, new creative, and a learning phase
- * back at zero. Extending keeps the campaign, the creative and everything Meta has
- * learned about who responds.
+ * back at zero. Extending keeps the campaign, the creative and everything the platform
+ * has learned about who responds. Meta and TikTok both handled since 2026-09-25 — on
+ * TikTok this also raises the ad group's total budget alongside its end date (TikTok's
+ * budget is a lifetime figure for the whole schedule, not Meta's daily one, so the end
+ * date alone wouldn't buy more delivery), which the caller (extend-quote/extend
+ * endpoints) already accounts for — this panel just shows whatever the server quotes.
  *
  * The rule this surface follows: the client sees the exact cost and the exact new end
  * date BEFORE anything is charged. The quote is fetched first, the confirm button
@@ -20,6 +24,10 @@ import { CampaignService, ExtendQuote } from '@/src/api/CampaignService';
 
 type Props = {
   campaignId: string;
+  /** Which provider this campaign runs on — used only for the "keeps everything
+   * X has learned" copy below. Defaults to Meta's wording when omitted, so any
+   * existing caller that hasn't been updated to pass this still reads correctly. */
+  platform?: 'meta' | 'tiktok';
   onClose: () => void;
   onExtended?: () => void;
 };
@@ -52,7 +60,8 @@ function errorText(e: unknown, fallback: string): string {
   return fallback;
 }
 
-export default function KeepRunningPanel({ campaignId, onClose, onExtended }: Props) {
+export default function KeepRunningPanel({ campaignId, platform, onClose, onExtended }: Props) {
+  const platformLabel = platform === 'tiktok' ? 'TikTok' : 'Meta';
   const [days, setDays] = useState(7);
   const [quote, setQuote] = useState<ExtendQuote | null>(null);
   const [loading, setLoading] = useState(true);
@@ -148,15 +157,15 @@ export default function KeepRunningPanel({ campaignId, onClose, onExtended }: Pr
             Running until {onDate(done.until)}
           </p>
           <p style={{ margin: 0, fontSize: 12, color: '#33691e' }}>
-            {naira(done.charged)} taken from your wallet. Same campaign and same ad — it keeps everything Meta has
-            learned. It runs until that date unless you pause it.
+            {naira(done.charged)} taken from your wallet. Same campaign and same ad — it keeps everything{' '}
+            {platformLabel} has learned. It runs until that date unless you pause it.
           </p>
         </div>
       ) : (
         <>
           <p style={{ margin: '0 0 10px', fontSize: 12, color: '#666' }}>
-            Carries on the same campaign and the same ad, so it keeps everything Meta has learned about who responds.
-            Starting a new campaign instead begins that from scratch.
+            Carries on the same campaign and the same ad, so it keeps everything {platformLabel} has learned about who
+            responds. Starting a new campaign instead begins that from scratch.
           </p>
 
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -252,7 +261,7 @@ export default function KeepRunningPanel({ campaignId, onClose, onExtended }: Pr
                 : 'Keep running'}
           </button>
           <p style={{ margin: '6px 0 0', fontSize: 11, color: '#999' }}>
-            Charged only once Meta confirms the new end date.
+            Charged only once {platformLabel} confirms the new end date.
           </p>
         </>
       )}

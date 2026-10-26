@@ -28,6 +28,9 @@ type Props = {
    * un-edited ad while the panel shows the client's changes. The caller gates the
    * launch button on this. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Field keys to leave off the form (e.g. 'locations' on a TikTok plan). Display only:
+   * the stored plan keeps the field and the launch still uses it. */
+  hiddenFieldKeys?: string[];
 };
 
 const CARD: React.CSSProperties = {
@@ -84,7 +87,7 @@ function parseEdit(field: PlanField, text: string): unknown {
   return text;
 }
 
-export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Props) {
+export default function PlanReviewPanel({ planId, onSaved, onDirtyChange, hiddenFieldKeys }: Props) {
   const [fields, setFields] = useState<PlanField[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -248,7 +251,7 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
         Change anything here and press Save. What you save is exactly what runs.
       </p>
 
-      {fields.map((field) => (
+      {fields.filter((field) => !hiddenFieldKeys?.includes(field.key)).map((field) => (
         <div
           key={field.key}
           style={{
