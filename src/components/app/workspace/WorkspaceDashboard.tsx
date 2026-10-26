@@ -94,6 +94,7 @@ import { useNotifications } from '@/src/providers/NotificationProvider';
 import { Tooltip } from '@mui/material';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { AuthService } from '@/src/api/AuthService';
+import { IS_PRODUCTION } from '@/src/configs/env.config';
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: string }) => {
@@ -3738,7 +3739,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {PLATFORMS.map((p) => {
+          {/* WhatsApp connect isn't in use right now — hidden in production only,
+             left visible in dev/staging so it can still be tested there. */}
+          {PLATFORMS.filter((p) => !(p.id === 'whatsapp' && IS_PRODUCTION)).map((p) => {
             const s = statuses[p.id];
             const linked = s?.linked ?? false;
             const isBusy = disconnecting === p.id || connecting === p.id;
