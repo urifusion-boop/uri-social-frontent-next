@@ -12,6 +12,7 @@ const TYPE_META: Record<string, { icon: string; color: string; bg: string; label
   content_created: { icon: '✨', color: '#7C3AED', bg: 'rgba(124,58,237,.06)', label: 'Content Ready' },
   content_posted: { icon: '🚀', color: '#059669', bg: 'rgba(5,150,105,.06)', label: 'Published' },
   post_failed: { icon: '⚠️', color: '#DC2626', bg: 'rgba(220,38,38,.06)', label: 'Post failed' },
+  inbox_needs_reply: { icon: '💬', color: '#C2185B', bg: 'rgba(194,24,91,.06)', label: 'Customer waiting' },
   daily_suggestion: { icon: '💡', color: '#D97706', bg: 'rgba(217,119,6,.06)', label: 'Suggestion' },
   inactivity: { icon: '🔔', color: '#6366F1', bg: 'rgba(99,102,241,.06)', label: 'Reminder' },
   trial_start: { icon: '🎉', color: '#C2185B', bg: 'rgba(194,24,91,.06)', label: 'Trial Started' },
@@ -85,6 +86,9 @@ export default function NotificationBell({
       setOpen(false);
       // An expired login is fixed in Connected Accounts; anything else, on the post itself.
       router.push(n.metadata?.reconnect ? '/workspace/?tab=connections' : '/workspace/?tab=content');
+    } else if (n.type === 'inbox_needs_reply') {
+      setOpen(false);
+      router.push('/workspace/?tab=messages');
     } else if (n.type === 'content_posted') {
       setOpen(false);
       router.push('/workspace/?tab=content');

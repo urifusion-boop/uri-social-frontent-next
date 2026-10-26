@@ -1,5 +1,6 @@
 'use client';
 
+import { GrowthPanel } from '@/src/components/app/workspace/growth/GrowthPanel';
 import { CalendarPlus, Check, MapPin, Music2, Pencil, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -235,7 +236,7 @@ export default function CampaignsPage({
 }: CampaignsPageProps) {
   const isMobile = useIsMobile();
   const [railOpen, setRailOpen] = useState(false);
-  const [tab, setTab] = useState<'chat' | 'home' | 'manage' | 'wallet' | 'billing'>('chat');
+  const [tab, setTab] = useState<'chat' | 'home' | 'manage' | 'growth' | 'wallet' | 'billing'>('chat');
   const [isAdmin, setIsAdmin] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([makeGreeting()]);
   // Mirrors `messages` for the rare case a handler needs to read the CURRENT
@@ -346,15 +347,16 @@ export default function CampaignsPage({
   // turn's choice). Cleared only when a fresh conversation starts — NOT when the client
   // answers a question mid-way (picking a plan card, typing an audience), or the very
   // next request builds the creative with no platform preference and Jane falls back to Meta.
-  const preferredPlatformRef = useRef<'' | 'tiktok'>('');
-  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'tiktok'>('');
-  const setPreferredPlatform = (v: '' | 'tiktok') => {
+  const preferredPlatformRef = useRef<'' | 'meta' | 'tiktok'>('');
+  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'meta' | 'tiktok'>('');
+  const setPreferredPlatform = (v: '' | 'meta' | 'tiktok') => {
     preferredPlatformRef.current = v;
     setPreferredPlatformUi(v);
   };
   // What a TikTok campaign must say on EVERY plan request, and nothing at all otherwise —
   // so every Meta request is byte-for-byte what it was before.
   const tiktokPlatformFields = (attached: SelectedMedia | null) => {
+    if (preferredPlatformRef.current === 'meta') return { preferred_platform: 'meta' as const };
     if (preferredPlatformRef.current !== 'tiktok') return {};
     const photos =
       attached?.source === 'upload' && !attached.isVideo && carouselExtraUrls.length > 0
@@ -1500,6 +1502,7 @@ export default function CampaignsPage({
               ['chat', 'Create with Jane'],
               ['home', 'Home'],
               ['manage', 'Campaign Manager'],
+              ['growth', 'Growth'],
               ['wallet', 'Wallet'],
               ...(isAdmin ? [['billing', 'Revenue'] as const] : []),
             ] as const
@@ -2155,6 +2158,8 @@ export default function CampaignsPage({
             else onNavigate?.(surface);
           }}
         />
+      ) : tab === 'growth' ? (
+        <GrowthPanel isMobile={isMobile} />
       ) : tab === 'wallet' ? (
         <WalletTab wallet={wallet} loading={loadingWallet} onFunded={loadWallet} />
       ) : (
@@ -4349,14 +4354,20 @@ function TotalCard({ label, value, accent }: { label: string; value: string; acc
   );
 }
 
-type PlatformChoice = { value: '' | 'tiktok'; label: string; hint: string; placeholder: string };
+type PlatformChoice = { value: '' | 'meta' | 'tiktok'; label: string; hint: string; placeholder: string };
 
 const PLATFORM_CHOICES: PlatformChoice[] = [
   {
     value: '',
     label: 'Jane picks',
-    hint: 'Jane chooses where this runs — usually Instagram & Facebook. The plan shows which before anything launches.',
+    hint: 'Jane chooses between Instagram & Facebook and TikTok for you. The plan shows which before anything launches.',
     placeholder: 'Tell Jane what you want to promote…',
+  },
+  {
+    value: 'meta',
+    label: 'Instagram & Facebook',
+    hint: 'This campaign will run on Instagram and Facebook (Meta). A photo or a video works, and people can message you on WhatsApp, Instagram or Messenger.',
+    placeholder: 'Tell Jane what to promote on Instagram & Facebook…',
   },
   {
     value: 'tiktok',
@@ -4405,7 +4416,8 @@ function formatEnds(endsAt: string | null | undefined) {
     : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const _TOGGLABLE_STATUSES = new Set(['active', 'paused']);
+// 'ad paused' = the campaign is on but its ads are off; resuming turns them back on.
+const _TOGGLABLE_STATUSES = new Set(['active', 'paused', 'ad paused']);
 
 function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void }) {
   const [working, setWorking] = useState(false);

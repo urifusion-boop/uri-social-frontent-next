@@ -566,7 +566,7 @@ export class CampaignService {
     // "" (default/omitted) keeps today's behaviour exactly as-is. "tiktok" asks for
     // TikTok specifically; the backend returns a tiktok_not_configured or
     // tiktok_needs_video early_return if that can't be honoured right now.
-    preferred_platform?: '' | 'tiktok';
+    preferred_platform?: '' | 'meta' | 'tiktok';
     // TikTok Carousel Ads (2+ photos, no video) — additive, TikTok-only. TikTok has
     // no single-static-image ad unit at all (video or Carousel Ads only), so this is
     // how a photo-only business reaches TikTok without shooting a video. Ignored

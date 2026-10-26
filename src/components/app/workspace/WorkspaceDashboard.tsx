@@ -68,6 +68,7 @@ import SubmagicProductionForm from '@/src/components/app/workspace/SubmagicProdu
 import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductionForm';
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
+import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import BusinessPulsePanel from '@/src/components/app/workspace/BusinessPulsePanel';
 import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
@@ -10083,7 +10084,12 @@ const getNav = (isAdminUser: boolean, isSupportUser: boolean) => {
       label: 'Workspace',
       tooltip: "Your AI command centre — chat with URI Agent and see today's briefing",
     },
-    // { id: 'messages', icon: 'inbox', label: 'Customer Messages', count: 0 },
+    {
+      id: 'messages',
+      icon: 'inbox',
+      label: 'Customer Messages',
+      tooltip: 'Reply to DMs and comments across Instagram, Facebook, WhatsApp and TikTok — all in one inbox',
+    },
     {
       id: 'schedule',
       icon: 'calendar',
@@ -10599,7 +10605,6 @@ export default function WorkspaceDashboard() {
     .toUpperCase();
 
   const PAGES: Record<string, ReactNode> = {
-    messages: <MessagesPage onJane={goWorkspace} />,
     schedule: (
       <ContentManagerPage
         onJane={goWorkspace}
@@ -10613,6 +10618,7 @@ export default function WorkspaceDashboard() {
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
+    messages: <InboxDashboard isMobile={isMobile} />,
     campaigns: <CampaignsPage onJane={goWorkspace} onNavigate={goTo} />,
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,
