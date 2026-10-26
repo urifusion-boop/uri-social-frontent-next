@@ -17,20 +17,13 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  CampaignService,
-  type BucketView,
-  type CampaignRecord,
-  type DigestView,
-} from '@/src/api/CampaignService';
+import { CampaignService, type BucketView, type CampaignRecord, type DigestView } from '@/src/api/CampaignService';
 
 const PINK = '#C2185B';
 const AMBER = '#a15c00';
 
-const naira = (n: number | null | undefined) =>
-  typeof n === 'number' ? `₦${Math.round(n).toLocaleString()}` : '—';
-const pct = (n: number | null | undefined) =>
-  typeof n === 'number' ? `${Math.round(n * 100)}%` : '—';
+const naira = (n: number | null | undefined) => (typeof n === 'number' ? `₦${Math.round(n).toLocaleString()}` : '—');
+const pct = (n: number | null | undefined) => (typeof n === 'number' ? `${Math.round(n * 100)}%` : '—');
 
 /** What a sample size licenses (§2.4) — always shown, never implied. */
 function ThresholdBadge({ state, campaigns }: { state: string; campaigns: number }) {
@@ -74,7 +67,10 @@ export default function RecordsPanel() {
 
   useEffect(() => {
     if (tab === 'records') loadRecords();
-    if (tab === 'digest') CampaignService.getDigest().then(setDigest).catch(() => setDigest(null));
+    if (tab === 'digest')
+      CampaignService.getDigest()
+        .then(setDigest)
+        .catch(() => setDigest(null));
   }, [tab, loadRecords]);
 
   const loadBucket = async () => {
@@ -118,7 +114,7 @@ export default function RecordsPanel() {
         ))}
         <div style={{ flex: 1 }} />
         <button type="button" onClick={backfill} disabled={backfilling} style={ghostBtn}>
-          {backfilling ? 'Pulling…' : 'Pull results from Meta'}
+          {backfilling ? 'Pulling…' : 'Pull results from the ad platform'}
         </button>
       </div>
 
@@ -129,8 +125,8 @@ export default function RecordsPanel() {
         <>
           {records.length === 0 && !loading && (
             <div style={muted}>
-              No records yet. One is written for every campaign launched from now on —
-              campaigns that ran before this shipped cannot get one.
+              No records yet. One is written for every campaign launched from now on — campaigns that ran before this
+              shipped cannot get one.
             </div>
           )}
           {records.map((r) => (
@@ -144,8 +140,8 @@ export default function RecordsPanel() {
                 </span>
               </div>
               <div style={{ fontSize: 11.5, color: '#666', marginTop: 3 }}>
-                {naira(r.budget?.stated_ngn)} · {r.context?.budget_tier} ·{' '}
-                {r.strategy?.plans_generated?.length || 0} plans generated
+                {naira(r.budget?.stated_ngn)} · {r.context?.budget_tier} · {r.strategy?.plans_generated?.length || 0}{' '}
+                plans generated
                 {r.strategy?.recommendation_diverged && (
                   <span style={{ color: AMBER }}> · client overrode the recommendation</span>
                 )}
@@ -183,7 +179,9 @@ export default function RecordsPanel() {
 
       {tab === 'digest' && digest && (
         <section style={card}>
-          <div style={label}>Last {digest.window_days} days · {digest.campaigns} campaigns</div>
+          <div style={label}>
+            Last {digest.window_days} days · {digest.campaigns} campaigns
+          </div>
           {digest.items.length === 0 ? (
             // §4.3 — a digest that fires regardless of whether anything happened gets
             // ignored within a month. Nothing to report IS the report.
@@ -212,8 +210,8 @@ function RecordDetail({ record, onBack }: { record: CampaignRecord; onBack: () =
       <section style={card}>
         <div style={label}>Where the money went</div>
         <div style={{ fontSize: 13, marginTop: 4 }}>
-          {naira(record.budget?.stated_ngn)} stated → {naira(record.budget?.effective_spend_ngn)} of
-          ads + {naira(record.budget?.service_fee_ngn)} fee · {record.budget?.duration_days} days
+          {naira(record.budget?.stated_ngn)} stated → {naira(record.budget?.effective_spend_ngn)} of ads +{' '}
+          {naira(record.budget?.service_fee_ngn)} fee · {record.budget?.duration_days} days
         </div>
       </section>
 
@@ -229,8 +227,7 @@ function RecordDetail({ record, onBack }: { record: CampaignRecord; onBack: () =
         <div style={label}>Plans she generated</div>
         {(s.plans_generated || []).length === 0 ? (
           <div style={muted}>
-            No variant picker was shown for this campaign, so there were no alternatives
-            to reject.
+            No variant picker was shown for this campaign, so there were no alternatives to reject.
           </div>
         ) : (
           (s.plans_generated || []).map((p) => {
@@ -247,8 +244,7 @@ function RecordDetail({ record, onBack }: { record: CampaignRecord; onBack: () =
         )}
         {s.recommendation_diverged && (
           <div style={{ fontSize: 11.5, color: AMBER, marginTop: 10 }}>
-            The client did not take the recommendation — the clearest signal that the
-            ranking disagrees with them.
+            The client did not take the recommendation — the clearest signal that the ranking disagrees with them.
           </div>
         )}
       </section>
@@ -274,8 +270,8 @@ function RecordDetail({ record, onBack }: { record: CampaignRecord; onBack: () =
           </pre>
         ) : (
           <div style={muted}>
-            Not pulled yet — use “Pull results from Meta”. Results are recoverable at any
-            time; the decisions above are not, which is why they are captured live.
+            Not pulled yet — use “Pull results from the ad platform”. Results are recoverable at any time; the decisions
+            above are not, which is why they are captured live.
           </div>
         )}
       </section>
@@ -312,7 +308,10 @@ function BucketDetail({ view }: { view: BucketView }) {
           </div>
         ) : (
           c.rows.map((r) => (
-            <div key={r.value} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 6 }}>
+            <div
+              key={r.value}
+              style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginTop: 6 }}
+            >
               <span>
                 {r.value}{' '}
                 <span style={{ color: '#888' }}>
@@ -339,32 +338,66 @@ function Line({ k, v }: { k: string; v: string }) {
 }
 
 const card: React.CSSProperties = {
-  background: '#fff', border: '1px solid #ece8e5', borderRadius: 12,
-  padding: '14px 16px', marginBottom: 12,
+  background: '#fff',
+  border: '1px solid #ece8e5',
+  borderRadius: 12,
+  padding: '14px 16px',
+  marginBottom: 12,
 };
 const label: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.4,
+  fontSize: 11,
+  fontWeight: 700,
+  color: '#888',
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
 };
 const muted: React.CSSProperties = { fontSize: 12.5, color: '#777', marginTop: 6, lineHeight: 1.55 };
 const btn: React.CSSProperties = {
-  background: PINK, color: '#fff', border: 'none', borderRadius: 20,
-  padding: '8px 16px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+  background: PINK,
+  color: '#fff',
+  border: 'none',
+  borderRadius: 20,
+  padding: '8px 16px',
+  fontSize: 12.5,
+  fontWeight: 600,
+  cursor: 'pointer',
 };
 const ghostBtn: React.CSSProperties = {
-  background: '#fff', color: '#555', border: '1px solid #e0dcd9', borderRadius: 16,
-  padding: '6px 14px', fontSize: 12, cursor: 'pointer', marginBottom: 10,
+  background: '#fff',
+  color: '#555',
+  border: '1px solid #e0dcd9',
+  borderRadius: 16,
+  padding: '6px 14px',
+  fontSize: 12,
+  cursor: 'pointer',
+  marginBottom: 10,
 };
 const rowBtn: React.CSSProperties = {
-  display: 'block', width: '100%', textAlign: 'left', background: '#fff',
-  border: '1px solid #ece8e5', borderRadius: 10, padding: '10px 12px',
-  marginBottom: 8, cursor: 'pointer',
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  background: '#fff',
+  border: '1px solid #ece8e5',
+  borderRadius: 10,
+  padding: '10px 12px',
+  marginBottom: 8,
+  cursor: 'pointer',
 };
 const input: React.CSSProperties = {
-  border: '1.5px solid #e0e0e0', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, flex: 1, minWidth: 140,
+  border: '1.5px solid #e0e0e0',
+  borderRadius: 8,
+  padding: '8px 12px',
+  fontSize: 12.5,
+  flex: 1,
+  minWidth: 140,
 };
 const tabBtn = (active: boolean): React.CSSProperties => ({
   background: active ? '#fff' : 'transparent',
   color: active ? PINK : '#888',
   border: active ? '1px solid #ece8e5' : '1px solid transparent',
-  borderRadius: 8, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+  borderRadius: 8,
+  padding: '7px 14px',
+  fontSize: 12.5,
+  fontWeight: 600,
+  cursor: 'pointer',
 });

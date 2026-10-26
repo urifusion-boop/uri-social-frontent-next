@@ -51,7 +51,7 @@ export function GrowthCampaign({
       );
       await load();
     } catch (e) {
-      setError(errorText(e, "Couldn't refresh from Meta."));
+      setError(errorText(e, "Couldn't refresh from the ad platform."));
     }
     setBusy('');
   }
@@ -64,10 +64,10 @@ export function GrowthCampaign({
         const a = await GrowthService.approve(rec.id);
         setNotice(
           a.status === 'executed'
-            ? 'Done, and confirmed with Meta.'
+            ? 'Done, and confirmed with the ad platform.'
             : a.status === 'unverified'
-              ? 'Sent to Meta, but it hasn’t confirmed the change yet.'
-              : `Meta refused the change: ${a.error ?? 'unknown error'}`
+              ? 'Sent to the ad platform, but it hasn’t confirmed the change yet.'
+              : `The ad platform refused the change: ${a.error ?? 'unknown error'}`
         );
       } else {
         await GrowthService.decide(rec.id, kind);
@@ -97,7 +97,7 @@ export function GrowthCampaign({
         <div style={{ fontWeight: 800, fontSize: 16, color: '#1a1a1a', flex: 1 }}>{data.name}</div>
         <span style={{ fontSize: 11.5, color: data.health.last_error ? '#C62828' : '#999' }}>
           {data.health.last_error
-            ? `Meta data failed: ${data.health.last_error}`
+            ? `Ad platform data failed: ${data.health.last_error}`
             : `Updated ${ago(data.health.last_updated)}`}
         </span>
         <Btn small kind="secondary" onClick={refresh} disabled={busy !== ''}>
@@ -107,7 +107,7 @@ export function GrowthCampaign({
       {notice && <div style={{ fontSize: 12.5, color: '#1B5E20' }}>{notice}</div>}
       {error && <div style={{ fontSize: 12.5, color: '#C62828' }}>{error}</div>}
 
-      <Card title="Campaign health" desc={`Last 28 days · ${data.health.attribution} · source: Meta Insights`}>
+      <Card title="Campaign health" desc={`Last 28 days · ${data.health.attribution} · source: ad platform insights`}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
           {[
             ['Spent', naira(t.spend_ngn)],
@@ -403,10 +403,10 @@ function ChangePanel({
       const a = await GrowthService.change(data.campaign_id, action, params);
       onNotice(
         a.status === 'executed'
-          ? `${a.requested_change} — confirmed on Meta, live now.`
+          ? `${a.requested_change} — confirmed on the ad platform, live now.`
           : a.status === 'unverified'
-            ? `${a.requested_change} — sent to Meta, not confirmed yet.`
-            : `Meta refused: ${a.error ?? 'unknown error'}`
+            ? `${a.requested_change} — sent to the ad platform, not confirmed yet.`
+            : `The ad platform refused: ${a.error ?? 'unknown error'}`
       );
       await onChanged();
     } catch (e) {
@@ -418,10 +418,12 @@ function ChangePanel({
   return (
     <Card
       title="Make a change"
-      desc="Changes apply to the live campaign on Meta, are read back to confirm, and appear in History where you can undo them."
+      desc="Changes apply to the live campaign, are read back to confirm, and appear in History where you can undo them."
     >
       {c.error && (
-        <div style={{ fontSize: 12.5, color: '#C62828' }}>Couldn’t read the campaign from Meta: {c.error}</div>
+        <div style={{ fontSize: 12.5, color: '#C62828' }}>
+          Couldn’t read the campaign from the ad platform: {c.error}
+        </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13 }}>
         <strong>Campaign</strong>
@@ -463,7 +465,8 @@ function ChangePanel({
         )}
       </div>
       <div style={{ fontSize: 11.5, color: tooLow ? '#C62828' : '#999', marginTop: -6 }}>
-        Minimum {naira(minBudget)} a day — below that the ad barely delivers, and Meta refuses budgets this low.
+        Minimum {naira(minBudget)} a day — below that the ad barely delivers, and the ad platform refuses budgets this
+        low.
       </div>
       {c.ads.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

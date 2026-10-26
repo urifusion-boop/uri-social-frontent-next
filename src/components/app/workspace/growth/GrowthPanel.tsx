@@ -188,7 +188,7 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
                 {c.budget_used !== null && <span>Budget used {pct(c.budget_used, 0)}</span>}
               </div>
               <div style={{ fontSize: 11, color: c.last_error ? '#C62828' : '#999' }}>
-                {c.last_error ? `Meta data failed: ${c.last_error}` : `Updated ${ago(c.last_updated)}`}
+                {c.last_error ? `Ad platform data failed: ${c.last_error}` : `Updated ${ago(c.last_updated)}`}
               </div>
             </button>
           ))}

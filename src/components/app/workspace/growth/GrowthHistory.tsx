@@ -51,7 +51,7 @@ export function GrowthHistory({ canChange }: { canChange: boolean }) {
   return (
     <Card
       title="Optimization history"
-      desc="Every change to your campaigns: who made it, what Meta reported before and after, and the measured result. Results are associations, not proof."
+      desc="Every change to your campaigns: who made it, what the ad platform reported before and after, and the measured result. Results are associations, not proof."
     >
       {error && <div style={{ color: '#C62828', fontSize: 12.5 }}>{error}</div>}
       {actions.length === 0 && <div style={{ fontSize: 12.5, color: '#999' }}>No changes yet.</div>}

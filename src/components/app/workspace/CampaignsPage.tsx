@@ -2206,6 +2206,7 @@ export default function CampaignsPage({
                     <button
                       key={c.value || 'auto'}
                       type="button"
+                      data-testid={`platform-chip-${c.value || 'auto'}`}
                       aria-pressed={on}
                       onClick={() => setPreferredPlatform(c.value)}
                       title={c.hint}
@@ -4679,7 +4680,10 @@ const platformChoice = (v: string) => PLATFORM_CHOICES.find((c) => c.value === v
 function runsOnLabel(platform?: string, googlePlacement?: string): string {
   if (platform === 'google') return placementLabel(googlePlacement);
   if (platform === 'tiktok') return 'TikTok';
-  return 'Instagram & Facebook';
+  // Only an explicit meta plan reads as Instagram & Facebook — a plan with no platform
+  // must not be mistaken for a Meta one (it showed on TikTok plans before).
+  if (platform === 'meta') return 'Instagram & Facebook';
+  return 'your chosen platform';
 }
 
 const _STATUS_STYLES: Record<string, { bg: string; color: string }> = {
@@ -4868,7 +4872,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
                   ? 'Running on TikTok'
                   : c.platform === 'google'
                     ? `Running on ${placementLabel(c.placement)}`
-                    : 'Running on Meta (Facebook/Instagram)'
+                    : c.platform === 'meta'
+                      ? 'Running on Meta (Facebook/Instagram)'
+                      : 'Running on your chosen platform'
               }
               style={{
                 fontSize: 10.5,
@@ -4891,8 +4897,10 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
                 </>
               ) : c.platform === 'google' ? (
                 'Google'
-              ) : (
+              ) : c.platform === 'meta' ? (
                 'Meta'
+              ) : (
+                'Ads'
               )}
             </span>
           </div>
@@ -4954,7 +4962,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
             const label =
               dest === 'website'
                 ? '🌐 Taps open your website'
-                : dest === 'instagram_dm'
+                : dest === 'instagram_dm' && c.platform !== 'tiktok'
                   ? '📩 Taps land in your Instagram DMs'
                   : '🔗 Taps open your link';
             return (
@@ -5016,7 +5024,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
             >
               {c.platform === 'google'
                 ? 'View in Google Ads →'
-                : `View in ${c.platform === 'tiktok' ? 'TikTok' : 'Meta'} Ads Manager →`}
+                : `View in ${c.platform === 'tiktok' ? 'TikTok' : c.platform === 'meta' ? 'Meta' : 'your'} Ads Manager →`}
             </a>
           )}
         </div>
