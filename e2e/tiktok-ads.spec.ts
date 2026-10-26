@@ -52,6 +52,7 @@ const TIKTOK_PLAN = {
     behaviour: 'discover',
     explanation: 'Short video fits how your customers scroll.',
     platforms: [{ platform: 'tiktok', budget_ngn: 20000, days: 7, variants: 1, test_scope: 'none' }],
+    geo: { pins: [{ name: 'Victoria Island' }, { name: 'Lekki' }] },
   },
   creative: {
     image_url:
@@ -85,6 +86,11 @@ const TIKTOK_CAMPAIGN = {
   metrics: null,
 };
 
+const PLAN_FIELDS = [
+  { key: 'budget', label: 'Budget', type: 'number', value: 20000, editable: true },
+  { key: 'locations', label: 'Locations', type: 'list', value: ['Victoria Island', 'Lekki'], editable: true },
+];
+
 type MockOpts = {
   planResponse?: Record<string, unknown>;
   planBodies?: Record<string, unknown>[];
@@ -107,6 +113,9 @@ async function mockApi(page: Page, opts: MockOpts = {}) {
           objectives: [{ value: 'engagement', label: 'Engagement', blurb: 'Get people messaging you.', caveat: '' }],
         },
       });
+    }
+    if (/\/jane-ads\/meta\/plan\/[^/]+\/fields$/.test(path)) {
+      return route.fulfill({ json: { plan_id: 'plan_tt', fields: PLAN_FIELDS } });
     }
     if (path.includes('/plan-from-message')) {
       opts.planBodies?.push(route.request().postDataJSON());
@@ -200,6 +209,34 @@ test.describe('TikTok ads — mocked', () => {
 
     await expect(page.locator('body')).not.toContainText(META_LEAK);
     expect(facebookConnect).toEqual([]);
+  });
+
+  test('a TikTok plan hides its locations, a Meta plan keeps them', async ({ page }) => {
+    const metaPlan = {
+      ...TIKTOK_PLAN,
+      plan: { ...TIKTOK_PLAN.plan, platforms: [{ ...TIKTOK_PLAN.plan.platforms[0], platform: 'meta' }] },
+    };
+    // First a TikTok plan: neither the review row nor the area chip may show.
+    await mockApi(page);
+    await openCampaigns(page);
+    await chooseTikTokAndSend(page, 'get me WhatsApp messages for my restaurant, budget 20000');
+    await expect(page.getByText('Check the ad before it goes live')).toBeVisible();
+    await expect(page.getByText('Budget', { exact: true })).toBeVisible();
+    await expect(page.getByText('Locations', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Victoria Island')).toHaveCount(0);
+
+    // Then the same screen for a Meta plan, which must be untouched.
+    await page.unroute(/\/(jane-ads|api)\//);
+    await mockApi(page, { planResponse: metaPlan });
+    await page
+      .getByRole('button', { name: /New campaign/i })
+      .first()
+      .click();
+    const input = page.getByPlaceholder(/Tell Jane what you want to promote/i);
+    await input.fill('get me WhatsApp messages for my restaurant, budget 20000');
+    await input.press('Enter');
+    await expect(page.getByText('Locations', { exact: true })).toBeVisible();
+    await expect(page.getByText('Victoria Island').first()).toBeVisible();
   });
 
   for (const [stage, expected] of [

@@ -4004,7 +4004,7 @@ function ResultCard({
                 {naira(p.budget_ngn)} · {p.days} {p.days === 1 ? 'day' : 'days'}
               </span>
             ))}
-            {plan?.geo?.pins?.length ? (
+            {plan?.geo?.pins?.length && plan.platforms?.[0]?.platform !== 'tiktok' ? (
               <span
                 style={{
                   fontSize: 11,
@@ -4159,6 +4159,9 @@ function ResultCard({
           {result.stage === 'planned' && result.plan_id && (
             <PlanReviewPanel
               planId={result.plan_id}
+              // TikTok names states and cities, not neighbourhoods, so the pockets Jane
+              // plans on (Ikoyi, Lekki, ...) are not something the client can review here.
+              hiddenFieldKeys={result.plan?.platforms?.[0]?.platform === 'tiktok' ? ['locations'] : undefined}
               onDirtyChange={setUnsavedEdits}
               onSaved={(refreshed) =>
                 onResultChange({

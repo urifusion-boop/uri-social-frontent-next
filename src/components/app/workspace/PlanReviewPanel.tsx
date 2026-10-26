@@ -30,6 +30,9 @@ type Props = {
    * un-edited ad while the panel shows the client's changes. The caller gates the
    * launch button on this. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Field keys to leave off the form (e.g. 'locations' on a TikTok plan). Display only:
+   * the stored plan keeps the field and the launch still uses it. */
+  hiddenFieldKeys?: string[];
 };
 
 const CARD: React.CSSProperties = {
@@ -86,7 +89,7 @@ function parseEdit(field: PlanField, text: string): unknown {
   return text;
 }
 
-export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Props) {
+export default function PlanReviewPanel({ planId, onSaved, onDirtyChange, hiddenFieldKeys }: Props) {
   const [fields, setFields] = useState<PlanField[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -258,143 +261,145 @@ export default function PlanReviewPanel({ planId, onSaved, onDirtyChange }: Prop
         Change anything here and press Save. What you save is exactly what runs.
       </p>
 
-      {fields.map((field) => (
-        <div
-          key={field.key}
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 10,
-            padding: '9px 0',
-            borderTop: '1px solid #f2f2f2',
-          }}
-        >
-          <div style={{ width: 132, flexShrink: 0 }}>
-            <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{field.label}</span>
-          </div>
+      {fields
+        .filter((field) => !hiddenFieldKeys?.includes(field.key))
+        .map((field) => (
+          <div
+            key={field.key}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              padding: '9px 0',
+              borderTop: '1px solid #f2f2f2',
+            }}
+          >
+            <div style={{ width: 132, flexShrink: 0 }}>
+              <span style={{ fontSize: 12, color: '#666', fontWeight: 600 }}>{field.label}</span>
+            </div>
 
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {editing === field.key ? (
-              <div>
-                {field.type === 'select' ? (
-                  <select
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    style={{
-                      width: '100%',
-                      fontSize: 13,
-                      padding: '6px 8px',
-                      borderRadius: 7,
-                      border: '1px solid #ccc',
-                    }}
-                  >
-                    {(field.options || []).map((opt) => (
-                      <option key={opt} value={opt}>
-                        {field.option_labels?.[opt] ?? opt}
-                      </option>
-                    ))}
-                  </select>
-                ) : field.type === 'textarea' ? (
-                  <textarea
-                    value={draft}
-                    maxLength={field.max_length}
-                    onChange={(e) => setDraft(e.target.value)}
-                    rows={3}
-                    style={{
-                      width: '100%',
-                      fontSize: 13,
-                      padding: '6px 8px',
-                      borderRadius: 7,
-                      border: '1px solid #ccc',
-                      resize: 'vertical',
-                    }}
-                  />
-                ) : (
-                  <input
-                    value={draft}
-                    maxLength={field.max_length}
-                    onChange={(e) => setDraft(e.target.value)}
-                    style={{
-                      width: '100%',
-                      fontSize: 13,
-                      padding: '6px 8px',
-                      borderRadius: 7,
-                      border: '1px solid #ccc',
-                    }}
-                  />
-                )}
-                {field.help && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#888' }}>{field.help}</p>}
-                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => stageEdit(field)}
-                    style={{
-                      fontSize: 12,
-                      padding: '4px 10px',
-                      borderRadius: 6,
-                      border: 'none',
-                      background: PINK,
-                      color: '#fff',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Done
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditing(null)}
-                    style={{
-                      fontSize: 12,
-                      padding: '4px 10px',
-                      borderRadius: 6,
-                      border: '1px solid #ddd',
-                      background: '#fff',
-                      color: '#555',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {editing === field.key ? (
+                <div>
+                  {field.type === 'select' ? (
+                    <select
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      style={{
+                        width: '100%',
+                        fontSize: 13,
+                        padding: '6px 8px',
+                        borderRadius: 7,
+                        border: '1px solid #ccc',
+                      }}
+                    >
+                      {(field.options || []).map((opt) => (
+                        <option key={opt} value={opt}>
+                          {field.option_labels?.[opt] ?? opt}
+                        </option>
+                      ))}
+                    </select>
+                  ) : field.type === 'textarea' ? (
+                    <textarea
+                      value={draft}
+                      maxLength={field.max_length}
+                      onChange={(e) => setDraft(e.target.value)}
+                      rows={3}
+                      style={{
+                        width: '100%',
+                        fontSize: 13,
+                        padding: '6px 8px',
+                        borderRadius: 7,
+                        border: '1px solid #ccc',
+                        resize: 'vertical',
+                      }}
+                    />
+                  ) : (
+                    <input
+                      value={draft}
+                      maxLength={field.max_length}
+                      onChange={(e) => setDraft(e.target.value)}
+                      style={{
+                        width: '100%',
+                        fontSize: 13,
+                        padding: '6px 8px',
+                        borderRadius: 7,
+                        border: '1px solid #ccc',
+                      }}
+                    />
+                  )}
+                  {field.help && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#888' }}>{field.help}</p>}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => stageEdit(field)}
+                      style={{
+                        fontSize: 12,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: PINK,
+                        color: '#fff',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Done
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditing(null)}
+                      style={{
+                        fontSize: 12,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #ddd',
+                        background: '#fff',
+                        color: '#555',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <span
-                style={{
-                  fontSize: 13,
-                  color: field.editable ? '#222' : '#888',
-                  wordBreak: 'break-word',
-                }}
-              >
-                {displayValue(field)}
-                {pending[field.key] !== undefined && (
-                  <em style={{ marginLeft: 6, fontSize: 11, color: '#a15c00', fontStyle: 'normal' }}>unsaved</em>
-                )}
-              </span>
-            )}
-          </div>
+              ) : (
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: field.editable ? '#222' : '#888',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {displayValue(field)}
+                  {pending[field.key] !== undefined && (
+                    <em style={{ marginLeft: 6, fontSize: 11, color: '#a15c00', fontStyle: 'normal' }}>unsaved</em>
+                  )}
+                </span>
+              )}
+            </div>
 
-          <div style={{ width: 26, flexShrink: 0, textAlign: 'right' }}>
-            {field.editable && editing !== field.key && (
-              <button
-                type="button"
-                aria-label={`Edit ${field.label}`}
-                title={`Edit ${field.label}`}
-                onClick={() => startEdit(field)}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  padding: 2,
-                  color: '#888',
-                }}
-              >
-                <Pencil size={13} strokeWidth={2} />
-              </button>
-            )}
+            <div style={{ width: 26, flexShrink: 0, textAlign: 'right' }}>
+              {field.editable && editing !== field.key && (
+                <button
+                  type="button"
+                  aria-label={`Edit ${field.label}`}
+                  title={`Edit ${field.label}`}
+                  onClick={() => startEdit(field)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    padding: 2,
+                    color: '#888',
+                  }}
+                >
+                  <Pencil size={13} strokeWidth={2} />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
 
       {rejected.length > 0 && (
         <div
