@@ -183,6 +183,9 @@ test.describe('TikTok ads — mocked', () => {
 
     await page.getByTestId('platform-chip-tiktok').click();
     await expect(page.getByText(/This campaign will run on TikTok/i)).toBeVisible();
+    // The client is told what budget TikTok accepts before they type one.
+    await expect(page.getByText(/at least ₦31,000/)).toBeVisible();
+    await expect(page.getByText(/up to 7 days \(₦217,000\)/)).toBeVisible();
     expect(objectivePlatforms).toContain('tiktok');
 
     const input = page.getByPlaceholder(/Tell Jane what to promote on TikTok/i);
@@ -195,6 +198,17 @@ test.describe('TikTok ads — mocked', () => {
     await expect.poll(() => planBodies.length).toBeGreaterThanOrEqual(2);
 
     for (const body of planBodies) expect(body.preferred_platform).toBe('tiktok');
+  });
+
+  test('the budget guidance appears only for TikTok, never under "Jane picks"', async ({ page }) => {
+    await mockApi(page);
+    await openCampaigns(page);
+
+    await expect(page.getByText(/at least ₦31,000/)).toHaveCount(0);
+    await page.getByTestId('platform-chip-tiktok').click();
+    await expect(page.getByText(/at least ₦31,000/)).toBeVisible();
+    await page.getByTestId('platform-chip-auto').click();
+    await expect(page.getByText(/at least ₦31,000/)).toHaveCount(0);
   });
 
   test('a TikTok plan reads TikTok everywhere and never Instagram, Facebook or Meta', async ({ page }) => {
