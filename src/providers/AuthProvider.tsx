@@ -148,6 +148,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isAuthenticated, isPending, refreshCreditBalance, refreshTrialStatus]);
 
+  // Live-reported bug: an admin tops a user up with credits (outside the
+  // normal purchase flow — a manual/offline payment), but the "trial
+  // ended"/"out of credits" screen kept showing for weeks afterward. The
+  // only things that ever refreshed this were login, visiting Billing, or
+  // the user's OWN credit-consuming action — nothing ever told an
+  // already-open tab that an admin changed their balance server-side. This
+  // polls every few minutes while the app is open and authenticated, so a
+  // change made elsewhere is picked up on its own, without the person
+  // needing to log out, visit Billing, or be told to refresh.
+  useEffect(() => {
+    if (!isAuthenticated || isPending) return;
+    const id = setInterval(
+      () => {
+        refreshCreditBalance();
+        refreshTrialStatus();
+      },
+      3 * 60 * 1000
+    );
+    return () => clearInterval(id);
+  }, [isAuthenticated, isPending, refreshCreditBalance, refreshTrialStatus]);
+
   // Resolve admin status against the backend on the same auth-transition —
   // infrequent enough (unlike credits/trial) that it doesn't need the 60s
   // poll below, just a correct answer once the session is live.
