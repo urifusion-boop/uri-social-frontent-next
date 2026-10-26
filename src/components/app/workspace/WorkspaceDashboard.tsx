@@ -1,5 +1,6 @@
 'use client';
 
+import { IS_PRODUCTION } from '@/src/configs/env.config';
 import posthog from 'posthog-js';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BrandKeyDate, BrandProfileData, BrandProfileService, CustomFontEntry } from '@/src/api/BrandProfileService';
@@ -3739,7 +3740,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {PLATFORMS.map((p) => {
+          {/* WhatsApp connect isn't in use right now — hidden in production only,
+             left visible in dev/staging so it can still be tested there. */}
+          {PLATFORMS.filter((p) => !(p.id === 'whatsapp' && IS_PRODUCTION)).map((p) => {
             const s = statuses[p.id];
             const linked = s?.linked ?? false;
             const isBusy = disconnecting === p.id || connecting === p.id;
