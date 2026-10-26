@@ -4001,7 +4001,7 @@ function ResultCard({
                   color: PINK,
                 }}
               >
-                {naira(p.budget_ngn)} · {p.days} days
+                {naira(p.budget_ngn)} · {p.days} {p.days === 1 ? 'day' : 'days'}
               </span>
             ))}
             {plan?.geo?.pins?.length ? (
