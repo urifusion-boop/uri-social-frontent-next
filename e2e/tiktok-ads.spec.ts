@@ -268,6 +268,65 @@ test.describe('TikTok ads — mocked', () => {
     await expect(page.getByText(/Taps open your link/i)).toBeVisible();
   });
 
+  test('a TikTok campaign that is on but not delivering says so, and can still be paused', async ({ page }) => {
+    // Live 2026-10-26: TikTok Ads Manager said "Not delivered" (ad in review) while the
+    // card said ACTIVE, because only the on/off flag was read.
+    const note = "TikTok is reviewing this ad. It starts delivering once it's approved.";
+    await mockApi(page, {
+      campaigns: [
+        {
+          ...TIKTOK_CAMPAIGN,
+          status: 'active',
+          serving_note: note,
+          metrics: {
+            spend_ngn: 0,
+            conversations: 0,
+            cost_per_conversation_ngn: null,
+            impressions: 0,
+            reach: 0,
+            delivery: 'Active',
+            delivery_display: 'In review',
+            ends_at: null,
+          },
+        },
+      ],
+    });
+    await openCampaigns(page);
+    await page.getByRole('button', { name: /Campaign Manager/i }).click();
+
+    await expect(page.getByText('In review', { exact: true })).toBeVisible();
+    await expect(page.getByText(note)).toBeVisible();
+    // Still switched on underneath, so the client can switch it off.
+    await expect(page.getByTitle('Pause')).toBeVisible();
+    await expect(page.getByTitle('Activate')).toHaveCount(0);
+  });
+
+  test('a delivering TikTok campaign still just says Active', async ({ page }) => {
+    await mockApi(page, {
+      campaigns: [
+        {
+          ...TIKTOK_CAMPAIGN,
+          status: 'active',
+          metrics: {
+            spend_ngn: 4000,
+            conversations: 3,
+            cost_per_conversation_ngn: 1333,
+            impressions: 900,
+            reach: 700,
+            delivery: 'Active',
+            ends_at: null,
+          },
+        },
+      ],
+    });
+    await openCampaigns(page);
+    await page.getByRole('button', { name: /Campaign Manager/i }).click();
+
+    await expect(page.getByText('Active', { exact: true })).toBeVisible();
+    await expect(page.getByText('In review')).toHaveCount(0);
+    await expect(page.getByTitle('Pause')).toBeVisible();
+  });
+
   test('targeting and keep-it-running say TikTok on a TikTok campaign', async ({ page }) => {
     await mockApi(page, { campaigns: [TIKTOK_CAMPAIGN] });
     await openCampaigns(page);

@@ -4699,6 +4699,8 @@ const _STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   'needs changes': { bg: '#fdecea', color: '#c62828' },
   'needs attention': { bg: '#fdecea', color: '#c62828' },
   'needs billing info': { bg: '#fdecea', color: '#c62828' },
+  ended: { bg: '#f0eded', color: '#666' },
+  'budget used': { bg: '#f0eded', color: '#666' },
   archived: { bg: '#f0eded', color: '#666' },
   deleted: { bg: '#f0eded', color: '#666' },
   'not managed by uri': { bg: '#f0eded', color: '#666' },
@@ -4737,11 +4739,15 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   // depends on the client noticing a subtle colour change on a round button.
   const [confirmingStart, setConfirmingStart] = useState(false);
   const [justToggled, setJustToggled] = useState<'active' | 'paused' | null>(null);
-  const displayStatus = c.metrics?.delivery || c.status;
+  // The on/off state drives the pause/play button and what can be done to the campaign.
+  // What the BADGE says can differ: a TikTok campaign that is switched on but waiting in
+  // ad review or out of balance is "Active" to the button and "In review" to the client.
+  const baseStatus = c.metrics?.delivery || c.status;
+  const displayStatus = c.metrics?.delivery_display || baseStatus;
   const { bg, color } = statusStyle(displayStatus);
-  const isActive = displayStatus.toLowerCase() === 'active';
-  const canToggle = _TOGGLABLE_STATUSES.has(displayStatus.toLowerCase()) && !!c.campaign_id;
-  const canDelete = displayStatus.toLowerCase() !== 'deleted' && !!c.campaign_id;
+  const isActive = baseStatus.toLowerCase() === 'active';
+  const canToggle = _TOGGLABLE_STATUSES.has(baseStatus.toLowerCase()) && !!c.campaign_id;
+  const canDelete = baseStatus.toLowerCase() !== 'deleted' && !!c.campaign_id;
   const busy = working || deleting;
 
   useEffect(() => {
@@ -4803,7 +4809,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
   // age — see live_edit.py's TikTok-native functions), so this is no longer
   // Meta-only. Only campaigns that exist on the provider can be edited either way.
   // Not for Google Search campaigns yet: changing the audience or the end date isn't supported there.
-  const canEditTargeting = c.platform !== 'google' && !!c.campaign_id && displayStatus.toLowerCase() !== 'deleted';
+  const canEditTargeting = c.platform !== 'google' && !!c.campaign_id && baseStatus.toLowerCase() !== 'deleted';
   const detachedNote = c.detached
     ? 'This brand disconnected that Google Ads account, so URI can no longer pause or track this campaign. Manage it in Google Ads.'
     : '';

@@ -357,6 +357,9 @@ export interface CampaignMetrics {
   impressions: number;
   reach: number;
   delivery: string;
+  /** What the status badge says when it differs from the on/off `delivery` — e.g. "In
+   * review" while `delivery` is "Active". Empty or absent means "same as delivery". */
+  delivery_display?: string;
   ends_at: string | null;
 }
 
