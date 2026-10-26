@@ -4356,6 +4356,16 @@ function TotalCard({ label, value, accent }: { label: string; value: string; acc
 
 type PlatformChoice = { value: '' | 'meta' | 'tiktok'; label: string; hint: string; placeholder: string };
 
+// What TikTok will take as a budget. TikTok's own ad group needs ₦31,000 a day and URI takes
+// no fee on it, so the stated budget is the ad spend: ₦31,000 buys about a day, each further
+// ₦31,000 adds a day up to 7 (₦217,000), and anything bigger is simply spent faster each day.
+// Mirrors the backend's HARD_FLOOR_DAILY_NGN["tiktok"] and MAX_CAMPAIGN_DAYS — change together.
+const TIKTOK_DAILY_FLOOR_NGN = 31_000;
+const TIKTOK_MAX_DAYS = 7;
+const TIKTOK_BUDGET_HINT =
+  `Budget: at least ${naira(TIKTOK_DAILY_FLOOR_NGN)} (about 1 day). Each extra ${naira(TIKTOK_DAILY_FLOOR_NGN)} ` +
+  `adds a day, up to ${TIKTOK_MAX_DAYS} days (${naira(TIKTOK_DAILY_FLOOR_NGN * TIKTOK_MAX_DAYS)}).`;
+
 const PLATFORM_CHOICES: PlatformChoice[] = [
   {
     value: '',
@@ -4372,7 +4382,7 @@ const PLATFORM_CHOICES: PlatformChoice[] = [
   {
     value: 'tiktok',
     label: 'TikTok',
-    hint: 'This campaign will run on TikTok. It needs a video, or 2+ photos as a carousel.',
+    hint: `This campaign will run on TikTok. It needs a video, or 2+ photos as a carousel. ${TIKTOK_BUDGET_HINT}`,
     placeholder: 'Tell Jane what to promote on TikTok…',
   },
 ];
