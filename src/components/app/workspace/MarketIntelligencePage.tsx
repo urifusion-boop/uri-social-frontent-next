@@ -1296,11 +1296,16 @@ function SettingsPanel({
   budget,
   preferences,
   onToggleEmail,
+  onUpdateQuietHours,
+  onToggleUrgentOverride,
 }: {
   budget: BrandBudget | null;
   preferences: MINotificationPreferences | null;
   onToggleEmail: () => void;
+  onUpdateQuietHours: (start: number, end: number) => void;
+  onToggleUrgentOverride: () => void;
 }) {
+  const hourOptions = Array.from({ length: 24 }, (_, h) => h);
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
@@ -1372,16 +1377,60 @@ function SettingsPanel({
                   </div>
                 </div>
                 <div className="rounded-lg border border-border p-2.5">
-                  <div className="text-muted-foreground">Quiet hours</div>
-                  <div className="font-medium text-foreground">
-                    {String(preferences.quiet_hours_start_local).padStart(2, '0')}:00–
-                    {String(preferences.quiet_hours_end_local).padStart(2, '0')}:00
-                  </div>
-                </div>
-                <div className="rounded-lg border border-border p-2.5">
                   <div className="text-muted-foreground">Muted topics</div>
                   <div className="font-medium text-foreground">{preferences.muted_topic_ids.length}</div>
                 </div>
+              </div>
+
+              {/* Quiet hours (PRD §5/§10): alerts from Market Intelligence AND
+                  Listening both check this same preference — editable here
+                  now instead of only ever shown read-only, even though the
+                  backend has always taken an update. */}
+              <div className="rounded-lg border border-border p-2.5">
+                <div className="mb-2 text-[12px] text-muted-foreground">
+                  Quiet hours — no immediate alerts in this window, your local time ({preferences.timezone})
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={preferences.quiet_hours_start_local}
+                    onChange={(e) => onUpdateQuietHours(Number(e.target.value), preferences.quiet_hours_end_local)}
+                    className="h-8 rounded-lg border border-border bg-background px-2 text-[12.5px] text-foreground"
+                    aria-label="Quiet hours start"
+                  >
+                    {hourOptions.map((h) => (
+                      <option key={h} value={h}>
+                        {String(h).padStart(2, '0')}:00
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[12px] text-muted-foreground">to</span>
+                  <select
+                    value={preferences.quiet_hours_end_local}
+                    onChange={(e) => onUpdateQuietHours(preferences.quiet_hours_start_local, Number(e.target.value))}
+                    className="h-8 rounded-lg border border-border bg-background px-2 text-[12.5px] text-foreground"
+                    aria-label="Quiet hours end"
+                  >
+                    {hourOptions.map((h) => (
+                      <option key={h} value={h}>
+                        {String(h).padStart(2, '0')}:00
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label className="mt-2.5 flex cursor-pointer items-center justify-between gap-3 rounded-lg bg-muted/40 p-2">
+                  <div>
+                    <div className="text-[12.5px] font-medium text-foreground">Urgent alerts override quiet hours</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      High-priority, time-sensitive findings reach you even during quiet hours
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={preferences.urgent_override}
+                    onChange={onToggleUrgentOverride}
+                    className="h-4 w-4 shrink-0 accent-primary"
+                  />
+                </label>
               </div>
             </div>
           ) : (
@@ -1739,6 +1788,52 @@ export default function MarketIntelligencePage() {
         setPreferences(res.responseData ?? null);
         ToastService.showToast(
           res.responseData?.email_enabled ? 'Email alerts turned on.' : 'Email alerts turned off.',
+          ToastTypeEnum.Success
+        );
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not update this preference', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not update this preference'), ToastTypeEnum.Error);
+    }
+  };
+
+  // Quiet hours (PRD §5's Business Listening Profile "Operating policy", §10's
+  // delivery fatigue control) used to only be shown read-only here, even
+  // though the backend has always taken an edit — and, since personalize.py's
+  // notify() now checks this exact same preferences document, this is also
+  // the one place that controls Listening's own quiet hours, not just the
+  // older Market Intelligence insights feed.
+  const handleUpdateQuietHours = async (start: number, end: number) => {
+    if (!preferences) return;
+    try {
+      const res = await MarketIntelligenceService.updatePreferences({
+        quiet_hours_start_local: start,
+        quiet_hours_end_local: end,
+      });
+      if (res.status) {
+        setPreferences(res.responseData ?? null);
+        ToastService.showToast('Quiet hours updated.', ToastTypeEnum.Success);
+      } else {
+        ToastService.showToast(res.responseMessage || 'Could not update quiet hours', ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not update quiet hours'), ToastTypeEnum.Error);
+    }
+  };
+
+  const handleToggleUrgentOverride = async () => {
+    if (!preferences) return;
+    try {
+      const res = await MarketIntelligenceService.updatePreferences({
+        urgent_override: !preferences.urgent_override,
+      });
+      if (res.status) {
+        setPreferences(res.responseData ?? null);
+        ToastService.showToast(
+          res.responseData?.urgent_override
+            ? 'Urgent alerts will now reach you even during quiet hours.'
+            : 'Urgent alerts will now wait until quiet hours end.',
           ToastTypeEnum.Success
         );
       } else {
@@ -2133,7 +2228,13 @@ export default function MarketIntelligencePage() {
 
           {activeTab === 'settings' && (
             <div className="space-y-4">
-              <SettingsPanel budget={budget} preferences={preferences} onToggleEmail={handleToggleEmail} />
+              <SettingsPanel
+                budget={budget}
+                preferences={preferences}
+                onToggleEmail={handleToggleEmail}
+                onUpdateQuietHours={handleUpdateQuietHours}
+                onToggleUrgentOverride={handleToggleUrgentOverride}
+              />
               <BusinessContextPanel />
               <AccessControlPanel />
             </div>

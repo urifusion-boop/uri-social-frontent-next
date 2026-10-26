@@ -137,6 +137,17 @@ const SelectEl = ({
   </select>
 );
 
+// PRD §8.1 topic graph "co-occurrence": the topics most often mentioned in
+// the same posts as this one, highest count first — real edges built from
+// actual readings (topics.count()), not inferred or guessed.
+const topRelated = (coOccurs: Record<string, number> | undefined, n = 3): string[] =>
+  coOccurs
+    ? Object.entries(coOccurs)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, n)
+        .map(([key]) => key)
+    : [];
+
 const TOPIC_STATUS_META: Record<TopicStatus, { label: string; className: string }> = {
   observed: { label: 'Observed', className: 'bg-muted text-muted-foreground border-border' },
   candidate: { label: 'Candidate', className: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -305,10 +316,18 @@ function TopicsTab({ markets, market }: { markets: CurationMarket[]; market: str
                   const busy = decidingKey === t.key;
                   const id = `${t.market}:${t.key}`;
                   const isOpen = expanded.has(id);
+                  const related = topRelated(t.co_occurs);
                   return (
                     <React.Fragment key={id}>
                       <TableRow>
-                        <TableCell className="font-medium text-foreground">{t.name || t.key}</TableCell>
+                        <TableCell className="font-medium text-foreground">
+                          {t.name || t.key}
+                          {related.length > 0 && (
+                            <div className="mt-0.5 text-[11px] font-normal text-muted-foreground">
+                              Related: {related.join(', ')}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell className="text-muted-foreground">
                           {markets.find((m) => m.key === t.market)?.label || t.market}
                         </TableCell>
@@ -370,6 +389,7 @@ function TopicsTab({ markets, market }: { markets: CurationMarket[]; market: str
               const busy = decidingKey === t.key;
               const id = `${t.market}:${t.key}`;
               const isOpen = expanded.has(id);
+              const related = topRelated(t.co_occurs);
               return (
                 <Card key={id}>
                   <CardContent className="space-y-2 p-3.5">
@@ -379,6 +399,11 @@ function TopicsTab({ markets, market }: { markets: CurationMarket[]; market: str
                         <div className="truncate text-[11.5px] text-muted-foreground">
                           {markets.find((m) => m.key === t.market)?.label || t.market}
                         </div>
+                        {related.length > 0 && (
+                          <div className="truncate text-[11px] text-muted-foreground">
+                            Related: {related.join(', ')}
+                          </div>
+                        )}
                       </div>
                       <span
                         className={cn(

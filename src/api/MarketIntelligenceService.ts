@@ -318,7 +318,15 @@ export interface AccessGrant {
 const BASE = '/market-intelligence';
 
 // ── Listening Intelligence (market-level listening -> action cards) ─────────
-export type ListeningSignalType = 'rising' | 'spike' | 'emerging' | 'new_entity' | 'recurring_need';
+export type ListeningSignalType =
+  | 'rising'
+  | 'spike'
+  | 'emerging'
+  | 'new_entity'
+  | 'recurring_need'
+  | 'competitor_move'
+  | 'objection_shift'
+  | 'upcoming_development';
 export type ListeningCardAction = 'saved' | 'dismissed' | 'snoozed' | 'acted' | 'created' | 'shown';
 
 export type CreateFromListeningCardResult =
@@ -363,7 +371,7 @@ export interface ListeningCard {
   // the point (see personalize.py's cards_for).
   alternative?: ListeningCardActionBrief | null;
   evidence: {
-    current?: Record<string, number>;
+    current?: Record<string, number | string>;
     baseline?: { median_per_day?: number; days?: number } | null;
     window_start?: string;
     window_end?: string;
@@ -372,6 +380,19 @@ export interface ListeningCard {
     intent_mix?: Record<string, number>;
     source?: string;
     scope_note?: string;
+    // PRD §9.1's relevance breakdown and §10's "why am I seeing this... score
+    // components" — only the two genuinely-computed pieces vary in practice
+    // (ontology_match/geography_fit/exclusions_clear are structural 100s, see
+    // personalize.py's _relevance_components); semantic_similarity is null
+    // when either side has no embedding yet, never a fabricated 0.
+    relevance_components?: {
+      ontology_match?: number;
+      geography_fit?: number;
+      exclusions_clear?: number;
+      semantic_similarity?: number | null;
+      language_fit?: number;
+    };
+    learned_adjustment?: number;
   };
   scores: { R: number; M: number; C: number; E: number; B: number; total: number };
   confidence?: number;
@@ -907,6 +928,10 @@ export interface CurationTopic {
   low_yield_windows?: number;
   decided_by?: string;
   decision_reason?: string;
+  // PRD §8.1 topic graph "co-occurrence": other topics mentioned in the
+  // same posts as this one, with how many times — topics.count() builds
+  // this from the reading's own full topic list, not a separate pass.
+  co_occurs?: Record<string, number>;
 }
 
 export interface TopicHistoryEntry {

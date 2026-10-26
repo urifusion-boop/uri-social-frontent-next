@@ -16,7 +16,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  AlertTriangle,
   Bookmark,
+  CalendarClock,
   ChevronDown,
   Clock,
   ExternalLink,
@@ -26,6 +28,7 @@ import {
   Radar,
   RefreshCw,
   Sparkles,
+  Target,
   TrendingUp,
   X,
   Zap,
@@ -62,6 +65,21 @@ const TYPE_META: Record<ListeningSignalType, { label: string; icon: LucideIcon; 
     icon: HelpCircle,
     className: 'bg-violet-50 text-violet-700 border-violet-200',
   },
+  competitor_move: {
+    label: 'Competitor move',
+    icon: Target,
+    className: 'bg-orange-50 text-orange-700 border-orange-200',
+  },
+  objection_shift: {
+    label: 'Doubts are rising',
+    icon: AlertTriangle,
+    className: 'bg-rose-50 text-rose-700 border-rose-200',
+  },
+  upcoming_development: {
+    label: 'Coming up',
+    icon: CalendarClock,
+    className: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  },
 };
 
 const errMsg = (err: unknown, fallback: string): string => {
@@ -69,6 +87,28 @@ const errMsg = (err: unknown, fallback: string): string => {
     (err as { data?: { detail?: string } })?.data?.detail ??
     (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
   return typeof detail === 'string' && detail ? detail : fallback;
+};
+
+// PRD §9.1's relevance breakdown / §10's "why am I seeing this... score
+// components" — only the genuinely-variable pieces are worth a business
+// owner's attention. ontology_match/geography_fit/exclusions_clear are
+// structural 100s on every card today (see personalize.py's
+// _relevance_components), so showing them would just be noise; this only
+// speaks up when semantic similarity or language fit actually differ from
+// a perfect match, or when past feedback nudged the score down.
+const relevanceNote = (card: ListeningCard): string | null => {
+  const rc = card.evidence.relevance_components;
+  const parts: string[] = [];
+  if (rc?.semantic_similarity != null) {
+    parts.push(`topic similarity ${Math.round(rc.semantic_similarity)}%`);
+  }
+  if (rc?.language_fit != null && rc.language_fit < 100) {
+    parts.push(`language fit ${Math.round(rc.language_fit)}%`);
+  }
+  if ((card.evidence.learned_adjustment ?? 0) < 0) {
+    parts.push('adjusted down slightly based on your past feedback on similar signals');
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
 };
 
 const ago = (iso?: string | null): string => {
@@ -254,6 +294,11 @@ function OpportunityCard({
                 momentum {Math.round(card.scores.M)} · buying intent {Math.round(card.scores.C)} · evidence{' '}
                 {Math.round(card.scores.E)} · brand fit {Math.round(card.scores.B)}
               </div>
+              {relevanceNote(card) && (
+                <div className="text-[11px] text-muted-foreground">
+                  <b className="text-foreground">Why this matched you:</b> {relevanceNote(card)}
+                </div>
+              )}
             </div>
           )}
           <button
