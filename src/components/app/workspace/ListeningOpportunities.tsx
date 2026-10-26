@@ -175,6 +175,11 @@ function OpportunityCard({
   const togglePlatform = (p: string) => {
     setSelectedPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
   };
+  // Connected accounts include ad accounts (facebook_ads, google_ads) —
+  // real connections, but not something content can be "posted" to, so
+  // they're left out of this picker rather than offered as a postable
+  // platform that would fail once the owner actually clicked Create.
+  const postablePlatforms = connectedPlatforms.filter((p) => p in PLATFORM_LABELS);
 
   const createVideo = () => {
     const parts = [card.action.hook, ...(card.action.outline ?? []), card.action.cta].filter(Boolean);
@@ -271,12 +276,12 @@ function OpportunityCard({
             <div className="mb-2 space-y-1.5">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-muted-foreground">Post on:</span>
-                {connectedPlatforms.length === 0 ? (
+                {postablePlatforms.length === 0 ? (
                   <span className="text-muted-foreground">
                     {(card.action.platforms ?? []).join(', ')} (connect an account to change this)
                   </span>
                 ) : (
-                  connectedPlatforms.map((p) => (
+                  postablePlatforms.map((p) => (
                     <button
                       key={p}
                       type="button"
