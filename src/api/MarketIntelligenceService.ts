@@ -772,10 +772,17 @@ export class MarketIntelligenceService {
   //                        brief for the storyboard screen instead
   //   ad_test           -> a fresh, pre-filled Jane Ads draft thread (never
   //                        auto-launched — the owner still drives it there)
-  static async createFromListeningCard(cardId: string): Promise<UriResponse<CreateFromListeningCardResult>> {
+  // `overrides` lets the owner pick different platforms (validated server-side
+  // against what's actually connected) and/or swap a carousel suggestion for
+  // a single post or back, before anything is generated or any credit spent —
+  // the AI's first guess is a starting point, never the only option.
+  static async createFromListeningCard(
+    cardId: string,
+    overrides?: { platforms?: string[]; content_type?: 'post' | 'carousel' }
+  ): Promise<UriResponse<CreateFromListeningCardResult>> {
     const res: AxiosResponse<UriResponse<CreateFromListeningCardResult>> = await UriHttpClient.getClient().post(
       `${BASE}/listening/cards/${cardId}/create`,
-      {}
+      overrides ?? {}
     );
     return res.data;
   }

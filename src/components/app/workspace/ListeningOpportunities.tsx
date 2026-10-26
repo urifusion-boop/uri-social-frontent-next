@@ -50,6 +50,16 @@ import {
 import { setAdTestSeed, setVideoSeed } from '@/src/utils/contentSeed';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+
+const PLATFORM_LABELS: Record<string, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+  x: 'X',
+  linkedin: 'LinkedIn',
+  whatsapp_status: 'WhatsApp',
+};
 
 const TYPE_META: Record<ListeningSignalType, { label: string; icon: LucideIcon; className: string }> = {
   rising: { label: 'Rising', icon: TrendingUp, className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -124,10 +134,12 @@ function OpportunityCard({
   card,
   onAct,
   onCreated,
+  connectedPlatforms,
 }: {
   card: ListeningCard;
   onAct: (c: ListeningCard, a: ListeningCardAction) => void;
   onCreated: (c: ListeningCard) => void;
+  connectedPlatforms: string[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -145,6 +157,24 @@ function OpportunityCard({
   // to Campaigns instead of Create once the thread comes back.
   const isVideo = card.action.type === 'video';
   const isAdTest = card.action.type === 'ad_test';
+  // Video hands off to a separate, user-driven screen (no server call here
+  // to send an override to) and ad_test has no platform concept of its own
+  // (Jane Ads drives that conversationally) — editable platform/format only
+  // makes sense for the post/carousel/faq cards that actually call /create.
+  const showEditableTargeting = !isVideo && !isAdTest;
+
+  // Live-reported bug: every card suggested Instagram only, with no way to
+  // change it — even on an account with Facebook/TikTok/LinkedIn all
+  // connected, because the AI defaults to Instagram whenever the Playbook
+  // states no platform preference. The AI's pick is a starting point here,
+  // pre-selected but always editable — never the only option.
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(card.action.platforms ?? []);
+  const [selectedType, setSelectedType] = useState<'post' | 'carousel'>(
+    card.action.type === 'carousel' ? 'carousel' : 'post'
+  );
+  const togglePlatform = (p: string) => {
+    setSelectedPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
+  };
 
   const createVideo = () => {
     const parts = [card.action.hook, ...(card.action.outline ?? []), card.action.cta].filter(Boolean);
@@ -163,9 +193,16 @@ function OpportunityCard({
       createVideo();
       return;
     }
+    if (selectedPlatforms.length === 0) {
+      ToastService.showToast('Pick at least one platform to post to.', ToastTypeEnum.Error);
+      return;
+    }
     setCreating(true);
     try {
-      const res = await MarketIntelligenceService.createFromListeningCard(card.id);
+      const res = await MarketIntelligenceService.createFromListeningCard(card.id, {
+        platforms: selectedPlatforms,
+        content_type: selectedType,
+      });
       if (res.status && res.responseData) {
         if (isAdTest && 'thread' in res.responseData) {
           setAdTestSeed({
@@ -230,14 +267,62 @@ function OpportunityCard({
         <p className="text-[13px] leading-relaxed text-muted-foreground">{card.why}</p>
 
         <div className="rounded-lg border border-border bg-muted/30 p-3 text-[12.5px]">
-          <div className="mb-1 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-            <span>
-              <b className="text-foreground">Format:</b> {card.action.format}
-            </span>
-            <span>
-              <b className="text-foreground">Post on:</b> {(card.action.platforms ?? []).join(', ')}
-            </span>
-          </div>
+          {showEditableTargeting ? (
+            <div className="mb-2 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-muted-foreground">Post on:</span>
+                {connectedPlatforms.length === 0 ? (
+                  <span className="text-muted-foreground">
+                    {(card.action.platforms ?? []).join(', ')} (connect an account to change this)
+                  </span>
+                ) : (
+                  connectedPlatforms.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => togglePlatform(p)}
+                      className={cn(
+                        'rounded-full border px-2 py-0.5 text-[11.5px] font-medium transition-colors',
+                        selectedPlatforms.includes(p)
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {PLATFORM_LABELS[p] ?? p}
+                    </button>
+                  ))
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-muted-foreground">Format:</span>
+                {(['post', 'carousel'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setSelectedType(t)}
+                    className={cn(
+                      'rounded-full border px-2 py-0.5 text-[11.5px] font-medium capitalize transition-colors',
+                      selectedType === t
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {t}
+                  </button>
+                ))}
+                <span className="text-[11px] text-muted-foreground">({card.action.format})</span>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-1 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+              <span>
+                <b className="text-foreground">Format:</b> {card.action.format}
+              </span>
+              <span>
+                <b className="text-foreground">Post on:</b> {(card.action.platforms ?? []).join(', ')}
+              </span>
+            </div>
+          )}
           <div>
             <b>Hook:</b> {card.action.hook}
           </div>
@@ -486,6 +571,17 @@ export default function ListeningOpportunities() {
   const [watchingOpen, setWatchingOpen] = useState(false);
   const [pulse, setPulse] = useState<MarketPulse[] | null>(null);
   const [pulseLoading, setPulseLoading] = useState(false);
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
+
+  useEffect(() => {
+    SocialMediaAgentService.getConnections()
+      .then((res) => {
+        if (res.status) setConnectedPlatforms(res.responseData?.connected_platforms ?? []);
+      })
+      .catch(() => {
+        /* editable platform picker just falls back to the card's own suggestion */
+      });
+  }, []);
 
   const toggleWatching = async () => {
     const opening = !watchingOpen;
@@ -707,7 +803,13 @@ export default function ListeningOpportunities() {
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {cards.map((c) => (
-            <OpportunityCard key={c.id} card={c} onAct={act} onCreated={markCreated} />
+            <OpportunityCard
+              key={c.id}
+              card={c}
+              onAct={act}
+              onCreated={markCreated}
+              connectedPlatforms={connectedPlatforms}
+            />
           ))}
         </div>
       )}
