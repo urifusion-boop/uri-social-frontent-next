@@ -347,6 +347,10 @@ export interface CampaignMetrics {
   cost_per_conversation_ngn: number | null;
   impressions: number;
   reach: number;
+  /** TikTok only: the platform's own click count and what each click cost. A link ad has no
+   * countable WhatsApp conversations, so the card shows these for TikTok instead. */
+  clicks?: number | null;
+  cost_per_click_ngn?: number | null;
   delivery: string;
   /** What the status badge says when it differs from the on/off `delivery` — e.g. "In
    * review" while `delivery` is "Active". Empty or absent means "same as delivery". */
