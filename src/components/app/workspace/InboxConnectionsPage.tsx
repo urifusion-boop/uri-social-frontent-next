@@ -162,6 +162,7 @@ export function channelsFromApi(
     last_event_at: string | null;
     needs_reconnect?: boolean;
     subscription_ok?: boolean | null;
+    subscription_issue?: { code: string; message: string } | null;
   }[]
 ): ChannelConnection[] {
   return CHANNEL_SHELLS.map((shell) => {
@@ -183,11 +184,9 @@ export function channelsFromApi(
     if (connected) statusNote = `Connected — ${names(live) || shell.label}`;
     else if (stale.length) statusNote = 'Reconnect needed';
     const who = names(stale) || 'that account';
-    const permissionBlocked = stale.some((r) => r.subscription_ok === false && !r.needs_reconnect);
-    const warning = permissionBlocked
-      ? `Messages from ${who} aren't reaching this inbox: Meta didn't accept the permissions this connection was made with. In Connected Accounts, disconnect and connect ${
-          shell.id === 'instagram' ? 'Facebook and Instagram' : 'Facebook'
-        } again, and keep every permission switched on. Then come back here and click Reconnect.`
+    const blockedReason = stale.find((r) => r.subscription_ok === false && !r.needs_reconnect)?.subscription_issue?.message;
+    const warning = blockedReason
+      ? blockedReason
       : stale.length
       ? shell.id === 'instagram'
         ? `${who} has disconnected, so its messages aren't reaching this inbox. Log in to instagram.com as ${who}, then connect Instagram again in Connected Accounts. Come back here and click Reconnect.`
