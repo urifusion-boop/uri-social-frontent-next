@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, useState } from 'react';
+import { IS_PRODUCTION } from '@/src/configs/env.config';
 import { WhatsAppConnect } from './WhatsAppConnect';
 
 /*
@@ -165,7 +166,7 @@ export function channelsFromApi(
     subscription_issue?: { code: string; message: string } | null;
   }[]
 ): ChannelConnection[] {
-  return CHANNEL_SHELLS.map((shell) => {
+  return CHANNEL_SHELLS.filter((shell) => !(shell.id === 'whatsapp' && IS_PRODUCTION)).map((shell) => {
     const all = rows.filter((r) => r.platform === shell.id);
     // A Page Meta refused to subscribe delivers nothing, however healthy the token looks.
     const blocked = (r: (typeof all)[number]) => r.needs_reconnect || r.subscription_ok === false;
@@ -629,7 +630,7 @@ export default function InboxConnectionsPage({
     >
       <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>
         Instagram and Facebook here are the accounts in Connected Accounts — connect, switch or disconnect them there
-        and the inbox follows. WhatsApp is connected here.
+        and the inbox follows.{IS_PRODUCTION ? '' : ' WhatsApp is connected here.'}
       </div>
 
       {connections.map((c) => {
