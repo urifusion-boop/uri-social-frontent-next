@@ -4025,6 +4025,24 @@ function ResultCard({
               💬 Leads message <strong>+{result.whatsapp_number}</strong> on WhatsApp
             </p>
           )}
+          {(result.warnings ?? []).map((w) => (
+            <div
+              key={w}
+              style={{
+                background: '#fff4e5',
+                border: '1px solid #f5c98a',
+                borderRadius: 10,
+                padding: '10px 12px',
+                margin: '0 0 12px',
+                fontSize: 12.5,
+                color: '#7a4a00',
+                whiteSpace: 'pre-line',
+                lineHeight: 1.5,
+              }}
+            >
+              ⚠️ {w}
+            </div>
+          ))}
           {result.summary && (
             <CampaignReview summary={result.summary} edited={result.plan_edited && result.summary_stale} />
           )}

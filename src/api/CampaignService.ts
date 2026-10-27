@@ -294,6 +294,7 @@ export interface LaunchFromMessageResult {
   destination_link?: string; // the actual link the ad carries — shown on the plan card
   destination_cta?: string; // which button was chosen (a CtaChoice value)
   summary?: CampaignSummary; // Tier C — each choice + its why, plus estimates
+  warnings?: string[]; // heads-ups Meta would otherwise act on silently (no WhatsApp linked, a video it can't run)
   wallet?: {
     balance_ngn: number;
     budget_ngn: number; // the ad spend that goes to Meta
