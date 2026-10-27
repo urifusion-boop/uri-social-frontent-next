@@ -317,6 +317,7 @@ const ItemDetailModal = ({
   item,
   planId,
   plan,
+  selectedPlatforms,
   onClose,
   onPlanUpdated,
   onGenerated,
@@ -324,6 +325,11 @@ const ItemDetailModal = ({
   item: CalendarV2Item;
   planId: string;
   plan: ContentCalendarV2Plan;
+  /** The platform pills currently checked above the grid — distinct from
+   * plan.platforms, which is whatever the plan was last generated/
+   * regenerated for. The two can drift (toggle a pill without hitting
+   * "Regenerate"), and Create Draft always drafts for plan.platforms. */
+  selectedPlatforms: string[];
   onClose: () => void;
   onPlanUpdated: (p: ContentCalendarV2Plan) => void;
   onGenerated: () => void;
@@ -353,6 +359,16 @@ const ItemDetailModal = ({
   const plannedSlides = Math.max(item.carousel?.slides.length || 3, 1);
   const [numSlides, setNumSlides] = useState(Math.min(3, Math.max(2, plannedSlides)));
   const draftCreditCost = item.format === 'carousel' ? numSlides : 1;
+
+  // Same comparison the PLATFORMS banner above the grid already uses — kept
+  // in sync deliberately, since this is the same drift it's warning about.
+  // Create Draft always drafts for plan.platforms (the plan was written for
+  // those), so if the checked pills have moved on without a regenerate, the
+  // draft silently comes out for the wrong platform with no indication at
+  // the moment of creating. Block it here instead, matching what the
+  // banner already tells the user to do.
+  const platformsMismatch =
+    JSON.stringify([...selectedPlatforms].sort()) !== JSON.stringify([...plan.platforms].sort());
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -394,6 +410,13 @@ const ItemDetailModal = ({
   };
 
   const handleCreateDraft = async () => {
+    if (platformsMismatch) {
+      ToastService.showToast(
+        `This plan was written for ${plan.platforms.join(', ')}, not ${selectedPlatforms.join(', ') || 'your current selection'}. Regenerate the 30-day plan first.`,
+        ToastTypeEnum.Error
+      );
+      return;
+    }
     setCreating(true);
     try {
       const res = await SocialMediaAgentService.createDraftFromCalendarItemV2(
@@ -785,6 +808,25 @@ const ItemDetailModal = ({
           )}
         </div>
 
+        {!isVideoFormat(item.format) && platformsMismatch && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: 12,
+              borderRadius: 8,
+              background: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              fontSize: 12,
+              color: '#92400E',
+            }}
+          >
+            ⚠️ This plan was written for <strong>{plan.platforms.join(', ')}</strong>, but you now have{' '}
+            <strong>{selectedPlatforms.join(', ') || 'nothing'}</strong> selected above. Creating a draft here would
+            still target {plan.platforms.join(', ')} — click <strong>“↻ Regenerate 30-day plan”</strong> first to get
+            ideas written for your current platforms.
+          </div>
+        )}
+
         {!isVideoFormat(item.format) && (
           <>
             {/* Mirrors create_draft_from_item_v2's own cost math exactly: 1 credit flat
@@ -823,7 +865,8 @@ const ItemDetailModal = ({
           {!isVideoFormat(item.format) && (
             <button
               onClick={handleCreateDraft}
-              disabled={creating}
+              disabled={creating || platformsMismatch}
+              title={platformsMismatch ? 'Regenerate the 30-day plan to apply your platform change first' : undefined}
               style={{
                 background: PINK,
                 color: '#fff',
@@ -832,11 +875,11 @@ const ItemDetailModal = ({
                 padding: '10px 16px',
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: 'pointer',
-                opacity: creating ? 0.6 : 1,
+                cursor: creating || platformsMismatch ? 'not-allowed' : 'pointer',
+                opacity: creating || platformsMismatch ? 0.5 : 1,
               }}
             >
-              {creating ? 'Creating…' : 'Create Draft'}
+              {creating ? 'Creating…' : platformsMismatch ? 'Regenerate plan first' : 'Create Draft'}
             </button>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1233,6 +1276,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
           item={selectedItem}
           planId={plan.plan_id}
           plan={plan}
+          selectedPlatforms={platforms}
           onClose={() => setSelectedItem(null)}
           onPlanUpdated={(p) => {
             setPlan(p);
