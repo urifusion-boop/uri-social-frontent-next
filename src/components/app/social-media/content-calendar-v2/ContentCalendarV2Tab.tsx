@@ -23,7 +23,7 @@ import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import SlideCountPicker from '../../atoms/SlideCountPicker';
 
 // ── Constants (deliberately a standalone copy, not shared with v1 — same
@@ -1012,21 +1012,6 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
     })();
   }, []);
 
-  // onGenerated comes from the parent as a plain (unmemoized) function, so
-  // it gets a new identity on every WorkspaceDashboard re-render. Confirmed
-  // live: with it in this effect's deps, ANY parent re-render during the
-  // real ~8min generation tears down and restarts the interval below — in
-  // a dashboard with its own notification/credit polling, that happens far
-  // more often than every 15s, so the interval's first tick() never fires
-  // and a left-open tab shows "Generating…" forever even after the plan
-  // finishes server-side (a hard reload picks it up fine, since that does
-  // its own independent initial fetch). Routing the callback through a ref
-  // keeps the poll interval keyed ONLY on plan?.status actually changing.
-  const onGeneratedRef = useRef(onGenerated);
-  useEffect(() => {
-    onGeneratedRef.current = onGenerated;
-  }, [onGenerated]);
-
   // The pipeline runs 4-6 min as a background job; while the newest plan is
   // still 'generating', poll GET /plan until it flips to 'active' or 'failed'.
   useEffect(() => {
@@ -1043,8 +1028,15 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
         if (res.status && res.responseData) {
           setPlan(res.responseData);
           if (res.responseData.status === 'active') {
+            // onGenerated is WorkspaceDashboard's handleGenerated, which
+            // switches to the Drafts tab — correct when a draft was just
+            // created (handleCreateDraft calls it directly), wrong here:
+            // finishing a 30-day PLAN generation/regeneration doesn't put
+            // anything in Drafts. Confirmed live: this was silently
+            // jumping users to Drafts minutes after clicking "Regenerate
+            // 30-day plan," with nothing there to show for it. A toast is
+            // enough — the plan itself re-renders in place via setPlan above.
             ToastService.showToast('Plan ready', ToastTypeEnum.Success);
-            onGeneratedRef.current();
           } else if (res.responseData.status === 'failed') {
             ToastService.showToast(res.responseData.error || 'Generation failed — try again', ToastTypeEnum.Error);
           }
