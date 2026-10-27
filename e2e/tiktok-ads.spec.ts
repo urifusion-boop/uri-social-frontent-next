@@ -221,7 +221,14 @@ test.describe('TikTok ads — mocked', () => {
     await expect(page.getByText('Runs on')).toBeVisible();
     await expect(page.getByRole('button', { name: /launch on TikTok/i })).toBeVisible();
 
-    await expect(page.locator('body')).not.toContainText(META_LEAK);
+    // The platform picker row names every platform by design (it is how you choose one), so it
+    // is the only thing left out; any other Meta wording on the page still fails this.
+    const visibleText = await page.evaluate(() => {
+      const row = document.querySelector('[data-testid="platform-chip-auto"]')?.parentElement;
+      if (row) row.style.display = 'none';
+      return document.body.innerText;
+    });
+    expect(visibleText).not.toMatch(META_LEAK);
     expect(facebookConnect).toEqual([]);
   });
 
@@ -339,6 +346,71 @@ test.describe('TikTok ads — mocked', () => {
     await expect(page.getByText('Active', { exact: true })).toBeVisible();
     await expect(page.getByText('In review')).toHaveCount(0);
     await expect(page.getByTitle('Pause')).toBeVisible();
+  });
+
+  test('a TikTok card shows its real clicks and cost per click, never WhatsApp conversations', async ({ page }) => {
+    // The numbers TikTok Ads Manager showed for the live prod campaign (2026-10-27).
+    await mockApi(page, {
+      campaigns: [
+        {
+          ...TIKTOK_CAMPAIGN,
+          status: 'paused',
+          metrics: {
+            spend_ngn: 656.88,
+            conversations: null,
+            cost_per_conversation_ngn: null,
+            impressions: 2122,
+            reach: 0,
+            clicks: 103,
+            cost_per_click_ngn: 6.38,
+            delivery: 'Paused',
+            ends_at: null,
+          },
+        },
+      ],
+    });
+    await openCampaigns(page);
+    await page.getByRole('button', { name: /Campaign Manager/i }).click();
+
+    await expect(page.getByText('Clicks', { exact: true })).toBeVisible();
+    await expect(page.getByText('103', { exact: true })).toBeVisible();
+    await expect(page.getByText('Cost per click', { exact: true })).toBeVisible();
+    await expect(page.getByText('₦6.38', { exact: true })).toBeVisible();
+    await expect(page.getByText('2,122', { exact: true })).toBeVisible();
+    await expect(page.getByText('WhatsApp conversations')).toHaveCount(0);
+    await expect(page.getByText('Cost per conversation')).toHaveCount(0);
+    // Real views with a reach of zero means TikTok did not give us the figure — not "0 people".
+    const reached = page.getByText('People reached', { exact: true }).locator('xpath=following-sibling::div[1]');
+    await expect(reached).toHaveText('N/A');
+  });
+
+  test('a Meta card keeps its WhatsApp conversation numbers, and a real zero reach', async ({ page }) => {
+    await mockApi(page, {
+      campaigns: [
+        {
+          ...TIKTOK_CAMPAIGN,
+          platform: 'meta' as unknown as 'tiktok',
+          status: 'active',
+          metrics: {
+            spend_ngn: 4000,
+            conversations: 3,
+            cost_per_conversation_ngn: 1333,
+            impressions: 900,
+            reach: 0,
+            delivery: 'Active',
+            ends_at: null,
+          },
+        },
+      ],
+    });
+    await openCampaigns(page);
+    await page.getByRole('button', { name: /Campaign Manager/i }).click();
+
+    await expect(page.getByText('WhatsApp conversations')).toBeVisible();
+    await expect(page.getByText('Cost per conversation')).toBeVisible();
+    await expect(page.getByText('Cost per click')).toHaveCount(0);
+    const reached = page.getByText('People reached', { exact: true }).locator('xpath=following-sibling::div[1]');
+    await expect(reached).toHaveText('0');
   });
 
   test('targeting and keep-it-running say TikTok on a TikTok campaign', async ({ page }) => {

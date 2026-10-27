@@ -4973,16 +4973,42 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
             />
             <Metric
               label="People reached"
-              value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'}
+              value={
+                c.metrics?.reach == null ||
+                // A TikTok campaign that was seen cannot have reached nobody: a zero beside real
+                // views means TikTok did not give us the figure, so say that instead of "0".
+                (c.platform === 'tiktok' && c.metrics.reach === 0 && (c.metrics.impressions ?? 0) > 0)
+                  ? 'N/A'
+                  : c.metrics.reach.toLocaleString()
+              }
             />
-            <Metric
-              label="WhatsApp conversations"
-              value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'}
-            />
-            <Metric
-              label="Cost per conversation"
-              value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
-            />
+            {/* A TikTok ad opens a plain WhatsApp link, so there are no conversations to count.
+                Its real numbers are clicks and what each cost. */}
+            {c.platform === 'tiktok' ? (
+              <>
+                <Metric
+                  label="Clicks"
+                  value={c.metrics?.clicks != null ? c.metrics.clicks.toLocaleString() : 'N/A'}
+                />
+                <Metric
+                  label="Cost per click"
+                  value={c.metrics?.cost_per_click_ngn != null ? naira(c.metrics.cost_per_click_ngn) : 'N/A'}
+                />
+              </>
+            ) : (
+              <>
+                <Metric
+                  label="WhatsApp conversations"
+                  value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'}
+                />
+                <Metric
+                  label="Cost per conversation"
+                  value={
+                    c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'
+                  }
+                />
+              </>
+            )}
             <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
             {c.city && <Metric label="Area" value={c.city} />}
           </div>
