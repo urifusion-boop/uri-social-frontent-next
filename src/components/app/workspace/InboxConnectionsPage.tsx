@@ -161,12 +161,16 @@ export function channelsFromApi(
     has_token: boolean;
     last_event_at: string | null;
     needs_reconnect?: boolean;
+    subscription_ok?: boolean | null;
+    subscription_issue?: { code: string; message: string } | null;
   }[]
 ): ChannelConnection[] {
   return CHANNEL_SHELLS.map((shell) => {
     const all = rows.filter((r) => r.platform === shell.id);
-    const live = all.filter((r) => !r.needs_reconnect);
-    const stale = all.filter((r) => r.needs_reconnect);
+    // A Page Meta refused to subscribe delivers nothing, however healthy the token looks.
+    const blocked = (r: (typeof all)[number]) => r.needs_reconnect || r.subscription_ok === false;
+    const live = all.filter((r) => !blocked(r));
+    const stale = all.filter(blocked);
     // A live account wins; one left over from an old connection is named as needing
     // a reconnect rather than shown as working.
     const row = live[0] ?? stale[0];
@@ -180,7 +184,10 @@ export function channelsFromApi(
     if (connected) statusNote = `Connected — ${names(live) || shell.label}`;
     else if (stale.length) statusNote = 'Reconnect needed';
     const who = names(stale) || 'that account';
-    const warning = stale.length
+    const blockedReason = stale.find((r) => r.subscription_ok === false && !r.needs_reconnect)?.subscription_issue?.message;
+    const warning = blockedReason
+      ? blockedReason
+      : stale.length
       ? shell.id === 'instagram'
         ? `${who} has disconnected, so its messages aren't reaching this inbox. Log in to instagram.com as ${who}, then connect Instagram again in Connected Accounts. Come back here and click Reconnect.`
         : `${who} has disconnected, so its messages aren't reaching this inbox. Connect Facebook again in Connected Accounts and choose the ${who} Page, then come back here and click Reconnect.`

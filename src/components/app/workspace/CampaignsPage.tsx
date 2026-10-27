@@ -367,9 +367,9 @@ export default function CampaignsPage({
   // the backend forgets it" reasoning as the refs above (_build_campaign_plan reads
   // preferred_platform fresh off each request, with no server-side memory of an
   // earlier turn's choice).
-  const preferredPlatformRef = useRef<'' | 'tiktok' | 'google'>('');
-  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'tiktok' | 'google'>('');
-  const setPreferredPlatform = (v: '' | 'tiktok' | 'google') => {
+  const preferredPlatformRef = useRef<'' | 'meta' | 'tiktok' | 'google'>('');
+  const [preferredPlatformUi, setPreferredPlatformUi] = useState<'' | 'meta' | 'tiktok' | 'google'>('');
+  const setPreferredPlatform = (v: '' | 'meta' | 'tiktok' | 'google') => {
     preferredPlatformRef.current = v;
     setPreferredPlatformUi(v);
   };
@@ -4025,6 +4025,24 @@ function ResultCard({
               💬 Leads message <strong>+{result.whatsapp_number}</strong> on WhatsApp
             </p>
           )}
+          {(result.warnings ?? []).map((w) => (
+            <div
+              key={w}
+              style={{
+                background: '#fff4e5',
+                border: '1px solid #f5c98a',
+                borderRadius: 10,
+                padding: '10px 12px',
+                margin: '0 0 12px',
+                fontSize: 12.5,
+                color: '#7a4a00',
+                whiteSpace: 'pre-line',
+                lineHeight: 1.5,
+              }}
+            >
+              ⚠️ {w}
+            </div>
+          ))}
           {result.summary && (
             <CampaignReview summary={result.summary} edited={result.plan_edited && result.summary_stale} />
           )}
@@ -4654,19 +4672,40 @@ function TotalCard({ label, value, accent }: { label: string; value: string; acc
   );
 }
 
-type PlatformChoice = { value: '' | 'tiktok' | 'google'; label: string; hint: string; placeholder: string };
+type PlatformChoice = {
+  value: '' | 'meta' | 'tiktok' | 'google';
+  label: string;
+  hint: string;
+  placeholder: string;
+};
+
+// What TikTok will take as a budget. TikTok's own ad group needs ₦31,000 a day and URI takes
+// no fee on it, so the stated budget is the ad spend: ₦31,000 buys about a day, each further
+// ₦31,000 adds a day up to 7 (₦217,000), and anything bigger is simply spent faster each day.
+// Mirrors the backend's HARD_FLOOR_DAILY_NGN["tiktok"] and MAX_CAMPAIGN_DAYS — change together.
+const TIKTOK_DAILY_FLOOR_NGN = 31_000;
+const TIKTOK_MAX_DAYS = 7;
+const TIKTOK_BUDGET_HINT =
+  `Budget: at least ${naira(TIKTOK_DAILY_FLOOR_NGN)} (about 1 day). Each extra ${naira(TIKTOK_DAILY_FLOOR_NGN)} ` +
+  `adds a day, up to ${TIKTOK_MAX_DAYS} days (${naira(TIKTOK_DAILY_FLOOR_NGN * TIKTOK_MAX_DAYS)}).`;
 
 const PLATFORM_CHOICES: PlatformChoice[] = [
   {
     value: '',
     label: 'Jane picks',
-    hint: 'Jane chooses where this runs — usually Instagram & Facebook. The plan shows which before anything launches.',
+    hint: 'Jane chooses between Instagram & Facebook and TikTok for you. The plan shows which before anything launches.',
     placeholder: 'Tell Jane what you want to promote…',
+  },
+  {
+    value: 'meta',
+    label: 'Instagram & Facebook',
+    hint: 'This campaign will run on Instagram and Facebook (Meta). A photo or a video works, and people can message you on WhatsApp, Instagram or Messenger.',
+    placeholder: 'Tell Jane what to promote on Instagram & Facebook…',
   },
   {
     value: 'tiktok',
     label: 'TikTok',
-    hint: 'This campaign will run on TikTok. It needs a video.',
+    hint: `This campaign will run on TikTok. It needs a video, or 2+ photos as a carousel. ${TIKTOK_BUDGET_HINT}`,
     placeholder: 'Tell Jane what to promote on TikTok…',
   },
   {
@@ -4934,16 +4973,42 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
             />
             <Metric
               label="People reached"
-              value={c.metrics?.reach != null ? c.metrics.reach.toLocaleString() : 'N/A'}
+              value={
+                c.metrics?.reach == null ||
+                // A TikTok campaign that was seen cannot have reached nobody: a zero beside real
+                // views means TikTok did not give us the figure, so say that instead of "0".
+                (c.platform === 'tiktok' && c.metrics.reach === 0 && (c.metrics.impressions ?? 0) > 0)
+                  ? 'N/A'
+                  : c.metrics.reach.toLocaleString()
+              }
             />
-            <Metric
-              label="WhatsApp conversations"
-              value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'}
-            />
-            <Metric
-              label="Cost per conversation"
-              value={c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'}
-            />
+            {/* A TikTok ad opens a plain WhatsApp link, so there are no conversations to count.
+                Its real numbers are clicks and what each cost. */}
+            {c.platform === 'tiktok' ? (
+              <>
+                <Metric
+                  label="Clicks"
+                  value={c.metrics?.clicks != null ? c.metrics.clicks.toLocaleString() : 'N/A'}
+                />
+                <Metric
+                  label="Cost per click"
+                  value={c.metrics?.cost_per_click_ngn != null ? naira(c.metrics.cost_per_click_ngn) : 'N/A'}
+                />
+              </>
+            ) : (
+              <>
+                <Metric
+                  label="WhatsApp conversations"
+                  value={c.metrics?.conversations != null ? String(c.metrics.conversations) : 'N/A'}
+                />
+                <Metric
+                  label="Cost per conversation"
+                  value={
+                    c.metrics?.cost_per_conversation_ngn != null ? naira(c.metrics.cost_per_conversation_ngn) : 'N/A'
+                  }
+                />
+              </>
+            )}
             <Metric label="Ends" value={formatEnds(c.metrics?.ends_at)} />
             {c.city && <Metric label="Area" value={c.city} />}
           </div>

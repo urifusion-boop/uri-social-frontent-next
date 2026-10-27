@@ -25,6 +25,7 @@ import {
   TrendsData,
   VideoDraft,
 } from '@/src/api/SocialMediaAgentService';
+import { InboxService } from '@/src/api/InboxService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import ContentCalendarV2Tab from '@/src/components/app/social-media/content-calendar-v2/ContentCalendarV2Tab';
@@ -2579,6 +2580,18 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
   // choosing an option, saving a number...) updates the cards in place —
   // swapping the whole list for a spinner on each click read as a page reload.
   const statusesLoadedRef = useRef(false);
+  // After a Facebook/Instagram connect: ask Meta to start delivering the Page's messages and,
+  // when it refuses, say why and what to do — a connection that looks fine but receives
+  // nothing is the worst outcome.
+  const warnIfInboxBlocked = () => {
+    InboxService.resubscribeChannels()
+      .then((res) => {
+        const issue = res.subscriptions.find((s) => !s.subscribed)?.issue;
+        if (issue) ToastService.showToast(issue.message, ToastTypeEnum.Error);
+      })
+      .catch(() => undefined);
+  };
+
   const loadStatuses = async () => {
     if (!statusesLoadedRef.current) setLoading(true);
     try {
@@ -2733,6 +2746,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                 /* noop */
               }
               loadStatuses();
+              warnIfInboxBlocked();
             } else {
               ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
             }
@@ -2779,6 +2793,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
               ToastService.showToast(`${pageName} connected!`, ToastTypeEnum.Success);
               posthog.capture('social_account_connected', { platform: 'facebook', page_name: pageName });
               loadStatuses();
+              warnIfInboxBlocked();
             } else {
               ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error);
             }
@@ -2891,6 +2906,7 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
           /* noop */
         }
         loadStatuses();
+        if (platform === 'facebook' || platform === 'instagram') warnIfInboxBlocked();
       }
       // If this page is running inside a popup, close it so the opener's polling timer fires
       if (typeof window !== 'undefined' && window.opener) window.close();

@@ -294,6 +294,7 @@ export interface LaunchFromMessageResult {
   destination_link?: string; // the actual link the ad carries — shown on the plan card
   destination_cta?: string; // which button was chosen (a CtaChoice value)
   summary?: CampaignSummary; // Tier C — each choice + its why, plus estimates
+  warnings?: string[]; // heads-ups Meta would otherwise act on silently (no WhatsApp linked, a video it can't run)
   wallet?: {
     balance_ngn: number;
     budget_ngn: number; // the ad spend that goes to Meta
@@ -356,6 +357,10 @@ export interface CampaignMetrics {
   cost_per_conversation_ngn: number | null;
   impressions: number;
   reach: number;
+  /** TikTok only: the platform's own click count and what each click cost. A link ad has no
+   * countable WhatsApp conversations, so the card shows these for TikTok instead. */
+  clicks?: number | null;
+  cost_per_click_ngn?: number | null;
   delivery: string;
   /** What the status badge says when it differs from the on/off `delivery` — e.g. "In
    * review" while `delivery` is "Active". Empty or absent means "same as delivery". */
@@ -688,7 +693,7 @@ export class CampaignService {
     // "" (default/omitted) keeps today's behaviour exactly as-is. "tiktok" asks for
     // TikTok specifically; the backend returns a tiktok_not_configured or
     // tiktok_needs_video early_return if that can't be honoured right now.
-    preferred_platform?: '' | 'tiktok' | 'google';
+    preferred_platform?: '' | 'meta' | 'tiktok' | 'google';
     // Where on Google: search | display | demand_gen (YouTube & Discover) | pmax (everywhere).
     google_placement?: 'search' | 'display' | 'demand_gen' | 'pmax';
     // TikTok Carousel Ads (2+ photos, no video) — additive, TikTok-only. TikTok has
