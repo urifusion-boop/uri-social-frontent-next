@@ -187,11 +187,20 @@ export interface InboxChannelDTO {
   has_token: boolean;
   last_event_at: string | null;
   needs_reconnect?: boolean;
+  subscription_ok?: boolean | null;
+  subscription_issue?: { code: string; message: string } | null;
 }
 
 const listChannels = async (): Promise<InboxChannelDTO[]> => {
   const r = await UriHttpClient.getClient().get('/inbox/channels');
   return r.data?.channels ?? [];
+};
+
+const resubscribeChannels = async (): Promise<{
+  subscriptions: { page_id: string; subscribed: boolean; issue: { code: string; message: string } | null }[];
+}> => {
+  const r = await UriHttpClient.getClient().post('/inbox/channels/resubscribe', {});
+  return r.data;
 };
 
 const linkChannels = async (): Promise<{ linked: number }> => {
@@ -290,4 +299,5 @@ export const InboxService = {
   deleteKnowledge,
   linkChannels,
   listChannels,
+  resubscribeChannels,
 };
