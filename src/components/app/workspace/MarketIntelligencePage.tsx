@@ -146,8 +146,20 @@ function formatTypeLabel(type: string): string {
     .join(' ');
 }
 
+// Confirmed live bug: the backend serializes naive-UTC datetimes with no
+// timezone suffix (e.g. "2026-10-28T15:37:29.975000"). `new Date(...)` on a
+// string with no timezone designator parses it as LOCAL time, not UTC —
+// for anyone not in UTC (West Africa Time, this product's main market, is
+// UTC+1), that silently shifts every timestamp by the local offset. A scan
+// that had just finished showed "Last scan finished 1h ago" instead of
+// "just now." Appending "Z" (already-offset timestamps are passed through
+// unchanged) forces the naive case to parse as the UTC it actually is.
+function parseServerDate(iso: string): Date {
+  return new Date(/[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`);
+}
+
 function formatRelativeDate(iso: string): string {
-  const date = new Date(iso);
+  const date = parseServerDate(iso);
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.round(diffMs / 60000);
   if (diffMin < 1) return 'just now';
@@ -292,7 +304,7 @@ function EvidenceDrawer({ insightId, onInsightRetracted }: { insightId: string; 
                   <span>·</span>
                   <span>{e.platform}</span>
                   <span>·</span>
-                  <span>{e.published_at ? new Date(e.published_at).toLocaleDateString() : 'undated'}</span>
+                  <span>{e.published_at ? parseServerDate(e.published_at).toLocaleDateString() : 'undated'}</span>
                   {e.url && (
                     <>
                       <span>·</span>
@@ -484,7 +496,8 @@ function InsightDetail({
         {insight.urgency.is_urgent && (
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11.5px] font-medium text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-400">
             <AlertTriangle className="h-3 w-3" />
-            Urgent{insight.urgency.deadline ? ` · by ${new Date(insight.urgency.deadline).toLocaleDateString()}` : ''}
+            Urgent
+            {insight.urgency.deadline ? ` · by ${parseServerDate(insight.urgency.deadline).toLocaleDateString()}` : ''}
           </div>
         )}
 
@@ -702,7 +715,7 @@ function DevelopmentsPanel({ developments, onUpdated }: { developments: Developm
                   <div className="mt-1 text-[11.5px] text-muted-foreground">
                     {d.issuer ?? 'Unverified issuer'}
                     {d.location ? ` · ${d.location}` : ''} ·{' '}
-                    {d.event_date ? new Date(d.event_date).toLocaleDateString() : 'Date to confirm'}
+                    {d.event_date ? parseServerDate(d.event_date).toLocaleDateString() : 'Date to confirm'}
                   </div>
                 </div>
                 <Badge variant="outline" className={cn('shrink-0', meta.className)}>
@@ -717,7 +730,7 @@ function DevelopmentsPanel({ developments, onUpdated }: { developments: Developm
               )}
               {d.registration_deadline && (
                 <div className="mt-1.5 text-[11.5px] text-amber-700 dark:text-amber-400">
-                  Registration deadline: {new Date(d.registration_deadline).toLocaleDateString()}
+                  Registration deadline: {parseServerDate(d.registration_deadline).toLocaleDateString()}
                 </div>
               )}
               {d.source_url && (
@@ -2435,7 +2448,7 @@ export default function MarketIntelligencePage() {
             value={developments.length}
             hint={
               soonestDevelopment
-                ? `next: ${new Date(soonestDevelopment.event_date as string).toLocaleDateString()}`
+                ? `next: ${parseServerDate(soonestDevelopment.event_date as string).toLocaleDateString()}`
                 : 'none tracked'
             }
           />
