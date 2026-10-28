@@ -435,6 +435,11 @@ function InsightDetail({
           <div className="flex items-center gap-2">
             <Badge
               variant="outline"
+              title={
+                insight.action_readiness === 'ready_to_act'
+                  ? 'Your stock, delivery and pricing facts (Settings → "Can you actually fulfil this?") confirm you can act on this.'
+                  : 'Fill in your stock, delivery and pricing facts in Settings → "Can you actually fulfil this?" so Uri can confirm you can act on this.'
+              }
               className={
                 insight.action_readiness === 'ready_to_act'
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-400'
@@ -1251,19 +1256,25 @@ function TopicsPanel({
                     (scanProgress && scanProgress.length > 0 ? (
                       <div className="mt-1.5">
                         <div className="text-[11px] text-muted-foreground">
-                          Collecting conversations from your selected sources — real progress below. You can leave this
-                          page and return later.
+                          Collecting conversations from your selected sources — real progress below. This keeps running
+                          on our side even if you close this tab or come back later; this Topics &amp; Sources list is
+                          where you&apos;ll see it finish.
                         </div>
                         <ScanProgressLog sources={scanProgress} />
                       </div>
                     ) : (
                       <div className="mt-1.5 text-[11px] text-muted-foreground">
-                        Collecting conversations from your selected sources. You can leave this page and return later.
+                        Collecting conversations from your selected sources. This keeps running even if you close this
+                        tab — check back here on Topics &amp; Sources to see it finish.
                       </div>
                     ))}
                   {staleScan?.topicId === t.id && (
                     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11.5px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
-                      <span>Still working on this scan. It&apos;s safe to leave and come back — check anytime.</span>
+                      <span>
+                        Still collecting — this can take a few minutes for real data, so this isn&apos;t stuck. Press
+                        &ldquo;Check now&rdquo; below, or just reopen this page later and it&apos;ll show up here once
+                        it&apos;s done.
+                      </span>
                       <Button
                         variant="outline"
                         size="xs"
@@ -1278,6 +1289,25 @@ function TopicsPanel({
                         )}
                         Check now
                       </Button>
+                    </div>
+                  )}
+                  {scanningTopicId !== t.id && staleScan?.topicId !== t.id && t.latest_scan && (
+                    <div className="mt-1.5 text-[11px] text-muted-foreground">
+                      {t.latest_scan.status === 'completed' && t.latest_scan.started_at && (
+                        <>Last scan finished {formatRelativeDate(t.latest_scan.started_at)}.</>
+                      )}
+                      {t.latest_scan.status === 'partial' && t.latest_scan.started_at && (
+                        <>Last scan finished {formatRelativeDate(t.latest_scan.started_at)} — results were partial.</>
+                      )}
+                      {t.latest_scan.status === 'failed' && t.latest_scan.started_at && (
+                        <span className="text-destructive">
+                          Last scan ({formatRelativeDate(t.latest_scan.started_at)}) failed — try &ldquo;Run scan&rdquo;
+                          again.
+                        </span>
+                      )}
+                      {t.latest_scan.status === 'budget_limited' && t.latest_scan.started_at && (
+                        <>Last scan ({formatRelativeDate(t.latest_scan.started_at)}) hit the collection budget limit.</>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1745,11 +1775,13 @@ function BusinessContextPanel() {
     <Card>
       <CardContent className="p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <Layers className="h-4 w-4 text-muted-foreground" /> Business context
+          <Layers className="h-4 w-4 text-muted-foreground" /> Can you actually fulfil this?
         </div>
         <div className="mt-1 text-[11.5px] text-muted-foreground">
-          Unknown facts stay unknown — Uri never assumes stock or delivery, and recommendations are labelled
-          &ldquo;Check suitability&rdquo; until you fill these in.
+          When Uri finds a customer ready to buy, it only tags the recommendation &ldquo;Ready to act&rdquo; if it
+          already knows you can deliver — otherwise it plays it safe and labels it &ldquo;Check suitability&rdquo;
+          instead, even if the opportunity is real. Fill in your stock, delivery and pricing facts below once, and every
+          future match gets the confident label automatically.
         </div>
         {loading ? (
           <div className="mt-3 text-[12.5px] text-muted-foreground">Loading…</div>
@@ -1945,6 +1977,11 @@ type TabId = 'opportunities' | 'overview' | 'topics' | 'upcoming' | 'settings';
 // shows the real in-progress state instead of nothing.
 const ACTIVE_SCAN_STORAGE_KEY = 'mi_active_scan';
 
+// Real (non-mock) providers routinely take longer than the 30s this used
+// to allow — see beginPolling's own comment on the attempt check below.
+const POLL_INTERVAL_MS = 4000;
+const POLL_BUDGET_ATTEMPTS = 90; // ~6 minutes
+
 type StoredScan = { topicId: string; scanId: string };
 
 function readStoredScan(): StoredScan | null {
@@ -2132,7 +2169,8 @@ export default function MarketIntelligencePage() {
     ]);
     loadDevelopments();
     loadBudget();
-    if (topicsRes.status) setTopics(topicsRes.responseData ?? []);
+    const loadedTopics = topicsRes.status ? (topicsRes.responseData ?? []) : [];
+    if (topicsRes.status) setTopics(loadedTopics);
     if (insightsRes.status) {
       const list = insightsRes.responseData ?? [];
       setInsights(list);
@@ -2142,18 +2180,32 @@ export default function MarketIntelligencePage() {
       });
     }
     setLoading(false);
+    return loadedTopics;
   };
 
+  const IN_FLIGHT_SCAN_STATUSES = new Set(['queued', 'collecting', 'analysing']);
+
   useEffect(() => {
-    loadAll(false);
     loadPreferences();
     loadListeningLocation();
-    // PRD §9: "Return a job identifier immediately, allow the user to leave
-    // and return." A scan started before a remount (switching workspace
-    // tabs and coming back) is resumed here instead of just vanishing from
-    // view with no indication it's still running.
-    const stored = readStoredScan();
-    if (stored) beginPolling(stored.topicId, stored.scanId);
+    (async () => {
+      const loadedTopics = await loadAll(false);
+      // PRD §9: "Return a job identifier immediately, allow the user to
+      // leave and return." Confirmed live bug: this used to only resume
+      // from sessionStorage, which is empty in a brand new tab or a
+      // reopened browser — so a scan that was genuinely still running on
+      // the server showed nothing at all unless you stayed on the exact
+      // tab that started it. GET /topics now carries each topic's own
+      // latest_scan from the server, so a scan still in flight resumes
+      // here no matter how the page was reached.
+      const stored = readStoredScan();
+      if (stored) {
+        beginPolling(stored.topicId, stored.scanId);
+        return;
+      }
+      const inFlight = loadedTopics.find((t) => t.latest_scan && IN_FLIGHT_SCAN_STATUSES.has(t.latest_scan.status));
+      if (inFlight?.latest_scan) beginPolling(inFlight.id, inFlight.latest_scan.id);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2225,19 +2277,21 @@ export default function MarketIntelligencePage() {
         }
         return;
       }
-      if (attempt > 30) {
-        // Not a dead end: the scan may genuinely still be running (a real
-        // provider adapter can take longer than the mock one), and the
-        // backend now self-heals a run that's actually stuck after a few
-        // minutes. Stop auto-polling to avoid running forever in the
-        // background, but leave a real, checkable status instead of a
-        // one-shot toast that disappears and leaves no trace.
+      // Confirmed live UX bug: this used to give up after 30 x 1s (30
+      // seconds total) and show "still working, check anytime" — for a
+      // real (non-mock) provider, collection routinely takes longer than
+      // that, so every real scan looked stuck or broken almost
+      // immediately. POLL_BUDGET_ATTEMPTS x POLL_INTERVAL_MS gives a real
+      // scan several minutes before auto-polling gives up, matching the
+      // backend's own "self-heals a run that's actually stuck after a few
+      // minutes" guarantee instead of outracing it.
+      if (attempt > POLL_BUDGET_ATTEMPTS) {
         setScanningTopicId(null);
         setScanProgress(null);
         setStaleScan({ topicId, scanId });
         return;
       }
-      setTimeout(() => poll(attempt + 1), 1000);
+      setTimeout(() => poll(attempt + 1), POLL_INTERVAL_MS);
     };
     poll(0);
   };

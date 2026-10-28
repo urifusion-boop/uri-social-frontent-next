@@ -143,6 +143,10 @@ export interface Topic {
   competitors: string[];
   languages: string[];
   notification_sensitivity: NotificationSensitivity;
+  // Server-side truth about this topic's most recent scan — so a fresh
+  // page load (a new tab, a reopened browser) shows real state instead of
+  // depending on this browser's own in-memory/sessionStorage polling.
+  latest_scan?: CollectionRun | null;
 }
 
 export interface ScanSourceProgress {
