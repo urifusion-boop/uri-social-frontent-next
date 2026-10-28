@@ -245,8 +245,19 @@ const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void
         {item.series_name && <SeriesBadge name={item.series_name} />}
         {item.ad_opportunity?.is_ad_candidate && <AdBadge score={item.ad_opportunity.score} />}
         {!item.diversity_check.passed && (
-          <span title="Flagged as similar to another idea in this plan" style={{ fontSize: 10.5, color: '#B45309' }}>
-            ⚠️
+          <span
+            title="Similar to another idea in this plan — still fine to use as-is, or open it for a fresh take"
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: '#4338CA',
+              background: '#EEF2FF',
+              border: '1px solid #E0E7FF',
+              borderRadius: 999,
+              padding: '1px 6px',
+            }}
+          >
+            ↻ Similar
           </span>
         )}
         {item.status === 'approved' && <span style={{ fontSize: 10.5, color: '#059669' }}>✓ approved</span>}
@@ -504,19 +515,43 @@ const ItemDetailModal = ({
         {!item.diversity_check.passed && (
           <div
             style={{
-              fontSize: 11,
-              color: '#B45309',
-              background: '#FFFBEB',
-              border: '1px solid #FDE68A',
+              fontSize: 11.5,
+              color: '#3730A3',
+              background: '#EEF2FF',
+              border: '1px solid #E0E7FF',
               borderRadius: 8,
-              padding: '6px 10px',
+              padding: '8px 10px',
               marginBottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              flexWrap: 'wrap',
             }}
           >
-            ⚠️ Flagged as similar to another idea in this plan (similarity score{' '}
-            {item.diversity_check.similarity_score.toFixed(1)})
-            {item.last_regenerated_reason === 'diversity_auto' &&
-              ' — already auto-regenerated once, still flagged for manual review'}
+            <span>
+              ↻ This idea is similar to another one in your plan — it's still fine to use as-is.
+              {item.last_regenerated_reason === 'diversity_auto'
+                ? ' Already got one automatic refresh and is still similar after that.'
+                : ' Want a different angle?'}
+            </span>
+            <button
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#4338CA',
+                background: '#fff',
+                border: '1px solid #C7D2FE',
+                borderRadius: 6,
+                padding: '4px 10px',
+                cursor: regenerating ? 'default' : 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {regenerating ? 'Refreshing…' : '✨ Refresh this idea'}
+            </button>
           </div>
         )}
         {item.last_regenerated_reason === 'diversity_auto' && item.diversity_check.passed && (
@@ -1184,7 +1219,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
               <div style={{ fontSize: 11.5, color: GRAY, marginTop: 2 }}>
                 {plan.items.filter((i) => i.ad_opportunity?.is_ad_candidate).length} ad candidates
                 {' · '}
-                {plan.items.filter((i) => !i.diversity_check.passed).length} flagged for review
+                {plan.items.filter((i) => !i.diversity_check.passed).length} similar to another idea
               </div>
             </div>
             <button
