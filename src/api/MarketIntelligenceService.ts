@@ -172,6 +172,11 @@ export interface CollectionRun {
   // "collecting" to "done"/"failed" independently as it actually finishes —
   // absent on older runs collected before this existed.
   per_source?: ScanSourceProgress[];
+  // Confirmed live: for a real scan with a few hundred posts, classifying
+  // them (one LLM call each) runs long after collection's own per_source
+  // log says "done," with nothing visible anywhere during it — this is
+  // what lets the UI show real progress there too, not just a spinner.
+  classification_progress?: { done: number; total: number } | null;
   // Only present once the scan reaches a terminal status — what it
   // actually produced, so the UI can say "found 3 new insights" with a
   // direct link instead of a toast that disappears with no payoff shown.

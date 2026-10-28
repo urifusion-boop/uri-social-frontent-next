@@ -1230,6 +1230,7 @@ function TopicsPanel({
   topics,
   scanningTopicId,
   scanProgress,
+  classificationProgress,
   onRunScan,
   showNewTopic,
   setShowNewTopic,
@@ -1245,6 +1246,7 @@ function TopicsPanel({
   topics: Topic[];
   scanningTopicId: string | null;
   scanProgress: ScanSourceProgress[] | null;
+  classificationProgress: { done: number; total: number } | null;
   onRunScan: (topicId: string) => void;
   showNewTopic: boolean;
   setShowNewTopic: (v: boolean) => void;
@@ -1307,22 +1309,31 @@ function TopicsPanel({
                     )}
                     <span className="text-[11px] text-muted-foreground">{t.requested_days}d window</span>
                   </div>
-                  {scanningTopicId === t.id &&
-                    (scanProgress && scanProgress.length > 0 ? (
-                      <div className="mt-1.5">
-                        <div className="text-[11px] text-muted-foreground">
-                          Collecting conversations from your selected sources — real progress below. This keeps running
-                          on our side even if you close this tab or come back later; this Topics &amp; Sources list is
-                          where you&apos;ll see it finish.
+                  {scanningTopicId === t.id && (
+                    <div className="mt-1.5">
+                      <div className="text-[11px] text-muted-foreground">
+                        {classificationProgress
+                          ? // Confirmed live UX bug: collection finishing ("done, found N
+                            // posts" below) with the button still stuck on a bare
+                            // "Scanning..." spinner for several more minutes, with nothing
+                            // telling you why — that's real classification work (one check
+                            // per post), not a hang.
+                            `Collected everything — now reviewing ${classificationProgress.done}/${classificationProgress.total} posts to find what's actually relevant. This keeps running even if you close this tab; check back here on My Topics to see it finish.`
+                          : 'Collecting conversations from your selected sources. This keeps running even if you close this tab — check back here on My Topics to see it finish.'}
+                      </div>
+                      {classificationProgress && (
+                        <div className="mt-1.5 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all"
+                            style={{
+                              width: `${Math.round((classificationProgress.done / Math.max(1, classificationProgress.total)) * 100)}%`,
+                            }}
+                          />
                         </div>
-                        <ScanProgressLog sources={scanProgress} />
-                      </div>
-                    ) : (
-                      <div className="mt-1.5 text-[11px] text-muted-foreground">
-                        Collecting conversations from your selected sources. This keeps running even if you close this
-                        tab — check back here on Topics &amp; Sources to see it finish.
-                      </div>
-                    ))}
+                      )}
+                      {scanProgress && scanProgress.length > 0 && <ScanProgressLog sources={scanProgress} />}
+                    </div>
+                  )}
                   {staleScan?.topicId === t.id && (
                     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11.5px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
                       <span>
@@ -2063,8 +2074,13 @@ const ACTIVE_SCAN_STORAGE_KEY = 'mi_active_scan';
 
 // Real (non-mock) providers routinely take longer than the 30s this used
 // to allow — see beginPolling's own comment on the attempt check below.
-const POLL_INTERVAL_MS = 4000;
-const POLL_BUDGET_ATTEMPTS = 90; // ~6 minutes
+// Confirmed live: classifying a few hundred real posts (one LLM call
+// each, after collection itself finishes) can run well past 10 minutes —
+// classification_progress now makes that visible instead of a bare
+// spinner, which is what justifies waiting this long before giving up to
+// the manual "Check now" fallback rather than declaring it stale.
+const POLL_INTERVAL_MS = 5000;
+const POLL_BUDGET_ATTEMPTS = 240; // ~20 minutes
 
 type StoredScan = { topicId: string; scanId: string };
 
@@ -2124,6 +2140,7 @@ export default function MarketIntelligencePage() {
   // pending -> collecting -> done/failed on its own as that source actually
   // finishes, polled alongside the scan's overall status.
   const [scanProgress, setScanProgress] = useState<ScanSourceProgress[] | null>(null);
+  const [classificationProgress, setClassificationProgress] = useState<{ done: number; total: number } | null>(null);
   const [staleScan, setStaleScan] = useState<{ topicId: string; scanId: string } | null>(null);
   const [checkingStale, setCheckingStale] = useState(false);
   const [lastScanHadGaps, setLastScanHadGaps] = useState(false);
@@ -2340,6 +2357,7 @@ export default function MarketIntelligencePage() {
     writeStoredScan({ topicId, scanId });
     setScanningTopicId(topicId);
     setScanProgress(null);
+    setClassificationProgress(null);
     setStaleScan(null);
 
     const poll = async (attempt: number) => {
@@ -2347,11 +2365,13 @@ export default function MarketIntelligencePage() {
       const scanRes = await MarketIntelligenceService.getScan(scanId);
       if (pollSeqRef.current !== mySeq) return;
       setScanProgress(scanRes.responseData?.per_source ?? null);
+      setClassificationProgress(scanRes.responseData?.classification_progress ?? null);
 
       const status = scanRes.responseData?.status;
       if (status === 'completed' || status === 'partial' || status === 'failed' || status === 'budget_limited') {
         setScanningTopicId(null);
         setScanProgress(null);
+        setClassificationProgress(null);
         writeStoredScan(null);
         setLastScanHadGaps(status === 'partial' || status === 'budget_limited');
         await loadAll();
@@ -2361,7 +2381,7 @@ export default function MarketIntelligencePage() {
         } else if (status === 'partial') {
           ToastService.showToast('Results cover the available period shown below.', ToastTypeEnum.Success);
         } else if (status === 'failed') {
-          ToastService.showToast('Scan failed. You can retry any time from Topics & Sources.', ToastTypeEnum.Error);
+          ToastService.showToast('Scan failed. You can retry any time from My Topics.', ToastTypeEnum.Error);
         } else {
           ToastService.showToast('Scan complete.', ToastTypeEnum.Success);
         }
@@ -2378,6 +2398,7 @@ export default function MarketIntelligencePage() {
       if (attempt > POLL_BUDGET_ATTEMPTS) {
         setScanningTopicId(null);
         setScanProgress(null);
+        setClassificationProgress(null);
         setStaleScan({ topicId, scanId });
         return;
       }
@@ -2725,6 +2746,7 @@ export default function MarketIntelligencePage() {
               topics={topics}
               scanningTopicId={scanningTopicId}
               scanProgress={scanProgress}
+              classificationProgress={classificationProgress}
               onRunScan={handleRunScan}
               showNewTopic={showNewTopic}
               setShowNewTopic={setShowNewTopic}
