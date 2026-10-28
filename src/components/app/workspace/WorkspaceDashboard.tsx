@@ -6204,6 +6204,9 @@ const PlaybookPage = ({
   const [customerNeeds, setCustomerNeeds] = useState<string[]>([]);
   const [customerObjections, setCustomerObjections] = useState<string[]>([]);
   const [whyChooseUs, setWhyChooseUs] = useState('');
+  // Real, verifiable evidence only — distinct from the belief-about-customers
+  // fields above. See BrandProfileService.ts's proof_points for why.
+  const [proofPoints, setProofPoints] = useState<string[]>([]);
   // URI Content Calendar Generation addendum §1-4 — customer psychology
   // fields with no prior slot, distinct from pain points/needs/objections above
   const [customerDesires, setCustomerDesires] = useState<string[]>([]);
@@ -6581,6 +6584,7 @@ const PlaybookPage = ({
     setCustomerNeeds([...(profile.customer_needs ?? [])]);
     setCustomerObjections([...(profile.customer_objections ?? [])]);
     setWhyChooseUs(profile.why_customers_choose_us ?? '');
+    setProofPoints([...(profile.proof_points ?? [])]);
     setCustomerDesires([...(profile.customer_desires ?? [])]);
     setCustomerFears([...(profile.customer_fears ?? [])]);
     setCustomerFrustrations([...(profile.customer_frustrations ?? [])]);
@@ -6697,6 +6701,7 @@ const PlaybookPage = ({
         customer_needs: customerNeeds,
         customer_objections: customerObjections,
         why_customers_choose_us: whyChooseUs,
+        proof_points: proofPoints,
         customer_desires: customerDesires,
         customer_fears: customerFears,
         customer_frustrations: customerFrustrations,
@@ -8099,6 +8104,18 @@ const PlaybookPage = ({
                   onChange={setWhyChooseUs}
                   placeholder="e.g. We deliver same-day, still warm from the oven"
                   textarea
+                />
+              }
+            />
+            <PbRow
+              label="Proof points / testimonials"
+              value={p?.proof_points}
+              editing={editing}
+              input={
+                <PbListInput
+                  value={proofPoints}
+                  onChange={setProofPoints}
+                  placeholder={'e.g. "Cut our content time in half" — Jane, Acme Co. — press Enter after each'}
                 />
               }
             />

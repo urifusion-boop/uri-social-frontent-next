@@ -94,6 +94,12 @@ export interface BrandProfileData {
   customer_needs?: string[];
   customer_objections?: string[];
   why_customers_choose_us?: string;
+  // Real, verifiable evidence only (an actual customer quote, a named case
+  // study, a specific measurable result) — distinct from the belief-about-
+  // customers fields above. Content generation is told to quote these close
+  // to verbatim in "Proof"-style posts, and to avoid fabricating a
+  // testimonial/result when this is empty rather than invent one.
+  proof_points?: string[];
   // URI Content Calendar Generation addendum §1-4 — customer psychology
   // fields with no prior slot, distinct from pain_points/needs/objections above
   customer_desires?: string[];

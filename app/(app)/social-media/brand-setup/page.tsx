@@ -273,6 +273,151 @@ const UriTextarea = ({
   />
 );
 
+/** Chip-based list input — each item is its own array element, entered by
+ * pressing Enter/comma or on blur. Unlike a plain text input round-tripped
+ * through array.join(', ') + text.split(','), already-stored items are
+ * rendered as discrete chips and are NEVER re-joined into one string and
+ * re-parsed, so a stored item that happens to contain its own comma (e.g.
+ * one real sentence saved as a single pain point) can never be shredded by
+ * an unrelated keystroke or re-render. Confirmed live: the old join/split
+ * pattern turned "Inconsistent content, limited marketing expertise, lack
+ * of time, and the high cost of hiring a full social media team." into 4
+ * fake separate "points" the moment the field fired any onChange. Matches
+ * the same safe pattern WorkspaceDashboard.tsx's Playbook editor already
+ * uses for these same fields (PbListInput). */
+const UriListInput = ({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string[];
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+}) => {
+  const [draft, setDraft] = useState('');
+  const add = (raw: string) => {
+    const items = raw
+      .split(/[,\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!items.length) return;
+    const seen = new Set(value.map((v) => v.toLowerCase()));
+    const next = [...value];
+    for (const item of items) {
+      if (!seen.has(item.toLowerCase())) {
+        seen.add(item.toLowerCase());
+        next.push(item);
+      }
+    }
+    onChange(next);
+  };
+  return (
+    <Box
+      onClick={(e) => (e.currentTarget.querySelector('input') as HTMLInputElement | null)?.focus()}
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 0.75,
+        px: 1.5,
+        py: 1,
+        minHeight: 40,
+        borderRadius: '10px',
+        border: '1px solid #E0DEF7',
+        background: '#F7F7FD',
+        boxSizing: 'border-box',
+        cursor: 'text',
+        '&:focus-within': { borderColor: 'primary.main' },
+      }}
+    >
+      {value.map((item, i) => (
+        <Box
+          key={`${item}-${i}`}
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.5,
+            pl: 1.25,
+            pr: 0.5,
+            py: 0.375,
+            borderRadius: 999,
+            bgcolor: 'rgba(194,24,91,.08)',
+            color: '#8E1545',
+            fontSize: 12.5,
+            fontWeight: 600,
+            maxWidth: '100%',
+          }}
+        >
+          <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {item}
+          </Box>
+          <Box
+            component="button"
+            type="button"
+            aria-label={`Remove ${item}`}
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              onChange(value.filter((_, j) => j !== i));
+            }}
+            sx={{
+              border: 'none',
+              background: 'none',
+              color: '#C2185B',
+              cursor: 'pointer',
+              fontSize: 14,
+              lineHeight: 1,
+              px: 0.5,
+              py: 0,
+            }}
+          >
+            ×
+          </Box>
+        </Box>
+      ))}
+      <Box
+        component="input"
+        value={draft}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+          const v = e.target.value;
+          if (v.includes(',')) {
+            add(v);
+            setDraft('');
+          } else {
+            setDraft(v);
+          }
+        }}
+        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            add(draft);
+            setDraft('');
+          } else if (e.key === 'Backspace' && !draft && value.length) {
+            onChange(value.slice(0, -1));
+          }
+        }}
+        onBlur={() => {
+          if (draft.trim()) {
+            add(draft);
+            setDraft('');
+          }
+        }}
+        placeholder={value.length ? 'Add another…' : placeholder}
+        sx={{
+          flex: '1 1 160px',
+          minWidth: 120,
+          border: 'none',
+          outline: 'none',
+          background: 'transparent',
+          fontSize: 13.5,
+          color: '#1f2937',
+          fontFamily: 'inherit',
+          py: 0.5,
+        }}
+      />
+    </Box>
+  );
+};
+
 /** Large option card (like select-workflow style) */
 const OptionCard = ({
   emoji,
@@ -798,6 +943,9 @@ function BrandSetupPageContent() {
   const [customerNeeds, setCustomerNeeds] = useState<string[]>([]);
   const [customerObjections, setCustomerObjections] = useState<string[]>([]);
   const [whyChooseUs, setWhyChooseUs] = useState('');
+  // Real, verifiable evidence only — distinct from the belief-about-customers
+  // fields above. See BrandProfileService.ts's proof_points for why.
+  const [proofPoints, setProofPoints] = useState<string[]>([]);
 
   // ── Competitors ───────────────────────────────────────────────
   const [competitors, setCompetitors] = useState(['', '', '']);
@@ -902,6 +1050,7 @@ function BrandSetupPageContent() {
     if (profile.customer_needs?.length) setCustomerNeeds(profile.customer_needs);
     if (profile.customer_objections?.length) setCustomerObjections(profile.customer_objections);
     if (profile.why_customers_choose_us) setWhyChooseUs(profile.why_customers_choose_us);
+    if (profile.proof_points?.length) setProofPoints(profile.proof_points);
     if (profile.competitor_handles?.length) {
       const padded = [...profile.competitor_handles, '', '', ''].slice(0, 3);
       setCompetitors(padded);
@@ -1048,6 +1197,7 @@ function BrandSetupPageContent() {
     customer_needs: customerNeeds,
     customer_objections: customerObjections,
     why_customers_choose_us: whyChooseUs,
+    proof_points: proofPoints,
     competitor_handles: competitors.filter(Boolean),
     key_dates: keyDates,
     posting_cadence: cadence,
@@ -2580,62 +2730,34 @@ function BrandSetupPageContent() {
                 />
               </Grid>
               <Grid item xs={12}>
-                <FieldLabel sub="(comma-separated, optional)">Interests</FieldLabel>
-                <UriInput
-                  value={customerInterests.join(', ')}
-                  onChange={(v) =>
-                    setCustomerInterests(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
+                <FieldLabel sub="(press Enter after each, optional)">Interests</FieldLabel>
+                <UriListInput
+                  value={customerInterests}
+                  onChange={setCustomerInterests}
                   placeholder="e.g. fitness, wellness, personal finance"
                 />
               </Grid>
               <Grid item xs={12}>
-                <FieldLabel sub="(comma-separated, optional)">Pain points</FieldLabel>
-                <UriInput
-                  value={customerPainPoints.join(', ')}
-                  onChange={(v) =>
-                    setCustomerPainPoints(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
+                <FieldLabel sub="(press Enter after each, optional)">Pain points</FieldLabel>
+                <UriListInput
+                  value={customerPainPoints}
+                  onChange={setCustomerPainPoints}
                   placeholder="e.g. no time to cook, hard to find reliable delivery"
                 />
               </Grid>
               <Grid item xs={12}>
-                <FieldLabel sub="(comma-separated, optional)">Needs</FieldLabel>
-                <UriInput
-                  value={customerNeeds.join(', ')}
-                  onChange={(v) =>
-                    setCustomerNeeds(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
+                <FieldLabel sub="(press Enter after each, optional)">Needs</FieldLabel>
+                <UriListInput
+                  value={customerNeeds}
+                  onChange={setCustomerNeeds}
                   placeholder="e.g. fast turnaround, transparent pricing"
                 />
               </Grid>
               <Grid item xs={12}>
-                <FieldLabel sub="(comma-separated, optional)">Common objections</FieldLabel>
-                <UriInput
-                  value={customerObjections.join(', ')}
-                  onChange={(v) =>
-                    setCustomerObjections(
-                      v
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
+                <FieldLabel sub="(press Enter after each, optional)">Common objections</FieldLabel>
+                <UriListInput
+                  value={customerObjections}
+                  onChange={setCustomerObjections}
                   placeholder="e.g. too expensive, not sure it works"
                 />
               </Grid>
@@ -2646,6 +2768,14 @@ function BrandSetupPageContent() {
                   onChange={setWhyChooseUs}
                   placeholder="e.g. We're the only ones who deliver same-day"
                   rows={2}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FieldLabel sub="(press Enter after each, optional)">Proof points / testimonials</FieldLabel>
+                <UriListInput
+                  value={proofPoints}
+                  onChange={setProofPoints}
+                  placeholder='e.g. "Cut our content time in half" — Jane, Acme Co.'
                 />
               </Grid>
               <Grid item xs={12}>
