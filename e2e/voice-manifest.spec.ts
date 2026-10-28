@@ -29,11 +29,20 @@ test.describe('voice preview manifest', () => {
       voices: [
         entry('Idera (Nigerian)', '../../evil.wav'),
         entry('Jude (Nigerian)', 'https://evil.test/a.wav'),
-        entry('Emma (Nigerian)', 'emma.mp3'),
+        entry('Emma (Nigerian)', 'emma.exe'),
+        entry('Tayo (Nigerian)', 'tayo.ogg'),
         entry('Umar (Nigerian)', 'umar.wav'),
       ],
     });
     expect(m?.voices).toEqual(['Umar (Nigerian)']);
+  });
+
+  test('MP3 previews, as the YarnGPT Studio downloads them, are accepted next to WAV ones', () => {
+    const m = parseVoiceManifest({
+      voices: [entry('Idera (Nigerian)', 'idera.mp3'), entry('Jude (Nigerian)', 'jude.WAV')],
+    });
+    expect(m?.voices).toEqual(['Idera (Nigerian)', 'Jude (Nigerian)']);
+    expect(m?.previews['Idera (Nigerian)']).toBe('/voice-previews/idera.mp3');
   });
 
   test('only Nigerian voices are accepted, and a label is not repeated', () => {
