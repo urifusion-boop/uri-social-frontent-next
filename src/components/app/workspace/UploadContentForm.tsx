@@ -94,6 +94,20 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   const [loading, setLoading] = useState(false);
   const [statusIdx, setStatusIdx] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ file: File; preview: string }>>([]);
+  // Every createObjectURL preview this component has ever made, so they can
+  // all be released if the user navigates away without removing them one by
+  // one first — a blob URL otherwise stays alive for the page's lifetime.
+  const objectUrlsRef = useRef<string[]>([]);
+  useEffect(() => {
+    // Deliberately reads objectUrlsRef.current live when unmount actually
+    // happens, not a snapshot from when this effect was set up — this is a
+    // plain accumulating array, not a DOM ref, so that's exactly what's
+    // wanted here.
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [postType, setPostType] = useState<'feed' | 'carousel' | 'story'>('feed');
   const [isDragging, setIsDragging] = useState(false);
@@ -186,6 +200,15 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
   };
 
+  // Only called at actual submit time now, never just to show a preview.
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
   const processFile = (file: File): boolean => {
     // Check if it's image or video
     const isImage = file.type.startsWith('image/');
@@ -224,11 +247,18 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
       return false;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setUploadedFiles((prev) => [...prev, { file, preview: reader.result as string }]);
-    };
-    reader.readAsDataURL(file);
+    // A cheap reference to the file, not a copy of it — reading a video up to
+    // 100MB through FileReader.readAsDataURL used to hold a ~133MB base64
+    // string in React state just to show the preview, which was enough to
+    // crash/reload the tab on a phone's much tighter per-tab memory budget
+    // (confirmed: every other video form in this app already uses
+    // createObjectURL for its preview, e.g. VideoProductionForm.tsx — this
+    // form was the one outlier still doing it the expensive way). The actual
+    // base64 conversion now only happens once, lazily, at submit time (see
+    // doGenerate's fileToBase64 calls), never while just previewing.
+    const preview = URL.createObjectURL(file);
+    objectUrlsRef.current.push(preview);
+    setUploadedFiles((prev) => [...prev, { file, preview }]);
     return true;
   };
 
@@ -267,7 +297,11 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   };
 
   const removeFile = (index: number) => {
-    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    setUploadedFiles((prev) => {
+      const removed = prev[index];
+      if (removed) URL.revokeObjectURL(removed.preview);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   // Check credits before generation
@@ -289,8 +323,10 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   const doGenerate = async () => {
     setLoading(true);
     try {
-      // Convert files to base64 for upload
-      const mediaBase64Array = uploadedFiles.map((uf) => uf.preview);
+      // Convert files to base64 now, only at the moment they're actually
+      // being submitted — not kept in state just for showing the preview
+      // (see processFile's comment for why that used to crash on mobile).
+      const mediaBase64Array = await Promise.all(uploadedFiles.map((uf) => fileToBase64(uf.file)));
 
       const payload = {
         uploaded_media: mediaBase64Array,
