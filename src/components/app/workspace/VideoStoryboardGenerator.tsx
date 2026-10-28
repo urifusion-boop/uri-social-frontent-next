@@ -13,6 +13,7 @@ import {
 import TikTokPostDialog from './TikTokPostDialog';
 import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { NigerianVoiceManifest, VOICE_MANIFEST_URL, parseVoiceManifest } from '@/src/components/app/workspace/voiceManifest';
 
 // Exported — reused as-is by DescribeVideoGenerator.tsx so the two entry
 // points (upload-first vs. describe-it) share one "turn a storyboard into
@@ -204,6 +205,12 @@ export const NIGERIAN_VOICE_PREVIEWS: Record<string, string> = {
 export function AvatarVoicePicker({ value, onChange }: { value: string; onChange: (voice: string) => void }) {
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // The two voices that always existed are the starting point; once the manifest of generated
+  // previews loads, the picker shows exactly the voices listed there (see voiceManifest.ts).
+  const [nigerian, setNigerian] = useState<NigerianVoiceManifest>({
+    voices: NIGERIAN_VOICES,
+    previews: NIGERIAN_VOICE_PREVIEWS,
+  });
 
   useEffect(() => {
     return () => {
@@ -211,7 +218,23 @@ export function AvatarVoicePicker({ value, onChange }: { value: string; onChange
     };
   }, []);
 
-  const allPreviews: Record<string, string> = { ...VOICE_PREVIEWS, ...NIGERIAN_VOICE_PREVIEWS };
+  useEffect(() => {
+    let alive = true;
+    fetch(VOICE_MANIFEST_URL, { cache: 'no-cache' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const manifest = parseVoiceManifest(json);
+        if (alive && manifest) setNigerian(manifest);
+      })
+      .catch(() => {
+        /* no manifest yet: keep the two original voices */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const allPreviews: Record<string, string> = { ...VOICE_PREVIEWS, ...nigerian.previews };
 
   const togglePreview = (voice: string) => {
     const url = allPreviews[voice];
@@ -294,7 +317,7 @@ export function AvatarVoicePicker({ value, onChange }: { value: string; onChange
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div>
         <div style={labelStyle}>Nigerian</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{NIGERIAN_VOICES.map(renderChip)}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{nigerian.voices.map(renderChip)}</div>
       </div>
       <div>
         <div style={labelStyle}>Default</div>
