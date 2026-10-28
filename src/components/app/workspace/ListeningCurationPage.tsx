@@ -1508,6 +1508,13 @@ export default function ListeningCurationPage({ onBack }: { onBack: () => void }
   const [markets, setMarkets] = useState<CurationMarket[]>([]);
   const [market, setMarket] = useState('');
   const [loadingMarkets, setLoadingMarkets] = useState(true);
+  // Confirmed live: continent-expansion-to-per-country markets means this
+  // list is almost every country on Earth, the vast majority with zero
+  // subscribers — an admin had to scroll past 50+ dead rows to find the
+  // handful that matter. Defaults to hiding them; off by one click when
+  // someone genuinely wants to see or set up a currently-empty market.
+  const [activeOnly, setActiveOnly] = useState(true);
+  const visibleMarkets = activeOnly ? markets.filter((m) => m.subscriber_count > 0) : markets;
 
   useEffect(() => {
     if (!isAdminStatusPending && !isAdminUser) {
@@ -1553,13 +1560,20 @@ export default function ListeningCurationPage({ onBack }: { onBack: () => void }
           <div className="flex items-center gap-2">
             <Globe2 className="h-4 w-4 text-muted-foreground" />
             <SelectEl value={market} onChange={setMarket} className="min-w-50">
-              <option value="">All markets {loadingMarkets ? '(loading…)' : `(${markets.length})`}</option>
-              {markets.map((m) => (
+              <option value="">
+                {activeOnly ? 'Active markets' : 'All markets'}{' '}
+                {loadingMarkets ? '(loading…)' : `(${visibleMarkets.length})`}
+              </option>
+              {visibleMarkets.map((m) => (
                 <option key={m.key} value={m.key}>
                   {m.label || m.key} {m.subscriber_count ? `· ${m.subscriber_count} subscribers` : ''}
                 </option>
               ))}
             </SelectEl>
+            <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+              <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} />
+              Active only
+            </label>
           </div>
         </div>
 

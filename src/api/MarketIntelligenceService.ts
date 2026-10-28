@@ -172,6 +172,11 @@ export interface CollectionRun {
   // "collecting" to "done"/"failed" independently as it actually finishes —
   // absent on older runs collected before this existed.
   per_source?: ScanSourceProgress[];
+  // Only present once the scan reaches a terminal status — what it
+  // actually produced, so the UI can say "found 3 new insights" with a
+  // direct link instead of a toast that disappears with no payoff shown.
+  new_insight_count?: number;
+  new_development_count?: number;
 }
 
 export interface ActionBrief {

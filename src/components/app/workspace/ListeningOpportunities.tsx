@@ -380,9 +380,15 @@ function OpportunityCard({
                 </div>
               )}
               <div className="text-[11px] text-muted-foreground">
-                Source: {card.evidence.source}. {card.evidence.scope_note} Relevance {Math.round(card.scores.R)} ·
-                momentum {Math.round(card.scores.M)} · buying intent {Math.round(card.scores.C)} · evidence{' '}
-                {Math.round(card.scores.E)} · brand fit {Math.round(card.scores.B)}
+                Source: {card.evidence.source}. {card.evidence.scope_note}
+              </div>
+              <div
+                className="text-[11px] text-muted-foreground"
+                title="Each is scored 0-100. Relevance: matches what you sell. Momentum: how fast this is picking up right now. Buying intent: how close to ready-to-buy the language sounds. Evidence: how much real activity backs this up. Brand fit: how well it fits your brand voice/positioning."
+              >
+                Relevance {Math.round(card.scores.R)}/100 · momentum {Math.round(card.scores.M)}/100 · buying intent{' '}
+                {Math.round(card.scores.C)}/100 · evidence {Math.round(card.scores.E)}/100 · brand fit{' '}
+                {Math.round(card.scores.B)}/100
               </div>
               {relevanceNote(card) && (
                 <div className="text-[11px] text-muted-foreground">

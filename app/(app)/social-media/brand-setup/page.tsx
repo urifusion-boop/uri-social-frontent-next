@@ -3402,6 +3402,12 @@ function BrandSetupPageContent() {
                     />
                   ))}
                 </Box>
+                <Hint>
+                  This affects local references, ad targeting and how closely a Market Intelligence finding is scored as
+                  matching your business. It doesn&apos;t control what Market Intelligence actually collects —
+                  that&apos;s set separately in Market Intelligence → Listening Setup → &ldquo;Listening
+                  location.&rdquo;
+                </Hint>
               </Grid>
               <Grid item xs={12}>
                 <CustomButton mode="primary" onClick={next} style={{ padding: '10px 28px' }}>

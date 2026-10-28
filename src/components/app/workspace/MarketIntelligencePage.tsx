@@ -51,6 +51,7 @@ import {
   InsightVersion,
   KnownPlace,
   ListeningLocations,
+  CollectionRun,
   ListeningStatus,
   LocationScope,
   MarketIntelligenceService,
@@ -158,6 +159,15 @@ function parseServerDate(iso: string): Date {
   return new Date(/[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`);
 }
 
+// Confirmed live: a bare toLocaleDateString() rendered as "17/09/2026"
+// right next to "38m ago" on the same tab — DD/MM/YYYY reads as
+// MM/DD/YYYY to plenty of users, and nothing on the page says which it
+// is. An explicit day-month-name-year format is unambiguous regardless
+// of locale assumptions.
+function formatAbsoluteDate(date: Date): string {
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 function formatRelativeDate(iso: string): string {
   const date = parseServerDate(iso);
   const diffMs = Date.now() - date.getTime();
@@ -168,7 +178,17 @@ function formatRelativeDate(iso: string): string {
   if (diffHr < 24) return `${diffHr}h ago`;
   const diffDay = Math.round(diffHr / 24);
   if (diffDay < 30) return `${diffDay}d ago`;
-  return date.toLocaleDateString();
+  return formatAbsoluteDate(date);
+}
+
+function resultSummaryText(scan: CollectionRun): string {
+  const insights = scan.new_insight_count ?? 0;
+  const events = scan.new_development_count ?? 0;
+  if (insights === 0 && events === 0) return 'Scan complete — nothing new found this time.';
+  const parts: string[] = [];
+  if (insights > 0) parts.push(`${insights} new insight${insights === 1 ? '' : 's'}`);
+  if (events > 0) parts.push(`${events} announced event${events === 1 ? '' : 's'}`);
+  return `Found ${parts.join(' and ')}.`;
 }
 
 // ─── Small building blocks ──────────────────────────────────────────────────
@@ -304,7 +324,7 @@ function EvidenceDrawer({ insightId, onInsightRetracted }: { insightId: string; 
                   <span>·</span>
                   <span>{e.platform}</span>
                   <span>·</span>
-                  <span>{e.published_at ? parseServerDate(e.published_at).toLocaleDateString() : 'undated'}</span>
+                  <span>{e.published_at ? formatAbsoluteDate(parseServerDate(e.published_at)) : 'undated'}</span>
                   {e.url && (
                     <>
                       <span>·</span>
@@ -341,10 +361,12 @@ function InsightListRow({
   insight,
   active,
   onClick,
+  topicQuestion,
 }: {
   insight: InsightVersion;
   active: boolean;
   onClick: () => void;
+  topicQuestion?: string;
 }) {
   const Icon = TYPE_ICON[insight.type];
   const band = BAND_STYLES[insight.confidence.band];
@@ -374,8 +396,24 @@ function InsightListRow({
         <div className="mt-0.5 line-clamp-2 text-[13px] leading-snug font-medium text-foreground">
           {insight.headline}
         </div>
+        {topicQuestion && (
+          <div className="mt-0.5 truncate text-[10.5px] text-muted-foreground" title={topicQuestion}>
+            From: {topicQuestion}
+          </div>
+        )}
         <div className="mt-1.5 flex items-center gap-2">
-          <span className={cn('text-[10.5px] font-semibold', band.text)}>{insight.confidence.total}/10 confidence</span>
+          <span
+            className={cn('text-[10.5px] font-semibold', band.text)}
+            title="Confidence: how solid the evidence behind this is — not whether it matters to your business."
+          >
+            {insight.confidence.total}/10 confidence
+          </span>
+          <span
+            className={cn('text-[10.5px] font-semibold', BAND_STYLES[insight.relevance.band].text)}
+            title="Relevance: how closely this actually matches your business — a low score here means treat this one with caution even if confidence is high."
+          >
+            · {insight.relevance.band} relevance
+          </span>
           {insight.urgency.is_urgent && (
             <Badge variant="destructive" className="h-4 px-1.5 text-[9.5px]">
               Urgent
@@ -497,7 +535,7 @@ function InsightDetail({
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11.5px] font-medium text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-400">
             <AlertTriangle className="h-3 w-3" />
             Urgent
-            {insight.urgency.deadline ? ` · by ${parseServerDate(insight.urgency.deadline).toLocaleDateString()}` : ''}
+            {insight.urgency.deadline ? ` · by ${formatAbsoluteDate(parseServerDate(insight.urgency.deadline))}` : ''}
           </div>
         )}
 
@@ -715,7 +753,7 @@ function DevelopmentsPanel({ developments, onUpdated }: { developments: Developm
                   <div className="mt-1 text-[11.5px] text-muted-foreground">
                     {d.issuer ?? 'Unverified issuer'}
                     {d.location ? ` · ${d.location}` : ''} ·{' '}
-                    {d.event_date ? parseServerDate(d.event_date).toLocaleDateString() : 'Date to confirm'}
+                    {d.event_date ? formatAbsoluteDate(parseServerDate(d.event_date)) : 'Date to confirm'}
                   </div>
                 </div>
                 <Badge variant="outline" className={cn('shrink-0', meta.className)}>
@@ -730,7 +768,7 @@ function DevelopmentsPanel({ developments, onUpdated }: { developments: Developm
               )}
               {d.registration_deadline && (
                 <div className="mt-1.5 text-[11.5px] text-amber-700 dark:text-amber-400">
-                  Registration deadline: {parseServerDate(d.registration_deadline).toLocaleDateString()}
+                  Registration deadline: {formatAbsoluteDate(parseServerDate(d.registration_deadline))}
                 </div>
               )}
               {d.source_url && (
@@ -1201,6 +1239,8 @@ function TopicsPanel({
   onCheckStale,
   deletingTopicId,
   onDeleteTopic,
+  onViewInsights,
+  onViewAnnouncedEvents,
 }: {
   topics: Topic[];
   scanningTopicId: string | null;
@@ -1214,12 +1254,14 @@ function TopicsPanel({
   onCheckStale: () => void;
   deletingTopicId: string | null;
   onDeleteTopic: (topicId: string) => void;
+  onViewInsights: (topicId: string) => void;
+  onViewAnnouncedEvents: () => void;
 }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-semibold text-foreground">Topics &amp; sources</div>
+          <div className="text-sm font-semibold text-foreground">My topics</div>
           <div className="text-[12.5px] text-muted-foreground">
             Each topic is a standing question Uri keeps evidence against.
           </div>
@@ -1305,13 +1347,37 @@ function TopicsPanel({
                     </div>
                   )}
                   {scanningTopicId !== t.id && staleScan?.topicId !== t.id && t.latest_scan && (
-                    <div className="mt-1.5 text-[11px] text-muted-foreground">
-                      {t.latest_scan.status === 'completed' && t.latest_scan.started_at && (
-                        <>Last scan finished {formatRelativeDate(t.latest_scan.started_at)}.</>
-                      )}
-                      {t.latest_scan.status === 'partial' && t.latest_scan.started_at && (
-                        <>Last scan finished {formatRelativeDate(t.latest_scan.started_at)} — results were partial.</>
-                      )}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
+                      {(t.latest_scan.status === 'completed' || t.latest_scan.status === 'partial') &&
+                        t.latest_scan.started_at && (
+                          <>
+                            <span>
+                              {resultSummaryText(t.latest_scan)}
+                              {t.latest_scan.status === 'partial' ? ' — results were partial.' : ''}{' '}
+                              <span className="opacity-70">({formatRelativeDate(t.latest_scan.started_at)})</span>
+                            </span>
+                            {(t.latest_scan.new_insight_count ?? 0) > 0 && (
+                              <Button
+                                variant="link"
+                                size="xs"
+                                className="h-auto p-0 text-[11px]"
+                                onClick={() => onViewInsights(t.id)}
+                              >
+                                View insights
+                              </Button>
+                            )}
+                            {(t.latest_scan.new_development_count ?? 0) > 0 && (
+                              <Button
+                                variant="link"
+                                size="xs"
+                                className="h-auto p-0 text-[11px]"
+                                onClick={onViewAnnouncedEvents}
+                              >
+                                View announced events
+                              </Button>
+                            )}
+                          </>
+                        )}
                       {t.latest_scan.status === 'failed' && t.latest_scan.started_at && (
                         <span className="text-destructive">
                           Last scan ({formatRelativeDate(t.latest_scan.started_at)}) failed — try &ldquo;Run scan&rdquo;
@@ -1320,6 +1386,9 @@ function TopicsPanel({
                       )}
                       {t.latest_scan.status === 'budget_limited' && t.latest_scan.started_at && (
                         <>Last scan ({formatRelativeDate(t.latest_scan.started_at)}) hit the collection budget limit.</>
+                      )}
+                      {t.latest_scan.status === 'cancelled' && t.latest_scan.started_at && (
+                        <>Last scan ({formatRelativeDate(t.latest_scan.started_at)}) was cancelled.</>
                       )}
                     </div>
                   )}
@@ -1592,7 +1661,9 @@ function LocationScopeCard({
         </div>
         <div className="mt-1 text-[11.5px] text-muted-foreground">
           Scope what Listening collects — worldwide, one continent, one country, or any city. Every country on Earth is
-          selectable, and any city can be typed in.
+          selectable, and any city can be typed in. This is the one control that actually decides what gets collected —
+          separate from your Brand Playbook&apos;s &ldquo;Region / market&rdquo; field, which only affects how closely a
+          finding is scored as matching your business.
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -1775,7 +1846,7 @@ function BusinessContextPanel() {
         margin_band: marginBand,
       });
       if (res.status) {
-        ToastService.showToast('Business context saved.', ToastTypeEnum.Success);
+        ToastService.showToast('Saved.', ToastTypeEnum.Success);
       } else {
         ToastService.showToast(res.responseMessage || 'Could not save business context', ToastTypeEnum.Error);
       }
@@ -2016,12 +2087,16 @@ function writeStoredScan(value: StoredScan | null) {
   }
 }
 
+// Confirmed live UX complaint: generic tab names like "Research" and
+// "Upcoming Items" gave no hint what they actually were, and "Settings"
+// collides with every other "Settings" in the app. These names describe
+// what each tab actually does, not what it's built from.
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'opportunities', label: 'Opportunities', icon: Lightbulb },
-  { id: 'overview', label: 'Research', icon: LayoutDashboard },
-  { id: 'topics', label: 'Topics & Sources', icon: Layers },
-  { id: 'upcoming', label: 'Upcoming Items', icon: CalendarClock },
-  { id: 'settings', label: 'Settings', icon: Settings2 },
+  { id: 'overview', label: 'Insights', icon: LayoutDashboard },
+  { id: 'topics', label: 'My Topics', icon: Layers },
+  { id: 'upcoming', label: 'Announced Events', icon: CalendarClock },
+  { id: 'settings', label: 'Listening Setup', icon: Settings2 },
 ];
 
 /**
@@ -2054,6 +2129,8 @@ export default function MarketIntelligencePage() {
   const [lastScanHadGaps, setLastScanHadGaps] = useState(false);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [topicFilter, setTopicFilter] = useState<string>('all');
+  const [minRelevance, setMinRelevance] = useState<'all' | 'medium' | 'high'>('all');
 
   // Ties each poll() recursion to the sequence that started it, so a stray
   // setTimeout from a poll loop that's no longer relevant (component
@@ -2392,10 +2469,13 @@ export default function MarketIntelligencePage() {
   const filteredInsights = useMemo(() => {
     return insights.filter((i) => {
       if (typeFilter !== 'all' && i.type !== typeFilter) return false;
+      if (topicFilter !== 'all' && i.topic_id !== topicFilter) return false;
+      if (minRelevance === 'medium' && i.relevance.band === 'low') return false;
+      if (minRelevance === 'high' && i.relevance.band !== 'high') return false;
       if (search.trim() && !i.headline.toLowerCase().includes(search.trim().toLowerCase())) return false;
       return true;
     });
-  }, [insights, search, typeFilter]);
+  }, [insights, search, typeFilter, topicFilter, minRelevance]);
 
   const selectedInsight = insights.find((i) => i.id === selectedId) ?? null;
   const urgentCount = insights.filter((i) => i.urgency.is_urgent).length;
@@ -2405,6 +2485,7 @@ export default function MarketIntelligencePage() {
     .sort((a, b) => new Date(a.event_date as string).getTime() - new Date(b.event_date as string).getTime())[0];
 
   const availableTypes = useMemo(() => Array.from(new Set(insights.map((i) => i.type))), [insights]);
+  const topicQuestionById = useMemo(() => new Map(topics.map((t) => [t.id, t.question])), [topics]);
 
   return (
     <div className="w-full bg-background">
@@ -2444,11 +2525,11 @@ export default function MarketIntelligencePage() {
           />
           <KpiCard
             icon={CalendarClock}
-            label="Upcoming items"
+            label="Announced events"
             value={developments.length}
             hint={
               soonestDevelopment
-                ? `next: ${parseServerDate(soonestDevelopment.event_date as string).toLocaleDateString()}`
+                ? `next: ${formatAbsoluteDate(parseServerDate(soonestDevelopment.event_date as string))}`
                 : 'none tracked'
             }
           />
@@ -2502,6 +2583,40 @@ export default function MarketIntelligencePage() {
 
         {/* Tab content */}
         <div className="mt-5">
+          {/* Confirmed live UX complaint: two unrelated systems (this
+              pre-scored Opportunities feed and the broader Insights feed
+              below) share this page with nothing explaining they're
+              different things, or how either relates to My Topics. One
+              line per tab, right where the user lands. */}
+          {activeTab === 'opportunities' && (
+            <div className="mb-3 text-[12.5px] text-muted-foreground">
+              Pre-scored, ready-to-act recommendations — pick one and create the post, carousel or ad in one step.
+            </div>
+          )}
+          {activeTab === 'overview' && (
+            <div className="mb-3 text-[12.5px] text-muted-foreground">
+              Broader patterns and conversations Uri is tracking for your topics below — context on your market, not a
+              ready-made to-do list. For a shorter list of things to act on right now, see Opportunities.
+            </div>
+          )}
+          {activeTab === 'topics' && (
+            <div className="mb-3 text-[12.5px] text-muted-foreground">
+              The standing questions Uri watches for on your behalf. Running a scan collects fresh evidence right now;
+              results show up above on Opportunities and Insights.
+            </div>
+          )}
+          {activeTab === 'upcoming' && (
+            <div className="mb-3 text-[12.5px] text-muted-foreground">
+              Dated announcements (conferences, expos, deadlines) Uri found while scanning your topics — only ones with
+              a real source and date.
+            </div>
+          )}
+          {activeTab === 'settings' && (
+            <div className="mb-3 text-[12.5px] text-muted-foreground">
+              Budget, alerts and where Uri listens — none of this affects what Opportunities or Insights show, only how
+              and when Uri collects new evidence.
+            </div>
+          )}
           {activeTab === 'opportunities' && <ListeningOpportunities />}
           {activeTab === 'overview' &&
             (loading ? (
@@ -2545,6 +2660,28 @@ export default function MarketIntelligencePage() {
                         </option>
                       ))}
                     </select>
+                    <select
+                      value={topicFilter}
+                      onChange={(e) => setTopicFilter(e.target.value)}
+                      className="h-8 max-w-[180px] rounded-lg border border-border bg-background px-2 text-[12px] text-foreground"
+                    >
+                      <option value="all">All topics</option>
+                      {topics.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.question.slice(0, 40)}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={minRelevance}
+                      onChange={(e) => setMinRelevance(e.target.value as 'all' | 'medium' | 'high')}
+                      title="Relevance is how closely a finding actually matches your business — not how solid the evidence is."
+                      className="h-8 rounded-lg border border-border bg-background px-2 text-[12px] text-foreground"
+                    >
+                      <option value="all">Any relevance</option>
+                      <option value="medium">Medium+ relevance</option>
+                      <option value="high">High relevance only</option>
+                    </select>
                   </div>
                   <div className="max-h-[70vh] overflow-y-auto">
                     {filteredInsights.length === 0 ? (
@@ -2558,6 +2695,7 @@ export default function MarketIntelligencePage() {
                           insight={insight}
                           active={insight.id === selectedId}
                           onClick={() => setSelectedId(insight.id)}
+                          topicQuestion={topicQuestionById.get(insight.topic_id)}
                         />
                       ))
                     )}
@@ -2596,6 +2734,11 @@ export default function MarketIntelligencePage() {
               onCheckStale={handleCheckStale}
               deletingTopicId={deletingTopicId}
               onDeleteTopic={handleDeleteTopic}
+              onViewInsights={(topicId) => {
+                setTopicFilter(topicId);
+                setActiveTab('overview');
+              }}
+              onViewAnnouncedEvents={() => setActiveTab('upcoming')}
             />
           )}
 
