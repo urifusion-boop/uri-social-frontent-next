@@ -1181,6 +1181,8 @@ function TopicsPanel({
   staleScan,
   checkingStale,
   onCheckStale,
+  deletingTopicId,
+  onDeleteTopic,
 }: {
   topics: Topic[];
   scanningTopicId: string | null;
@@ -1192,6 +1194,8 @@ function TopicsPanel({
   staleScan: { topicId: string; scanId: string } | null;
   checkingStale: boolean;
   onCheckStale: () => void;
+  deletingTopicId: string | null;
+  onDeleteTopic: (topicId: string) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -1277,16 +1281,38 @@ function TopicsPanel({
                     </div>
                   )}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  disabled={scanningTopicId === t.id}
-                  onClick={() => onRunScan(t.id)}
-                >
-                  {scanningTopicId === t.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                  {scanningTopicId === t.id ? 'Scanning…' : 'Run scan'}
-                </Button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={scanningTopicId === t.id}
+                    onClick={() => onRunScan(t.id)}
+                  >
+                    {scanningTopicId === t.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                    {scanningTopicId === t.id ? 'Scanning…' : 'Run scan'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    disabled={deletingTopicId === t.id}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          'Delete this topic? Its collected evidence and insights go with it. This cannot be undone.'
+                        )
+                      )
+                        return;
+                      onDeleteTopic(t.id);
+                    }}
+                  >
+                    {deletingTopicId === t.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -2132,7 +2158,31 @@ export default function MarketIntelligencePage() {
   }, []);
 
   const handleTopicCreated = (topic: Topic) => {
-    setTopics((prev) => [topic, ...prev]);
+    // The backend now dedupes on the normalized question (PRD: no two
+    // standing questions that are really the same one) and can return an
+    // EXISTING topic's id instead of a freshly created one — prepending it
+    // again here would visually duplicate a topic the server never
+    // actually duplicated.
+    setTopics((prev) => (prev.some((t) => t.id === topic.id) ? prev : [topic, ...prev]));
+  };
+
+  const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null);
+
+  const handleDeleteTopic = async (topicId: string) => {
+    setDeletingTopicId(topicId);
+    try {
+      const res = await MarketIntelligenceService.deleteTopic(topicId);
+      if (!res.status) {
+        ToastService.showToast(res.responseMessage || 'Could not delete topic', ToastTypeEnum.Error);
+        return;
+      }
+      setTopics((prev) => prev.filter((t) => t.id !== topicId));
+      ToastService.showToast('Topic deleted.', ToastTypeEnum.Success);
+    } catch (err) {
+      ToastService.showToast(mutationErrorMessage(err, 'Could not delete topic'), ToastTypeEnum.Error);
+    } finally {
+      setDeletingTopicId(null);
+    }
   };
 
   // A poll sequence carries the token it was started with (mySeq). Every
@@ -2477,6 +2527,8 @@ export default function MarketIntelligencePage() {
               staleScan={staleScan}
               checkingStale={checkingStale}
               onCheckStale={handleCheckStale}
+              deletingTopicId={deletingTopicId}
+              onDeleteTopic={handleDeleteTopic}
             />
           )}
 

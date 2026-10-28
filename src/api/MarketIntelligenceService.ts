@@ -543,6 +543,13 @@ export class MarketIntelligenceService {
     return res.data;
   }
 
+  static async deleteTopic(topicId: string): Promise<UriResponse<Record<string, unknown>>> {
+    const res: AxiosResponse<UriResponse<Record<string, unknown>>> = await UriHttpClient.getClient().delete(
+      `${BASE}/topics/${topicId}`
+    );
+    return res.data;
+  }
+
   static async getBudget(): Promise<UriResponse<BrandBudget>> {
     const res: AxiosResponse<UriResponse<BrandBudget>> = await UriHttpClient.getClient().get(`${BASE}/budget`);
     return res.data;
