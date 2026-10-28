@@ -31,7 +31,7 @@ export type ScanStatus =
 
 export type ConfidenceBand = 'low' | 'medium' | 'high';
 export type Lifecycle = 'early' | 'emerging' | 'established' | 'cooling' | 'unknown';
-export type InsightStatus = 'active' | 'superseded' | 'retracted' | 'dismissed';
+export type InsightStatus = 'active' | 'superseded' | 'retracted' | 'dismissed' | 'expired';
 export type FeedbackVerdict = 'useful' | 'not_relevant' | 'incorrect';
 
 export interface ComponentScore {
