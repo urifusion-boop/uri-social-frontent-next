@@ -29,6 +29,7 @@ const QUICK_ACTIONS = [
     description: 'Generate, schedule and publish AI-powered content.',
     iconBg: '#C2185B',
     cardBg: '#FDF1F6',
+    shadow: 'rgba(194,24,91,.13)',
   },
   {
     id: 'campaigns',
@@ -37,6 +38,7 @@ const QUICK_ACTIONS = [
     description: 'Launch and manage ads across multiple platforms.',
     iconBg: '#F59E0B',
     cardBg: '#FEF6E7',
+    shadow: 'rgba(245,158,11,.13)',
   },
   {
     id: 'messages',
@@ -45,6 +47,7 @@ const QUICK_ACTIONS = [
     description: 'Respond to inquiries and automate replies.',
     iconBg: '#3B82F6',
     cardBg: '#EDF4FE',
+    shadow: 'rgba(59,130,246,.13)',
   },
   {
     id: 'performance',
@@ -53,6 +56,7 @@ const QUICK_ACTIONS = [
     description: 'Track results and grow your business.',
     iconBg: '#7C3AED',
     cardBg: '#F3EDFD',
+    shadow: 'rgba(124,58,237,.13)',
   },
 ] as const;
 
@@ -254,7 +258,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
         minHeight: '100%',
         padding: '20px 24px 32px',
         fontFamily: 'var(--wf)',
-        background: 'linear-gradient(180deg, #FCE4EC 0%, #FBF4F2 45%, #F8F7F4 100%)',
+        background: 'linear-gradient(180deg, #FDF2F6 0%, #FBF8F7 40%, #FAFAF8 100%)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -297,6 +301,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
                 borderRadius: 16,
                 padding: '20px 18px',
                 background: action.cardBg,
+                boxShadow: `0 6px 16px ${action.shadow}`,
                 cursor: 'pointer',
                 fontFamily: 'var(--wf)',
               }}
@@ -347,7 +352,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           background: '#fff',
           borderRadius: 16,
           padding: 20,
-          boxShadow: '0 1px 3px rgba(20,16,14,.06)',
+          boxShadow: '0 4px 18px rgba(20,16,14,.05)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
