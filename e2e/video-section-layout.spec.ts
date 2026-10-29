@@ -1,6 +1,6 @@
 /**
  * The Video section of Content Studio:
- *  - the Ask Jane / Generate switcher sits at the TOP, above the Jane chat (the always-mounted chat
+ *  - the Generate Videos / Edit Videos switcher sits at the TOP, above the Jane chat (the always-mounted chat
  *    used to render first and push the buttons underneath it);
  *  - Generate goes straight to Describe It, with no Upload Images / Describe It toggle;
  *  - the Saved Video Drafts list (the only place a saved video is posted from) is still shown.
@@ -58,26 +58,26 @@ async function openVideoSection(page: Page, drafts: unknown[] = []) {
 }
 
 test.describe('Video section', () => {
-  test('the Ask Jane and Generate buttons are above the Jane chat', async ({ page }) => {
+  test('the Generate Videos and Edit Videos buttons are above the Jane chat', async ({ page }) => {
     await openVideoSection(page);
-    const askJane = page.getByRole('button', { name: /✦ Ask Jane/ }).first();
-    const generate = page.getByRole('button', { name: /🎬 Generate$/ }).first();
+    const editVideos = page.getByRole('button', { name: /✦ Edit Videos/ }).first();
+    const generate = page.getByRole('button', { name: /🎬 Generate Videos$/ }).first();
     const chatHeading = page.getByText('Jane · Video', { exact: true });
 
     await expect(chatHeading).toBeVisible({ timeout: 20000 });
-    const [a, g, h] = await Promise.all([askJane.boundingBox(), generate.boundingBox(), chatHeading.boundingBox()]);
+    const [a, g, h] = await Promise.all([editVideos.boundingBox(), generate.boundingBox(), chatHeading.boundingBox()]);
     expect(a && g && h).toBeTruthy();
     expect(a!.y).toBeLessThan(h!.y);
     expect(g!.y).toBeLessThan(h!.y);
-    // Side by side on one row, Ask Jane first.
+    // Side by side on one row, Generate Videos first.
     expect(Math.abs(a!.y - g!.y)).toBeLessThan(6);
-    expect(a!.x).toBeLessThan(g!.x);
+    expect(g!.x).toBeLessThan(a!.x);
   });
 
   test('Generate goes straight to Describe It, with no Upload Images option', async ({ page }) => {
     await openVideoSection(page);
     await page
-      .getByRole('button', { name: /🎬 Generate$/ })
+      .getByRole('button', { name: /🎬 Generate Videos$/ })
       .first()
       .click();
 
@@ -88,7 +88,7 @@ test.describe('Video section', () => {
     await expect(page.getByText('Brand Images')).toHaveCount(0);
     // The switcher is still at the top, above the form.
     const generate = await page
-      .getByRole('button', { name: /🎬 Generate$/ })
+      .getByRole('button', { name: /🎬 Generate Videos$/ })
       .first()
       .boundingBox();
     const form = await page.getByText("What's the video about?").boundingBox();
@@ -98,7 +98,7 @@ test.describe('Video section', () => {
   test('saved videos are still listed (and can be posted) under Describe It', async ({ page }) => {
     await openVideoSection(page, [DRAFT]);
     await page
-      .getByRole('button', { name: /🎬 Generate$/ })
+      .getByRole('button', { name: /🎬 Generate Videos$/ })
       .first()
       .click();
 
@@ -110,7 +110,7 @@ test.describe('Video section', () => {
   test('with no saved videos the list says so', async ({ page }) => {
     await openVideoSection(page, []);
     await page
-      .getByRole('button', { name: /🎬 Generate$/ })
+      .getByRole('button', { name: /🎬 Generate Videos$/ })
       .first()
       .click();
     await expect(page.getByText('No video drafts saved yet.')).toBeVisible({ timeout: 10000 });

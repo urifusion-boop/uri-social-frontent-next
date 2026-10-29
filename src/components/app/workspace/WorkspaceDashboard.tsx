@@ -1582,9 +1582,9 @@ const ContentManagerPage = ({
           </>
         )}
 
-        {/* The Ask Jane / Generate switcher sits ABOVE the Jane chat. The chat is kept mounted in
+        {/* The Generate Videos / Edit Videos switcher sits ABOVE the Jane chat. The chat is kept mounted in
             the block below (so a session survives tab switches), which used to render first and
-            push these buttons underneath it whenever Ask Jane was selected. */}
+            push these buttons underneath it whenever Edit Videos was selected. */}
         {activeTab === 'video' && (
           <>
             {/* 5 sub-tabs — horizontal scroll on mobile instead of wrapping,
@@ -1608,12 +1608,12 @@ const ContentManagerPage = ({
               {(
                 [
                   // Produce/Zapcap/Compose stay hidden — still the legitimately
-                  // redundant tools the Jul 31 2026 decision folded into Ask Jane.
+                  // redundant tools the Jul 31 2026 decision folded into Edit Videos (the Jane chat).
                   // Generate (storyboard -> frames -> outcome-routed video, see
                   // VideoStoryboardGenerator.tsx) is real, working, and no longer
                   // needs the URL-param side door it had before — un-hidden here.
-                  { key: 'chat', label: '✦ Ask Jane' },
-                  { key: 'generate', label: '🎬 Generate' },
+                  { key: 'generate', label: '🎬 Generate Videos' },
+                  { key: 'chat', label: '✦ Edit Videos' },
                   // { key: 'produce', label: '✨ Produce' },
                   // { key: 'zapcap', label: '⚡ Produce my video' },
                   // { key: 'compose', label: '🎞 Compose' },

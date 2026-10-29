@@ -129,10 +129,10 @@ async function setup(
     .first()
     .click();
   await page
-    .getByRole('button', { name: /🎬 Generate$/ })
+    .getByRole('button', { name: /🎬 Generate Videos$/ })
     .first()
     .click();
-  await expect(page.getByRole('button', { name: /Generate Videos|Regenerate Videos/ })).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole('button', { name: /^(Generate|Regenerate) Videos$/ })).toBeVisible({ timeout: 20000 });
   return { started, quoted };
 }
 
