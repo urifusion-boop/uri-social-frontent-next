@@ -813,6 +813,7 @@ const ContentManagerPage = ({
   onDeclineJaneMessage,
   videoPolishHandoff,
   onReturnToCampaignFromPolish,
+  initialTab,
 }: {
   onJane: () => void;
   isMobile?: boolean;
@@ -824,9 +825,15 @@ const ContentManagerPage = ({
   // Jane Ads video-quality hand-off — see the note by videoTab's useEffect below.
   videoPolishHandoff?: VideoPolishHandoff | null;
   onReturnToCampaignFromPolish?: (url: string) => void;
+  // Product-restructure redesign: lets the new Content Studio contextual
+  // sidebar (PRIMARY_NAV's Content Studio sub-items) land directly on a
+  // specific internal tab instead of always opening on Create — bumping a
+  // counter alongside the tab (see contentStudioNavSeq below) is what makes
+  // re-clicking the SAME sub-item while already on this page still work.
+  initialTab?: { tab: ContentTab; seq: number };
 }) => {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<ContentTab>('create');
+  const [activeTab, setActiveTab] = useState<ContentTab>(initialTab?.tab ?? 'create');
   const activeTabRef = useRef<ContentTab>('create');
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
   const [savedDrafts, setSavedDrafts] = useState<ContentDraft[]>([]);
@@ -1179,6 +1186,11 @@ const ContentManagerPage = ({
       setLoadingAuto(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab.tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTab?.seq]);
 
   useEffect(() => {
     activeTabRef.current = activeTab;
@@ -10539,6 +10551,190 @@ export default function WorkspaceDashboard() {
     [router]
   );
 
+  // Product-restructure redesign: Content Studio's contextual sidebar
+  // (SECTION_NAV.schedule below) needs to land on one of ContentManagerPage's
+  // own internal tabs (Create/Content Library/Calendar/Saved/AI Tools), not
+  // just open the page on whatever it last showed. `seq` bumps on every
+  // click so re-selecting the SAME sub-item while already on this page
+  // still re-applies it (a plain tab value wouldn't change and the effect
+  // wouldn't re-fire).
+  const [contentStudioNav, setContentStudioNav] = useState<{ tab: ContentTab; seq: number }>({
+    tab: 'create',
+    seq: 0,
+  });
+  const goToContentStudioTab = useCallback(
+    (tab: ContentTab) => {
+      setContentStudioNav((prev) => ({ tab, seq: prev.seq + 1 }));
+      goTo('schedule');
+    },
+    [goTo]
+  );
+
+  // Product-restructure redesign: a top-level section with a contextual
+  // sidebar (matching the approved design's Content Studio / Campaign
+  // Manager / Automated Messaging sub-nav panels) swaps the ENTIRE sidebar
+  // to its own item list while nav is anywhere inside it — not a second
+  // rail alongside the primary one. `real: false` items are honest stubs
+  // for confirmed-missing features (no fake page, a plain explanation of
+  // what exists instead) rather than either hiding them or faking a page.
+  const notBuiltYet = (what: string) => ToastService.showToast(what, ToastTypeEnum.Warning);
+
+  const contentStudioSubNav = [
+    {
+      id: 'create',
+      icon: 'edit',
+      label: 'Create Content',
+      active: nav === 'schedule' && contentStudioNav.tab === 'create',
+      onClick: () => goToContentStudioTab('create'),
+    },
+    {
+      id: 'library',
+      icon: 'file',
+      label: 'Content Library',
+      active: nav === 'schedule' && ['drafts', 'saved', 'scheduled'].includes(contentStudioNav.tab),
+      onClick: () => goToContentStudioTab('drafts'),
+    },
+    {
+      id: 'calendar',
+      icon: 'calendar',
+      label: 'Calendar',
+      active: nav === 'schedule' && contentStudioNav.tab === 'calendar-v2',
+      onClick: () => goToContentStudioTab('calendar-v2'),
+    },
+    {
+      id: 'blog',
+      icon: 'book',
+      label: 'Blog',
+      // Not in the approved design's Content Studio list, but Blog has no
+      // other stated home anywhere in it either (PRD §10's own open
+      // question) — a real, working feature needs SOME place to live.
+      active: nav === 'blog',
+      onClick: () => goTo('blog'),
+    },
+    {
+      id: 'playbook',
+      icon: 'book',
+      label: 'Brand Playbook',
+      active: nav === 'playbook',
+      onClick: () => goTo('playbook'),
+    },
+    {
+      id: 'ai-tools',
+      icon: 'grid',
+      label: 'AI Tools',
+      active: nav === 'visual-engine-v2',
+      onClick: () => goTo('visual-engine-v2'),
+    },
+  ];
+
+  const campaignManagerSubNav = [
+    {
+      id: 'campaigns',
+      icon: 'megaphone',
+      label: 'Campaigns',
+      active: nav === 'campaigns',
+      onClick: () => goTo('campaigns'),
+    },
+    {
+      id: 'ad-accounts',
+      icon: 'share',
+      label: 'Ad Accounts',
+      // Real destination, reused rather than duplicated — your ad
+      // platform connections already live on Connected Accounts.
+      active: false,
+      onClick: () => goTo('connections'),
+    },
+    {
+      id: 'audiences',
+      icon: 'eye',
+      label: 'Audiences',
+      active: false,
+      onClick: () =>
+        notBuiltYet(
+          "A saved-audience library isn't built yet — Jane already builds ranked audience strategies for you inline while you create a campaign."
+        ),
+    },
+    {
+      id: 'creatives',
+      icon: 'image',
+      label: 'Creatives',
+      active: false,
+      onClick: () =>
+        notBuiltYet(
+          "A standalone creative library isn't built yet — choose or upload creative while building a campaign."
+        ),
+    },
+    {
+      id: 'performance',
+      icon: 'chart',
+      label: 'Performance',
+      active: false,
+      onClick: () => goTo('performance'),
+    },
+    {
+      id: 'budget',
+      icon: 'trending',
+      label: 'Budget & Billing',
+      active: nav === 'billing',
+      onClick: () => goTo('billing'),
+    },
+  ];
+
+  const performanceSubNav = [
+    {
+      id: 'overview',
+      icon: 'chart',
+      label: 'Performance',
+      active: nav === 'performance',
+      onClick: () => goTo('performance'),
+    },
+    {
+      id: 'market-intelligence',
+      icon: 'eye',
+      label: 'Market Intelligence',
+      active: nav === 'market-intelligence',
+      onClick: () => goTo('market-intelligence'),
+    },
+  ];
+
+  // Which contextual sidebar (if any) the current nav value belongs to.
+  // A nav id not claimed by any zone falls through to the flat PRIMARY_NAV
+  // sidebar instead — this is also why reusing a PRIMARY_NAV-owned id in a
+  // sub-item (Performance, Connected Accounts) is safe: clicking it is
+  // meant to pop back out to the top-level view, not fake a dedicated page.
+  const activeSection: 'content-studio' | 'campaign-manager' | 'performance' | null = [
+    'schedule',
+    'playbook',
+    'blog',
+    'visual-engine-v2',
+  ].includes(nav)
+    ? 'content-studio'
+    : ['campaigns', 'billing'].includes(nav)
+      ? 'campaign-manager'
+      : ['performance', 'market-intelligence'].includes(nav)
+        ? 'performance'
+        : null;
+
+  const SECTION_META: Record<string, { label: string; subNav: typeof contentStudioSubNav }> = {
+    'content-studio': { label: 'Content Studio', subNav: contentStudioSubNav },
+    'campaign-manager': { label: 'Campaign Manager', subNav: campaignManagerSubNav },
+    performance: { label: 'Performance', subNav: performanceSubNav },
+  };
+
+  // Quick search needs to reach every REAL destination, not just the 8
+  // primary ones — Market Intelligence, Brand Playbook, Blog etc. only
+  // have a sidebar button once you're already inside their section, so
+  // search is how you get there from anywhere else.
+  const searchableDestinations = [
+    ...PRIMARY_NAV,
+    ...LOWER_NAV,
+    ...contentStudioSubNav.map((n) => ({ ...n, tooltip: n.label })),
+    ...campaignManagerSubNav
+      .filter((n) => n.id !== 'audiences' && n.id !== 'creatives')
+      .map((n) => ({ ...n, tooltip: n.label })),
+    ...performanceSubNav.map((n) => ({ ...n, tooltip: n.label })),
+  ].filter((n, i, arr) => arr.findIndex((o) => o.id === n.id) === i);
+
   // Jane Ads video-quality hand-off: a video uploaded in a campaign thread can be
   // sent here for polishing, then the finished clip comes back to that exact
   // thread. Lives at this level because it bridges two independent top-level
@@ -10955,6 +11151,7 @@ export default function WorkspaceDashboard() {
         onDeclineJaneMessage={handleDeclineJaneMessage}
         videoPolishHandoff={videoPolishHandoff}
         onReturnToCampaignFromPolish={handleReturnToCampaignFromPolish}
+        initialTab={contentStudioNav}
       />
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
@@ -11082,14 +11279,42 @@ export default function WorkspaceDashboard() {
               style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {PRIMARY_NAV.map((n) => {
-                  const badge = n.id === 'notifications' ? unreadCount : undefined;
-                  const active = nav === n.id;
+                {activeSection && (
+                  <button
+                    onClick={() => goTo('home')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      margin: '0 10px 6px',
+                      padding: '7px 12px',
+                      borderRadius: 9,
+                      background: 'transparent',
+                      border: 'none',
+                      fontFamily: 'var(--wf)',
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: 'rgba(255,255,255,.4)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      letterSpacing: 0.3,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', transform: 'rotate(180deg)' }}>
+                      <I n="chevronRight" s={11} c="rgba(255,255,255,.3)" />
+                    </span>
+                    {SECTION_META[activeSection].label}
+                  </button>
+                )}
+                {(activeSection ? SECTION_META[activeSection].subNav : PRIMARY_NAV).map((n) => {
+                  const badge = !activeSection && n.id === 'notifications' ? unreadCount : undefined;
+                  const active = 'active' in n ? n.active : nav === n.id;
                   return (
-                    <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
+                    <BrandTooltip key={n.id} title={'tooltip' in n ? n.tooltip : n.label} placement="right" arrow>
                       <button
                         id={`tnav-${n.id}`}
-                        onClick={() => goTo(n.id)}
+                        onClick={() => ('onClick' in n ? n.onClick() : goTo(n.id))}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -11428,14 +11653,18 @@ export default function WorkspaceDashboard() {
                         zIndex: 60,
                       }}
                     >
-                      {[...PRIMARY_NAV, ...LOWER_NAV]
+                      {searchableDestinations
                         .filter((n) => n.label.toLowerCase().includes(searchQuery.trim().toLowerCase()))
                         .map((n) => (
                           <button
                             key={n.id}
                             onMouseDown={(e) => {
                               e.preventDefault();
-                              goTo(n.id);
+                              if ('onClick' in n) {
+                                (n as { onClick: () => void }).onClick();
+                              } else {
+                                goTo(n.id);
+                              }
                               setSearchQuery('');
                               setSearchOpen(false);
                             }}
@@ -11460,7 +11689,7 @@ export default function WorkspaceDashboard() {
                             {n.label}
                           </button>
                         ))}
-                      {[...PRIMARY_NAV, ...LOWER_NAV].filter((n) =>
+                      {searchableDestinations.filter((n) =>
                         n.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
                       ).length === 0 && (
                         <div style={{ padding: '10px 12px', fontSize: 12, color: '#9CA3AF' }}>
