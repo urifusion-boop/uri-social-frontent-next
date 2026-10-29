@@ -61,7 +61,6 @@ import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import ContentWizard from '@/src/components/app/social-media/ContentWizard/ContentWizard';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
-import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
 import DescribeVideoGenerator from '@/src/components/app/workspace/DescribeVideoGenerator';
 import VisualEngineV2Panel from '@/src/components/app/workspace/visual-engine-v2/VisualEngineV2Panel';
 import MultiClipComposer from '@/src/components/app/workspace/MultiClipComposer';
@@ -916,7 +915,6 @@ const ContentManagerPage = ({
   // generator is no longer offered; only its Saved Video Drafts list is kept (see below), because
   // that is where a saved video is posted from. Bumped when Describe It saves a draft so the list
   // shows it straight away.
-  const [draftReloadKey, setDraftReloadKey] = useState(0);
   // Jane Ads hand-off (upload a video in a campaign -> optionally improve its
   // quality here -> come back to that exact thread). Lands on JaneVideoChat
   // ('chat', already the default tab) — confirmed this is the tool actually in
@@ -1761,8 +1759,7 @@ const ContentManagerPage = ({
           <>
             {videoTab === 'generate' && (
               <>
-                <DescribeVideoGenerator onDraftSaved={() => setDraftReloadKey((k) => k + 1)} />
-                <VideoStoryboardGenerator draftsOnly reloadKey={draftReloadKey} />
+                <DescribeVideoGenerator onGoToDrafts={() => setActiveTab('drafts')} />
               </>
             )}
             {videoTab === 'produce' && (

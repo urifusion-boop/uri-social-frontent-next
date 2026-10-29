@@ -58,7 +58,7 @@ interface UploadedImage {
   name: string;
 }
 
-export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?: () => void } = {}) {
+export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?: () => void } = {}) {
   const [brief, setBrief] = useState('');
   const [images, setImages] = useState<UploadedImage[]>([]);
   // Required (not just a disclaimer the user can ignore) whenever reference
@@ -378,8 +378,7 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
       });
       if (res.status && res.responseData) {
         setSavedDraft(res.responseData);
-        onDraftSaved?.();
-        clearSession(); // draft saved — the flow is done, it now lives in Saved Video Drafts
+        clearSession(); // draft saved — the flow is done, it now lives in the Drafts tab
       }
     } catch {
       setMergeError('Failed to save draft.');
@@ -1706,8 +1705,27 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
                           Draft saved successfully
                         </p>
                         <p style={{ fontSize: 12, color: GREY, margin: '4px 0 0' }}>
-                          Find it in your saved video drafts on the Upload Images tab.
+                          Find it in the Drafts tab, where you can review, schedule and post it.
                         </p>
+                        {onGoToDrafts && (
+                          <button
+                            onClick={onGoToDrafts}
+                            style={{
+                              marginTop: 10,
+                              background: PRIMARY,
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 8,
+                              padding: '8px 16px',
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            Go to Drafts
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <div style={{ border: `1.5px solid ${BORDER}`, borderRadius: 12, padding: '16px' }}>
