@@ -1343,7 +1343,14 @@ const ContentManagerPage = ({
   const wizardActive = activeTab === 'create' && createMode === 'generate' && contentWizardEnabled;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8f7f5' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: wizardActive ? 'linear-gradient(180deg, #FCE4EC 0%, #FBF8F7 40%, #FAFAF8 100%)' : '#f8f7f5',
+      }}
+    >
       {/* Header */}
       {wizardActive ? (
         <div
@@ -1513,63 +1520,68 @@ const ContentManagerPage = ({
             )}
             {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
-            {/* Create mode switcher */}
-            <div
-              style={{
-                marginBottom: 20,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 8,
-              }}
-            >
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(
-                  [
-                    { key: 'generate', label: '✨ Generate Content' },
-                    { key: 'upload', label: '📤 Upload Content' },
-                  ] as { key: 'generate' | 'upload'; label: string }[]
-                ).map((mode) => (
+            {/* Create mode switcher — hidden while the wizard is active; the
+                approved wizard design is a focused, dedicated flow with no
+                mode-switcher chrome. "Switch to classic form" is how you get
+                back to it (and from there, to Upload Content). */}
+            {!wizardActive && (
+              <div
+                style={{
+                  marginBottom: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {(
+                    [
+                      { key: 'generate', label: '✨ Generate Content' },
+                      { key: 'upload', label: '📤 Upload Content' },
+                    ] as { key: 'generate' | 'upload'; label: string }[]
+                  ).map((mode) => (
+                    <button
+                      key={mode.key}
+                      onClick={() => setCreateMode(mode.key)}
+                      style={{
+                        flex: isMobile ? 1 : undefined,
+                        padding: isMobile ? '8px 10px' : '8px 18px',
+                        borderRadius: 10,
+                        border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
+                        background:
+                          createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                        color: createMode === mode.key ? '#fff' : '#6B7280',
+                        fontSize: isMobile ? 12.5 : 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+                {createMode === 'generate' && !contentWizardEnabled && (
                   <button
-                    key={mode.key}
-                    onClick={() => setCreateMode(mode.key)}
+                    onClick={() => toggleContentWizard(true)}
                     style={{
-                      flex: isMobile ? 1 : undefined,
-                      padding: isMobile ? '8px 10px' : '8px 18px',
-                      borderRadius: 10,
-                      border: createMode === mode.key ? 'none' : '1.5px solid #E5E7EB',
-                      background:
-                        createMode === mode.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
-                      color: createMode === mode.key ? '#fff' : '#6B7280',
-                      fontSize: isMobile ? 12.5 : 13,
-                      fontWeight: 600,
+                      border: 'none',
+                      background: 'none',
                       cursor: 'pointer',
-                      transition: 'all 0.15s',
-                      whiteSpace: 'nowrap',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      color: '#C2185B',
+                      padding: 0,
                     }}
                   >
-                    {mode.label}
+                    Try the new step-by-step Create Content →
                   </button>
-                ))}
+                )}
               </div>
-              {createMode === 'generate' && !contentWizardEnabled && (
-                <button
-                  onClick={() => toggleContentWizard(true)}
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    cursor: 'pointer',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    color: '#C2185B',
-                    padding: 0,
-                  }}
-                >
-                  Try the new step-by-step Create Content →
-                </button>
-              )}
-            </div>
+            )}
 
             {createMode === 'generate' && contentWizardEnabled && (
               <>
