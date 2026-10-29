@@ -90,6 +90,7 @@ import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
 import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
+import HomePage from '@/src/components/app/workspace/HomePage';
 import WorkspaceCreditBadge from '@/src/components/app/workspace/WorkspaceCreditBadge';
 import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
 import WorkspaceProfileDropdown from '@/src/components/app/workspace/WorkspaceProfileDropdown';
@@ -264,6 +265,14 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
         <path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" />
       </>
     ),
+    help: (
+      <>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </>
+    ),
+    chevronRight: <polyline points="9 18 15 12 9 6" />,
     logout: (
       <>
         <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
@@ -323,10 +332,12 @@ type TourStepDef = { target: string; title: string; body: string; radius?: numbe
 
 const TOUR_STEPS: TourStepDef[] = [
   {
-    target: 'tour-jane-agent',
-    title: 'Meet URI Agent',
-    body: 'Your AI social manager lives here — always active, briefing you and ready to create content on demand.',
-    radius: 11,
+    // Product-restructure redesign: Home replaced the old chat-first
+    // landing (see PRIMARY_NAV above) — this step now introduces the
+    // dashboard instead of the Jane Agent box that used to sit here.
+    target: 'tnav-home',
+    title: 'Your dashboard',
+    body: 'Quick shortcuts to create content, run campaigns, manage messages, and a look at how your brand is doing.',
   },
   {
     target: 'tnav-schedule',
@@ -343,16 +354,11 @@ const TOUR_STEPS: TourStepDef[] = [
     title: 'Track Your Performance',
     body: 'Monitor reach, engagement, and growth across every connected platform at a glance.',
   },
-  {
-    target: 'tnav-playbook',
-    title: 'Build Your Brand Playbook',
-    body: 'Define your brand voice, content pillars, and guardrails — every AI post will sound exactly like you.',
-  },
-  {
-    target: 'tnav-intel',
-    title: 'Market Intelligence',
-    body: "See what's trending in your industry and tap into keywords your audience is already searching for.",
-  },
+  // The Brand Playbook and Market Intelligence steps that used to live here
+  // pointed at primary-sidebar buttons that no longer exist post-restructure
+  // (PRIMARY_NAV above) — both features still exist and still work, just
+  // without a discoverable home yet, so introducing them here would point
+  // at nothing. Re-add once their real destination in the new nav is built.
   {
     target: 'tour-notification-area',
     title: 'Stay Updated',
@@ -10299,8 +10305,13 @@ const NAV = [
   },
 ];
 
+// Kept as the 5 tabs it already had (Create/Analytics/Playbook/More
+// untouched) — only the first one now matches the desktop default-landing
+// change (Home replacing the chat, see PRIMARY_NAV above). A full mobile
+// redesign to the approved design's own 5-tab set (Home/Content/
+// Campaigns/Messages/Performance) is later work, not done here.
 const MOBILE_TABS = [
-  { id: 'workspace', icon: 'home', label: 'Jane' },
+  { id: 'home', icon: 'home', label: 'Home' },
   { id: 'schedule', icon: 'calendar', label: 'Create' },
   { id: 'performance', icon: 'chart', label: 'Analytics' },
   { id: 'playbook', icon: 'book', label: 'Playbook' },
@@ -10321,6 +10332,99 @@ const MORE_NAV = [
   { id: 'brand-setup', icon: 'edit', label: 'Edit Brand Setup', href: '/social-media/brand-setup/' },
   { id: 'visual-engine-v2', icon: 'grid', label: '🧪 Visual Engine V2' },
 ];
+
+// Product-restructure redesign (URI Social — Product Restructure & Ads
+// Workspace Requirements): the primary sidebar collapses to these 6
+// destinations + Settings, matching the approved design. NAV/MORE_NAV above
+// are left untouched — every tab they point to (Market Intelligence, Blog,
+// Brand Playbook, Billing, Records, Visual Engine V2, admin pages, and the
+// original chat-based "workspace" home) still exists and is still reachable
+// by its same id/URL; they just don't have a primary sidebar button yet.
+// Where each of those belongs (nested under Content Studio? Performance?
+// Settings?) is a later phase of this same redesign, not decided here.
+const PRIMARY_NAV = [
+  {
+    id: 'home',
+    icon: 'home',
+    label: 'Home',
+    tooltip: "Dashboard, key shortcuts and a quick look at today's activity",
+  },
+  {
+    id: 'schedule',
+    icon: 'calendar',
+    label: 'Content Studio',
+    tooltip: 'Generate, review, and schedule social media posts across all your platforms',
+  },
+  {
+    id: 'campaigns',
+    icon: 'megaphone',
+    label: 'Campaign Manager',
+    tooltip: 'Tell Jane what to promote — she plans, designs, and runs it for you',
+  },
+  {
+    id: 'messages',
+    icon: 'inbox',
+    label: 'Automated Messaging',
+    tooltip: 'Reply to DMs and comments across Instagram, Facebook, WhatsApp and TikTok — all in one inbox',
+  },
+  {
+    id: 'performance',
+    icon: 'chart',
+    label: 'Performance',
+    tooltip: 'Posts, accounts, and market intel — all your insights in one place',
+  },
+  {
+    id: 'connections',
+    icon: 'share',
+    label: 'Connected Accounts',
+    tooltip: 'Link your Facebook, Instagram, LinkedIn, and X accounts to publish directly',
+  },
+];
+
+const LOWER_NAV = [
+  {
+    id: 'settings',
+    icon: 'settings',
+    label: 'Settings',
+    tooltip: 'Manage your profile, preferences, and account integrations',
+  },
+  {
+    id: 'help',
+    icon: 'help',
+    label: 'Help & Support',
+    tooltip: 'Get help or contact support',
+  },
+];
+
+// No real help/support destination exists anywhere in the app yet (no
+// article/FAQ system, no live chat widget) — this is an honest placeholder,
+// not a built-out help center, so it says so rather than pretending.
+const HelpSupportPage = () => (
+  <div style={{ padding: '18px 24px 32px', fontFamily: 'var(--wf)', maxWidth: 520 }}>
+    <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1A1523', margin: '0 0 6px' }}>Help &amp; Support</h1>
+    <p style={{ fontSize: 13.5, color: '#6B7280', lineHeight: 1.5, margin: '0 0 18px' }}>
+      A real help centre isn&apos;t built yet — for now, reach the team directly.
+    </p>
+    <a
+      href="mailto:support@urisocial.com"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '10px 16px',
+        borderRadius: 10,
+        background: '#E91E63',
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: 700,
+        textDecoration: 'none',
+      }}
+    >
+      <I n="send" s={14} c="#fff" />
+      Email support
+    </a>
+  </div>
+);
 
 /* ══════════════════════════════════════════════════════════════════════════
    MAIN DASHBOARD
@@ -10345,7 +10449,7 @@ export default function WorkspaceDashboard() {
 
   const [ready, setReady] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
-  const [nav, setNav] = useState(() => searchParams?.get('tab') || 'workspace');
+  const [nav, setNav] = useState(() => searchParams?.get('tab') || 'home');
   const [billingTab, setBillingTab] = useState<'overview' | 'credits' | 'payments' | 'plans'>('overview');
   const [sIdx, setSIdx] = useState(0);
   const [feed, setFeed] = useState<FeedMsg[]>([]);
@@ -10375,6 +10479,27 @@ export default function WorkspaceDashboard() {
   const [switcherBrands, setSwitcherBrands] = useState<BrandAccount[] | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // Product-restructure redesign: top-bar quick search. Real, if basic —
+  // jumps between the primary destinations rather than being decorative.
+  // Full content/campaign/message search (per the approved design's
+  // placeholder copy) isn't built yet; this is the honest first version.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+        searchInputRef.current?.focus();
+      }
+      if (e.key === 'Escape') setSearchOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
   const [trialExpiredOpen, setTrialExpiredOpen] = useState(false);
   const [planPromptReason, setPlanPromptReason] = useState<'credits_out' | 'no_plan' | null>(null);
   const [trialEndingDismissed, setTrialEndingDismissed] = useState(false);
@@ -10837,6 +10962,8 @@ export default function WorkspaceDashboard() {
     .toUpperCase();
 
   const PAGES: Record<string, ReactNode> = {
+    home: <HomePage onNavigate={goTo} />,
+    help: <HelpSupportPage />,
     messages: <InboxDashboard isMobile={isMobile} />,
     schedule: (
       <ContentManagerPage
@@ -10969,80 +11096,103 @@ export default function WorkspaceDashboard() {
                 social
               </span>
             </Link>
-            <div
-              id="tour-jane-agent"
-              style={{
-                margin: '0 12px 18px',
-                padding: '12px 14px',
-                borderRadius: 11,
-                background: 'rgba(194,24,91,.08)',
-                border: '1px solid rgba(194,24,91,.12)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 5 }}>
-                <JaneAvatar size={28} pulse />
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#f3d0df' }}>URI Agent</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.3)' }}>AI Social Manager</div>
-                </div>
-              </div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', paddingLeft: 37 }}>Active & ready</div>
-            </div>
             {/* On a short screen the menu scrolls here instead of pushing the sidebar
                 past the bottom of the window (which left a white strip under the app). */}
             <div
               className="ws-nav-scroll"
-              style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}
+              style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
             >
-              {NAV.filter((n) => {
-                const item = n as { adminOnly?: boolean; platformAdminOnly?: boolean };
-                if (item.adminOnly) return isAdsAdmin;
-                if (item.platformAdminOnly) return isAdminUser;
-                return true;
-              }).map((n) => {
-                const badge = n.id === 'notifications' ? unreadCount : (n as { count?: number }).count;
-                return (
-                  <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
-                    <button
-                      id={`tnav-${n.id}`}
-                      onClick={() => goTo(n.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '9px 18px',
-                        background: nav === n.id ? 'rgba(194,24,91,.1)' : 'transparent',
-                        border: 'none',
-                        borderLeft: nav === n.id ? '2.5px solid #E91E63' : '2.5px solid transparent',
-                        fontFamily: 'var(--wf)',
-                        fontSize: 12.5,
-                        color: nav === n.id ? '#fce4ec' : 'rgba(255,255,255,.35)',
-                        fontWeight: nav === n.id ? 600 : 400,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'all .12s',
-                      }}
-                    >
-                      <I n={n.icon} s={15} c={nav === n.id ? '#E91E63' : 'rgba(255,255,255,.22)'} />
-                      <span style={{ flex: 1 }}>{n.label}</span>
-                      {badge != null && badge > 0 && (
-                        <span
-                          style={{
-                            background: '#E91E63',
-                            color: '#fff',
-                            fontSize: 9.5,
-                            fontWeight: 700,
-                            padding: '1px 5px',
-                            borderRadius: 4,
-                          }}
-                        >
-                          {badge > 99 ? '99+' : badge}
-                        </span>
-                      )}
-                    </button>
-                  </BrandTooltip>
-                );
-              })}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {PRIMARY_NAV.map((n) => {
+                  const badge = n.id === 'notifications' ? unreadCount : undefined;
+                  const active = nav === n.id;
+                  return (
+                    <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
+                      <button
+                        id={`tnav-${n.id}`}
+                        onClick={() => goTo(n.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          margin: '0 10px',
+                          padding: '9px 12px',
+                          borderRadius: 9,
+                          background: active ? '#E91E63' : 'transparent',
+                          border: 'none',
+                          fontFamily: 'var(--wf)',
+                          fontSize: 13,
+                          color: active ? '#fff' : 'rgba(255,255,255,.55)',
+                          fontWeight: active ? 700 : 500,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all .12s',
+                        }}
+                      >
+                        <I n={n.icon} s={15} c={active ? '#fff' : 'rgba(255,255,255,.4)'} />
+                        <span style={{ flex: 1 }}>{n.label}</span>
+                        {badge != null && badge > 0 && (
+                          <span
+                            style={{
+                              background: active ? 'rgba(255,255,255,.25)' : '#E91E63',
+                              color: '#fff',
+                              fontSize: 9.5,
+                              fontWeight: 700,
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                            }}
+                          >
+                            {badge > 99 ? '99+' : badge}
+                          </span>
+                        )}
+                      </button>
+                    </BrandTooltip>
+                  );
+                })}
+              </div>
+              <div style={{ flex: 1 }} />
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  paddingTop: 10,
+                  marginTop: 10,
+                  borderTop: '1px solid rgba(255,255,255,.06)',
+                }}
+              >
+                {LOWER_NAV.map((n) => {
+                  const active = nav === n.id;
+                  return (
+                    <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
+                      <button
+                        id={`tnav-${n.id}`}
+                        onClick={() => goTo(n.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          margin: '0 10px',
+                          padding: '8px 12px',
+                          borderRadius: 9,
+                          background: active ? 'rgba(233,30,99,.15)' : 'transparent',
+                          border: 'none',
+                          fontFamily: 'var(--wf)',
+                          fontSize: 12.5,
+                          color: active ? '#fce4ec' : 'rgba(255,255,255,.4)',
+                          fontWeight: active ? 600 : 400,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all .12s',
+                        }}
+                      >
+                        <I n={n.icon} s={14} c={active ? '#E91E63' : 'rgba(255,255,255,.3)'} />
+                        <span style={{ flex: 1 }}>{n.label}</span>
+                      </button>
+                    </BrandTooltip>
+                  );
+                })}
+              </div>
             </div>
             <div
               style={{
@@ -11091,12 +11241,24 @@ export default function WorkspaceDashboard() {
                     <span style={{ color: '#fff', fontWeight: 700, fontSize: 11 }}>{brandInitials}</span>
                   </div>
                 )}
-                <div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.75)', fontWeight: 600 }}>{brandName}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: 'rgba(255,255,255,.75)',
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {brandName}
+                  </div>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,.2)', textTransform: 'capitalize' }}>
                     {userDetails?.subscriptionTier || 'Free'} Plan
                   </div>
                 </div>
+                {switcherBrands && switcherBrands.length > 1 && <I n="chevronRight" s={13} c="rgba(255,255,255,.3)" />}
                 {switcherOpen && switcherBrands && switcherBrands.length > 1 && (
                   <div
                     onClick={(e) => e.stopPropagation()}
@@ -11209,101 +11371,268 @@ export default function WorkspaceDashboard() {
                   </span>
                 </div>
               )}
+              {/* Product-restructure redesign: the old rotating "URI Agent is
+                  active" status line lived here — replaced with a real quick
+                  search (Cmd/Ctrl+K), matching the approved design. */}
               {!isMobile && (
-                <div
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: '#4caf50',
-                    boxShadow: '0 0 7px rgba(76,175,80,.4)',
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-              {/* Rotating status line is decorative flavour text — dropped on
-                  mobile entirely so the functional controls on the right
-                  (credits, notifications, profile) always have room and are
-                  never the thing that silently overflows off-screen. */}
-              {!isMobile && (
-                <span
-                  style={{
-                    fontSize: 12.5,
-                    color: '#666',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <strong style={{ color: '#C2185B' }}>URI Agent</strong> is active:{' '}
-                  <span key={sIdx} style={{ animation: 'wStatusFade 5s linear', display: 'inline-block' }}>
-                    {STATUS_MSGS[sIdx]}
+                <div style={{ position: 'relative', width: 'min(420px, 100%)' }}>
+                  <svg
+                    width={15}
+                    height={15}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#9CA3AF"
+                    strokeWidth="2"
+                    style={{
+                      position: 'absolute',
+                      left: 11,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <input
+                    ref={searchInputRef}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setSearchOpen(true)}
+                    onBlur={() => setTimeout(() => setSearchOpen(false), 120)}
+                    placeholder="Search anything... (content, campaigns, messages, insights)"
+                    style={{
+                      width: '100%',
+                      height: 34,
+                      padding: '0 52px 0 34px',
+                      borderRadius: 9,
+                      border: '1px solid #E5E3DF',
+                      background: '#F9F8F6',
+                      fontSize: 12.5,
+                      fontFamily: 'var(--wf)',
+                      color: '#1A1523',
+                      outline: 'none',
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: '#9CA3AF',
+                      border: '1px solid #E5E3DF',
+                      borderRadius: 5,
+                      padding: '2px 5px',
+                      background: '#fff',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    Ctrl K
                   </span>
-                </span>
+                  {searchOpen && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        marginTop: 6,
+                        width: '100%',
+                        minWidth: 260,
+                        background: '#fff',
+                        border: '1px solid #E5E3DF',
+                        borderRadius: 10,
+                        boxShadow: '0 10px 30px rgba(0,0,0,.12)',
+                        overflow: 'hidden',
+                        zIndex: 60,
+                      }}
+                    >
+                      {[...PRIMARY_NAV, ...LOWER_NAV]
+                        .filter((n) => n.label.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+                        .map((n) => (
+                          <button
+                            key={n.id}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              goTo(n.id);
+                              setSearchQuery('');
+                              setSearchOpen(false);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 9,
+                              width: '100%',
+                              padding: '9px 12px',
+                              border: 'none',
+                              background: 'transparent',
+                              cursor: 'pointer',
+                              fontFamily: 'var(--wf)',
+                              fontSize: 12.5,
+                              color: '#1A1523',
+                              textAlign: 'left',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#F9F8F6')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <I n={n.icon} s={13} c="#9CA3AF" />
+                            {n.label}
+                          </button>
+                        ))}
+                      {[...PRIMARY_NAV, ...LOWER_NAV].filter((n) =>
+                        n.label.toLowerCase().includes(searchQuery.trim().toLowerCase())
+                      ).length === 0 && (
+                        <div style={{ padding: '10px 12px', fontSize: 12, color: '#9CA3AF' }}>
+                          No destinations match &ldquo;{searchQuery}&rdquo;. Searching content, campaigns and messages
+                          directly isn&apos;t wired up yet.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {!isMobile && (
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <button
+                    onClick={() => setCreateOpen((o) => !o)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 14px',
+                      borderRadius: 9,
+                      border: 'none',
+                      background: '#E91E63',
+                      color: '#fff',
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      fontFamily: 'var(--wf)',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <I n="plus" s={13} c="#fff" />
+                    Create
+                    <I n="chevronRight" s={11} c="rgba(255,255,255,.7)" />
+                  </button>
+                  {createOpen && (
+                    <>
+                      <div onClick={() => setCreateOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 59 }} />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: 0,
+                          marginTop: 6,
+                          width: 200,
+                          background: '#fff',
+                          border: '1px solid #E5E3DF',
+                          borderRadius: 10,
+                          boxShadow: '0 10px 30px rgba(0,0,0,.12)',
+                          overflow: 'hidden',
+                          zIndex: 60,
+                        }}
+                      >
+                        {[
+                          { id: 'schedule', icon: 'edit', label: 'New post' },
+                          { id: 'campaigns', icon: 'megaphone', label: 'New campaign' },
+                          { id: 'blog', icon: 'book', label: 'New blog post' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              setCreateOpen(false);
+                              goTo(opt.id);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 9,
+                              width: '100%',
+                              padding: '9px 12px',
+                              border: 'none',
+                              background: 'transparent',
+                              cursor: 'pointer',
+                              fontFamily: 'var(--wf)',
+                              fontSize: 12.5,
+                              color: '#1A1523',
+                              textAlign: 'left',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#F9F8F6')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <I n={opt.icon} s={13} c="#9CA3AF" />
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
             </div>
             <div
               id="tour-notification-area"
               style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, flexWrap: 'wrap' }}
             >
-              {/* Utility toolbar — Settings, Edit Brand Setup, Clear conversation.
-                  A single segmented pill instead of loose bordered squares reads
-                  as one cohesive control rather than three separate buttons, and
-                  it's shown on mobile too now (icon-only, same as desktop) rather
-                  than being dropped entirely — the "More" drawer still offers the
-                  labeled versions for anyone who prefers text over icons. */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'stretch',
-                  border: '1px solid #e5e3df',
-                  borderRadius: 9,
-                  overflow: 'hidden',
-                  background: '#fff',
-                  flexShrink: 0,
-                }}
-              >
-                <button
-                  onClick={() => router.push('/settings/social-accounts/')}
-                  title="Social Accounts"
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              {/* Utility toolbar — Edit Brand Setup, Clear conversation. Chat-page
+                  specific now that Settings has its own primary sidebar button
+                  (PRIMARY_NAV/LOWER_NAV) — showing it everywhere would duplicate
+                  that and clutter the new design's clean top bar. */}
+              {nav === 'workspace' && (
+                <div
                   style={{
-                    width: isMobile ? 34 : 32,
-                    height: isMobile ? 34 : 32,
-                    border: 'none',
-                    borderRight: '1px solid #edecea',
-                    background: 'transparent',
-                    cursor: 'pointer',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'background .15s',
+                    alignItems: 'stretch',
+                    border: '1px solid #e5e3df',
+                    borderRadius: 9,
+                    overflow: 'hidden',
+                    background: '#fff',
+                    flexShrink: 0,
                   }}
                 >
-                  <I n="settings" s={14} c="#666" />
-                </button>
-                <button
-                  onClick={() => router.push('/social-media/brand-setup/')}
-                  title="Edit Brand Setup"
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  style={{
-                    width: isMobile ? 34 : 32,
-                    height: isMobile ? 34 : 32,
-                    border: 'none',
-                    borderRight: nav === 'workspace' ? '1px solid #edecea' : 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'background .15s',
-                  }}
-                >
-                  <I n="edit" s={14} c="#666" />
-                </button>
-                {nav === 'workspace' && (
+                  <button
+                    onClick={() => router.push('/settings/social-accounts/')}
+                    title="Social Accounts"
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    style={{
+                      width: isMobile ? 34 : 32,
+                      height: isMobile ? 34 : 32,
+                      border: 'none',
+                      borderRight: '1px solid #edecea',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background .15s',
+                    }}
+                  >
+                    <I n="settings" s={14} c="#666" />
+                  </button>
+                  <button
+                    onClick={() => router.push('/social-media/brand-setup/')}
+                    title="Edit Brand Setup"
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    style={{
+                      width: isMobile ? 34 : 32,
+                      height: isMobile ? 34 : 32,
+                      border: 'none',
+                      borderRight: '1px solid #edecea',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background .15s',
+                    }}
+                  >
+                    <I n="edit" s={14} c="#666" />
+                  </button>
                   <button
                     onClick={() => setClearConfirmOpen(true)}
                     title="Clear conversation"
@@ -11323,8 +11652,8 @@ export default function WorkspaceDashboard() {
                   >
                     <I n="broom" s={14} c="#666" />
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Notification Bell */}
               <NotificationBell isMobile={isMobile} onViewAll={() => goTo('notifications')} />
