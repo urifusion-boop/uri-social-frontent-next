@@ -19,6 +19,7 @@ type ISocialMediaAgentApi =
   | 'generateStoryboard'
   | 'storyboardJob'
   | 'generateVideoFromStoryboard'
+  | 'videoQuote'
   | 'videoJob'
   | 'refineContent'
   | 'approveContent'
@@ -121,6 +122,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   generateStoryboard: '/generate-storyboard',
   storyboardJob: '/storyboard-job',
   generateVideoFromStoryboard: '/generate-video-from-storyboard',
+  videoQuote: '/video-quote',
   videoJob: '/video-job',
   refineContent: '/refine',
   approveContent: '/approve',

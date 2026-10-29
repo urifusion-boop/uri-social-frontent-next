@@ -6,6 +6,7 @@ import {
   VideoClip,
   VideoDraft,
   VideoJob,
+  VideoQuote,
 } from '@/src/api/SocialMediaAgentService';
 import { VIDEO_STYLES } from '@/src/data/videoStyles';
 import {
@@ -24,7 +25,10 @@ import {
   StoryboardResult,
   suggestOutcome,
 } from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
+import { useAuth } from '@/src/providers/AuthProvider';
 import { takeVideoSeed } from '@/src/utils/contentSeed';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -97,6 +101,13 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
   const [selectedVoice, setSelectedVoice] = useState('Sarah');
   const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
   const [videoError, setVideoError] = useState('');
+  // What the server says this video costs (see /video-quote), and whether the customer is about to confirm it.
+  // quote.billing === 'off' (or no quote yet) means video is not charged and no price is shown.
+  const [quote, setQuote] = useState<VideoQuote | null>(null);
+  const [confirmingGenerate, setConfirmingGenerate] = useState(false);
+  const [needsTopUp, setNeedsTopUp] = useState(false);
+  const { refreshCreditBalance } = useAuth();
+  const router = useRouter();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Frame image generation state
@@ -589,9 +600,20 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
     }
   };
 
+  // The server answers a refusal with a message written for the customer (not enough credits, a video that is
+  // too long): show that, not a generic failure.
+  const startError = (e: unknown): string => {
+    const data = (e as { response?: { data?: { responseMessage?: unknown; detail?: unknown } } } | null)?.response
+      ?.data;
+    if (typeof data?.responseMessage === 'string' && data.responseMessage) return data.responseMessage;
+    if (typeof data?.detail === 'string' && data.detail) return data.detail;
+    return 'Something went wrong starting video generation.';
+  };
+
   const handleGenerateVideos = async () => {
     if (!storyboard) return;
     setVideoError('');
+    setNeedsTopUp(false);
     setVideoJob(null);
     setMergedUrl('');
     setMergeError('');
@@ -606,22 +628,84 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
           ...(frameMap[s.scene_number] ? { frame_image_url: frameMap[s.scene_number] } : {}),
         })),
       };
-      const res = await SocialMediaAgentService.generateVideoFromStoryboard({
-        storyboard: enrichedStoryboard,
-        brand_images: images.map((img) => img.dataUrl),
-        outcome: selectedOutcome,
-        ...(selectedOutcome === 'talking_dialogue' ? { avatar_voice: selectedVoice } : {}),
-      });
+      // A fresh key for every deliberate click: if this request is sent twice (a double click, a retry after a
+      // dropped connection) the server returns the first job instead of charging a second time.
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`;
+      const res = await SocialMediaAgentService.generateVideoFromStoryboard(
+        {
+          storyboard: enrichedStoryboard,
+          brand_images: images.map((img) => img.dataUrl),
+          outcome: selectedOutcome,
+          ...(selectedOutcome === 'talking_dialogue' ? { avatar_voice: selectedVoice } : {}),
+        },
+        idempotencyKey
+      );
       if (res.status && res.responseData) {
         setVideoJob(res.responseData);
         saveSession({ videoJob: res.responseData, selectedOutcome, selectedVoice });
+        if (res.responseData.billing) void refreshCreditBalance(); // the header balance drops straight away
       } else {
         setVideoError(res.responseMessage || 'Could not start video generation.');
       }
-    } catch {
-      setVideoError('Something went wrong starting video generation.');
+    } catch (e) {
+      const status = (e as { response?: { status?: number } } | null)?.response?.status;
+      setVideoError(startError(e));
+      if (status === 402) {
+        setNeedsTopUp(true);
+        void refreshCreditBalance();
+      }
     }
   };
+
+  // The price, kept in step with what is about to be rendered. Only the scene lengths matter to it (not the
+  // images), so it is re-asked whenever the storyboard, the video type or a talking voice changes.
+  useEffect(() => {
+    if (!storyboard) {
+      setQuote(null);
+      return;
+    }
+    let alive = true;
+    const timer = setTimeout(() => {
+      SocialMediaAgentService.getVideoQuote({
+        storyboard: {
+          scenes: storyboard.scenes.map((sc) => ({
+            scene_number: sc.scene_number,
+            duration_seconds: sc.duration_seconds,
+          })),
+        },
+        outcome: selectedOutcome,
+        ...(selectedOutcome === 'talking_dialogue' ? { avatar_voice: selectedVoice } : {}),
+      })
+        .then((res) => {
+          if (alive) setQuote(res.status && res.responseData ? res.responseData : null);
+        })
+        .catch(() => {
+          if (alive) setQuote(null); // no price to show is better than a wrong one
+        });
+    }, 250);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyboard, selectedOutcome, selectedVoice, videoJob?.status]);
+
+  // Once a charged job ends, what came back is on the job: refresh the header balance to match.
+  const settledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!videoJob?.billing || (videoJob.status !== 'complete' && videoJob.status !== 'failed')) return;
+    if (settledRef.current === videoJob.job_id) return;
+    settledRef.current = videoJob.job_id;
+    void refreshCreditBalance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoJob?.status, videoJob?.billing?.credits_refunded]);
+
+  const priced = quote?.billing === 'on' && typeof quote.credits_required === 'number';
+  const cantAfford = priced && quote?.sufficient === false;
+  const creditWord = (n: number) => `${n} credit${n === 1 ? '' : 's'}`;
 
   const clipMap: Record<number, VideoClip> = {};
   (videoJob?.clips ?? []).forEach((c) => {
@@ -1056,10 +1140,67 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
                 }}
               >
                 <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{videoError}</p>
+                {needsTopUp && (
+                  <button
+                    onClick={() => router.push('/workspace/?tab=billing&billing=buy-credits')}
+                    style={{
+                      marginTop: 8,
+                      background: PRIMARY,
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '7px 14px',
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    Top up credits
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* What this video cost and what came back. Customers see credits; the dollar cost and model names
+                below are an internal readout, so they are shown only while video is not being charged. */}
+            {videoJob?.billing && (videoJob.status === 'complete' || videoJob.status === 'failed') && (
+              <div
+                data-testid="video-billing-result"
+                style={{
+                  background: LIGHT,
+                  border: `1px solid ${BORDER}`,
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 16,
+                  fontSize: 13,
+                  color: DARK,
+                }}
+              >
+                {videoJob.billing.credits_charged > 0 ? (
+                  <>
+                    <strong>{creditWord(videoJob.billing.credits_charged - videoJob.billing.credits_refunded)}</strong>{' '}
+                    used
+                    {videoJob.billing.credits_refunded > 0 && (
+                      <span style={{ color: GREY }}>
+                        {' '}
+                        · {creditWord(videoJob.billing.credits_refunded)} returned for scenes we couldn't deliver
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span style={{ color: GREY }}>No credits were used for this video.</span>
+                )}
+                {videoJob.billing.status === 'refund_failed' && (
+                  <p style={{ fontSize: 12, color: '#B45309', margin: '4px 0 0' }}>
+                    We couldn't return your credits automatically. Our team has been alerted and will sort it out.
+                  </p>
+                )}
               </div>
             )}
 
             {videoJob?.status === 'complete' &&
+              !videoJob.billing &&
               (() => {
                 const costed = videoJob.clips.filter((c) => c.cost_usd != null);
                 if (costed.length === 0) return null;
@@ -1288,24 +1429,101 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
             )}
 
             {(!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') && (
-              <button
-                onClick={handleGenerateVideos}
-                disabled={!!videoJob && videoJob.status === 'generating'}
-                style={{
-                  width: '100%',
-                  padding: '13px 0',
-                  borderRadius: 10,
-                  background: PRIMARY,
-                  color: '#fff',
-                  border: 'none',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {videoJob?.status === 'complete' ? 'Regenerate Videos' : 'Generate Videos'}
-              </button>
+              <>
+                {priced && (
+                  <div
+                    data-testid="video-price"
+                    style={{
+                      background: cantAfford ? '#FEF2F2' : LIGHT,
+                      border: `1px solid ${cantAfford ? '#FECACA' : BORDER}`,
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      marginBottom: 12,
+                      fontSize: 13,
+                      color: DARK,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <span>
+                        This video costs <strong>{creditWord(quote!.credits_required!)}</strong>
+                        {typeof quote?.naira_reference === 'number' && (
+                          <span style={{ color: GREY }}> (about ₦{quote.naira_reference.toLocaleString()})</span>
+                        )}
+                      </span>
+                      {typeof quote?.balance === 'number' && (
+                        <span style={{ color: GREY }}>
+                          Your balance: {quote.balance.toLocaleString()}
+                          {!cantAfford &&
+                            typeof quote.balance_after === 'number' &&
+                            ` → ${quote.balance_after.toLocaleString()}`}
+                        </span>
+                      )}
+                    </div>
+                    {cantAfford ? (
+                      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ color: '#DC2626' }}>You don't have enough credits for this video.</span>
+                        <button
+                          onClick={() => router.push('/workspace/?tab=billing&billing=buy-credits')}
+                          style={{
+                            background: PRIMARY,
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 8,
+                            padding: '6px 12px',
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          Top up credits
+                        </button>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 11.5, color: GREY, margin: '4px 0 0' }}>
+                        Credits for any scene we can't deliver are returned automatically.
+                      </p>
+                    )}
+                  </div>
+                )}
+                <button
+                  onClick={() => (priced ? setConfirmingGenerate(true) : handleGenerateVideos())}
+                  disabled={(!!videoJob && videoJob.status === 'generating') || cantAfford}
+                  style={{
+                    width: '100%',
+                    padding: '13px 0',
+                    borderRadius: 10,
+                    background: cantAfford ? '#D1D5DB' : PRIMARY,
+                    color: '#fff',
+                    border: 'none',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: cantAfford ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {videoJob?.status === 'complete' ? 'Regenerate Videos' : 'Generate Videos'}
+                  {priced && ` · ${creditWord(quote!.credits_required!)}`}
+                </button>
+                <ConfirmDialog
+                  isOpen={confirmingGenerate}
+                  title="Generate this video?"
+                  message={
+                    priced
+                      ? `This will use ${creditWord(quote!.credits_required!)}${
+                          typeof quote?.balance_after === 'number'
+                            ? `, leaving you ${quote.balance_after.toLocaleString()}`
+                            : ''
+                        }. Credits for any scene we can't deliver are returned automatically.`
+                      : ''
+                  }
+                  confirmText="Generate"
+                  cancelText="Not yet"
+                  confirmColor={PRIMARY}
+                  onConfirm={() => void handleGenerateVideos()}
+                  onCancel={() => setConfirmingGenerate(false)}
+                />
+              </>
             )}
 
             {/* Merge + Save Draft */}

@@ -139,6 +139,34 @@ export interface VideoClip {
   error?: string;
 }
 
+/** What was charged for a generated video, and what came back. Present only when the job was really charged. */
+export interface VideoJobBilling {
+  mode?: string;
+  status?: string; // charged | settled | refund_failed ...
+  credits_charged: number;
+  credits_refunded: number;
+}
+
+/** The server's price for rendering a storyboard. `billing: 'off'` means video is not charged and nothing is shown. */
+export interface VideoQuote {
+  billing: 'off' | 'shadow' | 'on';
+  video_type?: string;
+  scenes?: number;
+  seconds?: number;
+  credits_required?: number;
+  naira_reference?: number;
+  balance?: number | null; // null = an account with no wallet, which is unmetered
+  balance_after?: number | null;
+  sufficient?: boolean;
+  is_trial?: boolean;
+}
+
+export interface VideoQuotePayload {
+  storyboard: { scenes: { scene_number: number; duration_seconds: number }[] };
+  outcome: string;
+  avatar_voice?: string;
+}
+
 export interface VideoJob {
   job_id: string;
   status: 'queued' | 'generating' | 'complete' | 'failed';
@@ -148,6 +176,7 @@ export interface VideoJob {
   current_scene: number;
   clips: VideoClip[];
   error: string | null;
+  billing?: VideoJobBilling | null;
   // Live fal.ai queue status for whichever scene is generating right now —
   // only present while a fal.ai call is actually in flight (unset on
   // completion/timeout). Lets the UI show real progress (queued/position,
@@ -933,11 +962,30 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async generateVideoFromStoryboard(payload: VideoFromStoryboardPayload): Promise<UriResponse<VideoJob>> {
+  /**
+   * `idempotencyKey` makes a repeated click or retry of the SAME request return the first job instead of
+   * charging again. Send a fresh one for each deliberate new generation.
+   */
+  static async generateVideoFromStoryboard(
+    payload: VideoFromStoryboardPayload,
+    idempotencyKey?: string
+  ): Promise<UriResponse<VideoJob>> {
     const response: Awaited<AxiosResponse<UriResponse<VideoJob>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.generateVideoFromStoryboard,
       payload,
-      { timeout: 180000 }
+      {
+        timeout: 180000,
+        ...(idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : {}),
+      }
+    );
+    return response.data;
+  }
+
+  /** The price of rendering this storyboard, from the same server calculation the charge uses. */
+  static async getVideoQuote(payload: VideoQuotePayload): Promise<UriResponse<VideoQuote>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoQuote>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.videoQuote,
+      payload
     );
     return response.data;
   }
