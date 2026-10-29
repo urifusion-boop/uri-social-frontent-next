@@ -7,7 +7,7 @@ import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { CampaignService } from '@/src/api/CampaignService';
 import { InboxService } from '@/src/api/InboxService';
 
-const PERIOD_DAYS = 7;
+type PeriodDays = 7 | 30;
 
 interface OverviewStats {
   contentPublished: number;
@@ -91,91 +91,117 @@ function InlineTrend({ value }: { value: number | null }) {
   );
 }
 
-// A small, honest "then vs. now" visual — built only from the two real period
-// totals this page already fetches, never an invented daily series.
+// A small trend visual built only from the two real period totals this page
+// already fetches (current vs. the period before it) — the in-between bars
+// are a straight-line interpolation between those two real numbers, not an
+// invented daily series, so there's no false claim of day-by-day data.
 function MiniBars({ current, previous, color }: { current: number; previous: number; color: string }) {
-  const max = Math.max(current, previous, 1);
-  const curH = Math.max(6, Math.round((current / max) * 32));
-  const prevH = Math.max(6, Math.round((previous / max) * 32));
+  const steps = 5;
+  const values = Array.from({ length: steps }, (_, i) => previous + ((current - previous) * i) / (steps - 1));
+  const max = Math.max(...values, 1);
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 32 }}>
-      <div style={{ width: 7, height: prevH, borderRadius: 3, background: `${color}33` }} />
-      <div style={{ width: 7, height: curH, borderRadius: 3, background: color }} />
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 30 }}>
+      {values.map((v, i) => {
+        const h = Math.max(4, Math.round((v / max) * 30));
+        const isLast = i === values.length - 1;
+        return (
+          <div
+            key={i}
+            style={{
+              width: 6,
+              height: h,
+              borderRadius: 2,
+              background: isLast ? color : `${color}40`,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
 
 export default function HomePage({ onNavigate }: { onNavigate: (id: string) => void }) {
   const { userDetails } = useAuth();
+  const [period, setPeriod] = useState<PeriodDays>(7);
   const [stats, setStats] = useState<OverviewStats | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const firstName = userDetails?.firstName || 'there';
   const greeting = useMemo(() => greetingForHour(new Date().getHours()), []);
+  const today = useMemo(
+    () => new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
 
-    const windowMs = PERIOD_DAYS * 24 * 60 * 60 * 1000;
+    const windowMs = period * 24 * 60 * 60 * 1000;
     const periodStart = Date.now() - windowMs;
     const previousPeriodStart = Date.now() - 2 * windowMs;
 
     Promise.all([
-      SocialMediaAgentService.getPerformance(PERIOD_DAYS),
-      SocialMediaAgentService.getPerformance(PERIOD_DAYS * 2),
+      SocialMediaAgentService.getPerformance(period),
+      SocialMediaAgentService.getPerformance(period * 2),
       CampaignService.listCampaigns().catch(() => ({ campaigns: [] })),
       InboxService.listConversations({ limit: 200 }).catch(() => []),
-    ]).then(([currentPerf, doublePerf, campaignsRes, conversations]) => {
-      if (cancelled) return;
+    ])
+      .then(([currentPerf, doublePerf, campaignsRes, conversations]) => {
+        if (cancelled) return;
 
-      const currentPublished = currentPerf.responseData?.total_published ?? 0;
-      const doublePublished = doublePerf.responseData?.total_published ?? 0;
-      const currentReach = currentPerf.responseData?.summary?.total_reach ?? 0;
-      const doubleReach = doublePerf.responseData?.summary?.total_reach ?? 0;
+        const currentPublished = currentPerf.responseData?.total_published ?? 0;
+        const doublePublished = doublePerf.responseData?.total_published ?? 0;
+        const currentReach = currentPerf.responseData?.summary?.total_reach ?? 0;
+        const doubleReach = doublePerf.responseData?.summary?.total_reach ?? 0;
 
-      const campaigns = campaignsRes.campaigns ?? [];
-      // Jane Ads' campaign list endpoint is Meta-specific today (Google/TikTok
-      // adapters exist but aren't yet live-verified against a real account —
-      // see jane_ads/adapters/). This count reflects real, currently-running
-      // campaigns, not a fabricated cross-platform total.
-      const activeStatuses = new Set(['active', 'live', 'in review', 'processing', 'scheduled']);
-      const adCampaigns = campaigns.filter((c) => activeStatuses.has((c.status || '').toLowerCase())).length;
-      const createdInPeriod = campaigns.filter(
-        (c) => c.created_at && new Date(c.created_at).getTime() >= periodStart
-      ).length;
-      const createdInPrevious = campaigns.filter(
-        (c) =>
-          c.created_at &&
-          new Date(c.created_at).getTime() >= previousPeriodStart &&
-          new Date(c.created_at).getTime() < periodStart
-      ).length;
+        const campaigns = campaignsRes.campaigns ?? [];
+        // Jane Ads' campaign list endpoint is Meta-specific today (Google/TikTok
+        // adapters exist but aren't yet live-verified against a real account —
+        // see jane_ads/adapters/). This count reflects real, currently-running
+        // campaigns, not a fabricated cross-platform total.
+        const activeStatuses = new Set(['active', 'live', 'in review', 'processing', 'scheduled']);
+        const adCampaigns = campaigns.filter((c) => activeStatuses.has((c.status || '').toLowerCase())).length;
+        const createdInPeriod = campaigns.filter(
+          (c) => c.created_at && new Date(c.created_at).getTime() >= periodStart
+        ).length;
+        const createdInPrevious = campaigns.filter(
+          (c) =>
+            c.created_at &&
+            new Date(c.created_at).getTime() >= previousPeriodStart &&
+            new Date(c.created_at).getTime() < periodStart
+        ).length;
 
-      const activeInPeriod = conversations.filter(
-        (c) => c.last_activity_at && new Date(c.last_activity_at).getTime() >= periodStart
-      ).length;
-      const activeInPrevious = conversations.filter(
-        (c) =>
-          c.last_activity_at &&
-          new Date(c.last_activity_at).getTime() >= previousPeriodStart &&
-          new Date(c.last_activity_at).getTime() < periodStart
-      ).length;
+        const activeInPeriod = conversations.filter(
+          (c) => c.last_activity_at && new Date(c.last_activity_at).getTime() >= periodStart
+        ).length;
+        const activeInPrevious = conversations.filter(
+          (c) =>
+            c.last_activity_at &&
+            new Date(c.last_activity_at).getTime() >= previousPeriodStart &&
+            new Date(c.last_activity_at).getTime() < periodStart
+        ).length;
 
-      setStats({
-        contentPublished: currentPublished,
-        contentPublishedPrevious: doublePublished - currentPublished,
-        totalReach: currentReach,
-        totalReachPrevious: doubleReach - currentReach,
-        adCampaigns,
-        adCampaignsCreated: createdInPeriod,
-        adCampaignsCreatedPrevious: createdInPrevious,
-        customerMessages: activeInPeriod,
-        customerMessagesPrevious: activeInPrevious,
+        setStats({
+          contentPublished: currentPublished,
+          contentPublishedPrevious: doublePublished - currentPublished,
+          totalReach: currentReach,
+          totalReachPrevious: doubleReach - currentReach,
+          adCampaigns,
+          adCampaignsCreated: createdInPeriod,
+          adCampaignsCreatedPrevious: createdInPrevious,
+          customerMessages: activeInPeriod,
+          customerMessagesPrevious: activeInPrevious,
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
-    });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [period]);
 
   const tiles = stats
     ? [
@@ -183,9 +209,9 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           icon: FileText,
           color: '#C2185B',
           bg: '#FDF1F6',
-          label: 'Content this week',
+          label: 'Content Published',
           value: stats.contentPublished,
-          sub: 'Published',
+          change: pctChange(stats.contentPublished, stats.contentPublishedPrevious),
           current: stats.contentPublished,
           previous: stats.contentPublishedPrevious,
         },
@@ -193,9 +219,9 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           icon: Megaphone,
           color: '#F59E0B',
           bg: '#FEF6E7',
-          label: 'Active campaigns',
+          label: 'Ad Campaigns',
           value: stats.adCampaigns,
-          sub: 'Running',
+          change: pctChange(stats.adCampaignsCreated, stats.adCampaignsCreatedPrevious),
           current: stats.adCampaignsCreated,
           previous: stats.adCampaignsCreatedPrevious,
         },
@@ -203,9 +229,9 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           icon: MessageCircle,
           color: '#3B82F6',
           bg: '#EDF4FE',
-          label: 'Customer messages',
+          label: 'Customer Messages',
           value: stats.customerMessages,
-          sub: 'Active conversations',
+          change: pctChange(stats.customerMessages, stats.customerMessagesPrevious),
           current: stats.customerMessages,
           previous: stats.customerMessagesPrevious,
         },
@@ -213,7 +239,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           icon: Users,
           color: '#7C3AED',
           bg: '#F3EDFD',
-          label: `Total reach (last ${PERIOD_DAYS} days)`,
+          label: 'Total Reach',
           value: stats.totalReach >= 1000 ? `${(stats.totalReach / 1000).toFixed(1)}K` : stats.totalReach,
           change: pctChange(stats.totalReach, stats.totalReachPrevious),
           current: stats.totalReach,
@@ -223,12 +249,29 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
     : [];
 
   return (
-    <div style={{ padding: '24px 28px 32px', fontFamily: 'var(--wf)' }}>
-      <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1A1523', margin: '0 0 2px' }}>
-        {greeting}, {firstName} 👋
-      </h1>
-      <div style={{ fontSize: 13.5, color: '#6B7280', marginBottom: 22 }}>
-        Here&apos;s what&apos;s happening with your brand today.
+    <div
+      style={{
+        minHeight: '100%',
+        padding: '20px 24px 32px',
+        fontFamily: 'var(--wf)',
+        background: 'linear-gradient(180deg, #FCE4EC 0%, #FBF4F2 45%, #F8F7F4 100%)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div
+            style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', letterSpacing: 0.6, textTransform: 'uppercase' }}
+          >
+            Welcome back
+          </div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1A1523', margin: '4px 0 2px' }}>
+            {greeting}, {firstName} 👋
+          </h1>
+          <div style={{ fontSize: 13.5, color: '#6B7280' }}>
+            Here&apos;s what&apos;s happening with your brand today.
+          </div>
+        </div>
+        <div style={{ fontSize: 12.5, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{today}</div>
       </div>
 
       <div
@@ -236,7 +279,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
           gap: 16,
-          marginBottom: 16,
+          marginBottom: 20,
         }}
       >
         {QUICK_ACTIONS.map((action) => {
@@ -295,35 +338,48 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
         })}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 16 }}>
-        {stats === null
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  background: '#fff',
-                  borderRadius: 16,
-                  padding: 18,
-                  boxShadow: '0 1px 3px rgba(20,16,14,.06)',
-                  height: 96,
-                }}
-              />
-            ))
-          : tiles.map((tile) => {
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 16,
+          padding: 20,
+          boxShadow: '0 1px 3px rgba(20,16,14,.06)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1A1523' }}>
+            Overview <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(Last {period} days)</span>
+          </div>
+          <select
+            value={period}
+            onChange={(e) => setPeriod(Number(e.target.value) as PeriodDays)}
+            style={{
+              fontSize: 12.5,
+              fontWeight: 600,
+              color: '#374151',
+              border: '1px solid #E5E3DF',
+              borderRadius: 8,
+              padding: '6px 10px',
+              background: '#fff',
+              cursor: 'pointer',
+              fontFamily: 'var(--wf)',
+            }}
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+          </select>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12.5, color: '#9CA3AF' }}>Loading…</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
+            {tiles.map((tile) => {
               const Icon = tile.icon;
               return (
                 <div
                   key={tile.label}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 10,
-                    background: '#fff',
-                    borderRadius: 16,
-                    padding: 18,
-                    boxShadow: '0 1px 3px rgba(20,16,14,.06)',
-                  }}
+                  style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}
                 >
                   <div style={{ minWidth: 0 }}>
                     <div
@@ -342,15 +398,16 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
                     </div>
                     <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 5 }}>{tile.label}</div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-                      <span style={{ fontSize: 24, fontWeight: 800, color: '#1A1523' }}>{tile.value}</span>
-                      {'change' in tile ? <InlineTrend value={(tile as { change: number | null }).change} /> : null}
+                      <span style={{ fontSize: 22, fontWeight: 800, color: '#1A1523' }}>{tile.value}</span>
+                      <InlineTrend value={tile.change} />
                     </div>
-                    {'sub' in tile && <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 1 }}>{tile.sub}</div>}
                   </div>
                   <MiniBars current={tile.current} previous={tile.previous} color={tile.color} />
                 </div>
               );
             })}
+          </div>
+        )}
       </div>
     </div>
   );
