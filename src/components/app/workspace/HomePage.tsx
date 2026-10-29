@@ -25,7 +25,7 @@ const QUICK_ACTIONS = [
   {
     id: 'schedule',
     icon: PenLine,
-    title: 'Create Social Media Content',
+    title: 'Create Content',
     description: 'Generate, schedule and publish AI-powered content.',
     iconBg: '#C2185B',
     cardBg: '#FDF1F6',
@@ -33,7 +33,7 @@ const QUICK_ACTIONS = [
   {
     id: 'campaigns',
     icon: Megaphone,
-    title: 'Run Advertising Campaigns',
+    title: 'Run Campaigns',
     description: 'Launch and manage ads across multiple platforms.',
     iconBg: '#F59E0B',
     cardBg: '#FEF6E7',
@@ -41,7 +41,7 @@ const QUICK_ACTIONS = [
   {
     id: 'messages',
     icon: MessageCircle,
-    title: 'Manage Customer Messages',
+    title: 'Manage Messages',
     description: 'Respond to inquiries and automate replies.',
     iconBg: '#3B82F6',
     cardBg: '#EDF4FE',
@@ -295,7 +295,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
                 textAlign: 'left',
                 border: 'none',
                 borderRadius: 16,
-                padding: '18px 16px',
+                padding: '20px 18px',
                 background: action.cardBg,
                 cursor: 'pointer',
                 fontFamily: 'var(--wf)',
@@ -303,8 +303,8 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
             >
               <div
                 style={{
-                  width: 42,
-                  height: 42,
+                  width: 44,
+                  height: 44,
                   borderRadius: '50%',
                   background: action.iconBg,
                   display: 'flex',
@@ -313,18 +313,22 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
                   flexShrink: 0,
                 }}
               >
-                <Icon size={19} color="#fff" />
+                <Icon size={20} color="#fff" />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 700, color: '#1A1523', marginBottom: 2 }}>{action.title}</div>
-                <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.35 }}>{action.description}</div>
+                <div
+                  style={{ fontSize: 14.5, fontWeight: 700, color: '#1A1523', marginBottom: 3, whiteSpace: 'nowrap' }}
+                >
+                  {action.title}
+                </div>
+                <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.4 }}>{action.description}</div>
               </div>
               <div
                 style={{
                   width: 28,
                   height: 28,
                   borderRadius: '50%',
-                  background: 'rgba(255,255,255,.7)',
+                  background: 'rgba(255,255,255,.75)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -350,24 +354,39 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           <div style={{ fontSize: 15, fontWeight: 700, color: '#1A1523' }}>
             Overview <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(Last {period} days)</span>
           </div>
-          <select
-            value={period}
-            onChange={(e) => setPeriod(Number(e.target.value) as PeriodDays)}
-            style={{
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: '#374151',
-              border: '1px solid #E5E3DF',
-              borderRadius: 8,
-              padding: '6px 10px',
-              background: '#fff',
-              cursor: 'pointer',
-              fontFamily: 'var(--wf)',
-            }}
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-          </select>
+          <div style={{ position: 'relative' }}>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(Number(e.target.value) as PeriodDays)}
+              style={{
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: '#374151',
+                border: '1px solid #E5E3DF',
+                borderRadius: 999,
+                padding: '7px 30px 7px 14px',
+                background: '#fff',
+                cursor: 'pointer',
+                fontFamily: 'var(--wf)',
+              }}
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+            </select>
+            <ArrowDown
+              size={13}
+              color="#9CA3AF"
+              style={{
+                position: 'absolute',
+                right: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'none',
+              }}
+            />
+          </div>
         </div>
 
         {loading ? (
@@ -381,12 +400,12 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
                   key={tile.label}
                   style={{
                     display: 'flex',
-                    alignItems: 'flex-end',
+                    alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: 8,
+                    gap: 10,
                     border: '1px solid #EDECEA',
                     borderRadius: 14,
-                    padding: 16,
+                    padding: 18,
                   }}
                 >
                   <div style={{ minWidth: 0 }}>
@@ -399,14 +418,20 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        marginBottom: 10,
+                        marginBottom: 11,
                       }}
                     >
                       <Icon size={15} color={tile.color} />
                     </div>
-                    <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 5 }}>{tile.label}</div>
+                    <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6, whiteSpace: 'nowrap' }}>
+                      {tile.label}
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-                      <span style={{ fontSize: 22, fontWeight: 800, color: '#1A1523' }}>{tile.value}</span>
+                      <span
+                        style={{ fontSize: 22, fontWeight: 800, color: '#1A1523', fontVariantNumeric: 'tabular-nums' }}
+                      >
+                        {tile.value}
+                      </span>
                       <InlineTrend value={tile.change} />
                     </div>
                   </div>
