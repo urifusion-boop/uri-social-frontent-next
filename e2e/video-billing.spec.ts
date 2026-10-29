@@ -93,7 +93,6 @@ async function setup(
       : {
           billing: 'on',
           credits_required: CREDITS_BY_OUTCOME[body.outcome] ?? 3,
-          naira_reference: (CREDITS_BY_OUTCOME[body.outcome] ?? 3) * 800,
           balance: 10,
           balance_after: 10 - (CREDITS_BY_OUTCOME[body.outcome] ?? 3),
           sufficient: true,
@@ -181,7 +180,7 @@ test.describe('Describe It: paying for a video', () => {
     await setup(page);
     const price = page.getByTestId('video-price');
     await expect(price).toContainText('3 credits');
-    await expect(price).toContainText('₦2,400');
+    await expect(price).not.toContainText('₦'); // credits only: customers are not shown a naira value
     await expect(price).toContainText('Your balance: 10 → 7');
     await expect(page.getByRole('button', { name: 'Generate Videos · 3 credits' })).toBeEnabled();
   });
@@ -218,7 +217,6 @@ test.describe('Describe It: paying for a video', () => {
       quote: () => ({
         billing: 'on',
         credits_required: 3,
-        naira_reference: 2400,
         balance: 1,
         balance_after: 0,
         sufficient: false,

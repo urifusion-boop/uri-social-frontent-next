@@ -1548,9 +1548,6 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                       <span>
                         This video costs <strong>{creditWord(quote!.credits_required!)}</strong>
-                        {typeof quote?.naira_reference === 'number' && (
-                          <span style={{ color: GREY }}> (about ₦{quote.naira_reference.toLocaleString()})</span>
-                        )}
                       </span>
                       {typeof quote?.balance === 'number' && (
                         <span style={{ color: GREY }}>

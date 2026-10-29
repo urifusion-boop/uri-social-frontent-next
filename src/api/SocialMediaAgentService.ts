@@ -154,7 +154,6 @@ export interface VideoQuote {
   scenes?: number;
   seconds?: number;
   credits_required?: number;
-  naira_reference?: number;
   balance?: number | null; // null = an account with no wallet, which is unmetered
   balance_after?: number | null;
   sufficient?: boolean;
