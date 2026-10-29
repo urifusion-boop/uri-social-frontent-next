@@ -10721,6 +10721,22 @@ export default function WorkspaceDashboard() {
     performance: { label: 'Performance', subNav: performanceSubNav },
   };
 
+  // Maps a PRIMARY_NAV item's id to the zone it expands — the sidebar stays
+  // a single flat list and the owning row grows its own sub-items beneath
+  // it (accordion), rather than swapping the whole list out for a
+  // section-only view.
+  const ZONE_BY_PRIMARY_ID: Record<string, 'content-studio' | 'campaign-manager' | 'performance'> = {
+    schedule: 'content-studio',
+    campaigns: 'campaign-manager',
+    performance: 'performance',
+  };
+  const [expandedSection, setExpandedSection] = useState<'content-studio' | 'campaign-manager' | 'performance' | null>(
+    activeSection
+  );
+  useEffect(() => {
+    if (activeSection) setExpandedSection(activeSection);
+  }, [activeSection]);
+
   // Quick search needs to reach every REAL destination, not just the 8
   // primary ones — Market Intelligence, Brand Playbook, Blog etc. only
   // have a sidebar button once you're already inside their section, so
@@ -11279,78 +11295,98 @@ export default function WorkspaceDashboard() {
               style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {activeSection && (
-                  <button
-                    onClick={() => goTo('home')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      margin: '0 10px 6px',
-                      padding: '7px 12px',
-                      borderRadius: 9,
-                      background: 'transparent',
-                      border: 'none',
-                      fontFamily: 'var(--wf)',
-                      fontSize: 11.5,
-                      fontWeight: 600,
-                      color: 'rgba(255,255,255,.4)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      letterSpacing: 0.3,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    <span style={{ display: 'inline-flex', transform: 'rotate(180deg)' }}>
-                      <I n="chevronRight" s={11} c="rgba(255,255,255,.3)" />
-                    </span>
-                    {SECTION_META[activeSection].label}
-                  </button>
-                )}
-                {(activeSection ? SECTION_META[activeSection].subNav : PRIMARY_NAV).map((n) => {
-                  const badge = !activeSection && n.id === 'notifications' ? unreadCount : undefined;
-                  const active = 'active' in n ? n.active : nav === n.id;
+                {PRIMARY_NAV.map((n) => {
+                  const zone = ZONE_BY_PRIMARY_ID[n.id];
+                  const isExpanded = zone != null && expandedSection === zone;
+                  const parentActive = zone ? activeSection === zone : nav === n.id;
                   return (
-                    <BrandTooltip key={n.id} title={'tooltip' in n ? n.tooltip : n.label} placement="right" arrow>
-                      <button
-                        id={`tnav-${n.id}`}
-                        onClick={() => ('onClick' in n ? n.onClick() : goTo(n.id))}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          margin: '0 10px',
-                          padding: '9px 12px',
-                          borderRadius: 9,
-                          background: active ? '#E91E63' : 'transparent',
-                          border: 'none',
-                          fontFamily: 'var(--wf)',
-                          fontSize: 13,
-                          color: active ? '#fff' : 'rgba(255,255,255,.55)',
-                          fontWeight: active ? 700 : 500,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          transition: 'all .12s',
-                        }}
-                      >
-                        <I n={n.icon} s={15} c={active ? '#fff' : 'rgba(255,255,255,.4)'} />
-                        <span style={{ flex: 1 }}>{n.label}</span>
-                        {badge != null && badge > 0 && (
-                          <span
-                            style={{
-                              background: active ? 'rgba(255,255,255,.25)' : '#E91E63',
-                              color: '#fff',
-                              fontSize: 9.5,
-                              fontWeight: 700,
-                              padding: '1px 5px',
-                              borderRadius: 4,
-                            }}
-                          >
-                            {badge > 99 ? '99+' : badge}
-                          </span>
-                        )}
-                      </button>
-                    </BrandTooltip>
+                    <div key={n.id}>
+                      <BrandTooltip title={n.tooltip} placement="right" arrow>
+                        <button
+                          id={`tnav-${n.id}`}
+                          onClick={() => {
+                            if (zone) setExpandedSection(zone);
+                            goTo(n.id);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            width: 'calc(100% - 20px)',
+                            margin: '0 10px',
+                            padding: '9px 12px',
+                            borderRadius: 9,
+                            background: parentActive ? '#E91E63' : 'transparent',
+                            border: 'none',
+                            fontFamily: 'var(--wf)',
+                            fontSize: 13,
+                            color: parentActive ? '#fff' : 'rgba(255,255,255,.55)',
+                            fontWeight: parentActive ? 700 : 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all .12s',
+                          }}
+                        >
+                          <I n={n.icon} s={15} c={parentActive ? '#fff' : 'rgba(255,255,255,.4)'} />
+                          <span style={{ flex: 1 }}>{n.label}</span>
+                          {zone && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                transition: 'transform .15s',
+                                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                              }}
+                            >
+                              <I n="chevronRight" s={12} c={parentActive ? '#fff' : 'rgba(255,255,255,.35)'} />
+                            </span>
+                          )}
+                        </button>
+                      </BrandTooltip>
+                      {zone && (
+                        <div
+                          style={{
+                            maxHeight: isExpanded ? 320 : 0,
+                            overflow: 'hidden',
+                            transition: 'max-height .25s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '3px 0 5px' }}>
+                            {SECTION_META[zone].subNav.map((sn) => {
+                              const childActive = sn.active;
+                              return (
+                                <BrandTooltip key={sn.id} title={sn.label} placement="right" arrow>
+                                  <button
+                                    id={`tnav-${sn.id}`}
+                                    onClick={() => sn.onClick()}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 9,
+                                      width: 'calc(100% - 36px)',
+                                      margin: '0 10px 0 26px',
+                                      padding: '7px 10px',
+                                      borderRadius: 8,
+                                      background: childActive ? 'rgba(233,30,99,.18)' : 'transparent',
+                                      border: 'none',
+                                      fontFamily: 'var(--wf)',
+                                      fontSize: 12.5,
+                                      color: childActive ? '#fff' : 'rgba(255,255,255,.5)',
+                                      fontWeight: childActive ? 700 : 500,
+                                      cursor: 'pointer',
+                                      textAlign: 'left',
+                                      transition: 'all .12s',
+                                    }}
+                                  >
+                                    <I n={sn.icon} s={13} c={childActive ? '#fff' : 'rgba(255,255,255,.35)'} />
+                                    <span style={{ flex: 1 }}>{sn.label}</span>
+                                  </button>
+                                </BrandTooltip>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
