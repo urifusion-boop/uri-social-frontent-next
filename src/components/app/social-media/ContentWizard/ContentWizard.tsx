@@ -19,6 +19,8 @@ const STEPS = [
   { label: 'Review & Schedule' },
 ];
 
+type StepState = 'current' | 'done' | 'todo';
+
 interface ContentWizardProps {
   onGenerated: () => void;
   requireEmailVerification: (callback?: () => void) => boolean;
@@ -40,56 +42,13 @@ export default function ContentWizard({ onGenerated, requireEmailVerification, o
   return (
     <Box sx={{ maxWidth: 1100, width: '100%' }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2.5} flexWrap="wrap" gap={1}>
-        <Box display="flex" gap={1} flexWrap="wrap">
+        <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
           {STEPS.map((s, i) => {
-            const state = i === step ? 'current' : i < step ? 'done' : 'todo';
+            const state: StepState = i === step ? 'current' : i < step ? 'done' : 'todo';
             return (
-              <Box
-                key={s.label}
-                component="button"
-                type="button"
-                onClick={() => i < step && setStep(i)}
-                disabled={i >= step}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.75,
-                  border: '1px solid',
-                  borderColor: state === 'current' ? PINK : '#E5E7EB',
-                  borderRadius: '999px',
-                  background: state === 'current' ? '#FDF2F8' : '#fff',
-                  px: 1.5,
-                  py: 0.6,
-                  cursor: i < step ? 'pointer' : 'default',
-                  fontFamily: 'inherit',
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '10.5px',
-                    fontWeight: 700,
-                    background: state === 'todo' ? '#F3F4F6' : PINK,
-                    color: state === 'todo' ? '#9CA3AF' : '#fff',
-                  }}
-                >
-                  {state === 'done' ? '✓' : i + 1}
-                </Box>
-                <Box
-                  component="span"
-                  sx={{
-                    fontSize: '12.5px',
-                    fontWeight: state === 'current' ? 700 : 500,
-                    color: state === 'current' ? PINK : state === 'done' ? '#374151' : '#9CA3AF',
-                  }}
-                >
-                  {s.label}
-                </Box>
+              <Box key={s.label} display="flex" alignItems="center" gap={1}>
+                {i > 0 && <Box sx={{ width: 16, height: 1, background: i <= step ? PINK : '#E5E7EB' }} />}
+                <StepPill label={s.label} index={i} state={state} onClick={() => i < step && setStep(i)} />
               </Box>
             );
           })}
@@ -145,6 +104,67 @@ export default function ContentWizard({ onGenerated, requireEmailVerification, o
             <PreviewPanel wizard={wizard} />
           </Box>
         )}
+      </Box>
+    </Box>
+  );
+}
+
+function StepPill({
+  label,
+  index,
+  state,
+  onClick,
+}: {
+  label: string;
+  index: number;
+  state: StepState;
+  onClick: () => void;
+}) {
+  return (
+    <Box
+      component="button"
+      type="button"
+      onClick={onClick}
+      disabled={state === 'todo'}
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.75,
+        border: '1px solid',
+        borderColor: state === 'current' ? PINK : '#E5E7EB',
+        borderRadius: '999px',
+        background: state === 'current' ? '#FDF2F8' : '#fff',
+        px: 1.5,
+        py: 0.6,
+        cursor: state === 'done' ? 'pointer' : 'default',
+        fontFamily: 'inherit',
+      }}
+    >
+      <Box
+        sx={{
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '10.5px',
+          fontWeight: 700,
+          background: state === 'todo' ? '#F3F4F6' : PINK,
+          color: state === 'todo' ? '#9CA3AF' : '#fff',
+        }}
+      >
+        {state === 'done' ? '✓' : index + 1}
+      </Box>
+      <Box
+        component="span"
+        sx={{
+          fontSize: '12.5px',
+          fontWeight: state === 'current' ? 700 : 500,
+          color: state === 'current' ? PINK : state === 'done' ? '#374151' : '#9CA3AF',
+        }}
+      >
+        {label}
       </Box>
     </Box>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Checkbox, FormControlLabel, FormGroup, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import SlideCountPicker from '../../atoms/SlideCountPicker';
@@ -9,11 +9,11 @@ import { ContentWizardState, PLATFORMS } from './useContentWizardState';
 const PINK = '#CD1B78';
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
-  facebook: <FaFacebook size={16} color="#1877F2" />,
-  instagram: <FaInstagram size={16} color="#E1306C" />,
-  twitter: <FaTwitter size={16} color="#1DA1F2" />,
-  linkedin: <FaLinkedin size={16} color="#0A66C2" />,
-  tiktok: <FaTiktok size={16} color="#010101" />,
+  facebook: <FaFacebook size={20} color="#1877F2" />,
+  instagram: <FaInstagram size={20} color="#E1306C" />,
+  twitter: <FaTwitter size={20} color="#1DA1F2" />,
+  linkedin: <FaLinkedin size={20} color="#0A66C2" />,
+  tiktok: <FaTiktok size={20} color="#010101" />,
 };
 
 const FORMAT_TILES: Array<{
@@ -28,50 +28,96 @@ const FORMAT_TILES: Array<{
   { key: 'video', label: 'Video', icon: '🎬', subtitle: 'Full video studio' },
 ];
 
+// A single square "radio card" tile — the shape both the platform and format
+// pickers use in the approved design (icon, label, small radio dot), instead
+// of the old horizontal checkbox-chip row.
+function Tile({
+  icon,
+  label,
+  subtitle,
+  active,
+  disabled,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  subtitle?: string;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Box
+      onClick={disabled ? undefined : onClick}
+      sx={{
+        width: 108,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 0.75,
+        border: '1.5px solid',
+        borderColor: active ? PINK : '#E5E7EB',
+        borderRadius: '12px',
+        px: 1,
+        py: 1.75,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        background: disabled ? '#F9FAFB' : active ? '#FDF2F8' : '#fff',
+        opacity: disabled ? 0.5 : 1,
+        userSelect: 'none',
+        transition: 'all 0.15s',
+      }}
+    >
+      <Box sx={{ height: 22, display: 'flex', alignItems: 'center' }}>{icon}</Box>
+      <Typography fontSize="12.5px" fontWeight={700} color={active ? PINK : '#111827'} textAlign="center">
+        {label}
+      </Typography>
+      {subtitle && (
+        <Typography fontSize="10.5px" color="#9CA3AF" textAlign="center" sx={{ minHeight: 13 }}>
+          {subtitle}
+        </Typography>
+      )}
+      <Box
+        sx={{
+          width: 14,
+          height: 14,
+          borderRadius: '50%',
+          border: '1.5px solid',
+          borderColor: active ? PINK : '#D1D5DB',
+          background: active ? PINK : 'transparent',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {active && <Box sx={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />}
+      </Box>
+    </Box>
+  );
+}
+
 export default function StepPlatformFormat({ wizard }: { wizard: ContentWizardState }) {
   const router = useRouter();
 
   return (
     <Box>
-      <Typography fontSize="14px" color="#374151" mb={1} fontWeight={500}>
+      <Typography fontSize="14px" color="#374151" mb={1.25} fontWeight={600}>
         Choose Platform(s)
       </Typography>
-      <FormGroup row sx={{ mb: 3, gap: 1, flexWrap: 'wrap' }}>
+      <Box display="flex" gap={1.25} flexWrap="wrap" mb={3}>
         {PLATFORMS.map(({ key, label }) => (
-          <FormControlLabel
+          <Tile
             key={key}
-            control={
-              <Checkbox
-                checked={wizard.selectedPlatforms.includes(key)}
-                onChange={() => wizard.togglePlatform(key)}
-                size="small"
-                sx={{ '&.Mui-checked': { color: PINK } }}
-              />
-            }
-            label={
-              <Box display="flex" alignItems="center" gap={0.75}>
-                {PLATFORM_ICONS[key]}
-                <Typography fontSize="13px" fontWeight={500}>
-                  {label}
-                </Typography>
-              </Box>
-            }
-            sx={{
-              border: '1px solid',
-              borderColor: wizard.selectedPlatforms.includes(key) ? PINK : '#E5E7EB',
-              borderRadius: '8px',
-              px: 1.5,
-              py: 0.5,
-              mr: 0,
-              background: wizard.selectedPlatforms.includes(key) ? '#FDF2F8' : 'transparent',
-            }}
+            icon={PLATFORM_ICONS[key]}
+            label={label}
+            active={wizard.selectedPlatforms.includes(key)}
+            onClick={() => wizard.togglePlatform(key)}
           />
         ))}
-      </FormGroup>
+      </Box>
 
       {wizard.showPostTypeSelector && (
         <>
-          <Typography fontSize="14px" color="#374151" mb={1} fontWeight={500}>
+          <Typography fontSize="14px" color="#374151" mb={1.25} fontWeight={600}>
             Choose Format
           </Typography>
           <Box display="flex" gap={1.25} flexWrap="wrap" mb={1.5}>
@@ -86,39 +132,21 @@ export default function StepPlatformFormat({ wizard }: { wizard: ContentWizardSt
               const isVideo = key === 'video';
               const active = !isVideo && wizard.postType === key;
               return (
-                <Box
+                <Tile
                   key={key}
+                  icon={<Typography fontSize="20px">{icon}</Typography>}
+                  label={label}
+                  subtitle={disabled ? 'Coming soon' : isVideo ? 'Opens Video tab' : subtitle}
+                  active={active}
+                  disabled={disabled}
                   onClick={() => {
                     if (isVideo) {
                       router.push('/workspace/?tab=video');
                       return;
                     }
-                    if (!disabled) wizard.setPostType(key);
+                    wizard.setPostType(key);
                   }}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: active ? PINK : '#E5E7EB',
-                    borderRadius: '10px',
-                    px: 2,
-                    py: 1.25,
-                    cursor: disabled ? 'not-allowed' : 'pointer',
-                    background: disabled ? '#F9FAFB' : active ? '#FDF2F8' : '#fff',
-                    minWidth: 110,
-                    userSelect: 'none',
-                    opacity: disabled ? 0.45 : 1,
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <Typography fontSize="20px" lineHeight={1} mb={0.5}>
-                    {icon}
-                  </Typography>
-                  <Typography fontSize="13px" fontWeight={600} color={active ? PINK : '#111827'}>
-                    {label}
-                  </Typography>
-                  <Typography fontSize="11px" color="#6B7280">
-                    {disabled ? 'Coming soon' : isVideo ? 'Opens Video tab' : subtitle}
-                  </Typography>
-                </Box>
+                />
               );
             })}
           </Box>

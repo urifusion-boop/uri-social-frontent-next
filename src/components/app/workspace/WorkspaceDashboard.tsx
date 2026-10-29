@@ -1336,143 +1336,168 @@ const ContentManagerPage = ({
     },
   ];
 
+  // The wizard is a self-contained, dedicated-page experience in its own
+  // approved design (own compact header, no surrounding tab bar) — showing
+  // it inside the classic Content Manager chrome stacked two headers on top
+  // of each other and squeezed the wizard into leftover space.
+  const wizardActive = activeTab === 'create' && createMode === 'generate' && contentWizardEnabled;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8f7f5' }}>
       {/* Header */}
-      <div
-        style={{
-          padding: isMobile ? '10px 12px 0' : '20px 24px 0',
-          background: '#fff',
-          borderBottom: '1px solid #edecea',
-        }}
-      >
+      {wizardActive ? (
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: isMobile ? 10 : 16,
+            padding: isMobile ? '10px 12px' : '16px 24px',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {!isMobile && (
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  background: 'linear-gradient(135deg,#880E4F,#E91E63)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <I n="calendar" s={17} c="#fff" />
-              </div>
-            )}
-            <div>
-              <h2 style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
-                Content Manager
-              </h2>
+          <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
+            Create Content
+          </h2>
+          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
+            Turn your ideas into high-performing content with AI.
+          </p>
+        </div>
+      ) : (
+        <div
+          style={{
+            padding: isMobile ? '10px 12px 0' : '20px 24px 0',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: isMobile ? 10 : 16,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {!isMobile && (
-                <p style={{ fontSize: 11.5, color: '#999', margin: 0 }}>Create, review and schedule your posts</p>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg,#880E4F,#E91E63)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <I n="calendar" s={17} c="#fff" />
+                </div>
+              )}
+              <div>
+                <h2
+                  style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}
+                >
+                  Content Manager
+                </h2>
+                {!isMobile && (
+                  <p style={{ fontSize: 11.5, color: '#999', margin: 0 }}>Create, review and schedule your posts</p>
+                )}
+              </div>
+            </div>
+            {/* Quick stats */}
+            <div style={{ display: 'flex', gap: isMobile ? 10 : 12 }}>
+              {drafts.length > 0 && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#C2185B', lineHeight: 1 }}>
+                    {drafts.length}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>DRAFTS</div>
+                </div>
+              )}
+              {scheduled.length > 0 && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#0a66c2', lineHeight: 1 }}>
+                    {scheduled.length}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>SCHEDULED</div>
+                </div>
               )}
             </div>
           </div>
-          {/* Quick stats */}
-          <div style={{ display: 'flex', gap: isMobile ? 10 : 12 }}>
-            {drafts.length > 0 && (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#C2185B', lineHeight: 1 }}>
-                  {drafts.length}
-                </div>
-                <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>DRAFTS</div>
-              </div>
-            )}
-            {scheduled.length > 0 && (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: '#0a66c2', lineHeight: 1 }}>
-                  {scheduled.length}
-                </div>
-                <div style={{ fontSize: 10, color: '#aaa', fontWeight: 600 }}>SCHEDULED</div>
-              </div>
-            )}
+
+          {/* Tab bar */}
+          <div
+            className="tab-scroll"
+            style={
+              {
+                display: 'flex',
+                gap: 2,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              } as React.CSSProperties
+            }
+          >
+            {tabs.map((t) => {
+              const active = activeTab === t.key;
+              const icons: Record<ContentTab, string> = {
+                create: 'plus',
+                drafts: 'edit',
+                saved: 'bookmark',
+                scheduled: 'clock',
+                'calendar-v2': 'calendar',
+                auto: 'sparkle',
+                video: 'video',
+              };
+              return (
+                <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
+                  <button
+                    onClick={() => setActiveTab(t.key)}
+                    style={{
+                      padding: isMobile ? '8px 10px 9px' : '9px 14px 10px',
+                      border: 'none',
+                      background: 'none',
+                      cursor: 'pointer',
+                      fontSize: isMobile ? 12 : 13,
+                      fontWeight: active ? 700 : 500,
+                      fontFamily: 'var(--wf)',
+                      color: active ? '#C2185B' : '#777',
+                      borderBottom: active ? '2.5px solid #C2185B' : '2.5px solid transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: isMobile ? 4 : 6,
+                      whiteSpace: 'nowrap',
+                      transition: 'color .15s',
+                      outline: 'none',
+                    }}
+                  >
+                    <I n={icons[t.key]} s={13} c={active ? '#C2185B' : '#aaa'} />
+                    {t.label}
+                    {t.count != null && t.count > 0 && (
+                      <span
+                        style={{
+                          background: active ? '#C2185B' : '#ede9e8',
+                          color: active ? '#fff' : '#777',
+                          borderRadius: 20,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '1px 7px',
+                          lineHeight: '16px',
+                          minWidth: 18,
+                          textAlign: 'center',
+                        }}
+                      >
+                        {t.count}
+                      </span>
+                    )}
+                  </button>
+                </BrandTooltip>
+              );
+            })}
           </div>
         </div>
-
-        {/* Tab bar */}
-        <div
-          className="tab-scroll"
-          style={
-            {
-              display: 'flex',
-              gap: 2,
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-            } as React.CSSProperties
-          }
-        >
-          {tabs.map((t) => {
-            const active = activeTab === t.key;
-            const icons: Record<ContentTab, string> = {
-              create: 'plus',
-              drafts: 'edit',
-              saved: 'bookmark',
-              scheduled: 'clock',
-              'calendar-v2': 'calendar',
-              auto: 'sparkle',
-              video: 'video',
-            };
-            return (
-              <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
-                <button
-                  onClick={() => setActiveTab(t.key)}
-                  style={{
-                    padding: isMobile ? '8px 10px 9px' : '9px 14px 10px',
-                    border: 'none',
-                    background: 'none',
-                    cursor: 'pointer',
-                    fontSize: isMobile ? 12 : 13,
-                    fontWeight: active ? 700 : 500,
-                    fontFamily: 'var(--wf)',
-                    color: active ? '#C2185B' : '#777',
-                    borderBottom: active ? '2.5px solid #C2185B' : '2.5px solid transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: isMobile ? 4 : 6,
-                    whiteSpace: 'nowrap',
-                    transition: 'color .15s',
-                    outline: 'none',
-                  }}
-                >
-                  <I n={icons[t.key]} s={13} c={active ? '#C2185B' : '#aaa'} />
-                  {t.label}
-                  {t.count != null && t.count > 0 && (
-                    <span
-                      style={{
-                        background: active ? '#C2185B' : '#ede9e8',
-                        color: active ? '#fff' : '#777',
-                        borderRadius: 20,
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: '1px 7px',
-                        lineHeight: '16px',
-                        minWidth: 18,
-                        textAlign: 'center',
-                      }}
-                    >
-                      {t.count}
-                    </span>
-                  )}
-                </button>
-              </BrandTooltip>
-            );
-          })}
-        </div>
-      </div>
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '20px 24px' }}>

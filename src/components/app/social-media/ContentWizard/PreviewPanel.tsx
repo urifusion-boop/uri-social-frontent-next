@@ -88,6 +88,7 @@ export default function PreviewPanel({ wizard }: { wizard: ContentWizardState })
         <Box
           sx={{
             width: '100%',
+            maxHeight: 220,
             aspectRatio: wizard.postType === 'story' ? '9 / 16' : '1 / 1',
             background: previewImage ? `url(${previewImage}) center/cover` : '#F3F4F6',
             display: 'flex',
@@ -96,7 +97,7 @@ export default function PreviewPanel({ wizard }: { wizard: ContentWizardState })
           }}
         >
           {!previewImage && (
-            <Typography fontSize="12px" color="#9CA3AF">
+            <Typography fontSize="12px" color="#9CA3AF" textAlign="center" px={2}>
               {wizard.includeImages ? 'AI image will appear here' : 'No image for this post'}
             </Typography>
           )}
@@ -108,7 +109,7 @@ export default function PreviewPanel({ wizard }: { wizard: ContentWizardState })
             color="#374151"
             sx={{
               display: '-webkit-box',
-              WebkitLineClamp: 4,
+              WebkitLineClamp: 3,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
               whiteSpace: 'pre-wrap',
