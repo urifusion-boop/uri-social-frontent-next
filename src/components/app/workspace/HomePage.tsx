@@ -373,13 +373,21 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
         {loading ? (
           <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12.5, color: '#9CA3AF' }}>Loading…</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
             {tiles.map((tile) => {
               const Icon = tile.icon;
               return (
                 <div
                   key={tile.label}
-                  style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    border: '1px solid #EDECEA',
+                    borderRadius: 14,
+                    padding: 16,
+                  }}
                 >
                   <div style={{ minWidth: 0 }}>
                     <div
