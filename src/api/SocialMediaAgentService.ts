@@ -1368,16 +1368,37 @@ export class SocialMediaAgentService {
 
   // Job-based (was a plain blocking call) — returns a job_id immediately,
   // poll with getCreativeStoryboardJob below.
+  // Each run costs credits while billing is on. The Idempotency-Key makes a repeated send (a double click, a
+  // retry after a dropped connection) the same run instead of a second charge.
   static async generateCreativeStoryboard(
-    payload: CreativeStoryboardPayload
-  ): Promise<UriResponse<{ job_id: string; status: string }>> {
-    const response = await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateCreativeStoryboard, payload);
+    payload: CreativeStoryboardPayload,
+    idempotencyKey?: string
+  ): Promise<UriResponse<{ job_id: string; status: string; billing?: VideoJobBilling }>> {
+    const response = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.generateCreativeStoryboard,
+      payload,
+      idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined
+    );
     return response.data;
   }
 
-  static async getCreativeStoryboardJob(
-    jobId: string
-  ): Promise<UriResponse<{ job_id: string; status: string; storyboard: Storyboard | null; error: string | null }>> {
+  /** What writing a storyboard costs, and whether the customer can afford it. `billing: 'off'` = no price shown. */
+  static async getStoryboardQuote(): Promise<UriResponse<VideoQuote>> {
+    const response: Awaited<AxiosResponse<UriResponse<VideoQuote>>> = await UriHttpClient.getClient().get(
+      socialMediaAgentRoutes.storyboardQuote
+    );
+    return response.data;
+  }
+
+  static async getCreativeStoryboardJob(jobId: string): Promise<
+    UriResponse<{
+      job_id: string;
+      status: string;
+      storyboard: Storyboard | null;
+      error: string | null;
+      billing?: VideoJobBilling;
+    }>
+  > {
     const response = await UriHttpClient.getClient().get(`${socialMediaAgentRoutes.creativeStoryboardJob}/${jobId}`);
     return response.data;
   }

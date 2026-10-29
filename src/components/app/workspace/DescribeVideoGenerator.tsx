@@ -7,6 +7,7 @@ import {
   VideoDraft,
   VideoJob,
   VideoQuote,
+  VideoJobBilling,
 } from '@/src/api/SocialMediaAgentService';
 import { VIDEO_STYLES } from '@/src/data/videoStyles';
 import {
@@ -106,6 +107,11 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
   const [quote, setQuote] = useState<VideoQuote | null>(null);
   const [confirmingGenerate, setConfirmingGenerate] = useState(false);
   const [needsTopUp, setNeedsTopUp] = useState(false);
+  // Writing the storyboard costs credits too: its price, what the last run was charged/refunded, and whether the
+  // customer must top up. storyboardQuote.billing === 'off' (or no quote yet) means no price is shown.
+  const [storyboardQuote, setStoryboardQuote] = useState<VideoQuote | null>(null);
+  const [storyboardBilling, setStoryboardBilling] = useState<VideoJobBilling | null>(null);
+  const [storyboardNeedsTopUp, setStoryboardNeedsTopUp] = useState(false);
   const { refreshCreditBalance } = useAuth();
   const router = useRouter();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -465,7 +471,12 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
   const MAX_STORYBOARD_POLL_ATTEMPTS = 40; // ~2 minutes
   const pollStoryboardJob = async (
     jobId: string
-  ): Promise<{ status: string; storyboard: Storyboard | null; error: string | null } | null> => {
+  ): Promise<{
+    status: string;
+    storyboard: Storyboard | null;
+    error: string | null;
+    billing?: VideoJobBilling;
+  } | null> => {
     for (let attempt = 0; attempt < MAX_STORYBOARD_POLL_ATTEMPTS; attempt++) {
       try {
         const res = await SocialMediaAgentService.getCreativeStoryboardJob(jobId);
@@ -494,6 +505,8 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
     creativeDirectionOverride?: string;
   }): Promise<boolean> => {
     setError('');
+    setStoryboardNeedsTopUp(false);
+    setStoryboardBilling(null);
     // Only clear the storyboard on a fresh generation — a direction-edit
     // regeneration keeps the old one mounted (and with it, the Creative
     // Direction block's own edit/regenerate UI) until the new one replaces
@@ -509,25 +522,42 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
     if (framePollRef.current) clearInterval(framePollRef.current);
     clearSession(); // starting over — any prior session is no longer the thing to resume
     try {
-      const jobRes = await SocialMediaAgentService.generateCreativeStoryboard({
-        brief: brief.trim(),
-        reference_images: images.map((img) => img.dataUrl),
-        target_platform: platform,
-        target_duration_seconds: duration,
-        // video_style omitted on a fresh generation on purpose — the model
-        // infers it from the brief itself; see the top-of-file comment.
-        ...(opts?.videoStyleOverride ? { video_style: opts.videoStyleOverride } : {}),
-        ...(opts?.creativeDirectionOverride ? { creative_direction_override: opts.creativeDirectionOverride } : {}),
-      });
+      // A fresh key for every deliberate click, so a repeated send is the same run, not a second charge.
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`;
+      const jobRes = await SocialMediaAgentService.generateCreativeStoryboard(
+        {
+          brief: brief.trim(),
+          reference_images: images.map((img) => img.dataUrl),
+          target_platform: platform,
+          target_duration_seconds: duration,
+          // video_style omitted on a fresh generation on purpose — the model
+          // infers it from the brief itself; see the top-of-file comment.
+          ...(opts?.videoStyleOverride ? { video_style: opts.videoStyleOverride } : {}),
+          ...(opts?.creativeDirectionOverride ? { creative_direction_override: opts.creativeDirectionOverride } : {}),
+        },
+        idempotencyKey
+      );
       if (!jobRes.status || !jobRes.responseData) {
         setError(jobRes.responseMessage || 'Creative storyboard generation failed. Please try again.');
         return false;
+      }
+      if (jobRes.responseData.billing) {
+        setStoryboardBilling(jobRes.responseData.billing);
+        void refreshCreditBalance(); // the header balance drops straight away
       }
       saveSession({ storyboardJobId: jobRes.responseData.job_id });
       const result = await pollStoryboardJob(jobRes.responseData.job_id);
       if (!result) {
         setError('Storyboard generation is taking much longer than expected. Please try again.');
         return false;
+      }
+      if (result.billing) {
+        // What was charged and what came back (a failed run gives its credit back).
+        setStoryboardBilling(result.billing);
+        void refreshCreditBalance();
       }
       if (result.status === 'complete' && result.storyboard) {
         setStoryboard(result.storyboard);
@@ -561,12 +591,27 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
           .catch(() => {});
         return true;
       } else {
-        setError(result.error || 'Creative storyboard generation failed. Please try again.');
+        setError(
+          (result.error || 'Creative storyboard generation failed. Please try again.') +
+            (result.billing && result.billing.credits_refunded > 0 ? ' Your credit was returned.' : '')
+        );
         saveSession({ storyboardJobId: null });
         return false;
       }
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (e) {
+      // The server answers a refusal (not enough credits) with a message written for the customer.
+      const status = (e as { response?: { status?: number } } | null)?.response?.status;
+      const data = (e as { response?: { data?: { responseMessage?: unknown; detail?: unknown } } } | null)?.response
+        ?.data;
+      const message =
+        (typeof data?.responseMessage === 'string' && data.responseMessage) ||
+        (typeof data?.detail === 'string' && data.detail) ||
+        'Something went wrong. Please try again.';
+      setError(message);
+      if (status === 402) {
+        setStoryboardNeedsTopUp(true);
+        void refreshCreditBalance();
+      }
       return false;
     }
   };
@@ -660,6 +705,22 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
     }
   };
 
+  // The price of writing a storyboard, asked on arrival and again after every run (the balance has moved).
+  useEffect(() => {
+    if (loading || regeneratingDirection) return;
+    let alive = true;
+    SocialMediaAgentService.getStoryboardQuote()
+      .then((res) => {
+        if (alive) setStoryboardQuote(res.status && res.responseData ? res.responseData : null);
+      })
+      .catch(() => {
+        if (alive) setStoryboardQuote(null); // no price to show is better than a wrong one
+      });
+    return () => {
+      alive = false;
+    };
+  }, [loading, regeneratingDirection, storyboardBilling?.credits_refunded]);
+
   // The price, kept in step with what is about to be rendered. Only the scene lengths matter to it (not the
   // images), so it is re-asked whenever the storyboard, the video type or a talking voice changes.
   useEffect(() => {
@@ -703,6 +764,11 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoJob?.status, videoJob?.billing?.credits_refunded]);
 
+  const storyboardPriced = storyboardQuote?.billing === 'on' && typeof storyboardQuote.credits_required === 'number';
+  const storyboardCantAfford = storyboardPriced && storyboardQuote?.sufficient === false;
+  const storyboardPriceTag = storyboardPriced
+    ? ` · ${storyboardQuote!.credits_required} credit` + (storyboardQuote!.credits_required === 1 ? '' : 's')
+    : '';
   const priced = quote?.billing === 'on' && typeof quote.credits_required === 'number';
   const cantAfford = priced && quote?.sufficient === false;
   const creditWord = (n: number) => `${n} credit${n === 1 ? '' : 's'}`;
@@ -935,12 +1001,31 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
           }}
         >
           <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{error}</p>
+          {storyboardNeedsTopUp && (
+            <button
+              onClick={() => router.push('/workspace/?tab=billing&billing=buy-credits')}
+              style={{
+                marginTop: 8,
+                background: PRIMARY,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '7px 14px',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Top up credits
+            </button>
+          )}
         </div>
       )}
 
       {(() => {
         const needsRightsConfirm = images.length > 0 && !confirmedImageRights;
-        const isDisabled = !brief.trim() || loading || needsRightsConfirm;
+        const isDisabled = !brief.trim() || loading || needsRightsConfirm || storyboardCantAfford;
         return (
           <button
             onClick={handleGenerateStoryboard}
@@ -965,7 +1050,9 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
               ? 'Writing creative direction & script…'
               : needsRightsConfirm
                 ? 'Confirm image rights above to continue'
-                : 'Generate Storyboard'}
+                : storyboardCantAfford
+                  ? `Not enough credits${storyboardPriceTag ? ` (needs ${storyboardQuote!.credits_required})` : ''}`
+                  : `Generate Storyboard${storyboardPriceTag}`}
           </button>
         );
       })()}
@@ -974,6 +1061,13 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
 
       {storyboard && !loading && (
         <>
+          {storyboardBilling && storyboardBilling.mode === 'on' && storyboardBilling.credits_charged > 0 && (
+            <p data-testid="storyboard-billing-result" style={{ fontSize: 12.5, color: GREY, margin: '0 0 12px' }}>
+              {storyboardBilling.credits_charged - storyboardBilling.credits_refunded} credit
+              {storyboardBilling.credits_charged - storyboardBilling.credits_refunded === 1 ? '' : 's'} used for this
+              storyboard
+            </p>
+          )}
           {storyboard.creative_direction && (
             <div
               style={{
@@ -1065,20 +1159,29 @@ export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={handleRegenerateWithDirection}
-                      disabled={!editedDirection.trim() || regeneratingDirection}
+                      disabled={!editedDirection.trim() || regeneratingDirection || storyboardCantAfford}
                       style={{
                         padding: '7px 14px',
                         borderRadius: 8,
                         border: 'none',
-                        background: !editedDirection.trim() || regeneratingDirection ? '#E5E7EB' : PRIMARY,
-                        color: !editedDirection.trim() || regeneratingDirection ? '#9CA3AF' : '#fff',
+                        background:
+                          !editedDirection.trim() || regeneratingDirection || storyboardCantAfford
+                            ? '#E5E7EB'
+                            : PRIMARY,
+                        color:
+                          !editedDirection.trim() || regeneratingDirection || storyboardCantAfford ? '#9CA3AF' : '#fff',
                         fontSize: 12.5,
                         fontWeight: 700,
-                        cursor: !editedDirection.trim() || regeneratingDirection ? 'not-allowed' : 'pointer',
+                        cursor:
+                          !editedDirection.trim() || regeneratingDirection || storyboardCantAfford
+                            ? 'not-allowed'
+                            : 'pointer',
                         fontFamily: 'inherit',
                       }}
                     >
-                      {regeneratingDirection ? 'Regenerating scenes…' : 'Regenerate with this direction'}
+                      {regeneratingDirection
+                        ? 'Regenerating scenes…'
+                        : `Regenerate with this direction${storyboardPriceTag}`}
                     </button>
                     {!regeneratingDirection && (
                       <button
