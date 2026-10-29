@@ -27,7 +27,7 @@ const QUICK_ACTIONS = [
     icon: PenLine,
     title: 'Create Social Media Content',
     description: 'Generate, schedule and publish AI-powered content.',
-    iconBg: '#E91E63',
+    iconBg: '#C2185B',
     cardBg: '#FDF1F6',
   },
   {
@@ -181,7 +181,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
     ? [
         {
           icon: FileText,
-          color: '#E91E63',
+          color: '#C2185B',
           bg: '#FDF1F6',
           label: 'Content this week',
           value: stats.contentPublished,

@@ -10404,7 +10404,7 @@ const HelpSupportPage = () => (
         gap: 8,
         padding: '10px 16px',
         borderRadius: 10,
-        background: '#E91E63',
+        background: '#C2185B',
         color: '#fff',
         fontSize: 13,
         fontWeight: 700,
@@ -11316,7 +11316,7 @@ export default function WorkspaceDashboard() {
                             margin: '0 10px',
                             padding: '9px 12px',
                             borderRadius: 9,
-                            background: parentActive ? '#E91E63' : 'transparent',
+                            background: parentActive ? '#C2185B' : 'transparent',
                             border: 'none',
                             fontFamily: 'var(--wf)',
                             fontSize: 13,
@@ -11366,7 +11366,7 @@ export default function WorkspaceDashboard() {
                                       margin: '0 10px 0 26px',
                                       padding: '7px 10px',
                                       borderRadius: 8,
-                                      background: childActive ? 'rgba(233,30,99,.18)' : 'transparent',
+                                      background: childActive ? 'rgba(194,24,91,.18)' : 'transparent',
                                       border: 'none',
                                       fontFamily: 'var(--wf)',
                                       fontSize: 12.5,
@@ -11415,7 +11415,7 @@ export default function WorkspaceDashboard() {
                           margin: '0 10px',
                           padding: '8px 12px',
                           borderRadius: 9,
-                          background: active ? 'rgba(233,30,99,.15)' : 'transparent',
+                          background: active ? 'rgba(194,24,91,.15)' : 'transparent',
                           border: 'none',
                           fontFamily: 'var(--wf)',
                           fontSize: 12.5,
@@ -11426,7 +11426,7 @@ export default function WorkspaceDashboard() {
                           transition: 'all .12s',
                         }}
                       >
-                        <I n={n.icon} s={14} c={active ? '#E91E63' : 'rgba(255,255,255,.3)'} />
+                        <I n={n.icon} s={14} c={active ? '#C2185B' : 'rgba(255,255,255,.3)'} />
                         <span style={{ flex: 1 }}>{n.label}</span>
                       </button>
                     </BrandTooltip>
@@ -11748,7 +11748,7 @@ export default function WorkspaceDashboard() {
                       padding: '8px 14px',
                       borderRadius: 9,
                       border: 'none',
-                      background: '#E91E63',
+                      background: '#C2185B',
                       color: '#fff',
                       fontSize: 12.5,
                       fontWeight: 700,
