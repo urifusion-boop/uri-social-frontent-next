@@ -53,7 +53,7 @@ interface UploadedImage {
   name: string;
 }
 
-export default function DescribeVideoGenerator() {
+export default function DescribeVideoGenerator({ onDraftSaved }: { onDraftSaved?: () => void } = {}) {
   const [brief, setBrief] = useState('');
   const [images, setImages] = useState<UploadedImage[]>([]);
   // Required (not just a disclaimer the user can ignore) whenever reference
@@ -361,6 +361,7 @@ export default function DescribeVideoGenerator() {
       });
       if (res.status && res.responseData) {
         setSavedDraft(res.responseData);
+        onDraftSaved?.();
         clearSession(); // draft saved — the flow is done, it now lives in Saved Video Drafts
       }
     } catch {

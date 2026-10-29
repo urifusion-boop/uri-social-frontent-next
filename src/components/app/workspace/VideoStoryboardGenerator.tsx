@@ -13,7 +13,11 @@ import {
 import TikTokPostDialog from './TikTokPostDialog';
 import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { NigerianVoiceManifest, VOICE_MANIFEST_URL, parseVoiceManifest } from '@/src/components/app/workspace/voiceManifest';
+import {
+  NigerianVoiceManifest,
+  VOICE_MANIFEST_URL,
+  parseVoiceManifest,
+} from '@/src/components/app/workspace/voiceManifest';
 
 // Exported — reused as-is by DescribeVideoGenerator.tsx so the two entry
 // points (upload-first vs. describe-it) share one "turn a storyboard into
@@ -344,7 +348,16 @@ interface UploadedImage {
   name: string;
 }
 
-export default function VideoStoryboardGenerator() {
+/**
+ * `draftsOnly` shows just the Saved Video Drafts list and its posting buttons, with none of the
+ * upload-first generator above it (and none of its saved-session restore). Describe It saves its
+ * videos into this same list, and this is the only place a saved video can be posted from.
+ * `reloadKey` re-fetches the list when it changes, so a draft saved a moment ago appears at once.
+ */
+export default function VideoStoryboardGenerator({
+  draftsOnly = false,
+  reloadKey = 0,
+}: { draftsOnly?: boolean; reloadKey?: number } = {}) {
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [optionalText, setOptionalText] = useState('');
   const [platform, setPlatform] = useState('instagram_reels');
@@ -428,6 +441,9 @@ export default function VideoStoryboardGenerator() {
   // immediately; an in-progress storyboard-generation job, frame job, or video
   // job also resumes real polling instead of just showing a stale snapshot.
   useEffect(() => {
+    // Drafts-only mode never shows the generator, so a half-finished generator session is left
+    // alone instead of silently resuming polls that nobody can see.
+    if (draftsOnly) return;
     try {
       const raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return;
@@ -568,7 +584,7 @@ export default function VideoStoryboardGenerator() {
         }
       })
       .catch(() => setConnectedPlatforms([]));
-  }, []);
+  }, [reloadKey]);
 
   const generateCaption = async () => {
     if (!storyboard) return;
@@ -893,630 +909,347 @@ export default function VideoStoryboardGenerator() {
 
   return (
     <div style={{ padding: '20px 0', maxWidth: 720, margin: '0 auto' }}>
-      {/* Image upload */}
-      <Section
-        title="Brand Images"
-        subtitle="Upload 1–5 images to ground the storyboard (logo, product shots, sample posts)"
-      >
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => images.length < 5 && fileInputRef.current?.click()}
-          style={{
-            border: `2px dashed ${dragging ? PRIMARY : BORDER}`,
-            borderRadius: 12,
-            padding: '24px 16px',
-            textAlign: 'center',
-            cursor: images.length < 5 ? 'pointer' : 'default',
-            background: dragging ? '#FFF0F8' : LIGHT,
-            transition: 'all .15s',
-            marginBottom: images.length ? 14 : 0,
-          }}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              addFiles(e.target.files);
-              e.target.value = '';
-            }}
-          />
-          <div style={{ fontSize: 28, marginBottom: 6 }}>📷</div>
-          <p style={{ fontSize: 13.5, fontWeight: 600, color: DARK, margin: 0 }}>
-            {images.length >= 5 ? 'Maximum 5 images reached' : 'Drag & drop or click to upload'}
-          </p>
-          <p style={{ fontSize: 12, color: GREY, margin: '4px 0 0' }}>
-            PNG, JPG, WEBP — up to 10 MB each · {images.length}/5 uploaded
-          </p>
-        </div>
+      {!draftsOnly && (
+        <>
+          {/* Image upload */}
+          <Section
+            title="Brand Images"
+            subtitle="Upload 1–5 images to ground the storyboard (logo, product shots, sample posts)"
+          >
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              onClick={() => images.length < 5 && fileInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${dragging ? PRIMARY : BORDER}`,
+                borderRadius: 12,
+                padding: '24px 16px',
+                textAlign: 'center',
+                cursor: images.length < 5 ? 'pointer' : 'default',
+                background: dragging ? '#FFF0F8' : LIGHT,
+                transition: 'all .15s',
+                marginBottom: images.length ? 14 : 0,
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  addFiles(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+              <div style={{ fontSize: 28, marginBottom: 6 }}>📷</div>
+              <p style={{ fontSize: 13.5, fontWeight: 600, color: DARK, margin: 0 }}>
+                {images.length >= 5 ? 'Maximum 5 images reached' : 'Drag & drop or click to upload'}
+              </p>
+              <p style={{ fontSize: 12, color: GREY, margin: '4px 0 0' }}>
+                PNG, JPG, WEBP — up to 10 MB each · {images.length}/5 uploaded
+              </p>
+            </div>
 
-        {images.length > 0 && (
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {images.map((img, i) => (
-              <div
-                key={i}
-                style={{
-                  position: 'relative',
-                  width: 90,
-                  height: 90,
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                  border: `1.5px solid ${BORDER}`,
-                  flexShrink: 0,
-                }}
-              >
-                <img
-                  src={img.dataUrl}
-                  alt={img.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    background: 'rgba(0,0,0,.45)',
-                    padding: '2px 4px',
-                    fontSize: 9.5,
-                    color: '#fff',
-                    fontWeight: 600,
-                    letterSpacing: 0.3,
-                  }}
-                >
-                  Image {i}
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeImage(i);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    bottom: 4,
-                    right: 4,
-                    width: 20,
-                    height: 20,
-                    borderRadius: 99,
-                    background: 'rgba(0,0,0,.6)',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: 11,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    lineHeight: 1,
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {images.length < 5 && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  width: 90,
-                  height: 90,
-                  borderRadius: 10,
-                  border: `2px dashed ${BORDER}`,
-                  background: LIGHT,
-                  cursor: 'pointer',
-                  fontSize: 22,
-                  color: GREY,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                +
-              </button>
-            )}
-          </div>
-        )}
-      </Section>
-
-      {/* Video Style Picker */}
-      <Section
-        title="Video Style"
-        subtitle="Choose a visual style — it shapes camera movement, pacing, color grading, and energy"
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-          {VIDEO_STYLES.map((style) => {
-            const isSelected = selectedStyle === style.slug;
-            return (
-              <button
-                key={style.slug}
-                onClick={() => setSelectedStyle(style.slug)}
-                style={{
-                  border: `2px solid ${isSelected ? PRIMARY : BORDER}`,
-                  borderRadius: 12,
-                  padding: '12px 14px',
-                  background: isSelected ? '#FFF0F8' : '#fff',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  transition: 'all .15s',
-                  position: 'relative',
-                }}
-              >
-                {isSelected && (
-                  <span
+            {images.length > 0 && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {images.map((img, i) => (
+                  <div
+                    key={i}
                     style={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 10,
-                      width: 16,
-                      height: 16,
-                      borderRadius: 99,
-                      background: PRIMARY,
+                      position: 'relative',
+                      width: 90,
+                      height: 90,
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      border: `1.5px solid ${BORDER}`,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <img
+                      src={img.dataUrl}
+                      alt={img.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        background: 'rgba(0,0,0,.45)',
+                        padding: '2px 4px',
+                        fontSize: 9.5,
+                        color: '#fff',
+                        fontWeight: 600,
+                        letterSpacing: 0.3,
+                      }}
+                    >
+                      Image {i}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeImage(i);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        bottom: 4,
+                        right: 4,
+                        width: 20,
+                        height: 20,
+                        borderRadius: 99,
+                        background: 'rgba(0,0,0,.6)',
+                        border: 'none',
+                        color: '#fff',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                {images.length < 5 && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      width: 90,
+                      height: 90,
+                      borderRadius: 10,
+                      border: `2px dashed ${BORDER}`,
+                      background: LIGHT,
+                      cursor: 'pointer',
+                      fontSize: 22,
+                      color: GREY,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: 9,
-                      color: '#fff',
-                      fontWeight: 700,
-                      lineHeight: 1,
+                      flexShrink: 0,
                     }}
                   >
-                    ✓
-                  </span>
+                    +
+                  </button>
                 )}
-                <p style={{ fontSize: 13, fontWeight: 700, color: isSelected ? PRIMARY : DARK, margin: '0 0 4px' }}>
-                  {style.name}
-                </p>
-                <p style={{ fontSize: 11, color: GREY, margin: '0 0 6px', fontStyle: 'italic' }}>{style.vibe}</p>
-                <p style={{ fontSize: 10.5, color: GREY, margin: '0 0 2px' }}>
-                  <span style={{ fontWeight: 600 }}>Pacing:</span> {style.pacing}
-                </p>
-                <p style={{ fontSize: 10.5, color: GREY, margin: '0 0 2px' }}>
-                  <span style={{ fontWeight: 600 }}>Camera:</span> {style.camera}
-                </p>
-                <p style={{ fontSize: 10.5, color: '#9CA3AF', margin: '4px 0 0' }}>Best for: {style.best_for}</p>
-              </button>
-            );
-          })}
-        </div>
-      </Section>
+              </div>
+            )}
+          </Section>
 
-      {/* Creative direction */}
-      <Section title="Creative Direction" subtitle="Optional — describe the story or mood you want">
-        <textarea
-          value={optionalText}
-          onChange={(e) => setOptionalText(e.target.value)}
-          placeholder="e.g. Show the product being used outdoors at golden hour. Emphasise the texture and quality. End with the logo on a clean background."
-          rows={3}
-          maxLength={1000}
-          style={{
-            width: '100%',
-            border: `1.5px solid ${BORDER}`,
-            borderRadius: 10,
-            padding: '10px 12px',
-            fontSize: 13.5,
-            color: DARK,
-            resize: 'vertical',
-            fontFamily: 'inherit',
-            outline: 'none',
-            boxSizing: 'border-box',
-            background: '#fff',
-          }}
-        />
-        <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0', textAlign: 'right' }}>
-          {optionalText.length}/1000
-        </p>
-      </Section>
+          {/* Video Style Picker */}
+          <Section
+            title="Video Style"
+            subtitle="Choose a visual style — it shapes camera movement, pacing, color grading, and energy"
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+              {VIDEO_STYLES.map((style) => {
+                const isSelected = selectedStyle === style.slug;
+                return (
+                  <button
+                    key={style.slug}
+                    onClick={() => setSelectedStyle(style.slug)}
+                    style={{
+                      border: `2px solid ${isSelected ? PRIMARY : BORDER}`,
+                      borderRadius: 12,
+                      padding: '12px 14px',
+                      background: isSelected ? '#FFF0F8' : '#fff',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      transition: 'all .15s',
+                      position: 'relative',
+                    }}
+                  >
+                    {isSelected && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 10,
+                          width: 16,
+                          height: 16,
+                          borderRadius: 99,
+                          background: PRIMARY,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 9,
+                          color: '#fff',
+                          fontWeight: 700,
+                          lineHeight: 1,
+                        }}
+                      >
+                        ✓
+                      </span>
+                    )}
+                    <p style={{ fontSize: 13, fontWeight: 700, color: isSelected ? PRIMARY : DARK, margin: '0 0 4px' }}>
+                      {style.name}
+                    </p>
+                    <p style={{ fontSize: 11, color: GREY, margin: '0 0 6px', fontStyle: 'italic' }}>{style.vibe}</p>
+                    <p style={{ fontSize: 10.5, color: GREY, margin: '0 0 2px' }}>
+                      <span style={{ fontWeight: 600 }}>Pacing:</span> {style.pacing}
+                    </p>
+                    <p style={{ fontSize: 10.5, color: GREY, margin: '0 0 2px' }}>
+                      <span style={{ fontWeight: 600 }}>Camera:</span> {style.camera}
+                    </p>
+                    <p style={{ fontSize: 10.5, color: '#9CA3AF', margin: '4px 0 0' }}>Best for: {style.best_for}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
 
-      {/* Platform + Duration */}
-      <Section title="Video Settings" subtitle="Platform and target duration">
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 180 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 6 }}>
-              Platform
-            </label>
-            <select
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
+          {/* Creative direction */}
+          <Section title="Creative Direction" subtitle="Optional — describe the story or mood you want">
+            <textarea
+              value={optionalText}
+              onChange={(e) => setOptionalText(e.target.value)}
+              placeholder="e.g. Show the product being used outdoors at golden hour. Emphasise the texture and quality. End with the logo on a clean background."
+              rows={3}
+              maxLength={1000}
               style={{
                 width: '100%',
                 border: `1.5px solid ${BORDER}`,
-                borderRadius: 8,
-                padding: '8px 10px',
+                borderRadius: 10,
+                padding: '10px 12px',
                 fontSize: 13.5,
                 color: DARK,
-                background: '#fff',
-                outline: 'none',
+                resize: 'vertical',
                 fontFamily: 'inherit',
-                cursor: 'pointer',
+                outline: 'none',
+                boxSizing: 'border-box',
+                background: '#fff',
               }}
-            >
-              {PLATFORMS.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 6 }}>
-              Duration
-            </label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {DURATIONS.map((d) => (
-                <button
-                  key={d.value}
-                  onClick={() => setDuration(d.value)}
+            />
+            <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0', textAlign: 'right' }}>
+              {optionalText.length}/1000
+            </p>
+          </Section>
+
+          {/* Platform + Duration */}
+          <Section title="Video Settings" subtitle="Platform and target duration">
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 6 }}>
+                  Platform
+                </label>
+                <select
+                  value={platform}
+                  onChange={(e) => setPlatform(e.target.value)}
                   style={{
-                    padding: '7px 14px',
+                    width: '100%',
+                    border: `1.5px solid ${BORDER}`,
                     borderRadius: 8,
-                    border: `1.5px solid ${duration === d.value ? PRIMARY : BORDER}`,
-                    background: duration === d.value ? '#FFF0F8' : '#fff',
-                    color: duration === d.value ? PRIMARY : GREY,
-                    fontWeight: duration === d.value ? 700 : 500,
-                    fontSize: 13,
-                    cursor: 'pointer',
+                    padding: '8px 10px',
+                    fontSize: 13.5,
+                    color: DARK,
+                    background: '#fff',
+                    outline: 'none',
                     fontFamily: 'inherit',
-                    transition: 'all .15s',
+                    cursor: 'pointer',
                   }}
                 >
-                  {d.label}
-                </button>
-              ))}
+                  {PLATFORMS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 6 }}>
+                  Duration
+                </label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {DURATIONS.map((d) => (
+                    <button
+                      key={d.value}
+                      onClick={() => setDuration(d.value)}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        border: `1.5px solid ${duration === d.value ? PRIMARY : BORDER}`,
+                        background: duration === d.value ? '#FFF0F8' : '#fff',
+                        color: duration === d.value ? PRIMARY : GREY,
+                        fontWeight: duration === d.value ? 700 : 500,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        transition: 'all .15s',
+                      }}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </Section>
+          </Section>
 
-      {error && (
-        <div
-          style={{
-            background: '#FEF2F2',
-            border: '1px solid #FECACA',
-            borderRadius: 10,
-            padding: '10px 14px',
-            marginBottom: 16,
-          }}
-        >
-          <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{error}</p>
-        </div>
-      )}
-
-      <button
-        onClick={handleGenerateStoryboard}
-        disabled={images.length === 0 || loading}
-        style={{
-          width: '100%',
-          padding: '13px 0',
-          borderRadius: 10,
-          background: images.length === 0 || loading ? '#E5E7EB' : PRIMARY,
-          color: images.length === 0 || loading ? '#9CA3AF' : '#fff',
-          border: 'none',
-          fontSize: 14,
-          fontWeight: 700,
-          cursor: images.length === 0 || loading ? 'not-allowed' : 'pointer',
-          fontFamily: 'inherit',
-          transition: 'background .15s',
-          marginBottom: 28,
-        }}
-      >
-        {loading ? 'Generating storyboard…' : 'Generate Storyboard'}
-      </button>
-
-      {loading && <Spinner label="Analysing brand images and crafting scenes…" />}
-
-      {storyboard && !loading && (
-        <>
-          {frameError && (
+          {error && (
             <div
               style={{
                 background: '#FEF2F2',
                 border: '1px solid #FECACA',
                 borderRadius: 10,
                 padding: '10px 14px',
-                marginBottom: 14,
+                marginBottom: 16,
               }}
             >
-              <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{frameError}</p>
+              <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{error}</p>
             </div>
           )}
-          <StoryboardResult storyboard={storyboard} clipMap={clipMap} frameMap={frameMap} />
 
-          {/* Video generation section */}
-          <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${BORDER}` }}>
-            {videoError && (
-              <div
-                style={{
-                  background: '#FEF2F2',
-                  border: '1px solid #FECACA',
-                  borderRadius: 10,
-                  padding: '10px 14px',
-                  marginBottom: 14,
-                }}
-              >
-                <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{videoError}</p>
-              </div>
-            )}
+          <button
+            onClick={handleGenerateStoryboard}
+            disabled={images.length === 0 || loading}
+            style={{
+              width: '100%',
+              padding: '13px 0',
+              borderRadius: 10,
+              background: images.length === 0 || loading ? '#E5E7EB' : PRIMARY,
+              color: images.length === 0 || loading ? '#9CA3AF' : '#fff',
+              border: 'none',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: images.length === 0 || loading ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              transition: 'background .15s',
+              marginBottom: 28,
+            }}
+          >
+            {loading ? 'Generating storyboard…' : 'Generate Storyboard'}
+          </button>
 
-            {/* Total estimated cost — summed from each clip's own estimate (duration
-                actually sent to the model × fal.ai's published per-second rate), so
-                picking a different Video Outcome and regenerating gives a real number
-                to compare, not just a visual impression. Dev-only transparency note:
-                which model(s) actually ran (routed_model can differ from the outcome's
-                usual primary when §4's automatic fallback kicked in) — the brief's own
-                customer-facing surface would never show this, but this screen is still
-                internal testing, not that surface. */}
-            {videoJob?.status === 'complete' &&
-              (() => {
-                const costed = videoJob.clips.filter((c) => c.cost_usd != null);
-                if (costed.length === 0) return null;
-                const total = costed.reduce((sum, c) => sum + (c.cost_usd ?? 0), 0);
-                const outcomeLabel =
-                  VIDEO_OUTCOMES.find((o) => o.value === videoJob.outcome)?.label ?? videoJob.outcome;
-                const routedModels = Array.from(
-                  new Set(videoJob.clips.map((c) => c.routed_model).filter((m): m is string => !!m))
-                );
-                const anyFallback = videoJob.clips.some((c) => c.fallback_used);
-                return (
-                  <div
-                    style={{
-                      background: LIGHT,
-                      border: `1px solid ${BORDER}`,
-                      borderRadius: 10,
-                      padding: '10px 14px',
-                      marginBottom: 16,
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12.5, color: GREY }}>
-                        {outcomeLabel} · {costed.length}/{videoJob.clips.length} clip
-                        {videoJob.clips.length === 1 ? '' : 's'} costed
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: DARK }}>~${total.toFixed(3)}</span>
-                    </div>
-                    {routedModels.length > 0 && (
-                      <p style={{ fontSize: 10.5, color: '#9CA3AF', margin: '4px 0 0' }}>
-                        Routed to: {routedModels.map((m) => MODEL_LABELS[m] ?? m).join(', ')}
-                        {anyFallback ? ' (fallback used on at least one clip)' : ''}
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
+          {loading && <Spinner label="Analysing brand images and crafting scenes…" />}
 
-            {/* Job progress */}
-            {videoJob && videoJob.status !== 'complete' && videoJob.status !== 'failed' && (
-              <div
-                style={{
-                  background: '#FFF0F8',
-                  border: `1px solid ${BORDER}`,
-                  borderRadius: 12,
-                  padding: '14px 16px',
-                  marginBottom: 16,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                  <div
-                    style={{
-                      width: 18,
-                      height: 18,
-                      border: `2.5px solid ${BORDER}`,
-                      borderTopColor: PRIMARY,
-                      borderRadius: 99,
-                      animation: 'spin 0.8s linear infinite',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <p style={{ fontSize: 13, fontWeight: 600, color: DARK, margin: 0 }}>
-                    Generating Scene {videoJob.current_scene} of {videoJob.total_scenes}…
-                  </p>
+          {storyboard && !loading && (
+            <>
+              {frameError && (
+                <div
+                  style={{
+                    background: '#FEF2F2',
+                    border: '1px solid #FECACA',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    marginBottom: 14,
+                  }}
+                >
+                  <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{frameError}</p>
                 </div>
-                <div style={{ height: 6, background: BORDER, borderRadius: 99, overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      height: '100%',
-                      background: PRIMARY,
-                      borderRadius: 99,
-                      width: `${Math.round(((videoJob.clips?.length ?? 0) / videoJob.total_scenes) * 100)}%`,
-                      transition: 'width .4s ease',
-                    }}
-                  />
-                </div>
-                {videoJob.current_scene_status ? (
-                  <p style={{ fontSize: 11, color: GREY, margin: '6px 0 0' }}>
-                    {videoJob.current_scene_status.model_label}:{' '}
-                    {videoJob.current_scene_status.state === 'Queued'
-                      ? `in queue${videoJob.current_scene_status.position != null ? ` (position ${videoJob.current_scene_status.position})` : ''}`
-                      : 'processing'}{' '}
-                    · {videoJob.current_scene_status.elapsed_seconds}s elapsed
-                    {videoJob.current_scene_status.model_label === 'Talking Avatar'
-                      ? ' — this model can take several minutes'
-                      : ''}
-                  </p>
-                ) : (
-                  <p style={{ fontSize: 11, color: GREY, margin: '6px 0 0' }}>
-                    Each scene takes ~30–90 seconds. This page will update automatically.
-                  </p>
-                )}
-                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-              </div>
-            )}
+              )}
+              <StoryboardResult storyboard={storyboard} clipMap={clipMap} frameMap={frameMap} />
 
-            {videoJob?.status === 'failed' && (
-              <div
-                style={{
-                  background: '#FEF2F2',
-                  border: '1px solid #FECACA',
-                  borderRadius: 10,
-                  padding: '10px 14px',
-                  marginBottom: 14,
-                }}
-              >
-                <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>Video generation failed: {videoJob.error}</p>
-              </div>
-            )}
-
-            {(!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') && (
-              <>
-                {/* Outcome picker — engineering brief §2: the customer picks an outcome,
-                    never a raw model name. Which model actually runs (plus its automatic
-                    fallback) is resolved server-side; see the "Routed to:" transparency
-                    note above once a job completes, which exists only because this screen
-                    is still internal testing, not the brief's actual customer-facing surface. */}
-                {outcomeSuggestionReason && (
-                  <div
-                    style={{
-                      background: '#FFF0F8',
-                      border: `1px solid #FBCFE8`,
-                      borderRadius: 10,
-                      padding: '10px 14px',
-                      marginBottom: 14,
-                    }}
-                  >
-                    <p style={{ fontSize: 12.5, color: DARK, margin: 0, lineHeight: 1.5 }}>
-                      <span style={{ fontWeight: 700, color: PRIMARY }}>
-                        ✦ Suggested: {VIDEO_OUTCOMES.find((o) => o.value === selectedOutcome)?.label ?? selectedOutcome}
-                      </span>{' '}
-                      — {outcomeSuggestionReason}
-                    </p>
-                  </div>
-                )}
-                <div style={{ marginBottom: 16 }}>
-                  <p
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: GREY,
-                      margin: '0 0 8px',
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    Video Outcome
-                  </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                    {VIDEO_OUTCOMES.map((o) => {
-                      const active = selectedOutcome === o.value;
-                      // Every outcome routes to an image-to-video model (fal.ai) — none of
-                      // them can run before frame generation finishes.
-                      const framesReady = storyboard ? storyboard.scenes.every((s) => frameMap[s.scene_number]) : false;
-                      const blocked = !framesReady;
-                      return (
-                        <button
-                          key={o.value}
-                          onClick={() => !blocked && setSelectedOutcome(o.value)}
-                          title={blocked ? 'Waiting for storyboard frames to finish generating…' : ''}
-                          style={{
-                            padding: '10px 8px',
-                            borderRadius: 10,
-                            border: `2px solid ${active ? PRIMARY : blocked ? '#E5E7EB' : BORDER}`,
-                            background: active ? '#FFF0F8' : blocked ? '#F9FAFB' : '#fff',
-                            color: active ? PRIMARY : blocked ? '#9CA3AF' : DARK,
-                            fontWeight: active ? 700 : 500,
-                            fontSize: 12.5,
-                            textAlign: 'left',
-                            cursor: blocked ? 'not-allowed' : 'pointer',
-                            fontFamily: 'inherit',
-                            transition: 'all .15s',
-                            opacity: blocked ? 0.6 : 1,
-                          }}
-                        >
-                          {o.label}
-                          {!blocked && (
-                            <span
-                              style={{
-                                display: 'block',
-                                fontSize: 9.5,
-                                color: active ? PRIMARY : '#9CA3AF',
-                                marginTop: 2,
-                                fontWeight: 400,
-                                opacity: 0.85,
-                              }}
-                            >
-                              {o.description}
-                            </span>
-                          )}
-                          {blocked && (
-                            <span
-                              style={{
-                                display: 'block',
-                                fontSize: 9.5,
-                                color: '#9CA3AF',
-                                marginTop: 2,
-                                fontWeight: 400,
-                              }}
-                            >
-                              frames generating…
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Voice picker — only matters once a scene actually has dialogue to
-                    speak; fal-ai/ai-avatar/single-text takes a fixed voice enum, not
-                    an uploaded voice sample. */}
-                {selectedOutcome === 'talking_dialogue' && (
-                  <div style={{ marginBottom: 16 }}>
-                    <p
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: GREY,
-                        margin: '0 0 8px',
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Avatar Voice
-                    </p>
-                    <AvatarVoicePicker value={selectedVoice} onChange={setSelectedVoice} />
-                    {storyboard && !storyboard.scenes.some((s) => s.dialogue) && (
-                      <p style={{ fontSize: 11, color: '#B45309', margin: '6px 0 0' }}>
-                        This storyboard has no scripted dialogue yet — pick the "Testimonial Style" video style and
-                        regenerate the storyboard to get a spoken script, or clips will fall back to reading their
-                        on-screen text/prompt aloud.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-
-            {(!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') && (
-              <button
-                onClick={handleGenerateVideos}
-                disabled={!!videoJob && videoJob.status === 'generating'}
-                style={{
-                  width: '100%',
-                  padding: '13px 0',
-                  borderRadius: 10,
-                  background: PRIMARY,
-                  color: '#fff',
-                  border: 'none',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {videoJob?.status === 'complete' ? 'Regenerate Videos' : 'Generate Videos'}
-              </button>
-            )}
-
-            {/* Merge + Save Draft — shown after job is complete */}
-            {videoJob?.status === 'complete' && (
+              {/* Video generation section */}
               <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${BORDER}` }}>
-                {mergeError && (
+                {videoError && (
                   <div
                     style={{
                       background: '#FEF2F2',
@@ -1526,187 +1259,479 @@ export default function VideoStoryboardGenerator() {
                       marginBottom: 14,
                     }}
                   >
-                    <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{mergeError}</p>
+                    <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{videoError}</p>
                   </div>
                 )}
 
-                {!mergedUrl && (
+                {/* Total estimated cost — summed from each clip's own estimate (duration
+                actually sent to the model × fal.ai's published per-second rate), so
+                picking a different Video Outcome and regenerating gives a real number
+                to compare, not just a visual impression. Dev-only transparency note:
+                which model(s) actually ran (routed_model can differ from the outcome's
+                usual primary when §4's automatic fallback kicked in) — the brief's own
+                customer-facing surface would never show this, but this screen is still
+                internal testing, not that surface. */}
+                {videoJob?.status === 'complete' &&
+                  (() => {
+                    const costed = videoJob.clips.filter((c) => c.cost_usd != null);
+                    if (costed.length === 0) return null;
+                    const total = costed.reduce((sum, c) => sum + (c.cost_usd ?? 0), 0);
+                    const outcomeLabel =
+                      VIDEO_OUTCOMES.find((o) => o.value === videoJob.outcome)?.label ?? videoJob.outcome;
+                    const routedModels = Array.from(
+                      new Set(videoJob.clips.map((c) => c.routed_model).filter((m): m is string => !!m))
+                    );
+                    const anyFallback = videoJob.clips.some((c) => c.fallback_used);
+                    return (
+                      <div
+                        style={{
+                          background: LIGHT,
+                          border: `1px solid ${BORDER}`,
+                          borderRadius: 10,
+                          padding: '10px 14px',
+                          marginBottom: 16,
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 12.5, color: GREY }}>
+                            {outcomeLabel} · {costed.length}/{videoJob.clips.length} clip
+                            {videoJob.clips.length === 1 ? '' : 's'} costed
+                          </span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: DARK }}>~${total.toFixed(3)}</span>
+                        </div>
+                        {routedModels.length > 0 && (
+                          <p style={{ fontSize: 10.5, color: '#9CA3AF', margin: '4px 0 0' }}>
+                            Routed to: {routedModels.map((m) => MODEL_LABELS[m] ?? m).join(', ')}
+                            {anyFallback ? ' (fallback used on at least one clip)' : ''}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                {/* Job progress */}
+                {videoJob && videoJob.status !== 'complete' && videoJob.status !== 'failed' && (
+                  <div
+                    style={{
+                      background: '#FFF0F8',
+                      border: `1px solid ${BORDER}`,
+                      borderRadius: 12,
+                      padding: '14px 16px',
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <div
+                        style={{
+                          width: 18,
+                          height: 18,
+                          border: `2.5px solid ${BORDER}`,
+                          borderTopColor: PRIMARY,
+                          borderRadius: 99,
+                          animation: 'spin 0.8s linear infinite',
+                          flexShrink: 0,
+                        }}
+                      />
+                      <p style={{ fontSize: 13, fontWeight: 600, color: DARK, margin: 0 }}>
+                        Generating Scene {videoJob.current_scene} of {videoJob.total_scenes}…
+                      </p>
+                    </div>
+                    <div style={{ height: 6, background: BORDER, borderRadius: 99, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          background: PRIMARY,
+                          borderRadius: 99,
+                          width: `${Math.round(((videoJob.clips?.length ?? 0) / videoJob.total_scenes) * 100)}%`,
+                          transition: 'width .4s ease',
+                        }}
+                      />
+                    </div>
+                    {videoJob.current_scene_status ? (
+                      <p style={{ fontSize: 11, color: GREY, margin: '6px 0 0' }}>
+                        {videoJob.current_scene_status.model_label}:{' '}
+                        {videoJob.current_scene_status.state === 'Queued'
+                          ? `in queue${videoJob.current_scene_status.position != null ? ` (position ${videoJob.current_scene_status.position})` : ''}`
+                          : 'processing'}{' '}
+                        · {videoJob.current_scene_status.elapsed_seconds}s elapsed
+                        {videoJob.current_scene_status.model_label === 'Talking Avatar'
+                          ? ' — this model can take several minutes'
+                          : ''}
+                      </p>
+                    ) : (
+                      <p style={{ fontSize: 11, color: GREY, margin: '6px 0 0' }}>
+                        Each scene takes ~30–90 seconds. This page will update automatically.
+                      </p>
+                    )}
+                    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+                  </div>
+                )}
+
+                {videoJob?.status === 'failed' && (
+                  <div
+                    style={{
+                      background: '#FEF2F2',
+                      border: '1px solid #FECACA',
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      marginBottom: 14,
+                    }}
+                  >
+                    <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>
+                      Video generation failed: {videoJob.error}
+                    </p>
+                  </div>
+                )}
+
+                {(!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') && (
+                  <>
+                    {/* Outcome picker — engineering brief §2: the customer picks an outcome,
+                    never a raw model name. Which model actually runs (plus its automatic
+                    fallback) is resolved server-side; see the "Routed to:" transparency
+                    note above once a job completes, which exists only because this screen
+                    is still internal testing, not the brief's actual customer-facing surface. */}
+                    {outcomeSuggestionReason && (
+                      <div
+                        style={{
+                          background: '#FFF0F8',
+                          border: `1px solid #FBCFE8`,
+                          borderRadius: 10,
+                          padding: '10px 14px',
+                          marginBottom: 14,
+                        }}
+                      >
+                        <p style={{ fontSize: 12.5, color: DARK, margin: 0, lineHeight: 1.5 }}>
+                          <span style={{ fontWeight: 700, color: PRIMARY }}>
+                            ✦ Suggested:{' '}
+                            {VIDEO_OUTCOMES.find((o) => o.value === selectedOutcome)?.label ?? selectedOutcome}
+                          </span>{' '}
+                          — {outcomeSuggestionReason}
+                        </p>
+                      </div>
+                    )}
+                    <div style={{ marginBottom: 16 }}>
+                      <p
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: GREY,
+                          margin: '0 0 8px',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                        }}
+                      >
+                        Video Outcome
+                      </p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                        {VIDEO_OUTCOMES.map((o) => {
+                          const active = selectedOutcome === o.value;
+                          // Every outcome routes to an image-to-video model (fal.ai) — none of
+                          // them can run before frame generation finishes.
+                          const framesReady = storyboard
+                            ? storyboard.scenes.every((s) => frameMap[s.scene_number])
+                            : false;
+                          const blocked = !framesReady;
+                          return (
+                            <button
+                              key={o.value}
+                              onClick={() => !blocked && setSelectedOutcome(o.value)}
+                              title={blocked ? 'Waiting for storyboard frames to finish generating…' : ''}
+                              style={{
+                                padding: '10px 8px',
+                                borderRadius: 10,
+                                border: `2px solid ${active ? PRIMARY : blocked ? '#E5E7EB' : BORDER}`,
+                                background: active ? '#FFF0F8' : blocked ? '#F9FAFB' : '#fff',
+                                color: active ? PRIMARY : blocked ? '#9CA3AF' : DARK,
+                                fontWeight: active ? 700 : 500,
+                                fontSize: 12.5,
+                                textAlign: 'left',
+                                cursor: blocked ? 'not-allowed' : 'pointer',
+                                fontFamily: 'inherit',
+                                transition: 'all .15s',
+                                opacity: blocked ? 0.6 : 1,
+                              }}
+                            >
+                              {o.label}
+                              {!blocked && (
+                                <span
+                                  style={{
+                                    display: 'block',
+                                    fontSize: 9.5,
+                                    color: active ? PRIMARY : '#9CA3AF',
+                                    marginTop: 2,
+                                    fontWeight: 400,
+                                    opacity: 0.85,
+                                  }}
+                                >
+                                  {o.description}
+                                </span>
+                              )}
+                              {blocked && (
+                                <span
+                                  style={{
+                                    display: 'block',
+                                    fontSize: 9.5,
+                                    color: '#9CA3AF',
+                                    marginTop: 2,
+                                    fontWeight: 400,
+                                  }}
+                                >
+                                  frames generating…
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Voice picker — only matters once a scene actually has dialogue to
+                    speak; fal-ai/ai-avatar/single-text takes a fixed voice enum, not
+                    an uploaded voice sample. */}
+                    {selectedOutcome === 'talking_dialogue' && (
+                      <div style={{ marginBottom: 16 }}>
+                        <p
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: GREY,
+                            margin: '0 0 8px',
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.5,
+                          }}
+                        >
+                          Avatar Voice
+                        </p>
+                        <AvatarVoicePicker value={selectedVoice} onChange={setSelectedVoice} />
+                        {storyboard && !storyboard.scenes.some((s) => s.dialogue) && (
+                          <p style={{ fontSize: 11, color: '#B45309', margin: '6px 0 0' }}>
+                            This storyboard has no scripted dialogue yet — pick the "Testimonial Style" video style and
+                            regenerate the storyboard to get a spoken script, or clips will fall back to reading their
+                            on-screen text/prompt aloud.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {(!videoJob || videoJob.status === 'complete' || videoJob.status === 'failed') && (
                   <button
-                    onClick={handleMerge}
-                    disabled={merging}
+                    onClick={handleGenerateVideos}
+                    disabled={!!videoJob && videoJob.status === 'generating'}
                     style={{
                       width: '100%',
                       padding: '13px 0',
                       borderRadius: 10,
-                      background: merging ? '#E5E7EB' : '#0d0e0f',
-                      color: merging ? '#9CA3AF' : '#fff',
+                      background: PRIMARY,
+                      color: '#fff',
                       border: 'none',
                       fontSize: 14,
                       fontWeight: 700,
-                      cursor: merging ? 'not-allowed' : 'pointer',
+                      cursor: 'pointer',
                       fontFamily: 'inherit',
                     }}
                   >
-                    {merging ? 'Merging clips…' : 'Merge Clips into Single Video'}
+                    {videoJob?.status === 'complete' ? 'Regenerate Videos' : 'Generate Videos'}
                   </button>
                 )}
 
-                {mergedUrl && (
-                  <div style={{ marginTop: 4 }}>
-                    <p style={{ fontSize: 13.5, fontWeight: 700, color: DARK, margin: '0 0 10px' }}>Merged Video</p>
-                    <video
-                      src={mergedUrl}
-                      controls
-                      playsInline
-                      style={{
-                        width: '100%',
-                        borderRadius: 10,
-                        maxHeight: 480,
-                        display: 'block',
-                        background: '#000',
-                        marginBottom: 16,
-                      }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-                      <a
-                        href={mergedUrl}
-                        download="merged-video.mp4"
-                        style={{ fontSize: 12, color: GREY, fontWeight: 600, textDecoration: 'none' }}
-                      >
-                        Download
-                      </a>
-                    </div>
-
-                    {savedDraft ? (
+                {/* Merge + Save Draft — shown after job is complete */}
+                {videoJob?.status === 'complete' && (
+                  <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${BORDER}` }}>
+                    {mergeError && (
                       <div
                         style={{
-                          background: '#F0FDF4',
-                          border: '1px solid #86EFAC',
+                          background: '#FEF2F2',
+                          border: '1px solid #FECACA',
                           borderRadius: 10,
-                          padding: '12px 14px',
+                          padding: '10px 14px',
+                          marginBottom: 14,
                         }}
                       >
-                        <p style={{ fontSize: 13, fontWeight: 700, color: '#16a34a', margin: 0 }}>
-                          Draft saved successfully
-                        </p>
-                        <p style={{ fontSize: 12, color: GREY, margin: '4px 0 0' }}>
-                          Find it in your saved video drafts below.
-                        </p>
+                        <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{mergeError}</p>
                       </div>
-                    ) : (
-                      <div style={{ border: `1.5px solid ${BORDER}`, borderRadius: 12, padding: '16px' }}>
-                        <p style={{ fontSize: 13.5, fontWeight: 700, color: DARK, margin: '0 0 12px' }}>
-                          Save as Draft
-                        </p>
+                    )}
 
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: 6,
-                          }}
-                        >
-                          <label style={{ fontSize: 12, fontWeight: 600, color: GREY }}>Caption</label>
-                          <button
-                            onClick={generateCaption}
-                            disabled={captionGenerating || !storyboard}
-                            style={{
-                              padding: '4px 10px',
-                              borderRadius: 6,
-                              border: `1.5px solid ${PRIMARY}`,
-                              background: 'transparent',
-                              color: captionGenerating ? GREY : PRIMARY,
-                              fontSize: 11.5,
-                              fontWeight: 600,
-                              cursor: captionGenerating || !storyboard ? 'not-allowed' : 'pointer',
-                              fontFamily: 'inherit',
-                              opacity: captionGenerating || !storyboard ? 0.5 : 1,
-                            }}
-                          >
-                            {captionGenerating ? 'Generating…' : '✦ Regenerate'}
-                          </button>
-                        </div>
-                        <textarea
-                          value={captionGenerating ? '' : draftCaption}
-                          onChange={(e) => setDraftCaption(e.target.value)}
-                          placeholder={
-                            captionGenerating ? 'Generating caption with AI…' : 'Write a caption for this video…'
-                          }
-                          rows={4}
-                          maxLength={2200}
-                          disabled={captionGenerating}
+                    {!mergedUrl && (
+                      <button
+                        onClick={handleMerge}
+                        disabled={merging}
+                        style={{
+                          width: '100%',
+                          padding: '13px 0',
+                          borderRadius: 10,
+                          background: merging ? '#E5E7EB' : '#0d0e0f',
+                          color: merging ? '#9CA3AF' : '#fff',
+                          border: 'none',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor: merging ? 'not-allowed' : 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        {merging ? 'Merging clips…' : 'Merge Clips into Single Video'}
+                      </button>
+                    )}
+
+                    {mergedUrl && (
+                      <div style={{ marginTop: 4 }}>
+                        <p style={{ fontSize: 13.5, fontWeight: 700, color: DARK, margin: '0 0 10px' }}>Merged Video</p>
+                        <video
+                          src={mergedUrl}
+                          controls
+                          playsInline
                           style={{
                             width: '100%',
-                            border: `1.5px solid ${BORDER}`,
-                            borderRadius: 8,
-                            padding: '10px 12px',
-                            fontSize: 13.5,
-                            color: DARK,
-                            resize: 'vertical',
-                            fontFamily: 'inherit',
-                            outline: 'none',
-                            boxSizing: 'border-box',
-                            marginBottom: 14,
-                            background: captionGenerating ? '#F9FAFB' : '#fff',
+                            borderRadius: 10,
+                            maxHeight: 480,
+                            display: 'block',
+                            background: '#000',
+                            marginBottom: 16,
                           }}
                         />
-
-                        <label
-                          style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 8 }}
-                        >
-                          Platforms
-                        </label>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-                          {PLATFORMS.map((p) => {
-                            const active = draftPlatforms.includes(p.value);
-                            return (
-                              <button
-                                key={p.value}
-                                onClick={() => togglePlatform(p.value)}
-                                style={{
-                                  padding: '6px 14px',
-                                  borderRadius: 8,
-                                  border: `1.5px solid ${active ? PRIMARY : BORDER}`,
-                                  background: active ? '#FFF0F8' : '#fff',
-                                  color: active ? PRIMARY : GREY,
-                                  fontWeight: active ? 700 : 500,
-                                  fontSize: 12.5,
-                                  cursor: 'pointer',
-                                  fontFamily: 'inherit',
-                                }}
-                              >
-                                {p.label}
-                              </button>
-                            );
-                          })}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+                          <a
+                            href={mergedUrl}
+                            download="merged-video.mp4"
+                            style={{ fontSize: 12, color: GREY, fontWeight: 600, textDecoration: 'none' }}
+                          >
+                            Download
+                          </a>
                         </div>
 
-                        <button
-                          onClick={handleSaveDraft}
-                          disabled={savingDraft || draftPlatforms.length === 0}
-                          style={{
-                            width: '100%',
-                            padding: '11px 0',
-                            borderRadius: 10,
-                            background: savingDraft || draftPlatforms.length === 0 ? '#E5E7EB' : PRIMARY,
-                            color: savingDraft || draftPlatforms.length === 0 ? '#9CA3AF' : '#fff',
-                            border: 'none',
-                            fontSize: 13.5,
-                            fontWeight: 700,
-                            cursor: savingDraft || draftPlatforms.length === 0 ? 'not-allowed' : 'pointer',
-                            fontFamily: 'inherit',
-                          }}
-                        >
-                          {savingDraft ? 'Saving…' : 'Save Draft'}
-                        </button>
+                        {savedDraft ? (
+                          <div
+                            style={{
+                              background: '#F0FDF4',
+                              border: '1px solid #86EFAC',
+                              borderRadius: 10,
+                              padding: '12px 14px',
+                            }}
+                          >
+                            <p style={{ fontSize: 13, fontWeight: 700, color: '#16a34a', margin: 0 }}>
+                              Draft saved successfully
+                            </p>
+                            <p style={{ fontSize: 12, color: GREY, margin: '4px 0 0' }}>
+                              Find it in your saved video drafts below.
+                            </p>
+                          </div>
+                        ) : (
+                          <div style={{ border: `1.5px solid ${BORDER}`, borderRadius: 12, padding: '16px' }}>
+                            <p style={{ fontSize: 13.5, fontWeight: 700, color: DARK, margin: '0 0 12px' }}>
+                              Save as Draft
+                            </p>
+
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginBottom: 6,
+                              }}
+                            >
+                              <label style={{ fontSize: 12, fontWeight: 600, color: GREY }}>Caption</label>
+                              <button
+                                onClick={generateCaption}
+                                disabled={captionGenerating || !storyboard}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  border: `1.5px solid ${PRIMARY}`,
+                                  background: 'transparent',
+                                  color: captionGenerating ? GREY : PRIMARY,
+                                  fontSize: 11.5,
+                                  fontWeight: 600,
+                                  cursor: captionGenerating || !storyboard ? 'not-allowed' : 'pointer',
+                                  fontFamily: 'inherit',
+                                  opacity: captionGenerating || !storyboard ? 0.5 : 1,
+                                }}
+                              >
+                                {captionGenerating ? 'Generating…' : '✦ Regenerate'}
+                              </button>
+                            </div>
+                            <textarea
+                              value={captionGenerating ? '' : draftCaption}
+                              onChange={(e) => setDraftCaption(e.target.value)}
+                              placeholder={
+                                captionGenerating ? 'Generating caption with AI…' : 'Write a caption for this video…'
+                              }
+                              rows={4}
+                              maxLength={2200}
+                              disabled={captionGenerating}
+                              style={{
+                                width: '100%',
+                                border: `1.5px solid ${BORDER}`,
+                                borderRadius: 8,
+                                padding: '10px 12px',
+                                fontSize: 13.5,
+                                color: DARK,
+                                resize: 'vertical',
+                                fontFamily: 'inherit',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                marginBottom: 14,
+                                background: captionGenerating ? '#F9FAFB' : '#fff',
+                              }}
+                            />
+
+                            <label
+                              style={{ fontSize: 12, fontWeight: 600, color: GREY, display: 'block', marginBottom: 8 }}
+                            >
+                              Platforms
+                            </label>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                              {PLATFORMS.map((p) => {
+                                const active = draftPlatforms.includes(p.value);
+                                return (
+                                  <button
+                                    key={p.value}
+                                    onClick={() => togglePlatform(p.value)}
+                                    style={{
+                                      padding: '6px 14px',
+                                      borderRadius: 8,
+                                      border: `1.5px solid ${active ? PRIMARY : BORDER}`,
+                                      background: active ? '#FFF0F8' : '#fff',
+                                      color: active ? PRIMARY : GREY,
+                                      fontWeight: active ? 700 : 500,
+                                      fontSize: 12.5,
+                                      cursor: 'pointer',
+                                      fontFamily: 'inherit',
+                                    }}
+                                  >
+                                    {p.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            <button
+                              onClick={handleSaveDraft}
+                              disabled={savingDraft || draftPlatforms.length === 0}
+                              style={{
+                                width: '100%',
+                                padding: '11px 0',
+                                borderRadius: 10,
+                                background: savingDraft || draftPlatforms.length === 0 ? '#E5E7EB' : PRIMARY,
+                                color: savingDraft || draftPlatforms.length === 0 ? '#9CA3AF' : '#fff',
+                                border: 'none',
+                                fontSize: 13.5,
+                                fontWeight: 700,
+                                cursor: savingDraft || draftPlatforms.length === 0 ? 'not-allowed' : 'pointer',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              {savingDraft ? 'Saving…' : 'Save Draft'}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </>
       )}
 

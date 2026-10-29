@@ -884,14 +884,12 @@ const ContentManagerPage = ({
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
   const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
-  // Nested under the Generate tab: 'upload' is the original upload-first flow
-  // (1-5 required brand images, VideoStoryboardGenerator.tsx); 'describe' is
-  // the newer brief-first flow (DescribeVideoGenerator.tsx) — a free-text
-  // brief with optional reference images, gpt-5.4 writing creative direction
-  // + script, gpt-image-2 generating consistent chained scene images. Both
-  // land on the same outcome-routed fal.ai generation pipeline once a
-  // storyboard has frame images.
-  const [generateMode, setGenerateMode] = useState<'upload' | 'describe'>('upload');
+  // The Generate tab is Describe It (DescribeVideoGenerator.tsx): a free-text brief with optional
+  // reference images, then script -> scene images -> outcome-routed video. The older upload-first
+  // generator is no longer offered; only its Saved Video Drafts list is kept (see below), because
+  // that is where a saved video is posted from. Bumped when Describe It saves a draft so the list
+  // shows it straight away.
+  const [draftReloadKey, setDraftReloadKey] = useState(0);
   // Jane Ads hand-off (upload a video in a campaign -> optionally improve its
   // quality here -> come back to that exact thread). Lands on JaneVideoChat
   // ('chat', already the default tab) — confirmed this is the tool actually in
@@ -915,7 +913,6 @@ const ContentManagerPage = ({
     if (hasVideoSeed()) {
       setActiveTab('video');
       setVideoTab('generate');
-      setGenerateMode('describe');
     }
   }, []);
   const [pendingProduceUrl, setPendingProduceUrl] = useState<string | null>(null);
@@ -1573,20 +1570,9 @@ const ContentManagerPage = ({
           </>
         )}
 
-        {/* JaneVideoChat keep-alive: mounted once, hidden with CSS when not active */}
-        {janeEverMounted && (
-          <div style={{ display: isJaneActive ? undefined : 'none' }}>
-            <JaneVideoChat
-              onSaveToDrafts={() => setActiveTab('drafts')}
-              isMobile={isMobile}
-              // Both undefined outside the Jane Ads hand-off, so this chat's
-              // normal flow renders exactly as it always has.
-              initialFile={videoPolishHandoff?.file}
-              onUseInCampaign={videoPolishHandoff ? onReturnToCampaignFromPolish : undefined}
-            />
-          </div>
-        )}
-
+        {/* The Ask Jane / Generate switcher sits ABOVE the Jane chat. The chat is kept mounted in
+            the block below (so a session survives tab switches), which used to render first and
+            push these buttons underneath it whenever Ask Jane was selected. */}
         {activeTab === 'video' && (
           <>
             {/* 5 sub-tabs — horizontal scroll on mobile instead of wrapping,
@@ -1642,36 +1628,29 @@ const ContentManagerPage = ({
                 </button>
               ))}
             </div>
+          </>
+        )}
+
+        {/* JaneVideoChat keep-alive: mounted once, hidden with CSS when not active */}
+        {janeEverMounted && (
+          <div style={{ display: isJaneActive ? undefined : 'none' }}>
+            <JaneVideoChat
+              onSaveToDrafts={() => setActiveTab('drafts')}
+              isMobile={isMobile}
+              // Both undefined outside the Jane Ads hand-off, so this chat's
+              // normal flow renders exactly as it always has.
+              initialFile={videoPolishHandoff?.file}
+              onUseInCampaign={videoPolishHandoff ? onReturnToCampaignFromPolish : undefined}
+            />
+          </div>
+        )}
+
+        {activeTab === 'video' && (
+          <>
             {videoTab === 'generate' && (
               <>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-                  {(
-                    [
-                      { key: 'upload', label: 'Upload Images' },
-                      { key: 'describe', label: '✦ Describe It' },
-                    ] as { key: 'upload' | 'describe'; label: string }[]
-                  ).map((gm) => (
-                    <button
-                      key={gm.key}
-                      onClick={() => setGenerateMode(gm.key)}
-                      style={{
-                        flexShrink: 0,
-                        padding: '7px 16px',
-                        borderRadius: 8,
-                        border: generateMode === gm.key ? 'none' : '1.5px solid #E5E7EB',
-                        background: generateMode === gm.key ? '#0d0e0f' : '#fff',
-                        color: generateMode === gm.key ? '#fff' : '#6B7280',
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {gm.label}
-                    </button>
-                  ))}
-                </div>
-                {generateMode === 'upload' ? <VideoStoryboardGenerator /> : <DescribeVideoGenerator />}
+                <DescribeVideoGenerator onDraftSaved={() => setDraftReloadKey((k) => k + 1)} />
+                <VideoStoryboardGenerator draftsOnly reloadKey={draftReloadKey} />
               </>
             )}
             {videoTab === 'produce' && (
