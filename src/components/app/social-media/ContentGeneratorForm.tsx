@@ -1,6 +1,7 @@
 'use client';
 
-import { GenerateContentPayload, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { buildGenerateContentPayload } from './generateContentPayload';
 import { BillingService } from '@/src/api/BillingService';
 import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { getStyle } from '@/src/data/styleLibrary';
@@ -125,12 +126,17 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
     const handed = takeContentSeed();
     if (!handed?.seed) return;
     setSeedContent(handed.seed);
-    const known = handed.platforms?.filter((p) => ['facebook', 'instagram', 'linkedin', 'twitter', 'tiktok'].includes(p));
+    const known = handed.platforms?.filter((p) =>
+      ['facebook', 'instagram', 'linkedin', 'twitter', 'tiktok'].includes(p)
+    );
     if (known?.length) {
       platformsTouched.current = true;
       setSelectedPlatforms(known);
     }
-    ToastService.showToast('Brief from your market opportunity is ready — review it and generate.', ToastTypeEnum.Success);
+    ToastService.showToast(
+      'Brief from your market opportunity is ready — review it and generate.',
+      ToastTypeEnum.Success
+    );
   }, []);
   const [includeImages, setIncludeImages] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -417,38 +423,21 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
   const doGenerate = async (acknowledgedIncomplete = false) => {
     setLoading(true);
     try {
-      const payload: GenerateContentPayload = {
-        seed_content: seedContent.trim(),
-        platforms: selectedPlatforms,
-        include_images: includeImages,
-        ...(includeImages ? { image_model: imageModel } : {}),
-        post_type: postType,
-        ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
-        acknowledged_incomplete_profile: acknowledgedIncomplete,
-        ...(useCustomCta && customCta.trim() ? { override_cta: customCta.trim() } : {}),
-        ...(useStyleOverride && selectedOverrideStyles.length > 0 ? { style_override: selectedOverrideStyles } : {}),
-      };
-      if (referenceImages.length > 0) {
-        if (postType === 'carousel') {
-          // Carousel keeps its own existing per-slide assignment system
-          // untouched — every upload stays available to the slide picker
-          // regardless of the "Include" tick, which is specifically for the
-          // single/combine case below.
-          payload.reference_images = referenceImages.map((img) => img.dataUrl);
-          payload.slide_image_map = Array.from({ length: numSlides }, (_, i) => slideImageIndex(i));
-        } else {
-          const included = referenceImages.filter((img) => img.included);
-          payload.reference_images = included.map((img) => img.dataUrl);
-          if (included.length > 1) {
-            // Combine mode: only meaningful with 2+ images, so only send
-            // per-image meta then — a single image behaves exactly as before.
-            payload.reference_image_meta = included.map((img) => ({
-              ...(img.label?.trim() ? { label: img.label.trim() } : {}),
-              ...(img.removeBackground !== undefined ? { remove_background: img.removeBackground } : {}),
-            }));
-          }
-        }
-      }
+      const payload = buildGenerateContentPayload({
+        seedContent,
+        selectedPlatforms,
+        includeImages,
+        imageModel,
+        postType,
+        numSlides,
+        acknowledgedIncomplete,
+        customCta,
+        useCustomCta,
+        selectedOverrideStyles,
+        useStyleOverride,
+        referenceImages,
+        slideImageIndex,
+      });
       const response = await SocialMediaAgentService.generateContent(payload);
 
       if (response.status) {
@@ -615,8 +604,7 @@ const ContentGeneratorForm = ({ onGenerated, requireEmailVerification }: Content
         >
           <span>
             ✨ Expanded with your Brand Playbook
-            {expandedFrom.length ? ` (${expandedFrom.slice(0, 4).join(', ')})` : ''} — edit anything before
-            generating.
+            {expandedFrom.length ? ` (${expandedFrom.slice(0, 4).join(', ')})` : ''} — edit anything before generating.
           </span>
           <Typography
             component="button"

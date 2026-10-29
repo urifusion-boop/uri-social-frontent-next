@@ -59,6 +59,7 @@ import { AgencyService, BrandAccount, getActiveBrandId, setActiveBrandId } from 
 import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
+import ContentWizard from '@/src/components/app/social-media/ContentWizard/ContentWizard';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import VideoStoryboardGenerator from '@/src/components/app/workspace/VideoStoryboardGenerator';
 import DescribeVideoGenerator from '@/src/components/app/workspace/DescribeVideoGenerator';
@@ -890,6 +891,25 @@ const ContentManagerPage = ({
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
+  // New 4-step Create Content wizard, shipped behind a toggle so it can be
+  // compared against the classic ContentGeneratorForm before fully cutting
+  // over — see /Users/apple/.claude/plans/lovely-prancing-seahorse.md.
+  const [contentWizardEnabled, setContentWizardEnabled] = useState(false);
+  useEffect(() => {
+    try {
+      setContentWizardEnabled(localStorage.getItem('uri_content_wizard_enabled') === 'true');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const toggleContentWizard = useCallback((enabled: boolean) => {
+    setContentWizardEnabled(enabled);
+    try {
+      localStorage.setItem('uri_content_wizard_enabled', String(enabled));
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
   // The Generate tab is Describe It (DescribeVideoGenerator.tsx): a free-text brief with optional
   // reference images, then script -> scene images -> outcome-routed video. The older upload-first
@@ -1469,7 +1489,16 @@ const ContentManagerPage = ({
             {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
             {/* Create mode switcher */}
-            <div style={{ marginBottom: 20 }}>
+            <div
+              style={{
+                marginBottom: 20,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}
+            >
               <div style={{ display: 'flex', gap: 8 }}>
                 {(
                   [
@@ -1499,9 +1528,43 @@ const ContentManagerPage = ({
                   </button>
                 ))}
               </div>
+              {createMode === 'generate' && !contentWizardEnabled && (
+                <button
+                  onClick={() => toggleContentWizard(true)}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: '#C2185B',
+                    padding: 0,
+                  }}
+                >
+                  Try the new step-by-step Create Content →
+                </button>
+              )}
             </div>
 
-            {createMode === 'generate' && (
+            {createMode === 'generate' && contentWizardEnabled && (
+              <>
+                {janeMessage && (
+                  <JaneWelcomeCard
+                    message={janeMessage}
+                    onAccept={onAcceptJaneMessage}
+                    onDecline={onDeclineJaneMessage}
+                    isGenerating={janeGenerating}
+                  />
+                )}
+                <ContentWizard
+                  onGenerated={handleGenerated}
+                  requireEmailVerification={requireEmailVerification}
+                  onExit={() => toggleContentWizard(false)}
+                />
+              </>
+            )}
+
+            {createMode === 'generate' && !contentWizardEnabled && (
               <>
                 {!loadingV3Status && (
                   <div

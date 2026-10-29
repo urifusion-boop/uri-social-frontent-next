@@ -524,6 +524,20 @@ export interface ContentDraft {
   logo_placement?: LogoPlacement;
 }
 
+// The real shape of generateContent()'s success responseData — confirmed
+// against a live /social-media/generate-content response. The drafts live
+// under `drafts`, not as the top-level array (nothing read this field until
+// the Create Content wizard's Review & Schedule step did, so this was never
+// exercised/caught before).
+export interface GenerateContentResponseData {
+  request_id?: string;
+  seed_content?: string;
+  seed_type?: string;
+  requested_platforms?: string[];
+  successful_platforms?: string[];
+  drafts: ContentDraft[];
+}
+
 export interface ContentCalendarResponse {
   drafts: ContentDraft[];
 }
@@ -652,12 +666,9 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async generateContent(payload: GenerateContentPayload): Promise<UriResponse<ContentDraft[]>> {
-    const response: Awaited<AxiosResponse<UriResponse<ContentDraft[]>>> = await UriHttpClient.getClient().post(
-      socialMediaAgentRoutes.generateContent,
-      payload,
-      { timeout: 300000 }
-    );
+  static async generateContent(payload: GenerateContentPayload): Promise<UriResponse<GenerateContentResponseData>> {
+    const response: Awaited<AxiosResponse<UriResponse<GenerateContentResponseData>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.generateContent, payload, { timeout: 300000 });
     return response.data;
   }
 
