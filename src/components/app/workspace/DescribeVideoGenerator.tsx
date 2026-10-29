@@ -99,6 +99,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
   // Video generation state
   const [selectedOutcome, setSelectedOutcome] = useState('quick_video');
   const [outcomeSuggestionReason, setOutcomeSuggestionReason] = useState('');
+  const [suggestedOutcome, setSuggestedOutcome] = useState(''); // what was suggested, even after the customer picks another
   const [selectedVoice, setSelectedVoice] = useState('Sarah');
   const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
   const [videoError, setVideoError] = useState('');
@@ -245,6 +246,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
             const suggestion = suggestOutcome(result.storyboard);
             setSelectedOutcome(suggestion.outcome);
             setOutcomeSuggestionReason(suggestion.reason);
+            setSuggestedOutcome(suggestion.outcome);
             saveSession({
               storyboard: result.storyboard,
               storyboardJobId: null,
@@ -518,6 +520,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
     setFrameMap({});
     setFrameError('');
     setOutcomeSuggestionReason('');
+    setSuggestedOutcome('');
     if (framePollRef.current) clearInterval(framePollRef.current);
     clearSession(); // starting over — any prior session is no longer the thing to resume
     try {
@@ -563,6 +566,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
         const suggestion = suggestOutcome(result.storyboard);
         setSelectedOutcome(suggestion.outcome);
         setOutcomeSuggestionReason(suggestion.reason);
+        setSuggestedOutcome(suggestion.outcome);
         saveSession({
           storyboard: result.storyboard,
           platform,
@@ -1424,10 +1428,12 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
                     }}
                   >
                     <p style={{ fontSize: 12.5, color: DARK, margin: 0, lineHeight: 1.5 }}>
-                      <span style={{ fontWeight: 700, color: PRIMARY }}>
-                        ✦ Suggested: {VIDEO_OUTCOMES.find((o) => o.value === selectedOutcome)?.label ?? selectedOutcome}
+                      <span data-testid="outcome-suggestion" style={{ fontWeight: 700, color: PRIMARY }}>
+                        ✦ Suggested:{' '}
+                        {VIDEO_OUTCOMES.find((o) => o.value === suggestedOutcome)?.label ?? suggestedOutcome}
                       </span>{' '}
-                      — {outcomeSuggestionReason}
+                      — {outcomeSuggestionReason}{' '}
+                      <span style={{ color: GREY }}>You can pick a different type below.</span>
                     </p>
                   </div>
                 )}

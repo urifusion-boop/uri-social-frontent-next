@@ -79,8 +79,8 @@ export const VIDEO_OUTCOMES = [
 // style's own "best_for"/vibe against the outcome's own description in
 // video_generation_service.py's OUTCOME_ROUTES, not a guess: e.g. luxury_slow_burn's
 // "Premium & cinematic" vibe is exactly high_quality's "Premium brand shots and
-// hero creative"; before_after's side-by-side matched framing is exactly what
-// advanced_references' "brand-consistency-critical" is for.
+// hero creative"; before_after steps up to high_quality (advanced_references needs reference images, which the
+// describe-it flow usually doesn't have, and costs about three times as much).
 const STYLE_TO_OUTCOME: Record<string, string> = {
   clean_commercial: 'animate_product',
   luxury_slow_burn: 'high_quality',
@@ -88,7 +88,7 @@ const STYLE_TO_OUTCOME: Record<string, string> = {
   ingredient_reveal: 'complex_cinematic',
   street_style: 'quick_video',
   unboxing_drama: 'complex_cinematic',
-  before_after: 'advanced_references',
+  before_after: 'high_quality',
   mood_film: 'high_quality',
   product_explosion: 'complex_cinematic',
   testimonial_style: 'talking_dialogue',
@@ -107,6 +107,15 @@ export function suggestOutcome(storyboard: Storyboard): { outcome: string; reaso
       outcome: 'talking_dialogue',
       reason:
         'This script has spoken dialogue — only Talking / Dialogue actually turns it into audible, lip-synced speech. Every other outcome would animate the same frame silently.',
+    };
+  }
+  // The script writer reads the whole creative direction and picks the cheapest type that fits it (and has
+  // already been checked server-side: it never suggests talking without speech, or references without any).
+  const written = storyboard.suggested_outcome;
+  if (written && written !== 'talking_dialogue' && VIDEO_OUTCOMES.some((o) => o.value === written)) {
+    return {
+      outcome: written,
+      reason: storyboard.outcome_reason?.trim() || 'It suits this creative direction.',
     };
   }
   const styleSlug = storyboard.video_style;

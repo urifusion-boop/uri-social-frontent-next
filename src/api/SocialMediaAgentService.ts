@@ -89,6 +89,11 @@ export interface Storyboard {
   // model's own pick from VIDEO_STYLES, echoed back so the choice is visible
   // rather than a silent internal decision.
   video_style?: string;
+  // Only present from the "describe it" flow — the video type the script writer judged to fit the creative
+  // direction best (the cheapest that does), and why, in a sentence for the customer. Only a suggestion:
+  // the customer can pick another type before generating.
+  suggested_outcome?: string;
+  outcome_reason?: string;
 }
 
 export interface StoryboardPayload {
