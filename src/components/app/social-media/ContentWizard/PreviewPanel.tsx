@@ -7,11 +7,14 @@ import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { ContentWizardState } from './useContentWizardState';
 
 const PLATFORM_BADGE: Record<string, { icon: React.ReactNode; color: string }> = {
-  facebook: { icon: <FaFacebook size={10} color="#fff" />, color: '#1877F2' },
-  instagram: { icon: <FaInstagram size={10} color="#fff" />, color: '#E1306C' },
-  twitter: { icon: <FaTwitter size={10} color="#fff" />, color: '#1DA1F2' },
-  linkedin: { icon: <FaLinkedin size={10} color="#fff" />, color: '#0A66C2' },
-  tiktok: { icon: <FaTiktok size={10} color="#fff" />, color: '#010101' },
+  facebook: { icon: <FaFacebook size={15} color="#fff" />, color: '#1877F2' },
+  instagram: {
+    icon: <FaInstagram size={15} color="#fff" />,
+    color: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%)',
+  },
+  twitter: { icon: <FaTwitter size={15} color="#fff" />, color: '#1DA1F2' },
+  linkedin: { icon: <FaLinkedin size={15} color="#fff" />, color: '#0A66C2' },
+  tiktok: { icon: <FaTiktok size={15} color="#fff" />, color: '#010101' },
 };
 
 function Icon({ d }: { d: string }) {
@@ -65,35 +68,19 @@ export default function PreviewPanel({ wizard }: { wizard: ContentWizardState })
         }}
       >
         <Box display="flex" alignItems="center" gap={1} sx={{ p: 1.25 }}>
-          <Box sx={{ position: 'relative', flexShrink: 0 }}>
-            <Box
-              sx={{
-                width: 26,
-                height: 26,
-                borderRadius: '50%',
-                background: brand.logoUrl ? `url(${brand.logoUrl}) center/cover` : '#F3F4F6',
-                border: '1px solid #E5E7EB',
-              }}
-            />
-            {badge && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  bottom: -2,
-                  right: -2,
-                  width: 13,
-                  height: 13,
-                  borderRadius: '50%',
-                  background: badge.color,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1.5px solid #fff',
-                }}
-              >
-                {badge.icon}
-              </Box>
-            )}
+          <Box
+            sx={{
+              width: 28,
+              height: 28,
+              borderRadius: '8px',
+              background: badge?.color ?? '#9CA3AF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {badge?.icon}
           </Box>
           <Typography fontSize="12.5px" fontWeight={700} color="#111827">
             {brand.name}
