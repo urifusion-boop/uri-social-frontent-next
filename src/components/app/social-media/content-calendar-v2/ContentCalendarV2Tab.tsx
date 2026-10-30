@@ -1142,7 +1142,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
   }
 
   return (
-    <div style={{ maxWidth: 960 }}>
+    <div>
       {!plan || plan.status === 'generating' || plan.status === 'failed' ? (
         <div
           style={{
