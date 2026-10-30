@@ -1309,36 +1309,40 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
               </button>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 10.5, fontWeight: 700, color: GRAY, letterSpacing: 0.5 }}>PLATFORMS</span>
-              {PLATFORMS.map((p) => {
-                const on = platforms.includes(p.key);
-                return (
-                  <button
-                    key={p.key}
-                    onClick={() => togglePlatform(p.key)}
-                    style={{
-                      padding: '5px 12px',
-                      borderRadius: 20,
-                      border: `1.5px solid ${on ? PINK : BORDER}`,
-                      background: on ? '#FDF2F8' : '#fff',
-                      color: on ? PINK : '#9CA3AF',
-                      fontSize: 11.5,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all .15s',
-                    }}
-                  >
-                    {on ? '✓ ' : ''}
-                    {p.label}
-                  </button>
-                );
-              })}
-              {JSON.stringify([...platforms].sort()) !== JSON.stringify([...plan.platforms].sort()) && (
-                <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600 }}>
-                  — changed from {plan.platforms.join(', ')}; regenerate to apply
-                </span>
-              )}
+            <div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: GRAY, letterSpacing: 0.5, marginBottom: 8 }}>
+                PLATFORMS
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {PLATFORMS.map((p) => {
+                  const on = platforms.includes(p.key);
+                  return (
+                    <button
+                      key={p.key}
+                      onClick={() => togglePlatform(p.key)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: 20,
+                        border: `1.5px solid ${on ? PINK : BORDER}`,
+                        background: on ? '#FDF2F8' : '#fff',
+                        color: on ? PINK : '#9CA3AF',
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all .15s',
+                      }}
+                    >
+                      {on ? '✓ ' : ''}
+                      {p.label}
+                    </button>
+                  );
+                })}
+                {JSON.stringify([...platforms].sort()) !== JSON.stringify([...plan.platforms].sort()) && (
+                  <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600 }}>
+                    — changed from {plan.platforms.join(', ')}; regenerate to apply
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
