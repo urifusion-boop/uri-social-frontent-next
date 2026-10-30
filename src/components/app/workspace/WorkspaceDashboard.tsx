@@ -60,6 +60,7 @@ import { getStyle } from '@/src/data/styleLibrary';
 import { getFont, GOOGLE_FONTS_URL } from '@/src/data/fontLibrary';
 import ContentGeneratorForm from '@/src/components/app/social-media/ContentGeneratorForm';
 import ContentWizard from '@/src/components/app/social-media/ContentWizard/ContentWizard';
+import ContentLibraryPage from '@/src/components/app/social-media/ContentLibrary/ContentLibraryPage';
 import AccountConnectionBanner from '@/src/components/app/social-media/AccountConnectionBanner';
 import DescribeVideoGenerator from '@/src/components/app/workspace/DescribeVideoGenerator';
 import VisualEngineV2Panel from '@/src/components/app/workspace/visual-engine-v2/VisualEngineV2Panel';
@@ -794,7 +795,7 @@ interface PostItem {
 /* ══════════════════════════════════════════════════════════════════════════
    POSTING SCHEDULE PAGE (v3)
 ═══════════════════════════════════════════════════════════════════════════ */
-type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar-v2' | 'video';
+type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calendar-v2' | 'video' | 'library';
 
 // A chosen (but not yet built) multi-plan audience selection from CampaignsPage —
 // mirrors that file's own PendingVariants type. Threaded through here because it
@@ -1334,11 +1335,14 @@ const ContentManagerPage = ({
     },
   ];
 
-  // The wizard is a self-contained, dedicated-page experience in its own
-  // approved design (own compact header, no surrounding tab bar) — showing
-  // it inside the classic Content Manager chrome stacked two headers on top
-  // of each other and squeezed the wizard into leftover space.
+  // The wizard and the Content Library are both self-contained,
+  // dedicated-page experiences in their own approved designs (own compact
+  // header, no surrounding tab bar) — showing them inside the classic
+  // Content Manager chrome stacked two headers on top of each other and
+  // squeezed the real page into leftover space.
   const wizardActive = activeTab === 'create' && createMode === 'generate' && contentWizardEnabled;
+  const libraryActive = activeTab === 'library';
+  const dedicatedPageActive = wizardActive || libraryActive;
 
   return (
     <div
@@ -1346,7 +1350,7 @@ const ContentManagerPage = ({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        background: wizardActive ? 'linear-gradient(180deg, #FCE4EC 0%, #FBF8F7 40%, #FAFAF8 100%)' : '#f8f7f5',
+        background: dedicatedPageActive ? 'linear-gradient(180deg, #FCE4EC 0%, #FBF8F7 40%, #FAFAF8 100%)' : '#f8f7f5',
       }}
     >
       {/* Header */}
@@ -1364,6 +1368,44 @@ const ContentManagerPage = ({
           <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
             Turn your ideas into high-performing content with AI.
           </p>
+        </div>
+      ) : libraryActive ? (
+        <div
+          style={{
+            padding: isMobile ? '10px 12px' : '16px 24px',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
+          }}
+        >
+          <div>
+            <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
+              Content Library
+            </h2>
+            <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
+              Manage, approve, schedule and track all your content.
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('create')}
+            style={{
+              border: 'none',
+              borderRadius: 10,
+              padding: '9px 16px',
+              background: 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            + Create Content
+          </button>
         </div>
       ) : (
         <div
@@ -1454,6 +1496,7 @@ const ContentManagerPage = ({
                 'calendar-v2': 'calendar',
                 auto: 'sparkle',
                 video: 'video',
+                library: 'file',
               };
               return (
                 <BrandTooltip key={t.key} title={t.tooltip} placement="bottom" arrow>
@@ -1795,6 +1838,8 @@ const ContentManagerPage = ({
             )}
           </>
         )}
+
+        {activeTab === 'library' && <ContentLibraryPage />}
 
         {activeTab === 'drafts' && (
           <>
@@ -10688,8 +10733,8 @@ export default function WorkspaceDashboard() {
       id: 'library',
       icon: 'file',
       label: 'Content Library',
-      active: nav === 'schedule' && ['drafts', 'saved', 'scheduled'].includes(contentStudioNav.tab),
-      onClick: () => goToContentStudioTab('drafts'),
+      active: nav === 'schedule' && contentStudioNav.tab === 'library',
+      onClick: () => goToContentStudioTab('library'),
     },
     {
       id: 'calendar',
