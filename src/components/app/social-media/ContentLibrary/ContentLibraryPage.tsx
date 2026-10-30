@@ -442,12 +442,20 @@ export default function ContentLibraryPage() {
         </Box>
       )}
 
-      <Box display="flex" gap={1} flexWrap="wrap" mb={2} alignItems="center">
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, minmax(120px, 160px)) 1fr' },
+          gap: 1,
+          mb: 2,
+          alignItems: 'center',
+        }}
+      >
         <Select
           size="small"
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value)}
-          sx={{ fontSize: '13px', minWidth: 120, height: 40 }}
+          sx={{ fontSize: '13px', width: '100%', height: 40 }}
         >
           <MenuItem value="all">Platform</MenuItem>
           <MenuItem value="facebook">Facebook</MenuItem>
@@ -460,7 +468,7 @@ export default function ContentLibraryPage() {
           size="small"
           value={formatFilter}
           onChange={(e) => setFormatFilter(e.target.value)}
-          sx={{ fontSize: '13px', minWidth: 120, height: 40 }}
+          sx={{ fontSize: '13px', width: '100%', height: 40 }}
         >
           <MenuItem value="all">Format</MenuItem>
           <MenuItem value="feed">Feed Post</MenuItem>
@@ -472,7 +480,7 @@ export default function ContentLibraryPage() {
           size="small"
           value={tab}
           onChange={(e) => setTab(e.target.value as LibraryTab)}
-          sx={{ fontSize: '13px', minWidth: 120, height: 40 }}
+          sx={{ fontSize: '13px', width: '100%', height: 40 }}
         >
           {TABS.map((t) => (
             <MenuItem key={t.key} value={t.key}>
@@ -484,7 +492,7 @@ export default function ContentLibraryPage() {
           size="small"
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
-          sx={{ fontSize: '13px', minWidth: 140, height: 40 }}
+          sx={{ fontSize: '13px', width: '100%', height: 40 }}
         >
           <MenuItem value="all">Date range</MenuItem>
           <MenuItem value="7">Last 7 days</MenuItem>
@@ -497,8 +505,8 @@ export default function ContentLibraryPage() {
           onChange={(e) => setSearch(e.target.value)}
           slotProps={{ input: { startAdornment: <MdSearch size={16} color="#9CA3AF" style={{ marginRight: 8 }} /> } }}
           sx={{
-            flex: 1,
-            minWidth: 220,
+            gridColumn: { xs: '1 / -1', md: 'auto' },
+            width: '100%',
             '& .MuiOutlinedInput-root': { height: 40, borderRadius: '8px' },
             '& .MuiInputBase-input': { fontSize: '13px', py: '9.5px' },
           }}
