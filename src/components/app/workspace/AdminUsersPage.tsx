@@ -901,7 +901,10 @@ function AccessCodesPanel() {
     if (!codesLoadedRef.current) setLoading(true);
     try {
       const res = await AdminService.listAccessCodes();
-      setCodes(res.codes);
+      // Some older codes in the DB predate the single-email -> roster
+      // migration and come back without assigned_emails at all — never
+      // trust it's present, or a legacy row crashes the whole tab.
+      setCodes(res.codes.map((c) => ({ ...c, assigned_emails: c.assigned_emails ?? [] })));
       codesLoadedRef.current = true;
     } catch (error) {
       console.error('Failed to load access codes:', error);
