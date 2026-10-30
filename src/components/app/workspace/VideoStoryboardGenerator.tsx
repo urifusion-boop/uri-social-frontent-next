@@ -1358,10 +1358,9 @@ export default function VideoStoryboardGenerator({
                     </div>
                     {videoJob.current_scene_status ? (
                       <p style={{ fontSize: 11, color: GREY, margin: '6px 0 0' }}>
-                        {videoJob.current_scene_status.model_label}:{' '}
                         {videoJob.current_scene_status.state === 'Queued'
-                          ? `in queue${videoJob.current_scene_status.position != null ? ` (position ${videoJob.current_scene_status.position})` : ''}`
-                          : 'processing'}{' '}
+                          ? `In queue${videoJob.current_scene_status.position != null ? ` (position ${videoJob.current_scene_status.position})` : ''}`
+                          : 'Processing'}{' '}
                         · {videoJob.current_scene_status.elapsed_seconds}s elapsed
                         {videoJob.current_scene_status.model_label === 'Talking Avatar'
                           ? ' — this model can take several minutes'
