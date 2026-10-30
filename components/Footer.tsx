@@ -97,7 +97,7 @@ export default function Footer() {
           style={{ opacity: 0.4, color: 'white' }}
         >
           <span>Made with ❤️ and jollof rice in Lagos, Nigeria</span>
-          <span>© 2026 URI Creative</span>
+          <span>© 2026 Uruzi Insights Ltd</span>
         </div>
       </div>
     </footer>
