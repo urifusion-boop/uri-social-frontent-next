@@ -232,6 +232,32 @@ test.describe('TikTok ads — mocked', () => {
     expect(facebookConnect).toEqual([]);
   });
 
+  test('a launch refused for goal and destination does not ask for a WhatsApp number', async ({ page }) => {
+    await mockApi(page);
+    await page.route('**/jane-ads/meta/plan/*/launch', (route) =>
+      route.fulfill({ status: 400, json: { detail: 'A traffic campaign cannot send people to whatsapp.' } })
+    );
+    await openCampaigns(page);
+    await chooseTikTokAndSend(page, 'get me WhatsApp messages for my restaurant, budget 20000');
+    await page.getByRole('button', { name: /launch on TikTok/i }).click();
+
+    await expect(page.getByText('A traffic campaign cannot send people to whatsapp.')).toBeVisible();
+    await expect(page.getByPlaceholder('e.g. 0803 123 4567')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Save & retry/ })).toHaveCount(0);
+  });
+
+  test('a launch refused over the WhatsApp number itself still offers the number box', async ({ page }) => {
+    await mockApi(page);
+    await page.route('**/jane-ads/meta/plan/*/launch', (route) =>
+      route.fulfill({ status: 400, json: { detail: 'Your WhatsApp number is not linked yet.' } })
+    );
+    await openCampaigns(page);
+    await chooseTikTokAndSend(page, 'get me WhatsApp messages for my restaurant, budget 20000');
+    await page.getByRole('button', { name: /launch on TikTok/i }).click();
+
+    await expect(page.getByPlaceholder('e.g. 0803 123 4567')).toBeVisible();
+  });
+
   test('a TikTok plan hides its locations, a Meta plan keeps them', async ({ page }) => {
     const metaPlan = {
       ...TIKTOK_PLAN,

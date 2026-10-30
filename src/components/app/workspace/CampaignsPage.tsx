@@ -216,6 +216,9 @@ function extractErrorMessage(e: unknown, fallback: string): string {
 // number Meta rejects, a future edge case, etc.) still gets the same guided fix
 // instead of a dead error the client can only retry blindly.
 function isWhatsappNumberError(msg: string): boolean {
+  // "A traffic campaign cannot send people to whatsapp" is the campaign's goal and destination
+  // disagreeing — the number is fine, and asking for one cannot fix it.
+  if (/cannot send people to|can't send people to/i.test(msg)) return false;
   return /whatsapp|phone number/i.test(msg);
 }
 
