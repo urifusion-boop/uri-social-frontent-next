@@ -1301,9 +1301,13 @@ const ContentManagerPage = ({
   // callback's identity — an unmemoized version here recreated it on every
   // WorkspaceDashboard re-render, silently restarting/breaking that poll.
   const handleGenerated = useCallback(() => {
-    setActiveTab('drafts');
-    fetchDrafts();
-  }, [fetchDrafts]);
+    // Content Library replaced the old Drafts tab as the one place to review
+    // generated content (see the dropped-tabs note below) — this still sent
+    // people to that old, now-hidden tab instead, so "Done" from the wizard
+    // (and Calendar/Auto-generate's own generate flows, which share this
+    // same callback) looked like it ignored the redesign entirely.
+    setActiveTab('library');
+  }, []);
   const handleRefreshDrafts = useCallback(() => {
     if (activeTabRef.current === 'drafts') fetchDrafts();
   }, [fetchDrafts]);
