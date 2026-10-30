@@ -1,7 +1,11 @@
 'use client';
 
-import { Box, Button, Typography } from '@mui/material';
+import { useEffect, useState } from 'react';
+import { Box, Button, Dialog, DialogContent, DialogTitle, IconButton, Typography } from '@mui/material';
+import { MdClose } from 'react-icons/md';
+import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import DraftCard from '../DraftCard';
+import GeneratedContentCard from '../GeneratedContentCard';
 import { ContentWizardState } from './useContentWizardState';
 
 const PINK = '#CD1B78';
@@ -14,6 +18,14 @@ interface StepReviewScheduleProps {
 
 export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }: StepReviewScheduleProps) {
   const drafts = wizard.generatedDrafts ?? [];
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null);
+  const [editingDraft, setEditingDraft] = useState<ContentDraft | null>(null);
+
+  useEffect(() => {
+    SocialMediaAgentService.getConnections()
+      .then((res) => setConnectedPlatforms(res.responseData?.connected_platforms ?? []))
+      .catch(() => setConnectedPlatforms([]));
+  }, []);
 
   if (drafts.length === 0) {
     return (
@@ -31,16 +43,28 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
   return (
     <Box>
       <Typography fontSize="15px" fontWeight={700} color="#111827" mb={0.5}>
-        Review & Schedule
+        Generated Content ({drafts.length} {drafts.length === 1 ? 'platform' : 'platforms'})
       </Typography>
       <Typography fontSize="12.5px" color="#6B7280" mb={2.5}>
-        {drafts.length} {drafts.length === 1 ? 'post' : 'posts'} generated — edit, then Publish Now, Schedule, or Save
-        as Draft for each one below.
+        Review and customize your content for each platform. You can edit, schedule or post directly.
       </Typography>
 
-      <Box display="flex" flexDirection="column" gap={2} mb={3}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fill, minmax(220px, 1fr))' },
+          gap: 2,
+          mb: 3,
+        }}
+      >
         {drafts.map((draft) => (
-          <DraftCard key={draft.id ?? draft.draft_id} draft={draft} onRefresh={wizard.refreshGeneratedDrafts} />
+          <GeneratedContentCard
+            key={draft.id ?? draft.draft_id}
+            draft={draft}
+            connectedPlatforms={connectedPlatforms}
+            onEdit={setEditingDraft}
+            onRefresh={wizard.refreshGeneratedDrafts}
+          />
         ))}
       </Box>
 
@@ -61,6 +85,27 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
           Done — go to Drafts
         </Button>
       </Box>
+
+      <Dialog open={!!editingDraft} onClose={() => setEditingDraft(null)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+          <Typography fontSize="15px" fontWeight={700}>
+            Edit post
+          </Typography>
+          <IconButton size="small" onClick={() => setEditingDraft(null)}>
+            <MdClose size={18} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 2, pt: 0 }}>
+          {editingDraft && (
+            <DraftCard
+              draft={editingDraft}
+              onRefresh={() => {
+                wizard.refreshGeneratedDrafts();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

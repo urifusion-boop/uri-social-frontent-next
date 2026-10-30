@@ -22,6 +22,7 @@ import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgen
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import DraftCard from '../DraftCard';
+import GeneratedContentCard from '../GeneratedContentCard';
 
 const PINK = '#CD1B78';
 
@@ -526,75 +527,22 @@ export default function ContentLibraryPage() {
               : 'Nothing here yet.'}
         </Box>
       ) : view === 'grid' ? (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 2 }}>
-          {filtered.map((d) => {
-            const id = d.id ?? d.draft_id ?? '';
-            const cat = categorize(d);
-            const badge = STATUS_BADGE[cat];
-            const { title, excerpt } = titleAndExcerpt(d.content || '');
-            const platformKey = (d.platform || '').toLowerCase();
-            const pIcon = PLATFORM_ICON[platformKey];
-            const formatKey = d.post_type || 'feed';
-            const dt = dateFor(d);
-            return (
-              <Box
-                key={id}
-                onClick={() => setEditingDraft(d)}
-                sx={{
-                  border: '1px solid #E5E7EB',
-                  borderRadius: '12px',
-                  overflow: 'hidden',
-                  background: '#fff',
-                  cursor: 'pointer',
-                  transition: 'box-shadow .15s',
-                  '&:hover': { boxShadow: '0 4px 14px rgba(20,16,14,.08)' },
-                }}
-              >
-                <Box
-                  sx={{
-                    width: '100%',
-                    aspectRatio: '1 / 1',
-                    background: d.image_url ? `url(${d.image_url}) center/cover` : '#F3F4F6',
-                  }}
-                />
-                <Box sx={{ p: 1.25 }}>
-                  <Box display="flex" alignItems="center" justifyContent="space-between" mb={0.5}>
-                    <Box display="flex" alignItems="center" gap={0.5}>
-                      {pIcon?.icon}
-                      <Typography fontSize="11px" color="#6B7280" sx={{ textTransform: 'capitalize' }}>
-                        {FORMAT_LABEL[formatKey] ?? formatKey}
-                      </Typography>
-                    </Box>
-                    <Box
-                      component="span"
-                      sx={{
-                        background: badge.bg,
-                        color: badge.color,
-                        borderRadius: '6px',
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        px: 0.75,
-                        py: 0.3,
-                      }}
-                    >
-                      {badge.label}
-                    </Box>
-                  </Box>
-                  <Typography fontSize="12.5px" fontWeight={600} color="#111827" noWrap>
-                    {title}
-                  </Typography>
-                  <Typography fontSize="11px" color="#9CA3AF" noWrap>
-                    {excerpt}
-                  </Typography>
-                  <Typography fontSize="10.5px" color="#9CA3AF" mt={0.5}>
-                    {dt
-                      ? new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                      : '—'}
-                  </Typography>
-                </Box>
-              </Box>
-            );
-          })}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fill, minmax(220px, 1fr))' },
+            gap: 2,
+          }}
+        >
+          {filtered.map((d) => (
+            <GeneratedContentCard
+              key={d.id ?? d.draft_id}
+              draft={d}
+              connectedPlatforms={connectedPlatforms}
+              onEdit={setEditingDraft}
+              onRefresh={load}
+            />
+          ))}
         </Box>
       ) : view === 'calendar' ? (
         <CalendarView
