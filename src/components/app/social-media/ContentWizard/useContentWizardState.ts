@@ -10,6 +10,7 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { EventBus, EVENTS } from '@/src/services/EventBus';
 import { takeContentSeed } from '@/src/utils/contentSeed';
 import { buildGenerateContentPayload } from '../generateContentPayload';
+import { isImagePending } from '../GeneratedContentCard';
 
 export const PLATFORMS = [
   { key: 'facebook', label: 'Facebook' },
@@ -597,6 +598,60 @@ export function useContentWizardState(requireEmailVerification: (callback?: () =
       console.error('Failed to refresh generated drafts:', error);
     }
   };
+
+  // generate-content returns text immediately and fills in each image in
+  // the background (confirmed live: a 4-slide carousel's images all land
+  // within ~5-10s of the response) — step 4 otherwise shows that initial,
+  // image-less snapshot forever, which reads as "it didn't generate the
+  // image" even though it's just mid-flight. Poll until every pending
+  // image has either landed or failed, or a minute's passed. A ref (not
+  // the generatedDrafts state itself) backs the loop so each tick checks
+  // the latest batch without re-arming the effect on every poll update.
+  const generatedDraftsRef = useRef<ContentDraft[] | null>(null);
+  useEffect(() => {
+    generatedDraftsRef.current = generatedDrafts;
+  }, [generatedDrafts]);
+
+  useEffect(() => {
+    if (!generatedDrafts || generatedDrafts.length === 0) return;
+    if (!generatedDrafts.some(isImagePending)) return;
+
+    let cancelled = false;
+    let elapsedMs = 0;
+    const INTERVAL_MS = 3000;
+    const MAX_MS = 60000;
+
+    const tick = async () => {
+      const current = generatedDraftsRef.current;
+      if (cancelled || !current || !current.some(isImagePending)) return;
+      const ids = new Set(current.map((d) => d.id ?? d.draft_id).filter(Boolean));
+      try {
+        const res = await SocialMediaAgentService.getContentCalendar();
+        const all = res.responseData?.drafts ?? [];
+        const fresh = all.filter((d) => ids.has(d.id ?? d.draft_id));
+        if (!cancelled && fresh.length) setGeneratedDrafts(fresh);
+      } catch (error) {
+        console.error('Failed to poll for generated images:', error);
+      }
+    };
+
+    const interval = setInterval(() => {
+      elapsedMs += INTERVAL_MS;
+      if (elapsedMs >= MAX_MS) {
+        clearInterval(interval);
+        return;
+      }
+      tick();
+    }, INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // Re-arm only when a fresh batch lands (null -> array), not on every
+    // poll-driven update to generatedDrafts itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generatedDrafts === null]);
 
   const charCount = seedContent.length;
   const isValid = charCount >= 10 && charCount <= 5000 && selectedPlatforms.length > 0;

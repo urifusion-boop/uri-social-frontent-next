@@ -66,6 +66,29 @@ function simplifyRatio(w: number, h: number): string {
   return `${w / d}:${h / d}`;
 }
 
+// generate-content returns text immediately and finishes each image in the
+// background (usually within a few seconds) — the draft this card gets is
+// just a snapshot from that moment, so a card showing "No image" right
+// after generating is almost always just mid-generation, not actually
+// missing one. Used both to render the right placeholder here and to drive
+// the wizard's post-generate poll (useContentWizardState) that picks the
+// real image up once it lands.
+export function isImagePending(draft: ContentDraft): boolean {
+  if (draft.video_url) return false;
+  if (!(draft.has_image || draft.auto_generated)) return false;
+  if (draft.post_type === 'carousel') {
+    return (draft.slides ?? []).some((s) => !s.image_url && !s.image_failed);
+  }
+  return !draft.image_url && !draft.image_failed;
+}
+
+function hasImageFailed(draft: ContentDraft): boolean {
+  if (draft.post_type === 'carousel') {
+    return (draft.slides ?? []).some((s) => s.image_failed && !s.image_url);
+  }
+  return !!draft.image_failed;
+}
+
 interface GeneratedContentCardProps {
   draft: ContentDraft;
   connectedPlatforms: string[] | null;
@@ -99,8 +122,11 @@ export default function GeneratedContentCard({
   const platformKey = (draft.platform || '').toLowerCase();
   const meta = PLATFORM_META[platformKey];
   const { aspect, label } = mediaMeta(draft);
+  const [expanded, setExpanded] = useState(false);
   const isCarousel = draft.post_type === 'carousel';
   const previewImage = draft.image_url ?? firstSlideImage(draft);
+  const pending = isImagePending(draft);
+  const failed = !previewImage && !pending && hasImageFailed(draft);
   const isConnected =
     connectedPlatforms === null || connectedPlatforms.map((p) => p.toLowerCase()).includes(platformKey);
   // TikTok image/carousel posts need DraftCard's own "Post to TikTok" consent
@@ -221,7 +247,34 @@ export default function GeneratedContentCard({
             sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         )}
-        {!previewImage && !draft.video_url && (
+        {!previewImage && !draft.video_url && pending && (
+          <Box
+            sx={{
+              width: '100%',
+              height: '100%',
+              background: 'linear-gradient(90deg, #F9FAFB 25%, #F3E8EF 50%, #F9FAFB 75%)',
+              backgroundSize: '200% 100%',
+              animation: 'shimmer 1.6s infinite',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              '@keyframes shimmer': {
+                '0%': { backgroundPosition: '200% 0' },
+                '100%': { backgroundPosition: '-200% 0' },
+              },
+            }}
+          >
+            <Typography fontSize="12px" color="#9CA3AF">
+              🎨 Generating image…
+            </Typography>
+          </Box>
+        )}
+        {!previewImage && !draft.video_url && failed && (
+          <Typography fontSize="12px" color="#EF5350">
+            ⚠️ Image generation failed
+          </Typography>
+        )}
+        {!previewImage && !draft.video_url && !pending && !failed && (
           <Typography fontSize="12px" color="#9CA3AF">
             No image
           </Typography>
@@ -251,20 +304,44 @@ export default function GeneratedContentCard({
           <Typography
             fontSize="12.5px"
             color="#374151"
-            sx={{
-              display: '-webkit-box',
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-              whiteSpace: 'pre-wrap',
-              mb: draft.hashtags?.length ? 0.5 : 0,
-            }}
+            sx={
+              expanded
+                ? { whiteSpace: 'pre-wrap', mb: draft.hashtags?.length ? 0.5 : 0 }
+                : {
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    whiteSpace: 'pre-wrap',
+                    mb: draft.hashtags?.length ? 0.5 : 0,
+                  }
+            }
           >
             {draft.content}
           </Typography>
           {!!draft.hashtags?.length && (
-            <Typography fontSize="11.5px" color={PINK}>
+            <Typography fontSize="11.5px" color={PINK} sx={{ mb: 0.5 }}>
               {draft.hashtags.map((h) => `#${h.replace(/^#+/, '')}`).join(' ')}
+            </Typography>
+          )}
+          {draft.content.length > 140 && (
+            <Typography
+              component="button"
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              sx={{
+                fontSize: '11.5px',
+                fontWeight: 700,
+                color: '#6B7280',
+                background: 'none',
+                border: 'none',
+                p: 0,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                '&:hover': { color: PINK },
+              }}
+            >
+              {expanded ? 'Show less' : 'Show more'}
             </Typography>
           )}
         </Box>

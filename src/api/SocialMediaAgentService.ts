@@ -447,6 +447,12 @@ export interface CarouselSlide {
   body: string;
   image_url?: string;
   image_specs?: { width: number; height: number };
+  // Set while this slide's image is still generating in the background
+  // (confirmed via the real generate-content response: slides come back
+  // with image_url: null and this false, then fill in moments later) and
+  // flipped true if that generation ultimately fails.
+  image_failed?: boolean;
+  image_retry_count?: number;
   // Set once this slide's image has been edited via the Edit Image panel —
   // mirrors the top-level image_version/content_edit_count a regular
   // single-image draft carries, but scoped to this one slide.
