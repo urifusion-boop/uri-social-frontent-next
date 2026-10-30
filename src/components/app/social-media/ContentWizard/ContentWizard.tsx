@@ -69,53 +69,68 @@ export default function ContentWizard({ onGenerated, requireEmailVerification, o
         </Box>
       </Box>
 
-      {/* Full header — tablet and up: the step pills. */}
-      <Box
-        sx={{
-          display: { xs: 'none', sm: 'flex' },
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          mb: 2.5,
-          flexWrap: 'wrap',
-          gap: 1,
-        }}
-      >
-        <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-          {STEPS.map((s, i) => {
-            const state: StepState = i === step ? 'current' : i < step ? 'done' : 'todo';
-            return (
-              <Box key={s.label} display="flex" alignItems="center" gap={1}>
-                {i > 0 && <Box sx={{ width: 16, height: 1, background: i <= step ? PINK : '#E5E7EB' }} />}
-                <StepPill label={s.label} index={i} state={state} onClick={() => i < step && setStep(i)} />
-              </Box>
-            );
-          })}
-        </Box>
-        <Button
-          size="small"
-          onClick={onExit}
-          sx={{ textTransform: 'none', fontSize: '12.5px', color: '#9CA3AF', fontWeight: 600 }}
-        >
-          Switch to classic form
-        </Button>
-      </Box>
-
       {step < 3 ? (
         <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={3} alignItems="stretch">
           <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 480px' }, width: '100%', minWidth: 0 }}>
+            {/* Full header — tablet and up: the step pills. Lives at the top
+                of this column (not full-width above both columns) so its top
+                edge lines up with the Preview column's top edge. */}
+            <Box
+              sx={{
+                display: { xs: 'none', sm: 'flex' },
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                mb: 2.5,
+                flexWrap: 'wrap',
+                gap: 1,
+              }}
+            >
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                {STEPS.map((s, i) => {
+                  const state: StepState = i === step ? 'current' : i < step ? 'done' : 'todo';
+                  return (
+                    <Box key={s.label} display="flex" alignItems="center" gap={1}>
+                      {i > 0 && <Box sx={{ width: 16, height: 1, background: i <= step ? PINK : '#E5E7EB' }} />}
+                      <StepPill label={s.label} index={i} state={state} onClick={() => i < step && setStep(i)} />
+                    </Box>
+                  );
+                })}
+              </Box>
+              <Button
+                size="small"
+                onClick={onExit}
+                sx={{ textTransform: 'none', fontSize: '12.5px', color: '#9CA3AF', fontWeight: 600 }}
+              >
+                Switch to classic form
+              </Button>
+            </Box>
+
             {step === 0 && <StepPlatformFormat wizard={wizard} />}
             {step === 1 && <StepBrief wizard={wizard} />}
             {step === 2 && <StepGenerate wizard={wizard} />}
           </Box>
 
-          <Box sx={{ flex: { xs: '1 1 100%', md: '0 0 300px' }, width: { xs: '100%', md: 300 } }}>
+          <Box
+            sx={{
+              flex: { xs: '1 1 100%', md: '0 0 300px' },
+              width: { xs: '100%', md: 300 },
+              // The page body's own top padding (set in WorkspaceDashboard's
+              // dedicated-page wrapper) leaves a gap above this column that
+              // the left column also has — but the approved design has this
+              // card's top border touch the header's divider line directly,
+              // so only this column cancels that padding out.
+              mt: { xs: '-12px', sm: '-20px' },
+            }}
+          >
             <Box
               sx={{
                 border: '1px solid #E5E7EB',
                 borderRadius: '16px',
                 background: '#FAFAFA',
                 boxShadow: '0 1px 3px rgba(20,16,14,.06)',
-                p: 2,
+                pt: 0.75,
+                px: 2,
+                pb: 2,
                 height: '100%',
               }}
             >
