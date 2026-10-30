@@ -676,12 +676,12 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async uploadUserContent(payload: UploadUserContentPayload): Promise<UriResponse<ContentDraft[]>> {
-    const response: Awaited<AxiosResponse<UriResponse<ContentDraft[]>>> = await UriHttpClient.getClient().post(
-      socialMediaAgentRoutes.uploadUserContent,
-      payload,
-      { timeout: 300000 }
-    );
+  // Returns the same shape as generateContent (responseData.drafts), not a
+  // bare array — the old type annotation here was never exercised because
+  // UploadContentForm only checked response.status and never read the body.
+  static async uploadUserContent(payload: UploadUserContentPayload): Promise<UriResponse<GenerateContentResponseData>> {
+    const response: Awaited<AxiosResponse<UriResponse<GenerateContentResponseData>>> =
+      await UriHttpClient.getClient().post(socialMediaAgentRoutes.uploadUserContent, payload, { timeout: 300000 });
     return response.data;
   }
 

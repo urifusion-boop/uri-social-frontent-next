@@ -5,7 +5,7 @@ import { Box, Button, Typography } from '@mui/material';
 import { MdArrowBack, MdArrowForward } from 'react-icons/md';
 import { useContentWizardState } from './useContentWizardState';
 import StepPlatformFormat from './StepPlatformFormat';
-import StepBrief from './StepBrief';
+import StepContent from './StepContent';
 import StepGenerate from './StepGenerate';
 import StepReviewSchedule from './StepReviewSchedule';
 import PreviewPanel from './PreviewPanel';
@@ -24,10 +24,9 @@ type StepState = 'current' | 'done' | 'todo';
 interface ContentWizardProps {
   onGenerated: () => void;
   requireEmailVerification: (callback?: () => void) => boolean;
-  onSwitchToUpload: () => void;
 }
 
-export default function ContentWizard({ onGenerated, requireEmailVerification, onSwitchToUpload }: ContentWizardProps) {
+export default function ContentWizard({ onGenerated, requireEmailVerification }: ContentWizardProps) {
   const [step, setStep] = useState(0);
   const wizard = useContentWizardState(requireEmailVerification);
 
@@ -37,7 +36,14 @@ export default function ContentWizard({ onGenerated, requireEmailVerification, o
     if (wizard.generatedDrafts !== null && step === 2) setStep(3);
   }, [wizard.generatedDrafts, step]);
 
-  const canGoNext = step === 0 ? wizard.selectedPlatforms.length > 0 : step === 1 ? wizard.isValid : false; // step 2 (Generate) and step 3 (Review) drive their own progression
+  const canGoNext =
+    step === 0
+      ? wizard.selectedPlatforms.length > 0
+      : step === 1
+        ? wizard.contentSource === 'prompt'
+          ? wizard.isValid
+          : wizard.isUploadValid
+        : false; // step 2 (Generate) and step 3 (Review) drive their own progression
 
   return (
     <Box sx={{ maxWidth: 1100, width: '100%' }}>
@@ -86,8 +92,8 @@ export default function ContentWizard({ onGenerated, requireEmailVerification, o
               })}
             </Box>
 
-            {step === 0 && <StepPlatformFormat wizard={wizard} onSwitchToUpload={onSwitchToUpload} />}
-            {step === 1 && <StepBrief wizard={wizard} />}
+            {step === 0 && <StepPlatformFormat wizard={wizard} />}
+            {step === 1 && <StepContent wizard={wizard} />}
             {step === 2 && <StepGenerate wizard={wizard} />}
           </Box>
 

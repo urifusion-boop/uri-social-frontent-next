@@ -50,8 +50,15 @@ export default function PreviewPanel({ wizard }: { wizard: ContentWizardState })
 
   const primaryPlatform = wizard.selectedPlatforms[0];
   const badge = primaryPlatform ? PLATFORM_BADGE[primaryPlatform] : null;
-  const previewImage =
-    wizard.referenceImages.find((img) => img.included)?.dataUrl ?? wizard.referenceImages[0]?.dataUrl;
+  const isUpload = wizard.contentSource === 'upload';
+  const previewImage = isUpload
+    ? (!wizard.hasUploadedVideo && wizard.uploadedFiles[0]?.preview) || undefined
+    : (wizard.referenceImages.find((img) => img.included)?.dataUrl ?? wizard.referenceImages[0]?.dataUrl);
+  const previewVideo = isUpload && wizard.hasUploadedVideo ? wizard.uploadedFiles[0]?.preview : undefined;
+  const captionText = isUpload ? wizard.uploadContextText : wizard.seedContent;
+  const captionPlaceholder = isUpload
+    ? 'AI will write a caption for your upload — add context above for a better one.'
+    : 'Your brief will appear here as you type…';
 
   return (
     <Box>
@@ -97,15 +104,27 @@ export default function PreviewPanel({ wizard }: { wizard: ContentWizardState })
             width: '100%',
             maxHeight: 220,
             aspectRatio: wizard.postType === 'story' ? '9 / 16' : '1 / 1',
-            background: previewImage ? `url(${previewImage}) center/cover` : '#F3F4F6',
+            background: previewImage ? `url(${previewImage}) center/cover` : previewVideo ? '#111' : '#F3F4F6',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          {!previewImage && (
+          {previewVideo && (
+            <Box
+              component="video"
+              src={previewVideo}
+              controls
+              sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          )}
+          {!previewImage && !previewVideo && (
             <Typography fontSize="12px" color="#9CA3AF" textAlign="center" px={2}>
-              {wizard.includeImages ? 'AI image will appear here' : 'No image for this post'}
+              {isUpload
+                ? 'Your upload will appear here'
+                : wizard.includeImages
+                  ? 'AI image will appear here'
+                  : 'No image for this post'}
             </Typography>
           )}
         </Box>
@@ -131,7 +150,7 @@ export default function PreviewPanel({ wizard }: { wizard: ContentWizardState })
               whiteSpace: 'pre-wrap',
             }}
           >
-            {wizard.seedContent.trim() || 'Your brief will appear here as you type…'}
+            {captionText.trim() || captionPlaceholder}
           </Typography>
         </Box>
       </Box>

@@ -1638,11 +1638,7 @@ const ContentManagerPage = ({
                     isGenerating={janeGenerating}
                   />
                 )}
-                <ContentWizard
-                  onGenerated={handleGenerated}
-                  requireEmailVerification={requireEmailVerification}
-                  onSwitchToUpload={() => setCreateMode('upload')}
-                />
+                <ContentWizard onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
               </>
             )}
 

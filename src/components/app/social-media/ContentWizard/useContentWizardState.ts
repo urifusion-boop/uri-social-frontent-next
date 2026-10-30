@@ -20,6 +20,12 @@ export const PLATFORMS = [
 ];
 
 export type PostType = 'feed' | 'carousel' | 'story';
+export type ContentSource = 'prompt' | 'upload';
+
+export interface UploadedMediaFile {
+  file: File;
+  preview: string;
+}
 
 export const MAX_REFERENCE_IMAGES = 10;
 const IMAGE_MODEL = 'openai/gpt-image-2';
@@ -114,6 +120,191 @@ export function useContentWizardState(requireEmailVerification: (callback?: () =
   // Review & Schedule step instead of the old form's blind redirect-and-
   // refetch (generateContent() already returns them; it was just unused).
   const [generatedDrafts, setGeneratedDrafts] = useState<ContentDraft[] | null>(null);
+
+  // Step 2 content source: write a prompt (AI generates everything) or
+  // upload your own media (AI just writes the caption). Platforms and post
+  // format come from step 1 either way — selectedPlatforms/postType/
+  // numSlides above are shared, not duplicated per source.
+  const [contentSource, setContentSource] = useState<ContentSource>('prompt');
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedMediaFile[]>([]);
+  const uploadObjectUrlsRef = useRef<string[]>([]);
+  useEffect(
+    () => () => {
+      uploadObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    },
+    []
+  );
+  const [uploadContextText, setUploadContextText] = useState('');
+  const [addLogo, setAddLogo] = useState(false);
+  const [logoPositionOverride, setLogoPositionOverride] = useState('');
+  const [uploadManualSlideAssignment, setUploadManualSlideAssignment] = useState(false);
+  const [uploadSlideImageOverrides, setUploadSlideImageOverrides] = useState<Record<number, number>>({});
+
+  const hasUploadedVideo = uploadedFiles.length > 0 && uploadedFiles[0].file.type.startsWith('video/');
+
+  const addUploadFiles = (files: File[]) => {
+    files.forEach((file) => {
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      if (!isImage && !isVideo) {
+        ToastService.showToast('Please upload an image or video file', ToastTypeEnum.Error);
+        return;
+      }
+      if (isImage && file.size > 10 * 1024 * 1024) {
+        ToastService.showToast('Image must be under 10MB', ToastTypeEnum.Error);
+        return;
+      }
+      if (isVideo && file.size > 100 * 1024 * 1024) {
+        ToastService.showToast('Video must be under 100MB', ToastTypeEnum.Error);
+        return;
+      }
+      if (isVideo && uploadedFiles.length > 0) {
+        ToastService.showToast('Only one video can be uploaded at a time', ToastTypeEnum.Error);
+        return;
+      }
+      if (isImage && uploadedFiles.length >= 10) {
+        ToastService.showToast('Maximum 10 images allowed', ToastTypeEnum.Error);
+        return;
+      }
+      if (uploadedFiles.length > 0 && uploadedFiles[0].file.type.startsWith('video/')) {
+        ToastService.showToast('Remove video first to upload images', ToastTypeEnum.Error);
+        return;
+      }
+      const preview = URL.createObjectURL(file);
+      uploadObjectUrlsRef.current.push(preview);
+      setUploadedFiles((prev) => [...prev, { file, preview }]);
+    });
+  };
+
+  const removeUploadFile = (index: number) => {
+    setUploadedFiles((prev) => {
+      const removed = prev[index];
+      if (removed) URL.revokeObjectURL(removed.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+    setUploadSlideImageOverrides({});
+  };
+
+  const moveUploadFile = (index: number, direction: -1 | 1) => {
+    setUploadedFiles((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  const uploadSlideImageIndex = (slideIndex: number): number => {
+    if (slideIndex in uploadSlideImageOverrides) return uploadSlideImageOverrides[slideIndex];
+    return uploadedFiles.length ? slideIndex % uploadedFiles.length : 0;
+  };
+
+  const toggleUploadManualSlideAssignment = () => {
+    setUploadManualSlideAssignment((prev) => {
+      if (prev) setUploadSlideImageOverrides({});
+      return !prev;
+    });
+  };
+
+  const isUploadValid = uploadedFiles.length > 0 && selectedPlatforms.length > 0;
+
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const doGenerateFromUpload = async () => {
+    setLoading(true);
+    try {
+      const mediaBase64Array = await Promise.all(uploadedFiles.map((uf) => fileToBase64(uf.file)));
+      const payload = {
+        uploaded_media: mediaBase64Array,
+        context_text: uploadContextText.trim(),
+        platforms: selectedPlatforms,
+        post_type: postType,
+        add_logo: addLogo,
+        add_cta: false,
+        custom_cta: '',
+        logo_position_override: logoPositionOverride,
+        ...(postType === 'carousel'
+          ? {
+              num_slides: numSlides,
+              slide_image_map: Array.from({ length: numSlides }, (_, i) => uploadSlideImageIndex(i)),
+            }
+          : {}),
+      };
+      const response = await SocialMediaAgentService.uploadUserContent(payload);
+
+      if (response.status) {
+        ToastService.showToast('Caption generated — review it below.', ToastTypeEnum.Success);
+        posthog.capture('content_generated', {
+          platforms: selectedPlatforms,
+          post_type: postType,
+          num_files: uploadedFiles.length,
+          manual_slide_assignment: postType === 'carousel' ? uploadManualSlideAssignment : undefined,
+          ...(postType === 'carousel' ? { num_slides: numSlides } : {}),
+          source: 'content_wizard_upload',
+        });
+        setGeneratedDrafts(response.responseData?.drafts ?? []);
+
+        EventBus.emit(EVENTS.CREDIT_CONSUMED, { amount: 0.5, operation: 'upload_content' });
+        const balance = await BillingService.getCreditBalance();
+        setCreditsRemaining(balance.credits_remaining);
+      } else {
+        if (response.responseCode === 402) {
+          posthog.capture('out_of_credits', { source: 'upload_content' });
+          setOutOfCreditsOpen(true);
+        } else {
+          ToastService.showToast(friendlyGenerationError(response.responseMessage), ToastTypeEnum.Error);
+        }
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { status?: number; data?: { responseMessage?: string } } };
+      if (error?.response?.status === 402) {
+        setOutOfCreditsOpen(true);
+      } else {
+        ToastService.showToast(friendlyGenerationError(error?.response?.data?.responseMessage), ToastTypeEnum.Error);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateFromUpload = async () => {
+    if (isGeneratingRef.current) return;
+    isGeneratingRef.current = true;
+    try {
+      const canProceed = requireEmailVerification();
+      if (!canProceed) return;
+
+      if (uploadedFiles.length === 0) {
+        ToastService.showToast('Please upload at least one image or video', ToastTypeEnum.Error);
+        return;
+      }
+      if (selectedPlatforms.length === 0) {
+        ToastService.showToast('Select at least one platform', ToastTypeEnum.Error);
+        return;
+      }
+
+      try {
+        const canGenerate = await BillingService.canGenerateContent();
+        if (!canGenerate.can_generate || canGenerate.blocked) {
+          setOutOfCreditsOpen(true);
+          return;
+        }
+      } catch (error) {
+        console.error('Credit check failed:', error);
+      }
+
+      await doGenerateFromUpload();
+    } finally {
+      isGeneratingRef.current = false;
+    }
+  };
 
   const showPostTypeSelector = selectedPlatforms.some(
     (p) => p === 'instagram' || p === 'facebook' || p === 'linkedin' || p === 'tiktok'
@@ -466,6 +657,26 @@ export function useContentWizardState(requireEmailVerification: (callback?: () =
     refreshGeneratedDrafts,
     charCount,
     isValid,
+    contentSource,
+    setContentSource,
+    uploadedFiles,
+    hasUploadedVideo,
+    addUploadFiles,
+    removeUploadFile,
+    moveUploadFile,
+    uploadContextText,
+    setUploadContextText,
+    addLogo,
+    setAddLogo,
+    logoPositionOverride,
+    setLogoPositionOverride,
+    uploadManualSlideAssignment,
+    toggleUploadManualSlideAssignment,
+    uploadSlideImageOverrides,
+    setUploadSlideImageOverrides,
+    uploadSlideImageIndex,
+    isUploadValid,
+    handleGenerateFromUpload,
   };
 }
 

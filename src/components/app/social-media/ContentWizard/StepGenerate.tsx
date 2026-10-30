@@ -11,6 +11,7 @@ import { ContentWizardState } from './useContentWizardState';
 const PINK = '#CD1B78';
 
 export default function StepGenerate({ wizard }: { wizard: ContentWizardState }) {
+  const isUpload = wizard.contentSource === 'upload';
   const platformLabel = wizard.selectedPlatforms.join(', ') || 'none selected';
   const formatLabel =
     wizard.postType === 'carousel'
@@ -22,21 +23,30 @@ export default function StepGenerate({ wizard }: { wizard: ContentWizardState })
   return (
     <Box>
       <Typography fontSize="15px" fontWeight={700} color="#111827" mb={2}>
-        Ready to generate
+        {isUpload ? 'Ready to write your caption' : 'Ready to generate'}
       </Typography>
 
       <Box sx={{ border: '1px solid #E5E7EB', borderRadius: '10px', p: 2, mb: 3 }}>
         <Row label="Platforms" value={platformLabel} />
         <Row label="Format" value={formatLabel} />
-        <Row label="AI image" value={wizard.includeImages ? 'Included' : 'Text only'} />
-        <Row label="Reference images" value={String(wizard.referenceImages.length)} />
-        <Row label="Brief length" value={`${wizard.charCount} characters`} last />
+        {isUpload ? (
+          <>
+            <Row label="Files uploaded" value={String(wizard.uploadedFiles.length)} />
+            <Row label="Context" value={wizard.uploadContextText.trim() ? 'Added' : 'None'} last />
+          </>
+        ) : (
+          <>
+            <Row label="AI image" value={wizard.includeImages ? 'Included' : 'Text only'} />
+            <Row label="Reference images" value={String(wizard.referenceImages.length)} />
+            <Row label="Brief length" value={`${wizard.charCount} characters`} last />
+          </>
+        )}
       </Box>
 
       <Button
         variant="contained"
-        onClick={wizard.handleGenerate}
-        disabled={wizard.loading || !wizard.isValid}
+        onClick={isUpload ? wizard.handleGenerateFromUpload : wizard.handleGenerate}
+        disabled={wizard.loading || !(isUpload ? wizard.isUploadValid : wizard.isValid)}
         startIcon={wizard.loading ? <CircularProgress size={16} color="inherit" /> : null}
         sx={{
           background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
@@ -48,7 +58,7 @@ export default function StepGenerate({ wizard }: { wizard: ContentWizardState })
           '&:hover': { background: `linear-gradient(135deg, #A01560 0%, ${PINK} 100%)` },
         }}
       >
-        {wizard.loading ? 'Generating...' : 'Generate Content'}
+        {wizard.loading ? 'Generating...' : isUpload ? 'Generate Caption' : 'Generate Content'}
       </Button>
 
       <OutOfCreditsModal
