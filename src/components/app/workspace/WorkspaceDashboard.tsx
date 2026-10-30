@@ -1324,31 +1324,15 @@ const ContentManagerPage = ({
     router.push('/workspace/?tab=connections');
   };
 
+  // Drafts / Saved / Scheduled / Calendar dropped from this visible row —
+  // Content Library's own filter tabs (All/Drafts/Needs Review/Scheduled/
+  // Published/Archived) already cover the exact same states in one table,
+  // and Calendar is already reachable from the Content Studio sidebar. The
+  // underlying 'drafts' tab view is untouched and still real — programmatic
+  // redirects (e.g. "Save to Drafts" from the video flow) still land on it
+  // correctly, it just no longer has its own pill in this row.
   const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
     { key: 'create', label: 'Create', tooltip: 'Generate new AI-powered posts for your social platforms' },
-    {
-      key: 'drafts',
-      label: 'Drafts',
-      count: drafts.length,
-      tooltip: 'Review and edit AI-generated posts awaiting your approval',
-    },
-    {
-      key: 'saved',
-      label: 'Saved',
-      count: savedDrafts.length,
-      tooltip: "Posts you've saved for later — ready to publish when you are",
-    },
-    {
-      key: 'scheduled',
-      label: 'Scheduled',
-      count: scheduled.length,
-      tooltip: 'Posts approved and queued to go live at a specific time',
-    },
-    {
-      key: 'calendar-v2',
-      label: 'Calendar',
-      tooltip: 'A 30-day content plan with ad-opportunity detection and creative-diversity validation',
-    },
     {
       key: 'library',
       label: 'Library',
@@ -10152,6 +10136,43 @@ const SettingsPage = ({
         </div>
       </div>
 
+      {/* Brand Playbook — moved here from the Content Studio sidebar: it sets
+          voice, visual style and content guidelines for the AI once, not a
+          content-creation task you'd reach for while writing a post. */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <I n="book" s={16} c="#C2185B" />
+          Brand Playbook
+        </h3>
+        <p style={{ fontSize: 12, color: '#999', margin: '0 0 14px' }}>
+          Set your brand voice, visual style, and content guidelines for the AI.
+        </p>
+        <button
+          onClick={() => onNavChange('playbook')}
+          style={{
+            width: '100%',
+            padding: '12px 14px',
+            borderRadius: 9,
+            border: '1px solid #e5e3df',
+            background: '#fff',
+            cursor: 'pointer',
+            fontFamily: 'var(--wf)',
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#333',
+            textAlign: 'left',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>Open Brand Playbook</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M6 12L10 8L6 4" stroke="#999" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
       {/* V3 Enhanced Prompts */}
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -10802,13 +10823,6 @@ export default function WorkspaceDashboard() {
       // question) — a real, working feature needs SOME place to live.
       active: nav === 'blog',
       onClick: () => goTo('blog'),
-    },
-    {
-      id: 'playbook',
-      icon: 'book',
-      label: 'Brand Playbook',
-      active: nav === 'playbook',
-      onClick: () => goTo('playbook'),
     },
     {
       id: 'ai-tools',
