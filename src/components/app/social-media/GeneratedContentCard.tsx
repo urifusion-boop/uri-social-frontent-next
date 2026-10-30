@@ -37,17 +37,25 @@ const PLATFORM_ASPECT: Record<string, string> = {
   instagram: '4 / 5',
 };
 
+// Carousel images live one level down, per slide — draft.image_url is never
+// set for a carousel draft, so reading only that (as an earlier version of
+// this component did) silently showed "No image" on every real carousel.
+function firstSlideImage(draft: ContentDraft): string | undefined {
+  return draft.slides?.find((s) => s.image_url)?.image_url;
+}
+
 // Matches DraftCard's own aspect-ratio resolution exactly, plus a readable
 // "1:1 Post (1080 × 1080)" label built from the same real fields.
 function mediaMeta(draft: ContentDraft): { aspect: string; label: string } {
-  const specs = draft.image_specs;
+  const isCarousel = draft.post_type === 'carousel';
+  const specs = isCarousel ? draft.slides?.find((s) => s.image_specs)?.image_specs : draft.image_specs;
   const isStory = draft.post_type === 'story';
   const isVideo = !!draft.video_url;
   const w = specs?.width;
   const h = specs?.height;
   const aspect = w && h ? `${w} / ${h}` : isStory ? '9 / 16' : (PLATFORM_ASPECT[draft.platform] ?? '1 / 1');
   const ratioLabel = w && h ? `${simplifyRatio(w, h)}` : isStory ? '9:16' : '1:1';
-  const kind = isVideo ? 'Video' : draft.post_type === 'carousel' ? 'Carousel' : 'Post';
+  const kind = isVideo ? 'Video' : isCarousel ? `Carousel · ${draft.slides?.length ?? '?'} slides` : 'Post';
   const dims = w && h ? ` (${w} × ${h})` : '';
   return { aspect, label: `${ratioLabel} ${kind}${dims}` };
 }
@@ -82,6 +90,8 @@ export default function GeneratedContentCard({
   const platformKey = (draft.platform || '').toLowerCase();
   const meta = PLATFORM_META[platformKey];
   const { aspect, label } = mediaMeta(draft);
+  const isCarousel = draft.post_type === 'carousel';
+  const previewImage = draft.image_url ?? firstSlideImage(draft);
   const isConnected =
     connectedPlatforms === null || connectedPlatforms.map((p) => p.toLowerCase()).includes(platformKey);
   // TikTok image/carousel posts need DraftCard's own "Post to TikTok" consent
@@ -183,7 +193,8 @@ export default function GeneratedContentCard({
         sx={{
           width: '100%',
           aspectRatio: aspect,
-          background: draft.image_url ? `url(${draft.image_url}) center/cover` : draft.video_url ? '#111' : '#F3F4F6',
+          position: 'relative',
+          background: previewImage ? `url(${previewImage}) center/cover` : draft.video_url ? '#111' : '#F3F4F6',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -197,10 +208,28 @@ export default function GeneratedContentCard({
             sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         )}
-        {!draft.image_url && !draft.video_url && (
+        {!previewImage && !draft.video_url && (
           <Typography fontSize="12px" color="#9CA3AF">
             No image
           </Typography>
+        )}
+        {isCarousel && (draft.slides?.length ?? 0) > 1 && (
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 8,
+              right: 8,
+              background: 'rgba(17,24,39,.65)',
+              color: '#fff',
+              fontSize: '10.5px',
+              fontWeight: 700,
+              borderRadius: '999px',
+              px: 1,
+              py: 0.25,
+            }}
+          >
+            1/{draft.slides?.length} slides
+          </Box>
         )}
       </Box>
 
