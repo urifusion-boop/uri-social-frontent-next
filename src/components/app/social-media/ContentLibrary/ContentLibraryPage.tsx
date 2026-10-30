@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
+  Button,
   Checkbox,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -111,6 +113,14 @@ export default function ContentLibraryPage() {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
+  // Same gate DraftCard applies before publishing a single draft — fetched
+  // once here too, so bulk actions can't silently skip it.
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null);
+  const [bulkScheduleOpen, setBulkScheduleOpen] = useState(false);
+  const [bulkScheduleAt, setBulkScheduleAt] = useState('');
+  const [bulkDenyOpen, setBulkDenyOpen] = useState(false);
+  const [bulkDenyReason, setBulkDenyReason] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -137,6 +147,9 @@ export default function ContentLibraryPage() {
 
   useEffect(() => {
     load();
+    SocialMediaAgentService.getConnections()
+      .then((res) => setConnectedPlatforms(res.responseData?.connected_platforms ?? []))
+      .catch(() => setConnectedPlatforms([]));
   }, []);
 
   const counts = useMemo(() => {
@@ -185,6 +198,123 @@ export default function ContentLibraryPage() {
       load();
     } catch {
       ToastService.showToast('Could not delete — try again.', ToastTypeEnum.Error);
+    }
+  };
+
+  const selectedItems = items.filter((d) => selected.has(d.id ?? d.draft_id ?? ''));
+
+  // Same connected-platform gate DraftCard applies per draft — here applied
+  // once across the whole selection so a bulk action can't silently publish
+  // to a platform the account isn't actually linked to.
+  const splitByConnection = () => {
+    if (!connectedPlatforms) return { eligible: selectedItems, blocked: [] as ContentDraft[] };
+    const eligible: ContentDraft[] = [];
+    const blocked: ContentDraft[] = [];
+    for (const d of selectedItems) {
+      const p = (d.platform || '').toLowerCase();
+      (connectedPlatforms.map((c) => c.toLowerCase()).includes(p) ? eligible : blocked).push(d);
+    }
+    return { eligible, blocked };
+  };
+
+  const reportApprove = (res: Awaited<ReturnType<typeof SocialMediaAgentService.approveContent>>, okVerb: string) => {
+    const approved = res.responseData?.approved_drafts ?? [];
+    const errs = res.responseData?.errors ?? [];
+    if (approved.length) ToastService.showToast(`${approved.length} ${okVerb}.`, ToastTypeEnum.Success);
+    if (errs.length) ToastService.showToast(`${errs.length} failed: ${errs[0].error}`, ToastTypeEnum.Error);
+  };
+
+  const handleBulkPublishNow = async () => {
+    const { eligible, blocked } = splitByConnection();
+    // TikTok image/carousel posts require the individual "Post to TikTok"
+    // consent screen DraftCard opens per draft — can't be skipped in bulk,
+    // so those are excluded here rather than silently bypassing it.
+    const tiktokGated = eligible.filter((d) => d.platform?.toLowerCase() === 'tiktok' && !d.video_url);
+    const ready = eligible.filter((d) => !tiktokGated.includes(d));
+    if (blocked.length)
+      ToastService.showToast(`${blocked.length} skipped — platform not connected.`, ToastTypeEnum.Warning);
+    if (tiktokGated.length)
+      ToastService.showToast(
+        `${tiktokGated.length} TikTok post(s) skipped — publish those individually (consent screen).`,
+        ToastTypeEnum.Warning
+      );
+    if (ready.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const res = await SocialMediaAgentService.approveContent({
+        draft_ids: ready.map((d) => d.draft_id ?? d.id ?? ''),
+        schedule_option: 'immediate',
+      });
+      reportApprove(res, 'published');
+      setSelected(new Set());
+      load();
+    } catch {
+      ToastService.showToast('Publish failed — try again.', ToastTypeEnum.Error);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkSchedule = async () => {
+    if (!bulkScheduleAt) return;
+    const { eligible, blocked } = splitByConnection();
+    if (blocked.length)
+      ToastService.showToast(`${blocked.length} skipped — platform not connected.`, ToastTypeEnum.Warning);
+    if (eligible.length === 0) {
+      setBulkScheduleOpen(false);
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const res = await SocialMediaAgentService.approveContent({
+        draft_ids: eligible.map((d) => d.draft_id ?? d.id ?? ''),
+        schedule_option: 'schedule',
+        scheduled_datetime: new Date(bulkScheduleAt).toISOString(),
+      });
+      reportApprove(res, 'scheduled');
+      setSelected(new Set());
+      setBulkScheduleOpen(false);
+      setBulkScheduleAt('');
+      load();
+    } catch {
+      ToastService.showToast('Scheduling failed — try again.', ToastTypeEnum.Error);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDeny = async () => {
+    if (!bulkDenyReason.trim()) return;
+    setBulkBusy(true);
+    try {
+      await SocialMediaAgentService.denyContent({
+        draft_ids: selectedItems.map((d) => d.draft_id ?? d.id ?? ''),
+        denial_reason: bulkDenyReason.trim(),
+      });
+      ToastService.showToast(`${selectedItems.length} denied.`, ToastTypeEnum.Success);
+      setSelected(new Set());
+      setBulkDenyOpen(false);
+      setBulkDenyReason('');
+      load();
+    } catch {
+      ToastService.showToast('Deny failed — try again.', ToastTypeEnum.Error);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkBusy(true);
+    try {
+      await Promise.all(selectedItems.map((d) => SocialMediaAgentService.deleteDraft(d.draft_id ?? d.id ?? '')));
+      ToastService.showToast(`${selectedItems.length} deleted.`, ToastTypeEnum.Success);
+      setSelected(new Set());
+      load();
+    } catch {
+      ToastService.showToast('Some deletes failed — refreshing to show what remains.', ToastTypeEnum.Error);
+      load();
+    } finally {
+      setBulkBusy(false);
     }
   };
 
@@ -261,6 +391,37 @@ export default function ContentLibraryPage() {
           ))}
         </Box>
       </Box>
+
+      {selected.size > 0 && (
+        <Box
+          display="flex"
+          alignItems="center"
+          gap={1.5}
+          flexWrap="wrap"
+          sx={{ background: '#FDF2F8', border: `1px solid ${PINK}`, borderRadius: '10px', px: 1.5, py: 1, mb: 2 }}
+        >
+          <Typography fontSize="12.5px" fontWeight={700} color={PINK}>
+            {selected.size} selected
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, ml: 'auto', flexWrap: 'wrap' }}>
+            <BulkBtn onClick={handleBulkPublishNow} disabled={bulkBusy}>
+              Publish Now
+            </BulkBtn>
+            <BulkBtn onClick={() => setBulkScheduleOpen(true)} disabled={bulkBusy}>
+              Schedule
+            </BulkBtn>
+            <BulkBtn onClick={() => setBulkDenyOpen(true)} disabled={bulkBusy}>
+              Deny
+            </BulkBtn>
+            <BulkBtn onClick={handleBulkDelete} disabled={bulkBusy} danger>
+              Delete
+            </BulkBtn>
+            <BulkBtn onClick={() => setSelected(new Set())} disabled={bulkBusy} plain>
+              Clear
+            </BulkBtn>
+          </Box>
+        </Box>
+      )}
 
       <Box display="flex" gap={1} flexWrap="wrap" mb={2} alignItems="center">
         <Select
@@ -441,7 +602,19 @@ export default function ContentLibraryPage() {
               color: '#6B7280',
             }}
           >
-            <Checkbox size="small" disabled sx={{ p: 0 }} />
+            <Checkbox
+              size="small"
+              checked={filtered.length > 0 && filtered.every((d) => selected.has(d.id ?? d.draft_id ?? ''))}
+              indeterminate={
+                filtered.some((d) => selected.has(d.id ?? d.draft_id ?? '')) &&
+                !filtered.every((d) => selected.has(d.id ?? d.draft_id ?? ''))
+              }
+              onChange={(e) => {
+                const ids = filtered.map((d) => d.id ?? d.draft_id ?? '');
+                setSelected(e.target.checked ? new Set(ids) : new Set());
+              }}
+              sx={{ p: 0, '&.Mui-checked': { color: PINK }, '&.MuiCheckbox-indeterminate': { color: PINK } }}
+            />
             <span>Content</span>
             <span>Platform</span>
             <span>Format</span>
@@ -589,6 +762,102 @@ export default function ContentLibraryPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={bulkScheduleOpen} onClose={() => setBulkScheduleOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: '15px', fontWeight: 700 }}>Schedule {selected.size} post(s)</DialogTitle>
+        <DialogContent>
+          <TextField
+            type="datetime-local"
+            fullWidth
+            size="small"
+            value={bulkScheduleAt}
+            onChange={(e) => setBulkScheduleAt(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkScheduleOpen(false)} sx={{ textTransform: 'none', color: '#6B7280' }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!bulkScheduleAt || bulkBusy}
+            onClick={handleBulkSchedule}
+            sx={{ textTransform: 'none', background: PINK, '&:hover': { background: '#A01560' } }}
+          >
+            Confirm Schedule
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={bulkDenyOpen} onClose={() => setBulkDenyOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: '15px', fontWeight: 700 }}>Deny {selected.size} post(s)</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            size="small"
+            placeholder="Reason for denial"
+            value={bulkDenyReason}
+            onChange={(e) => setBulkDenyReason(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkDenyOpen(false)} sx={{ textTransform: 'none', color: '#6B7280' }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={!bulkDenyReason.trim() || bulkBusy}
+            onClick={handleBulkDeny}
+            sx={{ textTransform: 'none' }}
+          >
+            Confirm Deny
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
+
+function BulkBtn({
+  children,
+  onClick,
+  disabled,
+  danger,
+  plain,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  plain?: boolean;
+}) {
+  return (
+    <Box
+      component="button"
+      onClick={onClick}
+      disabled={disabled}
+      sx={{
+        border: '1px solid',
+        borderColor: danger ? '#FCA5A5' : plain ? '#E5E7EB' : PINK,
+        background: danger ? '#fff' : plain ? '#fff' : PINK,
+        color: danger ? '#DC2626' : plain ? '#6B7280' : '#fff',
+        borderRadius: '8px',
+        px: 1.25,
+        py: 0.5,
+        fontSize: '12px',
+        fontWeight: 700,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        fontFamily: 'inherit',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
     </Box>
   );
 }
