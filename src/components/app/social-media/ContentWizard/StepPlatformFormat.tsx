@@ -56,7 +56,7 @@ function Tile({
     <Box
       onClick={disabled ? undefined : onClick}
       sx={{
-        width: 104,
+        width: '100%',
         display: 'flex',
         flexDirection: 'column',
         gap: 0.5,
@@ -132,7 +132,7 @@ export default function StepPlatformFormat({ wizard }: { wizard: ContentWizardSt
       <Typography fontSize="14px" color="#374151" mb={1.25} fontWeight={600}>
         Choose Platform(s)
       </Typography>
-      <Box display="flex" gap={1.25} flexWrap="wrap" mb={3}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 1.25, mb: 3 }}>
         {PLATFORMS.map(({ key, label }) => (
           <Tile
             key={key}
@@ -150,7 +150,7 @@ export default function StepPlatformFormat({ wizard }: { wizard: ContentWizardSt
           <Typography fontSize="14px" color="#374151" mb={1.25} fontWeight={600}>
             Choose Format
           </Typography>
-          <Box display="flex" gap={1.25} flexWrap="wrap" mb={1.5}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 1.25, mb: 1.5 }}>
             {FORMAT_TILES.map(({ key, label, icon, bg, subtitle }) => {
               // "Video" isn't a generation format here — it hands off to the
               // real, full Video tab (storyboard/produce/polish), which

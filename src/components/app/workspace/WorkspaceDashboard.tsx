@@ -804,6 +804,32 @@ type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calend
 type PendingVariants = { variants: PlanVariant[]; variantGroupId: string };
 type VideoPolishHandoff = { file: File; returnThreadId: string; pendingVariants?: PendingVariants };
 
+// The dedicated-page tabs (Content Library, Content Calendar) replace the
+// classic header + tab-scroll row entirely, which otherwise would have been
+// the only way back to the other Content Studio tabs (Drafts/Saved/
+// Scheduled/Auto/Video) — without this link those pages were a dead end,
+// especially on mobile where there's no sidebar to fall back on.
+const BackToContentStudioLink = ({ onClick }: { onClick: () => void }) => (
+  <button
+    onClick={onClick}
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 4,
+      border: 'none',
+      background: 'none',
+      padding: 0,
+      marginBottom: 4,
+      fontSize: 11.5,
+      fontWeight: 600,
+      color: '#9CA3AF',
+      cursor: 'pointer',
+    }}
+  >
+    ← Content Studio
+  </button>
+);
+
 const ContentManagerPage = ({
   onJane,
   isMobile = false,
@@ -1324,6 +1350,11 @@ const ContentManagerPage = ({
       tooltip: 'A 30-day content plan with ad-opportunity detection and creative-diversity validation',
     },
     {
+      key: 'library',
+      label: 'Library',
+      tooltip: 'Manage, approve, schedule and track all your content in one table',
+    },
+    {
       key: 'auto',
       label: 'Auto',
       tooltip: 'Configure automatic daily or weekly post generation using your brand profile',
@@ -1384,6 +1415,7 @@ const ContentManagerPage = ({
           }}
         >
           <div>
+            <BackToContentStudioLink onClick={() => setActiveTab('create')} />
             <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
               Content Library
             </h2>
@@ -1416,6 +1448,7 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
+          <BackToContentStudioLink onClick={() => setActiveTab('create')} />
           <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
             Content Calendar
           </h2>

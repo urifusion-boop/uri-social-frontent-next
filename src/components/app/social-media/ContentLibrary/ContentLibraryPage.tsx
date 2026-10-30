@@ -320,52 +320,70 @@ export default function ContentLibraryPage() {
 
   return (
     <Box>
-      <Box display="flex" gap={0.5} sx={{ borderBottom: '1px solid #E5E7EB', mb: 2 }}>
-        {TABS.map((t) => {
-          const active = tab === t.key;
-          return (
-            <Box
-              key={t.key}
-              component="button"
-              onClick={() => setTab(t.key)}
-              sx={{
-                border: 'none',
-                background: 'none',
-                cursor: 'pointer',
-                px: 1.5,
-                py: 1,
-                fontSize: '13px',
-                fontWeight: active ? 700 : 500,
-                fontFamily: 'inherit',
-                color: active ? PINK : '#6B7280',
-                borderBottom: active ? `2px solid ${PINK}` : '2px solid transparent',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {t.label}
-              {counts[t.key] > 0 && (
-                <Box
-                  component="span"
-                  sx={{
-                    background: active ? PINK : '#E5E7EB',
-                    color: active ? '#fff' : '#6B7280',
-                    borderRadius: '10px',
-                    fontSize: '10.5px',
-                    fontWeight: 700,
-                    px: 0.75,
-                    lineHeight: '16px',
-                  }}
-                >
-                  {counts[t.key]}
-                </Box>
-              )}
-            </Box>
-          );
-        })}
-        <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.5, pb: 1 }}>
+      <Box
+        display="flex"
+        flexDirection={{ xs: 'column', sm: 'row' }}
+        gap={{ xs: 1, sm: 0.5 }}
+        sx={{ borderBottom: '1px solid #E5E7EB', mb: 2 }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 0.5,
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'none',
+            '&::-webkit-scrollbar': { display: 'none' },
+          }}
+        >
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <Box
+                key={t.key}
+                component="button"
+                onClick={() => setTab(t.key)}
+                sx={{
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  px: 1.5,
+                  py: 1,
+                  fontSize: '13px',
+                  fontWeight: active ? 700 : 500,
+                  fontFamily: 'inherit',
+                  color: active ? PINK : '#6B7280',
+                  borderBottom: active ? `2px solid ${PINK}` : '2px solid transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {t.label}
+                {counts[t.key] > 0 && (
+                  <Box
+                    component="span"
+                    sx={{
+                      background: active ? PINK : '#E5E7EB',
+                      color: active ? '#fff' : '#6B7280',
+                      borderRadius: '10px',
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                      px: 0.75,
+                      lineHeight: '16px',
+                    }}
+                  >
+                    {counts[t.key]}
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
+        </Box>
+        <Box
+          sx={{ ml: { xs: 0, sm: 'auto' }, display: 'flex', alignItems: 'center', gap: 0.5, pb: { xs: 0.5, sm: 1 } }}
+        >
           {(['list', 'calendar', 'grid'] as const).map((v) => (
             <Box
               key={v}
@@ -587,136 +605,143 @@ export default function ContentLibraryPage() {
         />
       ) : (
         <Box sx={{ border: '1px solid #E5E7EB', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: '28px 1fr 110px 110px 120px 130px 40px',
-              gap: 1,
-              alignItems: 'center',
-              px: 1.5,
-              py: 1,
-              borderBottom: '1px solid #E5E7EB',
-              background: '#FAFAFA',
-              fontSize: '11.5px',
-              fontWeight: 700,
-              color: '#6B7280',
-            }}
-          >
-            <Checkbox
-              size="small"
-              checked={filtered.length > 0 && filtered.every((d) => selected.has(d.id ?? d.draft_id ?? ''))}
-              indeterminate={
-                filtered.some((d) => selected.has(d.id ?? d.draft_id ?? '')) &&
-                !filtered.every((d) => selected.has(d.id ?? d.draft_id ?? ''))
-              }
-              onChange={(e) => {
-                const ids = filtered.map((d) => d.id ?? d.draft_id ?? '');
-                setSelected(e.target.checked ? new Set(ids) : new Set());
-              }}
-              sx={{ p: 0, '&.Mui-checked': { color: PINK }, '&.MuiCheckbox-indeterminate': { color: PINK } }}
-            />
-            <span>Content</span>
-            <span>Platform</span>
-            <span>Format</span>
-            <span>Status</span>
-            <span>Date</span>
-            <span />
-          </Box>
-          {filtered.map((d) => {
-            const id = d.id ?? d.draft_id ?? '';
-            const cat = categorize(d);
-            const badge = STATUS_BADGE[cat];
-            const { title, excerpt } = titleAndExcerpt(d.content || '');
-            const platformKey = (d.platform || '').toLowerCase();
-            const pIcon = PLATFORM_ICON[platformKey];
-            const formatKey = d.post_type || 'feed';
-            const dt = dateFor(d);
-
-            return (
+          {/* Fixed-width columns don't reflow on a phone — scroll horizontally
+              within this card instead of crushing them or breaking the page
+              layout. */}
+          <Box sx={{ overflowX: 'auto' }}>
+            <Box sx={{ minWidth: 720 }}>
               <Box
-                key={id}
                 sx={{
                   display: 'grid',
                   gridTemplateColumns: '28px 1fr 110px 110px 120px 130px 40px',
                   gap: 1,
                   alignItems: 'center',
                   px: 1.5,
-                  py: 1.25,
-                  borderBottom: '1px solid #F3F4F6',
-                  '&:hover': { background: '#FAFAFA' },
-                  cursor: 'pointer',
+                  py: 1,
+                  borderBottom: '1px solid #E5E7EB',
+                  background: '#FAFAFA',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  color: '#6B7280',
                 }}
-                onClick={() => setEditingDraft(d)}
               >
                 <Checkbox
                   size="small"
-                  checked={selected.has(id)}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={() => toggleSelected(id)}
-                  sx={{ p: 0, '&.Mui-checked': { color: PINK } }}
-                />
-                <Box display="flex" alignItems="center" gap={1} sx={{ minWidth: 0 }}>
-                  <Box
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '8px',
-                      flexShrink: 0,
-                      background: d.image_url ? `url(${d.image_url}) center/cover` : '#F3F4F6',
-                    }}
-                  />
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography fontSize="13px" fontWeight={600} color="#111827" noWrap>
-                      {title}
-                    </Typography>
-                    <Typography fontSize="11.5px" color="#9CA3AF" noWrap>
-                      {excerpt}
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box display="flex" alignItems="center" gap={0.75}>
-                  {pIcon?.icon}
-                  <Typography fontSize="12px" color="#374151" sx={{ textTransform: 'capitalize' }}>
-                    {platformKey || '—'}
-                  </Typography>
-                </Box>
-                <Typography fontSize="12px" color="#374151">
-                  {FORMAT_LABEL[formatKey] ?? formatKey}
-                </Typography>
-                <Box>
-                  <Box
-                    component="span"
-                    sx={{
-                      background: badge.bg,
-                      color: badge.color,
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      px: 1,
-                      py: 0.4,
-                    }}
-                  >
-                    {badge.label}
-                  </Box>
-                </Box>
-                <Typography fontSize="12px" color="#6B7280">
-                  {dt
-                    ? new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                    : '—'}
-                </Typography>
-                <IconButton
-                  size="small"
-                  aria-label="More actions"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuFor({ anchor: e.currentTarget, id });
+                  checked={filtered.length > 0 && filtered.every((d) => selected.has(d.id ?? d.draft_id ?? ''))}
+                  indeterminate={
+                    filtered.some((d) => selected.has(d.id ?? d.draft_id ?? '')) &&
+                    !filtered.every((d) => selected.has(d.id ?? d.draft_id ?? ''))
+                  }
+                  onChange={(e) => {
+                    const ids = filtered.map((d) => d.id ?? d.draft_id ?? '');
+                    setSelected(e.target.checked ? new Set(ids) : new Set());
                   }}
-                >
-                  <MdMoreVert size={16} />
-                </IconButton>
+                  sx={{ p: 0, '&.Mui-checked': { color: PINK }, '&.MuiCheckbox-indeterminate': { color: PINK } }}
+                />
+                <span>Content</span>
+                <span>Platform</span>
+                <span>Format</span>
+                <span>Status</span>
+                <span>Date</span>
+                <span />
               </Box>
-            );
-          })}
+              {filtered.map((d) => {
+                const id = d.id ?? d.draft_id ?? '';
+                const cat = categorize(d);
+                const badge = STATUS_BADGE[cat];
+                const { title, excerpt } = titleAndExcerpt(d.content || '');
+                const platformKey = (d.platform || '').toLowerCase();
+                const pIcon = PLATFORM_ICON[platformKey];
+                const formatKey = d.post_type || 'feed';
+                const dt = dateFor(d);
+
+                return (
+                  <Box
+                    key={id}
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: '28px 1fr 110px 110px 120px 130px 40px',
+                      gap: 1,
+                      alignItems: 'center',
+                      px: 1.5,
+                      py: 1.25,
+                      borderBottom: '1px solid #F3F4F6',
+                      '&:hover': { background: '#FAFAFA' },
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => setEditingDraft(d)}
+                  >
+                    <Checkbox
+                      size="small"
+                      checked={selected.has(id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleSelected(id)}
+                      sx={{ p: 0, '&.Mui-checked': { color: PINK } }}
+                    />
+                    <Box display="flex" alignItems="center" gap={1} sx={{ minWidth: 0 }}>
+                      <Box
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '8px',
+                          flexShrink: 0,
+                          background: d.image_url ? `url(${d.image_url}) center/cover` : '#F3F4F6',
+                        }}
+                      />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography fontSize="13px" fontWeight={600} color="#111827" noWrap>
+                          {title}
+                        </Typography>
+                        <Typography fontSize="11.5px" color="#9CA3AF" noWrap>
+                          {excerpt}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box display="flex" alignItems="center" gap={0.75}>
+                      {pIcon?.icon}
+                      <Typography fontSize="12px" color="#374151" sx={{ textTransform: 'capitalize' }}>
+                        {platformKey || '—'}
+                      </Typography>
+                    </Box>
+                    <Typography fontSize="12px" color="#374151">
+                      {FORMAT_LABEL[formatKey] ?? formatKey}
+                    </Typography>
+                    <Box>
+                      <Box
+                        component="span"
+                        sx={{
+                          background: badge.bg,
+                          color: badge.color,
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          px: 1,
+                          py: 0.4,
+                        }}
+                      >
+                        {badge.label}
+                      </Box>
+                    </Box>
+                    <Typography fontSize="12px" color="#6B7280">
+                      {dt
+                        ? new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : '—'}
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      aria-label="More actions"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuFor({ anchor: e.currentTarget, id });
+                      }}
+                    >
+                      <MdMoreVert size={16} />
+                    </IconButton>
+                  </Box>
+                );
+              })}
+            </Box>
+          </Box>
         </Box>
       )}
 

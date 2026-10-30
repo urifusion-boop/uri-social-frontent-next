@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Box, Button } from '@mui/material';
+import { Box, Button, Typography } from '@mui/material';
 import { MdArrowBack, MdArrowForward } from 'react-icons/md';
 import { useContentWizardState } from './useContentWizardState';
 import StepPlatformFormat from './StepPlatformFormat';
@@ -41,7 +41,45 @@ export default function ContentWizard({ onGenerated, requireEmailVerification, o
 
   return (
     <Box sx={{ maxWidth: 1100, width: '100%' }}>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2.5} flexWrap="wrap" gap={1}>
+      {/* Compact header — phones only: a progress bar instead of 4 pills,
+          which have nowhere to go on a ~340px-wide screen without wrapping
+          into a ragged two-line mess. */}
+      <Box sx={{ display: { xs: 'block', sm: 'none' }, mb: 2.5 }}>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+          <Typography fontSize="13px" fontWeight={700} color="#111827">
+            Step {step + 1} of {STEPS.length} · {STEPS[step].label}
+          </Typography>
+          <Button
+            size="small"
+            onClick={onExit}
+            sx={{ textTransform: 'none', fontSize: '11.5px', color: '#9CA3AF', fontWeight: 600, minWidth: 0, px: 0 }}
+          >
+            Classic form
+          </Button>
+        </Box>
+        <Box sx={{ height: 5, borderRadius: 999, background: '#E5E7EB', overflow: 'hidden' }}>
+          <Box
+            sx={{
+              height: '100%',
+              width: `${((step + 1) / STEPS.length) * 100}%`,
+              background: PINK,
+              transition: 'width .2s',
+            }}
+          />
+        </Box>
+      </Box>
+
+      {/* Full header — tablet and up: the step pills. */}
+      <Box
+        sx={{
+          display: { xs: 'none', sm: 'flex' },
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mb: 2.5,
+          flexWrap: 'wrap',
+          gap: 1,
+        }}
+      >
         <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
           {STEPS.map((s, i) => {
             const state: StepState = i === step ? 'current' : i < step ? 'done' : 'todo';
@@ -62,8 +100,8 @@ export default function ContentWizard({ onGenerated, requireEmailVerification, o
         </Button>
       </Box>
 
-      <Box display="flex" gap={3} alignItems="flex-start" flexWrap="wrap">
-        <Box sx={{ flex: '1 1 480px', minWidth: 0 }}>
+      <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={3} alignItems="flex-start">
+        <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 480px' }, width: '100%', minWidth: 0 }}>
           {step === 0 && <StepPlatformFormat wizard={wizard} />}
           {step === 1 && <StepBrief wizard={wizard} />}
           {step === 2 && <StepGenerate wizard={wizard} />}
@@ -100,7 +138,14 @@ export default function ContentWizard({ onGenerated, requireEmailVerification, o
         </Box>
 
         {step < 3 && (
-          <Box sx={{ flex: '0 0 300px', position: { md: 'sticky' }, top: 16 }}>
+          <Box
+            sx={{
+              flex: { xs: '1 1 100%', md: '0 0 300px' },
+              width: { xs: '100%', md: 300 },
+              position: { md: 'sticky' },
+              top: 16,
+            }}
+          >
             <PreviewPanel wizard={wizard} />
           </Box>
         )}
