@@ -24,16 +24,10 @@ type StepState = 'current' | 'done' | 'todo';
 interface ContentWizardProps {
   onGenerated: () => void;
   requireEmailVerification: (callback?: () => void) => boolean;
-  onExit: () => void;
   onSwitchToUpload: () => void;
 }
 
-export default function ContentWizard({
-  onGenerated,
-  requireEmailVerification,
-  onExit,
-  onSwitchToUpload,
-}: ContentWizardProps) {
+export default function ContentWizard({ onGenerated, requireEmailVerification, onSwitchToUpload }: ContentWizardProps) {
   const [step, setStep] = useState(0);
   const wizard = useContentWizardState(requireEmailVerification);
 
@@ -51,18 +45,9 @@ export default function ContentWizard({
           which have nowhere to go on a ~340px-wide screen without wrapping
           into a ragged two-line mess. */}
       <Box sx={{ display: { xs: 'block', sm: 'none' }, mb: 2.5 }}>
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-          <Typography fontSize="13px" fontWeight={700} color="#111827">
-            Step {step + 1} of {STEPS.length} · {STEPS[step].label}
-          </Typography>
-          <Button
-            size="small"
-            onClick={onExit}
-            sx={{ textTransform: 'none', fontSize: '11.5px', color: '#9CA3AF', fontWeight: 600, minWidth: 0, px: 0 }}
-          >
-            Classic form
-          </Button>
-        </Box>
+        <Typography fontSize="13px" fontWeight={700} color="#111827" mb={1}>
+          Step {step + 1} of {STEPS.length} · {STEPS[step].label}
+        </Typography>
         <Box sx={{ height: 5, borderRadius: 999, background: '#E5E7EB', overflow: 'hidden' }}>
           <Box
             sx={{
@@ -85,30 +70,20 @@ export default function ContentWizard({
               sx={{
                 display: { xs: 'none', sm: 'flex' },
                 alignItems: 'center',
-                justifyContent: 'space-between',
                 mb: 2.5,
                 flexWrap: 'wrap',
                 gap: 1,
               }}
             >
-              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-                {STEPS.map((s, i) => {
-                  const state: StepState = i === step ? 'current' : i < step ? 'done' : 'todo';
-                  return (
-                    <Box key={s.label} display="flex" alignItems="center" gap={1}>
-                      {i > 0 && <Box sx={{ width: 16, height: 1, background: i <= step ? PINK : '#E5E7EB' }} />}
-                      <StepPill label={s.label} index={i} state={state} onClick={() => i < step && setStep(i)} />
-                    </Box>
-                  );
-                })}
-              </Box>
-              <Button
-                size="small"
-                onClick={onExit}
-                sx={{ textTransform: 'none', fontSize: '12.5px', color: '#9CA3AF', fontWeight: 600 }}
-              >
-                Switch to classic form
-              </Button>
+              {STEPS.map((s, i) => {
+                const state: StepState = i === step ? 'current' : i < step ? 'done' : 'todo';
+                return (
+                  <Box key={s.label} display="flex" alignItems="center" gap={1}>
+                    {i > 0 && <Box sx={{ width: 16, height: 1, background: i <= step ? PINK : '#E5E7EB' }} />}
+                    <StepPill label={s.label} index={i} state={state} onClick={() => i < step && setStep(i)} />
+                  </Box>
+                );
+              })}
             </Box>
 
             {step === 0 && <StepPlatformFormat wizard={wizard} onSwitchToUpload={onSwitchToUpload} />}

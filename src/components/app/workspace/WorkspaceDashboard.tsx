@@ -917,25 +917,13 @@ const ContentManagerPage = ({
   const [loadingV3Status, setLoadingV3Status] = useState(true);
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
   const [createMode, setCreateMode] = useState<'generate' | 'upload'>('generate');
-  // New 4-step Create Content wizard, shipped behind a toggle so it can be
-  // compared against the classic ContentGeneratorForm before fully cutting
-  // over — see /Users/apple/.claude/plans/lovely-prancing-seahorse.md.
-  const [contentWizardEnabled, setContentWizardEnabled] = useState(false);
-  useEffect(() => {
-    try {
-      setContentWizardEnabled(localStorage.getItem('uri_content_wizard_enabled') === 'true');
-    } catch {
-      /* ignore */
-    }
-  }, []);
-  const toggleContentWizard = useCallback((enabled: boolean) => {
-    setContentWizardEnabled(enabled);
-    try {
-      localStorage.setItem('uri_content_wizard_enabled', String(enabled));
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  // The 4-step wizard is now the only Generate Content experience — this
+  // compared-side-by-side-behind-a-toggle phase
+  // (/Users/apple/.claude/plans/lovely-prancing-seahorse.md) is over. The old
+  // classic ContentGeneratorForm block below is kept in place, not deleted,
+  // as a safety net — `contentWizardEnabled` is always true now, so it's
+  // unreachable rather than removed.
+  const contentWizardEnabled = true;
   const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
   // The Generate tab is Describe It (DescribeVideoGenerator.tsx): a free-text brief with optional
   // reference images, then script -> scene images -> outcome-routed video. The older upload-first
@@ -1594,10 +1582,9 @@ const ContentManagerPage = ({
             )}
             {hasConnections === false && <AccountConnectionBanner onConnect={handleConnectAccounts} />}
 
-            {/* Create mode switcher — hidden while the wizard is active; the
-                approved wizard design is a focused, dedicated flow with no
-                mode-switcher chrome. "Switch to classic form" is how you get
-                back to it (and from there, to Upload Content). */}
+            {/* Create mode switcher — hidden while the wizard is active (the
+                only Generate Content experience now); shows in Upload
+                Content mode so you can switch back to Generate. */}
             {!wizardActive && (
               <div
                 style={{
@@ -1638,22 +1625,6 @@ const ContentManagerPage = ({
                     </button>
                   ))}
                 </div>
-                {createMode === 'generate' && !contentWizardEnabled && (
-                  <button
-                    onClick={() => toggleContentWizard(true)}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      cursor: 'pointer',
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                      color: '#C2185B',
-                      padding: 0,
-                    }}
-                  >
-                    Try the new step-by-step Create Content →
-                  </button>
-                )}
               </div>
             )}
 
@@ -1670,7 +1641,6 @@ const ContentManagerPage = ({
                 <ContentWizard
                   onGenerated={handleGenerated}
                   requireEmailVerification={requireEmailVerification}
-                  onExit={() => toggleContentWizard(false)}
                   onSwitchToUpload={() => setCreateMode('upload')}
                 />
               </>
