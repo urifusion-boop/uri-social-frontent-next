@@ -6,6 +6,7 @@ import {
   Checkbox,
   Dialog,
   DialogContent,
+  DialogTitle,
   IconButton,
   Menu,
   MenuItem,
@@ -14,7 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
-import { MdMoreVert, MdSearch } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdClose, MdMoreVert, MdSearch } from 'react-icons/md';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -106,6 +107,10 @@ export default function ContentLibraryPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menuFor, setMenuFor] = useState<{ anchor: HTMLElement; id: string } | null>(null);
   const [editingDraft, setEditingDraft] = useState<ContentDraft | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
 
   const load = async () => {
     setLoading(true);
@@ -235,14 +240,7 @@ export default function ContentLibraryPage() {
             <Box
               key={v}
               component="button"
-              onClick={() => {
-                if (v === 'list') setView(v);
-                else
-                  ToastService.showToast(
-                    `${v === 'calendar' ? 'Calendar' : 'Grid'} view isn't built yet — use List for now.`,
-                    ToastTypeEnum.Warning
-                  );
-              }}
+              onClick={() => setView(v)}
               sx={{
                 border: '1px solid',
                 borderColor: view === v ? PINK : '#E5E7EB',
@@ -269,7 +267,7 @@ export default function ContentLibraryPage() {
           size="small"
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value)}
-          sx={{ fontSize: '12.5px', minWidth: 110 }}
+          sx={{ fontSize: '13px', minWidth: 120, height: 40 }}
         >
           <MenuItem value="all">Platform</MenuItem>
           <MenuItem value="facebook">Facebook</MenuItem>
@@ -282,7 +280,7 @@ export default function ContentLibraryPage() {
           size="small"
           value={formatFilter}
           onChange={(e) => setFormatFilter(e.target.value)}
-          sx={{ fontSize: '12.5px', minWidth: 110 }}
+          sx={{ fontSize: '13px', minWidth: 120, height: 40 }}
         >
           <MenuItem value="all">Format</MenuItem>
           <MenuItem value="feed">Feed Post</MenuItem>
@@ -294,7 +292,7 @@ export default function ContentLibraryPage() {
           size="small"
           value={tab}
           onChange={(e) => setTab(e.target.value as LibraryTab)}
-          sx={{ fontSize: '12.5px', minWidth: 110 }}
+          sx={{ fontSize: '13px', minWidth: 120, height: 40 }}
         >
           {TABS.map((t) => (
             <MenuItem key={t.key} value={t.key}>
@@ -306,7 +304,7 @@ export default function ContentLibraryPage() {
           size="small"
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value as typeof dateFilter)}
-          sx={{ fontSize: '12.5px', minWidth: 130 }}
+          sx={{ fontSize: '13px', minWidth: 140, height: 40 }}
         >
           <MenuItem value="all">Date range</MenuItem>
           <MenuItem value="7">Last 7 days</MenuItem>
@@ -314,12 +312,16 @@ export default function ContentLibraryPage() {
           <MenuItem value="90">Last 90 days</MenuItem>
         </Select>
         <TextField
-          size="small"
           placeholder="Search content..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          slotProps={{ input: { startAdornment: <MdSearch size={15} color="#9CA3AF" style={{ marginRight: 6 }} /> } }}
-          sx={{ flex: 1, minWidth: 180, '& .MuiInputBase-input': { fontSize: '12.5px' } }}
+          slotProps={{ input: { startAdornment: <MdSearch size={16} color="#9CA3AF" style={{ marginRight: 8 }} /> } }}
+          sx={{
+            flex: 1,
+            minWidth: 220,
+            '& .MuiOutlinedInput-root': { height: 40, borderRadius: '8px' },
+            '& .MuiInputBase-input': { fontSize: '13px', py: '9.5px' },
+          }}
         />
       </Box>
 
@@ -344,6 +346,84 @@ export default function ContentLibraryPage() {
               ? 'No archived content.'
               : 'Nothing here yet.'}
         </Box>
+      ) : view === 'grid' ? (
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 2 }}>
+          {filtered.map((d) => {
+            const id = d.id ?? d.draft_id ?? '';
+            const cat = categorize(d);
+            const badge = STATUS_BADGE[cat];
+            const { title, excerpt } = titleAndExcerpt(d.content || '');
+            const platformKey = (d.platform || '').toLowerCase();
+            const pIcon = PLATFORM_ICON[platformKey];
+            const formatKey = d.post_type || 'feed';
+            const dt = dateFor(d);
+            return (
+              <Box
+                key={id}
+                onClick={() => setEditingDraft(d)}
+                sx={{
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  transition: 'box-shadow .15s',
+                  '&:hover': { boxShadow: '0 4px 14px rgba(20,16,14,.08)' },
+                }}
+              >
+                <Box
+                  sx={{
+                    width: '100%',
+                    aspectRatio: '1 / 1',
+                    background: d.image_url ? `url(${d.image_url}) center/cover` : '#F3F4F6',
+                  }}
+                />
+                <Box sx={{ p: 1.25 }}>
+                  <Box display="flex" alignItems="center" justifyContent="space-between" mb={0.5}>
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                      {pIcon?.icon}
+                      <Typography fontSize="11px" color="#6B7280" sx={{ textTransform: 'capitalize' }}>
+                        {FORMAT_LABEL[formatKey] ?? formatKey}
+                      </Typography>
+                    </Box>
+                    <Box
+                      component="span"
+                      sx={{
+                        background: badge.bg,
+                        color: badge.color,
+                        borderRadius: '6px',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        px: 0.75,
+                        py: 0.3,
+                      }}
+                    >
+                      {badge.label}
+                    </Box>
+                  </Box>
+                  <Typography fontSize="12.5px" fontWeight={600} color="#111827" noWrap>
+                    {title}
+                  </Typography>
+                  <Typography fontSize="11px" color="#9CA3AF" noWrap>
+                    {excerpt}
+                  </Typography>
+                  <Typography fontSize="10.5px" color="#9CA3AF" mt={0.5}>
+                    {dt
+                      ? new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      : '—'}
+                  </Typography>
+                </Box>
+              </Box>
+            );
+          })}
+        </Box>
+      ) : view === 'calendar' ? (
+        <CalendarView
+          items={filtered}
+          month={calendarMonth}
+          onMonthChange={setCalendarMonth}
+          onSelect={setEditingDraft}
+        />
       ) : (
         <Box sx={{ border: '1px solid #E5E7EB', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
           <Box
@@ -453,6 +533,7 @@ export default function ContentLibraryPage() {
                 </Typography>
                 <IconButton
                   size="small"
+                  aria-label="More actions"
                   onClick={(e) => {
                     e.stopPropagation();
                     setMenuFor({ anchor: e.currentTarget, id });
@@ -466,23 +547,38 @@ export default function ContentLibraryPage() {
         </Box>
       )}
 
+      {/* Edit/Approve/Deny all open the real editor below — Approve and Deny
+          are DraftCard's own buttons there (with the connected-account and
+          TikTok-consent gating that real publishing needs), not reimplemented
+          here, so nothing about those flows can drift out of sync. */}
       <Menu anchorEl={menuFor?.anchor} open={!!menuFor} onClose={() => setMenuFor(null)}>
-        <MenuItem
-          onClick={() => {
-            const d = items.find((x) => (x.id ?? x.draft_id) === menuFor?.id);
-            setMenuFor(null);
-            if (d) setEditingDraft(d);
-          }}
-        >
-          Edit
-        </MenuItem>
+        {['Edit', 'Approve', 'Deny'].map((label) => (
+          <MenuItem
+            key={label}
+            onClick={() => {
+              const d = items.find((x) => (x.id ?? x.draft_id) === menuFor?.id);
+              setMenuFor(null);
+              if (d) setEditingDraft(d);
+            }}
+          >
+            {label}
+          </MenuItem>
+        ))}
         <MenuItem onClick={() => menuFor && handleDelete(menuFor.id)} sx={{ color: '#DC2626' }}>
           Delete
         </MenuItem>
       </Menu>
 
-      <Dialog open={!!editingDraft} onClose={() => setEditingDraft(null)} maxWidth="sm" fullWidth>
-        <DialogContent sx={{ p: 2 }}>
+      <Dialog open={!!editingDraft} onClose={() => setEditingDraft(null)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+          <Typography fontSize="15px" fontWeight={700}>
+            Edit post
+          </Typography>
+          <IconButton size="small" onClick={() => setEditingDraft(null)}>
+            <MdClose size={18} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 2, pt: 0 }}>
           {editingDraft && (
             <DraftCard
               draft={editingDraft}
@@ -493,6 +589,147 @@ export default function ContentLibraryPage() {
           )}
         </DialogContent>
       </Dialog>
+    </Box>
+  );
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function CalendarView({
+  items,
+  month,
+  onMonthChange,
+  onSelect,
+}: {
+  items: ContentDraft[];
+  month: Date;
+  onMonthChange: (d: Date) => void;
+  onSelect: (d: ContentDraft) => void;
+}) {
+  const byDay = useMemo(() => {
+    const map = new Map<string, ContentDraft[]>();
+    for (const d of items) {
+      const dt = dateFor(d);
+      if (!dt) continue;
+      const key = new Date(dt).toDateString();
+      const arr = map.get(key) ?? [];
+      arr.push(d);
+      map.set(key, arr);
+    }
+    return map;
+  }, [items]);
+
+  const year = month.getFullYear();
+  const mon = month.getMonth();
+  const firstOfMonth = new Date(year, mon, 1);
+  const startOffset = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, mon + 1, 0).getDate();
+  const today = new Date().toDateString();
+
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day++) cells.push(new Date(year, mon, day));
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <Box sx={{ border: '1px solid #E5E7EB', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
+      <Box
+        display="flex"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ px: 2, py: 1.5, borderBottom: '1px solid #E5E7EB' }}
+      >
+        <Typography fontSize="14px" fontWeight={700} color="#111827">
+          {month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        </Typography>
+        <Box display="flex" gap={0.5}>
+          <IconButton size="small" onClick={() => onMonthChange(new Date(year, mon - 1, 1))}>
+            <MdChevronLeft size={18} />
+          </IconButton>
+          <IconButton size="small" onClick={() => onMonthChange(new Date(year, mon + 1, 1))}>
+            <MdChevronRight size={18} />
+          </IconButton>
+        </Box>
+      </Box>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+        {WEEKDAYS.map((w) => (
+          <Box
+            key={w}
+            sx={{
+              px: 1,
+              py: 0.75,
+              fontSize: '11px',
+              fontWeight: 700,
+              color: '#9CA3AF',
+              borderBottom: '1px solid #E5E7EB',
+            }}
+          >
+            {w}
+          </Box>
+        ))}
+        {cells.map((date, i) => {
+          const dayItems = date ? (byDay.get(date.toDateString()) ?? []) : [];
+          const isToday = date?.toDateString() === today;
+          return (
+            <Box
+              key={i}
+              sx={{
+                minHeight: 92,
+                borderBottom: '1px solid #F3F4F6',
+                borderRight: (i + 1) % 7 === 0 ? 'none' : '1px solid #F3F4F6',
+                p: 0.75,
+                background: date ? '#fff' : '#FAFAFA',
+              }}
+            >
+              {date && (
+                <>
+                  <Typography
+                    fontSize="11px"
+                    fontWeight={isToday ? 800 : 500}
+                    color={isToday ? PINK : '#6B7280'}
+                    mb={0.5}
+                  >
+                    {date.getDate()}
+                  </Typography>
+                  <Box display="flex" flexDirection="column" gap={0.25}>
+                    {dayItems.slice(0, 3).map((d) => {
+                      const cat = categorize(d);
+                      const badge = STATUS_BADGE[cat];
+                      const { title } = titleAndExcerpt(d.content || '');
+                      return (
+                        <Box
+                          key={d.id ?? d.draft_id}
+                          onClick={() => onSelect(d)}
+                          sx={{
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            color: badge.color,
+                            background: badge.bg,
+                            borderRadius: '4px',
+                            px: 0.5,
+                            py: 0.2,
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {title}
+                        </Box>
+                      );
+                    })}
+                    {dayItems.length > 3 && (
+                      <Typography fontSize="9.5px" color="#9CA3AF">
+                        +{dayItems.length - 3} more
+                      </Typography>
+                    )}
+                  </Box>
+                </>
+              )}
+            </Box>
+          );
+        })}
+      </Box>
     </Box>
   );
 }
