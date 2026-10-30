@@ -10909,13 +10909,31 @@ export default function WorkspaceDashboard() {
     if (activeSection) setExpandedSection(activeSection);
   }, [activeSection]);
 
+  // Admin was dropped from the sidebar entirely when the Product Restructure
+  // PRD swapped in PRIMARY_NAV/LOWER_NAV (the old flat sidebar's isAdminUser
+  // gate on this item never carried over) — the Admin page itself was left
+  // fully working, just unreachable from any visible nav. Appending it here,
+  // gated the same way the old sidebar gated it, restores the entry point
+  // without exposing it to non-admins.
+  const lowerNavItems = isAdminUser
+    ? [
+        ...LOWER_NAV,
+        {
+          id: 'admin',
+          icon: 'settings',
+          label: 'Admin',
+          tooltip: 'User management, credit/trial adjustment, and partner access codes',
+        },
+      ]
+    : LOWER_NAV;
+
   // Quick search needs to reach every REAL destination, not just the 8
   // primary ones — Market Intelligence, Brand Playbook, Blog etc. only
   // have a sidebar button once you're already inside their section, so
   // search is how you get there from anywhere else.
   const searchableDestinations = [
     ...PRIMARY_NAV,
-    ...LOWER_NAV,
+    ...lowerNavItems,
     ...contentStudioSubNav.map((n) => ({ ...n, tooltip: n.label })),
     ...campaignManagerSubNav
       .filter((n) => n.id !== 'audiences' && n.id !== 'creatives')
@@ -11573,7 +11591,7 @@ export default function WorkspaceDashboard() {
                   borderTop: '1px solid rgba(255,255,255,.06)',
                 }}
               >
-                {LOWER_NAV.map((n) => {
+                {lowerNavItems.map((n) => {
                   const active = nav === n.id;
                   return (
                     <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
