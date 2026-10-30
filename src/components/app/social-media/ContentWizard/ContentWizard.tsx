@@ -67,7 +67,7 @@ export default function ContentWizard({ onGenerated, requireEmailVerification }:
       </Box>
 
       {step < 3 ? (
-        <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={3} alignItems="stretch">
+        <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={3} alignItems="flex-start">
           <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 480px' }, width: '100%', minWidth: 0 }}>
             {/* Full header — tablet and up: the step pills. Lives at the top
                 of this column (not full-width above both columns) so its top
@@ -118,13 +118,13 @@ export default function ContentWizard({ onGenerated, requireEmailVerification }:
                 pt: 0.75,
                 px: 2,
                 pb: 2,
-                // height:'100%' matches this card's height to the left
-                // column on desktop (a row), which is the point — but in
-                // the stacked mobile layout there's no sibling row height to
-                // match, so '100%' instead resolves against a tall page
-                // ancestor and stretches this card far past its own content,
-                // leaving a dead gap underneath. Only stretch on desktop.
-                height: { xs: 'auto', md: '100%' },
+                // Always its own natural height — stretching this to match
+                // the left column (which the previous height:'100%' + the
+                // row's alignItems:'stretch' both did) looks fine only when
+                // the two columns happen to be close in height. The upload
+                // step and a brief with several reference images are both
+                // much taller than the preview, which turned this card into
+                // a big dead gray block. Same compact card on every step.
               }}
             >
               <PreviewPanel wizard={wizard} />
