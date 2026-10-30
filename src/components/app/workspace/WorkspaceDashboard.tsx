@@ -1342,7 +1342,8 @@ const ContentManagerPage = ({
   // squeezed the real page into leftover space.
   const wizardActive = activeTab === 'create' && createMode === 'generate' && contentWizardEnabled;
   const libraryActive = activeTab === 'library';
-  const dedicatedPageActive = wizardActive || libraryActive;
+  const calendarV2Active = activeTab === 'calendar-v2';
+  const dedicatedPageActive = wizardActive || libraryActive || calendarV2Active;
 
   return (
     <div
@@ -1406,6 +1407,21 @@ const ContentManagerPage = ({
           >
             + Create Content
           </button>
+        </div>
+      ) : calendarV2Active ? (
+        <div
+          style={{
+            padding: isMobile ? '10px 12px' : '16px 24px',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
+          }}
+        >
+          <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
+            Content Calendar
+          </h2>
+          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
+            A 30-day plan tailored to your brand — ad-ready posts, exact copy, built in.
+          </p>
         </div>
       ) : (
         <div

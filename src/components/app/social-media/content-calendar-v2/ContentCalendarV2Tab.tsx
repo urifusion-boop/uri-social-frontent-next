@@ -209,16 +209,18 @@ const ItemCard = ({ item, onClick }: { item: CalendarV2Item; onClick: () => void
     <div
       onClick={onClick}
       style={{
-        border: `1.5px solid ${today ? PINK : BORDER}`,
-        borderRadius: 10,
-        padding: 10,
+        border: `1.5px solid ${today ? PINK : 'transparent'}`,
+        borderRadius: 12,
+        padding: 12,
         cursor: 'pointer',
         background: '#fff',
+        boxShadow: today ? '0 2px 10px rgba(205,27,120,.15)' : '0 1px 3px rgba(20,16,14,.06)',
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
-        minHeight: 110,
+        minHeight: 112,
         position: 'relative',
+        transition: 'box-shadow .15s, transform .15s',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -478,15 +480,16 @@ const ItemDetailModal = ({
         onClick={(e) => e.stopPropagation()}
         style={{
           background: '#fff',
-          borderRadius: 14,
-          maxWidth: 560,
+          borderRadius: 16,
+          maxWidth: 620,
           width: '100%',
           maxHeight: '88vh',
           overflowY: 'auto',
-          padding: 24,
+          padding: 26,
+          boxShadow: '0 20px 60px rgba(0,0,0,.25)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               <TypeBadge type={item.content_type} />
@@ -495,7 +498,7 @@ const ItemDetailModal = ({
               {item.series_name && <SeriesBadge name={item.series_name} />}
               {isVideoFormat(item.format) && <VideoBadge />}
             </div>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: '#111827', margin: '8px 0 2px' }}>{item.title}</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: '10px 0 2px' }}>{item.title}</h3>
             <div style={{ fontSize: 12, color: GRAY }}>
               {new Date(item.date + 'T00:00:00').toLocaleDateString(undefined, {
                 weekday: 'long',
@@ -506,7 +509,22 @@ const ItemDetailModal = ({
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: GRAY }}
+            aria-label="Close"
+            style={{
+              background: '#F3F4F6',
+              border: 'none',
+              borderRadius: '50%',
+              width: 30,
+              height: 30,
+              flexShrink: 0,
+              fontSize: 17,
+              lineHeight: 1,
+              cursor: 'pointer',
+              color: '#6B7280',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
             ×
           </button>
@@ -903,15 +921,16 @@ const ItemDetailModal = ({
               disabled={creating || platformsMismatch}
               title={platformsMismatch ? 'Regenerate the 30-day plan to apply your platform change first' : undefined}
               style={{
-                background: PINK,
+                background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
                 color: '#fff',
                 border: 'none',
-                borderRadius: 8,
-                padding: '10px 16px',
+                borderRadius: 9,
+                padding: '10px 18px',
                 fontSize: 13,
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: creating || platformsMismatch ? 'not-allowed' : 'pointer',
                 opacity: creating || platformsMismatch ? 0.5 : 1,
+                boxShadow: creating || platformsMismatch ? 'none' : '0 4px 12px rgba(205,27,120,.25)',
               }}
             >
               {creating ? 'Creating…' : platformsMismatch ? 'Regenerate plan first' : 'Create Draft'}
@@ -1123,28 +1142,42 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
   }
 
   return (
-    <div style={{ maxWidth: 900 }}>
+    <div style={{ maxWidth: 960 }}>
       {!plan || plan.status === 'generating' || plan.status === 'failed' ? (
         <div
           style={{
             background: '#fff',
-            border: `1px solid ${BORDER}`,
-            borderRadius: 12,
-            padding: 24,
+            borderRadius: 16,
+            padding: '40px 32px',
             textAlign: 'center',
+            boxShadow: '0 1px 3px rgba(20,16,14,.06)',
+            maxWidth: 520,
+            margin: '24px auto 0',
           }}
         >
-          <div style={{ fontSize: 32, marginBottom: 8 }}>
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: plan?.status === 'failed' ? '#FEF2F2' : '#FDF2F8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              fontSize: 26,
+            }}
+          >
             {plan?.status === 'generating' ? '⏳' : plan?.status === 'failed' ? '⚠️' : '🗓️'}
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: '#111827', marginBottom: 6 }}>
             {plan?.status === 'generating'
               ? 'Building your 30-day plan…'
               : plan?.status === 'failed'
                 ? 'Generation didn’t finish'
                 : 'No 30-day plan yet'}
           </div>
-          <div style={{ fontSize: 12.5, color: GRAY, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: GRAY, marginBottom: 20, lineHeight: 1.5 }}>
             {plan?.status === 'generating' ? (
               'The engine is drafting a candidate pool, scoring it, then writing copy for the 30 selected ideas. This runs in the background and takes about 4-6 minutes — you can leave this tab and come back.'
             ) : plan?.status === 'failed' ? (
@@ -1155,8 +1188,10 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
               'Generate a 30-day content plan tailored to your brand — including ad-ready posts and exact copy.'
             )}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: GRAY, marginBottom: 6 }}>PLATFORMS</div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: GRAY, marginBottom: 8, letterSpacing: 0.5 }}>
+            PLATFORMS
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 22, flexWrap: 'wrap' }}>
             {PLATFORMS.map((p) => (
               <button
                 key={p.key}
@@ -1166,12 +1201,13 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
                   padding: '8px 14px',
                   borderRadius: 20,
                   border: `1.5px solid ${platforms.includes(p.key) ? PINK : BORDER}`,
-                  background: platforms.includes(p.key) ? '#FCE7F3' : '#fff',
+                  background: platforms.includes(p.key) ? '#FDF2F8' : '#fff',
                   color: platforms.includes(p.key) ? PINK : '#374151',
                   fontSize: 12.5,
                   fontWeight: 600,
                   cursor: generating ? 'default' : 'pointer',
                   opacity: generating ? 0.6 : 1,
+                  transition: 'all .15s',
                 }}
               >
                 {p.label}
@@ -1182,15 +1218,16 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
             onClick={() => handleGenerate(false)}
             disabled={generating}
             style={{
-              background: PINK,
+              background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
               color: '#fff',
               border: 'none',
               borderRadius: 10,
-              padding: '12px 24px',
+              padding: '13px 28px',
               fontSize: 14,
               fontWeight: 700,
               cursor: 'pointer',
               opacity: generating ? 0.6 : 1,
+              boxShadow: `0 4px 12px rgba(205,27,120,.3)`,
             }}
           >
             {generating
@@ -1204,83 +1241,105 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
         <>
           <div
             style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 8,
-              flexWrap: 'wrap',
-              gap: 8,
+              background: '#fff',
+              borderRadius: 16,
+              padding: 18,
+              marginBottom: 16,
+              boxShadow: '0 1px 3px rgba(20,16,14,.06)',
             }}
           >
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
-                {formatPeriodLabel(plan.period_start, plan.period_end)}
-              </div>
-              <div style={{ fontSize: 11.5, color: GRAY, marginTop: 2 }}>
-                {plan.items.filter((i) => i.ad_opportunity?.is_ad_candidate).length} ad candidates
-                {' · '}
-                {plan.items.filter((i) => !i.diversity_check.passed).length} similar to another idea
-              </div>
-            </div>
-            <button
-              onClick={() => handleGenerate(true)}
-              disabled={generating}
+            <div
               style={{
-                background: '#fff',
-                border: `1.5px solid ${BORDER}`,
-                borderRadius: 8,
-                padding: '8px 14px',
-                fontSize: 12.5,
-                fontWeight: 600,
-                color: '#374151',
-                cursor: 'pointer',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 14,
+                flexWrap: 'wrap',
+                gap: 10,
               }}
             >
-              {generating ? 'Regenerating…' : '↻ Regenerate 30-day plan'}
-            </button>
-          </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>
+                  {formatPeriodLabel(plan.period_start, plan.period_end)}
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#059669',
+                      background: 'rgba(5,150,105,.1)',
+                      borderRadius: 20,
+                      padding: '2px 9px',
+                    }}
+                  >
+                    💰 {plan.items.filter((i) => i.ad_opportunity?.is_ad_candidate).length} ad candidates
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#4338CA',
+                      background: '#EEF2FF',
+                      borderRadius: 20,
+                      padding: '2px 9px',
+                    }}
+                  >
+                    ↻ {plan.items.filter((i) => !i.diversity_check.passed).length} similar to another idea
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => handleGenerate(true)}
+                disabled={generating}
+                style={{
+                  background: '#fff',
+                  border: `1.5px solid ${BORDER}`,
+                  borderRadius: 9,
+                  padding: '9px 16px',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  color: '#374151',
+                  cursor: 'pointer',
+                  opacity: generating ? 0.6 : 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {generating ? 'Regenerating…' : '↻ Regenerate 30-day plan'}
+              </button>
+            </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
-              marginBottom: 14,
-              padding: '8px 12px',
-              background: '#F9FAFB',
-              border: `1px solid ${BORDER}`,
-              borderRadius: 8,
-            }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 700, color: GRAY }}>PLATFORMS</span>
-            {PLATFORMS.map((p) => {
-              const on = platforms.includes(p.key);
-              return (
-                <button
-                  key={p.key}
-                  onClick={() => togglePlatform(p.key)}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: 20,
-                    border: `1.5px solid ${on ? PINK : BORDER}`,
-                    background: on ? '#FCE7F3' : '#fff',
-                    color: on ? PINK : '#9CA3AF',
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {on ? '✓ ' : ''}
-                  {p.label}
-                </button>
-              );
-            })}
-            {JSON.stringify([...platforms].sort()) !== JSON.stringify([...plan.platforms].sort()) && (
-              <span style={{ fontSize: 11, color: '#B45309' }}>
-                — changed from {plan.platforms.join(', ')}; regenerate to apply
-              </span>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: GRAY, letterSpacing: 0.5 }}>PLATFORMS</span>
+              {PLATFORMS.map((p) => {
+                const on = platforms.includes(p.key);
+                return (
+                  <button
+                    key={p.key}
+                    onClick={() => togglePlatform(p.key)}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: 20,
+                      border: `1.5px solid ${on ? PINK : BORDER}`,
+                      background: on ? '#FDF2F8' : '#fff',
+                      color: on ? PINK : '#9CA3AF',
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    {on ? '✓ ' : ''}
+                    {p.label}
+                  </button>
+                );
+              })}
+              {JSON.stringify([...platforms].sort()) !== JSON.stringify([...plan.platforms].sort()) && (
+                <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600 }}>
+                  — changed from {plan.platforms.join(', ')}; regenerate to apply
+                </span>
+              )}
+            </div>
           </div>
 
           <div
