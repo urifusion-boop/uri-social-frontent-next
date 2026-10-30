@@ -157,9 +157,12 @@ export default function GeneratedContentCard({
         overflow: 'hidden',
         background: '#fff',
         boxShadow: '0 1px 3px rgba(20,16,14,.06)',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
-      <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ px: 1.5, py: 1.25 }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ px: 1.5, py: 1.25, flexShrink: 0 }}>
         <Box display="flex" alignItems="center" gap={1} sx={{ minWidth: 0 }}>
           <Box
             sx={{
@@ -194,6 +197,7 @@ export default function GeneratedContentCard({
           width: '100%',
           aspectRatio: aspect,
           position: 'relative',
+          flexShrink: 0,
           background: previewImage ? `url(${previewImage}) center/cover` : draft.video_url ? '#111' : '#F3F4F6',
           display: 'flex',
           alignItems: 'center',
@@ -233,28 +237,30 @@ export default function GeneratedContentCard({
         )}
       </Box>
 
-      <Box sx={{ p: 1.5 }}>
-        <Typography
-          fontSize="12.5px"
-          color="#374151"
-          sx={{
-            display: '-webkit-box',
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            whiteSpace: 'pre-wrap',
-            mb: draft.hashtags?.length ? 0.5 : 0,
-          }}
-        >
-          {draft.content}
-        </Typography>
-        {!!draft.hashtags?.length && (
-          <Typography fontSize="11.5px" color={PINK} sx={{ mb: 1.25 }}>
-            {draft.hashtags.map((h) => `#${h.replace(/^#+/, '')}`).join(' ')}
+      <Box sx={{ p: 1.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ flex: 1, mb: 1.25 }}>
+          <Typography
+            fontSize="12.5px"
+            color="#374151"
+            sx={{
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              whiteSpace: 'pre-wrap',
+              mb: draft.hashtags?.length ? 0.5 : 0,
+            }}
+          >
+            {draft.content}
           </Typography>
-        )}
+          {!!draft.hashtags?.length && (
+            <Typography fontSize="11.5px" color={PINK}>
+              {draft.hashtags.map((h) => `#${h.replace(/^#+/, '')}`).join(' ')}
+            </Typography>
+          )}
+        </Box>
 
-        <Box display="flex" gap={0.75}>
+        <Box display="flex" gap={0.75} sx={{ mt: 'auto' }}>
           <Button
             size="small"
             onClick={() => onEdit(draft)}
