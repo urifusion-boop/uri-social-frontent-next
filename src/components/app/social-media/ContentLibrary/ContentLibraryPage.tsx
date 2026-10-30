@@ -541,6 +541,7 @@ export default function ContentLibraryPage() {
               connectedPlatforms={connectedPlatforms}
               onEdit={setEditingDraft}
               onRefresh={load}
+              uniformAspect="1 / 1"
             />
           ))}
         </Box>

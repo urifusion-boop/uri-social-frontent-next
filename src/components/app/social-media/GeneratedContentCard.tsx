@@ -72,6 +72,14 @@ interface GeneratedContentCardProps {
   onEdit: (draft: ContentDraft) => void;
   onRefresh: () => void;
   onDelete?: (id: string) => void;
+  /** A library grid mixes many unrelated drafts whose real dimensions
+   * genuinely differ (a carousel slide vs. a Facebook post vs. a TikTok
+   * reel) — forcing every thumbnail to the same shape keeps the grid looking
+   * like one coherent grid instead of a ragged mix of heights. Leave unset
+   * for a single generation batch (the wizard's results step), where each
+   * platform's own real, differing size is the correct, intentional thing
+   * to show side by side. */
+  uniformAspect?: string;
 }
 
 export default function GeneratedContentCard({
@@ -80,6 +88,7 @@ export default function GeneratedContentCard({
   onEdit,
   onRefresh,
   onDelete,
+  uniformAspect,
 }: GeneratedContentCardProps) {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -195,7 +204,7 @@ export default function GeneratedContentCard({
       <Box
         sx={{
           width: '100%',
-          aspectRatio: aspect,
+          aspectRatio: uniformAspect ?? aspect,
           position: 'relative',
           flexShrink: 0,
           background: previewImage ? `url(${previewImage}) center/cover` : draft.video_url ? '#111' : '#F3F4F6',
