@@ -118,7 +118,13 @@ export default function ContentWizard({ onGenerated, requireEmailVerification }:
                 pt: 0.75,
                 px: 2,
                 pb: 2,
-                height: '100%',
+                // height:'100%' matches this card's height to the left
+                // column on desktop (a row), which is the point — but in
+                // the stacked mobile layout there's no sibling row height to
+                // match, so '100%' instead resolves against a tall page
+                // ancestor and stretches this card far past its own content,
+                // leaving a dead gap underneath. Only stretch on desktop.
+                height: { xs: 'auto', md: '100%' },
               }}
             >
               <PreviewPanel wizard={wizard} />

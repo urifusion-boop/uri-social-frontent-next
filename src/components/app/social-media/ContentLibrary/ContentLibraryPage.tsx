@@ -17,12 +17,12 @@ import {
   Typography,
 } from '@mui/material';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
-import { MdChevronLeft, MdChevronRight, MdClose, MdMoreVert, MdSearch } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdMoreVert, MdSearch } from 'react-icons/md';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import DraftCard from '../DraftCard';
 import GeneratedContentCard from '../GeneratedContentCard';
+import GeneratedDraftEditor from '../GeneratedDraftEditor';
 
 const PINK = '#CD1B78';
 
@@ -702,48 +702,33 @@ export default function ContentLibraryPage() {
         </Box>
       )}
 
-      {/* Edit/Approve/Deny all open the real editor below — Approve and Deny
-          are DraftCard's own buttons there (with the connected-account and
-          TikTok-consent gating that real publishing needs), not reimplemented
-          here, so nothing about those flows can drift out of sync. */}
+      {/* Opens the real editor below, which has its own Publish Now/Schedule/
+          Save as Draft actions (with the connected-account and TikTok-consent
+          gating that real publishing needs) — not reimplemented here, so
+          nothing about those flows can drift out of sync. */}
       <Menu anchorEl={menuFor?.anchor} open={!!menuFor} onClose={() => setMenuFor(null)}>
-        {['Edit', 'Approve', 'Deny'].map((label) => (
-          <MenuItem
-            key={label}
-            onClick={() => {
-              const d = items.find((x) => (x.id ?? x.draft_id) === menuFor?.id);
-              setMenuFor(null);
-              if (d) setEditingDraft(d);
-            }}
-          >
-            {label}
-          </MenuItem>
-        ))}
+        <MenuItem
+          onClick={() => {
+            const d = items.find((x) => (x.id ?? x.draft_id) === menuFor?.id);
+            setMenuFor(null);
+            if (d) setEditingDraft(d);
+          }}
+        >
+          Edit
+        </MenuItem>
         <MenuItem onClick={() => menuFor && handleDelete(menuFor.id)} sx={{ color: '#DC2626' }}>
           Delete
         </MenuItem>
       </Menu>
 
-      <Dialog open={!!editingDraft} onClose={() => setEditingDraft(null)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
-          <Typography fontSize="15px" fontWeight={700}>
-            Edit post
-          </Typography>
-          <IconButton size="small" onClick={() => setEditingDraft(null)}>
-            <MdClose size={18} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ p: 2, pt: 0 }}>
-          {editingDraft && (
-            <DraftCard
-              draft={editingDraft}
-              onRefresh={() => {
-                load();
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {editingDraft && (
+        <GeneratedDraftEditor
+          draft={editingDraft}
+          connectedPlatforms={connectedPlatforms}
+          onClose={() => setEditingDraft(null)}
+          onRefresh={load}
+        />
+      )}
 
       <Dialog open={bulkScheduleOpen} onClose={() => setBulkScheduleOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontSize: '15px', fontWeight: 700 }}>Schedule {selected.size} post(s)</DialogTitle>

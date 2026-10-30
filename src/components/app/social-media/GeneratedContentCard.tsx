@@ -22,7 +22,7 @@ import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 
 const PINK = '#CD1B78';
 
-const PLATFORM_META: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+export const PLATFORM_META: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   facebook: { icon: <FaFacebook size={14} color="#fff" />, color: '#1877F2', label: 'Facebook' },
   instagram: { icon: <FaInstagram size={14} color="#fff" />, color: '#E1306C', label: 'Instagram' },
   twitter: { icon: <FaTwitter size={14} color="#fff" />, color: '#1DA1F2', label: 'Twitter / X' },
@@ -40,13 +40,13 @@ const PLATFORM_ASPECT: Record<string, string> = {
 // Carousel images live one level down, per slide — draft.image_url is never
 // set for a carousel draft, so reading only that (as an earlier version of
 // this component did) silently showed "No image" on every real carousel.
-function firstSlideImage(draft: ContentDraft): string | undefined {
+export function firstSlideImage(draft: ContentDraft): string | undefined {
   return draft.slides?.find((s) => s.image_url)?.image_url;
 }
 
 // Matches DraftCard's own aspect-ratio resolution exactly, plus a readable
 // "1:1 Post (1080 × 1080)" label built from the same real fields.
-function mediaMeta(draft: ContentDraft): { aspect: string; label: string } {
+export function mediaMeta(draft: ContentDraft): { aspect: string; label: string } {
   const isCarousel = draft.post_type === 'carousel';
   const specs = isCarousel ? draft.slides?.find((s) => s.image_specs)?.image_specs : draft.image_specs;
   const isStory = draft.post_type === 'story';

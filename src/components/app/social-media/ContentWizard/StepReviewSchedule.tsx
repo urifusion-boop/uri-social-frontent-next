@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Box, Button, Dialog, DialogContent, DialogTitle, IconButton, Typography } from '@mui/material';
-import { MdClose } from 'react-icons/md';
+import { Box, Button, Typography } from '@mui/material';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
-import DraftCard from '../DraftCard';
 import GeneratedContentCard from '../GeneratedContentCard';
+import GeneratedDraftEditor from '../GeneratedDraftEditor';
 import { ContentWizardState } from './useContentWizardState';
 
 const PINK = '#CD1B78';
@@ -86,26 +85,14 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
         </Button>
       </Box>
 
-      <Dialog open={!!editingDraft} onClose={() => setEditingDraft(null)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
-          <Typography fontSize="15px" fontWeight={700}>
-            Edit post
-          </Typography>
-          <IconButton size="small" onClick={() => setEditingDraft(null)}>
-            <MdClose size={18} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ p: 2, pt: 0 }}>
-          {editingDraft && (
-            <DraftCard
-              draft={editingDraft}
-              onRefresh={() => {
-                wizard.refreshGeneratedDrafts();
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {editingDraft && (
+        <GeneratedDraftEditor
+          draft={editingDraft}
+          connectedPlatforms={connectedPlatforms}
+          onClose={() => setEditingDraft(null)}
+          onRefresh={wizard.refreshGeneratedDrafts}
+        />
+      )}
     </Box>
   );
 }
