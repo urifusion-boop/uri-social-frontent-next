@@ -100,56 +100,59 @@ export default function ContentWizard({ onGenerated, requireEmailVerification, o
         </Button>
       </Box>
 
-      <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={3} alignItems="flex-start">
-        <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 480px' }, width: '100%', minWidth: 0 }}>
-          {step === 0 && <StepPlatformFormat wizard={wizard} />}
-          {step === 1 && <StepBrief wizard={wizard} />}
-          {step === 2 && <StepGenerate wizard={wizard} />}
-          {step === 3 && (
-            <StepReviewSchedule wizard={wizard} onGenerated={onGenerated} onStartOver={() => setStep(0)} />
-          )}
+      {step < 3 ? (
+        <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={3} alignItems="stretch">
+          <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 480px' }, width: '100%', minWidth: 0 }}>
+            {step === 0 && <StepPlatformFormat wizard={wizard} />}
+            {step === 1 && <StepBrief wizard={wizard} />}
+            {step === 2 && <StepGenerate wizard={wizard} />}
+          </Box>
 
-          {step < 2 && (
-            <Box display="flex" justifyContent="space-between" mt={3}>
-              <Button
-                onClick={() => setStep((s) => Math.max(0, s - 1))}
-                disabled={step === 0}
-                startIcon={<MdArrowBack size={15} />}
-                sx={{ textTransform: 'none', fontWeight: 600, color: '#6B7280' }}
-              >
-                Back
-              </Button>
-              <Button
-                variant="contained"
-                onClick={() => setStep((s) => s + 1)}
-                disabled={!canGoNext}
-                endIcon={<MdArrowForward size={15} />}
-                sx={{
-                  background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  '&:hover': { background: `linear-gradient(135deg, #A01560 0%, ${PINK} 100%)` },
-                }}
-              >
-                Next
-              </Button>
+          <Box sx={{ flex: { xs: '1 1 100%', md: '0 0 300px' }, width: { xs: '100%', md: 300 } }}>
+            <Box
+              sx={{
+                border: '1px solid #E5E7EB',
+                borderRadius: '16px',
+                background: '#FAFAFA',
+                boxShadow: '0 1px 3px rgba(20,16,14,.06)',
+                p: 2,
+                height: '100%',
+              }}
+            >
+              <PreviewPanel wizard={wizard} />
             </Box>
-          )}
+          </Box>
         </Box>
+      ) : (
+        <StepReviewSchedule wizard={wizard} onGenerated={onGenerated} onStartOver={() => setStep(0)} />
+      )}
 
-        {step < 3 && (
-          <Box
+      {step < 2 && (
+        <Box display="flex" justifyContent="space-between" mt={3}>
+          <Button
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+            disabled={step === 0}
+            startIcon={<MdArrowBack size={15} />}
+            sx={{ textTransform: 'none', fontWeight: 600, color: '#6B7280' }}
+          >
+            Back
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => setStep((s) => s + 1)}
+            disabled={!canGoNext}
+            endIcon={<MdArrowForward size={15} />}
             sx={{
-              flex: { xs: '1 1 100%', md: '0 0 300px' },
-              width: { xs: '100%', md: 300 },
-              position: { md: 'sticky' },
-              top: 16,
+              background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
+              textTransform: 'none',
+              fontWeight: 600,
+              '&:hover': { background: `linear-gradient(135deg, #A01560 0%, ${PINK} 100%)` },
             }}
           >
-            <PreviewPanel wizard={wizard} />
-          </Box>
-        )}
-      </Box>
+            Next
+          </Button>
+        </Box>
+      )}
     </Box>
   );
 }
