@@ -1237,8 +1237,9 @@ export default function CampaignsPage({
       } else {
         setMedia({ source: 'upload', url, isVideo: is_video, label: file.name });
       }
-    } catch {
-      setUploadError('Upload failed, please try again.');
+    } catch (err) {
+      const sizeLimit = err instanceof Error && err.message.startsWith('Video must be under');
+      setUploadError(sizeLimit ? (err as Error).message : 'Upload failed, please try again.');
     } finally {
       setUploading(false);
     }
