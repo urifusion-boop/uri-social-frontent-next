@@ -124,11 +124,53 @@ function Tile({
   );
 }
 
-export default function StepPlatformFormat({ wizard }: { wizard: ContentWizardState }) {
+export default function StepPlatformFormat({
+  wizard,
+  onSwitchToUpload,
+}: {
+  wizard: ContentWizardState;
+  onSwitchToUpload: () => void;
+}) {
   const router = useRouter();
 
   return (
     <Box>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          border: '1px solid #F3D9E8',
+          background: '#FDF6FA',
+          borderRadius: '10px',
+          px: 1.5,
+          py: 1,
+          mb: 2.5,
+        }}
+      >
+        <Typography fontSize="12.5px" color="#6B7280">
+          Already have your own image, video or copy ready?
+        </Typography>
+        <Typography
+          component="button"
+          type="button"
+          onClick={onSwitchToUpload}
+          sx={{
+            border: 'none',
+            background: 'none',
+            p: 0,
+            ml: 'auto',
+            cursor: 'pointer',
+            fontSize: '12.5px',
+            fontWeight: 700,
+            color: PINK,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Upload it instead →
+        </Typography>
+      </Box>
+
       <Typography fontSize="14px" color="#374151" mb={1.25} fontWeight={600}>
         Choose Platform(s)
       </Typography>

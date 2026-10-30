@@ -25,9 +25,15 @@ interface ContentWizardProps {
   onGenerated: () => void;
   requireEmailVerification: (callback?: () => void) => boolean;
   onExit: () => void;
+  onSwitchToUpload: () => void;
 }
 
-export default function ContentWizard({ onGenerated, requireEmailVerification, onExit }: ContentWizardProps) {
+export default function ContentWizard({
+  onGenerated,
+  requireEmailVerification,
+  onExit,
+  onSwitchToUpload,
+}: ContentWizardProps) {
   const [step, setStep] = useState(0);
   const wizard = useContentWizardState(requireEmailVerification);
 
@@ -105,7 +111,7 @@ export default function ContentWizard({ onGenerated, requireEmailVerification, o
               </Button>
             </Box>
 
-            {step === 0 && <StepPlatformFormat wizard={wizard} />}
+            {step === 0 && <StepPlatformFormat wizard={wizard} onSwitchToUpload={onSwitchToUpload} />}
             {step === 1 && <StepBrief wizard={wizard} />}
             {step === 2 && <StepGenerate wizard={wizard} />}
           </Box>

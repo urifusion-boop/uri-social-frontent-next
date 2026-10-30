@@ -1687,6 +1687,7 @@ const ContentManagerPage = ({
                   onGenerated={handleGenerated}
                   requireEmailVerification={requireEmailVerification}
                   onExit={() => toggleContentWizard(false)}
+                  onSwitchToUpload={() => setCreateMode('upload')}
                 />
               </>
             )}
