@@ -48,10 +48,13 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
         Review and customize your content for each platform. You can edit, schedule or post directly.
       </Typography>
 
+      {/* auto-fit (not auto-fill) so a 1-2 platform batch — the common case —
+          grows each card up to the cap instead of leaving it squeezed at the
+          grid's minimum while the rest of the row sits empty. */}
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fill, minmax(220px, 1fr))' },
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fit, minmax(300px, 420px))' },
           gap: 2,
           mb: 3,
         }}
@@ -81,7 +84,7 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
             '&:hover': { background: `linear-gradient(135deg, #A01560 0%, ${PINK} 100%)` },
           }}
         >
-          Done — go to Drafts
+          Done — go to Content Library
         </Button>
       </Box>
 

@@ -15,7 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
-import { MdMoreVert } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdMoreVert } from 'react-icons/md';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -124,9 +124,19 @@ export default function GeneratedContentCard({
   const { aspect, label } = mediaMeta(draft);
   const [expanded, setExpanded] = useState(false);
   const isCarousel = draft.post_type === 'carousel';
-  const previewImage = draft.image_url ?? firstSlideImage(draft);
-  const pending = isImagePending(draft);
-  const failed = !previewImage && !pending && hasImageFailed(draft);
+  const slides = draft.slides ?? [];
+  const totalSlides = slides.length;
+  const [slideIndex, setSlideIndex] = useState(0);
+  const safeSlideIndex = Math.min(slideIndex, Math.max(totalSlides - 1, 0));
+  const currentSlide = isCarousel ? slides[safeSlideIndex] : undefined;
+  const previewImage = isCarousel ? currentSlide?.image_url : (draft.image_url ?? firstSlideImage(draft));
+  // Mid-generation / failed state for whichever slide is actually on screen
+  // — not the carousel as a whole, so flipping to an already-finished slide
+  // shows it immediately instead of the generic "some slide is pending" state.
+  const pending = isCarousel ? !currentSlide?.image_url && !currentSlide?.image_failed : isImagePending(draft);
+  const failed = isCarousel
+    ? !!currentSlide?.image_failed && !currentSlide?.image_url
+    : !previewImage && hasImageFailed(draft);
   const isConnected =
     connectedPlatforms === null || connectedPlatforms.map((p) => p.toLowerCase()).includes(platformKey);
   // TikTok image/carousel posts need DraftCard's own "Post to TikTok" consent
@@ -279,25 +289,85 @@ export default function GeneratedContentCard({
             No image
           </Typography>
         )}
-        {isCarousel && (draft.slides?.length ?? 0) > 1 && (
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 8,
-              right: 8,
-              background: 'rgba(17,24,39,.65)',
-              color: '#fff',
-              fontSize: '10.5px',
-              fontWeight: 700,
-              borderRadius: '999px',
-              px: 1,
-              py: 0.25,
-            }}
-          >
-            1/{draft.slides?.length} slides
-          </Box>
+        {isCarousel && totalSlides > 1 && (
+          <>
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 8,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'rgba(17,24,39,.65)',
+                color: '#fff',
+                fontSize: '10.5px',
+                fontWeight: 700,
+                borderRadius: '999px',
+                px: 1,
+                py: 0.25,
+              }}
+            >
+              {safeSlideIndex + 1} / {totalSlides}
+            </Box>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSlideIndex((i) => Math.max(0, i - 1));
+              }}
+              disabled={safeSlideIndex === 0}
+              sx={{
+                position: 'absolute',
+                left: 4,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'rgba(255,255,255,.9)',
+                p: 0.5,
+                '&:hover': { background: '#fff' },
+                '&.Mui-disabled': { opacity: 0.3 },
+              }}
+            >
+              <MdChevronLeft size={18} />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSlideIndex((i) => Math.min(totalSlides - 1, i + 1));
+              }}
+              disabled={safeSlideIndex === totalSlides - 1}
+              sx={{
+                position: 'absolute',
+                right: 4,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'rgba(255,255,255,.9)',
+                p: 0.5,
+                '&:hover': { background: '#fff' },
+                '&.Mui-disabled': { opacity: 0.3 },
+              }}
+            >
+              <MdChevronRight size={18} />
+            </IconButton>
+          </>
         )}
       </Box>
+
+      {isCarousel && currentSlide && (currentSlide.headline || currentSlide.body) && (
+        <Box
+          sx={{ mx: 1.5, mt: 1.25, p: 1.25, borderRadius: '8px', border: '1px solid #E5E7EB', background: '#FAFAFA' }}
+        >
+          {currentSlide.headline && (
+            <Typography fontSize="12.5px" fontWeight={700} color="#111827" mb={0.25}>
+              {currentSlide.headline}
+            </Typography>
+          )}
+          {currentSlide.body && (
+            <Typography fontSize="12px" color="#6B7280">
+              {currentSlide.body}
+            </Typography>
+          )}
+        </Box>
+      )}
 
       <Box sx={{ p: 1.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ flex: 1, mb: 1.25 }}>

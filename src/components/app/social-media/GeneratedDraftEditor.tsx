@@ -13,7 +13,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { MdClose } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdClose } from 'react-icons/md';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -56,7 +56,13 @@ export default function GeneratedDraftEditor({
   const platformKey = (draft.platform || '').toLowerCase();
   const meta = PLATFORM_META[platformKey];
   const { aspect, label } = mediaMeta(draft);
-  const previewImage = draft.image_url ?? firstSlideImage(draft);
+  const isCarousel = draft.post_type === 'carousel';
+  const slides = draft.slides ?? [];
+  const totalSlides = slides.length;
+  const [slideIndex, setSlideIndex] = useState(0);
+  const safeSlideIndex = Math.min(slideIndex, Math.max(totalSlides - 1, 0));
+  const currentSlide = isCarousel ? slides[safeSlideIndex] : undefined;
+  const previewImage = isCarousel ? currentSlide?.image_url : (draft.image_url ?? firstSlideImage(draft));
   const isConnected =
     connectedPlatforms === null || connectedPlatforms.map((p) => p.toLowerCase()).includes(platformKey);
   const isTiktokPhoto = platformKey === 'tiktok' && !draft.video_url;
@@ -220,6 +226,7 @@ export default function GeneratedDraftEditor({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            position: 'relative',
             mb: 2,
           }}
         >
@@ -233,10 +240,79 @@ export default function GeneratedDraftEditor({
           )}
           {!previewImage && !draft.video_url && (
             <Typography fontSize="12px" color="#9CA3AF">
-              No image
+              {isCarousel && currentSlide?.image_failed ? '⚠️ Image generation failed' : 'No image'}
             </Typography>
           )}
+          {isCarousel && totalSlides > 1 && (
+            <>
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: 8,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'rgba(17,24,39,.65)',
+                  color: '#fff',
+                  fontSize: '10.5px',
+                  fontWeight: 700,
+                  borderRadius: '999px',
+                  px: 1,
+                  py: 0.25,
+                }}
+              >
+                {safeSlideIndex + 1} / {totalSlides}
+              </Box>
+              <IconButton
+                size="small"
+                onClick={() => setSlideIndex((i) => Math.max(0, i - 1))}
+                disabled={safeSlideIndex === 0}
+                sx={{
+                  position: 'absolute',
+                  left: 4,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'rgba(255,255,255,.9)',
+                  p: 0.5,
+                  '&:hover': { background: '#fff' },
+                  '&.Mui-disabled': { opacity: 0.3 },
+                }}
+              >
+                <MdChevronLeft size={18} />
+              </IconButton>
+              <IconButton
+                size="small"
+                onClick={() => setSlideIndex((i) => Math.min(totalSlides - 1, i + 1))}
+                disabled={safeSlideIndex === totalSlides - 1}
+                sx={{
+                  position: 'absolute',
+                  right: 4,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'rgba(255,255,255,.9)',
+                  p: 0.5,
+                  '&:hover': { background: '#fff' },
+                  '&.Mui-disabled': { opacity: 0.3 },
+                }}
+              >
+                <MdChevronRight size={18} />
+              </IconButton>
+            </>
+          )}
         </Box>
+        {isCarousel && currentSlide && (currentSlide.headline || currentSlide.body) && (
+          <Box sx={{ p: 1.25, mb: 2, borderRadius: '8px', border: '1px solid #E5E7EB', background: '#FAFAFA' }}>
+            {currentSlide.headline && (
+              <Typography fontSize="12.5px" fontWeight={700} color="#111827" mb={0.25}>
+                {currentSlide.headline}
+              </Typography>
+            )}
+            {currentSlide.body && (
+              <Typography fontSize="12px" color="#6B7280">
+                {currentSlide.body}
+              </Typography>
+            )}
+          </Box>
+        )}
 
         <Typography fontSize="12.5px" fontWeight={700} color="#111827" mb={0.75}>
           Caption
