@@ -21,8 +21,9 @@ import { MdChevronLeft, MdChevronRight, MdMoreVert, MdSearch } from 'react-icons
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import GeneratedContentCard from '../GeneratedContentCard';
+import GeneratedContentCard, { firstSlideImage } from '../GeneratedContentCard';
 import GeneratedDraftEditor from '../GeneratedDraftEditor';
+import DraftDetailView from '../DraftDetailView';
 
 const PINK = '#CD1B78';
 
@@ -110,6 +111,7 @@ export default function ContentLibraryPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menuFor, setMenuFor] = useState<{ anchor: HTMLElement; id: string } | null>(null);
   const [editingDraft, setEditingDraft] = useState<ContentDraft | null>(null);
+  const [viewingDraft, setViewingDraft] = useState<ContentDraft | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -548,6 +550,7 @@ export default function ContentLibraryPage() {
               draft={d}
               connectedPlatforms={connectedPlatforms}
               onEdit={setEditingDraft}
+              onViewDetails={setViewingDraft}
               onRefresh={load}
               uniformAspect="1 / 1"
             />
@@ -558,7 +561,7 @@ export default function ContentLibraryPage() {
           items={filtered}
           month={calendarMonth}
           onMonthChange={setCalendarMonth}
-          onSelect={setEditingDraft}
+          onSelect={setViewingDraft}
         />
       ) : (
         <Box sx={{ border: '1px solid #E5E7EB', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
@@ -611,6 +614,7 @@ export default function ContentLibraryPage() {
                 const pIcon = PLATFORM_ICON[platformKey];
                 const formatKey = d.post_type || 'feed';
                 const dt = dateFor(d);
+                const thumb = d.image_url ?? firstSlideImage(d);
 
                 return (
                   <Box
@@ -626,7 +630,7 @@ export default function ContentLibraryPage() {
                       '&:hover': { background: '#FAFAFA' },
                       cursor: 'pointer',
                     }}
-                    onClick={() => setEditingDraft(d)}
+                    onClick={() => setViewingDraft(d)}
                   >
                     <Checkbox
                       size="small"
@@ -642,7 +646,7 @@ export default function ContentLibraryPage() {
                           height: 40,
                           borderRadius: '8px',
                           flexShrink: 0,
-                          background: d.image_url ? `url(${d.image_url}) center/cover` : '#F3F4F6',
+                          background: thumb ? `url(${thumb}) center/cover` : '#F3F4F6',
                         }}
                       />
                       <Box sx={{ minWidth: 0 }}>
@@ -711,6 +715,15 @@ export default function ContentLibraryPage() {
           onClick={() => {
             const d = items.find((x) => (x.id ?? x.draft_id) === menuFor?.id);
             setMenuFor(null);
+            if (d) setViewingDraft(d);
+          }}
+        >
+          View details
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            const d = items.find((x) => (x.id ?? x.draft_id) === menuFor?.id);
+            setMenuFor(null);
             if (d) setEditingDraft(d);
           }}
         >
@@ -726,6 +739,16 @@ export default function ContentLibraryPage() {
           draft={editingDraft}
           connectedPlatforms={connectedPlatforms}
           onClose={() => setEditingDraft(null)}
+          onRefresh={load}
+        />
+      )}
+
+      {viewingDraft && (
+        <DraftDetailView
+          draft={viewingDraft}
+          connectedPlatforms={connectedPlatforms}
+          onClose={() => setViewingDraft(null)}
+          onEdit={setEditingDraft}
           onRefresh={load}
         />
       )}

@@ -93,6 +93,7 @@ interface GeneratedContentCardProps {
   draft: ContentDraft;
   connectedPlatforms: string[] | null;
   onEdit: (draft: ContentDraft) => void;
+  onViewDetails: (draft: ContentDraft) => void;
   onRefresh: () => void;
   onDelete?: (id: string) => void;
   /** A library grid mixes many unrelated drafts whose real dimensions
@@ -109,6 +110,7 @@ export default function GeneratedContentCard({
   draft,
   connectedPlatforms,
   onEdit,
+  onViewDetails,
   onRefresh,
   onDelete,
   uniformAspect,
@@ -123,7 +125,6 @@ export default function GeneratedContentCard({
   const platformKey = (draft.platform || '').toLowerCase();
   const meta = PLATFORM_META[platformKey];
   const { aspect, label } = mediaMeta(draft);
-  const [expanded, setExpanded] = useState(false);
   const isCarousel = draft.post_type === 'carousel';
   const slides = draft.slides ?? [];
   const totalSlides = slides.length;
@@ -208,7 +209,13 @@ export default function GeneratedContentCard({
         flexDirection: 'column',
       }}
     >
-      <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ px: 1.5, py: 1.25, flexShrink: 0 }}>
+      <Box
+        onClick={() => onViewDetails(draft)}
+        display="flex"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ px: 1.5, py: 1.25, flexShrink: 0, cursor: 'pointer' }}
+      >
         <Box display="flex" alignItems="center" gap={1} sx={{ minWidth: 0 }}>
           <Box
             sx={{
@@ -233,7 +240,14 @@ export default function GeneratedContentCard({
             </Typography>
           </Box>
         </Box>
-        <IconButton size="small" aria-label="More actions" onClick={(e) => setMenuAnchor(e.currentTarget)}>
+        <IconButton
+          size="small"
+          aria-label="More actions"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuAnchor(e.currentTarget);
+          }}
+        >
           <MdMoreVert size={16} />
         </IconButton>
       </Box>
@@ -355,68 +369,59 @@ export default function GeneratedContentCard({
         )}
       </Box>
 
-      {isCarousel && currentSlide && (currentSlide.headline || currentSlide.body) && (
-        <Box
-          sx={{ mx: 1.5, mt: 1.25, p: 1.25, borderRadius: '8px', border: '1px solid #E5E7EB', background: '#FAFAFA' }}
-        >
-          {currentSlide.headline && (
-            <Typography fontSize="12.5px" fontWeight={700} color="#111827" mb={0.25}>
-              {currentSlide.headline}
-            </Typography>
-          )}
-          {currentSlide.body && (
-            <Typography fontSize="12px" color="#6B7280">
-              {currentSlide.body}
-            </Typography>
-          )}
-        </Box>
-      )}
-
       <Box sx={{ p: 1.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{ flex: 1, mb: 1.25 }}>
-          <Typography
-            fontSize="12.5px"
-            color="#374151"
-            sx={
-              expanded
-                ? { whiteSpace: 'pre-wrap', mb: draft.hashtags?.length ? 0.5 : 0 }
-                : {
-                    display: '-webkit-box',
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    whiteSpace: 'pre-wrap',
-                    mb: draft.hashtags?.length ? 0.5 : 0,
-                  }
-            }
-          >
-            {draft.content}
-          </Typography>
-          {!!draft.hashtags?.length && (
-            <Typography fontSize="11.5px" color={PINK} sx={{ mb: 0.5 }}>
-              {draft.hashtags.map((h) => `#${h.replace(/^#+/, '')}`).join(' ')}
-            </Typography>
-          )}
-          {draft.content.length > 140 && (
+        {/* Fixed-height regardless of caption length, slide count, or hashtag
+            presence — a short single-post caption and a 3-slide carousel's
+            must still produce the same card height, so every card in a grid
+            row lines up instead of a ragged mix of heights. */}
+        <Box onClick={() => onViewDetails(draft)} sx={{ mb: 1.25, cursor: 'pointer' }}>
+          <Box sx={{ height: 53, overflow: 'hidden', mb: 0.5 }}>
             <Typography
-              component="button"
-              type="button"
-              onClick={() => setExpanded((e) => !e)}
+              fontSize="12.5px"
+              color="#374151"
               sx={{
-                fontSize: '11.5px',
-                fontWeight: 700,
-                color: '#6B7280',
-                background: 'none',
-                border: 'none',
-                p: 0,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                '&:hover': { color: PINK },
+                display: '-webkit-box',
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                whiteSpace: 'pre-wrap',
               }}
             >
-              {expanded ? 'Show less' : 'Show more'}
+              {draft.content}
             </Typography>
-          )}
+          </Box>
+          <Box sx={{ height: 18, overflow: 'hidden' }}>
+            {!!draft.hashtags?.length && (
+              <Typography fontSize="11.5px" color={PINK} noWrap>
+                {draft.hashtags.map((h) => `#${h.replace(/^#+/, '')}`).join(' ')}
+              </Typography>
+            )}
+          </Box>
+          <Box sx={{ height: 20 }}>
+            {draft.content.length > 140 && (
+              <Typography
+                component="button"
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewDetails(draft);
+                }}
+                sx={{
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  color: '#6B7280',
+                  background: 'none',
+                  border: 'none',
+                  p: 0,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  '&:hover': { color: PINK },
+                }}
+              >
+                Show more
+              </Typography>
+            )}
+          </Box>
         </Box>
 
         <Box display="flex" gap={0.75} sx={{ mt: 'auto' }}>
@@ -472,6 +477,22 @@ export default function GeneratedContentCard({
       </Box>
 
       <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
+        <MenuItem
+          onClick={() => {
+            setMenuAnchor(null);
+            onViewDetails(draft);
+          }}
+        >
+          View details
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setMenuAnchor(null);
+            onEdit(draft);
+          }}
+        >
+          Edit
+        </MenuItem>
         <MenuItem onClick={handleDelete} sx={{ color: '#DC2626' }}>
           Delete
         </MenuItem>

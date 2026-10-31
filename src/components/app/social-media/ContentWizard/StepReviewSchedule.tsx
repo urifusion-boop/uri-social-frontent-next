@@ -5,6 +5,7 @@ import { Box, Button, Typography } from '@mui/material';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import GeneratedContentCard from '../GeneratedContentCard';
 import GeneratedDraftEditor from '../GeneratedDraftEditor';
+import DraftDetailView from '../DraftDetailView';
 import { ContentWizardState } from './useContentWizardState';
 
 const PINK = '#CD1B78';
@@ -19,6 +20,7 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
   const drafts = wizard.generatedDrafts ?? [];
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null);
   const [editingDraft, setEditingDraft] = useState<ContentDraft | null>(null);
+  const [viewingDraft, setViewingDraft] = useState<ContentDraft | null>(null);
 
   useEffect(() => {
     SocialMediaAgentService.getConnections()
@@ -65,6 +67,7 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
             draft={draft}
             connectedPlatforms={connectedPlatforms}
             onEdit={setEditingDraft}
+            onViewDetails={setViewingDraft}
             onRefresh={wizard.refreshGeneratedDrafts}
           />
         ))}
@@ -93,6 +96,16 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
           draft={editingDraft}
           connectedPlatforms={connectedPlatforms}
           onClose={() => setEditingDraft(null)}
+          onRefresh={wizard.refreshGeneratedDrafts}
+        />
+      )}
+
+      {viewingDraft && (
+        <DraftDetailView
+          draft={viewingDraft}
+          connectedPlatforms={connectedPlatforms}
+          onClose={() => setViewingDraft(null)}
+          onEdit={setEditingDraft}
           onRefresh={wizard.refreshGeneratedDrafts}
         />
       )}
