@@ -15,7 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
-import { MdChevronLeft, MdChevronRight, MdMoreVert } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdClose, MdMoreVert } from 'react-icons/md';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -117,6 +117,7 @@ export default function GeneratedContentCard({
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleAt, setScheduleAt] = useState('');
   const [busy, setBusy] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const id = draft.draft_id ?? draft.id ?? '';
   const platformKey = (draft.platform || '').toLowerCase();
@@ -238,6 +239,7 @@ export default function GeneratedContentCard({
       </Box>
 
       <Box
+        onClick={() => previewImage && setLightboxOpen(true)}
         sx={{
           width: '100%',
           aspectRatio: uniformAspect ?? aspect,
@@ -247,6 +249,7 @@ export default function GeneratedContentCard({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          cursor: previewImage ? 'zoom-in' : 'default',
         }}
       >
         {draft.video_url && (
@@ -500,6 +503,38 @@ export default function GeneratedContentCard({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {previewImage && (
+        <Dialog
+          open={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+          maxWidth="lg"
+          PaperProps={{ sx: { background: 'transparent', boxShadow: 'none', overflow: 'visible' } }}
+        >
+          <Box sx={{ position: 'relative' }}>
+            <IconButton
+              onClick={() => setLightboxOpen(false)}
+              aria-label="Close"
+              sx={{
+                position: 'absolute',
+                top: -16,
+                right: -16,
+                background: '#fff',
+                boxShadow: '0 1px 4px rgba(0,0,0,.3)',
+                '&:hover': { background: '#F3F4F6' },
+              }}
+            >
+              <MdClose size={18} />
+            </IconButton>
+            <Box
+              component="img"
+              src={previewImage}
+              alt={label}
+              sx={{ display: 'block', maxWidth: '90vw', maxHeight: '85vh', borderRadius: '8px' }}
+            />
+          </Box>
+        </Dialog>
+      )}
     </Box>
   );
 }

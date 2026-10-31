@@ -51,6 +51,7 @@ export default function GeneratedDraftEditor({
   const [scheduleAt, setScheduleAt] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const id = draft.draft_id ?? draft.id ?? '';
   const platformKey = (draft.platform || '').toLowerCase();
@@ -215,6 +216,7 @@ export default function GeneratedDraftEditor({
       {/* Body */}
       <Box sx={{ p: 2.5, maxHeight: '70vh', overflowY: 'auto' }}>
         <Box
+          onClick={() => previewImage && setLightboxOpen(true)}
           sx={{
             width: '100%',
             maxHeight: 220,
@@ -228,6 +230,7 @@ export default function GeneratedDraftEditor({
             justifyContent: 'center',
             position: 'relative',
             mb: 2,
+            cursor: previewImage ? 'zoom-in' : 'default',
           }}
         >
           {draft.video_url && (
@@ -264,7 +267,10 @@ export default function GeneratedDraftEditor({
               </Box>
               <IconButton
                 size="small"
-                onClick={() => setSlideIndex((i) => Math.max(0, i - 1))}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSlideIndex((i) => Math.max(0, i - 1));
+                }}
                 disabled={safeSlideIndex === 0}
                 sx={{
                   position: 'absolute',
@@ -281,7 +287,10 @@ export default function GeneratedDraftEditor({
               </IconButton>
               <IconButton
                 size="small"
-                onClick={() => setSlideIndex((i) => Math.min(totalSlides - 1, i + 1))}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSlideIndex((i) => Math.min(totalSlides - 1, i + 1));
+                }}
                 disabled={safeSlideIndex === totalSlides - 1}
                 sx={{
                   position: 'absolute',
@@ -497,6 +506,38 @@ export default function GeneratedDraftEditor({
           </Box>
         </Box>
       </Dialog>
+
+      {previewImage && (
+        <Dialog
+          open={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+          maxWidth="lg"
+          PaperProps={{ sx: { background: 'transparent', boxShadow: 'none', overflow: 'visible' } }}
+        >
+          <Box sx={{ position: 'relative' }}>
+            <IconButton
+              onClick={() => setLightboxOpen(false)}
+              aria-label="Close"
+              sx={{
+                position: 'absolute',
+                top: -16,
+                right: -16,
+                background: '#fff',
+                boxShadow: '0 1px 4px rgba(0,0,0,.3)',
+                '&:hover': { background: '#F3F4F6' },
+              }}
+            >
+              <MdClose size={18} />
+            </IconButton>
+            <Box
+              component="img"
+              src={previewImage}
+              alt={label}
+              sx={{ display: 'block', maxWidth: '90vw', maxHeight: '85vh', borderRadius: '8px' }}
+            />
+          </Box>
+        </Dialog>
+      )}
     </Dialog>
   );
 }
