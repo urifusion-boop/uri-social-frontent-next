@@ -679,21 +679,17 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [loadedThreads, setLoadedThreads] = useState<Record<string, boolean>>({});
 
   // Real connections, so the page cannot show a channel nobody connected.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const rows = await InboxService.listChannels();
-        if (!cancelled) setChannelConnections(channelsFromApi(rows));
-      } catch {
-        // Leave the shells as they are — all showing "Not connected", which is
-        // the safe thing to say when we could not find out.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadChannels = useCallback(async () => {
+    try {
+      setChannelConnections(channelsFromApi(await InboxService.listChannels()));
+    } catch {
+      // Leave the shells as they are — all showing "Not connected", which is
+      // the safe thing to say when we could not find out.
+    }
   }, []);
+  useEffect(() => {
+    loadChannels();
+  }, [loadChannels]);
 
   const refreshConversations = useCallback(async () => {
     try {
@@ -1054,6 +1050,7 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
               isMobile={isMobile}
               connections={channelConnections}
               onConnected={handleChannelConnected}
+              onChannelsChanged={loadChannels}
             />
           ) : subView === 'insights' ? (
             <InboxInsightsPage isMobile={isMobile} conversations={conversations} />

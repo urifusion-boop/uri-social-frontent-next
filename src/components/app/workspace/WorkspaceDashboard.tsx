@@ -2869,28 +2869,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     }
   };
 
-  // A Meta connect started from the inbox is finalized here, then sent back to the inbox.
-  const INBOX_RETURN_KEY = 'inbox_connect_return';
-  const returnToInboxIfStartedThere = () => {
-    try {
-      if (!sessionStorage.getItem(INBOX_RETURN_KEY)) return;
-      sessionStorage.removeItem(INBOX_RETURN_KEY);
-    } catch {
-      return;
-    }
-    router.push('/workspace/?tab=messages&view=connections');
-  };
-
   // Handle OAuth callback params (after Facebook/Instagram OAuth redirect back here)
   useEffect(() => {
     const connected = searchParams.get('connected');
-    if (searchParams.get('source') === 'inbox') {
-      try {
-        sessionStorage.setItem(INBOX_RETURN_KEY, '1');
-      } catch {
-        /* noop */
-      }
-    }
     const token = searchParams.get('sessionToken');
     if (connected === 'instagram_direct') {
       const igUserId = searchParams.get('ig_user_id') ?? '';
@@ -2909,7 +2890,6 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
               }
               loadStatuses();
               warnIfInboxBlocked();
-              returnToInboxIfStartedThere();
             } else {
               ToastService.showToast('Instagram connection failed. Please try again.', ToastTypeEnum.Error);
             }
@@ -2957,7 +2937,6 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
               posthog.capture('social_account_connected', { platform: 'facebook', page_name: pageName });
               loadStatuses();
               warnIfInboxBlocked();
-              returnToInboxIfStartedThere();
             } else {
               ToastService.showToast('Facebook connection failed. Please try again.', ToastTypeEnum.Error);
             }
@@ -3137,7 +3116,6 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         }
         loadStatuses();
         warnIfInboxBlocked();
-        returnToInboxIfStartedThere();
       } else {
         ToastService.showToast(
           res.responseMessage || 'Could not connect those accounts. Please try again.',

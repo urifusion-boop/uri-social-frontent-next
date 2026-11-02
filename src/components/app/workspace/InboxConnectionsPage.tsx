@@ -1,6 +1,12 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { InboxService } from '@/src/api/InboxService';
+import { SocialAccountService } from '@/src/api/SocialAccountService';
+import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { ToastService } from '@/src/utils/toast.util';
+import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { WhatsAppConnect } from './WhatsAppConnect';
 
 /*
@@ -280,24 +286,110 @@ const HEALTH_META: Record<TokenHealth, { label: string; fg: string; bg: string; 
   unavailable: { label: 'No token', fg: '#888', bg: 'rgba(0,0,0,.05)', icon: 'x' },
 };
 
-// Meta's own sign-in, through URI's app, asking for the messaging permissions. Connected
-// Accounts finishes the connection and, seeing source=inbox, sends them back here.
+// Meta's own sign-in, through URI's app, asking for the messaging permissions. Meta returns
+// here (?tab=messages&view=connections&connected=…), and this page finishes the connection.
 function connectDirect(channelId: string) {
   const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
   const flow = channelId === 'instagram' ? 'instagram-direct' : 'facebook-direct';
   window.location.href = `${apiBase}/social-media/connect/${flow}/initiate?source=inbox`;
 }
 
+type IgCandidate = { ig_user_id: string; page_name?: string; username?: string };
+
+const INBOX_CONNECTIONS_URL = '/workspace/?tab=messages&view=connections';
+
 export default function InboxConnectionsPage({
   isMobile,
   connections,
   onConnected,
+  onChannelsChanged,
 }: {
   isMobile: boolean;
   connections: ChannelConnection[];
   onConnected: (channelId: string, accountLabel: string) => void;
+  onChannelsChanged: () => void;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [whatsAppOpen, setWhatsAppOpen] = useState(false);
+  const [igPendingToken, setIgPendingToken] = useState<string | null>(null);
+  const [igCandidates, setIgCandidates] = useState<IgCandidate[]>([]);
+  const [igSelected, setIgSelected] = useState<Set<string>>(new Set());
+  const [finishing, setFinishing] = useState(false);
+
+  // Subscribing the Page is what makes Meta deliver messages, and Meta can refuse it
+  // (no full control of the Page, a permission left off) — say so right away.
+  const afterConnect = async (label: string) => {
+    ToastService.showToast(`${label} connected`, ToastTypeEnum.Success);
+    try {
+      const res = await InboxService.resubscribeChannels();
+      const issue = res.subscriptions.find((sub) => !sub.subscribed)?.issue;
+      if (issue) ToastService.showToast(issue.message, ToastTypeEnum.Error);
+    } catch {
+      /* the cards below still show each Page's state */
+    }
+    onChannelsChanged();
+  };
+
+  const finish = async (run: () => Promise<{ status?: boolean }>, label: string) => {
+    setFinishing(true);
+    try {
+      const res = await run();
+      if (res.status) await afterConnect(label);
+      else ToastService.showToast(`${label} could not be connected. Please try again.`, ToastTypeEnum.Error);
+    } catch {
+      ToastService.showToast(`${label} could not be connected. Please try again.`, ToastTypeEnum.Error);
+    } finally {
+      setFinishing(false);
+    }
+  };
+
+  useEffect(() => {
+    const connected = searchParams?.get('connected');
+    if (!connected) return;
+    const param = (key: string) => searchParams?.get(key) ?? '';
+    router.replace(INBOX_CONNECTIONS_URL);
+    if (connected === 'instagram_direct' && param('ig_user_id')) {
+      finish(
+        () => SocialAccountService.finalizeInstagramDirect(param('ig_user_id')),
+        `Instagram @${param('username') || 'account'}`
+      );
+    } else if (connected === 'facebook_direct' && param('fb_page_id')) {
+      finish(
+        () => SocialAccountService.finalizeFacebookDirect(param('fb_page_id')),
+        param('page_name') || 'Facebook Page'
+      );
+    } else if (connected === 'instagram_pending' && param('token')) {
+      const token = param('token');
+      SocialMediaAgentService.getInstagramDirectPending(token)
+        .then((res) => {
+          const candidates = res.responseData?.candidates ?? [];
+          if (!res.status || candidates.length === 0) throw new Error();
+          setIgPendingToken(token);
+          setIgCandidates(candidates);
+          setIgSelected(new Set(candidates.map((c) => c.ig_user_id)));
+        })
+        .catch(() =>
+          ToastService.showToast('Could not load your Instagram accounts. Please try again.', ToastTypeEnum.Error)
+        );
+    } else if (connected === 'false') {
+      ToastService.showToast(
+        `Meta didn't finish connecting${param('error') ? `: ${param('error')}` : ''}. Please try again.`,
+        ToastTypeEnum.Error
+      );
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const connectPickedInstagram = async () => {
+    if (!igPendingToken || igSelected.size === 0) return;
+    const ids = Array.from(igSelected);
+    await finish(
+      () => SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids),
+      ids.length > 1 ? `${ids.length} Instagram accounts` : 'Instagram account'
+    );
+    setIgPendingToken(null);
+    setIgCandidates([]);
+  };
 
   return (
     <div
@@ -315,6 +407,95 @@ export default function InboxConnectionsPage({
         Connect Instagram and Facebook here with your Meta login so their messages and comments reach this inbox. Use
         the account that has full control of your Facebook Page. WhatsApp is connected here too.
       </div>
+
+      {igPendingToken && (
+        <div
+          style={{
+            background: '#fff',
+            border: '1px solid rgba(194,24,91,.3)',
+            borderRadius: 14,
+            padding: isMobile ? 14 : 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          <div style={{ fontSize: 14.5, fontWeight: 800, color: '#1a1a1a' }}>
+            Choose which Instagram accounts to connect
+          </div>
+          <div style={{ fontSize: 12.5, color: '#666' }}>
+            More than one of your Facebook Pages has an Instagram account linked to it.
+          </div>
+          {igCandidates.map((cand) => {
+            const on = igSelected.has(cand.ig_user_id);
+            return (
+              <label
+                key={cand.ig_user_id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: on ? '1.5px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() =>
+                    setIgSelected((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(cand.ig_user_id)) next.delete(cand.ig_user_id);
+                      else next.add(cand.ig_user_id);
+                      return next;
+                    })
+                  }
+                />
+                <span style={{ fontWeight: 700, color: '#333' }}>@{cand.username || cand.ig_user_id}</span>
+                {cand.page_name && <span style={{ color: '#999' }}>via {cand.page_name}</span>}
+              </label>
+            );
+          })}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              type="button"
+              disabled={finishing || igSelected.size === 0}
+              onClick={connectPickedInstagram}
+              style={{
+                padding: '9px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#AD1457',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: finishing || igSelected.size === 0 ? 'default' : 'pointer',
+                opacity: finishing || igSelected.size === 0 ? 0.6 : 1,
+                fontFamily: FONT,
+              }}
+            >
+              {finishing ? 'Connecting…' : `Connect ${igSelected.size} account${igSelected.size === 1 ? '' : 's'}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIgPendingToken(null)}
+              style={{
+                border: 'none',
+                background: 'none',
+                color: '#999',
+                fontSize: 13,
+                cursor: 'pointer',
+                fontFamily: FONT,
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {connections.map((c) => {
         const health = HEALTH_META[c.tokenHealth];
