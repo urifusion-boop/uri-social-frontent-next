@@ -9,10 +9,8 @@ import { WhatsAppConnect } from './WhatsAppConnect';
  * per channel, with actionable errors instead of a broken empty inbox.
  * Connection state is owned by the parent (InboxDashboard) and passed in, so
  * the top bar's "channels connected" summary and this page can never
- * disagree. The Connect/Reconnect wizard below is a real, fully interactive
- * UI walkthrough of the PRD's §3.1 flow, but it is clearly labelled as a
- * preview: no actual OAuth happens without the real backend, and finishing
- * it only ever updates this session's local state.
+ * disagree. Instagram and Facebook connect straight to Meta from here: the inbox
+ * needs the Page's own token, which a connection made through Outstand never has.
  */
 
 const FONT = "'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -37,18 +35,6 @@ const I = ({ n, s = 18, c = 'currentColor' }: { n: string; s?: number; c?: strin
       <>
         <circle cx="12" cy="12" r="9" />
         <polyline points="12 7 12 12 15.5 14" />
-      </>
-    ),
-    loader: (
-      <>
-        <line x1="12" y1="2" x2="12" y2="6" />
-        <line x1="12" y1="18" x2="12" y2="22" />
-        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
-        <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
-        <line x1="2" y1="12" x2="6" y2="12" />
-        <line x1="18" y1="12" x2="22" y2="12" />
-        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
-        <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
       </>
     ),
   };
@@ -89,7 +75,6 @@ export interface ChannelConnection {
   capabilities: Capability[];
   approved: boolean; // false = platform hasn't granted API access yet (e.g. TikTok) — never offer a fake connect
   warning?: string; // an account here has dropped and must be reconnected to receive messages
-  mockAccounts: string[];
 }
 
 // The channels the product can speak to. Everything about whether one is
@@ -184,14 +169,15 @@ export function channelsFromApi(
     if (connected) statusNote = `Connected — ${names(live) || shell.label}`;
     else if (stale.length) statusNote = 'Reconnect needed';
     const who = names(stale) || 'that account';
-    const blockedReason = stale.find((r) => r.subscription_ok === false && !r.needs_reconnect)?.subscription_issue?.message;
+    const blockedReason = stale.find((r) => r.subscription_ok === false && !r.needs_reconnect)?.subscription_issue
+      ?.message;
     const warning = blockedReason
       ? blockedReason
       : stale.length
-      ? shell.id === 'instagram'
-        ? `${who} has disconnected, so its messages aren't reaching this inbox. Log in to instagram.com as ${who}, then connect Instagram again in Connected Accounts. Come back here and click Reconnect.`
-        : `${who} has disconnected, so its messages aren't reaching this inbox. Connect Facebook again in Connected Accounts and choose the ${who} Page, then come back here and click Reconnect.`
-      : '';
+        ? shell.id === 'instagram'
+          ? `${who} has disconnected, so its messages aren't reaching this inbox. Log in to instagram.com as ${who}, then click Reconnect.`
+          : `${who} has disconnected, so its messages aren't reaching this inbox. Click Reconnect and choose the ${who} Page.`
+        : '';
     return {
       ...shell,
       connected,
@@ -203,7 +189,6 @@ export function channelsFromApi(
       lastEvent: row ? timeAgo(row.last_event_at) : '—',
       tokenHealth: !row || !connected ? 'unavailable' : row.has_token ? 'healthy' : 'unavailable',
       capabilities: shell.capabilities.map((c) => ({ ...c, ok: connected })),
-      mockAccounts: row && row.name ? [row.name] : [],
     };
   });
 }
@@ -295,311 +280,12 @@ const HEALTH_META: Record<TokenHealth, { label: string; fg: string; bg: string; 
   unavailable: { label: 'No token', fg: '#888', bg: 'rgba(0,0,0,.05)', icon: 'x' },
 };
 
-type WizardStep = 'prereq' | 'authorize' | 'account' | 'test' | 'done';
-
-const TEST_CHECKS = ['Subscribing to webhooks', 'Sending a test event', 'Verifying reply capability'];
-
-function ConnectWizard({
-  channel,
-  onClose,
-  onConnected,
-}: {
-  channel: ChannelConnection;
-  onClose: () => void;
-  onConnected: (channelId: string, accountLabel: string) => void;
-}) {
-  const [step, setStep] = useState<WizardStep>('prereq');
-  const [selectedAccount, setSelectedAccount] = useState(channel.mockAccounts[0] ?? '');
-  const [checksDone, setChecksDone] = useState(0);
-  const [busy, setBusy] = useState(false);
-
-  function startAuthorize() {
-    setBusy(true);
-    setStep('authorize');
-    setTimeout(() => {
-      setBusy(false);
-      setStep('account');
-    }, 1300);
-  }
-
-  function startTest() {
-    setStep('test');
-    setChecksDone(0);
-    TEST_CHECKS.forEach((_, i) => {
-      setTimeout(() => setChecksDone((n) => Math.max(n, i + 1)), (i + 1) * 550);
-    });
-    setTimeout(() => setStep('done'), TEST_CHECKS.length * 550 + 300);
-  }
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1100 }} />
-      <div
-        style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%,-50%)',
-          zIndex: 1101,
-          background: '#fff',
-          borderRadius: 16,
-          width: 440,
-          maxWidth: '92vw',
-          maxHeight: '85vh',
-          overflowY: 'auto',
-          boxShadow: '0 20px 60px rgba(0,0,0,.3)',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div style={{ padding: '18px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 9,
-                background: channel.color,
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 800,
-                fontSize: 12,
-              }}
-            >
-              {channel.label[0]}
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a' }}>Connect {channel.label}</div>
-          </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            style={{
-              width: 30,
-              height: 30,
-              border: 'none',
-              background: 'transparent',
-              color: '#666',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              borderRadius: 8,
-            }}
-          >
-            <I n="x" s={16} />
-          </button>
-        </div>
-
-        <div
-          style={{
-            margin: '12px 20px 0',
-            fontSize: 10.5,
-            color: '#B26A00',
-            background: 'rgba(237,108,2,.08)',
-            border: '1px solid rgba(237,108,2,.2)',
-            borderRadius: 8,
-            padding: '6px 10px',
-          }}
-        >
-          Preview flow — actual account linking requires the real backend OAuth integration.
-        </div>
-
-        <div style={{ padding: 20 }}>
-          {!channel.approved ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  color: '#B26A00',
-                  fontWeight: 700,
-                  fontSize: 13,
-                }}
-              >
-                <I n="alertTriangle" s={16} c="#B26A00" />
-                Not available yet
-              </div>
-              <div style={{ fontSize: 13, color: '#444', lineHeight: 1.55 }}>{channel.statusNote}.</div>
-              <div style={{ fontSize: 12.5, color: '#888', lineHeight: 1.55 }}>
-                This channel is shown as unavailable rather than a broken connection — there is nothing to authorize
-                until platform approval comes through.
-              </div>
-            </div>
-          ) : step === 'prereq' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ fontSize: 13, color: '#444', lineHeight: 1.55 }}>
-                Connecting {channel.label} will ask for the following permissions:
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {(channel.scopes.length > 0
-                  ? channel.scopes
-                  : [`${channel.id}_manage_messages`, `${channel.id}_manage_comments`]
-                ).map((s) => (
-                  <span
-                    key={s}
-                    style={{
-                      fontSize: 10.5,
-                      fontWeight: 600,
-                      color: '#666',
-                      background: '#f4f4f5',
-                      borderRadius: 8,
-                      padding: '3px 8px',
-                    }}
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-              <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
-                You'll choose which {channel.label} account to connect, then URI runs a safe test — subscribing to
-                events, sending a test event and checking reply capability — before this shows as connected anywhere.
-              </div>
-              <button
-                type="button"
-                onClick={startAuthorize}
-                style={{
-                  padding: '10px 16px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: '#AD1457',
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: FONT,
-                  alignSelf: 'flex-start',
-                }}
-              >
-                Continue to {channel.label}
-              </button>
-            </div>
-          ) : step === 'authorize' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '20px 0' }}>
-              <div style={{ animation: busy ? undefined : undefined }}>
-                <I n="loader" s={28} c="#AD1457" />
-              </div>
-              <div style={{ fontSize: 13, color: '#444', fontWeight: 600 }}>
-                Redirecting to {channel.label} to sign in...
-              </div>
-            </div>
-          ) : step === 'account' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ fontSize: 13, color: '#444' }}>Choose which account to connect:</div>
-              {channel.mockAccounts.map((acc) => (
-                <button
-                  key={acc}
-                  type="button"
-                  onClick={() => setSelectedAccount(acc)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '11px 14px',
-                    borderRadius: 10,
-                    border: selectedAccount === acc ? '1.5px solid #E91E63' : '1px solid rgba(0,0,0,.1)',
-                    background: selectedAccount === acc ? 'rgba(194,24,91,.06)' : '#fff',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: '#333',
-                    cursor: 'pointer',
-                    fontFamily: FONT,
-                    textAlign: 'left',
-                  }}
-                >
-                  {acc}
-                  {selectedAccount === acc && <I n="check" s={15} c="#AD1457" />}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={startTest}
-                style={{
-                  padding: '10px 16px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: '#AD1457',
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: FONT,
-                  alignSelf: 'flex-start',
-                  marginTop: 4,
-                }}
-              >
-                Connect this account
-              </button>
-            </div>
-          ) : step === 'test' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ fontSize: 13, color: '#444', fontWeight: 600, marginBottom: 4 }}>
-                Running a safe connection test...
-              </div>
-              {TEST_CHECKS.map((label, i) => (
-                <div
-                  key={label}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    fontSize: 13,
-                    color: checksDone > i ? '#2E7D32' : '#999',
-                  }}
-                >
-                  {checksDone > i ? <I n="check" s={15} c="#2E7D32" /> : <I n="loader" s={15} c="#ccc" />}
-                  {label}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '10px 0' }}>
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: '50%',
-                  background: 'rgba(46,125,50,.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <I n="check" s={22} c="#2E7D32" />
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a1a' }}>Connected to {selectedAccount}</div>
-              <div style={{ fontSize: 12, color: '#888', textAlign: 'center' }}>
-                All checks passed — this channel is ready to use in Inbox.
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onConnected(channel.id, selectedAccount);
-                  onClose();
-                }}
-                style={{
-                  marginTop: 8,
-                  padding: '10px 24px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: '#AD1457',
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: FONT,
-                }}
-              >
-                Done
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </>
-  );
+// Meta's own sign-in, through URI's app, asking for the messaging permissions. Connected
+// Accounts finishes the connection and, seeing source=inbox, sends them back here.
+function connectDirect(channelId: string) {
+  const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+  const flow = channelId === 'instagram' ? 'instagram-direct' : 'facebook-direct';
+  window.location.href = `${apiBase}/social-media/connect/${flow}/initiate?source=inbox`;
 }
 
 export default function InboxConnectionsPage({
@@ -611,9 +297,7 @@ export default function InboxConnectionsPage({
   connections: ChannelConnection[];
   onConnected: (channelId: string, accountLabel: string) => void;
 }) {
-  const [wizardChannelId, setWizardChannelId] = useState<string | null>(null);
-  const wizardChannel =
-    wizardChannelId === 'whatsapp' ? null : (connections.find((c) => c.id === wizardChannelId) ?? null);
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
 
   return (
     <div
@@ -628,8 +312,8 @@ export default function InboxConnectionsPage({
       }}
     >
       <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>
-        Instagram and Facebook here are the accounts in Connected Accounts — connect, switch or disconnect them there
-        and the inbox follows. WhatsApp is connected here.
+        Connect Instagram and Facebook here with your Meta login so their messages and comments reach this inbox. Use
+        the account that has full control of your Facebook Page. WhatsApp is connected here too.
       </div>
 
       {connections.map((c) => {
@@ -692,13 +376,7 @@ export default function InboxConnectionsPage({
               </span>
               <button
                 type="button"
-                onClick={() =>
-                  // Instagram and Facebook are connected in ONE place — Connected
-                  // Accounts — and the inbox follows whatever is connected there.
-                  c.id === 'instagram' || c.id === 'facebook'
-                    ? (window.location.href = '/workspace/?tab=connections')
-                    : setWizardChannelId(c.id)
-                }
+                onClick={() => (c.id === 'whatsapp' ? setWhatsAppOpen(true) : connectDirect(c.id))}
                 style={{
                   padding: '7px 14px',
                   borderRadius: 8,
@@ -744,9 +422,7 @@ export default function InboxConnectionsPage({
                   </span>
                   <button
                     type="button"
-                    onClick={() => {
-                      window.location.href = '/workspace/?tab=connections';
-                    }}
+                    onClick={() => connectDirect(c.id)}
                     style={{
                       background: '#B26A00',
                       color: '#fff',
@@ -759,7 +435,7 @@ export default function InboxConnectionsPage({
                       fontFamily: FONT,
                     }}
                   >
-                    Go to Connected Accounts
+                    Reconnect
                   </button>
                 </div>
               )}
@@ -843,14 +519,11 @@ export default function InboxConnectionsPage({
         );
       })}
 
-      {wizardChannel && (
-        <ConnectWizard channel={wizardChannel} onClose={() => setWizardChannelId(null)} onConnected={onConnected} />
-      )}
-      {wizardChannelId === 'whatsapp' && (
+      {whatsAppOpen && (
         <WhatsAppConnect
-          onClose={() => setWizardChannelId(null)}
+          onClose={() => setWhatsAppOpen(false)}
           onConnected={(label) => {
-            setWizardChannelId(null);
+            setWhatsAppOpen(false);
             onConnected('whatsapp', label);
           }}
         />
