@@ -14,10 +14,11 @@ import {
   Typography,
 } from '@mui/material';
 import { MdChevronLeft, MdChevronRight, MdClose } from 'react-icons/md';
-import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { ContentDraft, SocialMediaAgentService, TikTokPostSettings } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { queuedNotice, queuedPublish } from '@/src/utils/publishJobMessage.util';
+import { describePublishJob, queuedNotice, queuedPublish, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
+import TikTokPostDialog from '../workspace/TikTokPostDialog';
 import { PLATFORM_META, firstSlideImage, mediaMeta } from './GeneratedContentCard';
 
 const PINK = '#CD1B78';
@@ -53,6 +54,7 @@ export default function GeneratedDraftEditor({
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [tiktokDialogOpen, setTiktokDialogOpen] = useState(false);
 
   const id = draft.draft_id ?? draft.id ?? '';
   const platformKey = (draft.platform || '').toLowerCase();
@@ -154,6 +156,108 @@ export default function GeneratedDraftEditor({
     }
   };
 
+  // The pictures a TikTok photo post carries: each carousel slide, or the single image.
+  const resolveUrl = (url: string) => {
+    if (!url.startsWith('/')) return url;
+    const base = process.env.NEXT_PUBLIC_URI_API_BASE_URL || process.env.NEXT_PUBLIC_URI_API_BASE_URL_DEV || '';
+    return `${base}${url}`;
+  };
+  const tiktokPhotoUrls = (isCarousel ? slides.map((sl) => sl.image_url) : [draft.image_url ?? firstSlideImage(draft)])
+    .filter((u): u is string => !!u)
+    .map(resolveUrl);
+  const editedHashtags = hashtagInput
+    .split(',')
+    .map((h) => h.trim().replace(/^#/, ''))
+    .filter(Boolean);
+
+  // A TikTok photo cannot go through the quick approve call: TikTok requires its own
+  // screen first (privacy, comments, disclosure, consent), so Publish Now opens that
+  // screen and nothing is sent until the user confirms it.
+  const handlePublishNow = () => {
+    setApproveAnchor(null);
+    if (!isTiktokPhoto) {
+      doApprove('immediate');
+      return;
+    }
+    if (!isConnected) {
+      ToastService.showToast(
+        `${meta?.label ?? draft.platform} isn't connected — connect it first.`,
+        ToastTypeEnum.Error
+      );
+      return;
+    }
+    setTiktokDialogOpen(true);
+  };
+
+  // Sends the post once the user has confirmed on the Post to TikTok screen, then follows
+  // the job so they see its status through to the end (same flow as the Drafts tab card).
+  const handleTikTokPhotoConfirm = async (settings: TikTokPostSettings) => {
+    setTiktokDialogOpen(false);
+    setBusy(true);
+    try {
+      const res = await SocialMediaAgentService.publishTikTokPhotoDraft({ draft_id: id, tiktok: settings });
+      if (!res.status || !res.responseData) {
+        ToastService.showToast(res.responseMessage || "Couldn't send this to TikTok.", ToastTypeEnum.Error);
+        return;
+      }
+      ToastService.showToast('Sending to TikTok…', ToastTypeEnum.Warning);
+      const jobId = res.responseData.job_id;
+      // Normally ~200s. A job waiting its turn (TikTok rate limit, or another post going out first)
+      // is followed until it is due plus a margin, so waiting never reads as a timeout.
+      const POLL_MS = 5000;
+      const WAIT_MARGIN_MS = 3 * 60 * 1000;
+      let deadline = Date.now() + 200_000;
+      let toldAboutWait = false;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, POLL_MS));
+        const poll = await SocialMediaAgentService.getVideoPublishJob(jobId);
+        const job = poll.responseData;
+        if (!job) continue;
+        const msg = describePublishJob(job);
+        if (job.status === 'queued') {
+          const due = resumeTimeMs(job);
+          if (due) deadline = Math.max(deadline, due + WAIT_MARGIN_MS);
+          if (msg.tone === 'waiting' && !toldAboutWait) {
+            toldAboutWait = true;
+            ToastService.showToast(`${msg.title}. ${msg.body}`, ToastTypeEnum.Warning);
+          }
+          continue;
+        }
+        if (job.status === 'published') {
+          ToastService.showToast(`${msg.title}. ${msg.body}`, ToastTypeEnum.Success);
+          onRefresh();
+          onClose();
+          return;
+        }
+        // Accepted by TikTok but not yet confirmed: never shown as posted.
+        if (job.status === 'processing' && job.error) {
+          ToastService.showToast(msg.body, ToastTypeEnum.Warning);
+          onRefresh();
+          return;
+        }
+        if (job.status === 'failed') {
+          // A rate limit or cap is a warning, not a red failure, and never a "reconnect" prompt.
+          ToastService.showToast(
+            msg.tone === 'warning' ? `${msg.title}. ${msg.body}` : msg.body,
+            msg.tone === 'error' ? ToastTypeEnum.Error : ToastTypeEnum.Warning
+          );
+          onRefresh();
+          return;
+        }
+      }
+      ToastService.showToast(
+        'TikTok is still processing this post. Check your TikTok profile in a few minutes.',
+        ToastTypeEnum.Warning
+      );
+      onRefresh();
+    } catch (err: unknown) {
+      const detail = (err as { data?: { detail?: string } })?.data?.detail;
+      ToastService.showToast(detail || "Couldn't send this to TikTok. Please try again.", ToastTypeEnum.Error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!confirmDelete) {
       setConfirmDelete(true);
@@ -171,6 +275,21 @@ export default function GeneratedDraftEditor({
       setConfirmDelete(false);
     }
   };
+
+  // While the Post to TikTok screen is open it takes over: the editor's own dialog would hold the
+  // keyboard focus and sit over it. Everything typed in the editor lives in this component's state,
+  // so it is all still here when the screen closes.
+  if (tiktokDialogOpen) {
+    return (
+      <TikTokPostDialog
+        media={{ kind: 'photo', urls: tiktokPhotoUrls }}
+        initialTitle={content.split('\n')[0].slice(0, 90)}
+        initialDescription={[content, editedHashtags.map((h) => `#${h}`).join(' ')].filter(Boolean).join('\n\n')}
+        onClose={() => setTiktokDialogOpen(false)}
+        onConfirm={handleTikTokPhotoConfirm}
+      />
+    );
+  }
 
   return (
     <Dialog
@@ -474,7 +593,7 @@ export default function GeneratedDraftEditor({
       </Box>
 
       <Menu anchorEl={approveAnchor} open={!!approveAnchor} onClose={() => setApproveAnchor(null)}>
-        <MenuItem onClick={() => doApprove('immediate')}>Publish Now</MenuItem>
+        <MenuItem onClick={handlePublishNow}>Publish Now</MenuItem>
         <MenuItem
           onClick={() => {
             setApproveAnchor(null);
