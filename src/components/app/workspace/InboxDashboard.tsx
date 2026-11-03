@@ -283,6 +283,7 @@ interface Conversation {
   isComplaint?: boolean;
   sourceLabel?: string;
   leadStage?: string;
+  leadValue?: number | null;
   messages?: ThreadMessage[];
   post?: PostContext;
   comments?: ThreadComment[];
@@ -560,6 +561,7 @@ function toConversation(dto: InboxConversationDTO): Conversation {
     status: urgent ? 'urgent' : asStatus(dto.status),
     sourceLabel: dto.source_ad_id ? 'an ad' : dto.source_post_id ? 'a post' : undefined,
     leadStage: dto.lead_stage || '',
+    leadValue: dto.lead_value ?? null,
     tags: dto.tags ?? [],
     messages: dto.kind === 'dm' ? [] : undefined,
     comments: dto.kind === 'comment' ? [] : undefined,
@@ -2339,6 +2341,31 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
             <option value="converted">Converted</option>
             <option value="lost">Lost</option>
           </select>
+          {selectedConv.leadStage === 'converted' && (
+            <input
+              key={selectedConv.id}
+              type="number"
+              min={0}
+              placeholder="Order ₦"
+              aria-label="Order value in naira"
+              defaultValue={selectedConv.leadValue ?? ''}
+              onBlur={async (e) => {
+                const value = Number(e.target.value);
+                const id = selectedConv.id;
+                if (!e.target.value || Number.isNaN(value)) return;
+                setBaseConversations((prev) => prev.map((c) => (c.id === id ? { ...c, leadValue: value } : c)));
+                await GrowthService.setLeadStage(id, 'converted', value).catch(() => undefined);
+              }}
+              style={{
+                width: 90,
+                fontSize: 12,
+                fontFamily: FONT,
+                border: '1px solid rgba(194,24,91,.3)',
+                borderRadius: 6,
+                padding: '2px 6px',
+              }}
+            />
+          )}
         </label>
       )}
     </div>

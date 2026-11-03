@@ -618,6 +618,49 @@ export type GoogleUriAccount = {
   added_at?: string;
 };
 
+export interface AdsBrief {
+  service_area: string[];
+  excluded_locations: string[];
+  constraints: string[];
+  tracking: 'none' | 'messages_only' | 'website_pixel' | 'website_purchases';
+  success_definition: string;
+  qualified_lead_definition: string;
+  customer_data: string;
+  assets_available: string;
+  previous_results: string;
+}
+
+export interface AdsBriefResponse {
+  brief: AdsBrief;
+  constraint_options: Record<string, string>;
+  tracking_options: string[];
+}
+
+export interface PlanCheckIssue {
+  code: string;
+  level: 'block' | 'warning';
+  message: string;
+  overridable?: boolean;
+}
+
+export interface PlanChecks {
+  issues: PlanCheckIssue[];
+  blocking: PlanCheckIssue[];
+  structure: {
+    campaigns: number;
+    ad_sets: number;
+    ads_per_ad_set: number;
+    budget_type: string;
+    daily_ngn: number;
+    days: number;
+    total_ngn: number;
+    why: string;
+  };
+  brief_missing: string[];
+  confidence: 'normal' | 'lower';
+  can_launch: boolean;
+}
+
 export class CampaignService {
   /** Conversational planning: Jane parses a plain-English message and returns her plan
    * (or asks a follow-up). Does NOT create anything — used for the chat preview. */
@@ -799,13 +842,31 @@ export class CampaignService {
     return (res.data as { objectives: CampaignObjectiveChoice[] }).objectives;
   }
 
-  static async launchPlan(planId: string): Promise<LaunchFromMessageResult> {
+  /** The brand's standing ads brief — saved once, every plan is checked against it. */
+  static async getAdsBrief(): Promise<AdsBriefResponse> {
+    return (await UriHttpClient.getClient().get('/jane-ads/brief')).data as AdsBriefResponse;
+  }
+
+  static async saveAdsBrief(brief: Partial<AdsBrief>): Promise<AdsBrief> {
+    return ((await UriHttpClient.getClient().put('/jane-ads/brief', brief)).data as { brief: AdsBrief }).brief;
+  }
+
+  /** What a plan launches as, and anything in it that conflicts with the brief. */
+  static async planChecks(planId: string): Promise<PlanChecks> {
+    return (await UriHttpClient.getClient().get(`/jane-ads/meta/plan/${planId}/checks`)).data as PlanChecks;
+  }
+
+  static async launchPlan(planId: string, allowOutOfArea = false): Promise<LaunchFromMessageResult> {
     // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
     // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was
     // not always enough: the request timed out client-side and showed a network error
     // while the server went on to publish the campaign successfully — so the user was
     // told it failed when it hadn't. Live-reported.
-    const res = await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/launch`, {}, { timeout: 240000 });
+    const res = await UriHttpClient.getClient().post(
+      `/jane-ads/meta/plan/${planId}/launch`,
+      { allow_out_of_area: allowOutOfArea },
+      { timeout: 240000 }
+    );
     return res.data as LaunchFromMessageResult;
   }
 

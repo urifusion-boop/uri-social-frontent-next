@@ -8,6 +8,7 @@ import { ago, naira, VERDICT_TONE } from './format';
 
 const FILTERS: [GrowthVerdictStatus | '', string][] = [
   ['', 'All'],
+  ['strong', 'Strong'],
   ['promising', 'Promising'],
   ['underperforming', 'Underperforming'],
   ['inconclusive', 'Inconclusive'],

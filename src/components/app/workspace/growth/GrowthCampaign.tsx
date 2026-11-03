@@ -12,6 +12,8 @@ import { Btn, Card, Chip, errorText, inputStyle } from '../personality/ui';
 import { ACTION_LABELS, CONFIDENCE_TONE, ago, naira, pct } from './format';
 import { GrowthTesting } from './GrowthTesting';
 
+type RecDecision = 'approve' | 'rejected' | 'done' | 'deferred';
+
 export function GrowthCampaign({
   campaignId,
   policy,
@@ -57,12 +59,12 @@ export function GrowthCampaign({
     setBusy('');
   }
 
-  async function act(rec: GrowthRecommendation, kind: 'approve' | 'rejected' | 'done') {
+  async function act(rec: GrowthRecommendation, kind: RecDecision, toNgn?: number) {
     setBusy(rec.id);
     setError('');
     try {
       if (kind === 'approve') {
-        const a = await GrowthService.approve(rec.id);
+        const a = await GrowthService.approve(rec.id, toNgn);
         setNotice(
           a.status === 'executed'
             ? 'Done, and confirmed with the ad platform.'
@@ -71,8 +73,14 @@ export function GrowthCampaign({
               : `The ad platform refused the change: ${a.error ?? 'unknown error'}`
         );
       } else {
-        await GrowthService.decide(rec.id, kind);
-        setNotice(kind === 'done' ? 'Marked done. URI will measure the result.' : 'Dismissed.');
+        await GrowthService.decide(rec.id, kind, '', kind === 'deferred' ? 3 : undefined);
+        setNotice(
+          kind === 'done'
+            ? 'Marked done. URI will measure the result.'
+            : kind === 'deferred'
+              ? 'URI will bring this back in 3 days if the problem is still there.'
+              : 'Dismissed.'
+        );
       }
       await load();
     } catch (e) {
@@ -253,8 +261,13 @@ function Diagnosis({
   policy: GrowthPolicy;
   canApprove: boolean;
   busy: string;
-  onAct: (r: GrowthRecommendation, k: 'approve' | 'rejected' | 'done') => void;
+  onAct: (r: GrowthRecommendation, k: RecDecision, toNgn?: number) => void;
 }) {
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const editedAmount = (r: GrowthRecommendation) => {
+    const v = amounts[r.id];
+    return v !== undefined && Number(v) > 0 && Number(v) !== Number(r.parameters?.to_ngn) ? Number(v) : undefined;
+  };
   return (
     <div
       style={{
@@ -292,7 +305,7 @@ function Diagnosis({
         ))}
       </div>
       {recs
-        .filter((r) => ['proposed', 'failed', 'executed', 'unverified', 'done'].includes(r.status))
+        .filter((r) => ['proposed', 'deferred', 'failed', 'executed', 'unverified', 'done'].includes(r.status))
         .map((r) => (
           <div
             key={r.id}
@@ -309,7 +322,11 @@ function Diagnosis({
               <span style={{ fontWeight: 800, fontSize: 13, color: '#AD1457' }}>
                 {ACTION_LABELS[r.action_type] ?? r.action_type}
               </span>
-              {r.status !== 'proposed' && <Chip tone={r.status === 'failed' ? 'amber' : 'green'}>{r.status}</Chip>}
+              {r.status !== 'proposed' && (
+                <Chip tone={r.status === 'failed' ? 'amber' : r.status === 'deferred' ? 'grey' : 'green'}>
+                  {r.status === 'deferred' ? 'reminder set' : r.status}
+                </Chip>
+              )}
             </div>
             <div style={{ fontSize: 12.5, color: '#333' }}>{r.summary}</div>
             <div style={{ fontSize: 11.5, color: '#777' }}>
@@ -317,11 +334,21 @@ function Diagnosis({
               {r.eval_window_days} days.
             </div>
             {r.history?.text && <div style={{ fontSize: 11.5, color: '#0E7490' }}>{r.history.text}</div>}
-            {r.status === 'proposed' && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(r.status === 'proposed' || r.status === 'deferred') && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                {r.action_type === 'set_daily_budget' && r.executable && canApprove && (
+                  <input
+                    type="number"
+                    min={0}
+                    value={amounts[r.id] ?? String(r.parameters?.to_ngn ?? '')}
+                    onChange={(e) => setAmounts({ ...amounts, [r.id]: e.target.value })}
+                    style={{ ...inputStyle, width: 110 }}
+                    aria-label="Daily budget to approve"
+                  />
+                )}
                 {r.executable ? (
                   canApprove ? (
-                    <Btn small onClick={() => onAct(r, 'approve')} disabled={busy !== ''}>
+                    <Btn small onClick={() => onAct(r, 'approve', editedAmount(r))} disabled={busy !== ''}>
                       {busy === r.id ? 'Applying…' : policy.mode === 'advisory' ? 'Do it for me' : 'Approve'}
                     </Btn>
                   ) : (
@@ -330,6 +357,11 @@ function Diagnosis({
                 ) : (
                   <Btn small kind="secondary" onClick={() => onAct(r, 'done')} disabled={busy !== ''}>
                     I’ve done this
+                  </Btn>
+                )}
+                {r.status === 'proposed' && (
+                  <Btn small kind="ghost" onClick={() => onAct(r, 'deferred')} disabled={busy !== ''}>
+                    Remind me in 3 days
                   </Btn>
                 )}
                 <Btn small kind="ghost" onClick={() => onAct(r, 'rejected')} disabled={busy !== ''}>

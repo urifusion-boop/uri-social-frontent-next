@@ -16,6 +16,7 @@ export interface InboxConversationDTO {
   source_post_id: string;
   source_ad_id: string;
   lead_stage?: string;
+  lead_value?: number | null;
   last_direction?: 'inbound' | 'outbound' | '';
   intent?: string;
   intent_confidence?: number | null;

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { GrowthCampaignHealth, GrowthPolicy, GrowthService } from '@/src/api/GrowthService';
 import { Btn, Card, Chip, FONT, errorText } from '../personality/ui';
+import { AdsBrief } from './AdsBrief';
 import { GrowthAutomation } from './GrowthAutomation';
 import { GrowthCampaign } from './GrowthCampaign';
 import { GrowthHistory } from './GrowthHistory';
@@ -14,7 +15,7 @@ import { ago, naira, pct } from './format';
  * do next — with the business deciding how much URI may change on its own.
  */
 
-type View = 'campaigns' | 'testing' | 'automation' | 'history';
+type View = 'campaigns' | 'testing' | 'brief' | 'automation' | 'history';
 
 const MODE_LABELS: Record<string, string> = {
   advisory: 'Advise me',
@@ -87,6 +88,7 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
           [
             ['campaigns', 'Campaigns'],
             ['testing', 'Testing'],
+            ['brief', 'Brief'],
             ['automation', 'Automation'],
             ['history', 'History'],
           ] as const
@@ -131,6 +133,7 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
       )}
       {view === 'history' && <GrowthHistory canChange={canChange} />}
       {view === 'testing' && <GrowthPlanner />}
+      {view === 'brief' && <AdsBrief />}
 
       {view === 'campaigns' && selected && (
         <GrowthCampaign
