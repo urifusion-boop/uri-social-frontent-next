@@ -21,7 +21,7 @@ import { MdChevronLeft, MdChevronRight, MdMoreVert, MdSearch } from 'react-icons
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
-import { queuedNotice, queuedPublish } from '@/src/utils/publishJobMessage.util';
+import { queuedNotice } from '@/src/utils/publishJobMessage.util';
 import GeneratedContentCard, { firstSlideImage } from '../GeneratedContentCard';
 import GeneratedDraftEditor from '../GeneratedDraftEditor';
 import DraftDetailView from '../DraftDetailView';
@@ -228,11 +228,15 @@ export default function ContentLibraryPage() {
     const queued = approved.filter((a) => a.publish_result?.queued || a.publish_result?.publish_status === 'queued');
     const done = approved.length - queued.length;
     if (done) ToastService.showToast(`${done} ${okVerb}.`, ToastTypeEnum.Success);
-    if (queued.length)
+    if (queued.length) {
+      const single = queued.length === 1 ? queued[0].publish_result : undefined;
       ToastService.showToast(
-        `${queued.length} queued: ${queued.length === 1 ? 'it' : 'they'} will post on their own shortly, spaced out to stay within the platform's limits.`,
+        single
+          ? queuedNotice(single)
+          : `${queued.length} queued: they will post on their own shortly, spaced out to stay within the platform's limits.`,
         ToastTypeEnum.Warning
       );
+    }
     if (errs.length) ToastService.showToast(`${errs.length} failed: ${errs[0].error}`, ToastTypeEnum.Error);
   };
 
