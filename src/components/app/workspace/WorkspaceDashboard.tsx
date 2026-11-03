@@ -70,7 +70,6 @@ import SubmagicProductionForm from '@/src/components/app/workspace/SubmagicProdu
 import ZapCapProductionForm from '@/src/components/app/workspace/ZapCapProductionForm';
 import UploadContentForm from '@/src/components/app/workspace/UploadContentForm';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
-import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import BusinessPulsePanel from '@/src/components/app/workspace/BusinessPulsePanel';
 import WorkspaceAdWalletBadge from '@/src/components/app/workspace/WorkspaceAdWalletBadge';
 import VerifyEmailModal from '@/components/VerifyEmailModal';
@@ -10324,6 +10323,14 @@ export default function WorkspaceDashboard() {
     [router]
   );
 
+  // Customer Messages is hidden on prod — removing it from the sidebar list
+  // alone didn't stop NotificationBell (and any future ?tab=messages link)
+  // from landing here directly, bypassing the sidebar entirely. This closes
+  // that off at the route level instead of chasing every entry point.
+  useEffect(() => {
+    if (nav === 'messages') goTo('workspace');
+  }, [nav, goTo]);
+
   const closeTour = useCallback(
     (navigate = false) => {
       setTourOpen(false);
@@ -10654,7 +10661,11 @@ export default function WorkspaceDashboard() {
     ),
     connections: <ConnectionsPage onJane={goWorkspace} />,
     performance: <PerformancePage onJane={goWorkspace} />,
-    messages: <InboxDashboard isMobile={isMobile} />,
+    // Customer Messages (InboxDashboard) is hidden on prod — see the
+    // nav === 'messages' redirect guard above. No entry here means even
+    // the one render before that effect fires shows nothing instead of a
+    // flash of the real inbox.
+
     campaigns: <CampaignsPage onJane={goWorkspace} onNavigate={goTo} />,
     intel: <IntelPage onJane={goWorkspace} />,
     agency: <AgencyDashboard />,

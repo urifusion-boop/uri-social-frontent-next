@@ -88,7 +88,8 @@ export default function NotificationBell({
       router.push(n.metadata?.reconnect ? '/workspace/?tab=connections' : '/workspace/?tab=content');
     } else if (n.type === 'inbox_needs_reply') {
       setOpen(false);
-      router.push('/workspace/?tab=messages');
+      // Customer Messages is hidden on prod — don't send anyone to it.
+      router.push('/workspace/?tab=workspace');
     } else if (n.type === 'content_posted') {
       setOpen(false);
       router.push('/workspace/?tab=content');
