@@ -149,7 +149,8 @@ export function queuedPublish(result: ApproveResult | null | undefined, draftId?
 }
 
 export function queuedNotice(result: ApprovePublishResult): string {
-  if (result.message) return result.message;
   const at = formatResumeAt(result.resume_at);
+  // The backend words the time in UTC; show it in the viewer's own time zone instead.
+  if (result.message) return at ? result.message.replace(/\b\d{2}:\d{2} UTC\b/, at) : result.message;
   return `Queued: this will post${at ? ` around ${at}` : ' shortly'}.`;
 }
