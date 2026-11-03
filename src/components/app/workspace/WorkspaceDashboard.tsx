@@ -3176,6 +3176,16 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       window.location.href = `${apiBase}/social-media/connect/instagram-direct/initiate?source=settings`;
       return;
     }
+    if (flow === 'facebook_direct_oauth') {
+      setConnecting(id);
+      // Meta's own sign-in, through URI's app: the Page is connected directly and its posts go
+      // straight to Facebook. Meta returns here (?connected=facebook_direct) and the effect above
+      // finishes the connection.
+      localStorage.setItem('outstand_connect_platform', id);
+      const apiBase = process.env.NEXT_PUBLIC_URI_API_BASE_URL?.replace(/\/$/, '') ?? '';
+      window.location.href = `${apiBase}/social-media/connect/facebook-direct/initiate?source=settings`;
+      return;
+    }
     if (flow === 'tiktok_direct_oauth') {
       setConnecting(id);
       // Direct TikTok Login Kit flow (FILE_UPLOAD posting, bypasses Outstand) —
@@ -4227,6 +4237,51 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                           'Disconnect'
                         )}
                       </button>
+                    ) : p.id === 'facebook' ? (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleConnect('facebook', 'outstand_oauth')}
+                          disabled={isBusy}
+                          title="Connect through Outstand. Posts are sent through Outstand."
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #edecea',
+                            background: '#fff',
+                            fontSize: 12,
+                            color: '#333',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleConnect('facebook', 'facebook_direct_oauth')}
+                          disabled={isBusy}
+                          title="Log in with Meta directly. Posts are sent straight to your Facebook Page."
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: p.color,
+                            fontSize: 12,
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {connecting === p.id ? 'Connecting...' : 'Connect with Meta'}
+                        </button>
+                      </div>
                     ) : p.id === 'tiktok' ? (
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <button
@@ -4348,10 +4403,14 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                           >
                             <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
                               {account.account_name || account.username || 'Connected page'}
-                              {p.id === 'tiktok' && (
+                              {(p.id === 'tiktok' || p.id === 'facebook') && (
                                 <span style={{ color: '#888', fontWeight: 400 }}>
                                   {' · '}
-                                  {account.connected_via?.startsWith('tiktok_direct') ? 'TikTok login' : 'via Outstand'}
+                                  {account.connected_via?.startsWith(`${p.id}_direct`)
+                                    ? p.id === 'tiktok'
+                                      ? 'TikTok login'
+                                      : 'Meta login'
+                                    : 'via Outstand'}
                                 </span>
                               )}
                               {/* is_active is only ever explicitly false when Outstand itself
