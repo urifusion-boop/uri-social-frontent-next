@@ -63,6 +63,19 @@ const FORMAT_LABEL: Record<string, string> = {
   reel: 'Reel',
 };
 
+// The badge a row shows. Groups stay as categorize() decides, but a post that failed to publish (kept in
+// Archived) must not read as "Archived", a post stopped by a platform limit is not a plain failure, and a
+// post waiting its turn is not just "Scheduled".
+function badgeFor(d: ContentDraft, cat: LibraryTab) {
+  if (d.status === 'publish_failed') {
+    return d.publish_error_kind === 'daily_cap' || d.publish_error_kind === 'app_cap'
+      ? { bg: '#FEF3C7', color: '#92400E', label: 'Limit reached' }
+      : { bg: '#FEE2E2', color: '#991B1B', label: 'Failed' };
+  }
+  if (cat === 'scheduled' && d.publish_wait) return { bg: '#FEF3C7', color: '#92400E', label: 'Waiting' };
+  return STATUS_BADGE[cat];
+}
+
 // Buckets a real draft into one of this page's 6 real categories. Several
 // drafts in production carry `approval_status` but no `status` (confirmed
 // live) — mirrors DraftCard's own `status ?? approval_status` fallback.
@@ -621,7 +634,7 @@ export default function ContentLibraryPage() {
               {filtered.map((d) => {
                 const id = d.id ?? d.draft_id ?? '';
                 const cat = categorize(d);
-                const badge = STATUS_BADGE[cat];
+                const badge = badgeFor(d, cat);
                 const { title, excerpt } = titleAndExcerpt(d.content || '');
                 const platformKey = (d.platform || '').toLowerCase();
                 const pIcon = PLATFORM_ICON[platformKey];
@@ -966,7 +979,7 @@ function CalendarView({
                   <Box display="flex" flexDirection="column" gap={0.25}>
                     {dayItems.slice(0, 3).map((d) => {
                       const cat = categorize(d);
-                      const badge = STATUS_BADGE[cat];
+                      const badge = badgeFor(d, cat);
                       const { title } = titleAndExcerpt(d.content || '');
                       return (
                         <Box
