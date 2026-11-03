@@ -17,6 +17,7 @@ import { MdChevronLeft, MdChevronRight, MdClose } from 'react-icons/md';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
+import { queuedNotice, queuedPublish } from '@/src/utils/publishJobMessage.util';
 import { PLATFORM_META, firstSlideImage, mediaMeta } from './GeneratedContentCard';
 
 const PINK = '#CD1B78';
@@ -127,10 +128,17 @@ export default function GeneratedDraftEditor({
         schedule_option: option,
         ...(datetime ? { scheduled_datetime: new Date(datetime).toISOString() } : {}),
       });
+      const queued = option === 'immediate' ? queuedPublish(res.responseData, id) : null;
       if (res.status) {
         ToastService.showToast(
-          option === 'immediate' ? 'Published!' : option === 'schedule' ? 'Scheduled!' : 'Saved to drafts.',
-          ToastTypeEnum.Success
+          queued
+            ? queuedNotice(queued)
+            : option === 'immediate'
+              ? 'Published!'
+              : option === 'schedule'
+                ? 'Scheduled!'
+                : 'Saved to drafts.',
+          queued ? ToastTypeEnum.Warning : ToastTypeEnum.Success
         );
         onRefresh();
         onClose();

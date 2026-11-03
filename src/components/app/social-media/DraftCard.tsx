@@ -46,6 +46,7 @@ import { MdFileDownload } from 'react-icons/md';
 import { MdChevronLeft, MdChevronRight, MdEdit, MdOpenWith } from 'react-icons/md';
 import DraftEditor from './DraftEditor';
 import CanvasEditor from './canvas-editor/CanvasEditor';
+import { describePublishJob, formatResumeAt, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
 
 interface DraftCardProps {
   draft: ContentDraft;
@@ -331,28 +332,45 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
       }
       ToastService.showToast('Sending to TikTok…', ToastTypeEnum.Warning);
       const jobId = res.responseData.job_id;
-      for (let i = 0; i < 40; i++) {
-        await new Promise((r) => setTimeout(r, 5000));
+      // Normally ~200s. A job that is waiting its turn (TikTok rate limit, or another post going
+      // out first) is followed until it is due plus a margin, so waiting never reads as a timeout.
+      const POLL_MS = 5000;
+      const WAIT_MARGIN_MS = 3 * 60 * 1000;
+      let deadline = Date.now() + 200_000;
+      let toldAboutWait = false;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, POLL_MS));
         const poll = await SocialMediaAgentService.getVideoPublishJob(jobId);
         const job = poll.responseData;
         if (!job) continue;
+        const msg = describePublishJob(job);
+        if (job.status === 'queued') {
+          const due = resumeTimeMs(job);
+          if (due) deadline = Math.max(deadline, due + WAIT_MARGIN_MS);
+          if (msg.tone === 'waiting' && !toldAboutWait) {
+            toldAboutWait = true;
+            ToastService.showToast(`${msg.title}. ${msg.body}`, ToastTypeEnum.Warning);
+          }
+          continue;
+        }
         if (job.status === 'published') {
-          ToastService.showToast(
-            'Posted to TikTok. It may take a few minutes to finish processing and appear on your profile.',
-            ToastTypeEnum.Success
-          );
+          ToastService.showToast(`${msg.title}. ${msg.body}`, ToastTypeEnum.Success);
           posthog.capture('draft_approved', { option: 'immediate', platform: 'tiktok' });
           onRefresh();
           return;
         }
         // Accepted by TikTok but not yet confirmed: never show this as posted.
         if (job.status === 'processing' && job.error) {
-          ToastService.showToast(job.error, ToastTypeEnum.Warning);
+          ToastService.showToast(msg.body, ToastTypeEnum.Warning);
           onRefresh();
           return;
         }
         if (job.status === 'failed') {
-          ToastService.showToast(job.error || "TikTok couldn't publish this post.", ToastTypeEnum.Error);
+          // A rate limit or cap is a warning, not a red failure, and never a "reconnect" prompt.
+          ToastService.showToast(
+            msg.tone === 'warning' ? `${msg.title}. ${msg.body}` : msg.body,
+            msg.tone === 'error' ? ToastTypeEnum.Error : ToastTypeEnum.Warning
+          );
           onRefresh();
           return;
         }
@@ -390,6 +408,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
   const sc = statusColors[draft.status ?? 'draft'] ?? statusColors.draft;
+  // A daily / app-wide cap is a limit to wait out, not a broken connection or a bug.
+  const isCapFailure = draft.publish_error_kind === 'daily_cap' || draft.publish_error_kind === 'app_cap';
 
   const handleApprove = async (option: ApprovePayload['schedule_option'], datetime?: string) => {
     if (loading) return;
@@ -448,6 +468,19 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         if (option === 'immediate') {
           const approved: ApprovedDraft[] = response.responseData?.approved_drafts ?? [];
           const thisResult = approved.find((a) => a.draft_id === draftId);
+
+          // Held back by a rate limit or another post going out first: not a failure. It stays
+          // scheduled and the backend posts it at resume_at, so say that and stop here.
+          if (thisResult?.publish_result?.queued || thisResult?.publish_result?.publish_status === 'queued') {
+            const at = formatResumeAt(thisResult.publish_result.resume_at);
+            ToastService.showToast(
+              thisResult.publish_result.message || `Queued: this will post${at ? ` around ${at}` : ' shortly'}.`,
+              ToastTypeEnum.Warning
+            );
+            posthog.capture('draft_approved', { option, platform: draft.platform, queued: true });
+            onRefresh();
+            return;
+          }
 
           if (thisResult?.publish_result && !thisResult.publish_result.success) {
             // Agent backend didn't publish — call the platform endpoint directly
@@ -811,6 +844,30 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         )}
       </Box>
 
+      {/* Waiting on a rate limit or a post ahead of it: not a failure, it posts on its own */}
+      {draft.publish_wait && ['scheduled', 'staging_scheduled'].includes(draft.status ?? '') && (
+        <Box
+          sx={{
+            mt: 1,
+            px: 2,
+            py: 1,
+            background: '#FFFBEB',
+            borderLeft: '3px solid #F59E0B',
+            borderRadius: '0 6px 6px 0',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 1,
+          }}
+        >
+          <span style={{ fontSize: 14 }}>⏳</span>
+          <span style={{ fontSize: 12, color: '#92400E', lineHeight: 1.4 }}>
+            <strong>Waiting to post.</strong>{' '}
+            {draft.publish_wait.message ||
+              `This will post${draft.publish_wait.resume_at ? ` around ${formatResumeAt(draft.publish_wait.resume_at)}` : ' shortly'}.`}
+          </span>
+        </Box>
+      )}
+
       {/* Publish failure banner */}
       {draft.status === 'publish_failed' && (
         <Box
@@ -819,8 +876,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             mt: 1,
             px: 2,
             py: 1,
-            background: '#FEF2F2',
-            borderLeft: '3px solid #EF4444',
+            background: isCapFailure ? '#FFFBEB' : '#FEF2F2',
+            borderLeft: `3px solid ${isCapFailure ? '#F59E0B' : '#EF4444'}`,
             borderRadius: '0 6px 6px 0',
             display: 'flex',
             alignItems: 'flex-start',
@@ -828,8 +885,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           }}
         >
           <span style={{ fontSize: 14 }}>⚠️</span>
-          <span style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.4 }}>
-            <strong>Failed to publish.</strong>{' '}
+          <span style={{ fontSize: 12, color: isCapFailure ? '#92400E' : '#991B1B', lineHeight: 1.4 }}>
+            <strong>{isCapFailure ? 'Posting limit reached.' : 'Failed to publish.'}</strong>{' '}
             {draft.error_message || 'An error occurred. Try approving and re-scheduling.'}
           </span>
         </Box>

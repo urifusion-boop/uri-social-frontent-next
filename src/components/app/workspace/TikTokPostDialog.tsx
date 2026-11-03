@@ -55,6 +55,9 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
   const maxTitle = isPhoto ? MAX_PHOTO_TITLE_LENGTH : MAX_VIDEO_TITLE_LENGTH;
   const [info, setInfo] = useState<TikTokCreatorInfo | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // True when TikTok answered "too many requests": a short wait, not a problem with the account.
+  const [busy, setBusy] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
 
   const [title, setTitle] = useState(initialTitle);
@@ -71,6 +74,8 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
   // the user starts a TikTok post), never cached across posts.
   useEffect(() => {
     let cancelled = false;
+    setLoadError(null);
+    setBusy(false);
     SocialMediaAgentService.getTikTokCreatorInfo()
       .then((res) => {
         if (cancelled) return;
@@ -79,13 +84,14 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const detail = (err as { data?: { detail?: string } })?.data?.detail;
-        setLoadError(detail || "Couldn't load your TikTok account details. Please try again.");
+        const failure = err as { status?: number; data?: { detail?: string } };
+        setBusy(failure?.status === 429);
+        setLoadError(failure?.data?.detail || "Couldn't load your TikTok account details. Please try again.");
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -243,8 +249,34 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
         {!info && !loadError && <p style={{ fontSize: 14, color: GREY }}>Loading your TikTok account…</p>}
 
         {loadError && (
-          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '12px 14px' }}>
-            <p style={{ fontSize: 14, color: '#DC2626', margin: 0 }}>{loadError}</p>
+          <div
+            style={{
+              background: busy ? '#FFFBEB' : '#FEF2F2',
+              border: `1px solid ${busy ? '#FDE68A' : '#FECACA'}`,
+              borderRadius: 8,
+              padding: '12px 14px',
+            }}
+          >
+            <p style={{ fontSize: 14, color: busy ? '#92400E' : '#DC2626', margin: 0 }}>
+              {busy ? `TikTok is busy right now. ${loadError}` : loadError}
+            </p>
+            <button
+              onClick={() => setAttempt((n) => n + 1)}
+              style={{
+                marginTop: 10,
+                padding: '6px 14px',
+                borderRadius: 8,
+                border: `1px solid ${busy ? '#F59E0B' : '#FCA5A5'}`,
+                background: '#fff',
+                color: busy ? '#92400E' : '#DC2626',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Try again
+            </button>
           </div>
         )}
 

@@ -332,6 +332,15 @@ export interface VideoPublishJob {
   platform_post_id: string | null;
   post_url: string | null;
   error: string | null;
+  // Set when the failure or wait is a rate limit. All optional: older jobs don't carry them.
+  // 'rate_limited' = temporary, will resume; 'daily_cap' / 'app_cap' = retrying won't help.
+  error_code?: 'rate_limited' | 'daily_cap' | 'app_cap' | 'interrupted' | string | null;
+  retryable?: boolean | null;
+  // A queued job waiting its turn (busy account or rate limit): it starts at/after this time.
+  next_attempt_at?: string | null;
+  resume_at?: string | null;
+  wait_reason?: 'rate_limited' | 'account_busy' | string | null;
+  updated_at?: string | null;
 }
 
 // What the TikTok Post screen shows and enforces. Fetched fresh each time that
@@ -381,6 +390,12 @@ export interface ApprovePublishResult {
   post_id?: string;
   // 'confirming': the network accepted it; whether it's live is confirmed shortly after.
   status?: string;
+  // Held back by the platform's rate limit or a post already going out for this account.
+  // Not a failure: the scheduler posts it at resume_at.
+  queued?: boolean;
+  publish_status?: string;
+  resume_at?: string | null;
+  message?: string;
 }
 
 export interface ApprovedDraft {
@@ -519,6 +534,16 @@ export interface ContentDraft {
   slides?: CarouselSlide[];
   image_specs?: { width: number; height: number };
   error_message?: string;
+  // Held back by the platform's rate limit or a post already going out for this account. Still
+  // scheduled, not failed: the backend posts it once resume_at passes.
+  publish_wait?: {
+    reason?: 'rate_limited' | 'account_busy' | string;
+    code?: string | null;
+    resume_at?: string | null;
+    message?: string;
+  } | null;
+  // Set when the last publish failed on a daily / app-wide cap (retrying cannot help).
+  publish_error_kind?: 'daily_cap' | 'app_cap' | string | null;
   content_source?: 'ai_generated' | 'user_uploaded'; // NEW: Distinguish AI vs user content
   uploaded_media_urls?: string[]; // NEW: User-uploaded media URLs (images/videos)
   // TikTok single-image/carousel only (Music PRD MUS-PRD-01 §2.2/§8) — TikTok's

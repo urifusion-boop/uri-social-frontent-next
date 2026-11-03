@@ -11,6 +11,7 @@ import {
   TikTokPostSettings,
 } from '@/src/api/SocialMediaAgentService';
 import TikTokPostDialog from './TikTokPostDialog';
+import { describePublishJob, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
 import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
@@ -691,24 +692,34 @@ export default function VideoStoryboardGenerator({
           error: null,
         },
       }));
-      // Poll for status
+      // Poll for status. Stops on any end state (published, failed, or accepted-but-still-processing)
+      // and gives up if nothing resolves: 15 minutes, or 15 minutes past the time a waiting job is due.
+      const GIVE_UP_MS = 15 * 60 * 1000;
+      let giveUpAt = Date.now() + GIVE_UP_MS;
+      const stopPolling = () => {
+        clearInterval(publishPollRefs.current[job_id]);
+        delete publishPollRefs.current[job_id];
+      };
       publishPollRefs.current[job_id] = setInterval(async () => {
         try {
           const poll = await SocialMediaAgentService.getVideoPublishJob(job_id);
           if (poll.status && poll.responseData) {
             setPublishJobs((prev) => ({ ...prev, [key]: poll.responseData! }));
             const s = poll.responseData.status;
-            if (s === 'published' || s === 'failed') {
-              clearInterval(publishPollRefs.current[job_id]);
-              delete publishPollRefs.current[job_id];
+            const due = resumeTimeMs(poll.responseData);
+            if (due) giveUpAt = Math.max(giveUpAt, due + GIVE_UP_MS);
+            if (s === 'published' || s === 'failed' || s === 'processing') {
+              stopPolling();
               if (s === 'published') {
                 setDrafts((prev) => prev.map((d) => (d.id === draft.id ? { ...d, status: 'published' } : d)));
               }
+              return;
             }
           }
         } catch {
           /* keep polling */
         }
+        if (Date.now() > giveUpAt) stopPolling();
       }, 8000);
     } catch {
       /* ignore */
@@ -1762,6 +1773,11 @@ export default function VideoStoryboardGenerator({
               ];
 
               const selPlatform = selectedPublishPlatform[d.id] ?? '';
+              const selJob = selPlatform ? publishJobs[`${d.id}:${selPlatform}`] : undefined;
+              const selJobMsg = selJob ? describePublishJob(selJob) : null;
+              // Locked while a job is in flight or accepted, and after a cap (pressing again cannot help).
+              const publishBlocked =
+                !selPlatform || (!!selJob && (selJob.status !== 'failed' || !(selJobMsg?.canRetry ?? true)));
 
               return (
                 <div key={d.id} style={{ border: `1.5px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden' }}>
@@ -1823,7 +1839,8 @@ export default function VideoStoryboardGenerator({
                               const canSelect = pp.enabled && isConnected;
                               const jobKey = `${d.id}:${pp.value}`;
                               const job = publishJobs[jobKey];
-                              const isPublishing = job && job.status !== 'published' && job.status !== 'failed';
+                              const jobMsg = job ? describePublishJob(job) : null;
+                              const isPublishing = !!job && !!jobMsg?.inFlight;
 
                               return (
                                 <button
@@ -1866,7 +1883,7 @@ export default function VideoStoryboardGenerator({
                                   )}
                                   {isPublishing && (
                                     <span style={{ display: 'block', fontSize: 9, color: PRIMARY, fontWeight: 600 }}>
-                                      {job.status}…
+                                      {jobMsg?.tone === 'waiting' ? 'Waiting…' : 'Sending…'}
                                     </span>
                                   )}
                                   {job?.status === 'published' && (
@@ -1874,9 +1891,21 @@ export default function VideoStoryboardGenerator({
                                       Published
                                     </span>
                                   )}
+                                  {job?.status === 'processing' && (
+                                    <span style={{ display: 'block', fontSize: 9, color: '#92400E', fontWeight: 600 }}>
+                                      Processing
+                                    </span>
+                                  )}
                                   {job?.status === 'failed' && (
-                                    <span style={{ display: 'block', fontSize: 9, color: '#DC2626', fontWeight: 600 }}>
-                                      Failed
+                                    <span
+                                      style={{
+                                        display: 'block',
+                                        fontSize: 9,
+                                        color: jobMsg?.tone === 'error' ? '#DC2626' : '#92400E',
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      {jobMsg?.tone === 'error' ? 'Failed' : 'Limit reached'}
                                     </span>
                                   )}
                                 </button>
@@ -1885,22 +1914,37 @@ export default function VideoStoryboardGenerator({
                           )}
                         </div>
 
-                        {/* Publish job error */}
-                        {selPlatform && publishJobs[`${d.id}:${selPlatform}`]?.status === 'failed' && (
-                          <div
-                            style={{
-                              background: '#FEF2F2',
-                              border: '1px solid #FECACA',
-                              borderRadius: 8,
-                              padding: '8px 10px',
-                              marginBottom: 10,
-                            }}
-                          >
-                            <p style={{ fontSize: 12, color: '#DC2626', margin: 0 }}>
-                              {publishJobs[`${d.id}:${selPlatform}`].error ?? 'Publish failed. Please try again.'}
-                            </p>
-                          </div>
-                        )}
+                        {/* Publish job error / rate-limit wait. A limit is shown as a notice, never a red failure. */}
+                        {selJobMsg &&
+                          (selJob?.status === 'failed' ||
+                            selJob?.status === 'processing' ||
+                            selJobMsg.tone === 'waiting') && (
+                            <div
+                              style={{
+                                background: selJobMsg.tone === 'error' ? '#FEF2F2' : '#FFFBEB',
+                                border: `1px solid ${selJobMsg.tone === 'error' ? '#FECACA' : '#FDE68A'}`,
+                                borderRadius: 8,
+                                padding: '8px 10px',
+                                marginBottom: 10,
+                              }}
+                            >
+                              <p
+                                style={{
+                                  fontSize: 12,
+                                  color: selJobMsg.tone === 'error' ? '#DC2626' : '#92400E',
+                                  margin: 0,
+                                }}
+                              >
+                                {selJobMsg.tone === 'error' ? (
+                                  selJobMsg.body || 'Publish failed. Please try again.'
+                                ) : (
+                                  <>
+                                    <strong>{selJobMsg.title}.</strong> {selJobMsg.body}
+                                  </>
+                                )}
+                              </p>
+                            </div>
+                          )}
 
                         {/* Post URL on success */}
                         {selPlatform &&
@@ -1928,46 +1972,34 @@ export default function VideoStoryboardGenerator({
                           // interactions, disclosure, consent); nothing is sent until
                           // the user presses Post inside it.
                           onClick={() => (selPlatform === 'tiktok' ? setTiktokDialogDraft(d) : handlePublish(d))}
-                          disabled={
-                            !selPlatform ||
-                            (!!publishJobs[`${d.id}:${selPlatform}`]?.status &&
-                              publishJobs[`${d.id}:${selPlatform}`].status !== 'failed')
+                          disabled={publishBlocked}
+                          title={
+                            selJob?.status === 'failed' && selJobMsg && !selJobMsg.canRetry
+                              ? 'Publishing is paused by the platform. Retrying now would not help.'
+                              : ''
                           }
                           style={{
                             width: '100%',
                             padding: '10px 0',
                             borderRadius: 8,
-                            background:
-                              !selPlatform ||
-                              (!!publishJobs[`${d.id}:${selPlatform}`]?.status &&
-                                publishJobs[`${d.id}:${selPlatform}`].status !== 'failed')
-                                ? '#E5E7EB'
-                                : PRIMARY,
-                            color:
-                              !selPlatform ||
-                              (!!publishJobs[`${d.id}:${selPlatform}`]?.status &&
-                                publishJobs[`${d.id}:${selPlatform}`].status !== 'failed')
-                                ? '#9CA3AF'
-                                : '#fff',
+                            background: publishBlocked ? '#E5E7EB' : PRIMARY,
+                            color: publishBlocked ? '#9CA3AF' : '#fff',
                             border: 'none',
                             fontSize: 13,
                             fontWeight: 700,
-                            cursor:
-                              !selPlatform ||
-                              (!!publishJobs[`${d.id}:${selPlatform}`]?.status &&
-                                publishJobs[`${d.id}:${selPlatform}`].status !== 'failed')
-                                ? 'not-allowed'
-                                : 'pointer',
+                            cursor: publishBlocked ? 'not-allowed' : 'pointer',
                             fontFamily: 'inherit',
                           }}
                         >
-                          {publishJobs[`${d.id}:${selPlatform}`]?.status === 'queued' ||
-                          publishJobs[`${d.id}:${selPlatform}`]?.status === 'uploading' ||
-                          publishJobs[`${d.id}:${selPlatform}`]?.status === 'processing'
-                            ? `${publishJobs[`${d.id}:${selPlatform}`].status}…`
-                            : selPlatform
-                              ? `Publish to ${PUBLISH_PLATFORMS.find((p) => p.value === selPlatform)?.label ?? selPlatform}`
-                              : 'Select a platform above'}
+                          {selJob && selJobMsg && (selJob.status === 'queued' || selJob.status === 'uploading')
+                            ? selJobMsg.tone === 'waiting'
+                              ? 'Waiting to post…'
+                              : selJobMsg.title
+                            : selJob?.status === 'processing'
+                              ? 'Processing on the platform'
+                              : selPlatform
+                                ? `Publish to ${PUBLISH_PLATFORMS.find((p) => p.value === selPlatform)?.label ?? selPlatform}`
+                                : 'Select a platform above'}
                         </button>
                       </div>
                     )}
