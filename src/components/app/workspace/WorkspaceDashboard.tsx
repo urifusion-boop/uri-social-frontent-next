@@ -10119,12 +10119,13 @@ const getNav = (isAdminUser: boolean, isSupportUser: boolean) => {
       label: 'Workspace',
       tooltip: "Your AI command centre — chat with URI Agent and see today's briefing",
     },
-    {
-      id: 'messages',
-      icon: 'inbox',
-      label: 'Customer Messages',
-      tooltip: 'Reply to DMs and comments across Instagram, Facebook, WhatsApp and TikTok — all in one inbox',
-    },
+    // Customer Messages tab hidden on prod per request.
+    // {
+    //   id: 'messages',
+    //   icon: 'inbox',
+    //   label: 'Customer Messages',
+    //   tooltip: 'Reply to DMs and comments across Instagram, Facebook, WhatsApp and TikTok — all in one inbox',
+    // },
     {
       id: 'schedule',
       icon: 'calendar',
