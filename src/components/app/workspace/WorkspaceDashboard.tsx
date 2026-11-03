@@ -1350,7 +1350,8 @@ const ContentManagerPage = ({
   const wizardActive = activeTab === 'create' && createMode === 'generate' && contentWizardEnabled;
   const libraryActive = activeTab === 'library';
   const calendarV2Active = activeTab === 'calendar-v2';
-  const dedicatedPageActive = wizardActive || libraryActive || calendarV2Active;
+  const autoActive = activeTab === 'auto';
+  const dedicatedPageActive = wizardActive || libraryActive || calendarV2Active || autoActive;
 
   return (
     <div
@@ -1430,6 +1431,22 @@ const ContentManagerPage = ({
           </h2>
           <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
             A 30-day plan tailored to your brand — ad-ready posts, exact copy, built in.
+          </p>
+        </div>
+      ) : autoActive ? (
+        <div
+          style={{
+            padding: isMobile ? '10px 12px' : '16px 24px',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
+          }}
+        >
+          <BackToContentStudioLink onClick={() => setActiveTab('create')} />
+          <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
+            Auto-Generate
+          </h2>
+          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
+            Jane keeps a steady stream of on-brand drafts flowing — no manual prompting needed.
           </p>
         </div>
       ) : (
@@ -10843,6 +10860,17 @@ export default function WorkspaceDashboard() {
       label: 'Calendar',
       active: nav === 'schedule' && contentStudioNav.tab === 'calendar-v2',
       onClick: () => goToContentStudioTab('calendar-v2'),
+    },
+    {
+      id: 'auto',
+      icon: 'sparkle',
+      label: 'Auto-Generate',
+      // Orphaned by the restructure — AutoGenerateTab (daily/weekly drafts
+      // from the brand profile + top-performer analysis) had no nav path
+      // at all after the classic tab-scroll row was dropped. Real, working
+      // feature; re-linking it here instead of leaving it a dead end.
+      active: nav === 'schedule' && contentStudioNav.tab === 'auto',
+      onClick: () => goToContentStudioTab('auto'),
     },
     {
       id: 'blog',

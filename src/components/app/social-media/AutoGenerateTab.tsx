@@ -7,14 +7,10 @@ import { trackEvent } from '@/lib/analytics';
 import {
   Box,
   Button,
-  Checkbox,
   Chip,
   CircularProgress,
   Divider,
   FormControlLabel,
-  FormGroup,
-  Radio,
-  RadioGroup,
   Switch,
   Tooltip,
   Typography,
@@ -24,12 +20,16 @@ import { BrandProfileService } from '@/src/api/BrandProfileService';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
 import { MdAutoAwesome, MdInfoOutline, MdLinkOff, MdVerified } from 'react-icons/md';
 
+const PINK = '#CD1B78';
+
+// Same colors as ContentLibraryPage's PLATFORM_ICON — one palette for
+// "this platform" everywhere a platform is shown as an icon.
 const PLATFORMS = [
-  { key: 'facebook', label: 'Facebook', icon: <FaFacebook size={15} color="#1877F2" /> },
-  { key: 'instagram', label: 'Instagram', icon: <FaInstagram size={15} color="#E1306C" /> },
-  { key: 'twitter', label: 'Twitter / X', icon: <FaTwitter size={15} color="#1DA1F2" /> },
-  { key: 'linkedin', label: 'LinkedIn', icon: <FaLinkedin size={15} color="#0A66C2" /> },
-  { key: 'tiktok', label: 'TikTok', icon: <FaTiktok size={15} color="#010101" /> },
+  { key: 'facebook', label: 'Facebook', color: '#1877F2', icon: FaFacebook },
+  { key: 'instagram', label: 'Instagram', color: '#E1306C', icon: FaInstagram },
+  { key: 'twitter', label: 'Twitter / X', color: '#1DA1F2', icon: FaTwitter },
+  { key: 'linkedin', label: 'LinkedIn', color: '#0A66C2', icon: FaLinkedin },
+  { key: 'tiktok', label: 'TikTok', color: '#010101', icon: FaTiktok },
 ];
 
 interface AutoGenerateTabProps {
@@ -181,28 +181,35 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
         <Typography fontSize="13px" fontWeight={600} color="#374151" mb={1}>
           Platforms
         </Typography>
-        <FormGroup row sx={{ gap: 1, mb: 2.5 }}>
-          {PLATFORMS.map(({ key, label, icon }) => {
-            const item = (
-              <FormControlLabel
+        <Box display="flex" flexWrap="wrap" gap={1} mb={2.5}>
+          {PLATFORMS.map(({ key, label, color, icon: Icon }) => {
+            const selected = platforms.includes(key);
+            const chip = (
+              <button
                 key={key}
+                type="button"
                 disabled={!enabled}
-                control={
-                  <Checkbox
-                    checked={platforms.includes(key)}
-                    onChange={() => togglePlatform(key)}
-                    size="small"
-                    sx={{ '&.Mui-checked': { color: '#CD1B78' } }}
-                  />
-                }
-                label={
-                  <Box display="flex" alignItems="center" gap={0.5}>
-                    {icon}
-                    <Typography fontSize="13px">{label}</Typography>
-                  </Box>
-                }
-                sx={{ mr: 0, border: '1px solid #E5E7EB', borderRadius: '8px', pl: 0.5, pr: 1.5, py: 0.25 }}
-              />
+                onClick={() => togglePlatform(key)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 12px',
+                  borderRadius: 999,
+                  border: `1.5px solid ${selected ? color : '#E5E7EB'}`,
+                  background: selected ? `${color}14` : '#fff',
+                  color: selected ? color : '#6B7280',
+                  fontSize: 13,
+                  fontWeight: selected ? 700 : 500,
+                  fontFamily: 'var(--wf)',
+                  cursor: enabled ? 'pointer' : 'not-allowed',
+                  opacity: enabled ? 1 : 0.5,
+                  transition: 'all .15s',
+                }}
+              >
+                <Icon size={14} color={selected ? color : '#9CA3AF'} />
+                {label}
+              </button>
             );
             return key === 'tiktok' ? (
               <Tooltip
@@ -212,13 +219,13 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
                 enterTouchDelay={0}
                 leaveTouchDelay={3000}
               >
-                <span>{item}</span>
+                <span>{chip}</span>
               </Tooltip>
             ) : (
-              item
+              chip
             );
           })}
-        </FormGroup>
+        </Box>
 
         {/* Frequency */}
         <Box display="flex" alignItems="center" gap={1} mb={0.5}>
@@ -247,22 +254,44 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
             ? 'Your Brand Playbook is set to auto-publish: these posts are scheduled at your posting time without review.'
             : 'These posts wait in Drafts for your approval (Brand Playbook → Posting & Workflow).'}
         </Typography>
-        <RadioGroup
-          row
-          value={frequency}
-          onChange={(e) => setFrequency(e.target.value as 'daily' | 'weekly')}
-          sx={{ mb: 2.5, display: playbookCadence ? 'none' : undefined }}
-        >
-          {(['daily', 'weekly'] as const).map((f) => (
-            <FormControlLabel
-              key={f}
-              value={f}
-              disabled={!enabled}
-              control={<Radio size="small" sx={{ '&.Mui-checked': { color: '#CD1B78' } }} />}
-              label={<Typography fontSize="13px">{f.charAt(0).toUpperCase() + f.slice(1)}</Typography>}
-            />
-          ))}
-        </RadioGroup>
+        {!playbookCadence && (
+          <Box
+            display="inline-flex"
+            sx={{
+              background: '#F3F4F6',
+              borderRadius: '9px',
+              padding: '3px',
+              mb: 2.5,
+              opacity: enabled ? 1 : 0.5,
+            }}
+          >
+            {(['daily', 'weekly'] as const).map((f) => {
+              const active = frequency === f;
+              return (
+                <button
+                  key={f}
+                  type="button"
+                  disabled={!enabled}
+                  onClick={() => setFrequency(f)}
+                  style={{
+                    padding: '7px 18px',
+                    borderRadius: '7px',
+                    border: 'none',
+                    background: active ? `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)` : 'transparent',
+                    color: active ? '#fff' : '#6B7280',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fontFamily: 'var(--wf)',
+                    cursor: enabled ? 'pointer' : 'not-allowed',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                </button>
+              );
+            })}
+          </Box>
+        )}
 
         {/* Include images */}
         <Tooltip
@@ -298,11 +327,12 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
           disabled={savingSettings}
           sx={{
             textTransform: 'none',
-            fontWeight: 600,
+            fontWeight: 700,
             fontSize: '13px',
-            background: '#CD1B78',
-            '&:hover': { background: '#A01560' },
-            borderRadius: '8px',
+            background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
+            '&:hover': { background: `linear-gradient(135deg, #A01560 0%, ${PINK} 100%)` },
+            borderRadius: '10px',
+            px: 2,
           }}
         >
           {savingSettings ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save Settings'}
