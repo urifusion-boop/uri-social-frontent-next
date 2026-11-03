@@ -22,6 +22,7 @@ import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/works
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
+import { PlanChecksPanel, PlanChecksState } from '@/src/components/app/workspace/PlanChecksPanel';
 import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
 import KeepRunningPanel from '@/src/components/app/workspace/KeepRunningPanel';
 import { GrowthPanel } from '@/src/components/app/workspace/growth/GrowthPanel';
@@ -3624,6 +3625,12 @@ function ResultCard({
   stale?: boolean;
 }) {
   const [launching, setLaunching] = useState(false);
+  const [planChecks, setPlanChecks] = useState<PlanChecksState>({
+    blocked: false,
+    allowOutOfArea: false,
+    canLaunch: true,
+  });
+  const launchBlocked = planChecks.blocked || !planChecks.canLaunch;
   // Edits sitting unsaved in the review panel are NOT on the stored plan, so a launch
   // now would run Jane's original ad while the screen shows the client's version.
   const [unsavedEdits, setUnsavedEdits] = useState(false);
@@ -3854,11 +3861,11 @@ function ResultCard({
   if (prompt) return <PromptCard stale={stale}>{prompt}</PromptCard>;
 
   const confirmLaunch = async () => {
-    if (launching || !result.plan_id) return;
+    if (launching || !result.plan_id || launchBlocked) return;
     setLaunchError('');
     setLaunching(true);
     try {
-      const launched = await CampaignService.launchPlan(result.plan_id);
+      const launched = await CampaignService.launchPlan(result.plan_id, planChecks.allowOutOfArea);
       // Launching debits the ad wallet in full, so the header badge is now stale.
       window.dispatchEvent(new Event('ad-wallet-changed'));
       onResultChange(launched);
@@ -3890,7 +3897,7 @@ function ResultCard({
       await CampaignService.setWhatsapp(clean);
       setFixingWhatsapp(false);
       setWhatsappFix('');
-      const launched = await CampaignService.launchPlan(result.plan_id!);
+      const launched = await CampaignService.launchPlan(result.plan_id!, planChecks.allowOutOfArea);
       window.dispatchEvent(new Event('ad-wallet-changed'));
       onResultChange(launched);
       onLaunched();
@@ -4050,6 +4057,13 @@ function ResultCard({
           {result.summary && (
             <CampaignReview summary={result.summary} edited={result.plan_edited && result.summary_stale} />
           )}
+          {result.stage === 'planned' && result.plan_id && (
+            <PlanChecksPanel
+              planId={result.plan_id}
+              refreshKey={JSON.stringify(result.summary ?? '')}
+              onState={setPlanChecks}
+            />
+          )}
           {result.stage === 'planned' ? (
             <div style={{ background: '#fdf8f3', border: '1px solid #f0e3d0', borderRadius: 10, padding: '10px 12px' }}>
               {/* One number: what actually leaves the wallet, which IS the budget the
@@ -4099,8 +4113,14 @@ function ResultCard({
               )}
               <button
                 onClick={confirmLaunch}
-                disabled={launching || unsavedEdits}
-                title={unsavedEdits ? 'Save your changes first — otherwise the original ad launches' : undefined}
+                disabled={launching || unsavedEdits || launchBlocked}
+                title={
+                  unsavedEdits
+                    ? 'Save your changes first — otherwise the original ad launches'
+                    : launchBlocked
+                      ? 'Resolve the issues above first'
+                      : undefined
+                }
                 style={{
                   width: '100%',
                   display: 'flex',
@@ -4112,9 +4132,10 @@ function ResultCard({
                   padding: '10px 14px',
                   fontWeight: 700,
                   fontSize: 13,
-                  cursor: launching || unsavedEdits ? 'default' : 'pointer',
-                  background: launching || unsavedEdits ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
-                  color: launching || unsavedEdits ? '#999' : '#fff',
+                  cursor: launching || unsavedEdits || launchBlocked ? 'default' : 'pointer',
+                  background:
+                    launching || unsavedEdits || launchBlocked ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                  color: launching || unsavedEdits || launchBlocked ? '#999' : '#fff',
                 }}
               >
                 {launching ? (
@@ -4990,10 +5011,7 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
                 Its real numbers are clicks and what each cost. */}
             {c.platform === 'tiktok' ? (
               <>
-                <Metric
-                  label="Clicks"
-                  value={c.metrics?.clicks != null ? c.metrics.clicks.toLocaleString() : 'N/A'}
-                />
+                <Metric label="Clicks" value={c.metrics?.clicks != null ? c.metrics.clicks.toLocaleString() : 'N/A'} />
                 <Metric
                   label="Cost per click"
                   value={c.metrics?.cost_per_click_ngn != null ? naira(c.metrics.cost_per_click_ngn) : 'N/A'}

@@ -123,7 +123,7 @@ export interface GrowthVariantResult {
   enough_data: boolean;
 }
 
-export type GrowthVerdictStatus = 'promising' | 'underperforming' | 'inconclusive';
+export type GrowthVerdictStatus = 'strong' | 'promising' | 'underperforming' | 'inconclusive';
 export type GrowthStage = 'explore' | 'validate' | 'scale';
 
 export interface GrowthVerdict {
@@ -250,11 +250,16 @@ export const GrowthService = {
   async setGoal(id: string, goal: GrowthGoal): Promise<GrowthGoal> {
     return (await UriHttpClient.getClient().put(`${BASE}/campaigns/${id}/goal`, goal)).data.goal;
   },
-  async approve(recId: string): Promise<GrowthAction> {
-    return (await UriHttpClient.getClient().post(`${BASE}/recommendations/${recId}/approve`, {})).data.action;
+  async approve(recId: string, toNgn?: number): Promise<GrowthAction> {
+    return (
+      await UriHttpClient.getClient().post(
+        `${BASE}/recommendations/${recId}/approve`,
+        toNgn !== undefined ? { to_ngn: toNgn } : {}
+      )
+    ).data.action;
   },
-  async decide(recId: string, decision: 'rejected' | 'done', note = ''): Promise<void> {
-    await UriHttpClient.getClient().post(`${BASE}/recommendations/${recId}/decide`, { decision, note });
+  async decide(recId: string, decision: 'rejected' | 'done' | 'deferred', note = '', days?: number): Promise<void> {
+    await UriHttpClient.getClient().post(`${BASE}/recommendations/${recId}/decide`, { decision, note, days });
   },
   async change(
     campaignId: string,

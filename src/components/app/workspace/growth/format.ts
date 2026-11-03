@@ -24,6 +24,7 @@ export const ACTION_LABELS: Record<string, string> = {
 };
 
 export const VERDICT_TONE: Record<string, 'green' | 'amber' | 'grey'> = {
+  strong: 'green',
   promising: 'green',
   underperforming: 'amber',
   inconclusive: 'grey',
