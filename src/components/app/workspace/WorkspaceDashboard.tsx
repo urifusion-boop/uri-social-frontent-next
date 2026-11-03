@@ -1351,7 +1351,8 @@ const ContentManagerPage = ({
   const libraryActive = activeTab === 'library';
   const calendarV2Active = activeTab === 'calendar-v2';
   const autoActive = activeTab === 'auto';
-  const dedicatedPageActive = wizardActive || libraryActive || calendarV2Active || autoActive;
+  const videoActive = activeTab === 'video';
+  const dedicatedPageActive = wizardActive || libraryActive || calendarV2Active || autoActive || videoActive;
 
   return (
     <div
@@ -1447,6 +1448,22 @@ const ContentManagerPage = ({
           </h2>
           <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
             Jane keeps a steady stream of on-brand drafts flowing — no manual prompting needed.
+          </p>
+        </div>
+      ) : videoActive ? (
+        <div
+          style={{
+            padding: isMobile ? '10px 12px' : '16px 24px',
+            background: '#fff',
+            borderBottom: '1px solid #edecea',
+          }}
+        >
+          <BackToContentStudioLink onClick={() => setActiveTab('create')} />
+          <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
+            🎬 Video
+          </h2>
+          <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
+            Generate branded video Reels from storyboards or edit your own footage.
           </p>
         </div>
       ) : (
@@ -10873,6 +10890,16 @@ export default function WorkspaceDashboard() {
       onClick: () => goToContentStudioTab('auto'),
     },
     {
+      id: 'video',
+      icon: 'video',
+      label: '🎬 Video',
+      // Same orphan as Auto above — the classic tab-scroll row (Create/
+      // Library/Auto/Video) had a real, working Video pill that the
+      // restructure dropped along with the row itself. Re-linked here.
+      active: nav === 'schedule' && contentStudioNav.tab === 'video',
+      onClick: () => goToContentStudioTab('video'),
+    },
+    {
       id: 'blog',
       icon: 'book',
       label: 'Blog',
@@ -10882,13 +10909,11 @@ export default function WorkspaceDashboard() {
       active: nav === 'blog',
       onClick: () => goTo('blog'),
     },
-    {
-      id: 'ai-tools',
-      icon: 'grid',
-      label: 'AI Tools',
-      active: nav === 'visual-engine-v2',
-      onClick: () => goTo('visual-engine-v2'),
-    },
+    // "AI Tools" (-> Visual Engine V2) used to live here too, but that panel
+    // is an explicitly beta, not-wired-into-production testing surface (see
+    // its own top-of-file doc comment) — the restructure gave it a
+    // prominent all-user button it was never meant to have. It's still
+    // reachable exactly as before: mobile's "More" tab (MORE_NAV above).
   ];
 
   const campaignManagerSubNav = [
