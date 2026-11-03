@@ -19,6 +19,7 @@ export interface GrowthGoal {
   target_cpl_ngn?: number | null;
   target_cost_per_qualified_ngn?: number | null;
   target_results?: number | null;
+  target_cost_per_order_ngn?: number | null;
   conversion_definition?: string;
 }
 
@@ -122,6 +123,61 @@ export interface GrowthVariantResult {
   enough_data: boolean;
 }
 
+export type GrowthVerdictStatus = 'promising' | 'underperforming' | 'inconclusive';
+export type GrowthStage = 'explore' | 'validate' | 'scale';
+
+export interface GrowthVerdict {
+  ad_id: string;
+  status: GrowthVerdictStatus;
+  confidence: 'low' | 'medium' | 'high';
+  reason: string;
+  metric: 'conversations' | 'orders';
+  spend_ngn: number;
+  results: number;
+  cost_per_result_ngn: number | null;
+  target_ngn: number | null;
+  spend_to_judge_ngn: number | null;
+  attributes: Record<string, string>;
+}
+
+export interface GrowthStructure {
+  daily_budget_ngn: number;
+  days: number;
+  target_ngn: number | null;
+  concepts: number;
+  structure: 'single' | 'abo' | 'cbo';
+  per_concept_daily_ngn?: number;
+  spend_to_judge_per_concept_ngn: number | null;
+  days_to_judge: number | null;
+  budget_too_small: boolean;
+  why: string;
+}
+
+export interface GrowthTesting {
+  stage: GrowthStage;
+  why: string;
+  next: string;
+  verdicts: GrowthVerdict[];
+  next_round: GrowthStructure | null;
+}
+
+export interface GrowthExperiment {
+  campaign_id: string;
+  ad_id: string;
+  objective: string;
+  attributes: Record<string, string>;
+  stage: GrowthStage;
+  status: GrowthVerdictStatus;
+  confidence: string;
+  reason: string;
+  metric: string;
+  spend_ngn: number;
+  results: number;
+  cost_per_result_ngn: number | null;
+  target_ngn: number | null;
+  updated_at: string;
+}
+
 export interface GrowthCampaignDetail {
   campaign_id: string;
   name: string;
@@ -140,6 +196,7 @@ export interface GrowthCampaignDetail {
   leads: GrowthLeads;
   follow_ups: { waiting: number; oldest_hours: number };
   creative_test: { variants: GrowthVariantResult[]; winner: string | null; reason: string } | null;
+  testing?: GrowthTesting;
   controls: {
     status: string | null;
     daily_budget_ngn: number | null;
@@ -226,6 +283,18 @@ export const GrowthService = {
   },
   async emergencyStop(on: boolean): Promise<GrowthPolicy> {
     return (await UriHttpClient.getClient().post(`${BASE}/emergency-stop`, { on })).data.policy;
+  },
+  async structure(q: {
+    daily_budget_ngn: number;
+    days: number;
+    target_cost_ngn?: number;
+    concepts?: number;
+  }): Promise<GrowthStructure> {
+    return (await UriHttpClient.getClient().get(`${BASE}/structure`, { params: q })).data;
+  },
+  async experiments(status?: GrowthVerdictStatus): Promise<GrowthExperiment[]> {
+    return (await UriHttpClient.getClient().get(`${BASE}/experiments`, { params: status ? { status } : {} })).data
+      .experiments;
   },
   async setLeadStage(conversationId: string, stage: string, value?: number): Promise<void> {
     await UriHttpClient.getClient().patch(`${BASE}/leads/${conversationId}`, { stage, value });

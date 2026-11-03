@@ -6,6 +6,7 @@ import { Btn, Card, Chip, FONT, errorText } from '../personality/ui';
 import { GrowthAutomation } from './GrowthAutomation';
 import { GrowthCampaign } from './GrowthCampaign';
 import { GrowthHistory } from './GrowthHistory';
+import { GrowthPlanner } from './GrowthPlanner';
 import { ago, naira, pct } from './format';
 
 /*
@@ -13,7 +14,7 @@ import { ago, naira, pct } from './format';
  * do next — with the business deciding how much URI may change on its own.
  */
 
-type View = 'campaigns' | 'automation' | 'history';
+type View = 'campaigns' | 'testing' | 'automation' | 'history';
 
 const MODE_LABELS: Record<string, string> = {
   advisory: 'Advise me',
@@ -85,6 +86,7 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
         {(
           [
             ['campaigns', 'Campaigns'],
+            ['testing', 'Testing'],
             ['automation', 'Automation'],
             ['history', 'History'],
           ] as const
@@ -128,6 +130,7 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
         <GrowthAutomation policy={policy} canChange={canChange} actions={autoActions} onSaved={setPolicy} />
       )}
       {view === 'history' && <GrowthHistory canChange={canChange} />}
+      {view === 'testing' && <GrowthPlanner />}
 
       {view === 'campaigns' && selected && (
         <GrowthCampaign

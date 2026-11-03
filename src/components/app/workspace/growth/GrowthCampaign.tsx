@@ -10,6 +10,7 @@ import {
 } from '@/src/api/GrowthService';
 import { Btn, Card, Chip, errorText, inputStyle } from '../personality/ui';
 import { ACTION_LABELS, CONFIDENCE_TONE, ago, naira, pct } from './format';
+import { GrowthTesting } from './GrowthTesting';
 
 export function GrowthCampaign({
   campaignId,
@@ -123,8 +124,20 @@ export function GrowthCampaign({
             </div>
           ))}
         </div>
-        <GoalEditor campaignId={campaignId} target={data.goal.target_cpl_ngn ?? null} onSaved={load} />
+        <GoalEditor
+          campaignId={campaignId}
+          target={data.goal.target_cpl_ngn ?? null}
+          orderTarget={data.goal.target_cost_per_order_ngn ?? null}
+          onSaved={load}
+        />
       </Card>
+
+      {data.testing && (
+        <GrowthTesting
+          testing={data.testing}
+          adNames={Object.fromEntries((data.controls?.ads ?? []).map((a) => [a.id, a.name]))}
+        />
+      )}
 
       <ChangePanel data={data} canChange={canApprove} onChanged={load} onNotice={setNotice} />
 
@@ -333,41 +346,57 @@ function Diagnosis({
 function GoalEditor({
   campaignId,
   target,
+  orderTarget,
   onSaved,
 }: {
   campaignId: string;
   target: number | null;
+  orderTarget: number | null;
   onSaved: () => void;
 }) {
   const [value, setValue] = useState(target ? String(target) : '');
+  const [orderValue, setOrderValue] = useState(orderTarget ? String(orderTarget) : '');
   const [saving, setSaving] = useState(false);
+  const input = (v: string, set: (s: string) => void, placeholder: string) => (
+    <input
+      type="number"
+      min={0}
+      value={v}
+      onChange={(e) => set(e.target.value)}
+      style={{ ...inputStyle, width: 120 }}
+      placeholder={placeholder}
+    />
+  );
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5, color: '#555' }}>
-      Target cost per conversation (₦)
-      <input
-        type="number"
-        min={0}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        style={{ ...inputStyle, width: 120 }}
-        placeholder="e.g. 500"
-      />
-      <Btn
-        small
-        kind="ghost"
-        disabled={saving}
-        onClick={async () => {
-          setSaving(true);
-          await GrowthService.setGoal(campaignId, { target_cpl_ngn: Number(value) || null }).catch(() => undefined);
-          setSaving(false);
-          onSaved();
-        }}
-      >
-        {saving ? 'Saving…' : 'Save target'}
-      </Btn>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, color: '#555' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        Target cost per conversation (₦)
+        {input(value, setValue, 'e.g. 500')}
+        Per order (₦)
+        {input(orderValue, setOrderValue, 'e.g. 2000')}
+        <Btn
+          small
+          kind="ghost"
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true);
+            await GrowthService.setGoal(campaignId, {
+              target_cpl_ngn: Number(value) || null,
+              target_cost_per_order_ngn: Number(orderValue) || null,
+            }).catch(() => undefined);
+            setSaving(false);
+            onSaved();
+          }}
+        >
+          {saving ? 'Saving…' : 'Save targets'}
+        </Btn>
+      </div>
       {!target && (
         <span style={{ color: '#999' }}>Without a target, URI compares against this campaign’s own past.</span>
       )}
+      <span style={{ color: '#999' }}>
+        Once you mark enough leads Converted or Lost, ads are judged on cost per order instead of per conversation.
+      </span>
     </div>
   );
 }
