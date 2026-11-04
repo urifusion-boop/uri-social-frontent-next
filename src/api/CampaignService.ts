@@ -52,7 +52,8 @@ export interface CreatorBrief {
   for: string;
   message: string;
   proof: string;
-  shots: { shot: string; direction: string; say?: string }[];
+  shots: { shot: string; direction: string }[];
+  talking_points?: string[];
   length: string;
   honesty: string;
   disclosure: string;
