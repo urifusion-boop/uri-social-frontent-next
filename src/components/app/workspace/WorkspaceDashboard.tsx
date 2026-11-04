@@ -88,6 +88,7 @@ import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
+import CampaignWizard from '@/src/components/app/workspace/campaign-wizard/CampaignWizard';
 import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
@@ -10925,6 +10926,15 @@ export default function WorkspaceDashboard() {
       onClick: () => goTo('campaigns'),
     },
     {
+      id: 'campaign-wizard',
+      icon: 'edit',
+      // Step-by-step alternative to the chat-driven flow above, built alongside it
+      // (not replacing it) so both stay reachable to compare.
+      label: 'New Campaign Builder',
+      active: nav === 'campaign-wizard',
+      onClick: () => goTo('campaign-wizard'),
+    },
+    {
       id: 'ad-accounts',
       icon: 'share',
       label: 'Ad Accounts',
@@ -11491,6 +11501,7 @@ export default function WorkspaceDashboard() {
         onResumeAdTestConsumed={() => setPendingResumeAdTest(null)}
       />
     ),
+    'campaign-wizard': <CampaignWizard onBack={() => goTo('campaigns')} />,
     'market-intelligence': <MarketIntelligencePage />,
     admin: <AdminUsersPage onBack={goWorkspace} />,
     'listening-curation': <ListeningCurationPage onBack={goWorkspace} />,

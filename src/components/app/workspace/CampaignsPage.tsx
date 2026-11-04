@@ -2743,7 +2743,7 @@ function CampaignReview({ summary, edited }: { summary: CampaignSummary; edited?
 // the backend (destination.py), so this card never drifts from what the server accepts:
 // one input box whatever they pick, plus a button picker for any option whose
 // `takes_cta` is set (all of them, since WhatsApp stopped using Meta's native button).
-function ChooseDestination({
+export function ChooseDestination({
   options,
   ctaChoices,
   selected,
@@ -2891,7 +2891,7 @@ function ChooseDestination({
   );
 }
 
-function ChooseCreativeSource({
+export function ChooseCreativeSource({
   drafts,
   onGenerate,
   onUpload,
@@ -2980,7 +2980,7 @@ function ChooseCreativeSource({
 // expanded by default, others collapsed to a one-line summary (spec §4.2). Budget
 // gates how many can be selected (max_selectable, computed server-side — never
 // guessed here) — single-select becomes a radio-like tap, multi-select toggles.
-function PlanVariantCards({
+export function PlanVariantCards({
   variantSet,
   onConfirm,
   onConfirmOwnAudience,
@@ -3242,7 +3242,7 @@ function PlanVariantCards({
 // button in WorkspaceDashboard.tsx), which sends the browser to Facebook's own OAuth
 // dialog. Facebook redirects back to /workspace?tab=connections&connected=facebook_ads,
 // handled there to call finalizeFacebookAds().
-function ConnectMetaAdsLink({ children }: { children: React.ReactNode }) {
+export function ConnectMetaAdsLink({ children }: { children: React.ReactNode }) {
   const apiBase = (process.env.NEXT_PUBLIC_URI_API_BASE_URL || '').replace(/\/$/, '');
   return (
     <a
@@ -3377,7 +3377,7 @@ function PlanAskBox({
   );
 }
 
-function NeedWhatsapp({
+export function NeedWhatsapp({
   question,
   onSubmit,
   showConnectedAccountsLink,
@@ -3578,7 +3578,7 @@ function PromptCard({ stale, children }: { stale?: boolean; children: React.Reac
   );
 }
 
-function ResultCard({
+export function ResultCard({
   result,
   adFormats,
   formatFallbackFrom,
