@@ -7,7 +7,8 @@
  * integration. See the plan at ~/.claude/plans/lovely-prancing-seahorse.md.
  */
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { DraftSummary } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import WizardObjectiveStep, { WizardObjectiveValue } from './WizardObjectiveStep';
 import WizardAudienceStep, { WizardAudienceValue } from './WizardAudienceStep';
@@ -26,7 +27,17 @@ const STEPS: { key: StepKey; label: string }[] = [
   { key: 'review', label: 'Review' },
 ];
 
-export default function CampaignWizard({ onBack }: { onBack: () => void }) {
+export default function CampaignWizard({
+  onBack,
+  pendingDraft,
+  onDraftConsumed,
+}: {
+  onBack: () => void;
+  /** "Use in Campaign Builder" from the Creatives library lands here — same
+   *  one-shot hand-off pattern as WorkspaceDashboard's pendingResumeVideo. */
+  pendingDraft?: DraftSummary | null;
+  onDraftConsumed?: () => void;
+}) {
   const isMobile = useIsMobile();
   const [stepIndex, setStepIndex] = useState(0);
   const step = STEPS[stepIndex].key;
@@ -35,6 +46,17 @@ export default function CampaignWizard({ onBack }: { onBack: () => void }) {
   const [audience, setAudience] = useState<WizardAudienceValue>({ description: '', city: '' });
   const [budget, setBudget] = useState<WizardBudgetValue>({ amountNgn: '', days: 7 });
   const [creative, setCreative] = useState<WizardCreativeChoice | null>(null);
+  const [prefilledFromLibrary, setPrefilledFromLibrary] = useState(false);
+
+  useEffect(() => {
+    if (!pendingDraft) return;
+    setCreative({ creative_source: 'draft', draft_id: pendingDraft.draft_id, previewUrl: pendingDraft.image_url });
+    setPrefilledFromLibrary(true);
+    onDraftConsumed?.();
+    // Runs once per hand-off — onDraftConsumed clears pendingDraft right after, so
+    // this can't re-fire from its own effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDraft]);
 
   const canAdvance = (): boolean => {
     if (step === 'objective') return Boolean(objective);
@@ -70,6 +92,11 @@ export default function CampaignWizard({ onBack }: { onBack: () => void }) {
           <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#7a7270' }}>
             Launch ads across multiple platforms and reach the right audience.
           </p>
+          {prefilledFromLibrary && (
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: PINK, fontWeight: 600 }}>
+              ✓ Using the creative you picked from your library — it's already set on the Creative step.
+            </p>
+          )}
         </div>
 
         {/* Stepper */}

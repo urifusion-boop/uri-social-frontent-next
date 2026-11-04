@@ -36,7 +36,7 @@ import {
   SocialConnectionService,
 } from '@/src/api/SocialConnectionService';
 import { AvailablePage, SocialAccountService } from '@/src/api/SocialAccountService';
-import { AdFormat, CampaignService, PlanVariant } from '@/src/api/CampaignService';
+import { AdFormat, CampaignService, DraftSummary, PlanVariant } from '@/src/api/CampaignService';
 import { AdFormatGalleryCard } from '@/src/components/app/workspace/AdFormatGallery';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -89,6 +89,7 @@ import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
 import CampaignWizard from '@/src/components/app/workspace/campaign-wizard/CampaignWizard';
+import CreativesLibraryPage from '@/src/components/app/workspace/CreativesLibraryPage';
 import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
@@ -10867,8 +10868,6 @@ export default function WorkspaceDashboard() {
   // rail alongside the primary one. `real: false` items are honest stubs
   // for confirmed-missing features (no fake page, a plain explanation of
   // what exists instead) rather than either hiding them or faking a page.
-  const notBuiltYet = (what: string) => ToastService.showToast(what, ToastTypeEnum.Warning);
-
   const contentStudioSubNav = [
     {
       id: 'create',
@@ -10962,25 +10961,18 @@ export default function WorkspaceDashboard() {
         } as Parameters<typeof router.replace>[1]);
       },
     },
-    {
-      id: 'audiences',
-      icon: 'eye',
-      label: 'Audiences',
-      active: false,
-      onClick: () =>
-        notBuiltYet(
-          "A saved-audience library isn't built yet — Jane already builds ranked audience strategies for you inline while you create a campaign."
-        ),
-    },
+    // "Audiences" used to live here too — dropped rather than left as a stub.
+    // Unlike Creatives below, there's no reusable-audience concept on the
+    // backend to give a real page to: Jane computes audience strategy fresh
+    // per campaign from context (business, budget, city), not from saved
+    // segments, so a "library" here would mean inventing data the AI-driven
+    // model doesn't use, just to have something to show.
     {
       id: 'creatives',
       icon: 'image',
       label: 'Creatives',
-      active: false,
-      onClick: () =>
-        notBuiltYet(
-          "A standalone creative library isn't built yet — choose or upload creative while building a campaign."
-        ),
+      active: nav === 'creatives',
+      onClick: () => goTo('creatives'),
     },
     {
       id: 'performance',
@@ -11105,6 +11097,18 @@ export default function WorkspaceDashboard() {
   } | null>(null);
   const [pendingResumeAdTest, setPendingResumeAdTest] = useState<{ threadId: string; seedMessage: string } | null>(
     null
+  );
+  // "Use in Campaign Builder" from the Creatives library — same hand-off shape as
+  // pendingResumeVideo/pendingResumeAdTest above, bridging two independent
+  // top-level pages via a bit of state set right before navigating, consumed once
+  // by the destination.
+  const [pendingWizardDraft, setPendingWizardDraft] = useState<DraftSummary | null>(null);
+  const handleUseDraftInWizard = useCallback(
+    (draft: DraftSummary) => {
+      setPendingWizardDraft(draft);
+      goTo('campaign-wizard');
+    },
+    [goTo]
   );
 
   // A Listening opportunity card recommended as an ad test lands here with a
@@ -11520,7 +11524,14 @@ export default function WorkspaceDashboard() {
         onResumeAdTestConsumed={() => setPendingResumeAdTest(null)}
       />
     ),
-    'campaign-wizard': <CampaignWizard onBack={() => goTo('campaigns')} />,
+    'campaign-wizard': (
+      <CampaignWizard
+        onBack={() => goTo('campaigns')}
+        pendingDraft={pendingWizardDraft}
+        onDraftConsumed={() => setPendingWizardDraft(null)}
+      />
+    ),
+    creatives: <CreativesLibraryPage onUseInWizard={handleUseDraftInWizard} />,
     'market-intelligence': <MarketIntelligencePage />,
     admin: <AdminUsersPage onBack={goWorkspace} />,
     'listening-curation': <ListeningCurationPage onBack={goWorkspace} />,
