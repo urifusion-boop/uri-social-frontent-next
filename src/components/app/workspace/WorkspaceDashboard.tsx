@@ -2876,6 +2876,15 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     loadStatuses();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Campaign Manager's "Ad Accounts" entry lands here with ?anchor=ad-accounts —
+  // without this, "Ad Accounts" just opened this whole organic+ads connections page
+  // at its first card (LinkedIn), nowhere near Facebook Ads/Google Ads. Waits for
+  // loading to clear so the cards it's scrolling to are actually on the page yet.
+  useEffect(() => {
+    if (loading || searchParams?.get('anchor') !== 'ad-accounts') return;
+    document.getElementById('platform-card-facebook_ads')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [loading, searchParams]);
+
   useEffect(() => {
     CampaignService.getWhatsapp().then((number) => {
       setAdsWaNumber(number);
@@ -3977,7 +3986,10 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             const isBusy = disconnecting === p.id || connecting === p.id;
             const adsExpired = p.id === 'facebook_ads' && s?.meta_connection_state === 'expired';
             return (
-              <div key={p.id}>
+              // id lets Campaign Manager's "Ad Accounts" nav entry scroll straight to
+              // Facebook Ads/Google Ads instead of landing on this page's first card
+              // (LinkedIn) — see the scroll-to-anchor effect above.
+              <div key={p.id} id={`platform-card-${p.id}`}>
                 <div
                   style={{
                     display: 'flex',
@@ -10938,10 +10950,17 @@ export default function WorkspaceDashboard() {
       id: 'ad-accounts',
       icon: 'share',
       label: 'Ad Accounts',
-      // Real destination, reused rather than duplicated — your ad
-      // platform connections already live on Connected Accounts.
+      // Real destination, reused rather than duplicated — your ad platform
+      // connections (Facebook Ads/Google Ads) already live on Connected Accounts,
+      // alongside the organic ones. The anchor param scrolls straight to those
+      // cards instead of landing on LinkedIn at the top of that whole page.
       active: false,
-      onClick: () => goTo('connections'),
+      onClick: () => {
+        setNav('connections');
+        router.replace('/workspace/?tab=connections&anchor=ad-accounts', {
+          scroll: false,
+        } as Parameters<typeof router.replace>[1]);
+      },
     },
     {
       id: 'audiences',
