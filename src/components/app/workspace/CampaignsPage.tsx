@@ -4973,7 +4973,9 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
     const ok = window.confirm(
       c.detached
         ? `Remove "${c.name}" from this list? It stays in your Google Ads account — URI no longer has access to it.`
-        : `Delete "${c.name}"? This can't be undone.`
+        : c.platform === 'google'
+          ? `Delete "${c.name}"? This can't be undone.`
+          : `Delete "${c.name}"? This can't be undone. Any budget it hasn't spent goes back to your ad wallet.`
     );
     if (!ok) return;
     setError('');
