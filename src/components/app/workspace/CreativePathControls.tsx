@@ -170,7 +170,8 @@ const briefAsText = (b: CreatorBrief) =>
     `Message: ${b.message}`,
     `Proof: ${b.proof}`,
     'Shots:',
-    ...b.shots.map((s, i) => `${i + 1}. ${s.shot}: ${s.direction}${s.say ? ` Say: "${s.say}"` : ''}`),
+    ...b.shots.map((s, i) => `${i + 1}. ${s.shot}: ${s.direction}`),
+    ...(b.talking_points?.length ? ['Cover these in your own words:', ...b.talking_points.map((p) => `- ${p}`)] : []),
     `Length: ${b.length}`,
     `Honesty: ${b.honesty}`,
     `Disclosure: ${b.disclosure}`,
@@ -237,11 +238,19 @@ export function VideoBriefInline({
               {brief.shots.map((s) => (
                 <li key={s.shot + s.direction} style={{ marginBottom: 4 }}>
                   <strong>{s.shot}:</strong> {s.direction}
-                  {s.say && <em style={{ color: '#555' }}> Say: “{s.say}”</em>}
                 </li>
               ))}
             </ol>
           </Section>
+          {!!brief.talking_points?.length && (
+            <Section label="Cover these in your own words">
+              <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                {brief.talking_points.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </Section>
+          )}
           <Section label="Length">{brief.length}</Section>
           <Section label="Honesty">{brief.honesty}</Section>
           <Section label="Disclosure">{brief.disclosure}</Section>
