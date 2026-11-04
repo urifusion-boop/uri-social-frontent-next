@@ -101,8 +101,7 @@ export default function WizardCreativeStep({
 
   return (
     <div>
-      <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: '#1a0a12' }}>Creative</h3>
-      <p style={{ margin: '0 0 18px', fontSize: 13, color: '#7a7270' }}>
+      <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#7a7270' }}>
         How should this ad's image or video come together?
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 480 }}>

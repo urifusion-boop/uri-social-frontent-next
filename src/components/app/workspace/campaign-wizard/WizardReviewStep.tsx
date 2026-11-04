@@ -134,8 +134,7 @@ export default function WizardReviewStep({
 
   return (
     <div>
-      <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: '#1a0a12' }}>Review</h3>
-      <p style={{ margin: '0 0 18px', fontSize: 13, color: '#7a7270' }}>
+      <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#7a7270' }}>
         Here's what Jane's put together — adjust anything before you launch.
       </p>
       <input

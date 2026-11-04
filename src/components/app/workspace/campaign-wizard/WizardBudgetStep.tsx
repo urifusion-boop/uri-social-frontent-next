@@ -32,11 +32,10 @@ export default function WizardBudgetStep({
 }) {
   return (
     <div>
-      <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: '#1a0a12' }}>Budget</h3>
-      <p style={{ margin: '0 0 18px', fontSize: 13, color: '#7a7270' }}>
+      <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#7a7270' }}>
         What do you want to spend, and over how many days?
       </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 420 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 420 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>Total budget (₦)</span>
           <input

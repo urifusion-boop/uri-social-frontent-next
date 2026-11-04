@@ -48,25 +48,10 @@ export default function CampaignWizard({ onBack }: { onBack: () => void }) {
   const goBack = () => (stepIndex === 0 ? onBack() : setStepIndex((i) => i - 1));
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: isMobile ? '16px 12px 40px' : '28px 24px 60px' }}>
-      <div style={{ marginBottom: 20 }}>
-        <button
-          type="button"
-          onClick={onBack}
-          style={{
-            border: 'none',
-            background: 'none',
-            color: '#7a7270',
-            fontSize: 12.5,
-            cursor: 'pointer',
-            padding: 0,
-            marginBottom: 10,
-          }}
-        >
-          ← Back to Campaigns
-        </button>
-        <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: '#1a0a12' }}>Create Campaign</h2>
-        <p style={{ margin: '2px 0 0', fontSize: 13, color: '#7a7270' }}>
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: isMobile ? '14px 12px 28px' : '18px 20px 28px' }}>
+      <div style={{ marginBottom: 14 }}>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Create Campaign</h2>
+        <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#7a7270' }}>
           Launch ads across multiple platforms and reach the right audience.
         </p>
       </div>
@@ -77,7 +62,7 @@ export default function CampaignWizard({ onBack }: { onBack: () => void }) {
           display: 'flex',
           alignItems: 'center',
           gap: isMobile ? 4 : 10,
-          marginBottom: 26,
+          marginBottom: 16,
           overflowX: isMobile ? 'auto' : undefined,
         }}
       >
@@ -129,8 +114,7 @@ export default function CampaignWizard({ onBack }: { onBack: () => void }) {
           background: '#fff',
           border: '1px solid #ece8e6',
           borderRadius: 16,
-          padding: isMobile ? 16 : 24,
-          minHeight: 280,
+          padding: isMobile ? 14 : 18,
         }}
       >
         {step === 'objective' && <WizardObjectiveStep selected={objective?.value ?? ''} onPick={setObjective} />}
@@ -151,7 +135,7 @@ export default function CampaignWizard({ onBack }: { onBack: () => void }) {
       {/* Footer nav — the Review step owns its own Launch button inside ResultCard,
           so this footer stops being shown once a plan is in progress there. */}
       {step !== 'review' && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
           <button
             type="button"
             onClick={goBack}

@@ -30,11 +30,10 @@ export default function WizardAudienceStep({
 }) {
   return (
     <div>
-      <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: '#1a0a12' }}>Audience</h3>
-      <p style={{ margin: '0 0 18px', fontSize: 13, color: '#7a7270' }}>
+      <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#7a7270' }}>
         Tell Jane who you're trying to reach — she'll turn this into a targeting strategy.
       </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 560 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
             What are you promoting, and who's it for?
