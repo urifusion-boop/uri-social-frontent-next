@@ -806,30 +806,71 @@ type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calend
 type PendingVariants = { variants: PlanVariant[]; variantGroupId: string };
 type VideoPolishHandoff = { file: File; returnThreadId: string; pendingVariants?: PendingVariants };
 
-// The dedicated-page tabs (Content Library, Content Calendar) replace the
-// classic header + tab-scroll row entirely, which otherwise would have been
-// the only way back to the other Content Studio tabs (Drafts/Saved/
-// Scheduled/Auto/Video) — without this link those pages were a dead end,
-// especially on mobile where there's no sidebar to fall back on.
-const BackToContentStudioLink = ({ onClick }: { onClick: () => void }) => (
-  <button
-    onClick={onClick}
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 4,
-      border: 'none',
-      background: 'none',
-      padding: 0,
-      marginBottom: 4,
-      fontSize: 11.5,
-      fontWeight: 600,
-      color: '#9CA3AF',
-      cursor: 'pointer',
-    }}
+// The dedicated-page tabs (Content Library, Content Calendar, Auto-Generate,
+// Video) replace the classic header + tab-scroll row entirely, which
+// otherwise would have been the only way to move between Content Studio's
+// own destinations. The real nav for that is the sidebar's Content Studio
+// sub-items — desktop only. On mobile there's no sidebar to fall back on, so
+// without something here, landing on Library (say) was a dead end: no way
+// back to Create, and no way sideways to Calendar/Auto/Video either, short
+// of the bottom bar's "Create" tab resetting you to Create every time.
+const CONTENT_STUDIO_MOBILE_TABS: { key: ContentTab; label: string; icon: string }[] = [
+  { key: 'create', label: 'Create', icon: 'plus' },
+  { key: 'library', label: 'Library', icon: 'file' },
+  { key: 'calendar-v2', label: 'Calendar', icon: 'calendar' },
+  { key: 'auto', label: 'Auto', icon: 'sparkle' },
+  { key: 'video', label: '🎬 Video', icon: 'video' },
+];
+
+const ContentStudioMobileSwitcher = ({
+  active,
+  onSelect,
+}: {
+  active: ContentTab;
+  onSelect: (tab: ContentTab) => void;
+}) => (
+  <div
+    className="tab-scroll"
+    style={
+      {
+        display: 'flex',
+        gap: 4,
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        marginBottom: 6,
+      } as React.CSSProperties
+    }
   >
-    ← Content Studio
-  </button>
+    {CONTENT_STUDIO_MOBILE_TABS.map((t) => {
+      const isActive = t.key === active;
+      return (
+        <button
+          key={t.key}
+          onClick={() => onSelect(t.key)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '6px 10px',
+            borderRadius: 999,
+            border: 'none',
+            background: isActive ? '#FCE4EC' : '#F5F4F0',
+            color: isActive ? '#C2185B' : '#777',
+            fontSize: 11.5,
+            fontWeight: isActive ? 700 : 500,
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+        >
+          <I n={t.icon} s={12} c={isActive ? '#C2185B' : '#aaa'} />
+          {t.label}
+        </button>
+      );
+    })}
+  </div>
 );
 
 const ContentManagerPage = ({
@@ -1318,19 +1359,26 @@ const ContentManagerPage = ({
     router.push('/workspace/?tab=connections');
   };
 
-  // Drafts / Saved / Scheduled / Calendar dropped from this visible row —
-  // Content Library's own filter tabs (All/Drafts/Needs Review/Scheduled/
-  // Published/Archived) already cover the exact same states in one table,
-  // and Calendar is already reachable from the Content Studio sidebar. The
+  // Drafts / Saved / Scheduled dropped from this visible row — Content
+  // Library's own filter tabs (All/Drafts/Needs Review/Scheduled/Published/
+  // Archived) already cover the exact same states in one table. The
   // underlying 'drafts' tab view is untouched and still real — programmatic
   // redirects (e.g. "Save to Drafts" from the video flow) still land on it
-  // correctly, it just no longer has its own pill in this row.
+  // correctly, it just no longer has its own pill in this row. Calendar DOES
+  // belong here though: "already reachable from the Content Studio sidebar"
+  // was only ever true on desktop — that sidebar is desktop-only, and this
+  // row is the one thing that also renders on mobile.
   const tabs: { key: ContentTab; label: string; count?: number; tooltip: string }[] = [
     { key: 'create', label: 'Create', tooltip: 'Generate new AI-powered posts for your social platforms' },
     {
       key: 'library',
       label: 'Library',
       tooltip: 'Manage, approve, schedule and track all your content in one table',
+    },
+    {
+      key: 'calendar-v2',
+      label: 'Calendar',
+      tooltip: 'A 30-day content plan tailored to your brand',
     },
     {
       key: 'auto',
@@ -1374,6 +1422,7 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
+          {isMobile && <ContentStudioMobileSwitcher active={activeTab} onSelect={setActiveTab} />}
           <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
             Create Content
           </h2>
@@ -1394,8 +1443,8 @@ const ContentManagerPage = ({
             gap: 10,
           }}
         >
-          <div>
-            <BackToContentStudioLink onClick={() => setActiveTab('create')} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            {isMobile && <ContentStudioMobileSwitcher active={activeTab} onSelect={setActiveTab} />}
             <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
               Content Library
             </h2>
@@ -1428,7 +1477,7 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <BackToContentStudioLink onClick={() => setActiveTab('create')} />
+          {isMobile && <ContentStudioMobileSwitcher active={activeTab} onSelect={setActiveTab} />}
           <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
             Content Calendar
           </h2>
@@ -1444,7 +1493,7 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <BackToContentStudioLink onClick={() => setActiveTab('create')} />
+          {isMobile && <ContentStudioMobileSwitcher active={activeTab} onSelect={setActiveTab} />}
           <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
             Auto-Generate
           </h2>
@@ -1460,7 +1509,7 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <BackToContentStudioLink onClick={() => setActiveTab('create')} />
+          {isMobile && <ContentStudioMobileSwitcher active={activeTab} onSelect={setActiveTab} />}
           <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
             🎬 Video
           </h2>
