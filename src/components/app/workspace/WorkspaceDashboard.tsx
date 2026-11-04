@@ -11737,7 +11737,10 @@ export default function WorkspaceDashboard() {
                         <button
                           id={`tnav-${n.id}`}
                           onClick={() => {
-                            if (zone) setExpandedSection(zone);
+                            // Toggle: clicking an already-open section collapses it
+                            // instead of being a no-op that only another tab's click
+                            // could undo.
+                            if (zone) setExpandedSection((prev) => (prev === zone ? null : zone));
                             goTo(n.id);
                           }}
                           style={{
@@ -11848,7 +11851,10 @@ export default function WorkspaceDashboard() {
                         <button
                           id={`tnav-${n.id}`}
                           onClick={() => {
-                            if (zone) setExpandedSection(zone);
+                            // Toggle: clicking an already-open section collapses it
+                            // instead of being a no-op that only another tab's click
+                            // could undo.
+                            if (zone) setExpandedSection((prev) => (prev === zone ? null : zone));
                             goTo(n.id);
                           }}
                           style={{
