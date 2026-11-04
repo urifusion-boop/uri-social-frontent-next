@@ -9882,6 +9882,7 @@ const SettingsPage = ({
 }) => {
   const { userDetails } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -9943,10 +9944,23 @@ const SettingsPage = ({
     }
   };
 
+  // Settings' new sub-nav (Account/Security/Brand Profile) lands here with
+  // ?anchor=X — those three are sections of this one page, not separate
+  // destinations, same "scroll straight to it" fix as Connected Accounts'
+  // ?anchor=ad-accounts.
+  useEffect(() => {
+    const anchor = searchParams?.get('anchor');
+    if (!anchor) return;
+    document.getElementById(`settings-section-${anchor}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [searchParams]);
+
   return (
     <SubPage title="Settings" icon="settings" desc="Manage your account and brand preferences" onJane={onJane}>
       {/* Account Section */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+      <div
+        id="settings-section-account"
+        style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}
+      >
         <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
           <I n="settings" s={16} c="#C2185B" />
           Account Settings
@@ -9966,7 +9980,10 @@ const SettingsPage = ({
       </div>
 
       {/* Security Section */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+      <div
+        id="settings-section-security"
+        style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}
+      >
         <div
           style={{
             display: 'flex',
@@ -10185,7 +10202,10 @@ const SettingsPage = ({
       </div>
 
       {/* Brand Settings */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}>
+      <div
+        id="settings-section-brand"
+        style={{ background: '#fff', borderRadius: 12, border: '1px solid #edecea', padding: 18, marginBottom: 12 }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
             <I n="book" s={16} c="#C2185B" />
@@ -11007,14 +11027,68 @@ export default function WorkspaceDashboard() {
     },
   ];
 
+  // Account/Security/Brand Profile are sections of the one SettingsPage, not
+  // separate pages — same "real destination, scroll straight to it" fix as
+  // Campaign Manager's Ad Accounts entry above.
+  const goToSettingsAnchor = (anchor: string) => {
+    setNav('settings');
+    router.replace(`/workspace/?tab=settings&anchor=${anchor}`, {
+      scroll: false,
+    } as Parameters<typeof router.replace>[1]);
+  };
+
+  const settingsSubNav = [
+    {
+      id: 'settings-account',
+      icon: 'settings',
+      label: 'Account',
+      active: false,
+      onClick: () => goToSettingsAnchor('account'),
+    },
+    {
+      id: 'settings-security',
+      icon: 'lock',
+      label: 'Security',
+      active: false,
+      onClick: () => goToSettingsAnchor('security'),
+    },
+    {
+      id: 'settings-brand',
+      icon: 'edit',
+      label: 'Brand Profile',
+      active: false,
+      onClick: () => goToSettingsAnchor('brand'),
+    },
+    {
+      id: 'playbook',
+      icon: 'book',
+      label: 'Brand Playbook',
+      active: nav === 'playbook',
+      onClick: () => goTo('playbook'),
+    },
+    {
+      id: 'settings-billing',
+      icon: 'trending',
+      label: 'Billing & Subscription',
+      active: nav === 'billing',
+      onClick: () => goTo('billing'),
+    },
+    {
+      id: 'agency',
+      icon: 'grid',
+      label: 'Agency',
+      active: nav === 'agency',
+      onClick: () => goTo('agency'),
+    },
+  ];
+
   // Which contextual sidebar (if any) the current nav value belongs to.
   // A nav id not claimed by any zone falls through to the flat PRIMARY_NAV
   // sidebar instead — this is also why reusing a PRIMARY_NAV-owned id in a
   // sub-item (Performance, Connected Accounts) is safe: clicking it is
   // meant to pop back out to the top-level view, not fake a dedicated page.
-  const activeSection: 'content-studio' | 'campaign-manager' | 'performance' | null = [
+  const activeSection: 'content-studio' | 'campaign-manager' | 'performance' | 'settings' | null = [
     'schedule',
-    'playbook',
     'blog',
     'visual-engine-v2',
   ].includes(nav)
@@ -11023,12 +11097,22 @@ export default function WorkspaceDashboard() {
       ? 'campaign-manager'
       : ['performance', 'market-intelligence'].includes(nav)
         ? 'performance'
-        : null;
+        : // 'playbook' moved here from content-studio's list — it has no item in
+          // that sidebar (deliberately moved into Settings, see SettingsPage's own
+          // comment on why), so it belongs with 'settings' and 'agency' now that
+          // both of those have real Settings sub-nav entries too. 'billing' stays
+          // with campaign-manager above (Budget & Billing already owns it there);
+          // Settings' own Billing entry below still works, it just won't be the
+          // one keeping this particular accordion open.
+          ['settings', 'playbook', 'agency'].includes(nav)
+          ? 'settings'
+          : null;
 
   const SECTION_META: Record<string, { label: string; subNav: typeof contentStudioSubNav }> = {
     'content-studio': { label: 'Content Studio', subNav: contentStudioSubNav },
     'campaign-manager': { label: 'Campaign Manager', subNav: campaignManagerSubNav },
     performance: { label: 'Performance', subNav: performanceSubNav },
+    settings: { label: 'Settings', subNav: settingsSubNav },
   };
 
   // Maps a PRIMARY_NAV item's id to the zone it expands — the sidebar stays
@@ -11040,9 +11124,9 @@ export default function WorkspaceDashboard() {
     campaigns: 'campaign-manager',
     performance: 'performance',
   };
-  const [expandedSection, setExpandedSection] = useState<'content-studio' | 'campaign-manager' | 'performance' | null>(
-    activeSection
-  );
+  const [expandedSection, setExpandedSection] = useState<
+    'content-studio' | 'campaign-manager' | 'performance' | 'settings' | null
+  >(activeSection);
   useEffect(() => {
     if (activeSection) setExpandedSection(activeSection);
   }, [activeSection]);
@@ -11750,34 +11834,99 @@ export default function WorkspaceDashboard() {
                 }}
               >
                 {lowerNavItems.map((n) => {
-                  const active = nav === n.id;
+                  // "Settings" is the only lowerNavItems entry with a contextual
+                  // sub-nav (Account/Security/Brand Profile/Brand Playbook/
+                  // Billing/Agency) — same accordion as the PRIMARY_NAV zones
+                  // above, special-cased here rather than touching that shared
+                  // loop since Help & Support (and Admin) stay plain links.
+                  const zone = n.id === 'settings' ? ('settings' as const) : undefined;
+                  const isExpanded = zone != null && expandedSection === zone;
+                  const active = zone ? activeSection === zone : nav === n.id;
                   return (
-                    <BrandTooltip key={n.id} title={n.tooltip} placement="right" arrow>
-                      <button
-                        id={`tnav-${n.id}`}
-                        onClick={() => goTo(n.id)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          margin: '0 10px',
-                          padding: '8px 12px',
-                          borderRadius: 9,
-                          background: active ? 'rgba(194,24,91,.15)' : 'transparent',
-                          border: 'none',
-                          fontFamily: 'var(--wf)',
-                          fontSize: 12.5,
-                          color: active ? '#fce4ec' : 'rgba(255,255,255,.4)',
-                          fontWeight: active ? 600 : 400,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          transition: 'all .12s',
-                        }}
-                      >
-                        <I n={n.icon} s={14} c={active ? '#C2185B' : 'rgba(255,255,255,.3)'} />
-                        <span style={{ flex: 1 }}>{n.label}</span>
-                      </button>
-                    </BrandTooltip>
+                    <div key={n.id}>
+                      <BrandTooltip title={n.tooltip} placement="right" arrow>
+                        <button
+                          id={`tnav-${n.id}`}
+                          onClick={() => {
+                            if (zone) setExpandedSection(zone);
+                            goTo(n.id);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            width: zone ? 'calc(100% - 20px)' : undefined,
+                            margin: '0 10px',
+                            padding: '8px 12px',
+                            borderRadius: 9,
+                            background: active ? 'rgba(194,24,91,.15)' : 'transparent',
+                            border: 'none',
+                            fontFamily: 'var(--wf)',
+                            fontSize: 12.5,
+                            color: active ? '#fce4ec' : 'rgba(255,255,255,.4)',
+                            fontWeight: active ? 600 : 400,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all .12s',
+                          }}
+                        >
+                          <I n={n.icon} s={14} c={active ? '#C2185B' : 'rgba(255,255,255,.3)'} />
+                          <span style={{ flex: 1 }}>{n.label}</span>
+                          {zone && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                transition: 'transform .15s',
+                                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                              }}
+                            >
+                              <I n="chevronRight" s={11} c={active ? '#fce4ec' : 'rgba(255,255,255,.3)'} />
+                            </span>
+                          )}
+                        </button>
+                      </BrandTooltip>
+                      {zone && (
+                        <div
+                          style={{
+                            maxHeight: isExpanded ? 320 : 0,
+                            overflow: 'hidden',
+                            transition: 'max-height .25s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '3px 0 5px' }}>
+                            {SECTION_META[zone].subNav.map((sn) => (
+                              <BrandTooltip key={sn.id} title={sn.label} placement="right" arrow>
+                                <button
+                                  id={`tnav-${sn.id}`}
+                                  onClick={() => sn.onClick()}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 9,
+                                    width: 'calc(100% - 36px)',
+                                    margin: '0 10px 0 26px',
+                                    padding: '7px 10px',
+                                    borderRadius: 8,
+                                    background: sn.active ? 'rgba(194,24,91,.18)' : 'transparent',
+                                    border: 'none',
+                                    fontFamily: 'var(--wf)',
+                                    fontSize: 12,
+                                    color: sn.active ? '#fff' : 'rgba(255,255,255,.4)',
+                                    fontWeight: sn.active ? 700 : 500,
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all .12s',
+                                  }}
+                                >
+                                  <I n={sn.icon} s={12} c={sn.active ? '#fff' : 'rgba(255,255,255,.3)'} />
+                                  <span style={{ flex: 1 }}>{sn.label}</span>
+                                </button>
+                              </BrandTooltip>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
