@@ -11,6 +11,7 @@ import {
 import { Btn, Card, Chip, errorText, inputStyle } from '../personality/ui';
 import { ACTION_LABELS, CONFIDENCE_TONE, ago, naira, pct } from './format';
 import { GrowthTesting } from './GrowthTesting';
+import { useAdsMode } from './adsMode';
 
 type RecDecision = 'approve' | 'rejected' | 'done' | 'deferred';
 
@@ -27,6 +28,7 @@ export function GrowthCampaign({
 }) {
   const [data, setData] = useState<GrowthCampaignDetail | null>(null);
   const [error, setError] = useState('');
+  const { advanced } = useAdsMode();
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -123,8 +125,12 @@ export function GrowthCampaign({
             ['Conversations', String(t.conversations)],
             ['Cost per conversation', naira(t.cost_per_conversation_ngn)],
             ['Target', data.goal.target_cpl_ngn ? naira(data.goal.target_cpl_ngn) : 'Not set'],
-            ['Click-through', pct(t.ctr, 2)],
-            ['Frequency', t.frequency ? t.frequency.toFixed(1) : '—'],
+            ...(advanced
+              ? [
+                  ['Click-through', pct(t.ctr, 2)],
+                  ['Frequency', t.frequency ? t.frequency.toFixed(1) : '—'],
+                ]
+              : []),
           ].map(([l, v]) => (
             <div key={l} style={{ background: '#fafafa', borderRadius: 10, padding: '10px 12px' }}>
               <div style={{ fontSize: 11.5, color: '#999' }}>{l}</div>
@@ -142,6 +148,7 @@ export function GrowthCampaign({
 
       {data.testing && (
         <GrowthTesting
+          detailed={advanced}
           testing={data.testing}
           adNames={Object.fromEntries((data.controls?.ads ?? []).map((a) => [a.id, a.name]))}
         />

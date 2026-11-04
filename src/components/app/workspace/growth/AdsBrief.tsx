@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AdsBrief as Brief, AdsBriefResponse, CampaignService } from '@/src/api/CampaignService';
 import { Btn, Card, Chip, errorText, inputStyle } from '../personality/ui';
+import { useAdsMode } from './adsMode';
 
 const TRACKING_LABELS: Record<string, string> = {
   none: 'No tracking',
@@ -11,12 +12,13 @@ const TRACKING_LABELS: Record<string, string> = {
   website_purchases: 'Website purchases tracked',
 };
 
-const TEXTS: [keyof Brief, string, string][] = [
-  ['success_definition', 'What counts as success', 'e.g. 20 orders a week at ₦3,000 or less each'],
-  ['qualified_lead_definition', 'What makes a good lead', 'e.g. asks for price and is in Lagos'],
-  ['assets_available', 'Photos and videos you have', 'e.g. product photos, a kitchen video'],
-  ['customer_data', 'Customer data you hold', 'e.g. 300 WhatsApp customers, an email list'],
-  ['previous_results', 'What worked before', 'e.g. price posts did well; boosted videos did not'],
+// The last field marks what Guided mode shows; Advanced shows every field.
+const TEXTS: [keyof Brief, string, string, boolean][] = [
+  ['success_definition', 'What counts as success', 'e.g. 20 orders a week at ₦3,000 or less each', true],
+  ['qualified_lead_definition', 'What makes a good lead', 'e.g. asks for price and is in Lagos', false],
+  ['assets_available', 'Photos and videos you have', 'e.g. product photos, a kitchen video', false],
+  ['customer_data', 'Customer data you hold', 'e.g. 300 WhatsApp customers, an email list', false],
+  ['previous_results', 'What worked before', 'e.g. price posts did well; boosted videos did not', false],
 ];
 
 /*
@@ -29,6 +31,7 @@ export function AdsBrief() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const { advanced } = useAdsMode();
 
   useEffect(() => {
     CampaignService.getAdsBrief()
@@ -112,7 +115,7 @@ export function AdsBrief() {
           ))}
         </div>
       </div>
-      {TEXTS.map(([k, text, placeholder]) => (
+      {TEXTS.filter(([, , , guided]) => advanced || guided).map(([k, text, placeholder]) => (
         <div key={k}>
           {label(text)}
           <input
@@ -123,6 +126,12 @@ export function AdsBrief() {
           />
         </div>
       ))}
+      {!advanced && (
+        <div style={{ fontSize: 11.5, color: '#999' }}>
+          Switch to Advanced to add what makes a good lead, the photos and data you have, and what worked before.
+          Anything already saved there is kept.
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <Btn small onClick={save} disabled={saving}>
           {saving ? 'Saving…' : 'Save brief'}

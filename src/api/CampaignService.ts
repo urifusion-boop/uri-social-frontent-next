@@ -16,6 +16,49 @@ interface CloudinarySignedUpload {
   folder: string;
 }
 
+export type AssetAttestation = 'product_photo' | 'real_customer_photo' | 'owner_photo';
+
+export type CreativePath = 'static' | 'upload' | 'ai_video' | 'ugc';
+export type UgcKind = 'real_customer' | 'paid_creator' | 'creator_style' | 'staff_demo';
+export type AdsViewMode = 'guided' | 'advanced';
+
+/** What a creative IS, beyond its media: the AI-video or UGC path, sent with a plan request. */
+export interface CreativeProvenanceInput {
+  creative_path: 'ai_video' | 'ugc';
+  video_job_id?: string;
+  ugc_kind?: UgcKind;
+  ugc_rights_confirmed?: boolean;
+}
+
+export interface CreativePathsInfo {
+  primary: CreativePath;
+  why: string;
+  ugc: { suggested: boolean; why: string } | null;
+  paths: Record<CreativePath, { open: boolean; why_closed: string | null; note?: string }>;
+  ai_video_note: string | null;
+  ugc_kinds: Record<UgcKind, string>;
+}
+
+export interface AiVideoChoice {
+  video_job_id: string;
+  clips: number;
+  seconds: number;
+  preview_url: string;
+  has_people: boolean;
+  about: string;
+}
+
+export interface CreatorBrief {
+  for: string;
+  message: string;
+  proof: string;
+  shots: { shot: string; direction: string; say?: string }[];
+  length: string;
+  honesty: string;
+  disclosure: string;
+  usage_rights: string;
+}
+
 export interface UnderstoodFields {
   business_name?: string;
   category?: string;
@@ -655,6 +698,7 @@ export interface PlanChecks {
     days: number;
     total_ngn: number;
     why: string;
+    recommended?: { concepts: number; structure: 'single' | 'abo' | 'cbo'; why: string };
   };
   brief_missing: string[];
   confidence: 'normal' | 'lower';
@@ -722,10 +766,14 @@ export class CampaignService {
     // VSG-01 v3 (§1.2/§6) — what reference_image_url actually shows, per the user's own
     // confirmation collected right after upload/recomposite. Undefined ("Skip") means
     // exactly what it always meant: use the photo as-is, no format-selection attempt.
-    asset_attestation?: 'product_photo' | 'real_customer_photo';
+    asset_attestation?: AssetAttestation;
     // The user's own pick from suggestAdFormat()'s alternatives (the "change" link
     // on the Style row). Undefined means "use whatever ranks best" (unchanged default).
     vsg01_format_id?: string;
+    creative_path?: CreativeProvenanceInput['creative_path'];
+    video_job_id?: string;
+    ugc_kind?: UgcKind;
+    ugc_rights_confirmed?: boolean;
     reuse_image_url?: string; // refinement — keep the prior plan's image (no regen/credit)
     whatsapp_number?: string; // where leads route; sent when answering need_whatsapp
     thread_id?: string; // which campaign thread this plan belongs to (Tier E)
@@ -851,6 +899,35 @@ export class CampaignService {
     return ((await UriHttpClient.getClient().put('/jane-ads/brief', brief)).data as { brief: AdsBrief }).brief;
   }
 
+  static async getAdsMode(): Promise<AdsViewMode> {
+    return ((await UriHttpClient.getClient().get('/jane-ads/mode')).data as { mode: AdsViewMode }).mode;
+  }
+
+  static async setAdsMode(mode: AdsViewMode): Promise<AdsViewMode> {
+    return ((await UriHttpClient.getClient().put('/jane-ads/mode', { mode })).data as { mode: AdsViewMode }).mode;
+  }
+
+  static async creativePaths(params: {
+    category?: string;
+    description?: string;
+    has_own_media?: boolean;
+  }): Promise<CreativePathsInfo> {
+    return (await UriHttpClient.getClient().get('/jane-ads/creative/paths', { params })).data as CreativePathsInfo;
+  }
+
+  static async aiVideos(): Promise<AiVideoChoice[]> {
+    return ((await UriHttpClient.getClient().get('/jane-ads/creative/ai-videos')).data as { videos: AiVideoChoice[] })
+      .videos;
+  }
+
+  static async creatorBrief(body: { ugc_kind: UgcKind; description?: string; offer?: string }): Promise<CreatorBrief> {
+    return (
+      (await UriHttpClient.getClient().post('/jane-ads/creative/creator-brief', body, { timeout: 90000 })).data as {
+        brief: CreatorBrief;
+      }
+    ).brief;
+  }
+
   /** What a plan launches as, and anything in it that conflicts with the brief. */
   static async planChecks(planId: string): Promise<PlanChecks> {
     return (await UriHttpClient.getClient().get(`/jane-ads/meta/plan/${planId}/checks`)).data as PlanChecks;
@@ -953,7 +1030,7 @@ export class CampaignService {
    *  continueWithSource). suggested/alternatives are both empty when nothing is
    *  eligible (a plain video, no eligible format, or VSG-01 has nothing approved). */
   static async suggestAdFormat(params: {
-    asset_attestation?: 'product_photo' | 'real_customer_photo';
+    asset_attestation?: AssetAttestation;
     recomposite?: boolean;
     is_video?: boolean;
     /** The user's own ad brief so far — lets the backend favor a format whose
