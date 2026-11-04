@@ -1878,7 +1878,13 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
             type="datetime-local"
             fullWidth
             value={scheduledAt}
-            onChange={(e) => setScheduledAt(e.target.value)}
+            onChange={(e) => {
+              setScheduledAt(e.target.value);
+              // See GeneratedContentCard's identical fix: the native picker doesn't
+              // close itself once a full date+time is set, so it sat visually on top
+              // of the Confirm button below until blurred.
+              if (e.target.value) e.target.blur();
+            }}
             slotProps={{
               htmlInput: {
                 min: (() => {

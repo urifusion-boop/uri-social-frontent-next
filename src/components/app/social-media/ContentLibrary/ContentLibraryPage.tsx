@@ -85,6 +85,11 @@ function categorize(d: ContentDraft): LibraryTab {
     case 'published':
       return 'published';
     case 'scheduled':
+    // What "scheduled" is called outside production (see the type's own
+    // comment) — DraftCard already knew to treat this the same as
+    // "scheduled"; this categorizer never did, so every successfully
+    // scheduled post on staging fell through to "draft" instead.
+    case 'staging_scheduled':
     case 'confirming':
     case 'ready_to_publish':
       return 'scheduled';
@@ -797,7 +802,13 @@ export default function ContentLibraryPage() {
             fullWidth
             size="small"
             value={bulkScheduleAt}
-            onChange={(e) => setBulkScheduleAt(e.target.value)}
+            onChange={(e) => {
+              setBulkScheduleAt(e.target.value);
+              // See GeneratedContentCard's identical fix: the native picker doesn't
+              // close itself once a full date+time is set, so it sat visually on top
+              // of the Confirm button below until blurred.
+              if (e.target.value) e.target.blur();
+            }}
             sx={{ mt: 1 }}
           />
         </DialogContent>

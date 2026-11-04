@@ -509,7 +509,14 @@ export default function GeneratedContentCard({
             fullWidth
             size="small"
             value={scheduleAt}
-            onChange={(e) => setScheduleAt(e.target.value)}
+            onChange={(e) => {
+              setScheduleAt(e.target.value);
+              // The native picker (desktop's calendar dropdown, iOS's wheel) doesn't
+              // close itself once a full date+time is set — left open, it visually
+              // sat on top of the Confirm button below. Blurring once the value is
+              // complete collapses it immediately, same as picking it should feel.
+              if (e.target.value) e.target.blur();
+            }}
             sx={{ mt: 1 }}
           />
         </DialogContent>

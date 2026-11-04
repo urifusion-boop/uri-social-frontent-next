@@ -511,6 +511,12 @@ export interface ContentDraft {
     | 'published'
     | 'denied'
     | 'scheduled'
+    // What "scheduled" is called outside APP_ENV=production, so the
+    // production cron (which only queries status="scheduled") can never
+    // claim and double-publish a staging draft — staging has its own cron
+    // querying this status instead. Same real "scheduled" state everywhere
+    // else in the UI; see approval_workflow_service.py's schedule branch.
+    | 'staging_scheduled'
     | 'ready_to_publish'
     | 'replaced'
     | 'publish_failed'

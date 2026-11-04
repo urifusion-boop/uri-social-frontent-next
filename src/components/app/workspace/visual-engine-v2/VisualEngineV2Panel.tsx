@@ -1179,7 +1179,13 @@ export default function VisualEngineV2Panel() {
                   <input
                     type="datetime-local"
                     value={scheduleAt}
-                    onChange={(e) => setScheduleAt(e.target.value)}
+                    onChange={(e) => {
+                      setScheduleAt(e.target.value);
+                      // The native picker doesn't close itself once a full date+time
+                      // is set, so it sat visually on top of the Schedule button until
+                      // blurred.
+                      if (e.target.value) e.target.blur();
+                    }}
                     className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none"
                   />
                 </div>

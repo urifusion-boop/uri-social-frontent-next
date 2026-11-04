@@ -18,6 +18,8 @@ const STATUS_BADGE: Record<string, { bg: string; color: string; label: string }>
   draft: { bg: '#F3F4F6', color: '#374151', label: 'Draft' },
   pending_approval: { bg: '#FEF3C7', color: '#92400E', label: 'Needs Review' },
   scheduled: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },
+  // What "scheduled" is called outside production — see the type's own comment.
+  staging_scheduled: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },
   ready_to_publish: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },
   confirming: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },
   published: { bg: '#D1FAE5', color: '#065F46', label: 'Published' },
@@ -563,7 +565,13 @@ export default function DraftDetailView({
             fullWidth
             size="small"
             value={scheduleAt}
-            onChange={(e) => setScheduleAt(e.target.value)}
+            onChange={(e) => {
+              setScheduleAt(e.target.value);
+              // See GeneratedContentCard's identical fix: the native picker doesn't
+              // close itself once a full date+time is set, so it sat visually on top
+              // of the Confirm button below until blurred.
+              if (e.target.value) e.target.blur();
+            }}
             sx={{ mb: 2 }}
           />
           <Box display="flex" justifyContent="flex-end" gap={1}>

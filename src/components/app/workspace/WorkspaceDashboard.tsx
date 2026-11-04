@@ -2176,7 +2176,13 @@ const ContentManagerPage = ({
                       <input
                         type="datetime-local"
                         value={scheduleAllAt}
-                        onChange={(e) => setScheduleAllAt(e.target.value)}
+                        onChange={(e) => {
+                          setScheduleAllAt(e.target.value);
+                          // The native picker doesn't close itself once a full
+                          // date+time is set, so it sat visually on top of whatever
+                          // button sits below it until blurred.
+                          if (e.target.value) e.target.blur();
+                        }}
                         min={(() => {
                           const d = new Date(Date.now() + 5 * 60 * 1000);
                           const pad = (n: number) => String(n).padStart(2, '0');
