@@ -234,7 +234,7 @@ export function VideoBriefInline({
           <Section label="Message">{brief.message}</Section>
           <Section label="Proof">{brief.proof}</Section>
           <Section label="Shots">
-            <ol style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+            <ol style={{ margin: '4px 0 0', paddingLeft: 18, listStyleType: 'decimal' }}>
               {brief.shots.map((s) => (
                 <li key={s.shot + s.direction} style={{ marginBottom: 4 }}>
                   <strong>{s.shot}:</strong> {s.direction}
@@ -244,7 +244,7 @@ export function VideoBriefInline({
           </Section>
           {!!brief.talking_points?.length && (
             <Section label="Cover these in your own words">
-              <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 18, listStyleType: 'disc' }}>
                 {brief.talking_points.map((p) => (
                   <li key={p}>{p}</li>
                 ))}
