@@ -18,6 +18,7 @@ import {
   CampaignSummary,
   ThreadSummary,
   AssetAttestation,
+  CreativePathsInfo,
   CreativeProvenanceInput,
 } from '@/src/api/CampaignService';
 import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/workspace/AdFormatGallery';
@@ -26,9 +27,9 @@ import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
 import { PlanChecksPanel, PlanChecksState } from '@/src/components/app/workspace/PlanChecksPanel';
 import {
-  AiVideoPicker,
-  CreatorBriefButton,
-  VideoProvenanceControl,
+  AiVideoChoices,
+  VideoBriefInline,
+  VideoWhoPrompt,
   useCreativePaths,
 } from '@/src/components/app/workspace/CreativePathControls';
 import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
@@ -126,12 +127,12 @@ interface CampaignsPageProps {
 
 type ContinueChoice =
   | { creative_source: 'generate' }
-  | {
+  | ({
       creative_source: 'upload';
       reference_image_url: string;
       is_video: boolean;
       asset_attestation?: AssetAttestation;
-    }
+    } & Partial<CreativeProvenanceInput>)
   | { creative_source: 'draft'; draft_id: string }
   | {
       creative_source: 'recomposite';
@@ -343,6 +344,13 @@ export default function CampaignsPage({
   // raw File (needed to seed Video Polish, which takes a fresh upload, not a URL)
   // alongside the already-hosted url/forChoice so "use as-is" can proceed exactly
   // as a normal video upload would have.
+  // A video is uploaded and waiting on "who's in this video?" — answered before it
+  // continues, so a person on camera is labelled honestly (creative_paths.py).
+  const [pendingVideoWho, setPendingVideoWho] = useState<{
+    url: string;
+    label: string;
+    forChoice: false | 'upload';
+  } | null>(null);
   const [pendingVideoQualityCheck, setPendingVideoQualityCheck] = useState<{
     file: File;
     url: string;
@@ -1402,6 +1410,8 @@ export default function CampaignsPage({
         // Came from the choose card with a real photo — ask what it actually shows
         // before continuing (a video skips straight through, same as before).
         setPendingAssetAttestation({ url, forChoice: 'upload' });
+      } else if (is_video) {
+        setPendingVideoWho({ url, label: file.name, forChoice: forChoice === 'upload' ? 'upload' : false });
       } else if (forChoice === 'upload') {
         await continueWithSource({ creative_source: 'upload', reference_image_url: url, is_video });
       } else if (!is_video) {
@@ -1513,10 +1523,23 @@ export default function CampaignsPage({
     const pending = pendingVideoQualityCheck;
     if (!pending) return;
     setPendingVideoQualityCheck(null);
+    setPendingVideoWho({ url: pending.url, label: pending.file.name, forChoice: pending.forChoice });
+  };
+
+  // "Who's in this video?" answered — carry it with the video into the plan.
+  const resolveVideoWho = async (provenance?: CreativeProvenanceInput) => {
+    const pending = pendingVideoWho;
+    if (!pending) return;
+    setPendingVideoWho(null);
     if (pending.forChoice === 'upload') {
-      await continueWithSource({ creative_source: 'upload', reference_image_url: pending.url, is_video: true });
+      await continueWithSource({
+        creative_source: 'upload',
+        reference_image_url: pending.url,
+        is_video: true,
+        ...(provenance ?? {}),
+      });
     } else {
-      setMedia({ source: 'upload', url: pending.url, isVideo: true, label: pending.file.name });
+      setMedia({ source: 'upload', url: pending.url, isVideo: true, label: pending.label, provenance });
     }
   };
 
@@ -1545,11 +1568,7 @@ export default function CampaignsPage({
   useEffect(() => {
     if (!pendingResumeVideo) return;
     (async () => {
-      // openThread's setBriefSoFar hasn't flushed to a re-render yet at this point —
-      // continueWithSource would still read the pre-openThread (empty, on a fresh
-      // mount) briefSoFar via its stale closure and silently no-op. Use openThread's
-      // returned brief explicitly instead.
-      const brief = await openThread(pendingResumeVideo.threadId);
+      await openThread(pendingResumeVideo.threadId);
       // openThread just reset both refs above — restore the pre-hand-off audience
       // choice, if there was one, before continueWithSource reads pendingVariantsRef.
       if (pendingResumeVideo.pendingVariants) {
@@ -1559,14 +1578,9 @@ export default function CampaignsPage({
           variantGroupId: pendingResumeVideo.pendingVariants.variantGroupId,
         };
       }
-      await continueWithSource(
-        {
-          creative_source: 'upload',
-          reference_image_url: pendingResumeVideo.url,
-          is_video: true,
-        },
-        brief
-      );
+      // Ask who's in it, as for any upload. The plan continues once it's answered,
+      // by which time openThread's brief has rendered, so no stale-brief workaround.
+      setPendingVideoWho({ url: pendingResumeVideo.url, label: 'Polished video', forChoice: 'upload' });
       onResumeVideoConsumed?.();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1827,6 +1841,16 @@ export default function CampaignsPage({
                         fileInputRef.current?.click();
                       }}
                       onChooseDraft={(draftId) => continueWithSource({ creative_source: 'draft', draft_id: draftId })}
+                      onChooseAiVideo={(url, provenance) =>
+                        continueWithSource({
+                          creative_source: 'upload',
+                          reference_image_url: url,
+                          is_video: true,
+                          ...provenance,
+                        })
+                      }
+                      creativePaths={creativePaths}
+                      briefText={briefSoFar}
                       onChooseVariants={(variants, groupId) => continueWithVariants(variants, groupId)}
                       onChooseOwnAudience={(audience) => continueWithOwnAudience(audience)}
                       onChooseDestination={continueWithDestination}
@@ -1886,6 +1910,14 @@ export default function CampaignsPage({
                     >
                       Use as-is
                     </button>
+                  </div>
+                </div>
+              )}
+              {pendingVideoWho && (
+                <div>
+                  <JaneBubble>Who’s in this video?</JaneBubble>
+                  <div className="camp-indent" style={{ marginTop: 8, marginLeft: 40 }}>
+                    <VideoWhoPrompt info={creativePaths} onAnswer={resolveVideoWho} />
                   </div>
                 </div>
               )}
@@ -2023,16 +2055,6 @@ export default function CampaignsPage({
                 >
                   🖼 Choose from drafts
                 </button>
-                <AiVideoPicker
-                  info={creativePaths}
-                  disabled={busy}
-                  isMobile={isMobile}
-                  onPick={(url, label, provenance) => {
-                    setDraftsOpen(false);
-                    setMedia({ source: 'upload', url, isVideo: true, label, provenance });
-                  }}
-                />
-                <CreatorBriefButton info={creativePaths} description={briefSoFar} disabled={busy} isMobile={isMobile} />
                 {media && (
                   <div
                     style={{
@@ -2175,13 +2197,6 @@ export default function CampaignsPage({
                   </>
                 )}
               </div>
-              {media?.source === 'upload' && media.isVideo && media.provenance?.creative_path !== 'ai_video' && (
-                <VideoProvenanceControl
-                  info={creativePaths}
-                  value={media.provenance}
-                  onChange={(provenance) => setMedia({ ...media, provenance })}
-                />
-              )}
               {uploadError && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#c62828' }}>{uploadError}</p>}
               {draftsOpen && (
                 <div
@@ -2949,14 +2964,24 @@ export function ChooseCreativeSource({
   onUpload,
   onRecomposite,
   onPickDraft,
+  onPickAiVideo,
+  info,
+  description,
 }: {
   drafts: DraftSummary[];
   onGenerate: () => void;
   onUpload: () => void;
   onRecomposite: () => void;
   onPickDraft: (draftId: string) => void;
+  onPickAiVideo?: (url: string, provenance: CreativeProvenanceInput) => void;
+  info: CreativePathsInfo | null;
+  description: string;
 }) {
-  const [showDrafts, setShowDrafts] = useState(false);
+  const [open, setOpen] = useState<'' | 'drafts' | 'ai_video' | 'film'>('');
+  const toggle = (k: 'drafts' | 'ai_video' | 'film') => setOpen((v) => (v === k ? '' : k));
+  const showDrafts = open === 'drafts';
+  const aiVideo = info?.paths.ai_video;
+  const ugc = info?.paths.ugc;
   const optionBtn: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
@@ -2987,11 +3012,43 @@ export function ChooseCreativeSource({
           🎨 Use my product photo<span style={sub}>Keep the real product, new scene around it</span>
         </button>
         {drafts.length > 0 && (
-          <button onClick={() => setShowDrafts((v) => !v)} style={optionBtn}>
+          <button onClick={() => toggle('drafts')} style={optionBtn}>
             🖼 Use a past post<span style={sub}>{drafts.length} available</span>
           </button>
         )}
+        {onPickAiVideo && (
+          <button
+            onClick={() => toggle('ai_video')}
+            disabled={aiVideo ? !aiVideo.open : false}
+            title={aiVideo?.why_closed ?? undefined}
+            style={{ ...optionBtn, opacity: aiVideo && !aiVideo.open ? 0.45 : 1 }}
+          >
+            🎬 Use an AI video
+            <span style={sub}>
+              {aiVideo && !aiVideo.open ? aiVideo.why_closed : 'One you made in the video studio'}
+            </span>
+          </button>
+        )}
+        <button
+          onClick={() => toggle('film')}
+          disabled={ugc ? !ugc.open : false}
+          title={ugc?.why_closed ?? undefined}
+          style={{ ...optionBtn, opacity: ugc && !ugc.open ? 0.45 : 1 }}
+        >
+          🎥 Film a video
+          <span style={sub}>{ugc && !ugc.open ? ugc.why_closed : 'Jane writes the brief for whoever films it'}</span>
+        </button>
       </div>
+      {open === 'ai_video' && onPickAiVideo && (
+        <div className="camp-indent" style={{ marginTop: 10, marginLeft: 40 }}>
+          <AiVideoChoices info={info} onPick={onPickAiVideo} />
+        </div>
+      )}
+      {open === 'film' && (
+        <div className="camp-indent" style={{ marginTop: 10, marginLeft: 40 }}>
+          <VideoBriefInline info={info} description={description} onUploadFilmed={onUpload} />
+        </div>
+      )}
       {showDrafts && drafts.length > 0 && (
         <div
           className="camp-indent"
@@ -3644,6 +3701,9 @@ export function ResultCard({
   onChooseUpload,
   onChooseRecomposite,
   onChooseDraft,
+  onChooseAiVideo,
+  creativePaths,
+  briefText,
   onChooseVariants,
   onChooseOwnAudience,
   onChooseDestination,
@@ -3666,6 +3726,9 @@ export function ResultCard({
   onChooseUpload: () => void;
   onChooseRecomposite: () => void;
   onChooseDraft: (draftId: string) => void;
+  onChooseAiVideo?: (url: string, provenance: CreativeProvenanceInput) => void;
+  creativePaths?: CreativePathsInfo | null;
+  briefText?: string;
   onChooseVariants: (variants: PlanVariant[], variantGroupId: string) => void;
   onChooseOwnAudience: (audience: string) => void;
   onChooseDestination: (answer: {
@@ -3733,6 +3796,9 @@ export function ResultCard({
             onUpload={onChooseUpload}
             onRecomposite={onChooseRecomposite}
             onPickDraft={onChooseDraft}
+            onPickAiVideo={onChooseAiVideo}
+            info={creativePaths ?? null}
+            description={briefText ?? ''}
           />
         </div>
       );
