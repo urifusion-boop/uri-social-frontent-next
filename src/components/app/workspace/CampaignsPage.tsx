@@ -4982,6 +4982,8 @@ function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void 
     setDeleting(true);
     try {
       await CampaignService.deleteCampaign(c.campaign_id);
+      // A delete can refund unspent budget, so the header badge may now be stale.
+      window.dispatchEvent(new Event('ad-wallet-changed'));
       onChanged();
     } catch (e) {
       setError(extractErrorMessage(e, 'Could not delete the campaign, please try again.'));
