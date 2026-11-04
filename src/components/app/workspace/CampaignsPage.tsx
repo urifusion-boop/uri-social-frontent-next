@@ -3039,12 +3039,12 @@ export function ChooseCreativeSource({
           <span style={sub}>{ugc && !ugc.open ? ugc.why_closed : 'Jane writes the brief for whoever films it'}</span>
         </button>
       </div>
-      {open === 'ai_video' && onPickAiVideo && (
+      {open === 'ai_video' && onPickAiVideo && info?.paths.ai_video.open !== false && (
         <div className="camp-indent" style={{ marginTop: 10, marginLeft: 40 }}>
           <AiVideoChoices info={info} onPick={onPickAiVideo} />
         </div>
       )}
-      {open === 'film' && (
+      {open === 'film' && info?.paths.ugc.open !== false && (
         <div className="camp-indent" style={{ marginTop: 10, marginLeft: 40 }}>
           <VideoBriefInline info={info} description={description} onUploadFilmed={onUpload} />
         </div>

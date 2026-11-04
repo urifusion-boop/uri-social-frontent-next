@@ -897,7 +897,10 @@ export class CampaignService {
   }
 
   static async saveAdsBrief(brief: Partial<AdsBrief>): Promise<AdsBrief> {
-    return ((await UriHttpClient.getClient().put('/jane-ads/brief', brief)).data as { brief: AdsBrief }).brief;
+    const saved = ((await UriHttpClient.getClient().put('/jane-ads/brief', brief)).data as { brief: AdsBrief }).brief;
+    // What the brief rules out decides which creative options are open.
+    window.dispatchEvent(new Event('ads-brief-changed'));
+    return saved;
   }
 
   static async getAdsMode(): Promise<AdsViewMode> {

@@ -71,15 +71,28 @@ const optionBtn = (active: boolean): React.CSSProperties => ({
   cursor: 'pointer',
 });
 
+const serverReason = (e: unknown): string => {
+  const detail = (e as { response?: { data?: { detail?: unknown } } } | null)?.response?.data?.detail;
+  return typeof detail === 'string' ? detail : '';
+};
+
 export function useCreativePaths(description = ''): CreativePathsInfo | null {
   const [info, setInfo] = useState<CreativePathsInfo | null>(null);
   useEffect(() => {
     let live = true;
-    CampaignService.creativePaths({ description: description.slice(0, 500) })
-      .then((i) => live && setInfo(i))
-      .catch(() => live && setInfo(null));
+    const load = () =>
+      CampaignService.creativePaths({ description: description.slice(0, 500) })
+        .then((i) => live && setInfo(i))
+        .catch(() => live && setInfo(null));
+    load();
+    // Reload when the brief changes here, or after the tab was away (changed elsewhere).
+    const onVisible = () => document.visibilityState === 'visible' && load();
+    window.addEventListener('ads-brief-changed', load);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       live = false;
+      window.removeEventListener('ads-brief-changed', load);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [description]);
   return info;
@@ -201,8 +214,8 @@ export function VideoBriefInline({
     setCopied(false);
     try {
       setBrief(await CampaignService.creatorBrief({ ugc_kind: k, description }));
-    } catch {
-      setError("Couldn't write the brief. Try again.");
+    } catch (e) {
+      setError(serverReason(e) || "Couldn't write the brief. Try again.");
     }
     setBusy(false);
   }
