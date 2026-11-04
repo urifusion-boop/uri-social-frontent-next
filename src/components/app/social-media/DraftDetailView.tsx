@@ -2,12 +2,15 @@
 
 import { useState } from 'react';
 import { Box, Button, Dialog, IconButton, TextField, Typography } from '@mui/material';
-import { MdChevronLeft, MdChevronRight, MdClose } from 'react-icons/md';
-import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
+import { MdChevronLeft, MdChevronRight, MdClose, MdEdit, MdOpenWith } from 'react-icons/md';
+import { ContentDraft, LogoPlacement, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { queuedNotice, queuedPublish } from '@/src/utils/publishJobMessage.util';
 import { PLATFORM_META, firstSlideImage, mediaMeta, isImagePending } from './GeneratedContentCard';
+import CanvasEditor from './canvas-editor/CanvasEditor';
+import LogoRepositionModal from './LogoRepositionModal';
+import { UriHttpClient } from '@/src/configs/http.config';
 
 const PINK = '#CD1B78';
 
@@ -38,12 +41,16 @@ interface DraftDetailViewProps {
 // right) rather than the card's cramped single column, since this is where
 // someone actually reads the whole thing, not just scans it.
 export default function DraftDetailView({
-  draft,
+  draft: initialDraft,
   connectedPlatforms,
   onClose,
   onEdit,
   onRefresh,
 }: DraftDetailViewProps) {
+  // Local, mutable copy — a Canvas/Move Logo save below updates this
+  // directly, same as DraftCard, since the parent's viewingDraft is a
+  // detached snapshot that onRefresh() alone won't flow back down to here.
+  const [draft, setDraft] = useState(initialDraft);
   const platformKey = (draft.platform || '').toLowerCase();
   const meta = PLATFORM_META[platformKey];
   const { aspect, label } = mediaMeta(draft);
@@ -70,6 +77,28 @@ export default function DraftDetailView({
   const [scheduleAt, setScheduleAt] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [canvasEditorOpen, setCanvasEditorOpen] = useState(false);
+  const [logoRepositionOpen, setLogoRepositionOpen] = useState(false);
+
+  // scheduled_date (see the type's own comment) is what a scheduled draft
+  // actually carries once the backend has it — scheduled_datetime is a
+  // request-only field, never present on what this view reads.
+  const scheduledAt = draft.scheduled_date ?? draft.scheduled_datetime ?? null;
+  const scheduledLabel = scheduledAt
+    ? new Date(scheduledAt).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : null;
+  const resolveUrl = (url: string) => {
+    if (!url.startsWith('/')) return url;
+    const base = process.env.NEXT_PUBLIC_URI_API_BASE_URL || process.env.NEXT_PUBLIC_URI_API_BASE_URL_DEV || '';
+    return `${base}${url}`;
+  };
+  const activeLogoPlacement = isCarousel ? currentSlide?.logo_placement : draft.logo_placement;
 
   const doApprove = async (option: 'immediate' | 'schedule', datetime?: string) => {
     if (!isConnected) {
@@ -301,7 +330,7 @@ export default function DraftDetailView({
                   {meta?.label ?? draft.platform}
                 </Typography>
                 <Typography fontSize="11.5px" color="#9CA3AF" noWrap>
-                  {label}
+                  {scheduledLabel ? `Scheduled for ${scheduledLabel}` : label}
                 </Typography>
               </Box>
               <Box
@@ -434,7 +463,42 @@ export default function DraftDetailView({
               {confirmDelete ? 'Confirm delete?' : 'Delete'}
             </Button>
 
-            <Box display="flex" gap={1}>
+            <Box display="flex" gap={1} flexWrap="wrap" justifyContent="flex-end">
+              {/* Canvas Editor — only for a draft with a layered document, same gate DraftCard uses. */}
+              {'document' in draft && draft.document ? (
+                <Button
+                  size="small"
+                  startIcon={<MdEdit size={14} />}
+                  onClick={() => setCanvasEditorOpen(true)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    color: '#EA580C',
+                    border: '1px solid #FED7AA',
+                    borderRadius: '8px',
+                  }}
+                >
+                  Canvas ✨
+                </Button>
+              ) : null}
+              {activeLogoPlacement && (
+                <Button
+                  size="small"
+                  startIcon={<MdOpenWith size={14} />}
+                  onClick={() => setLogoRepositionOpen(true)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    color: '#C2185B',
+                    border: '1px solid #F3C7DA',
+                    borderRadius: '8px',
+                  }}
+                >
+                  Move Logo
+                </Button>
+              )}
               <Button
                 size="small"
                 onClick={() => {
@@ -549,6 +613,58 @@ export default function DraftDetailView({
           </Box>
         </Dialog>
       )}
+
+      {canvasEditorOpen && 'document' in draft && draft.document ? (
+        <CanvasEditor
+          draftId={id}
+          onClose={() => setCanvasEditorOpen(false)}
+          onSave={async (imageUrl: string) => {
+            try {
+              await UriHttpClient.getClient().patch(`/social-media/drafts/${id}`, { image_url: imageUrl });
+              setDraft((prev) => ({ ...prev, image_url: imageUrl }));
+              ToastService.showToast('✅ Canvas edits saved to draft!', ToastTypeEnum.Success);
+              setCanvasEditorOpen(false);
+              onRefresh();
+            } catch {
+              ToastService.showToast('Failed to save image', ToastTypeEnum.Error);
+            }
+          }}
+        />
+      ) : null}
+
+      {logoRepositionOpen && activeLogoPlacement ? (
+        <LogoRepositionModal
+          open={logoRepositionOpen}
+          onClose={() => setLogoRepositionOpen(false)}
+          imageUrl={resolveUrl((isCarousel ? currentSlide?.background_image_url : draft.background_image_url) || '')}
+          initialPlacement={activeLogoPlacement as LogoPlacement}
+          onSave={async (placement) => {
+            const response = await SocialMediaAgentService.repositionDraftLogo(
+              id,
+              placement,
+              isCarousel ? safeSlideIndex : undefined
+            );
+            if (!response.status || !response.responseData) {
+              throw new Error(response.responseMessage || 'Could not save the new logo position.');
+            }
+            const { image_url: newImageUrl, logo_placement: newPlacement } = response.responseData;
+            setDraft((prev) => {
+              if (isCarousel) {
+                const updatedSlides = [...(prev.slides || [])];
+                updatedSlides[safeSlideIndex] = {
+                  ...updatedSlides[safeSlideIndex],
+                  image_url: newImageUrl,
+                  logo_placement: newPlacement,
+                };
+                return { ...prev, slides: updatedSlides };
+              }
+              return { ...prev, image_url: newImageUrl, logo_placement: newPlacement };
+            });
+            ToastService.showToast('✅ Logo position updated!', ToastTypeEnum.Success);
+            onRefresh();
+          }}
+        />
+      ) : null}
     </Dialog>
   );
 }

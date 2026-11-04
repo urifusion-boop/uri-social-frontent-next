@@ -99,8 +99,20 @@ function categorize(d: ContentDraft): LibraryTab {
   }
 }
 
+// scheduled_date (not scheduled_datetime — see the type's own comment) is what a
+// scheduled draft actually carries once the backend has it; falling straight to
+// created_at when that's missing silently showed the wrong date for every
+// scheduled post, and dropped its time entirely.
 function dateFor(d: ContentDraft): string | null {
-  return d.scheduled_datetime ?? d.created_at ?? null;
+  return d.scheduled_date ?? d.scheduled_datetime ?? d.created_at ?? null;
+}
+
+function formatDateTime(dt: string): string {
+  const d = new Date(dt);
+  return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`;
 }
 
 function titleAndExcerpt(content: string): { title: string; excerpt: string } {
@@ -709,10 +721,8 @@ export default function ContentLibraryPage() {
                         {badge.label}
                       </Box>
                     </Box>
-                    <Typography fontSize="12px" color="#6B7280">
-                      {dt
-                        ? new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                        : '—'}
+                    <Typography fontSize="12px" color="#6B7280" noWrap>
+                      {dt ? formatDateTime(dt) : '—'}
                     </Typography>
                     <IconButton
                       size="small"
@@ -981,10 +991,15 @@ function CalendarView({
                       const cat = categorize(d);
                       const badge = badgeFor(d, cat);
                       const { title } = titleAndExcerpt(d.content || '');
+                      const itemDt = dateFor(d);
+                      const time = itemDt
+                        ? new Date(itemDt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                        : null;
                       return (
                         <Box
                           key={d.id ?? d.draft_id}
                           onClick={() => onSelect(d)}
+                          title={time ? `${time} — ${title}` : title}
                           sx={{
                             fontSize: '10px',
                             fontWeight: 600,
@@ -999,7 +1014,7 @@ function CalendarView({
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {title}
+                          {time ? `${time} ${title}` : title}
                         </Box>
                       );
                     })}

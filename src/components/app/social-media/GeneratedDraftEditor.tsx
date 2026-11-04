@@ -32,10 +32,12 @@ interface GeneratedDraftEditorProps {
 
 // The on-brand counterpart to the classic DraftCard editor — used wherever a
 // freshly generated/library draft is opened for a quick caption tweak and
-// publish decision (the wizard's Review & Schedule step, Content Library).
-// Deliberately NOT a port of DraftCard's full feature set (image regenerate,
-// CanvasEditor, logo reposition, deny) — those stay reachable from the
-// classic Drafts tab, which still renders the real DraftCard unchanged.
+// publish decision (the wizard's Review & Schedule step, Content Library's
+// "Edit" action). Deliberately NOT a port of DraftCard's full feature set
+// (image regenerate, CanvasEditor, logo reposition, deny) — Canvas/Move Logo
+// now live on DraftDetailView instead (Content Library's "View details"),
+// since that's the actual "click a post, see the image" surface; this one
+// stays a lightweight caption-and-publish dialog on purpose.
 export default function GeneratedDraftEditor({
   draft: initialDraft,
   connectedPlatforms,

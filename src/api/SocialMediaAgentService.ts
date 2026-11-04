@@ -528,6 +528,10 @@ export interface ContentDraft {
   image_retry_count?: number; // PRD 4.2: Track image retry count for credit deduction
   video_url?: string;
   created_at?: string;
+  // The field a draft actually carries once scheduled (approval_workflow_service.py
+  // writes scheduled_date, a real datetime with time-of-day — scheduled_datetime below
+  // is only ever a request field sent when scheduling, never present on a GET response).
+  scheduled_date?: string | null;
   scheduled_datetime?: string;
   auto_generated?: boolean;
   post_type?: 'feed' | 'carousel' | 'story' | 'reel';

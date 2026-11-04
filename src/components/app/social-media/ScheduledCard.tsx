@@ -17,7 +17,7 @@ const PLATFORM_ASPECT: Record<string, string> = {
 };
 
 interface ScheduledCardProps {
-  draft: ContentDraft & { scheduled_date?: string };
+  draft: ContentDraft;
   onRefresh: () => void;
   onUnscheduled?: () => void;
 }
@@ -66,8 +66,7 @@ const ScheduledCard = ({ draft, onRefresh, onUnscheduled }: ScheduledCardProps) 
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const pc = platformChip[draft.platform] ?? { icon: null, color: '#6B7280', bg: '#F3F4F6' };
-  const scheduledDate =
-    (draft as ContentDraft & { scheduled_date?: string }).scheduled_date ?? draft.scheduled_datetime;
+  const scheduledDate = draft.scheduled_date ?? draft.scheduled_datetime;
   // The cron marks a dispatch that actually failed (e.g. a real Facebook
   // rejection) as status="publish_failed" with a real, actionable
   // error_message — this card used to ignore both fields entirely and just
