@@ -2613,24 +2613,6 @@ const PLATFORMS = [
     tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social',
   },
   {
-    id: 'facebook_ads',
-    label: 'Facebook Ads',
-    color: '#1877F2',
-    bg: '#E7F0FD',
-    flow: 'facebook_ads_oauth',
-    tooltip:
-      "The Facebook Page Jane's ad campaigns actually run from — separate from the Facebook connection above, which is only for organic posts. Requires its own ads-permission grant.",
-  },
-  {
-    id: 'google_ads',
-    label: 'Google Ads',
-    color: '#4285F4',
-    bg: '#E8F0FE',
-    flow: 'google_ads_direct',
-    tooltip:
-      'Where Jane runs your Google ads (Search, Display, YouTube & Discover). Run by URI: nothing to connect, you pay only from your URI wallet. Or use your own Google Ads account: Google bills you for the ad spend and URI charges only its fee.',
-  },
-  {
     id: 'instagram',
     label: 'Instagram',
     color: '#E4405F',
@@ -2654,6 +2636,27 @@ const PLATFORMS = [
     flow: 'outstand_oauth',
     tooltip:
       'Connect your TikTok account to publish images and videos. Choose how: through Outstand, or directly with TikTok login. Posts are sent the way the account is connected.',
+  },
+  // Ad platforms grouped together at the end (not interleaved with the organic
+  // ones above) so the page can show them under their own "Ad Accounts" heading
+  // — see the render loop's isAdPlatform check.
+  {
+    id: 'facebook_ads',
+    label: 'Facebook Ads',
+    color: '#1877F2',
+    bg: '#E7F0FD',
+    flow: 'facebook_ads_oauth',
+    tooltip:
+      "The Facebook Page Jane's ad campaigns actually run from — separate from the Facebook connection above, which is only for organic posts. Requires its own ads-permission grant.",
+  },
+  {
+    id: 'google_ads',
+    label: 'Google Ads',
+    color: '#4285F4',
+    bg: '#E8F0FE',
+    flow: 'google_ads_direct',
+    tooltip:
+      'Where Jane runs your Google ads (Search, Display, YouTube & Discover). Run by URI: nothing to connect, you pay only from your URI wallet. Or use your own Google Ads account: Google bills you for the ad spend and URI charges only its fee.',
   },
 ];
 
@@ -2877,13 +2880,19 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
     loadStatuses();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Campaign Manager's "Ad Accounts" entry lands here with ?anchor=ad-accounts —
-  // without this, "Ad Accounts" just opened this whole organic+ads connections page
-  // at its first card (LinkedIn), nowhere near Facebook Ads/Google Ads. Waits for
-  // loading to clear so the cards it's scrolling to are actually on the page yet.
+  // This page's own sub-nav ("Social Accounts"/"Ad Accounts") and Campaign
+  // Manager's "Ad Accounts" entry both land here with ?anchor=social|ads —
+  // without this, they'd all just open this whole organic+ads connections
+  // page at its first card (LinkedIn) regardless of which group was meant.
+  // Waits for loading to clear so the section it's scrolling to actually
+  // exists on the page yet.
   useEffect(() => {
-    if (loading || searchParams?.get('anchor') !== 'ad-accounts') return;
-    document.getElementById('platform-card-facebook_ads')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (loading) return;
+    const anchor = searchParams?.get('anchor');
+    if (anchor !== 'social' && anchor !== 'ads') return;
+    document
+      .getElementById(anchor === 'ads' ? 'connections-section-ads' : 'connections-section-social')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [loading, searchParams]);
 
   useEffect(() => {
@@ -3987,225 +3996,306 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
             const isBusy = disconnecting === p.id || connecting === p.id;
             const adsExpired = p.id === 'facebook_ads' && s?.meta_connection_state === 'expired';
             return (
-              // id lets Campaign Manager's "Ad Accounts" nav entry scroll straight to
-              // Facebook Ads/Google Ads instead of landing on this page's first card
-              // (LinkedIn) — see the scroll-to-anchor effect above.
-              <div key={p.id} id={`platform-card-${p.id}`}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 14,
-                    padding: '14px 16px',
-                    borderRadius: 12,
-                    border: `1.5px solid ${adsExpired ? '#E8A5A5' : linked ? p.color + '44' : '#edecea'}`,
-                    background: adsExpired ? '#FFF5F5' : linked ? p.bg : '#fff',
-                    transition: 'all .15s',
-                  }}
-                >
-                  <div
+              // Two real section headings, not just an invisible scroll target —
+              // PLATFORMS is ordered organic-then-ads (see its own comment) so
+              // 'linkedin'/'facebook_ads' are exactly where each group starts.
+              // Connected Accounts' own sub-nav (and Campaign Manager's Ad
+              // Accounts entry) scrolls straight to the one it means.
+              <React.Fragment key={p.id}>
+                {p.id === 'linkedin' && (
+                  <h3
+                    id="connections-section-social"
                     style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 11,
-                      background: linked ? '#fff' : p.bg,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      boxShadow: '0 1px 4px rgba(0,0,0,.06)',
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      color: '#999',
+                      textTransform: 'uppercase',
+                      letterSpacing: '.04em',
+                      margin: '4px 0 2px',
                     }}
                   >
-                    {PLATFORM_ICON[p.id]}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 700, color: '#111' }}>{p.label}</span>
-                      <BrandTooltip title={p.tooltip} arrow placement="right">
-                        <span style={{ display: 'inline-flex', cursor: 'help' }}>
-                          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" />
-                            <path d="M12 16v-4M12 8h.01" />
-                          </svg>
-                        </span>
-                      </BrandTooltip>
+                    Social Accounts
+                  </h3>
+                )}
+                {p.id === 'facebook_ads' && (
+                  <h3
+                    id="connections-section-ads"
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      color: '#999',
+                      textTransform: 'uppercase',
+                      letterSpacing: '.04em',
+                      margin: '14px 0 2px',
+                    }}
+                  >
+                    Ad Accounts
+                  </h3>
+                )}
+                <div id={`platform-card-${p.id}`}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                      padding: '14px 16px',
+                      borderRadius: 12,
+                      border: `1.5px solid ${adsExpired ? '#E8A5A5' : linked ? p.color + '44' : '#edecea'}`,
+                      background: adsExpired ? '#FFF5F5' : linked ? p.bg : '#fff',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 11,
+                        background: linked ? '#fff' : p.bg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        boxShadow: '0 1px 4px rgba(0,0,0,.06)',
+                      }}
+                    >
+                      {PLATFORM_ICON[p.id]}
                     </div>
-                    {linked ? (
-                      <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>
-                        {s?.account_name || s?.username || s?.phone || 'Connected'}
-                        {p.id === 'facebook_ads' && s?.meta_connection_state === 'ads_no_whatsapp' && (
-                          <span style={{ color: '#a15c00' }}> — WhatsApp not linked yet</span>
-                        )}
-                        {adsExpired && (
-                          <div style={{ color: '#c62828', marginTop: 3, lineHeight: 1.45 }}>
-                            Your connection has expired. Reconnect so your ads run from this Page and its messages reach
-                            your inbox. Until you do, you can&rsquo;t launch new ads.
-                          </div>
-                        )}
-                        {/* Meta refused to give URI advertising access to the Page.
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#111' }}>{p.label}</span>
+                        <BrandTooltip title={p.tooltip} arrow placement="right">
+                          <span style={{ display: 'inline-flex', cursor: 'help' }}>
+                            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <path d="M12 16v-4M12 8h.01" />
+                            </svg>
+                          </span>
+                        </BrandTooltip>
+                      </div>
+                      {linked ? (
+                        <div style={{ fontSize: 11.5, color: '#555', marginTop: 1 }}>
+                          {s?.account_name || s?.username || s?.phone || 'Connected'}
+                          {p.id === 'facebook_ads' && s?.meta_connection_state === 'ads_no_whatsapp' && (
+                            <span style={{ color: '#a15c00' }}> — WhatsApp not linked yet</span>
+                          )}
+                          {adsExpired && (
+                            <div style={{ color: '#c62828', marginTop: 3, lineHeight: 1.45 }}>
+                              Your connection has expired. Reconnect so your ads run from this Page and its messages
+                              reach your inbox. Until you do, you can&rsquo;t launch new ads.
+                            </div>
+                          )}
+                          {/* Meta refused to give URI advertising access to the Page.
                             Reconnecting re-runs the identical grant and is refused
                             identically — one client tried several times. Name the
                             thing the client can actually change: their own role. */}
-                        {p.id === 'facebook_ads' && s?.meta_connection_state === 'page_not_shared' && (
-                          <span style={{ color: '#c62828' }}>
-                            {' '}
-                            — you don&rsquo;t have full admin access to this Page. Ask whoever manages it to make you an
-                            admin, then reconnect.
-                          </span>
-                        )}
-                        {p.id === 'google_ads' && s?.google_mode === 'uri' && (
-                          <span style={{ color: '#1a7f37' }}>
-                            {' '}
-                            — nothing to connect; you pay only from your URI wallet
-                          </span>
-                        )}
-                        {p.id === 'google_ads' &&
-                          s?.google_mode === 'own' &&
-                          s?.google_connection_state === 'needs_account_selection' && (
-                            <span style={{ color: '#4285F4' }}> — choose or create your Ads account below</span>
+                          {p.id === 'facebook_ads' && s?.meta_connection_state === 'page_not_shared' && (
+                            <span style={{ color: '#c62828' }}>
+                              {' '}
+                              — you don&rsquo;t have full admin access to this Page. Ask whoever manages it to make you
+                              an admin, then reconnect.
+                            </span>
                           )}
-                        {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_pending' && (
-                          <span style={{ color: '#a15c00' }}> — waiting for you to accept the link in Google Ads</span>
-                        )}
-                        {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_refused' && (
-                          <span style={{ color: '#c62828' }}> — Google would not link this account</span>
-                        )}
-                        {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_declined' && (
-                          <span style={{ color: '#c62828' }}> — link request declined or removed</span>
-                        )}
-                        {p.id === 'google_ads' &&
-                          s?.google_connection_state === 'ready' &&
-                          !s?.google_whatsapp_number && (
-                            <span style={{ color: '#a15c00' }}> — add a WhatsApp number below</span>
+                          {p.id === 'google_ads' && s?.google_mode === 'uri' && (
+                            <span style={{ color: '#1a7f37' }}>
+                              {' '}
+                              — nothing to connect; you pay only from your URI wallet
+                            </span>
                           )}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>
-                        {p.id === 'facebook_ads'
-                          ? 'No ads Page connected yet'
-                          : p.id === 'google_ads'
-                            ? s?.google_mode === 'own'
-                              ? 'Your Google Ads account isn’t connected yet'
-                              : 'Google ads run by URI are being set up'
-                            : 'Not connected'}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        background: adsExpired ? '#c62828' : linked ? '#4caf50' : '#ddd',
-                        boxShadow: adsExpired
-                          ? '0 0 6px rgba(198,40,40,.4)'
-                          : linked
-                            ? '0 0 6px rgba(76,175,80,.5)'
-                            : 'none',
-                      }}
-                    />
-                    {p.comingSoon ? (
-                      <span
+                          {p.id === 'google_ads' &&
+                            s?.google_mode === 'own' &&
+                            s?.google_connection_state === 'needs_account_selection' && (
+                              <span style={{ color: '#4285F4' }}> — choose or create your Ads account below</span>
+                            )}
+                          {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_pending' && (
+                            <span style={{ color: '#a15c00' }}>
+                              {' '}
+                              — waiting for you to accept the link in Google Ads
+                            </span>
+                          )}
+                          {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_refused' && (
+                            <span style={{ color: '#c62828' }}> — Google would not link this account</span>
+                          )}
+                          {p.id === 'google_ads' && s?.google_connection_state === 'manager_link_declined' && (
+                            <span style={{ color: '#c62828' }}> — link request declined or removed</span>
+                          )}
+                          {p.id === 'google_ads' &&
+                            s?.google_connection_state === 'ready' &&
+                            !s?.google_whatsapp_number && (
+                              <span style={{ color: '#a15c00' }}> — add a WhatsApp number below</span>
+                            )}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 11.5, color: '#bbb', marginTop: 1 }}>
+                          {p.id === 'facebook_ads'
+                            ? 'No ads Page connected yet'
+                            : p.id === 'google_ads'
+                              ? s?.google_mode === 'own'
+                                ? 'Your Google Ads account isn’t connected yet'
+                                : 'Google ads run by URI are being set up'
+                              : 'Not connected'}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div
                         style={{
-                          padding: '5px 12px',
-                          borderRadius: 7,
-                          border: '1px solid #E5E7EB',
-                          background: '#F9FAFB',
-                          fontSize: 11.5,
-                          color: '#9CA3AF',
-                          fontWeight: 600,
-                          fontFamily: 'var(--wf)',
-                          letterSpacing: 0.2,
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: adsExpired ? '#c62828' : linked ? '#4caf50' : '#ddd',
+                          boxShadow: adsExpired
+                            ? '0 0 6px rgba(198,40,40,.4)'
+                            : linked
+                              ? '0 0 6px rgba(76,175,80,.5)'
+                              : 'none',
                         }}
-                      >
-                        Coming Soon
-                      </span>
-                    ) : linked && p.id === 'facebook_ads' ? (
-                      // No disconnect endpoint exists for this ads-scoped connection —
-                      // the meaningful action here is reconnecting (e.g. after
-                      // 'expired'), which just re-runs the same OAuth grant and
-                      // overwrites it.
-                      <button
-                        type="button"
-                        onClick={() => handleConnect(p.id, p.flow)}
-                        disabled={isBusy}
-                        style={{
-                          padding: '5px 12px',
-                          borderRadius: 7,
-                          border: adsExpired ? '1px solid #C2185B' : '1px solid #edecea',
-                          background: adsExpired ? '#C2185B' : '#fff',
-                          fontSize: 12,
-                          color: adsExpired ? '#fff' : '#888',
-                          fontWeight: adsExpired ? 700 : 400,
-                          cursor: 'pointer',
-                          fontFamily: 'var(--wf)',
-                          opacity: isBusy ? 0.5 : 1,
-                        }}
-                      >
-                        Reconnect
-                      </button>
-                    ) : p.id === 'google_ads' && (linked || s?.google_mode !== 'own') ? (
-                      // No button here on purpose — Google Ads has no per-brand token
-                      // to expire (it authenticates as URI's own admin identity, see
-                      // the backend's google_ads_connection.py) and no disconnect
-                      // endpoint exists. Whatever action is relevant for the current
-                      // sub-state (choose/create account, check link status) is
-                      // already surfaced by the panels below the card.
-                      <></>
-                    ) : linked && (p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {(s?.accounts?.length ?? 0) > 0 && (
+                      />
+                      {p.comingSoon ? (
+                        <span
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #E5E7EB',
+                            background: '#F9FAFB',
+                            fontSize: 11.5,
+                            color: '#9CA3AF',
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            letterSpacing: 0.2,
+                          }}
+                        >
+                          Coming Soon
+                        </span>
+                      ) : linked && p.id === 'facebook_ads' ? (
+                        // No disconnect endpoint exists for this ads-scoped connection —
+                        // the meaningful action here is reconnecting (e.g. after
+                        // 'expired'), which just re-runs the same OAuth grant and
+                        // overwrites it.
+                        <button
+                          type="button"
+                          onClick={() => handleConnect(p.id, p.flow)}
+                          disabled={isBusy}
+                          style={{
+                            padding: '5px 12px',
+                            borderRadius: 7,
+                            border: adsExpired ? '1px solid #C2185B' : '1px solid #edecea',
+                            background: adsExpired ? '#C2185B' : '#fff',
+                            fontSize: 12,
+                            color: adsExpired ? '#fff' : '#888',
+                            fontWeight: adsExpired ? 700 : 400,
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                          }}
+                        >
+                          Reconnect
+                        </button>
+                      ) : p.id === 'google_ads' && (linked || s?.google_mode !== 'own') ? (
+                        // No button here on purpose — Google Ads has no per-brand token
+                        // to expire (it authenticates as URI's own admin identity, see
+                        // the backend's google_ads_connection.py) and no disconnect
+                        // endpoint exists. Whatever action is relevant for the current
+                        // sub-state (choose/create account, check link status) is
+                        // already surfaced by the panels below the card.
+                        <></>
+                      ) : linked && (p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {(s?.accounts?.length ?? 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedAccountLists((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(p.id)) next.delete(p.id);
+                                  else next.add(p.id);
+                                  return next;
+                                })
+                              }
+                              aria-label={
+                                expandedAccountLists.has(p.id) ? 'Collapse connected pages' : 'Show connected pages'
+                              }
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: 6,
+                                border: '1px solid #edecea',
+                                background: '#fff',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <svg
+                                width={12}
+                                height={12}
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="#888"
+                                strokeWidth="2.5"
+                                style={{
+                                  transform: expandedAccountLists.has(p.id) ? 'rotate(180deg)' : 'none',
+                                  transition: 'transform .15s',
+                                }}
+                              >
+                                <path d="M6 9l6 6 6-6" />
+                              </svg>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() =>
-                              setExpandedAccountLists((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(p.id)) next.delete(p.id);
-                                else next.add(p.id);
-                                return next;
+                              setConfirmAction({
+                                title: `Disconnect all ${p.label} accounts?`,
+                                message: `This disconnects every ${p.label} page/account currently connected. You can reconnect them later, but any scheduled posts tied to them may be affected.`,
+                                confirmText: 'Disconnect All',
+                                run: () => handleDisconnectAllPlatform(p.id),
                               })
                             }
-                            aria-label={
-                              expandedAccountLists.has(p.id) ? 'Collapse connected pages' : 'Show connected pages'
-                            }
+                            disabled={isBusy}
                             style={{
-                              width: 24,
-                              height: 24,
-                              borderRadius: 6,
+                              padding: '5px 12px',
+                              borderRadius: 7,
                               border: '1px solid #edecea',
                               background: '#fff',
+                              fontSize: 12,
+                              color: '#888',
                               cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0,
+                              fontFamily: 'var(--wf)',
+                              opacity: isBusy ? 0.5 : 1,
+                              whiteSpace: 'nowrap',
                             }}
                           >
-                            <svg
-                              width={12}
-                              height={12}
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="#888"
-                              strokeWidth="2.5"
-                              style={{
-                                transform: expandedAccountLists.has(p.id) ? 'rotate(180deg)' : 'none',
-                                transition: 'transform .15s',
-                              }}
-                            >
-                              <path d="M6 9l6 6 6-6" />
-                            </svg>
+                            {disconnecting === `${p.id}:all` ? (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <span
+                                  style={{
+                                    width: 10,
+                                    height: 10,
+                                    border: '2px solid #ccc',
+                                    borderTopColor: '#888',
+                                    borderRadius: '50%',
+                                    display: 'inline-block',
+                                    animation: 'spin 0.7s linear infinite',
+                                  }}
+                                />
+                                Disconnecting...
+                              </span>
+                            ) : (
+                              'Disconnect All'
+                            )}
                           </button>
-                        )}
+                        </div>
+                      ) : linked ? (
                         <button
                           type="button"
                           onClick={() =>
                             setConfirmAction({
-                              title: `Disconnect all ${p.label} accounts?`,
-                              message: `This disconnects every ${p.label} page/account currently connected. You can reconnect them later, but any scheduled posts tied to them may be affected.`,
-                              confirmText: 'Disconnect All',
-                              run: () => handleDisconnectAllPlatform(p.id),
+                              title: `Disconnect ${p.label}?`,
+                              message: `This disconnects your ${p.label} account. You can reconnect it again at any time.`,
+                              confirmText: 'Disconnect',
+                              run: () => handleDisconnect(p.id),
                             })
                           }
                           disabled={isBusy}
@@ -4219,10 +4309,9 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                             cursor: 'pointer',
                             fontFamily: 'var(--wf)',
                             opacity: isBusy ? 0.5 : 1,
-                            whiteSpace: 'nowrap',
                           }}
                         >
-                          {disconnecting === `${p.id}:all` ? (
+                          {disconnecting === p.id ? (
                             <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                               <span
                                 style={{
@@ -4238,128 +4327,106 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                               Disconnecting...
                             </span>
                           ) : (
-                            'Disconnect All'
+                            'Disconnect'
                           )}
                         </button>
-                      </div>
-                    ) : linked ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setConfirmAction({
-                            title: `Disconnect ${p.label}?`,
-                            message: `This disconnects your ${p.label} account. You can reconnect it again at any time.`,
-                            confirmText: 'Disconnect',
-                            run: () => handleDisconnect(p.id),
-                          })
-                        }
-                        disabled={isBusy}
-                        style={{
-                          padding: '5px 12px',
-                          borderRadius: 7,
-                          border: '1px solid #edecea',
-                          background: '#fff',
-                          fontSize: 12,
-                          color: '#888',
-                          cursor: 'pointer',
-                          fontFamily: 'var(--wf)',
-                          opacity: isBusy ? 0.5 : 1,
-                        }}
-                      >
-                        {disconnecting === p.id ? (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <span
-                              style={{
-                                width: 10,
-                                height: 10,
-                                border: '2px solid #ccc',
-                                borderTopColor: '#888',
-                                borderRadius: '50%',
-                                display: 'inline-block',
-                                animation: 'spin 0.7s linear infinite',
-                              }}
-                            />
-                            Disconnecting...
-                          </span>
-                        ) : (
-                          'Disconnect'
-                        )}
-                      </button>
-                    ) : p.id === 'facebook' ? (
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      ) : p.id === 'facebook' ? (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleConnect('facebook', 'outstand_oauth')}
+                            disabled={isBusy}
+                            title="Connect through Outstand. Posts are sent through Outstand."
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 7,
+                              border: '1px solid #edecea',
+                              background: '#fff',
+                              fontSize: 12,
+                              color: '#333',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              fontFamily: 'var(--wf)',
+                              opacity: isBusy ? 0.5 : 1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleConnect('facebook', 'facebook_direct_oauth')}
+                            disabled={isBusy}
+                            title="Log in with Meta directly. Posts are sent straight to your Facebook Page."
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 7,
+                              border: 'none',
+                              background: p.color,
+                              fontSize: 12,
+                              color: '#fff',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              fontFamily: 'var(--wf)',
+                              opacity: isBusy ? 0.5 : 1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {connecting === p.id ? 'Connecting...' : 'Connect with Meta'}
+                          </button>
+                        </div>
+                      ) : p.id === 'tiktok' ? (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleConnect('tiktok', 'outstand_oauth')}
+                            disabled={isBusy}
+                            title="Connect through Outstand. Posts are sent through Outstand."
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 7,
+                              border: '1px solid #edecea',
+                              background: '#fff',
+                              fontSize: 12,
+                              color: '#333',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              fontFamily: 'var(--wf)',
+                              opacity: isBusy ? 0.5 : 1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleConnect('tiktok', 'tiktok_direct_oauth')}
+                            disabled={isBusy}
+                            title="Log in with TikTok directly. Posts are sent straight to TikTok."
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 7,
+                              border: 'none',
+                              background: p.color,
+                              fontSize: 12,
+                              color: '#fff',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              fontFamily: 'var(--wf)',
+                              opacity: isBusy ? 0.5 : 1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {connecting === p.id ? 'Connecting...' : 'Connect with TikTok login'}
+                          </button>
+                        </div>
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => handleConnect('facebook', 'outstand_oauth')}
+                          onClick={() => handleConnect(p.id, p.flow)}
                           disabled={isBusy}
-                          title="Connect through Outstand. Posts are sent through Outstand."
                           style={{
-                            padding: '5px 12px',
-                            borderRadius: 7,
-                            border: '1px solid #edecea',
-                            background: '#fff',
-                            fontSize: 12,
-                            color: '#333',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                            fontFamily: 'var(--wf)',
-                            opacity: isBusy ? 0.5 : 1,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleConnect('facebook', 'facebook_direct_oauth')}
-                          disabled={isBusy}
-                          title="Log in with Meta directly. Posts are sent straight to your Facebook Page."
-                          style={{
-                            padding: '5px 12px',
-                            borderRadius: 7,
-                            border: 'none',
-                            background: p.color,
-                            fontSize: 12,
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                            fontFamily: 'var(--wf)',
-                            opacity: isBusy ? 0.5 : 1,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {connecting === p.id ? 'Connecting...' : 'Connect with Meta'}
-                        </button>
-                      </div>
-                    ) : p.id === 'tiktok' ? (
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleConnect('tiktok', 'outstand_oauth')}
-                          disabled={isBusy}
-                          title="Connect through Outstand. Posts are sent through Outstand."
-                          style={{
-                            padding: '5px 12px',
-                            borderRadius: 7,
-                            border: '1px solid #edecea',
-                            background: '#fff',
-                            fontSize: 12,
-                            color: '#333',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                            fontFamily: 'var(--wf)',
-                            opacity: isBusy ? 0.5 : 1,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleConnect('tiktok', 'tiktok_direct_oauth')}
-                          disabled={isBusy}
-                          title="Log in with TikTok directly. Posts are sent straight to TikTok."
-                          style={{
-                            padding: '5px 12px',
+                            padding: '5px 14px',
                             borderRadius: 7,
                             border: 'none',
                             background: p.color,
@@ -4369,59 +4436,124 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                             fontWeight: 600,
                             fontFamily: 'var(--wf)',
                             opacity: isBusy ? 0.5 : 1,
-                            whiteSpace: 'nowrap',
                           }}
                         >
-                          {connecting === p.id ? 'Connecting...' : 'Connect with TikTok login'}
+                          {connecting === p.id ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <span
+                                style={{
+                                  width: 10,
+                                  height: 10,
+                                  border: '2px solid rgba(255,255,255,0.4)',
+                                  borderTopColor: '#fff',
+                                  borderRadius: '50%',
+                                  display: 'inline-block',
+                                  animation: 'spin 0.7s linear infinite',
+                                }}
+                              />
+                              Connecting...
+                            </span>
+                          ) : (
+                            'Connect'
+                          )}
                         </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleConnect(p.id, p.flow)}
-                        disabled={isBusy}
-                        style={{
-                          padding: '5px 14px',
-                          borderRadius: 7,
-                          border: 'none',
-                          background: p.color,
-                          fontSize: 12,
-                          color: '#fff',
-                          cursor: 'pointer',
-                          fontWeight: 600,
-                          fontFamily: 'var(--wf)',
-                          opacity: isBusy ? 0.5 : 1,
-                        }}
-                      >
-                        {connecting === p.id ? (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <span
-                              style={{
-                                width: 10,
-                                height: 10,
-                                border: '2px solid rgba(255,255,255,0.4)',
-                                borderTopColor: '#fff',
-                                borderRadius: '50%',
-                                display: 'inline-block',
-                                animation: 'spin 0.7s linear infinite',
-                              }}
-                            />
-                            Connecting...
-                          </span>
-                        ) : (
-                          'Connect'
-                        )}
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-                {(p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') &&
-                  linked &&
-                  expandedAccountLists.has(p.id) &&
-                  (s?.accounts?.length ?? 0) > 0 && (
+                  {(p.id === 'facebook' || p.id === 'instagram' || p.id === 'tiktok') &&
+                    linked &&
+                    expandedAccountLists.has(p.id) &&
+                    (s?.accounts?.length ?? 0) > 0 && (
+                      <div
+                        style={{
+                          padding: '8px',
+                          background: '#fafafa',
+                          borderRadius: '0 0 12px 12px',
+                          border: '1.5px solid #edecea',
+                          borderTop: 'none',
+                          marginTop: -8,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4,
+                        }}
+                      >
+                        {(s?.accounts ?? []).map((account, idx) => {
+                          const accountKey = account.outstand_account_id || account.id || String(idx);
+                          const rowBusy = disconnecting === `${p.id}:${accountKey}`;
+                          return (
+                            <div
+                              key={accountKey}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 10,
+                                padding: '8px 10px',
+                                borderRadius: 8,
+                                background: '#fff',
+                                border: '1px solid #edecea',
+                              }}
+                            >
+                              <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
+                                {account.account_name || account.username || 'Connected page'}
+                                {(p.id === 'tiktok' || p.id === 'facebook') && (
+                                  <span style={{ color: '#888', fontWeight: 400 }}>
+                                    {' · '}
+                                    {account.connected_via?.startsWith(`${p.id}_direct`)
+                                      ? p.id === 'tiktok'
+                                        ? 'TikTok login'
+                                        : 'Meta login'
+                                      : 'via Outstand'}
+                                  </span>
+                                )}
+                                {/* is_active is only ever explicitly false when Outstand itself
+                                  has flagged this connection unhealthy — undefined/null means
+                                  Outstand didn't report a status at all and must not be shown
+                                  as a problem (see social_account_service.get_user_connections). */}
+                                {account.is_active === false && (
+                                  <span style={{ color: '#c62828', fontWeight: 700 }}> — needs reconnecting</span>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setConfirmAction({
+                                    title: 'Disconnect this account?',
+                                    message: `This disconnects "${account.account_name || account.username || 'this account'}" from ${p.label}. You can reconnect it again at any time.`,
+                                    confirmText: 'Disconnect',
+                                    run: () => handleDisconnectAccount(p.id, account),
+                                  })
+                                }
+                                disabled={rowBusy}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  border: '1px solid #edecea',
+                                  background: '#fff',
+                                  fontSize: 11.5,
+                                  color: '#888',
+                                  cursor: 'pointer',
+                                  fontFamily: 'var(--wf)',
+                                  opacity: rowBusy ? 0.5 : 1,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {rowBusy ? 'Disconnecting...' : 'Disconnect'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  {(p.id === 'facebook_ads' || p.id === 'google_ads') && adsWaLoaded && (
+                    // The number Jane's ads route to on WhatsApp — separate from
+                    // whether a Facebook Page is connected above: launches always
+                    // work via a wa.me link, so this is settable and visible on its
+                    // own instead of only surfacing reactively inside a campaign
+                    // chat when a launch already failed asking for it.
                     <div
                       style={{
-                        padding: '8px',
+                        padding: '12px 16px',
                         background: '#fafafa',
                         borderRadius: '0 0 12px 12px',
                         border: '1.5px solid #edecea',
@@ -4429,345 +4561,259 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
                         marginTop: -8,
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 4,
+                        gap: 6,
                       }}
                     >
-                      {(s?.accounts ?? []).map((account, idx) => {
-                        const accountKey = account.outstand_account_id || account.id || String(idx);
-                        const rowBusy = disconnecting === `${p.id}:${accountKey}`;
-                        return (
-                          <div
-                            key={accountKey}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 10,
-                              padding: '8px 10px',
-                              borderRadius: 8,
-                              background: '#fff',
-                              border: '1px solid #edecea',
-                            }}
-                          >
-                            <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
-                              {account.account_name || account.username || 'Connected page'}
-                              {(p.id === 'tiktok' || p.id === 'facebook') && (
-                                <span style={{ color: '#888', fontWeight: 400 }}>
-                                  {' · '}
-                                  {account.connected_via?.startsWith(`${p.id}_direct`)
-                                    ? p.id === 'tiktok'
-                                      ? 'TikTok login'
-                                      : 'Meta login'
-                                    : 'via Outstand'}
-                                </span>
-                              )}
-                              {/* is_active is only ever explicitly false when Outstand itself
-                                  has flagged this connection unhealthy — undefined/null means
-                                  Outstand didn't report a status at all and must not be shown
-                                  as a problem (see social_account_service.get_user_connections). */}
-                              {account.is_active === false && (
-                                <span style={{ color: '#c62828', fontWeight: 700 }}> — needs reconnecting</span>
-                              )}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setConfirmAction({
-                                  title: 'Disconnect this account?',
-                                  message: `This disconnects "${account.account_name || account.username || 'this account'}" from ${p.label}. You can reconnect it again at any time.`,
-                                  confirmText: 'Disconnect',
-                                  run: () => handleDisconnectAccount(p.id, account),
-                                })
-                              }
-                              disabled={rowBusy}
-                              style={{
-                                padding: '4px 10px',
-                                borderRadius: 6,
-                                border: '1px solid #edecea',
-                                background: '#fff',
-                                fontSize: 11.5,
-                                color: '#888',
-                                cursor: 'pointer',
-                                fontFamily: 'var(--wf)',
-                                opacity: rowBusy ? 0.5 : 1,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {rowBusy ? 'Disconnecting...' : 'Disconnect'}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                {(p.id === 'facebook_ads' || p.id === 'google_ads') && adsWaLoaded && (
-                  // The number Jane's ads route to on WhatsApp — separate from
-                  // whether a Facebook Page is connected above: launches always
-                  // work via a wa.me link, so this is settable and visible on its
-                  // own instead of only surfacing reactively inside a campaign
-                  // chat when a launch already failed asking for it.
-                  <div
-                    style={{
-                      padding: '12px 16px',
-                      background: '#fafafa',
-                      borderRadius: '0 0 12px 12px',
-                      border: '1.5px solid #edecea',
-                      borderTop: 'none',
-                      marginTop: -8,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 6,
-                    }}
-                  >
-                    <div style={{ fontSize: 11.5, fontWeight: 700, color: '#666' }}>Ads WhatsApp number</div>
-                    <div style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>
-                      Where leads from your ads land — not the number above.
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        type="tel"
-                        value={adsWaInput}
-                        onChange={(e) => setAdsWaInput(e.target.value)}
-                        placeholder="e.g. 0803 123 4567"
-                        style={{
-                          flex: 1,
-                          padding: '8px 12px',
-                          borderRadius: 8,
-                          border: '1.5px solid #e0e0e0',
-                          fontSize: 12.5,
-                          fontFamily: 'var(--wf)',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={saveAdsWhatsapp}
-                        disabled={adsWaSaving || !adsWaInput.trim() || adsWaInput.trim() === adsWaNumber}
-                        style={{
-                          padding: '8px 16px',
-                          borderRadius: 8,
-                          border: 'none',
-                          background: '#C2185B',
-                          color: '#fff',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          fontFamily: 'var(--wf)',
-                          cursor: 'pointer',
-                          opacity: adsWaSaving || !adsWaInput.trim() || adsWaInput.trim() === adsWaNumber ? 0.5 : 1,
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {adsWaSaving ? 'Saving...' : 'Save'}
-                      </button>
-                    </div>
-                    {adsWaError && <div style={{ fontSize: 11.5, color: '#e53935' }}>{adsWaError}</div>}
-                    {!adsWaNumber && !adsWaError && (
-                      <div style={{ fontSize: 11.5, color: '#a15c00' }}>
-                        Not set yet — Jane will ask for this the first time you build an ad.
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: '#666' }}>Ads WhatsApp number</div>
+                      <div style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>
+                        Where leads from your ads land — not the number above.
                       </div>
-                    )}
-                    {/* Shown UNCONDITIONALLY, not only when we detect a mismatch, because we
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          type="tel"
+                          value={adsWaInput}
+                          onChange={(e) => setAdsWaInput(e.target.value)}
+                          placeholder="e.g. 0803 123 4567"
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            border: '1.5px solid #e0e0e0',
+                            fontSize: 12.5,
+                            fontFamily: 'var(--wf)',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={saveAdsWhatsapp}
+                          disabled={adsWaSaving || !adsWaInput.trim() || adsWaInput.trim() === adsWaNumber}
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: 8,
+                            border: 'none',
+                            background: '#C2185B',
+                            color: '#fff',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            cursor: 'pointer',
+                            opacity: adsWaSaving || !adsWaInput.trim() || adsWaInput.trim() === adsWaNumber ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {adsWaSaving ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                      {adsWaError && <div style={{ fontSize: 11.5, color: '#e53935' }}>{adsWaError}</div>}
+                      {!adsWaNumber && !adsWaError && (
+                        <div style={{ fontSize: 11.5, color: '#a15c00' }}>
+                          Not set yet — Jane will ask for this the first time you build an ad.
+                        </div>
+                      )}
+                      {/* Shown UNCONDITIONALLY, not only when we detect a mismatch, because we
                         cannot detect one: reading whether a number is linked to a Page needs
                         whatsapp_business_management, a scope our token doesn't hold, so
                         whatsapp_linked_to_page is almost always null. Kept as plain helper
                         text in the muted colour — it's a requirement to state, not a problem
                         with what the user has entered. */}
-                    {adsWaNumber && s?.whatsapp_linked_to_page !== true && (
-                      <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5 }}>
-                        {p.id === 'google_ads'
-                          ? 'This is the number people message when they tap your Google ad.'
-                          : `Must match the WhatsApp number linked to your ${s?.account_name || 'Facebook'} Page in Meta.`}{' '}
-                        {s?.whatsapp_link_url && (
-                          <a
-                            href={s.whatsapp_link_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ color: '#C2185B' }}
-                          >
-                            Check in Meta
-                          </a>
-                        )}
-                      </div>
-                    )}
-                    {adsWaNumber && s?.whatsapp_linked_to_page === true && (
-                      <div style={{ fontSize: 11.5, color: '#1a7f37' }}>
-                        Linked to your {s?.account_name || 'Facebook'} Page — ads can receive messages and report
-                        conversations.
-                      </div>
-                    )}
-                  </div>
-                )}
-                {p.id === 'google_ads' && <GoogleAdsReturn onChanged={loadStatuses} />}
-                {p.id === 'google_ads' && (
-                  <div
-                    style={{
-                      padding: '12px 14px 4px',
-                      background: '#F7FAFF',
-                      border: '1.5px solid #1A73E833',
-                      borderTop: 'none',
-                      borderBottom: 'none',
-                    }}
-                  >
-                    <GoogleAdsModePicker
-                      mode={s?.google_mode === 'own' ? 'own' : 'uri'}
-                      uriReady={!!s?.google_uri_managed}
-                      ownReady={s?.google_connection_state === 'ready'}
-                      onChanged={loadStatuses}
-                    />
-                  </div>
-                )}
-                {p.id === 'google_ads' &&
-                  s?.google_mode === 'own' &&
-                  s?.google_connection_state === 'needs_account_selection' && (
-                    <GoogleAdsChooser
-                      onChanged={loadStatuses}
-                      canCreate={s?.google_can_create_account}
-                      signinVerified={s?.google_signin_verified}
-                    />
+                      {adsWaNumber && s?.whatsapp_linked_to_page !== true && (
+                        <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5 }}>
+                          {p.id === 'google_ads'
+                            ? 'This is the number people message when they tap your Google ad.'
+                            : `Must match the WhatsApp number linked to your ${s?.account_name || 'Facebook'} Page in Meta.`}{' '}
+                          {s?.whatsapp_link_url && (
+                            <a
+                              href={s.whatsapp_link_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#C2185B' }}
+                            >
+                              Check in Meta
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {adsWaNumber && s?.whatsapp_linked_to_page === true && (
+                        <div style={{ fontSize: 11.5, color: '#1a7f37' }}>
+                          Linked to your {s?.account_name || 'Facebook'} Page — ads can receive messages and report
+                          conversations.
+                        </div>
+                      )}
+                    </div>
                   )}
-                {p.id === 'google_ads' &&
-                  s?.google_mode === 'own' &&
-                  linked &&
-                  s?.google_connection_state !== 'needs_account_selection' && (
-                    <GoogleAdsLinkPanel
-                      state={s?.google_connection_state ?? ''}
-                      customerId={s?.google_customer_id}
-                      accountName={s?.account_name}
-                      managerId={s?.google_manager_id}
-                      detail={s?.google_link_detail}
-                      createdByUri={s?.google_created_by_uri}
-                      currency={s?.google_currency}
-                      signinVerified={s?.google_signin_verified}
-                      finishing={s?.google_finishing}
-                      onChanged={loadStatuses}
-                    />
-                  )}
-                {p.id === 'linkedin' && linked && liPages && liPages.pages.length > 0 && (
-                  <div
-                    style={{
-                      padding: '10px 16px',
-                      background: '#f9fbff',
-                      borderRadius: '0 0 12px 12px',
-                      border: '1.5px solid #0A66C244',
-                      borderTop: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                    }}
-                  >
-                    <span style={{ fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>Posting as</span>
-                    <select
-                      title="LinkedIn posting target"
-                      value={liPages.active_author_urn}
-                      disabled={liPagesLoading}
-                      onChange={async (e) => {
-                        const urn = e.target.value;
-                        setLiPagesLoading(true);
-                        try {
-                          await SocialConnectionService.linkedinSelectPage(urn);
-                          setLiPages((prev) => (prev ? { ...prev, active_author_urn: urn } : prev));
-                        } catch {
-                          /* noop */
-                        } finally {
-                          setLiPagesLoading(false);
-                        }
-                      }}
+                  {p.id === 'google_ads' && <GoogleAdsReturn onChanged={loadStatuses} />}
+                  {p.id === 'google_ads' && (
+                    <div
                       style={{
-                        flex: 1,
-                        padding: '5px 10px',
-                        borderRadius: 7,
-                        border: '1.5px solid #0A66C244',
-                        fontSize: 12,
-                        fontFamily: 'var(--wf)',
-                        background: '#fff',
-                        color: '#111',
-                        cursor: 'pointer',
-                        outline: 'none',
-                        opacity: liPagesLoading ? 0.5 : 1,
+                        padding: '12px 14px 4px',
+                        background: '#F7FAFF',
+                        border: '1.5px solid #1A73E833',
+                        borderTop: 'none',
+                        borderBottom: 'none',
                       }}
                     >
-                      <option value={liPages.personal_profile.urn}>{liPages.personal_profile.name} (Personal)</option>
-                      {liPages.pages.map((page) => (
-                        <option key={page.urn} value={page.urn}>
-                          {page.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {p.id === 'whatsapp' && waExpanded && !linked && (
-                  <div
-                    style={{
-                      padding: '12px 16px',
-                      background: '#f9f9f9',
-                      borderRadius: '0 0 12px 12px',
-                      border: '1.5px solid #25D36644',
-                      borderTop: 'none',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                    }}
-                  >
-                    <input
-                      type="tel"
-                      placeholder="+1 234 567 8900"
-                      value={waPhone}
-                      onChange={(e) => setWaPhone(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleWhatsappSubmit()}
-                      aria-label="WhatsApp phone number"
-                      style={{
-                        padding: '9px 13px',
-                        borderRadius: 8,
-                        border: '1.5px solid #25D366',
-                        fontSize: 13,
-                        fontFamily: 'var(--wf)',
-                        outline: 'none',
-                        background: '#fff',
-                      }}
-                    />
-                    {waError && <div style={{ fontSize: 12, color: '#e53935' }}>{waError}</div>}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={handleWhatsappSubmit}
-                        disabled={!waPhone.trim() || connecting === 'whatsapp'}
-                        style={{
-                          padding: '7px 16px',
-                          borderRadius: 7,
-                          border: 'none',
-                          background: '#25D366',
-                          color: '#fff',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          fontFamily: 'var(--wf)',
-                          opacity: !waPhone.trim() || connecting === 'whatsapp' ? 0.5 : 1,
-                        }}
-                      >
-                        {connecting === 'whatsapp' ? 'Connecting...' : 'Connect WhatsApp'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setWaExpanded(false);
-                          setWaError('');
-                        }}
-                        style={{
-                          padding: '7px 12px',
-                          borderRadius: 7,
-                          border: '1px solid #edecea',
-                          background: '#fff',
-                          color: '#888',
-                          fontSize: 12,
-                          cursor: 'pointer',
-                          fontFamily: 'var(--wf)',
-                        }}
-                      >
-                        Cancel
-                      </button>
+                      <GoogleAdsModePicker
+                        mode={s?.google_mode === 'own' ? 'own' : 'uri'}
+                        uriReady={!!s?.google_uri_managed}
+                        ownReady={s?.google_connection_state === 'ready'}
+                        onChanged={loadStatuses}
+                      />
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                  {p.id === 'google_ads' &&
+                    s?.google_mode === 'own' &&
+                    s?.google_connection_state === 'needs_account_selection' && (
+                      <GoogleAdsChooser
+                        onChanged={loadStatuses}
+                        canCreate={s?.google_can_create_account}
+                        signinVerified={s?.google_signin_verified}
+                      />
+                    )}
+                  {p.id === 'google_ads' &&
+                    s?.google_mode === 'own' &&
+                    linked &&
+                    s?.google_connection_state !== 'needs_account_selection' && (
+                      <GoogleAdsLinkPanel
+                        state={s?.google_connection_state ?? ''}
+                        customerId={s?.google_customer_id}
+                        accountName={s?.account_name}
+                        managerId={s?.google_manager_id}
+                        detail={s?.google_link_detail}
+                        createdByUri={s?.google_created_by_uri}
+                        currency={s?.google_currency}
+                        signinVerified={s?.google_signin_verified}
+                        finishing={s?.google_finishing}
+                        onChanged={loadStatuses}
+                      />
+                    )}
+                  {p.id === 'linkedin' && linked && liPages && liPages.pages.length > 0 && (
+                    <div
+                      style={{
+                        padding: '10px 16px',
+                        background: '#f9fbff',
+                        borderRadius: '0 0 12px 12px',
+                        border: '1.5px solid #0A66C244',
+                        borderTop: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                      }}
+                    >
+                      <span style={{ fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>Posting as</span>
+                      <select
+                        title="LinkedIn posting target"
+                        value={liPages.active_author_urn}
+                        disabled={liPagesLoading}
+                        onChange={async (e) => {
+                          const urn = e.target.value;
+                          setLiPagesLoading(true);
+                          try {
+                            await SocialConnectionService.linkedinSelectPage(urn);
+                            setLiPages((prev) => (prev ? { ...prev, active_author_urn: urn } : prev));
+                          } catch {
+                            /* noop */
+                          } finally {
+                            setLiPagesLoading(false);
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '5px 10px',
+                          borderRadius: 7,
+                          border: '1.5px solid #0A66C244',
+                          fontSize: 12,
+                          fontFamily: 'var(--wf)',
+                          background: '#fff',
+                          color: '#111',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          opacity: liPagesLoading ? 0.5 : 1,
+                        }}
+                      >
+                        <option value={liPages.personal_profile.urn}>{liPages.personal_profile.name} (Personal)</option>
+                        {liPages.pages.map((page) => (
+                          <option key={page.urn} value={page.urn}>
+                            {page.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {p.id === 'whatsapp' && waExpanded && !linked && (
+                    <div
+                      style={{
+                        padding: '12px 16px',
+                        background: '#f9f9f9',
+                        borderRadius: '0 0 12px 12px',
+                        border: '1.5px solid #25D36644',
+                        borderTop: 'none',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                      }}
+                    >
+                      <input
+                        type="tel"
+                        placeholder="+1 234 567 8900"
+                        value={waPhone}
+                        onChange={(e) => setWaPhone(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleWhatsappSubmit()}
+                        aria-label="WhatsApp phone number"
+                        style={{
+                          padding: '9px 13px',
+                          borderRadius: 8,
+                          border: '1.5px solid #25D366',
+                          fontSize: 13,
+                          fontFamily: 'var(--wf)',
+                          outline: 'none',
+                          background: '#fff',
+                        }}
+                      />
+                      {waError && <div style={{ fontSize: 12, color: '#e53935' }}>{waError}</div>}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={handleWhatsappSubmit}
+                          disabled={!waPhone.trim() || connecting === 'whatsapp'}
+                          style={{
+                            padding: '7px 16px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: '#25D366',
+                            color: '#fff',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                            opacity: !waPhone.trim() || connecting === 'whatsapp' ? 0.5 : 1,
+                          }}
+                        >
+                          {connecting === 'whatsapp' ? 'Connecting...' : 'Connect WhatsApp'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWaExpanded(false);
+                            setWaError('');
+                          }}
+                          style={{
+                            padding: '7px 12px',
+                            borderRadius: 7,
+                            border: '1px solid #edecea',
+                            background: '#fff',
+                            color: '#888',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                            fontFamily: 'var(--wf)',
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </React.Fragment>
             );
           })}
         </div>
@@ -9947,7 +9993,7 @@ const SettingsPage = ({
   // Settings' new sub-nav (Account/Security/Brand Profile) lands here with
   // ?anchor=X — those three are sections of this one page, not separate
   // destinations, same "scroll straight to it" fix as Connected Accounts'
-  // ?anchor=ad-accounts.
+  // Social/Ad Accounts sections.
   useEffect(() => {
     const anchor = searchParams?.get('anchor');
     if (!anchor) return;
@@ -10970,16 +11016,11 @@ export default function WorkspaceDashboard() {
       icon: 'share',
       label: 'Ad Accounts',
       // Real destination, reused rather than duplicated — your ad platform
-      // connections (Facebook Ads/Google Ads) already live on Connected Accounts,
-      // alongside the organic ones. The anchor param scrolls straight to those
-      // cards instead of landing on LinkedIn at the top of that whole page.
+      // connections (Facebook Ads/Google Ads) already live on Connected
+      // Accounts, under its own "Ad Accounts" heading now. Same
+      // goToConnectionsAnchor Connected Accounts' own sub-nav uses.
       active: false,
-      onClick: () => {
-        setNav('connections');
-        router.replace('/workspace/?tab=connections&anchor=ad-accounts', {
-          scroll: false,
-        } as Parameters<typeof router.replace>[1]);
-      },
+      onClick: () => goToConnectionsAnchor('ads'),
     },
     // "Audiences" used to live here too — dropped rather than left as a stub.
     // Unlike Creatives below, there's no reusable-audience concept on the
@@ -11082,12 +11123,41 @@ export default function WorkspaceDashboard() {
     },
   ];
 
+  // Social Accounts/Ad Accounts are the two real section headings on
+  // Connected Accounts' one page (see the connections-section-social/
+  // connections-section-ads ids on that page) — same scroll-straight-to-it
+  // fix as Settings' Account/Security/Brand Profile above, and the one
+  // Campaign Manager's own "Ad Accounts" entry now reuses too.
+  const goToConnectionsAnchor = (anchor: string) => {
+    setNav('connections');
+    router.replace(`/workspace/?tab=connections&anchor=${anchor}`, {
+      scroll: false,
+    } as Parameters<typeof router.replace>[1]);
+  };
+
+  const connectionsSubNav = [
+    {
+      id: 'connections-social',
+      icon: 'share',
+      label: 'Social Accounts',
+      active: false,
+      onClick: () => goToConnectionsAnchor('social'),
+    },
+    {
+      id: 'connections-ads',
+      icon: 'megaphone',
+      label: 'Ad Accounts',
+      active: false,
+      onClick: () => goToConnectionsAnchor('ads'),
+    },
+  ];
+
   // Which contextual sidebar (if any) the current nav value belongs to.
   // A nav id not claimed by any zone falls through to the flat PRIMARY_NAV
   // sidebar instead — this is also why reusing a PRIMARY_NAV-owned id in a
   // sub-item (Performance, Connected Accounts) is safe: clicking it is
   // meant to pop back out to the top-level view, not fake a dedicated page.
-  const activeSection: 'content-studio' | 'campaign-manager' | 'performance' | 'settings' | null = [
+  const activeSection: 'content-studio' | 'campaign-manager' | 'performance' | 'settings' | 'connections' | null = [
     'schedule',
     'blog',
     'visual-engine-v2',
@@ -11106,26 +11176,30 @@ export default function WorkspaceDashboard() {
           // one keeping this particular accordion open.
           ['settings', 'playbook', 'agency'].includes(nav)
           ? 'settings'
-          : null;
+          : nav === 'connections'
+            ? 'connections'
+            : null;
 
   const SECTION_META: Record<string, { label: string; subNav: typeof contentStudioSubNav }> = {
     'content-studio': { label: 'Content Studio', subNav: contentStudioSubNav },
     'campaign-manager': { label: 'Campaign Manager', subNav: campaignManagerSubNav },
     performance: { label: 'Performance', subNav: performanceSubNav },
     settings: { label: 'Settings', subNav: settingsSubNav },
+    connections: { label: 'Connected Accounts', subNav: connectionsSubNav },
   };
 
   // Maps a PRIMARY_NAV item's id to the zone it expands — the sidebar stays
   // a single flat list and the owning row grows its own sub-items beneath
   // it (accordion), rather than swapping the whole list out for a
   // section-only view.
-  const ZONE_BY_PRIMARY_ID: Record<string, 'content-studio' | 'campaign-manager' | 'performance'> = {
+  const ZONE_BY_PRIMARY_ID: Record<string, 'content-studio' | 'campaign-manager' | 'performance' | 'connections'> = {
     schedule: 'content-studio',
     campaigns: 'campaign-manager',
     performance: 'performance',
+    connections: 'connections',
   };
   const [expandedSection, setExpandedSection] = useState<
-    'content-studio' | 'campaign-manager' | 'performance' | 'settings' | null
+    'content-studio' | 'campaign-manager' | 'performance' | 'settings' | 'connections' | null
   >(activeSection);
   useEffect(() => {
     if (activeSection) setExpandedSection(activeSection);
