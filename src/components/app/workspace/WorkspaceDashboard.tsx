@@ -806,72 +806,13 @@ type ContentTab = 'create' | 'drafts' | 'saved' | 'scheduled' | 'auto' | 'calend
 type PendingVariants = { variants: PlanVariant[]; variantGroupId: string };
 type VideoPolishHandoff = { file: File; returnThreadId: string; pendingVariants?: PendingVariants };
 
-// The dedicated-page tabs (Content Library, Content Calendar, Auto-Generate,
-// Video) replace the classic header + tab-scroll row entirely, which
-// otherwise would have been the only way to move between Content Studio's
-// own destinations. The real nav for that is the sidebar's Content Studio
-// sub-items — desktop only. On mobile there's no sidebar to fall back on, so
-// without something here, landing on Library (say) was a dead end: no way
-// back to Create, and no way sideways to Calendar/Auto/Video either, short
-// of the bottom bar's "Create" tab resetting you to Create every time.
-const CONTENT_STUDIO_MOBILE_TABS: { key: ContentTab; label: string; icon: string }[] = [
-  { key: 'create', label: 'Create', icon: 'plus' },
-  { key: 'library', label: 'Library', icon: 'file' },
-  { key: 'calendar-v2', label: 'Calendar', icon: 'calendar' },
-  { key: 'auto', label: 'Auto', icon: 'sparkle' },
-  { key: 'video', label: '🎬 Video', icon: 'video' },
-];
-
-const ContentStudioMobileSwitcher = ({
-  active,
-  onSelect,
-}: {
-  active: ContentTab;
-  onSelect: (tab: ContentTab) => void;
-}) => (
-  <div
-    className="tab-scroll"
-    style={
-      {
-        display: 'flex',
-        gap: 4,
-        overflowX: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none',
-        marginBottom: 6,
-      } as React.CSSProperties
-    }
-  >
-    {CONTENT_STUDIO_MOBILE_TABS.map((t) => {
-      const isActive = t.key === active;
-      return (
-        <button
-          key={t.key}
-          onClick={() => onSelect(t.key)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '6px 10px',
-            borderRadius: 999,
-            border: 'none',
-            background: isActive ? '#FCE4EC' : '#F5F4F0',
-            color: isActive ? '#C2185B' : '#777',
-            fontSize: 11.5,
-            fontWeight: isActive ? 700 : 500,
-            whiteSpace: 'nowrap',
-            cursor: 'pointer',
-            flexShrink: 0,
-          }}
-        >
-          <I n={t.icon} s={12} c={isActive ? '#C2185B' : '#aaa'} />
-          {t.label}
-        </button>
-      );
-    })}
-  </div>
-);
+// A per-page pill switcher lived here briefly — replaced by a single
+// persistent control in the mobile Topbar (search "SECTION SUBNAV DRAWER")
+// that works the same way for every section with a sidebar subNav
+// (Content Studio, Campaign Manager, Performance, Settings, Connected
+// Accounts), not just this one, and reuses the exact same subNav arrays
+// the desktop sidebar renders — one source of truth instead of a second,
+// divergent mobile-only nav.
 
 const ContentManagerPage = ({
   onJane,
@@ -1422,7 +1363,6 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          {isMobile && <ContentStudioMobileSwitcher active={activeTab} onSelect={setActiveTab} />}
           <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
             Create Content
           </h2>
@@ -1444,7 +1384,6 @@ const ContentManagerPage = ({
           }}
         >
           <div style={{ minWidth: 0, flex: 1 }}>
-            {isMobile && <ContentStudioMobileSwitcher active={activeTab} onSelect={setActiveTab} />}
             <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
               Content Library
             </h2>
@@ -1477,7 +1416,6 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          {isMobile && <ContentStudioMobileSwitcher active={activeTab} onSelect={setActiveTab} />}
           <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
             Content Calendar
           </h2>
@@ -1493,7 +1431,6 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          {isMobile && <ContentStudioMobileSwitcher active={activeTab} onSelect={setActiveTab} />}
           <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
             Auto-Generate
           </h2>
@@ -1509,7 +1446,6 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          {isMobile && <ContentStudioMobileSwitcher active={activeTab} onSelect={setActiveTab} />}
           <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
             🎬 Video
           </h2>
@@ -10882,6 +10818,11 @@ export default function WorkspaceDashboard() {
   const [switcherBrands, setSwitcherBrands] = useState<BrandAccount[] | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // Mobile has no sidebar to show a section's subNav inline (Content Studio,
+  // Campaign Manager, Performance, Settings, Connected Accounts each have
+  // one) — this drawer is that, reusing the exact same subNav arrays the
+  // sidebar renders rather than a second, divergent mobile-only list.
+  const [sectionNavOpen, setSectionNavOpen] = useState(false);
   // Product-restructure redesign: top-bar quick search. Real, if basic —
   // jumps between the primary destinations rather than being decorative.
   // Full content/campaign/message search (per the approved design's
@@ -12224,24 +12165,46 @@ export default function WorkspaceDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 7 : 9, minWidth: 0, flexShrink: 1 }}>
               {isMobile && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginRight: 4, flexShrink: 0 }}>
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 6,
-                      background: 'linear-gradient(135deg,#C2185B,#E91E63)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span style={{ color: '#fff', fontWeight: 900, fontSize: 11 }}>U</span>
-                  </div>
+                  {/* The real app logo, same file the desktop sidebar uses — this used
+                      to be a hand-drawn "U" square standing in for it, so mobile and
+                      desktop showed two different marks for the same brand. */}
+                  <img
+                    src="/images/urilogo-nobg.png"
+                    alt="URI Social"
+                    style={{ width: 24, height: 24, objectFit: 'contain', flexShrink: 0 }}
+                  />
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#111', whiteSpace: 'nowrap' }}>
                     URI <span style={{ fontWeight: 400, color: '#999' }}>Social</span>
                   </span>
                 </div>
+              )}
+              {/* Mobile's one way into a section's subNav — see sectionNavOpen's
+                  own comment. Only shown while actually inside a section that has
+                  one; Home/Playbook/etc. have nothing to open here. */}
+              {isMobile && activeSection && (
+                <button
+                  onClick={() => setSectionNavOpen(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '5px 9px',
+                    borderRadius: 999,
+                    border: '1px solid #F3C7DA',
+                    background: '#FFF7FA',
+                    color: '#C2185B',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    minWidth: 0,
+                  }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {SECTION_META[activeSection].label}
+                  </span>
+                  <I n="chevronRight" s={10} c="#C2185B" />
+                </button>
               )}
               {/* Product-restructure redesign: the old rotating "URI Agent is
                   active" status line lived here — replaced with a real quick
@@ -13194,6 +13157,80 @@ export default function WorkspaceDashboard() {
           </>
         )}
       </div>
+
+      {/* SECTION SUBNAV DRAWER — mobile only. Opened from the Topbar's section
+          chip; lists the exact same subNav the desktop sidebar shows for
+          whichever section (Content Studio, Campaign Manager, Performance,
+          Settings, Connected Accounts) nav is currently inside — one source
+          of truth for both platforms instead of a second, divergent list. */}
+      {isMobile && sectionNavOpen && activeSection && (
+        <>
+          <div
+            onClick={() => setSectionNavOpen(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.25)', zIndex: 200 }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 56,
+              left: 0,
+              right: 0,
+              background: '#fff',
+              borderRadius: '16px 16px 0 0',
+              boxShadow: '0 -4px 24px rgba(0,0,0,.12)',
+              zIndex: 201,
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+              maxHeight: 'calc(100vh - 56px - 24px)',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: '#e5e3df' }} />
+            </div>
+            <div
+              style={{
+                padding: '4px 18px 10px',
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#9CA3AF',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                borderBottom: '1px solid #f0eeea',
+              }}
+            >
+              {SECTION_META[activeSection].label}
+            </div>
+            {SECTION_META[activeSection].subNav.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => {
+                  n.onClick();
+                  setSectionNavOpen(false);
+                }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 18px',
+                  background: n.active ? 'rgba(194,24,91,.05)' : 'none',
+                  border: 'none',
+                  borderLeft: n.active ? '3px solid #E91E63' : '3px solid transparent',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--wf)',
+                  fontSize: 14,
+                  fontWeight: n.active ? 600 : 500,
+                  color: n.active ? '#C2185B' : '#333',
+                  textAlign: 'left',
+                }}
+              >
+                <I n={n.icon} s={18} c={n.active ? '#C2185B' : '#888'} />
+                {n.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Guided Tour */}
       {/* The tour waits for the plan popup: its full-screen "click to skip" layer
