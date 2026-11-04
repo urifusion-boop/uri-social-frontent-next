@@ -17,12 +17,20 @@ import {
   BillingSummary,
   CampaignSummary,
   ThreadSummary,
+  AssetAttestation,
+  CreativeProvenanceInput,
 } from '@/src/api/CampaignService';
 import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/workspace/AdFormatGallery';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
 import { PlanChecksPanel, PlanChecksState } from '@/src/components/app/workspace/PlanChecksPanel';
+import {
+  AiVideoPicker,
+  CreatorBriefButton,
+  VideoProvenanceControl,
+  useCreativePaths,
+} from '@/src/components/app/workspace/CreativePathControls';
 import LiveTargetingEditor from '@/src/components/app/workspace/LiveTargetingEditor';
 import KeepRunningPanel from '@/src/components/app/workspace/KeepRunningPanel';
 import { GrowthPanel } from '@/src/components/app/workspace/growth/GrowthPanel';
@@ -122,13 +130,13 @@ type ContinueChoice =
       creative_source: 'upload';
       reference_image_url: string;
       is_video: boolean;
-      asset_attestation?: 'product_photo' | 'real_customer_photo';
+      asset_attestation?: AssetAttestation;
     }
   | { creative_source: 'draft'; draft_id: string }
   | {
       creative_source: 'recomposite';
       reference_image_url: string;
-      asset_attestation?: 'product_photo' | 'real_customer_photo';
+      asset_attestation?: AssetAttestation;
     };
 
 type ChatMsg =
@@ -173,8 +181,13 @@ interface SelectedMedia {
   // VSG-01 v3 (§1.2/§6) — set only for a real (non-video) photo attached directly in
   // the composer, once the user has confirmed what it actually shows. Undefined for a
   // draft, a video, or a photo attached without answering (treated as "skip").
-  assetAttestation?: 'product_photo' | 'real_customer_photo';
+  assetAttestation?: AssetAttestation;
+  // An AI studio video, or who is in an uploaded video and whether they agreed —
+  // sent with the plan so the ad is labelled and checked honestly.
+  provenance?: CreativeProvenanceInput;
 }
+
+const provenanceFields = (m: SelectedMedia | null | undefined) => m?.provenance ?? {};
 
 const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
 const uid = () => Math.random().toString(36).slice(2);
@@ -291,6 +304,7 @@ export default function CampaignsPage({
   const carouselExtraInputRef = useRef<HTMLInputElement>(null);
   const [carouselUploading, setCarouselUploading] = useState(false);
   const [briefSoFar, setBriefSoFar] = useState('');
+  const creativePaths = useCreativePaths(briefSoFar);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [draftsOpen, setDraftsOpen] = useState(false);
@@ -812,6 +826,7 @@ export default function CampaignsPage({
               reference_image_url: attachedMedia.url,
               is_video: attachedMedia.isVideo,
               asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
             }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
@@ -877,6 +892,7 @@ export default function CampaignsPage({
               reference_image_url: attachedMedia.url,
               is_video: attachedMedia.isVideo,
               asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
             }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
@@ -935,6 +951,7 @@ export default function CampaignsPage({
               reference_image_url: attachedMedia.url,
               is_video: attachedMedia.isVideo,
               asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
             }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
@@ -1126,6 +1143,7 @@ export default function CampaignsPage({
               reference_image_url: attachedMedia.url,
               is_video: attachedMedia.isVideo,
               asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
             }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
@@ -1210,6 +1228,7 @@ export default function CampaignsPage({
               reference_image_url: attachedMedia.url,
               is_video: attachedMedia.isVideo,
               asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
             }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
@@ -1271,6 +1290,7 @@ export default function CampaignsPage({
               reference_image_url: attachedMedia.url,
               is_video: attachedMedia.isVideo,
               asset_attestation: attachedMedia.assetAttestation,
+              ...provenanceFields(attachedMedia),
             }
           : attachedMedia?.source === 'draft'
             ? { creative_source: 'draft', draft_id: attachedMedia.draftId }
@@ -1457,7 +1477,7 @@ export default function CampaignsPage({
   // Answer the "what does this photo actually show?" prompt — value is undefined
   // for "Skip", which proceeds exactly as this flow always has (no format-selection
   // attempt on the backend, the photo is just used as-is).
-  const resolveAssetAttestation = async (value?: 'product_photo' | 'real_customer_photo') => {
+  const resolveAssetAttestation = async (value?: AssetAttestation) => {
     const pending = pendingAssetAttestation;
     if (!pending) return;
     setPendingAssetAttestation(null);
@@ -1907,6 +1927,21 @@ export default function CampaignsPage({
                       🙋 A real customer (I have their permission)
                     </button>
                     <button
+                      onClick={() => resolveAssetAttestation('owner_photo')}
+                      style={{
+                        background: `linear-gradient(135deg,${PINK},#8E1545)`,
+                        border: 'none',
+                        color: '#fff',
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🧑🏾 Me or my team
+                    </button>
+                    <button
                       onClick={() => resolveAssetAttestation(undefined)}
                       style={{
                         background: '#fff',
@@ -1988,6 +2023,16 @@ export default function CampaignsPage({
                 >
                   🖼 Choose from drafts
                 </button>
+                <AiVideoPicker
+                  info={creativePaths}
+                  disabled={busy}
+                  isMobile={isMobile}
+                  onPick={(url, label, provenance) => {
+                    setDraftsOpen(false);
+                    setMedia({ source: 'upload', url, isVideo: true, label, provenance });
+                  }}
+                />
+                <CreatorBriefButton info={creativePaths} description={briefSoFar} disabled={busy} isMobile={isMobile} />
                 {media && (
                   <div
                     style={{
@@ -2130,6 +2175,13 @@ export default function CampaignsPage({
                   </>
                 )}
               </div>
+              {media?.source === 'upload' && media.isVideo && media.provenance?.creative_path !== 'ai_video' && (
+                <VideoProvenanceControl
+                  info={creativePaths}
+                  value={media.provenance}
+                  onChange={(provenance) => setMedia({ ...media, provenance })}
+                />
+              )}
               {uploadError && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#c62828' }}>{uploadError}</p>}
               {draftsOpen && (
                 <div

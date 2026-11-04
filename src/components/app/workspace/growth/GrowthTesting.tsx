@@ -52,7 +52,18 @@ export function StructureSummary({ s }: { s: GrowthStructure }) {
   );
 }
 
-export function GrowthTesting({ testing, adNames }: { testing: Testing; adNames: Record<string, string> }) {
+export function GrowthTesting({
+  testing,
+  adNames,
+  detailed = true,
+}: {
+  testing: Testing;
+  adNames: Record<string, string>;
+  detailed?: boolean;
+}) {
+  const tally = Object.entries(
+    testing.verdicts.reduce<Record<string, number>>((acc, v) => ({ ...acc, [v.status]: (acc[v.status] ?? 0) + 1 }), {})
+  );
   return (
     <Card
       title="Testing: explore, validate, scale"
@@ -62,7 +73,17 @@ export function GrowthTesting({ testing, adNames }: { testing: Testing; adNames:
       <div style={{ fontSize: 12.5, color: '#333' }}>
         {testing.why} <strong>Next:</strong> {testing.next}
       </div>
-      {testing.verdicts.length > 0 && (
+      {!detailed && tally.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', fontSize: 12.5, color: '#555' }}>
+          {testing.verdicts.length} ad{testing.verdicts.length === 1 ? '' : 's'}:
+          {tally.map(([status, n]) => (
+            <Chip key={status} tone={VERDICT_TONE[status as keyof typeof VERDICT_TONE]}>
+              {n} {status}
+            </Chip>
+          ))}
+        </div>
+      )}
+      {detailed && testing.verdicts.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {testing.verdicts.map((v) => {
             const label = v.attributes?.concept || adNames[v.ad_id] || v.ad_id;
@@ -85,7 +106,7 @@ export function GrowthTesting({ testing, adNames }: { testing: Testing; adNames:
           })}
         </div>
       )}
-      {testing.next_round && (
+      {detailed && testing.next_round && (
         <div style={{ borderTop: '1px solid rgba(0,0,0,.06)', paddingTop: 10 }}>
           <div style={{ fontSize: 11.5, color: '#999', marginBottom: 4 }}>
             Next round at {naira(testing.next_round.daily_budget_ngn)} a day for a week

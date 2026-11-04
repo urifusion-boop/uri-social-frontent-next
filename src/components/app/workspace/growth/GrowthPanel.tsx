@@ -8,6 +8,7 @@ import { GrowthAutomation } from './GrowthAutomation';
 import { GrowthCampaign } from './GrowthCampaign';
 import { GrowthHistory } from './GrowthHistory';
 import { GrowthPlanner } from './GrowthPlanner';
+import { setAdsMode, useAdsMode } from './adsMode';
 import { ago, naira, pct } from './format';
 
 /*
@@ -16,6 +17,14 @@ import { ago, naira, pct } from './format';
  */
 
 type View = 'campaigns' | 'testing' | 'brief' | 'automation' | 'history';
+
+const VIEWS: [View, string, boolean][] = [
+  ['campaigns', 'Campaigns', false],
+  ['testing', 'Testing', true],
+  ['brief', 'Brief', false],
+  ['automation', 'Automation', false],
+  ['history', 'History', true],
+];
 
 const MODE_LABELS: Record<string, string> = {
   advisory: 'Advise me',
@@ -32,6 +41,7 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
   const [selected, setSelected] = useState('');
   const [error, setError] = useState('');
   const [stopping, setStopping] = useState(false);
+  const { mode, advanced } = useAdsMode();
 
   const load = useCallback(async () => {
     try {
@@ -84,15 +94,7 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
       }}
     >
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        {(
-          [
-            ['campaigns', 'Campaigns'],
-            ['testing', 'Testing'],
-            ['brief', 'Brief'],
-            ['automation', 'Automation'],
-            ['history', 'History'],
-          ] as const
-        ).map(([v, label]) => (
+        {VIEWS.filter(([, , advancedOnly]) => advanced || !advancedOnly).map(([v, label]) => (
           <Chip
             key={v}
             active={view === v}
@@ -105,6 +107,13 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
           </Chip>
         ))}
         <div style={{ flex: 1 }} />
+        <ModeSwitch
+          mode={mode}
+          onChange={(m) => {
+            if (m === 'guided' && (view === 'testing' || view === 'history')) setView('campaigns');
+            setAdsMode(m).catch((e) => setError(errorText(e, "Couldn't switch the view.")));
+          }}
+        />
         <Btn
           small
           kind="ghost"
@@ -200,6 +209,23 @@ export function GrowthPanel({ isMobile }: { isMobile: boolean }) {
           ))}
         </Card>
       )}
+    </div>
+  );
+}
+
+function ModeSwitch({ mode, onChange }: { mode: 'guided' | 'advanced'; onChange: (m: 'guided' | 'advanced') => void }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="How much detail to show"
+      title="Guided keeps it simple. Advanced shows testing, per-ad results and the full history. Nothing about your campaigns changes."
+      style={{ display: 'flex', gap: 4, alignItems: 'center' }}
+    >
+      {(['guided', 'advanced'] as const).map((m) => (
+        <Chip key={m} active={mode === m} onClick={() => onChange(m)}>
+          {m === 'guided' ? 'Guided' : 'Advanced'}
+        </Chip>
+      ))}
     </div>
   );
 }

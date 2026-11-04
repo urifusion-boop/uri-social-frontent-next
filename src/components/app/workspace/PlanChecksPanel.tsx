@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { CampaignService, PlanChecks } from '@/src/api/CampaignService';
+import { useAdsMode } from '@/src/components/app/workspace/growth/adsMode';
 
 export interface PlanChecksState {
   blocked: boolean;
@@ -25,6 +26,7 @@ export function PlanChecksPanel({
 }) {
   const [checks, setChecks] = useState<PlanChecks | null>(null);
   const [override, setOverride] = useState(false);
+  const { advanced } = useAdsMode();
 
   useEffect(() => {
     let live = true;
@@ -68,6 +70,12 @@ export function PlanChecksPanel({
         <strong>How it launches:</strong> {s.campaigns} campaign · {s.ad_sets} ad set · {s.ads_per_ad_set} ad, ₦
         {Math.round(s.daily_ngn).toLocaleString()} a day ({s.budget_type}) for {s.days} day{s.days === 1 ? '' : 's'}.
         <div style={{ color: '#777' }}>{s.why}</div>
+        {advanced && s.recommended && (
+          <div style={{ color: '#777' }}>
+            For testing, this budget supports {s.recommended.concepts} concept
+            {s.recommended.concepts === 1 ? '' : 's'} ({s.recommended.structure.toUpperCase()}): {s.recommended.why}
+          </div>
+        )}
       </div>
       {checks.issues.map((i) => (
         <div key={i.code + i.message} style={{ color: i.level === 'block' ? '#B71C1C' : '#7a4a00' }}>
