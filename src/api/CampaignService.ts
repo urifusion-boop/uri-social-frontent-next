@@ -48,6 +48,22 @@ export interface AiVideoChoice {
   about: string;
 }
 
+export type PlanAdLayout = 'single_ad_set' | 'abo';
+
+export interface AdsPlanAd {
+  image_url: string;
+  headline: string;
+  primary_text: string;
+  concept?: string;
+  is_video?: boolean;
+}
+
+export interface PlanAdsState {
+  concepts: AdsPlanAd[];
+  ad_layout: PlanAdLayout;
+  can_split: boolean;
+}
+
 export interface CreatorBrief {
   for: string;
   message: string;
@@ -346,8 +362,10 @@ export interface LaunchFromMessageResult {
     vsg01_format_attributes?: Record<string, unknown>;
     concept?: string;
   };
-  /** The other concepts tested beside `creative` in the same campaign, one ad set each. */
-  concepts?: { image_url: string; headline: string; primary_text: string; concept?: string; is_video?: boolean }[];
+  /** The other ads tested beside `creative` in the same campaign. */
+  concepts?: AdsPlanAd[];
+  ad_layout?: PlanAdLayout;
+  can_split?: boolean;
   whatsapp_number?: string; // where ad leads route (wa.me/<this>); shown on the plan card
   destination_type?: string; // whatsapp | website | instagram_dm | custom
   destination_link?: string; // the actual link the ad carries — shown on the plan card
@@ -939,6 +957,28 @@ export class CampaignService {
   /** What a plan launches as, and anything in it that conflicts with the brief. */
   static async planChecks(planId: string): Promise<PlanChecks> {
     return (await UriHttpClient.getClient().get(`/jane-ads/meta/plan/${planId}/checks`)).data as PlanChecks;
+  }
+
+  static async addPlanAd(
+    planId: string,
+    body: {
+      source: 'generate' | 'upload';
+      reference_image_url?: string;
+      is_video?: boolean;
+      asset_attestation?: AssetAttestation;
+    } & Partial<CreativeProvenanceInput>
+  ): Promise<PlanAdsState> {
+    return (await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/ads`, body, { timeout: 240000 }))
+      .data as PlanAdsState;
+  }
+
+  static async removePlanAd(planId: string, index: number): Promise<PlanAdsState> {
+    return (await UriHttpClient.getClient().delete(`/jane-ads/meta/plan/${planId}/ads/${index}`)).data as PlanAdsState;
+  }
+
+  static async setPlanAdLayout(planId: string, layout: PlanAdLayout): Promise<PlanAdsState> {
+    return (await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/layout`, { layout }))
+      .data as PlanAdsState;
   }
 
   static async launchPlan(planId: string, allowOutOfArea = false): Promise<LaunchFromMessageResult> {

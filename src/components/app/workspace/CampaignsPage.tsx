@@ -25,6 +25,7 @@ import { AdFormatSuggestionCard, UsedStyleTag } from '@/src/components/app/works
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import HomePanel from '@/src/components/app/workspace/HomePanel';
 import PlanReviewPanel from '@/src/components/app/workspace/PlanReviewPanel';
+import { AdTestBuilder } from '@/src/components/app/workspace/AdTestBuilder';
 import { PlanChecksPanel, PlanChecksState } from '@/src/components/app/workspace/PlanChecksPanel';
 import {
   AiVideoChoices,
@@ -2959,47 +2960,6 @@ export function ChooseDestination({
   );
 }
 
-const CONCEPT_LABELS: Record<string, string> = {
-  problem: 'The problem it fixes',
-  offer: 'The offer',
-  outcome: 'The result',
-};
-
-/** Every concept being tested in one campaign, side by side, so the client sees what
- * each ad set will run before approving. */
-function ConceptStrip({
-  all,
-}: {
-  all: { image_url: string; headline: string; primary_text: string; concept?: string; is_video?: boolean }[];
-}) {
-  return (
-    <div style={{ padding: '12px 16px 0' }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: '#555', marginBottom: 8 }}>
-        Testing {all.length} ideas — each runs in its own ad set with an equal share of the budget
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${all.length}, minmax(0, 1fr))`, gap: 8 }}>
-        {all.map((c, i) => (
-          <div key={c.image_url + i} style={{ border: '1px solid #eee', borderRadius: 10, overflow: 'hidden' }}>
-            <ZoomableImage
-              src={c.image_url}
-              alt={`idea ${i + 1}`}
-              isVideo={c.is_video}
-              style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block', background: '#f5f5f5' }}
-            />
-            <div style={{ padding: '6px 8px' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 800, color: PINK, textTransform: 'uppercase' }}>
-                {CONCEPT_LABELS[c.concept || ''] || `Idea ${i + 1}`}
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#1a0a12', lineHeight: 1.3 }}>{c.headline}</div>
-              <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.35, marginTop: 2 }}>{c.primary_text}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function ChooseCreativeSource({
   drafts,
   onGenerate,
@@ -3055,7 +3015,7 @@ export function ChooseCreativeSource({
           <button onClick={() => onTestConcepts(maxConcepts)} style={optionBtn}>
             🧪 Test {maxConcepts} ideas
             <span style={sub}>
-              {maxConcepts} different ads, each with an equal share of the budget · {maxConcepts} credits
+              {maxConcepts} ads in different styles · {maxConcepts} credits
             </span>
           </button>
         )}
@@ -4158,7 +4118,18 @@ export function ResultCard({
             style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'contain', background: '#f5f5f5' }}
           />
         )}
-        {!!result.concepts?.length && creative && <ConceptStrip all={[creative, ...result.concepts]} />}
+        {creative?.image_url && plan?.platforms?.[0]?.platform === 'meta' && (
+          <AdTestBuilder
+            planId={result.stage === 'planned' ? result.plan_id : undefined}
+            main={creative}
+            concepts={result.concepts ?? []}
+            layout={result.ad_layout ?? 'single_ad_set'}
+            canSplit={!!result.can_split}
+            dailyNgn={plan.platforms[0].budget_ngn / Math.max(1, plan.platforms[0].days)}
+            description={briefText ?? ''}
+            onChange={(next) => onResultChange({ ...result, ...next })}
+          />
+        )}
         <div style={{ padding: 16 }}>
           <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 15, color: '#1a0a12' }}>{creative?.headline}</p>
           <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>{creative?.primary_text}</p>
@@ -4237,7 +4208,7 @@ export function ResultCard({
           {result.stage === 'planned' && result.plan_id && (
             <PlanChecksPanel
               planId={result.plan_id}
-              refreshKey={JSON.stringify(result.summary ?? '')}
+              refreshKey={JSON.stringify([result.summary ?? '', result.concepts?.length ?? 0, result.ad_layout ?? ''])}
               onState={setPlanChecks}
             />
           )}
