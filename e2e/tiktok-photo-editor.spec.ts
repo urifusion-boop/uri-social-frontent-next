@@ -181,6 +181,18 @@ test.describe('Posting a TikTok photo from the editor', () => {
     await expect(screen.getByText('Only me · interactions off')).toBeVisible();
   });
 
+  test('nothing is pre-selected, and each option says what it means', async ({ page }) => {
+    await setup(page, [PHOTO]);
+    await openEditorViaDetail(page, 'Banana bread');
+    await publishNow(page);
+
+    const select = page.getByRole('dialog', { name: 'Post to TikTok' }).locator('select');
+    await expect(select).toHaveValue(''); // TikTok: no default, the user must choose
+    // TikTok returned Only me first; the screen lists the widest reach first.
+    const options = await select.locator('option:not([disabled])').allTextContents();
+    expect(options).toEqual(['Everyone — anyone on TikTok can see it', 'Only me — only you can see it']);
+  });
+
   test('the Post button stays in view on a short screen', async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 560 });
     await setup(page, [PHOTO]);

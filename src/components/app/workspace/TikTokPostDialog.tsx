@@ -31,6 +31,17 @@ const PRIVACY_LABELS: Record<string, string> = {
   SELF_ONLY: 'Only me',
 };
 
+// What each option means for the people who can see the post, shown next to its name.
+const PRIVACY_HELP: Record<string, string> = {
+  PUBLIC_TO_EVERYONE: 'anyone on TikTok can see it',
+  MUTUAL_FOLLOW_FRIENDS: 'only people you follow who follow you back',
+  FOLLOWER_OF_CREATOR: 'only people who follow you',
+  SELF_ONLY: 'only you can see it',
+};
+// Widest reach first. TikTok decides which options exist; this only orders them.
+const PRIVACY_ORDER = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY'];
+const privacyRank = (o: string) => (PRIVACY_ORDER.includes(o) ? PRIVACY_ORDER.indexOf(o) : PRIVACY_ORDER.length);
+
 const BRANDED_PRIVATE_NOTICE = 'Branded content visibility cannot be set to private.';
 const COMMERCIAL_REQUIRED_NOTICE = 'You need to indicate if your content promotes yourself, a third party, or both.';
 
@@ -104,7 +115,7 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const options = info?.privacy_level_options ?? [];
+  const options = [...(info?.privacy_level_options ?? [])].sort((a, b) => privacyRank(a) - privacyRank(b));
   const cannotPostNow = !!info && options.length === 0;
   const maxDuration = info?.max_video_post_duration_sec ?? null;
   const tooLong = maxDuration != null && videoDuration != null && videoDuration > maxDuration;
@@ -381,7 +392,11 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
                         title={privateBlocked ? BRANDED_PRIVATE_NOTICE : undefined}
                       >
                         {PRIVACY_LABELS[o] ?? o}
-                        {privateBlocked ? ` — ${BRANDED_PRIVATE_NOTICE}` : ''}
+                        {privateBlocked
+                          ? ` — ${BRANDED_PRIVATE_NOTICE}`
+                          : PRIVACY_HELP[o]
+                            ? ` — ${PRIVACY_HELP[o]}`
+                            : ''}
                       </option>
                     );
                   })}
