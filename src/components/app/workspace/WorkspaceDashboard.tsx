@@ -2379,51 +2379,63 @@ const ContentManagerPage = ({
         )}
       </div>
 
-      {/* Jane footer bar */}
-      <div
-        style={{
-          padding: '10px 24px 14px',
-          borderTop: '1px solid #edecea',
-          background: '#fff',
-          display: 'flex',
-          gap: 7,
-          alignItems: 'center',
-        }}
-      >
-        <JaneAvatar size={26} />
-        <input
-          placeholder="Ask Jane about your content..."
+      {/* Jane footer bar — classic chrome only. This input never actually sent
+          what you typed: it has no value/onChange, and onJane() (bound to
+          goWorkspace) takes no message argument — Enter/Send just silently
+          drops whatever was typed and jumps to the old chat page instead.
+          Harmless as a "jump to Jane" shortcut on the classic tabs, but on a
+          dedicated page (Library/Calendar/Auto/Video, each with its own real,
+          working Jane chat already in view) it sat there looking like a
+          working second input and wasn't one — confirmed as exactly what
+          "not responsive" meant on the Video tab specifically. Hidden here
+          the same way these pages already get their own compact header
+          instead of the classic one, for the same reason. */}
+      {!dedicatedPageActive && (
+        <div
           style={{
-            flex: 1,
-            padding: '9px 13px',
-            borderRadius: 9,
-            border: '1.5px solid #e5e3df',
-            fontSize: 13,
-            fontFamily: 'var(--wf)',
-            outline: 'none',
-            background: '#fafaf8',
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onJane();
-          }}
-        />
-        <button
-          onClick={onJane}
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 7,
-            border: 'none',
-            background: '#C2185B',
-            cursor: 'pointer',
+            padding: '10px 24px 14px',
+            borderTop: '1px solid #edecea',
+            background: '#fff',
             display: 'flex',
+            gap: 7,
             alignItems: 'center',
-            justifyContent: 'center',
           }}
         >
-          <I n="send" s={13} c="#fff" />
-        </button>
-      </div>
+          <JaneAvatar size={26} />
+          <input
+            placeholder="Ask Jane about your content..."
+            style={{
+              flex: 1,
+              padding: '9px 13px',
+              borderRadius: 9,
+              border: '1.5px solid #e5e3df',
+              fontSize: 13,
+              fontFamily: 'var(--wf)',
+              outline: 'none',
+              background: '#fafaf8',
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onJane();
+            }}
+          />
+          <button
+            onClick={onJane}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 7,
+              border: 'none',
+              background: '#C2185B',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <I n="send" s={13} c="#fff" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -11184,6 +11196,20 @@ export default function WorkspaceDashboard() {
     connections: { label: 'Connected Accounts', subNav: connectionsSubNav },
   };
 
+  // The mobile Topbar chip's own label — the specific page you're actually on
+  // (e.g. "Video"), not just the section it lives in. It used to always show
+  // SECTION_META[activeSection].label, so selecting Video from the drawer
+  // changed the page underneath but the chip itself never budged off
+  // "Content Studio", reading as if the tap hadn't done anything. Several
+  // subNav items are anchor-scroll links on one shared page and deliberately
+  // keep active: false (Settings' Account/Security/Brand, Connected
+  // Accounts' Social/Ad, Campaign Manager's Ad Accounts) — for those this
+  // falls back to the section label exactly as before, which is correct
+  // there since there's no single "active" sub-page to name.
+  const activeSubNavLabel = activeSection
+    ? (SECTION_META[activeSection].subNav.find((n) => n.active)?.label ?? SECTION_META[activeSection].label)
+    : null;
+
   // Maps a PRIMARY_NAV item's id to the zone it expands — the sidebar stays
   // a single flat list and the owning row grows its own sub-items beneath
   // it (accordion), rather than swapping the whole list out for a
@@ -12200,9 +12226,7 @@ export default function WorkspaceDashboard() {
                     minWidth: 0,
                   }}
                 >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {SECTION_META[activeSection].label}
-                  </span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeSubNavLabel}</span>
                   <I n="chevronRight" s={10} c="#C2185B" />
                 </button>
               )}
