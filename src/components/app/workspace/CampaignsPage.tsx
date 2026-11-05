@@ -1064,6 +1064,11 @@ export default function CampaignsPage({
     if (busy || !brief) return;
     const isVideo = choice.creative_source === 'upload' && choice.is_video;
     const assetAttestation = 'asset_attestation' in choice ? choice.asset_attestation : undefined;
+    // Testing several ideas: each gets its own visual structure, so there's no one style to pick.
+    if (choice.creative_source === 'generate' && (choice.concepts ?? 1) > 1) {
+      await runGeneration(choice, briefOverride);
+      return;
+    }
     if (choice.creative_source === 'draft' || choice.creative_source === 'upload') {
       // Nothing is being DESIGNED on these paths, so there is no style to choose.
       // "Upload my own" means use the photo the user gave us — offering a visual
