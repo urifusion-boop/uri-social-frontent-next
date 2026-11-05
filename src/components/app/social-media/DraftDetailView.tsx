@@ -55,7 +55,7 @@ export default function DraftDetailView({
   const [draft, setDraft] = useState(initialDraft);
   const platformKey = (draft.platform || '').toLowerCase();
   const meta = PLATFORM_META[platformKey];
-  const { aspect, label } = mediaMeta(draft);
+  const { label } = mediaMeta(draft);
   const isCarousel = draft.post_type === 'carousel';
   const slides = draft.slides ?? [];
   const totalSlides = slides.length;
@@ -86,11 +86,14 @@ export default function DraftDetailView({
   // actually carries once the backend has it — scheduled_datetime is a
   // request-only field, never present on what this view reads.
   const scheduledAt = draft.scheduled_date ?? draft.scheduled_datetime ?? null;
+  // Compact on purpose — this sits in a header row that's already tight on a
+  // phone, next to a status pill and a close button; "Scheduled for Nov 10,
+  // 2026, 3:30 PM" left almost nothing for noWrap to work with and ellipsized
+  // down to a couple of characters.
   const scheduledLabel = scheduledAt
     ? new Date(scheduledAt).toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
-        year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
       })
@@ -180,7 +183,13 @@ export default function DraftDetailView({
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            minHeight: { xs: 260, sm: 'auto' },
+            // Previously minHeight-only with no cap: a tall aspect ratio (a
+            // story/reel's 9:16, say) grew this box to fill nearly the whole
+            // dialog on a phone, pushing caption + the action buttons below
+            // it off the bottom of the screen entirely. Capped so the detail
+            // side always keeps real, visible room under it.
+            minHeight: { xs: 200, sm: 'auto' },
+            maxHeight: { xs: '36vh', sm: 'none' },
           }}
         >
           <Box
@@ -188,7 +197,6 @@ export default function DraftDetailView({
             sx={{
               width: '100%',
               height: '100%',
-              aspectRatio: { xs: aspect, sm: 'auto' },
               position: 'relative',
               display: 'flex',
               alignItems: 'center',
@@ -306,13 +314,18 @@ export default function DraftDetailView({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              px: 2.5,
-              py: 2,
+              gap: 1,
+              px: { xs: 1.5, sm: 2.5 },
+              py: { xs: 1.25, sm: 2 },
               borderBottom: '1px solid #E5E7EB',
               flexShrink: 0,
             }}
           >
-            <Box display="flex" alignItems="center" gap={1.25} sx={{ minWidth: 0 }}>
+            {/* flex: 1 so this gets priority for whatever width is actually
+                available — previously it shared an unweighted flex group with
+                the badge below, whose fixed-content width always won first,
+                leaving almost nothing for this noWrap text on a phone. */}
+            <Box display="flex" alignItems="center" gap={1.25} sx={{ minWidth: 0, flex: 1 }}>
               <Box
                 sx={{
                   width: 30,
@@ -332,9 +345,11 @@ export default function DraftDetailView({
                   {meta?.label ?? draft.platform}
                 </Typography>
                 <Typography fontSize="11.5px" color="#9CA3AF" noWrap>
-                  {scheduledLabel ? `Scheduled for ${scheduledLabel}` : label}
+                  {scheduledLabel ?? label}
                 </Typography>
               </Box>
+            </Box>
+            <Box display="flex" alignItems="center" gap={1} sx={{ flexShrink: 0 }}>
               <Box
                 component="span"
                 sx={{
@@ -345,19 +360,18 @@ export default function DraftDetailView({
                   fontWeight: 700,
                   px: 1,
                   py: 0.35,
-                  ml: 1,
                   whiteSpace: 'nowrap',
                 }}
               >
                 {badge.label}
               </Box>
+              <IconButton size="small" onClick={onClose} sx={{ color: '#6B7280', flexShrink: 0 }}>
+                <MdClose size={18} />
+              </IconButton>
             </Box>
-            <IconButton size="small" onClick={onClose} sx={{ color: '#6B7280', flexShrink: 0 }}>
-              <MdClose size={18} />
-            </IconButton>
           </Box>
 
-          <Box sx={{ flex: 1, overflowY: 'auto', px: 2.5, py: 2 }}>
+          <Box sx={{ flex: 1, overflowY: 'auto', px: { xs: 1.5, sm: 2.5 }, py: { xs: 1.25, sm: 2 } }}>
             <Typography fontSize="12.5px" fontWeight={700} color="#111827" mb={0.75}>
               Caption
             </Typography>
@@ -438,9 +452,10 @@ export default function DraftDetailView({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
               gap: 1,
-              px: 2.5,
-              py: 2,
+              px: { xs: 1.5, sm: 2.5 },
+              py: { xs: 1.25, sm: 2 },
               borderTop: '1px solid #E5E7EB',
               flexShrink: 0,
             }}
