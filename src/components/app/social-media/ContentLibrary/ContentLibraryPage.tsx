@@ -303,9 +303,17 @@ export default function ContentLibraryPage() {
 
   const handleBulkSchedule = async () => {
     if (!bulkScheduleAt) return;
-    const { eligible, blocked } = splitByConnection();
+    const { eligible: connected, blocked } = splitByConnection();
+    // TikTok image/carousel posts need the Post to TikTok screen's choices, which are made per post.
+    const tiktokGated = connected.filter((d) => d.platform?.toLowerCase() === 'tiktok' && !d.video_url);
+    const eligible = connected.filter((d) => !tiktokGated.includes(d));
     if (blocked.length)
       ToastService.showToast(`${blocked.length} skipped — platform not connected.`, ToastTypeEnum.Warning);
+    if (tiktokGated.length)
+      ToastService.showToast(
+        `${tiktokGated.length} TikTok post(s) skipped — schedule those individually (they need your TikTok post settings).`,
+        ToastTypeEnum.Warning
+      );
     if (eligible.length === 0) {
       setBulkScheduleOpen(false);
       return;

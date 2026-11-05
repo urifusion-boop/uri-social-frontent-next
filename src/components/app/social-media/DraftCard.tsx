@@ -97,6 +97,8 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   const [tiktokAutoAddMusicSaving, setTiktokAutoAddMusicSaving] = useState(false);
   // Post to TikTok screen for an image/carousel draft (TikTok's Content Sharing Guidelines).
   const [tiktokPhotoDialogOpen, setTiktokPhotoDialogOpen] = useState(false);
+  // Set while the Post to TikTok screen is open for Schedule rather than Publish Now: the picked time.
+  const [tiktokScheduleAt, setTiktokScheduleAt] = useState<string | null>(null);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[] | null>(null); // null = not yet loaded
   const [connectPromptOpen, setConnectPromptOpen] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -411,7 +413,11 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
   // A daily / app-wide cap is a limit to wait out, not a broken connection or a bug.
   const isCapFailure = draft.publish_error_kind === 'daily_cap' || draft.publish_error_kind === 'app_cap';
 
-  const handleApprove = async (option: ApprovePayload['schedule_option'], datetime?: string) => {
+  const handleApprove = async (
+    option: ApprovePayload['schedule_option'],
+    datetime?: string,
+    tiktok?: TikTokPostSettings
+  ) => {
     if (loading) return;
     setApproveAnchor(null);
 
@@ -428,8 +434,15 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
 
     // A TikTok image/carousel post goes out through the Post to TikTok screen
     // (privacy, comments, disclosure, consent) — nothing is sent until the user
-    // presses Post inside it. Scheduling and saving keep their own flows.
-    if (option === 'immediate' && draft.platform?.toLowerCase() === 'tiktok' && !draft.video_url) {
+    // presses Post inside it. Scheduling opens the same screen: its choices are saved with the post and
+    // used when the time comes. Saving a draft keeps its own flow.
+    const isTikTokPhoto = draft.platform?.toLowerCase() === 'tiktok' && !draft.video_url;
+    if (option === 'immediate' && isTikTokPhoto) {
+      setTiktokPhotoDialogOpen(true);
+      return;
+    }
+    if (option === 'schedule' && isTikTokPhoto && datetime && !tiktok) {
+      setTiktokScheduleAt(datetime);
       setTiktokPhotoDialogOpen(true);
       return;
     }
@@ -441,6 +454,7 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         draft_ids: [draftId],
         schedule_option: option,
         ...(datetime ? { scheduled_datetime: new Date(datetime).toISOString() } : {}),
+        ...(tiktok ? { tiktok } : {}),
       };
       const response = await SocialMediaAgentService.approveContent(payload);
 
@@ -1837,8 +1851,30 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           ]
             .filter(Boolean)
             .join('\n\n')}
-          onClose={() => setTiktokPhotoDialogOpen(false)}
-          onConfirm={handleTikTokPhotoConfirm}
+          scheduledFor={
+            tiktokScheduleAt
+              ? new Date(tiktokScheduleAt).toLocaleString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })
+              : undefined
+          }
+          onClose={() => {
+            setTiktokPhotoDialogOpen(false);
+            setTiktokScheduleAt(null);
+          }}
+          onConfirm={(settings) => {
+            if (!tiktokScheduleAt) {
+              handleTikTokPhotoConfirm(settings);
+              return;
+            }
+            const at = tiktokScheduleAt;
+            setTiktokPhotoDialogOpen(false);
+            setTiktokScheduleAt(null);
+            handleApprove('schedule', at, settings);
+          }}
         />
       )}
 

@@ -52,6 +52,9 @@ interface Props {
   media: { kind: 'video'; url: string } | { kind: 'photo'; urls: string[] };
   initialTitle: string;
   initialDescription?: string; // photo only
+  // Set when scheduling rather than posting now: the time it will go out, as readable text. The same
+  // choices are required (TikTok allows no default), and are saved to be used at that time.
+  scheduledFor?: string;
   onClose: () => void;
   onConfirm: (settings: TikTokPostSettings) => void;
 }
@@ -60,7 +63,15 @@ const sectionLabel: CSSProperties = { fontSize: 14, fontWeight: 700, color: DARK
 const noteText: CSSProperties = { fontSize: 13, color: GREY, margin: '4px 0 0', lineHeight: 1.5 };
 const linkStyle: CSSProperties = { color: PRIMARY, fontWeight: 600 };
 
-export default function TikTokPostDialog({ media, initialTitle, initialDescription, onClose, onConfirm }: Props) {
+export default function TikTokPostDialog({
+  media,
+  initialTitle,
+  initialDescription,
+  scheduledFor,
+  onClose,
+  onConfirm,
+}: Props) {
+  const scheduling = !!scheduledFor;
   const isPhoto = media.kind === 'photo';
   const noun = isPhoto ? 'post' : 'video';
   const maxTitle = isPhoto ? MAX_PHOTO_TITLE_LENGTH : MAX_VIDEO_TITLE_LENGTH;
@@ -237,7 +248,7 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Post to TikTok"
+      aria-label={scheduling ? 'Schedule TikTok post' : 'Post to TikTok'}
       style={{
         position: 'fixed',
         inset: 0,
@@ -274,7 +285,9 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
             padding: '18px 24px 12px',
           }}
         >
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: DARK, margin: 0 }}>Post to TikTok</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: DARK, margin: 0 }}>
+            {scheduling ? 'Schedule TikTok post' : 'Post to TikTok'}
+          </h2>
           <button
             onClick={onClose}
             aria-label="Close"
@@ -571,8 +584,9 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
               {/* Consent + processing notice */}
               <p style={{ fontSize: 13, color: DARK, margin: '18px 0 6px', lineHeight: 1.5 }}>{consent}</p>
               <p style={{ ...noteText, margin: 0 }}>
-                After you post, it may take a few minutes for your {noun} to finish processing and appear on your TikTok
-                profile.
+                {scheduling
+                  ? `It will be posted to TikTok on ${scheduledFor}, with the choices you make here. It may take a few minutes after that to appear on your TikTok profile.`
+                  : `After you post, it may take a few minutes for your ${noun} to finish processing and appear on your TikTok profile.`}
               </p>
             </>
           )}
@@ -628,7 +642,7 @@ export default function TikTokPostDialog({ media, initialTitle, initialDescripti
                   cursor: blocked ? 'not-allowed' : 'pointer',
                 }}
               >
-                Post
+                {scheduling ? 'Schedule' : 'Post'}
               </button>
             </span>
           </div>

@@ -57,6 +57,8 @@ export default function GeneratedDraftEditor({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [tiktokDialogOpen, setTiktokDialogOpen] = useState(false);
+  // Set while the Post to TikTok screen is open for Schedule rather than Publish Now: the picked time.
+  const [tiktokScheduleAt, setTiktokScheduleAt] = useState<string | null>(null);
 
   const id = draft.draft_id ?? draft.id ?? '';
   const platformKey = (draft.platform || '').toLowerCase();
@@ -117,7 +119,11 @@ export default function GeneratedDraftEditor({
     }
   };
 
-  const doApprove = async (option: 'immediate' | 'schedule' | 'save_draft', datetime?: string) => {
+  const doApprove = async (
+    option: 'immediate' | 'schedule' | 'save_draft',
+    datetime?: string,
+    tiktok?: TikTokPostSettings
+  ) => {
     if (option !== 'save_draft' && !isConnected) {
       ToastService.showToast(
         `${meta?.label ?? draft.platform} isn't connected — connect it first.`,
@@ -131,9 +137,14 @@ export default function GeneratedDraftEditor({
         draft_ids: [id],
         schedule_option: option,
         ...(datetime ? { scheduled_datetime: new Date(datetime).toISOString() } : {}),
+        ...(tiktok ? { tiktok } : {}),
       });
       const queued = option === 'immediate' ? queuedPublish(res.responseData, id) : null;
-      if (res.status) {
+      // The backend answers status:true and lists drafts it did not accept in errors[].
+      const refused = option === 'schedule' ? res.responseData?.errors?.find((e) => e.draft_id === id) : undefined;
+      if (refused) {
+        ToastService.showToast(refused.error, ToastTypeEnum.Error);
+      } else if (res.status) {
         ToastService.showToast(
           queued
             ? queuedNotice(queued)
@@ -287,8 +298,30 @@ export default function GeneratedDraftEditor({
         media={{ kind: 'photo', urls: tiktokPhotoUrls }}
         initialTitle={content.split('\n')[0].slice(0, 90)}
         initialDescription={[content, editedHashtags.map((h) => `#${h}`).join(' ')].filter(Boolean).join('\n\n')}
-        onClose={() => setTiktokDialogOpen(false)}
-        onConfirm={handleTikTokPhotoConfirm}
+        scheduledFor={
+          tiktokScheduleAt
+            ? new Date(tiktokScheduleAt).toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+              })
+            : undefined
+        }
+        onClose={() => {
+          setTiktokDialogOpen(false);
+          setTiktokScheduleAt(null);
+        }}
+        onConfirm={(settings) => {
+          if (!tiktokScheduleAt) {
+            handleTikTokPhotoConfirm(settings);
+            return;
+          }
+          const at = tiktokScheduleAt;
+          setTiktokDialogOpen(false);
+          setTiktokScheduleAt(null);
+          doApprove('schedule', at, settings);
+        }}
       />
     );
   }
@@ -633,7 +666,17 @@ export default function GeneratedDraftEditor({
             <Button
               variant="contained"
               disabled={!scheduleAt || busy}
-              onClick={() => doApprove('schedule', scheduleAt)}
+              onClick={() => {
+                // A TikTok photo needs the Post to TikTok screen's choices first; they are saved with the
+                // schedule and used when the time comes.
+                if (isTiktokPhoto) {
+                  setScheduleOpen(false);
+                  setTiktokScheduleAt(scheduleAt);
+                  setTiktokDialogOpen(true);
+                  return;
+                }
+                doApprove('schedule', scheduleAt);
+              }}
               sx={{ textTransform: 'none', background: PINK, '&:hover': { background: '#A01560' } }}
             >
               Confirm

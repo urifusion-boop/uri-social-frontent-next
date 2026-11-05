@@ -596,7 +596,20 @@ export default function DraftDetailView({
             <Button
               variant="contained"
               disabled={!scheduleAt || busy}
-              onClick={() => doApprove('schedule', scheduleAt)}
+              onClick={() => {
+                // A TikTok photo is scheduled from the editor, which has the Post to TikTok screen.
+                if (tiktokNeedsFullFlow) {
+                  setScheduleOpen(false);
+                  ToastService.showToast(
+                    'Choose your TikTok post settings in the editor, then schedule.',
+                    ToastTypeEnum.Warning
+                  );
+                  onEdit(draft);
+                  onClose();
+                  return;
+                }
+                doApprove('schedule', scheduleAt);
+              }}
               sx={{ textTransform: 'none', background: PINK, '&:hover': { background: '#A01560' } }}
             >
               Confirm

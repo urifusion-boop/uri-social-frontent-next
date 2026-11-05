@@ -203,6 +203,47 @@ test.describe('Posting a TikTok photo from the editor', () => {
     await expect(screen.getByRole('button', { name: 'Post', exact: true })).toBeInViewport();
   });
 
+  test('scheduling a TikTok photo asks for the TikTok choices and saves them with the schedule', async ({ page }) => {
+    const calls = await setup(page, [PHOTO]);
+    await openEditorViaDetail(page, 'Banana bread');
+    await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+    await page.locator('input[type="datetime-local"]').fill('2030-01-01T10:00');
+    await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+
+    // Nothing is scheduled until the TikTok screen is confirmed.
+    const screen = page.getByRole('dialog', { name: 'Schedule TikTok post' });
+    await expect(screen).toBeVisible();
+    expect(calls.approve).toEqual([]);
+
+    await screen.locator('select').selectOption('SELF_ONLY');
+    await screen.getByRole('button', { name: 'Schedule', exact: true }).click();
+
+    await expect.poll(() => calls.approve.length).toBe(1);
+    const sent = calls.approve[0] as {
+      schedule_option: string;
+      scheduled_datetime: string;
+      tiktok: { privacy_level: string; title: string };
+    };
+    expect(sent.schedule_option).toBe('schedule');
+    expect(new Date(sent.scheduled_datetime).getFullYear()).toBe(2030);
+    expect(sent.tiktok.privacy_level).toBe('SELF_ONLY');
+    expect(sent.tiktok.title).toContain('Banana bread');
+    expect(calls.photo).toEqual([]); // scheduling is not a post-now
+  });
+
+  test('cancelling the TikTok screen while scheduling schedules nothing', async ({ page }) => {
+    const calls = await setup(page, [PHOTO]);
+    await openEditorViaDetail(page, 'Banana bread');
+    await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+    await page.locator('input[type="datetime-local"]').fill('2030-01-01T10:00');
+    await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+
+    const screen = page.getByRole('dialog', { name: 'Schedule TikTok post' });
+    await screen.getByRole('button', { name: 'Cancel' }).click();
+    await expect(screen).toHaveCount(0);
+    expect(calls.approve).toEqual([]);
+  });
+
   test('a TikTok draft with a video still publishes through approve', async ({ page }) => {
     const calls = await setup(page, [VIDEO]);
     await openEditorViaDetail(page, 'Behind the scenes');
@@ -211,6 +252,19 @@ test.describe('Posting a TikTok photo from the editor', () => {
     await expect.poll(() => calls.approve.length).toBe(1);
     expect(calls.photo).toEqual([]);
     await expect(page.getByRole('dialog', { name: 'Post to TikTok' })).toHaveCount(0);
+  });
+
+  test('scheduling another platform goes straight to approve, with no TikTok screen', async ({ page }) => {
+    const calls = await setup(page, [INSTAGRAM]);
+    await openEditorViaDetail(page, 'Instagram caption');
+    await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+    await page.locator('input[type="datetime-local"]').fill('2030-01-01T10:00');
+    await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+
+    await expect.poll(() => calls.approve.length).toBe(1);
+    expect((calls.approve[0] as { schedule_option: string; tiktok?: unknown }).schedule_option).toBe('schedule');
+    expect((calls.approve[0] as { tiktok?: unknown }).tiktok).toBeUndefined();
+    await expect(page.getByRole('dialog', { name: /TikTok/ })).toHaveCount(0);
   });
 
   test('another platform still publishes through approve', async ({ page }) => {

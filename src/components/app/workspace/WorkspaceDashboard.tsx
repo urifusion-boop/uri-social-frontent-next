@@ -1018,7 +1018,8 @@ const ContentManagerPage = ({
           schedule_option: 'schedule',
           scheduled_datetime: datetime,
         });
-        const ok = response.status === true;
+        // The backend answers status:true and lists a draft it did not accept in errors[].
+        const ok = response.status === true && !response.responseData?.errors?.length;
         setScheduleProgress((prev) => ({ ...prev, [id]: ok }));
         if (ok) {
           succeeded++;

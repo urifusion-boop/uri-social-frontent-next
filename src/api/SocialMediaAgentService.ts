@@ -382,6 +382,8 @@ export interface ApprovePayload {
   draft_ids: string[];
   schedule_option: 'immediate' | 'schedule' | 'save_draft';
   scheduled_datetime?: string;
+  // Required to schedule a TikTok image / carousel post: the Post to TikTok screen's choices.
+  tiktok?: TikTokPostSettings;
 }
 
 export interface ApprovePublishResult {
