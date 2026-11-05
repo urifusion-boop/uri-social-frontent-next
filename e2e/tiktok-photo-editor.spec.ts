@@ -164,6 +164,33 @@ test.describe('Posting a TikTok photo from the editor', () => {
     expect(calls.approve).toEqual([]);
   });
 
+  test('pressing Post before choosing who can view says what is needed and sends nothing', async ({ page }) => {
+    const calls = await setup(page, [PHOTO]);
+    await openEditorViaDetail(page, 'Banana bread');
+    await publishNow(page);
+
+    const screen = page.getByRole('dialog', { name: 'Post to TikTok' });
+    await expect(screen.getByText('Pick who can view this post to continue')).toBeVisible();
+    await screen.getByRole('button', { name: 'Post', exact: true }).click();
+
+    await expect(screen.getByText('Choose who can view this post before you post.')).toBeVisible();
+    expect(calls.photo).toEqual([]);
+
+    await screen.locator('select').selectOption('SELF_ONLY');
+    await expect(screen.getByText('Choose who can view this post before you post.')).toHaveCount(0);
+    await expect(screen.getByText('Only me · interactions off')).toBeVisible();
+  });
+
+  test('the Post button stays in view on a short screen', async ({ page }) => {
+    await page.setViewportSize({ width: 1000, height: 560 });
+    await setup(page, [PHOTO]);
+    await openEditorViaDetail(page, 'Banana bread');
+    await publishNow(page);
+
+    const screen = page.getByRole('dialog', { name: 'Post to TikTok' });
+    await expect(screen.getByRole('button', { name: 'Post', exact: true })).toBeInViewport();
+  });
+
   test('a TikTok draft with a video still publishes through approve', async ({ page }) => {
     const calls = await setup(page, [VIDEO]);
     await openEditorViaDetail(page, 'Behind the scenes');
@@ -192,6 +219,6 @@ test.describe('Posting a TikTok photo from the editor', () => {
     await publishNow(page);
 
     const screen = page.getByRole('dialog', { name: 'Post to TikTok' });
-    await expect(screen.locator('input, textarea').first()).toHaveValue(/Brand new caption typed just now/);
+    await expect(screen.locator('textarea').first()).toHaveValue(/Brand new caption typed just now/);
   });
 });
