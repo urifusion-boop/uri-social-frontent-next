@@ -62,6 +62,7 @@ export interface PlanAdsState {
   concepts: AdsPlanAd[];
   ad_layout: PlanAdLayout;
   can_split: boolean;
+  concepts_wanted?: number;
 }
 
 export interface CreatorBrief {
@@ -366,6 +367,7 @@ export interface LaunchFromMessageResult {
   concepts?: AdsPlanAd[];
   ad_layout?: PlanAdLayout;
   can_split?: boolean;
+  concepts_wanted?: number;
   whatsapp_number?: string; // where ad leads route (wa.me/<this>); shown on the plan card
   destination_type?: string; // whatsapp | website | instagram_dm | custom
   destination_link?: string; // the actual link the ad carries — shown on the plan card
@@ -963,6 +965,7 @@ export class CampaignService {
     planId: string,
     body: {
       source: 'generate' | 'upload';
+      auto?: boolean;
       reference_image_url?: string;
       is_video?: boolean;
       asset_attestation?: AssetAttestation;

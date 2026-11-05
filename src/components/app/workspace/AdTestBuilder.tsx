@@ -1,12 +1,13 @@
 'use client';
 
-import { ChangeEvent, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import {
   AdsPlanAd,
   AssetAttestation,
   CampaignService,
   CreativeProvenanceInput,
   PlanAdLayout,
+  PlanAdsState,
 } from '@/src/api/CampaignService';
 import { AiVideoChoices, useCreativePaths, VideoWhoPrompt } from '@/src/components/app/workspace/CreativePathControls';
 
@@ -65,6 +66,7 @@ export function AdTestBuilder({
   canSplit,
   dailyNgn,
   description,
+  wanted = 0,
   onChange,
 }: {
   /** Absent once launched: the ads are then shown but can't change. */
@@ -75,7 +77,9 @@ export function AdTestBuilder({
   canSplit: boolean;
   dailyNgn?: number;
   description: string;
-  onChange: (next: { concepts: AdsPlanAd[]; ad_layout: PlanAdLayout; can_split: boolean }) => void;
+  /** "Test N ideas": how many ads Jane is working up to. She adds them one at a time. */
+  wanted?: number;
+  onChange: (next: PlanAdsState) => void;
 }) {
   const info = useCreativePaths(description);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -88,7 +92,34 @@ export function AdTestBuilder({
   const editable = !!planId;
   const full = ads.length >= MAX_ADS;
 
-  async function run(label: string, call: () => Promise<Parameters<typeof onChange>[0]>) {
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const workingUp = useRef(false);
+  useEffect(() => {
+    if (!planId || !wanted || workingUp.current) return;
+    workingUp.current = true;
+    (async () => {
+      let made = 1 + concepts.length;
+      try {
+        while (made < wanted) {
+          setBusy(`Jane is making ad ${made + 1} of ${wanted}…`);
+          const next = await CampaignService.addPlanAd(planId, { source: 'generate', auto: true });
+          onChangeRef.current(next);
+          made = 1 + next.concepts.length;
+          if (!next.concepts_wanted) break;
+        }
+      } catch (e) {
+        setError(
+          `${errorMessage(e)} You can add another below, or launch with the ${made === 1 ? 'one' : made} you have.`
+        );
+      }
+      setBusy('');
+    })();
+    // Runs once for the plan: the server decides when it has enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId, wanted]);
+
+  async function run(label: string, call: () => Promise<PlanAdsState>) {
     setBusy(label);
     setError('');
     try {

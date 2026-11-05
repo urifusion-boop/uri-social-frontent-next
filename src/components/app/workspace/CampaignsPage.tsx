@@ -4132,6 +4132,7 @@ export function ResultCard({
             canSplit={!!result.can_split}
             dailyNgn={plan.platforms[0].budget_ngn / Math.max(1, plan.platforms[0].days)}
             description={briefText ?? ''}
+            wanted={result.concepts_wanted ?? 0}
             onChange={(next) => onResultChange({ ...result, ...next })}
           />
         )}
