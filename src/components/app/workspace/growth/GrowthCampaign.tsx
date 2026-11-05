@@ -150,6 +150,8 @@ export function GrowthCampaign({
         <GrowthTesting
           detailed={advanced}
           testing={data.testing}
+          campaignId={campaignId}
+          onChanged={load}
           adNames={Object.fromEntries((data.controls?.ads ?? []).map((a) => [a.id, a.name]))}
         />
       )}

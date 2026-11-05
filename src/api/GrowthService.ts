@@ -247,6 +247,18 @@ export const GrowthService = {
   async refresh(id: string): Promise<{ findings: number; new_recommendations: number; executed: number }> {
     return (await UriHttpClient.getClient().post(`${BASE}/campaigns/${id}/refresh`, {})).data;
   },
+  async makeVariation(
+    campaignId: string,
+    adId: string
+  ): Promise<{ ad_id: string; headline: string; primary_text: string; image_url: string }> {
+    return (
+      await UriHttpClient.getClient().post(
+        `${BASE}/campaigns/${campaignId}/variations`,
+        { ad_id: adId },
+        { timeout: 240000 }
+      )
+    ).data;
+  },
   async setGoal(id: string, goal: GrowthGoal): Promise<GrowthGoal> {
     return (await UriHttpClient.getClient().put(`${BASE}/campaigns/${id}/goal`, goal)).data.goal;
   },

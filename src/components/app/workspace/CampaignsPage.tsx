@@ -2988,8 +2988,8 @@ export function ChooseCreativeSource({
   info: CreativePathsInfo | null;
   description: string;
 }) {
-  const [open, setOpen] = useState<'' | 'drafts' | 'ai_video' | 'film'>('');
-  const toggle = (k: 'drafts' | 'ai_video' | 'film') => setOpen((v) => (v === k ? '' : k));
+  const [open, setOpen] = useState<'' | 'drafts' | 'ai_video' | 'film' | 'test'>('');
+  const toggle = (k: 'drafts' | 'ai_video' | 'film' | 'test') => setOpen((v) => (v === k ? '' : k));
   const showDrafts = open === 'drafts';
   const aiVideo = info?.paths.ai_video;
   const ugc = info?.paths.ugc;
@@ -3017,11 +3017,8 @@ export function ChooseCreativeSource({
           ✨ Let Jane create one<span style={sub}>I&apos;ll design a visual for you</span>
         </button>
         {onTestConcepts && maxConcepts >= 2 && (
-          <button onClick={() => onTestConcepts(maxConcepts)} style={optionBtn}>
-            🧪 Test {maxConcepts} ideas
-            <span style={sub}>
-              {maxConcepts} ads in different styles · {maxConcepts} credits
-            </span>
+          <button onClick={() => toggle('test')} style={optionBtn}>
+            🧪 Test several ads<span style={sub}>Different styles to compare · 1 credit each</span>
           </button>
         )}
         <button onClick={onUpload} style={optionBtn}>
@@ -3058,6 +3055,25 @@ export function ChooseCreativeSource({
           <span style={sub}>{ugc && !ugc.open ? ugc.why_closed : 'Jane writes the brief for whoever films it'}</span>
         </button>
       </div>
+      {open === 'test' && onTestConcepts && (
+        <div
+          className="camp-indent"
+          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10, marginLeft: 40 }}
+        >
+          <span style={{ fontSize: 13, color: '#555', fontWeight: 700 }}>How many ads should Jane make?</span>
+          {Array.from({ length: maxConcepts - 1 }, (_, i) => i + 2).map((n) => (
+            <button
+              key={n}
+              type="button"
+              aria-label={`Make ${n} ads`}
+              onClick={() => onTestConcepts(n)}
+              style={{ ...optionBtn, alignItems: 'center', minWidth: 44 }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
       {open === 'ai_video' && onPickAiVideo && info?.paths.ai_video.open !== false && (
         <div className="camp-indent" style={{ marginTop: 10, marginLeft: 40 }}>
           <AiVideoChoices info={info} onPick={onPickAiVideo} />

@@ -1,8 +1,68 @@
 'use client';
 
-import { GrowthStage, GrowthStructure, GrowthTesting as Testing } from '@/src/api/GrowthService';
+import { useState } from 'react';
+import { GrowthService, GrowthStage, GrowthStructure, GrowthTesting as Testing } from '@/src/api/GrowthService';
 import { Card, Chip } from '../personality/ui';
 import { STAGES, STRUCTURE_LABELS, VERDICT_TONE, naira } from './format';
+
+const VARIATIONS = 3;
+
+/** A winner's next round: new ads beside it in the same ad set, made one at a time. */
+function MakeVariations({
+  campaignId,
+  adId,
+  label,
+  onDone,
+}: {
+  campaignId: string;
+  adId: string;
+  label: string;
+  onDone?: () => void;
+}) {
+  const [progress, setProgress] = useState('');
+  const [message, setMessage] = useState('');
+
+  async function make() {
+    setMessage('');
+    let made = 0;
+    try {
+      for (; made < VARIATIONS; made += 1) {
+        setProgress(`Making variation ${made + 1} of ${VARIATIONS}…`);
+        await GrowthService.makeVariation(campaignId, adId);
+      }
+      setMessage(`${made} variations added beside ${label}.`);
+    } catch (e) {
+      const detail = (e as { response?: { data?: { detail?: unknown } } } | null)?.response?.data?.detail;
+      setMessage(`${made} added. ${typeof detail === 'string' ? detail : 'The next one failed, please try again.'}`);
+    }
+    setProgress('');
+    if (made) onDone?.();
+  }
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 6 }}>
+      <button
+        type="button"
+        disabled={!!progress}
+        onClick={make}
+        style={{
+          background: '#fff',
+          color: '#AD1457',
+          border: '1.5px solid #AD1457',
+          borderRadius: 16,
+          padding: '4px 10px',
+          fontSize: 12,
+          fontWeight: 700,
+          cursor: progress ? 'default' : 'pointer',
+          opacity: progress ? 0.6 : 1,
+        }}
+      >
+        Make {VARIATIONS} variations ({VARIATIONS} credits)
+      </button>
+      {(progress || message) && <span style={{ fontSize: 12, color: '#666' }}>{progress || message}</span>}
+    </div>
+  );
+}
 
 export function StageTrack({ stage }: { stage: GrowthStage }) {
   const at = STAGES.findIndex(([k]) => k === stage);
@@ -56,11 +116,17 @@ export function GrowthTesting({
   testing,
   adNames,
   detailed = true,
+  campaignId,
+  onChanged,
 }: {
   testing: Testing;
   adNames: Record<string, string>;
   detailed?: boolean;
+  /** Given when variations of a winning ad can be made from this card. */
+  campaignId?: string;
+  onChanged?: () => void;
 }) {
+  const winner = testing.verdicts.find((v) => v.status === 'strong' || v.status === 'promising');
   const tally = Object.entries(
     testing.verdicts.reduce<Record<string, number>>((acc, v) => ({ ...acc, [v.status]: (acc[v.status] ?? 0) + 1 }), {})
   );
@@ -83,6 +149,14 @@ export function GrowthTesting({
           ))}
         </div>
       )}
+      {!detailed && campaignId && winner && (
+        <MakeVariations
+          campaignId={campaignId}
+          adId={winner.ad_id}
+          label={winner.attributes?.concept || adNames[winner.ad_id] || 'your best ad'}
+          onDone={onChanged}
+        />
+      )}
       {detailed && testing.verdicts.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {testing.verdicts.map((v) => {
@@ -101,6 +175,9 @@ export function GrowthTesting({
                   <Chip tone={VERDICT_TONE[v.status]}>{v.status}</Chip>
                 </div>
                 <div style={{ color: '#777', marginTop: 3 }}>{v.reason}</div>
+                {campaignId && (v.status === 'strong' || v.status === 'promising') && (
+                  <MakeVariations campaignId={campaignId} adId={v.ad_id} label={label} onDone={onChanged} />
+                )}
               </div>
             );
           })}

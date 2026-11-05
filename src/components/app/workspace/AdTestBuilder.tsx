@@ -29,8 +29,11 @@ const ANGLE_LABELS: Record<string, string> = {
   post: 'Our take',
 };
 
-const adLabel = (ad: AdsPlanAd, position: number) =>
-  ANGLE_LABELS[ad.concept || ''] || (ad.is_video ? `Video ${position}` : `Ad ${position}`);
+/** What the ad actually looks like when a format rendered it, otherwise its angle. */
+const adLabel = (ad: AdsPlanAd, position: number, formatNames: Record<string, string>) =>
+  formatNames[ad.vsg01_format_id || ''] ||
+  ANGLE_LABELS[ad.concept || ''] ||
+  (ad.is_video ? `Video ${position}` : `Ad ${position}`);
 
 const smallBtn = (disabled = false): React.CSSProperties => ({
   background: '#fff',
@@ -87,6 +90,14 @@ export function AdTestBuilder({
   const [error, setError] = useState('');
   const [upload, setUpload] = useState<Upload | null>(null);
   const [pickingAiVideo, setPickingAiVideo] = useState(false);
+  const [formatNames, setFormatNames] = useState<Record<string, string>>({});
+  const [editing, setEditing] = useState<{ index: number; headline: string; text: string } | null>(null);
+
+  useEffect(() => {
+    CampaignService.getAdFormats()
+      .then(({ formats }) => setFormatNames(Object.fromEntries(formats.map((f) => [f.format_id, f.name]))))
+      .catch(() => setFormatNames({}));
+  }, []);
 
   const ads = [main, ...concepts];
   const editable = !!planId;
@@ -176,14 +187,14 @@ export function AdTestBuilder({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={ad.image_url}
-                    alt={adLabel(ad, i + 1)}
+                    alt={adLabel(ad, i + 1, formatNames)}
                     style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block', background: '#f5f5f5' }}
                   />
                 )}
                 {editable && i > 0 && (
                   <button
                     type="button"
-                    aria-label={`Remove ${adLabel(ad, i + 1)}`}
+                    aria-label={`Remove ${adLabel(ad, i + 1, formatNames)}`}
                     disabled={!!busy}
                     onClick={() => run('Removing…', () => CampaignService.removePlanAd(planId!, i - 1))}
                     style={{
@@ -204,10 +215,73 @@ export function AdTestBuilder({
                 )}
                 <div style={{ padding: '6px 8px' }}>
                   <div style={{ fontSize: 10.5, fontWeight: 800, color: PINK, textTransform: 'uppercase' }}>
-                    {adLabel(ad, i + 1)}
+                    {adLabel(ad, i + 1, formatNames)}
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1a0a12', lineHeight: 1.3 }}>{ad.headline}</div>
-                  <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.35, marginTop: 2 }}>{ad.primary_text}</div>
+                  {editing?.index === i - 1 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                      <input
+                        aria-label="Headline"
+                        maxLength={40}
+                        value={editing.headline}
+                        onChange={(e) => setEditing({ ...editing, headline: e.target.value })}
+                        style={{ fontSize: 12, border: '1px solid #ddd', borderRadius: 6, padding: 4 }}
+                      />
+                      <textarea
+                        aria-label="Caption"
+                        rows={4}
+                        value={editing.text}
+                        onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+                        style={{ fontSize: 11.5, border: '1px solid #ddd', borderRadius: 6, padding: 4 }}
+                      />
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          type="button"
+                          disabled={!!busy}
+                          style={smallBtn(!!busy)}
+                          onClick={() => {
+                            const edit = editing;
+                            setEditing(null);
+                            run('Saving…', () =>
+                              CampaignService.editPlanAd(planId!, edit.index, edit.headline, edit.text)
+                            );
+                          }}
+                        >
+                          Save
+                        </button>
+                        <button type="button" style={smallBtn()} onClick={() => setEditing(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#1a0a12', lineHeight: 1.3 }}>
+                        {ad.headline}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.35, marginTop: 2 }}>
+                        {ad.primary_text}
+                      </div>
+                      {editable && i > 0 && (
+                        <button
+                          type="button"
+                          disabled={!!busy}
+                          onClick={() => setEditing({ index: i - 1, headline: ad.headline, text: ad.primary_text })}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            marginTop: 4,
+                            color: PINK,
+                            fontSize: 11.5,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Edit words
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             ))}

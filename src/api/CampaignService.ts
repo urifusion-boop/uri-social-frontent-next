@@ -56,6 +56,7 @@ export interface AdsPlanAd {
   primary_text: string;
   concept?: string;
   is_video?: boolean;
+  vsg01_format_id?: string;
 }
 
 export interface PlanAdsState {
@@ -973,6 +974,15 @@ export class CampaignService {
   ): Promise<PlanAdsState> {
     return (await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/ads`, body, { timeout: 240000 }))
       .data as PlanAdsState;
+  }
+
+  static async editPlanAd(planId: string, index: number, headline: string, primaryText: string): Promise<PlanAdsState> {
+    return (
+      await UriHttpClient.getClient().patch(`/jane-ads/meta/plan/${planId}/ads/${index}`, {
+        headline,
+        primary_text: primaryText,
+      })
+    ).data as PlanAdsState;
   }
 
   static async removePlanAd(planId: string, index: number): Promise<PlanAdsState> {
