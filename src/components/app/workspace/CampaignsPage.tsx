@@ -4162,6 +4162,7 @@ export function ResultCard({
             </>
           )}
           {creative?.vsg01_format_id &&
+            !result.concepts?.length &&
             (() => {
               const usedFormat = adFormats.find((f) => f.format_id === creative.vsg01_format_id);
               if (!usedFormat) return null;
