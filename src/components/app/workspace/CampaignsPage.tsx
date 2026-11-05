@@ -126,7 +126,7 @@ interface CampaignsPageProps {
 }
 
 type ContinueChoice =
-  | { creative_source: 'generate' }
+  | { creative_source: 'generate'; concepts?: number }
   | ({
       creative_source: 'upload';
       reference_image_url: string;
@@ -1832,6 +1832,7 @@ export default function CampaignsPage({
                       onSubmitWhatsapp={submitWhatsapp}
                       onSubmitMetaConnectionWhatsapp={submitMetaConnectionWhatsapp}
                       onChooseGenerate={() => continueWithSource({ creative_source: 'generate' })}
+                      onChooseConcepts={(n) => continueWithSource({ creative_source: 'generate', concepts: n })}
                       onChooseUpload={() => {
                         uploadForChoiceRef.current = 'upload';
                         fileInputRef.current?.click();
@@ -2958,9 +2959,52 @@ export function ChooseDestination({
   );
 }
 
+const CONCEPT_LABELS: Record<string, string> = {
+  problem: 'The problem it fixes',
+  offer: 'The offer',
+  outcome: 'The result',
+};
+
+/** Every concept being tested in one campaign, side by side, so the client sees what
+ * each ad set will run before approving. */
+function ConceptStrip({
+  all,
+}: {
+  all: { image_url: string; headline: string; primary_text: string; concept?: string; is_video?: boolean }[];
+}) {
+  return (
+    <div style={{ padding: '12px 16px 0' }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: '#555', marginBottom: 8 }}>
+        Testing {all.length} ideas — each runs in its own ad set with an equal share of the budget
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${all.length}, minmax(0, 1fr))`, gap: 8 }}>
+        {all.map((c, i) => (
+          <div key={c.image_url + i} style={{ border: '1px solid #eee', borderRadius: 10, overflow: 'hidden' }}>
+            <ZoomableImage
+              src={c.image_url}
+              alt={`idea ${i + 1}`}
+              isVideo={c.is_video}
+              style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block', background: '#f5f5f5' }}
+            />
+            <div style={{ padding: '6px 8px' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, color: PINK, textTransform: 'uppercase' }}>
+                {CONCEPT_LABELS[c.concept || ''] || `Idea ${i + 1}`}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#1a0a12', lineHeight: 1.3 }}>{c.headline}</div>
+              <div style={{ fontSize: 11.5, color: '#666', lineHeight: 1.35, marginTop: 2 }}>{c.primary_text}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ChooseCreativeSource({
   drafts,
   onGenerate,
+  onTestConcepts,
+  maxConcepts = 1,
   onUpload,
   onRecomposite,
   onPickDraft,
@@ -2970,6 +3014,8 @@ export function ChooseCreativeSource({
 }: {
   drafts: DraftSummary[];
   onGenerate: () => void;
+  onTestConcepts?: (n: number) => void;
+  maxConcepts?: number;
   onUpload: () => void;
   onRecomposite: () => void;
   onPickDraft: (draftId: string) => void;
@@ -3005,6 +3051,14 @@ export function ChooseCreativeSource({
         <button onClick={onGenerate} style={optionBtn}>
           ✨ Let Jane create one<span style={sub}>I&apos;ll design a visual for you</span>
         </button>
+        {onTestConcepts && maxConcepts >= 2 && (
+          <button onClick={() => onTestConcepts(maxConcepts)} style={optionBtn}>
+            🧪 Test {maxConcepts} ideas
+            <span style={sub}>
+              {maxConcepts} different ads, each with an equal share of the budget · {maxConcepts} credits
+            </span>
+          </button>
+        )}
         <button onClick={onUpload} style={optionBtn}>
           📎 Upload my own<span style={sub}>Use your own photo or video</span>
         </button>
@@ -3698,6 +3752,7 @@ export function ResultCard({
   onSubmitWhatsapp,
   onSubmitMetaConnectionWhatsapp,
   onChooseGenerate,
+  onChooseConcepts,
   onChooseUpload,
   onChooseRecomposite,
   onChooseDraft,
@@ -3723,6 +3778,7 @@ export function ResultCard({
   onSubmitWhatsapp: (number: string) => void;
   onSubmitMetaConnectionWhatsapp: (number: string) => void;
   onChooseGenerate: () => void;
+  onChooseConcepts?: (n: number) => void;
   onChooseUpload: () => void;
   onChooseRecomposite: () => void;
   onChooseDraft: (draftId: string) => void;
@@ -3793,6 +3849,8 @@ export function ResultCard({
           <ChooseCreativeSource
             drafts={result.creative_options?.drafts || []}
             onGenerate={onChooseGenerate}
+            onTestConcepts={onChooseConcepts}
+            maxConcepts={result.creative_options?.max_concepts ?? 1}
             onUpload={onChooseUpload}
             onRecomposite={onChooseRecomposite}
             onPickDraft={onChooseDraft}
@@ -4100,6 +4158,7 @@ export function ResultCard({
             style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'contain', background: '#f5f5f5' }}
           />
         )}
+        {!!result.concepts?.length && creative && <ConceptStrip all={[creative, ...result.concepts]} />}
         <div style={{ padding: 16 }}>
           <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 15, color: '#1a0a12' }}>{creative?.headline}</p>
           <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>{creative?.primary_text}</p>

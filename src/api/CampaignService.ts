@@ -301,7 +301,7 @@ export interface LaunchFromMessageResult {
   question?: string;
   page_name?: string; // present on meta_connection_* stages, when a Page is already known
   // present when stage === 'choose_creative_source' — the image-source options Jane offers
-  creative_options?: { can_generate: boolean; drafts: DraftSummary[] };
+  creative_options?: { can_generate: boolean; drafts: DraftSummary[]; max_concepts?: number };
   // present when stage === 'choose_creative_source' — Jane's geography/audience call,
   // confirmed back to the client (never silently decided) before image selection
   explanation?: string;
@@ -344,7 +344,10 @@ export interface LaunchFromMessageResult {
     // plain generic generation, no format was used.
     vsg01_format_id?: string;
     vsg01_format_attributes?: Record<string, unknown>;
+    concept?: string;
   };
+  /** The other concepts tested beside `creative` in the same campaign, one ad set each. */
+  concepts?: { image_url: string; headline: string; primary_text: string; concept?: string; is_video?: boolean }[];
   whatsapp_number?: string; // where ad leads route (wa.me/<this>); shown on the plan card
   destination_type?: string; // whatsapp | website | instagram_dm | custom
   destination_link?: string; // the actual link the ad carries — shown on the plan card
@@ -694,6 +697,7 @@ export interface PlanChecks {
     campaigns: number;
     ad_sets: number;
     ads_per_ad_set: number;
+    per_ad_set_daily_ngn?: number;
     budget_type: string;
     daily_ngn: number;
     days: number;
