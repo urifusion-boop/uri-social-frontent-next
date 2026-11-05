@@ -3018,7 +3018,7 @@ export function ChooseCreativeSource({
         </button>
         {onTestConcepts && maxConcepts >= 2 && (
           <button onClick={() => toggle('test')} style={optionBtn}>
-            🧪 Test several ads<span style={sub}>Different styles to compare · 1 credit each</span>
+            🧩 Make several ads<span style={sub}>Different styles, Meta finds the best · 1 credit each</span>
           </button>
         )}
         <button onClick={onUpload} style={optionBtn}>
@@ -4131,7 +4131,7 @@ export function ResultCard({
             }}
           />
         )}
-        {creative?.image_url && plan?.platforms?.[0]?.platform !== 'google' && (
+        {creative?.image_url && plan?.platforms?.[0]?.platform !== 'google' && !result.concepts?.length && (
           <ZoomableImage
             src={creative.image_url}
             alt="campaign visual"
@@ -4153,8 +4153,14 @@ export function ResultCard({
           />
         )}
         <div style={{ padding: 16 }}>
-          <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 15, color: '#1a0a12' }}>{creative?.headline}</p>
-          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>{creative?.primary_text}</p>
+          {!result.concepts?.length && (
+            <>
+              <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: 15, color: '#1a0a12' }}>{creative?.headline}</p>
+              <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>
+                {creative?.primary_text}
+              </p>
+            </>
+          )}
           {creative?.vsg01_format_id &&
             (() => {
               const usedFormat = adFormats.find((f) => f.format_id === creative.vsg01_format_id);
