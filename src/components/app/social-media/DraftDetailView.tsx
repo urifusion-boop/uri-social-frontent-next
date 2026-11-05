@@ -7,6 +7,7 @@ import { ContentDraft, LogoPlacement, SocialMediaAgentService } from '@/src/api/
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { queuedNotice, queuedPublish } from '@/src/utils/publishJobMessage.util';
+import { parseApiDate } from '@/src/utils/apiDate.util';
 import { PLATFORM_META, firstSlideImage, mediaMeta, isImagePending } from './GeneratedContentCard';
 import CanvasEditor from './canvas-editor/CanvasEditor';
 import LogoRepositionModal from './LogoRepositionModal';
@@ -91,7 +92,7 @@ export default function DraftDetailView({
   // 2026, 3:30 PM" left almost nothing for noWrap to work with and ellipsized
   // down to a couple of characters.
   const scheduledLabel = scheduledAt
-    ? new Date(scheduledAt).toLocaleString('en-US', {
+    ? parseApiDate(scheduledAt).toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
         hour: 'numeric',

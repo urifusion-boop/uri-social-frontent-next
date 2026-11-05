@@ -22,6 +22,7 @@ import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgen
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { queuedNotice } from '@/src/utils/publishJobMessage.util';
+import { parseApiDate } from '@/src/utils/apiDate.util';
 import GeneratedContentCard, { firstSlideImage } from '../GeneratedContentCard';
 import GeneratedDraftEditor from '../GeneratedDraftEditor';
 import DraftDetailView from '../DraftDetailView';
@@ -113,7 +114,7 @@ function dateFor(d: ContentDraft): string | null {
 }
 
 function formatDateTime(dt: string): string {
-  const d = new Date(dt);
+  const d = parseApiDate(dt);
   return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
@@ -208,7 +209,7 @@ export default function ContentLibraryPage() {
       if (formatFilter !== 'all' && (d.post_type || 'feed') !== formatFilter) return false;
       if (windowMs !== null) {
         const dt = dateFor(d);
-        if (!dt || now - new Date(dt).getTime() > windowMs) return false;
+        if (!dt || now - parseApiDate(dt).getTime() > windowMs) return false;
       }
       if (search.trim() && !d.content?.toLowerCase().includes(search.trim().toLowerCase())) return false;
       return true;
@@ -925,7 +926,7 @@ function CalendarView({
     for (const d of items) {
       const dt = dateFor(d);
       if (!dt) continue;
-      const key = new Date(dt).toDateString();
+      const key = parseApiDate(dt).toDateString();
       const arr = map.get(key) ?? [];
       arr.push(d);
       map.set(key, arr);
@@ -1012,7 +1013,7 @@ function CalendarView({
                       const { title } = titleAndExcerpt(d.content || '');
                       const itemDt = dateFor(d);
                       const time = itemDt
-                        ? new Date(itemDt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                        ? parseApiDate(itemDt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
                         : null;
                       return (
                         <Box
