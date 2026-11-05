@@ -972,8 +972,27 @@ export class CampaignService {
       asset_attestation?: AssetAttestation;
     } & Partial<CreativeProvenanceInput>
   ): Promise<PlanAdsState> {
-    return (await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/ads`, body, { timeout: 240000 }))
-      .data as PlanAdsState;
+    const { job_id } = (await UriHttpClient.getClient().post(`/jane-ads/meta/plan/${planId}/ad-jobs`, body)).data as {
+      job_id: string;
+    };
+    return CampaignService.waitForAdJob<PlanAdsState>(job_id);
+  }
+
+  /** Ads are made in the background: a long request would be cut at 120 seconds. */
+  static async waitForAdJob<T>(jobId: string): Promise<T> {
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const job = (await UriHttpClient.getClient().get(`/jane-ads/ad-jobs/${jobId}`)).data as {
+        status: 'running' | 'done' | 'failed';
+        result?: T;
+        detail?: string;
+      };
+      if (job.status === 'done') return job.result as T;
+      if (job.status === 'failed') {
+        // The same shape a refused request has, so callers read the reason the same way.
+        throw { response: { data: { detail: job.detail } } };
+      }
+    }
   }
 
   static async editPlanAd(planId: string, index: number, headline: string, primaryText: string): Promise<PlanAdsState> {

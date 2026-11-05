@@ -1,3 +1,4 @@
+import { CampaignService } from './CampaignService';
 import { UriHttpClient } from '@/src/configs/http.config';
 
 export type GrowthMode = 'advisory' | 'approval' | 'autonomous';
@@ -251,13 +252,10 @@ export const GrowthService = {
     campaignId: string,
     adId: string
   ): Promise<{ ad_id: string; headline: string; primary_text: string; image_url: string }> {
-    return (
-      await UriHttpClient.getClient().post(
-        `${BASE}/campaigns/${campaignId}/variations`,
-        { ad_id: adId },
-        { timeout: 240000 }
-      )
+    const { job_id } = (
+      await UriHttpClient.getClient().post(`${BASE}/campaigns/${campaignId}/variation-jobs`, { ad_id: adId })
     ).data;
+    return CampaignService.waitForAdJob(job_id);
   },
   async setGoal(id: string, goal: GrowthGoal): Promise<GrowthGoal> {
     return (await UriHttpClient.getClient().put(`${BASE}/campaigns/${id}/goal`, goal)).data.goal;
