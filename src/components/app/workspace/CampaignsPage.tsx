@@ -4183,7 +4183,7 @@ export function ResultCard({
               return <UsedStyleTag format={usedFormat} fallbackFrom={fallbackFrom} />;
             })()}
           {plan?.explanation && withoutQuestions(plan.explanation) && (
-            <div style={{ margin: '0 0 12px' }}>
+            <div style={{ margin: '14px 0 12px' }}>
               <p
                 style={{
                   margin: '0 0 4px',
