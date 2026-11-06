@@ -70,10 +70,11 @@ export function describePublishJob(job: VideoPublishJob): PublishJobMessage {
       }
       return {
         tone: 'waiting',
-        title: limited ? `Waiting for ${name}'s rate limit` : 'Waiting for the previous post',
+        title: limited ? `${name} asked us to slow down` : 'Next in line to post',
+        // A busy account's time is only when the other post's lock would run out, so it gets no clock time.
         body: limited
-          ? `${name} is limiting how fast we can post. This will post on its own${at ? ` around ${at}` : ' shortly'}. You don't need to do anything.`
-          : `Another post to this account is going out first. This will post${at ? ` around ${at}` : ' shortly'}.`,
+          ? `This post will go out on its own${at ? ` after ${at}` : ' in a few minutes'}. You don't need to do anything.`
+          : `We send one post at a time to each ${name} account, so this one goes out as soon as the one before it finishes, usually within a few minutes. You don't need to do anything.`,
         canRetry: false,
         inFlight: true,
       };
