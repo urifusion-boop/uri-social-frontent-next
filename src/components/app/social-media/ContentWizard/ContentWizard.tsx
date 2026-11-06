@@ -135,7 +135,13 @@ export default function ContentWizard({ onGenerated, requireEmailVerification }:
         <StepReviewSchedule wizard={wizard} onGenerated={onGenerated} onStartOver={() => setStep(0)} />
       )}
 
-      {step < 2 && (
+      {/* Step 2 (Generate/"Ready to generate") used to be excluded from this
+          whole row, not just its Next button — Next genuinely doesn't belong
+          there (the Generate button inside StepGenerate drives progression
+          instead, see canGoNext's own comment), but that left no way back to
+          edit the brief before committing either. Back now covers step 2 too;
+          Next still only makes sense for 0-1. */}
+      {step < 3 && (
         <Box display="flex" justifyContent="space-between" mt={3}>
           <Button
             onClick={() => setStep((s) => Math.max(0, s - 1))}
@@ -145,20 +151,22 @@ export default function ContentWizard({ onGenerated, requireEmailVerification }:
           >
             Back
           </Button>
-          <Button
-            variant="contained"
-            onClick={() => setStep((s) => s + 1)}
-            disabled={!canGoNext}
-            endIcon={<MdArrowForward size={15} />}
-            sx={{
-              background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
-              textTransform: 'none',
-              fontWeight: 600,
-              '&:hover': { background: `linear-gradient(135deg, #A01560 0%, ${PINK} 100%)` },
-            }}
-          >
-            Next
-          </Button>
+          {step < 2 && (
+            <Button
+              variant="contained"
+              onClick={() => setStep((s) => s + 1)}
+              disabled={!canGoNext}
+              endIcon={<MdArrowForward size={15} />}
+              sx={{
+                background: `linear-gradient(135deg, ${PINK} 0%, #A01560 100%)`,
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': { background: `linear-gradient(135deg, #A01560 0%, ${PINK} 100%)` },
+              }}
+            >
+              Next
+            </Button>
+          )}
         </Box>
       )}
     </Box>
