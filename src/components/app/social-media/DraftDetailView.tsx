@@ -35,6 +35,9 @@ interface DraftDetailViewProps {
   onClose: () => void;
   onEdit: (draft: ContentDraft) => void;
   onRefresh: () => void;
+  /** Fired once this draft is actually scheduled or posted — see
+   * GeneratedContentCard's identical prop for why. */
+  onApproved?: (id: string) => void;
 }
 
 // The read-only counterpart to GeneratedDraftEditor — opened by clicking a
@@ -49,6 +52,7 @@ export default function DraftDetailView({
   onClose,
   onEdit,
   onRefresh,
+  onApproved,
 }: DraftDetailViewProps) {
   // Local, mutable copy — a Canvas/Move Logo save below updates this
   // directly, same as DraftCard, since the parent's viewingDraft is a
@@ -126,6 +130,7 @@ export default function DraftDetailView({
         if (queued) ToastService.showToast(queuedNotice(queued), ToastTypeEnum.Warning);
         else ToastService.showToast(option === 'immediate' ? 'Published!' : 'Scheduled!', ToastTypeEnum.Success);
         onRefresh();
+        onApproved?.(id);
         onClose();
       } else {
         ToastService.showToast(res.responseMessage || 'Action failed', ToastTypeEnum.Error);

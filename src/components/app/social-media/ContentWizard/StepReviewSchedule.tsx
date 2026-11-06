@@ -28,6 +28,17 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
       .catch(() => setConnectedPlatforms([]));
   }, []);
 
+  // Scheduling/posting a card used to leave it sitting right here with
+  // nothing to show for it — reported directly: "it's supposed to take me
+  // to scheduled or drafts but I'm still here." Removes the handled draft
+  // from this batch, and once every draft in the batch has been scheduled
+  // or posted, there's nothing left to review, so leave automatically —
+  // same destination "Done — go to Content Library" already goes to.
+  const handleApproved = (id: string) => {
+    wizard.markDraftHandled(id);
+    if (drafts.filter((d) => (d.id ?? d.draft_id) !== id).length === 0) onGenerated();
+  };
+
   if (drafts.length === 0) {
     return (
       <Box sx={{ border: '1px solid #E5E7EB', borderRadius: '10px', p: 3, textAlign: 'center' }}>
@@ -69,6 +80,7 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
             onEdit={setEditingDraft}
             onViewDetails={setViewingDraft}
             onRefresh={wizard.refreshGeneratedDrafts}
+            onApproved={handleApproved}
           />
         ))}
       </Box>
@@ -97,6 +109,7 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
           connectedPlatforms={connectedPlatforms}
           onClose={() => setEditingDraft(null)}
           onRefresh={wizard.refreshGeneratedDrafts}
+          onApproved={handleApproved}
         />
       )}
 
@@ -107,6 +120,7 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
           onClose={() => setViewingDraft(null)}
           onEdit={setEditingDraft}
           onRefresh={wizard.refreshGeneratedDrafts}
+          onApproved={handleApproved}
         />
       )}
     </Box>

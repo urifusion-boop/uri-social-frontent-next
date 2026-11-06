@@ -28,6 +28,9 @@ interface GeneratedDraftEditorProps {
   connectedPlatforms: string[] | null;
   onClose: () => void;
   onRefresh: () => void;
+  /** Fired once this draft is actually scheduled or posted (not on save-as-
+   * draft) — see GeneratedContentCard's identical prop for why. */
+  onApproved?: (id: string) => void;
 }
 
 // The on-brand counterpart to the classic DraftCard editor — used wherever a
@@ -43,6 +46,7 @@ export default function GeneratedDraftEditor({
   connectedPlatforms,
   onClose,
   onRefresh,
+  onApproved,
 }: GeneratedDraftEditorProps) {
   const [draft, setDraft] = useState(initialDraft);
   const [content, setContent] = useState(initialDraft.content);
@@ -156,6 +160,7 @@ export default function GeneratedDraftEditor({
           queued ? ToastTypeEnum.Warning : ToastTypeEnum.Success
         );
         onRefresh();
+        if (option !== 'save_draft') onApproved?.(id);
         onClose();
       } else {
         ToastService.showToast(res.responseMessage || 'Action failed', ToastTypeEnum.Error);
@@ -239,6 +244,7 @@ export default function GeneratedDraftEditor({
         if (job.status === 'published') {
           ToastService.showToast(`${msg.title}. ${msg.body}`, ToastTypeEnum.Success);
           onRefresh();
+          onApproved?.(id);
           onClose();
           return;
         }

@@ -97,6 +97,11 @@ interface GeneratedContentCardProps {
   onViewDetails: (draft: ContentDraft) => void;
   onRefresh: () => void;
   onDelete?: (id: string) => void;
+  /** Fired once this draft is actually scheduled or posted (not on every
+   * refresh) — the wizard's results step uses this to know when a batch is
+   * fully handled and it's time to leave the page on its own, instead of
+   * leaving a just-scheduled card sitting there with nothing to show for it. */
+  onApproved?: (id: string) => void;
   /** A library grid mixes many unrelated drafts whose real dimensions
    * genuinely differ (a carousel slide vs. a Facebook post vs. a TikTok
    * reel) — forcing every thumbnail to the same shape keeps the grid looking
@@ -114,6 +119,7 @@ export default function GeneratedContentCard({
   onViewDetails,
   onRefresh,
   onDelete,
+  onApproved,
   uniformAspect,
 }: GeneratedContentCardProps) {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -169,6 +175,7 @@ export default function GeneratedContentCard({
         else ToastService.showToast(option === 'immediate' ? 'Published!' : 'Scheduled!', ToastTypeEnum.Success);
         setScheduleOpen(false);
         onRefresh();
+        onApproved?.(id);
       } else {
         ToastService.showToast(res.responseMessage || 'Action failed', ToastTypeEnum.Error);
       }

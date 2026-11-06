@@ -599,6 +599,17 @@ export function useContentWizardState(requireEmailVerification: (callback?: () =
     }
   };
 
+  // Step 4 ("Review & Schedule") kept a scheduled/posted draft sitting right
+  // there with nothing to show for it — the card's own Schedule/Post button
+  // only ever called refreshGeneratedDrafts, which re-fetches the SAME set
+  // of ids by design (it's meant to reflect edits, not shrink the list), so
+  // the page looked identical after a successful schedule. Called once a
+  // draft is actually handled (scheduled or posted); the step itself decides
+  // whether removing it means the batch is done and it's time to move on.
+  const markDraftHandled = (id: string) => {
+    setGeneratedDrafts((prev) => (prev ? prev.filter((d) => (d.id ?? d.draft_id) !== id) : prev));
+  };
+
   // generate-content returns text immediately and fills in each image in
   // the background (confirmed live: a 4-slide carousel's images all land
   // within ~5-10s of the response) — step 4 otherwise shows that initial,
@@ -710,6 +721,7 @@ export function useContentWizardState(requireEmailVerification: (callback?: () =
     doGenerate,
     generatedDrafts,
     refreshGeneratedDrafts,
+    markDraftHandled,
     charCount,
     isValid,
     contentSource,
