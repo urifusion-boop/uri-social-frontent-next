@@ -3098,8 +3098,18 @@ export default function JaneVideoChat({ onSaveToDrafts, isMobile = false, initia
                 }}
               />
               <a
-                href={downloadUrlFor(outputUrl, `Video-${zapCapJobId ? zapCapJobId.slice(0, 8) : Date.now()}`)}
-                download
+                href="#"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  const signedUrl = await downloadUrlFor(
+                    outputUrl,
+                    `Video-${zapCapJobId ? zapCapJobId.slice(0, 8) : Date.now()}`
+                  );
+                  const link = document.createElement('a');
+                  link.href = signedUrl;
+                  link.download = '';
+                  link.click();
+                }}
                 style={{
                   display: 'inline-block',
                   fontSize: 12,

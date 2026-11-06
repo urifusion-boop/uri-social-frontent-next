@@ -1169,9 +1169,19 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
               download on every device. */}
           <Box
             component="a"
-            href={downloadUrlFor(resolveUrl(draft.video_url), `Video-${draft.id?.slice(0, 8) || Date.now()}`)}
-            download
-            onClick={(e) => e.stopPropagation()}
+            href="#"
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const signedUrl = await downloadUrlFor(
+                resolveUrl(draft.video_url ?? ''),
+                `Video-${draft.id?.slice(0, 8) || Date.now()}`
+              );
+              const link = document.createElement('a');
+              link.href = signedUrl;
+              link.download = '';
+              link.click();
+            }}
             sx={{
               position: 'absolute',
               top: 8,

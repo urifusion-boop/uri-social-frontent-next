@@ -640,6 +640,21 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  /** A presigned, short-lived URL for `url` that makes the browser save the
+   *  download as `filename` — the S3-native replacement for Cloudinary's
+   *  fl_attachment delivery-URL flag. Falls back to the original url if the
+   *  backend can't sign it (e.g. it isn't one of our own S3 objects). */
+  static async getDownloadUrl(url: string, filename: string): Promise<string> {
+    try {
+      const response = await UriHttpClient.getClient().get(socialMediaAgentRoutes.downloadUrl, {
+        params: { url, filename },
+      });
+      return (response.data as UriResponse<{ url: string }>)?.responseData?.url || url;
+    } catch {
+      return url;
+    }
+  }
+
   static async disconnectPlatform(platform: string): Promise<UriResponse<string>> {
     const response: Awaited<AxiosResponse<UriResponse<string>>> = await UriHttpClient.getClient().delete(
       `${socialMediaAgentRoutes.disconnectPlatform}/${platform}`
