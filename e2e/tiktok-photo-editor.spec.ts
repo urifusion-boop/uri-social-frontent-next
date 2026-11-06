@@ -288,3 +288,24 @@ test.describe('Posting a TikTok photo from the editor', () => {
     await expect(screen.locator('textarea').first()).toHaveValue(/Brand new caption typed just now/);
   });
 });
+
+test.describe('The time sent when scheduling', () => {
+  // Lagos is one hour ahead of UTC all year: 4:05 PM there is 15:05 UTC.
+  test.use({ timezoneId: 'Africa/Lagos' });
+
+  test('the picked local time is sent as the same moment in UTC', async ({ page }) => {
+    const calls = await setup(page, [PHOTO]);
+    await openEditorViaDetail(page, 'Banana bread');
+    await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+    await page.locator('input[type="datetime-local"]').fill('2026-11-05T16:05');
+    await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+
+    const screen = page.getByRole('dialog', { name: 'Schedule TikTok post' });
+    await expect(screen.getByText(/posted to TikTok on Nov 5, 4:05 PM/)).toBeVisible();
+    await screen.locator('select').selectOption('SELF_ONLY');
+    await screen.getByRole('button', { name: 'Schedule', exact: true }).click();
+
+    await expect.poll(() => calls.approve.length).toBe(1);
+    expect((calls.approve[0] as { scheduled_datetime: string }).scheduled_datetime).toBe('2026-11-05T15:05:00.000Z');
+  });
+});
