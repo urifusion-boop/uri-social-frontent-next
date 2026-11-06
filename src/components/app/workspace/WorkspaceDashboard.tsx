@@ -825,6 +825,7 @@ const ContentManagerPage = ({
   videoPolishHandoff,
   onReturnToCampaignFromPolish,
   initialTab,
+  onOpenSectionNav,
 }: {
   onJane: () => void;
   isMobile?: boolean;
@@ -842,6 +843,9 @@ const ContentManagerPage = ({
   // counter alongside the tab (see contentStudioNavSeq below) is what makes
   // re-clicking the SAME sub-item while already on this page still work.
   initialTab?: { tab: ContentTab; seq: number };
+  // Mobile has no sidebar — each dedicated page's own bold title doubles as
+  // the section switcher trigger here too, same as SubPage's pages.
+  onOpenSectionNav?: () => void;
 }) => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<ContentTab>(initialTab?.tab ?? 'create');
@@ -1346,6 +1350,36 @@ const ContentManagerPage = ({
   const videoActive = activeTab === 'video';
   const dedicatedPageActive = wizardActive || libraryActive || calendarV2Active || autoActive || videoActive;
 
+  // Mobile has no sidebar — each dedicated page's own bold title doubles as
+  // the section switcher trigger here, same fix as SubPage's pages (and the
+  // same reason it moved there: a small chip up in the Topbar read as
+  // nothing happening when tapped; the page's own title is the one thing
+  // actually visible and obviously "this page" to tap on instead).
+  const DedicatedTitle = ({ children }: { children: ReactNode }) =>
+    isMobile && onOpenSectionNav ? (
+      <button
+        onClick={onOpenSectionNav}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          border: 'none',
+          background: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          font: 'inherit',
+          color: 'inherit',
+        }}
+      >
+        <h2 style={{ fontSize: 15, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>{children}</h2>
+        <I n="chevronRight" s={12} c="#C2185B" />
+      </button>
+    ) : (
+      <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
+        {children}
+      </h2>
+    );
+
   return (
     <div
       style={{
@@ -1364,9 +1398,7 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
-            Create Content
-          </h2>
+          <DedicatedTitle>Create Content</DedicatedTitle>
           <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
             Turn your ideas into high-performing content with AI.
           </p>
@@ -1385,9 +1417,7 @@ const ContentManagerPage = ({
           }}
         >
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
-              Content Library
-            </h2>
+            <DedicatedTitle>Content Library</DedicatedTitle>
             <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
               Manage, approve, schedule and track all your content.
             </p>
@@ -1417,9 +1447,7 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
-            Content Calendar
-          </h2>
+          <DedicatedTitle>Content Calendar</DedicatedTitle>
           <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
             A 30-day plan tailored to your brand — ad-ready posts, exact copy, built in.
           </p>
@@ -1432,9 +1460,7 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
-            Auto-Generate
-          </h2>
+          <DedicatedTitle>Auto-Generate</DedicatedTitle>
           <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
             Jane keeps a steady stream of on-brand drafts flowing — no manual prompting needed.
           </p>
@@ -1447,9 +1473,7 @@ const ContentManagerPage = ({
             borderBottom: '1px solid #edecea',
           }}
         >
-          <h2 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: '#111', margin: 0, lineHeight: 1.2 }}>
-            🎬 Video
-          </h2>
+          <DedicatedTitle>🎬 Video</DedicatedTitle>
           <p style={{ fontSize: 12, color: '#999', margin: '2px 0 0' }}>
             Generate branded video Reels from storyboards or edit your own footage.
           </p>
@@ -2506,19 +2530,62 @@ const SubPage = ({
   desc,
   children,
   onJane,
+  isMobile,
+  onOpenSectionNav,
 }: {
   title: string;
   icon: string;
   desc: string;
   children: ReactNode;
   onJane: () => void;
+  // Mobile has no sidebar — this page's own bold title is the one thing on
+  // screen a tap there would obviously land on, so that's where the section
+  // switcher (Content Studio / Campaign Manager / Performance / Settings /
+  // Connected Accounts) lives now, not a small chip competing with the logo,
+  // credits and avatar up in the Topbar. Both optional: desktop passes
+  // neither and gets the plain, non-interactive title it always had.
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
 }) => (
   <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
     <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid #edecea' }}>
-      <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <I n={icon} s={18} c="#C2185B" />
-        {title}
-      </h2>
+      {isMobile && onOpenSectionNav ? (
+        <button
+          onClick={onOpenSectionNav}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            border: 'none',
+            background: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            font: 'inherit',
+            color: 'inherit',
+          }}
+        >
+          <h2
+            style={{
+              fontSize: 17,
+              fontWeight: 800,
+              color: '#111',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              margin: 0,
+            }}
+          >
+            <I n={icon} s={18} c="#C2185B" />
+            {title}
+          </h2>
+          <I n="chevronRight" s={13} c="#C2185B" />
+        </button>
+      ) : (
+        <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <I n={icon} s={18} c="#C2185B" />
+          {title}
+        </h2>
+      )}
       <p style={{ fontSize: 12.5, color: '#999', marginTop: 2 }}>{desc}</p>
     </div>
     <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>{children}</div>
@@ -2664,7 +2731,15 @@ const PLATFORMS = [
   },
 ];
 
-const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
+const ConnectionsPage = ({
+  onJane,
+  isMobile,
+  onOpenSectionNav,
+}: {
+  onJane: () => void;
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
+}) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [statuses, setStatuses] = useState<Record<string, PlatformStatus>>({});
@@ -3455,6 +3530,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
         icon="share"
         desc="Manage your social media platform connections"
         onJane={onJane}
+        isMobile={isMobile}
+        onOpenSectionNav={onOpenSectionNav}
       >
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 14 }}>
           <div
@@ -3479,6 +3556,8 @@ const ConnectionsPage = ({ onJane }: { onJane: () => void }) => {
       icon="share"
       desc="Manage your social media platform connections"
       onJane={onJane}
+      isMobile={isMobile}
+      onOpenSectionNav={onOpenSectionNav}
     >
       {/* Facebook page selection after OAuth callback */}
       {igPendingToken && (
@@ -5000,7 +5079,15 @@ const CalPerfSection = ({ data }: { data: CalendarPerformanceData }) => {
   );
 };
 
-const PerformancePage = ({ onJane }: { onJane: () => void }) => {
+const PerformancePage = ({
+  onJane,
+  isMobile,
+  onOpenSectionNav,
+}: {
+  onJane: () => void;
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
+}) => {
   const [view, setView] = useState<'posts' | 'accounts' | 'intel'>('posts');
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -5090,6 +5177,8 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
             : 'Industry keyword trends powered by Google'
       }
       onJane={onJane}
+      isMobile={isMobile}
+      onOpenSectionNav={onOpenSectionNav}
     >
       {/* View toggle */}
       <div
@@ -5679,7 +5768,17 @@ const PerformancePage = ({ onJane }: { onJane: () => void }) => {
   );
 };
 
-const IntelPage = ({ onJane, embedded }: { onJane: () => void; embedded?: boolean }) => {
+const IntelPage = ({
+  onJane,
+  embedded,
+  isMobile,
+  onOpenSectionNav,
+}: {
+  onJane: () => void;
+  embedded?: boolean;
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
+}) => {
   const [trends, setTrends] = useState<TrendsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -5881,6 +5980,8 @@ const IntelPage = ({ onJane, embedded }: { onJane: () => void; embedded?: boolea
           : 'Industry keyword trends powered by Google'
       }
       onJane={onJane}
+      isMobile={isMobile}
+      onOpenSectionNav={onOpenSectionNav}
     >
       {content}
     </SubPage>
@@ -6433,10 +6534,14 @@ const PlaybookPage = ({
   onJane,
   profile,
   onProfileUpdate,
+  isMobile,
+  onOpenSectionNav,
 }: {
   onJane: () => void;
   profile: BrandProfileData | null;
   onProfileUpdate: (p: BrandProfileData) => void;
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
 }) => {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -7129,7 +7234,14 @@ const PlaybookPage = ({
   return (
     <PbUsedInContext.Provider value={{ usedIn: health?.used_in ?? {}, sections: health?.sections ?? {} }}>
       <PbEditContext.Provider value={{ onEdit: editAt, onEditSection: jumpToSection, hideEmpty }}>
-        <SubPage title="Brand Playbook" icon="book" desc="Everything URI Agent knows about your brand" onJane={onJane}>
+        <SubPage
+          title="Brand Playbook"
+          icon="book"
+          desc="Everything URI Agent knows about your brand"
+          onJane={onJane}
+          isMobile={isMobile}
+          onOpenSectionNav={onOpenSectionNav}
+        >
           {/* Action bar. Reading: a quiet row (not sticky, so it never covers a
             section). Editing: a slim floating save bar that stays in reach. */}
           <div
@@ -9924,11 +10036,15 @@ const SettingsPage = ({
   brandName,
   onNavChange,
   onBillingTabChange,
+  isMobile,
+  onOpenSectionNav,
 }: {
   onJane: () => void;
   brandName: string;
   onNavChange: (nav: string) => void;
   onBillingTabChange: (tab: 'overview' | 'credits' | 'payments' | 'plans') => void;
+  isMobile?: boolean;
+  onOpenSectionNav?: () => void;
 }) => {
   const { userDetails } = useAuth();
   const router = useRouter();
@@ -10005,7 +10121,14 @@ const SettingsPage = ({
   }, [searchParams]);
 
   return (
-    <SubPage title="Settings" icon="settings" desc="Manage your account and brand preferences" onJane={onJane}>
+    <SubPage
+      title="Settings"
+      icon="settings"
+      desc="Manage your account and brand preferences"
+      onJane={onJane}
+      isMobile={isMobile}
+      onOpenSectionNav={onOpenSectionNav}
+    >
       {/* Account Section */}
       <div
         id="settings-section-account"
@@ -11197,20 +11320,6 @@ export default function WorkspaceDashboard() {
     connections: { label: 'Connected Accounts', subNav: connectionsSubNav },
   };
 
-  // The mobile Topbar chip's own label — the specific page you're actually on
-  // (e.g. "Video"), not just the section it lives in. It used to always show
-  // SECTION_META[activeSection].label, so selecting Video from the drawer
-  // changed the page underneath but the chip itself never budged off
-  // "Content Studio", reading as if the tap hadn't done anything. Several
-  // subNav items are anchor-scroll links on one shared page and deliberately
-  // keep active: false (Settings' Account/Security/Brand, Connected
-  // Accounts' Social/Ad, Campaign Manager's Ad Accounts) — for those this
-  // falls back to the section label exactly as before, which is correct
-  // there since there's no single "active" sub-page to name.
-  const activeSubNavLabel = activeSection
-    ? (SECTION_META[activeSection].subNav.find((n) => n.active)?.label ?? SECTION_META[activeSection].label)
-    : null;
-
   // Maps a PRIMARY_NAV item's id to the zone it expands — the sidebar stays
   // a single flat list and the owning row grows its own sub-items beneath
   // it (accordion), rather than swapping the whole list out for a
@@ -11689,11 +11798,16 @@ export default function WorkspaceDashboard() {
         videoPolishHandoff={videoPolishHandoff}
         onReturnToCampaignFromPolish={handleReturnToCampaignFromPolish}
         initialTab={contentStudioNav}
+        onOpenSectionNav={() => setSectionNavOpen(true)}
       />
     ),
-    connections: <ConnectionsPage onJane={goWorkspace} />,
+    connections: (
+      <ConnectionsPage onJane={goWorkspace} isMobile={isMobile} onOpenSectionNav={() => setSectionNavOpen(true)} />
+    ),
     records: <RecordsPanel />,
-    performance: <PerformancePage onJane={goWorkspace} />,
+    performance: (
+      <PerformancePage onJane={goWorkspace} isMobile={isMobile} onOpenSectionNav={() => setSectionNavOpen(true)} />
+    ),
     campaigns: (
       <CampaignsPage
         onJane={goWorkspace}
@@ -11716,12 +11830,27 @@ export default function WorkspaceDashboard() {
     'market-intelligence': <MarketIntelligencePage />,
     admin: <AdminUsersPage onBack={goWorkspace} />,
     'listening-curation': <ListeningCurationPage onBack={goWorkspace} />,
-    intel: <IntelPage onJane={goWorkspace} />,
+    intel: <IntelPage onJane={goWorkspace} isMobile={isMobile} onOpenSectionNav={() => setSectionNavOpen(true)} />,
     agency: <AgencyDashboard />,
     blog: <BlogGeneratorTab />,
-    playbook: <PlaybookPage onJane={goWorkspace} profile={profile} onProfileUpdate={setProfile} />,
+    playbook: (
+      <PlaybookPage
+        onJane={goWorkspace}
+        profile={profile}
+        onProfileUpdate={setProfile}
+        isMobile={isMobile}
+        onOpenSectionNav={() => setSectionNavOpen(true)}
+      />
+    ),
     settings: (
-      <SettingsPage onJane={goWorkspace} brandName={brandName} onNavChange={goTo} onBillingTabChange={setBillingTab} />
+      <SettingsPage
+        onJane={goWorkspace}
+        brandName={brandName}
+        onNavChange={goTo}
+        onBillingTabChange={setBillingTab}
+        isMobile={isMobile}
+        onOpenSectionNav={() => setSectionNavOpen(true)}
+      />
     ),
     billing: (
       <BillingPage
@@ -12204,32 +12333,6 @@ export default function WorkspaceDashboard() {
                     URI <span style={{ fontWeight: 400, color: '#999' }}>Social</span>
                   </span>
                 </div>
-              )}
-              {/* Mobile's one way into a section's subNav — see sectionNavOpen's
-                  own comment. Only shown while actually inside a section that has
-                  one; Home/Playbook/etc. have nothing to open here. */}
-              {isMobile && activeSection && (
-                <button
-                  onClick={() => setSectionNavOpen(true)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '5px 9px',
-                    borderRadius: 999,
-                    border: '1px solid #F3C7DA',
-                    background: '#FFF7FA',
-                    color: '#C2185B',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    whiteSpace: 'nowrap',
-                    cursor: 'pointer',
-                    minWidth: 0,
-                  }}
-                >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeSubNavLabel}</span>
-                  <I n="chevronRight" s={10} c="#C2185B" />
-                </button>
               )}
               {/* Product-restructure redesign: the old rotating "URI Agent is
                   active" status line lived here — replaced with a real quick
