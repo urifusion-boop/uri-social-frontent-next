@@ -76,7 +76,12 @@ function _friendlyGenerationError(msg?: string): string {
     return 'We are experiencing high demand right now, please try again in a few minutes — if the issue persists, contact support.';
   if (lower.includes('timeout') || lower.includes('timed out'))
     return 'We are experiencing high demand right now, please try again in a few minutes — if the issue persists, contact support.';
-  return 'Something went wrong — if the issue persists, contact support.';
+  // A real, specific backend message (e.g. "Unsupported file type: image/heic.
+  // Use PNG, JPG, WEBP, MP4, MOV.") is more useful to the user than a generic
+  // fallback, and was previously discarded here even when it carried the
+  // actual thing to fix — only genuinely unknown/empty errors get the generic
+  // "contact support" treatment now.
+  return `${msg} — if the issue persists, contact support.`;
 }
 
 const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadContentFormProps) => {
@@ -382,11 +387,18 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
         }
       }
     } catch (err: unknown) {
-      const error = err as { response?: { status?: number; data?: { responseMessage?: string } } };
+      const error = err as {
+        response?: { status?: number; data?: { responseMessage?: string; detail?: string } };
+      };
       if (error?.response?.status === 402) {
         setOutOfCreditsOpen(true);
       } else {
-        ToastService.showToast(_friendlyGenerationError(error?.response?.data?.responseMessage), ToastTypeEnum.Error);
+        // Not every endpoint returns this app's own {responseMessage} envelope —
+        // a bare FastAPI HTTPException(detail=...) is common too, and silently
+        // reading only responseMessage threw away a real, specific error (e.g.
+        // "Unsupported file type: image/heic...") in favor of a generic toast.
+        const message = error?.response?.data?.responseMessage || error?.response?.data?.detail;
+        ToastService.showToast(_friendlyGenerationError(message), ToastTypeEnum.Error);
       }
     } finally {
       setLoading(false);
