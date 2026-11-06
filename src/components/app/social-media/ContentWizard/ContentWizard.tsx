@@ -12,9 +12,12 @@ import PreviewPanel from './PreviewPanel';
 
 const PINK = '#CD1B78';
 
+// Brief/upload first, then Platform & Format — writing or uploading the
+// content is the natural starting point; which platforms it's going out to
+// and what shape it takes is the second decision, not the first.
 const STEPS = [
-  { label: 'Platform & Format' },
   { label: 'Your Brief' },
+  { label: 'Platform & Format' },
   { label: 'Generate' },
   { label: 'Review & Schedule' },
 ];
@@ -38,11 +41,11 @@ export default function ContentWizard({ onGenerated, requireEmailVerification }:
 
   const canGoNext =
     step === 0
-      ? wizard.selectedPlatforms.length > 0
+      ? wizard.contentSource === 'prompt'
+        ? wizard.isValid
+        : wizard.isUploadValid
       : step === 1
-        ? wizard.contentSource === 'prompt'
-          ? wizard.isValid
-          : wizard.isUploadValid
+        ? wizard.selectedPlatforms.length > 0
         : false; // step 2 (Generate) and step 3 (Review) drive their own progression
 
   return (
@@ -92,8 +95,8 @@ export default function ContentWizard({ onGenerated, requireEmailVerification }:
               })}
             </Box>
 
-            {step === 0 && <StepPlatformFormat wizard={wizard} />}
-            {step === 1 && <StepContent wizard={wizard} />}
+            {step === 0 && <StepContent wizard={wizard} />}
+            {step === 1 && <StepPlatformFormat wizard={wizard} />}
             {step === 2 && <StepGenerate wizard={wizard} />}
           </Box>
 
