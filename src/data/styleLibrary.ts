@@ -20,7 +20,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Urban, edgy, magazine-quality. For brands with attitude.',
     industryTags: ['fashion_ecommerce', 'events_entertainment', 'general_other'],
     gradient: ['#1a1a1a', '#555555'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fashion/street-editorial.jpg',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fashion/street-editorial.jpg',
     promptFragment:
       'High-fashion street photography style. Urban environment backdrop with intentional bokeh. Subject centered with confident pose. Dramatic side lighting creating strong shadows. Bold condensed sans-serif typography overlaid in white or neon accent colour. Slightly desaturated colour grading with lifted blacks. Gritty texture overlay at 5% opacity. Cinematic 2.39:1 crop feel even in square format. Magazine editorial quality.',
   },
@@ -30,7 +31,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Minimalist, premium, lots of breathing room. For high-end brands.',
     industryTags: ['fashion_ecommerce', 'beauty_wellness', 'real_estate', 'general_other'],
     gradient: ['#f5f0eb', '#c8b89a'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fashion/clean-luxe.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fashion/clean-luxe.jpg',
     promptFragment:
       'Luxury minimalist product photography. Pure white or soft cream background with subtle shadow. Product centered with generous negative space on all sides. Soft even lighting with no harsh shadows. Thin elegant serif typography in black or dark grey, positioned with mathematical precision. No decorative elements. Premium feel through restraint and whitespace. Colour palette limited to neutrals plus one brand accent colour.',
   },
@@ -40,7 +41,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Electric, vibrant, nightlife energy. For bold brands.',
     industryTags: ['fashion_ecommerce', 'beauty_wellness', 'fitness_gym', 'events_entertainment', 'general_other'],
     gradient: ['#0d0d0d', '#ff1cf7'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fashion/neon-pop.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fashion/neon-pop.jpg',
     promptFragment:
       'Vivid neon-lit photography style. Dark or black background with strong neon colour accents in pink, electric blue, or purple. Dramatic coloured lighting casting coloured shadows. Bold heavy sans-serif typography with glow or neon tube effect. High saturation, high contrast. Club/nightlife energy. Lens flare effects subtle but present. Cyberpunk-adjacent aesthetic.',
   },
@@ -50,7 +51,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Celebration of African culture. Rich textures, warm tones, gold accents.',
     industryTags: ['fashion_ecommerce', 'beauty_wellness', 'events_entertainment', 'general_other'],
     gradient: ['#7b2d00', '#d4a017'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fashion/afro-glam.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fashion/afro-glam.jpg',
     promptFragment:
       'African-inspired luxury aesthetic. Rich warm colour palette: deep oranges, golds, burgundy, and dark green. Ankara or kente textile patterns as subtle background textures at low opacity. Gold foil accent elements on typography. Bold display typography mixing serif and hand-lettered styles. Warm directional lighting emphasising skin tones beautifully. Cultural pride aesthetic. Ornate but not cluttered.',
   },
@@ -60,7 +61,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Product-first. Solid backgrounds. No distractions.',
     industryTags: ['fashion_ecommerce', 'beauty_wellness', 'food_beverage', 'general_other'],
     gradient: ['#e8e4df', '#a8998a'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fashion/minimal-studio.png',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fashion/minimal-studio.png',
     promptFragment:
       'Professional product photography on solid colour backdrop. Colours: soft grey, muted blush, sage green, or cream. Single product hero shot with perfect lighting from 45 degrees above. No text overlay unless specifically requested. Clean drop shadow or gentle reflection on surface. Focus on product details, texture, and craftsmanship. E-commerce catalogue quality.',
   },
@@ -70,7 +72,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Maximum energy. Big text. In your face. For brands that shout.',
     industryTags: ['fashion_ecommerce', 'food_beverage', 'fitness_gym', 'events_entertainment', 'general_other'],
     gradient: ['#ff2d00', '#ff8c00'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fashion/bold-loud.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fashion/bold-loud.jpg',
     promptFragment:
       'High-energy promotional graphic. Full-bleed bold background colour from brand palette. Massive condensed sans-serif typography filling 60%+ of the frame. Text stacked vertically or at slight angle for dynamism. Minimal photography, used as small cutout or background texture only. Starburst, arrow, or badge elements for emphasis. Reminiscent of sale flyers and event posters. Nothing subtle.',
   },
@@ -80,7 +82,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Nostalgic, warm, analogue. For brands with a story.',
     industryTags: ['fashion_ecommerce', 'food_beverage', 'general_other'],
     gradient: ['#8b6914', '#d4a96a'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fashion/vintage-film.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fashion/vintage-film.jpg',
     promptFragment:
       'Analogue film photography aesthetic. Warm colour cast with slight orange/amber tone shift. Visible film grain at medium intensity. Slightly faded highlights and lifted shadows. Soft focus edges with sharp centre. Vintage serif or typewriter-style typography. Light leak effects in corners. 35mm candid photography feel. Nostalgic warmth.',
   },
@@ -90,7 +92,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Structured, grid-ready, professional. For brands with multiple products.',
     industryTags: ['fashion_ecommerce', 'food_beverage', 'general_other'],
     gradient: ['#ffffff', '#cccccc'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fashion/catalogue-clean.jpg',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fashion/catalogue-clean.jpg',
     promptFragment:
       'Clean catalogue-style product layout. White or light grey background. Product arranged in a structured grid or neatly laid out flat-lay composition. Even shadowless lighting. Small clean sans-serif labels for product name and price. Professional but approachable. Suitable for multi-product carousel slides. Consistent spacing and alignment.',
   },
@@ -100,7 +103,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Candid, authentic, in-context. Products in real life.',
     industryTags: ['fashion_ecommerce', 'food_beverage', 'beauty_wellness', 'fitness_gym', 'general_other'],
     gradient: ['#3d6b4f', '#a8c5a0'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fashion/lifestyle-natural.jpg',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fashion/lifestyle-natural.jpg',
     promptFragment:
       'Lifestyle photography in natural settings. Product shown in use or in an authentic real-life context. Natural daylight, preferably golden hour or soft window light. Shallow depth of field with subject in focus, background softly blurred. Warm natural colour grading. No heavy text overlay. Candid, unposed feel. The product is part of a moment, not the centre of a studio.',
   },
@@ -110,7 +114,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Dark backgrounds, dramatic lighting, theatre-level intensity.',
     industryTags: ['fashion_ecommerce', 'events_entertainment', 'fitness_gym'],
     gradient: ['#000000', '#ffffff'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fashion/high-contrast-drama.png',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fashion/high-contrast-drama.png',
     promptFragment:
       'Dramatic chiaroscuro photography. Very dark or black background. Single strong directional light source creating deep shadows and bright highlights. High contrast, low key lighting. Subject emerges from darkness. Typography in white or single bright accent colour. Theatrical and cinematic. Fine art photography quality.',
   },
@@ -122,7 +127,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Top-down spread. Rustic surface. Abundance.',
     industryTags: ['food_beverage'],
     gradient: ['#8b4513', '#daa520'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/food/overhead-feast.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/food/overhead-feast.jpg',
     promptFragment:
       'Overhead flat-lay food photography. Shot directly from above. Rustic wooden table or marble surface as base. Multiple dishes, ingredients, and utensils arranged artfully with intentional negative space. Warm natural lighting from north-facing window. Rich saturated food colours. Herbs, spices, and scattered ingredients as styling elements. Convivial, abundant, sharing-focused.',
   },
@@ -132,7 +137,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Dramatic. Premium. Chef-quality presentation.',
     industryTags: ['food_beverage'],
     gradient: ['#1c1c1c', '#8b0000'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/food/dark-moody.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/food/dark-moody.jpg',
     promptFragment:
       'Dark food photography style. Deep charcoal, slate, or black background and surfaces. Single dish as hero, styled with precision. Dramatic side lighting with visible light falloff. Rich deep colours: mahogany sauces, deep greens, burnished golds. Minimal props. Typography in thin gold or cream serif font. Fine dining and premium brand feel.',
   },
@@ -142,7 +147,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'High-key, clean, healthy vibes. Lots of white.',
     industryTags: ['food_beverage', 'beauty_wellness', 'general_other'],
     gradient: ['#ffffff', '#90ee90'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/food/bright-fresh.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/food/bright-fresh.jpg',
     promptFragment:
       'High-key bright food photography. White or very light backgrounds and surfaces. Abundant natural light with minimal shadows. Vibrant food colours pop against the clean background. Fresh ingredients: greens, citrus, herbs prominently visible. Clean sans-serif typography. Healthy, fresh, approachable energy. Brunch-menu aesthetic.',
   },
@@ -152,7 +157,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Handheld, outdoor, messy, real. Authentic energy.',
     industryTags: ['food_beverage', 'events_entertainment'],
     gradient: ['#cc4400', '#ff8c00'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/food/street-food-energy.jpg',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/food/street-food-energy.jpg',
     promptFragment:
       'Street food documentary-style photography. Food held in hand or shown being prepared at a stall. Outdoor natural light, possibly harsh midday sun with real shadows. Slightly messy, unpolished plating. Smoke, steam, or motion blur for dynamism. Bold chunky sans-serif typography. Saturated warm colours. Authentic, not styled. The anti-studio look.',
   },
@@ -162,7 +168,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Practical. Prices visible. Clear layout for ordering.',
     industryTags: ['food_beverage'],
     gradient: ['#1a0a00', '#5c3317'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/food/menu-board.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/food/menu-board.jpg',
     promptFragment:
       'Restaurant menu board style layout. Structured grid with clear sections. Each item has: photo (small, square), name (bold), description (small), and price (prominent). Dark background with cream or white text for readability. Subtle food photography as background at very low opacity. Practical, scannable, designed for someone deciding what to order.',
   },
@@ -172,7 +178,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Wooden textures, earthy tones, handcraft feel.',
     industryTags: ['food_beverage', 'general_other'],
     gradient: ['#5c3317', '#c8a06e'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/food/rustic-warmth.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/food/rustic-warmth.jpg',
     promptFragment:
       'Rustic artisanal food photography. Warm earth-tone colour palette: browns, ambers, creams, forest greens. Textured surfaces: reclaimed wood, linen cloth, terracotta. Soft warm lighting with gentle shadows. Hand-lettered or rough serif typography evoking chalkboard or hand-painted signs. Artisan, homemade, craft-focused aesthetic. Farm-to-table energy.',
   },
@@ -182,7 +188,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Bold colours, tropical ingredients, celebration energy.',
     industryTags: ['food_beverage', 'events_entertainment', 'general_other'],
     gradient: ['#ff6b00', '#00b894'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/food/vibrant-tropical.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/food/vibrant-tropical.jpg',
     promptFragment:
       'Vibrant tropical colour palette. Bright saturated colours: mango orange, lime green, hibiscus pink, ocean blue. Bold graphic elements: colour blocks, geometric shapes, tropical leaf patterns. Playful rounded sans-serif typography. Energetic composition with elements breaking the frame. Carnival, celebration, summer-party energy. Maximalist but organised.',
   },
@@ -192,7 +198,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Fine dining. Single plate. Lots of negative space.',
     industryTags: ['food_beverage'],
     gradient: ['#e0dbd5', '#8c8070'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/food/minimalist-plating.jpg',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/food/minimalist-plating.jpg',
     promptFragment:
       'Fine dining plating photography. Single plate or bowl as sole subject, centered with vast negative space. Neutral background: warm grey, soft linen, or brushed concrete. Overhead or 45-degree angle. Minimal garnish placed with tweezers-level precision. Soft diffused lighting. No text overlay unless explicitly requested. The food speaks for itself.',
   },
@@ -204,7 +211,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Smooth gradients, professional, trust. The LinkedIn standard.',
     industryTags: ['fintech_saas_tech', 'education_consulting', 'general_other'],
     gradient: ['#0d3b8c', '#6a0dad'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/tech/corporate-gradient.jpg',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/tech/corporate-gradient.jpg',
     promptFragment:
       'Professional corporate graphic with smooth gradient background. Gradient colours: deep blue to purple, teal to blue, or dark navy to medium blue. Clean sans-serif typography in white, centered or left-aligned. Subtle geometric shapes (circles, lines, grids) as decorative elements at low opacity. Device mockups or abstract data visualisation elements. Enterprise-grade, trustworthy, modern. No playfulness.',
   },
@@ -214,7 +222,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Charts and numbers as design. For data-driven brands.',
     industryTags: ['fintech_saas_tech', 'education_consulting'],
     gradient: ['#0a2540', '#00d4ff'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/tech/data-visual.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/tech/data-visual.jpg',
     promptFragment:
       'Data-driven infographic style. Key metric or statistic displayed as the hero element: large bold number with unit. Supporting mini-charts, progress bars, or comparison graphics. Clean grid-based layout. Monochrome base with one accent colour for data highlights. Sans-serif typography only. Dashboard aesthetic. The data IS the design.',
   },
@@ -224,7 +232,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Real people, real photography. For brands that need credibility.',
     industryTags: ['fintech_saas_tech', 'real_estate', 'education_consulting', 'general_other'],
     gradient: ['#1a4a6b', '#4a9ebe'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/tech/trust-builder.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/tech/trust-builder.jpg',
     promptFragment:
       'Professional corporate photography. Real people in business settings: meetings, handshakes, collaborative work, presentations. Diverse representation. Warm but professional lighting. Slightly warm colour grading. Clean sans-serif typography overlaid with semi-transparent dark bar for readability. Trust, competence, human connection. Not stock-photo generic - authentic and specific.',
   },
@@ -234,7 +242,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Apple-inspired. Whitespace. Precision.',
     industryTags: ['fintech_saas_tech', 'education_consulting'],
     gradient: ['#f5f5f7', '#86868b'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/tech/minimal-tech.png',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/tech/minimal-tech.png',
     promptFragment:
       'Ultra-minimal tech aesthetic inspired by Apple design language. Vast white or very light grey space. Thin light-weight sans-serif typography. Single product or concept as the focal point with extreme negative space. Subtle shadows and gradients. No decorative elements. Precision, restraint, sophistication. Every element earns its place.',
   },
@@ -244,7 +252,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Text-forward. One big idea. Maximum impact.',
     industryTags: ['fintech_saas_tech', 'education_consulting', 'fitness_gym', 'general_other'],
     gradient: ['#1a1a1a', '#cd1b78'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/tech/bold-statement.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/tech/bold-statement.jpg',
     promptFragment:
       'Text-dominant motivational or statement graphic. Large bold statement or quote as the entire design. Background: solid colour, subtle gradient, or dark texture. Typography fills 70%+ of the frame. Mixed weights (one word bold, rest light) for emphasis hierarchy. Minimal or no imagery. The words ARE the visual. TED-talk-slide aesthetic.',
   },
@@ -254,7 +262,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Dark backgrounds, glowing accents. For developer-adjacent brands.',
     industryTags: ['fintech_saas_tech'],
     gradient: ['#0d1117', '#00ff88'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/tech/dark-mode-pro.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/tech/dark-mode-pro.jpg',
     promptFragment:
       'Dark mode UI-inspired aesthetic. Near-black (#0D1117 or #1A1A2E) background. Subtle glowing accent elements in electric blue, cyan, or green. Code-editor-inspired monospace typography for data points. Thin neon borders and divider lines. Glassmorphism elements with frosted transparency. Developer, hacker, cutting-edge tech aesthetic.',
   },
@@ -264,7 +272,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Stylised 3D illustrations. For abstract concepts.',
     industryTags: ['fintech_saas_tech', 'education_consulting'],
     gradient: ['#c8d8f0', '#7eb8ff'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/tech/isometric-3d.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/tech/isometric-3d.jpg',
     promptFragment:
       'Isometric 3D illustration style. Clean geometric shapes rendered in a consistent isometric perspective. Soft shadows and gradients giving depth. Pastel or muted colour palette with one vibrant accent. Objects representing abstract concepts: buildings for growth, gears for process, graphs for data. Clean sans-serif labels. Friendly and explanatory.',
   },
@@ -274,7 +282,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Approachable, modern, fresh. For early-stage brands.',
     industryTags: ['fintech_saas_tech', 'education_consulting', 'general_other'],
     gradient: ['#f0f4ff', '#6c8ef5'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/tech/clean-startup.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/tech/clean-startup.jpg',
     promptFragment:
       'Modern startup aesthetic. Light backgrounds with a single accent colour from brand palette. Rounded UI elements and card-based layouts. Friendly sans-serif typography (Inter, Poppins, Urbanist style). Abstract blob shapes or wavy lines as subtle decorative elements. Screenshots or device mockups showing the product. Approachable, optimistic, forward-looking.',
   },
@@ -286,7 +294,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Warm golden lighting, dewy skin, aspirational beauty close-ups.',
     industryTags: ['beauty_wellness'],
     gradient: ['#f5c98a', '#e8854b'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/beauty/glow_up.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/beauty/glow_up.jpg',
     promptFragment:
       'Soft glowing beauty photography. Close-up portrait with warm golden-hour backlighting creating a luminous halo effect. Skin appears naturally dewy and radiant with smooth, even texture. Soft bokeh background in warm amber or blush tones. Thin serif or script typography in gold or champagne. Aspirational but achievable beauty ideal. Beauty editorial quality without heavy retouching.',
   },
@@ -296,7 +304,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Delicate pastels, airy gradients, gentle feminine energy.',
     industryTags: ['beauty_wellness', 'general_other'],
     gradient: ['#f8d7e8', '#d4a0c0'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/beauty/soft_pastel.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/beauty/soft_pastel.jpg',
     promptFragment:
       'Soft pastel colour palette: blush pink, lavender, mint, baby blue, and ivory. Gentle gradient backgrounds blending two pastel tones. Airy, light-filled composition with minimal shadows. Delicate serif or thin script typography. Floral or botanical accent elements at low opacity. Beauty brand lookbook quality. Feminine, soft, and approachable without being saccharine.',
   },
@@ -306,7 +314,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'High-glamour beauty, full makeup, confident and striking.',
     industryTags: ['beauty_wellness', 'fashion_ecommerce'],
     gradient: ['#3d0014', '#cc0044'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/beauty/bold_glam.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/beauty/bold_glam.jpg',
     promptFragment:
       'High-glamour beauty photography. Bold full-coverage makeup with saturated lip colours and dramatic eye looks. Dramatic studio lighting with strong catchlights. Rich jewel-tone or deep neutral backgrounds. Confident, direct gaze at camera. Magazine cover quality. Typography in thick serif or metallic sans-serif. Striking, powerful, unapologetically glamorous.',
   },
@@ -316,7 +324,7 @@ export const STYLES: StyleTemplate[] = [
     description: 'Medical-aesthetic trust. Ingredient-forward, science-backed.',
     industryTags: ['beauty_wellness'],
     gradient: ['#f8fafc', '#b0c4de'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/beauty/clean_clinical.jpg',
+    image: 'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/beauty/clean_clinical.jpg',
     promptFragment:
       'Medical-aesthetic clinic style. Pure white and light grey colour palette with one soft accent colour. Clean laboratory-quality lighting with no harsh shadows. Product displayed with clinical precision alongside key ingredient visuals (molecular diagrams, botanical extracts, droplets). Thin clean sans-serif typography. Trust, expertise, and ingredient transparency are the message.',
   },
@@ -378,7 +386,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Before/after results. Stats-driven. Proof over aesthetics.',
     industryTags: ['fitness_gym', 'beauty_wellness'],
     gradient: ['#e0e0e0', '#2d2d2d'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fitness/transformation.jpg',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fitness/transformation.jpg',
     promptFragment:
       "Results-focused fitness transformation layout. Split panel showing clear physical change. Same pose, same angle, different body composition. Stats prominently displayed: weight lost, weeks taken, percentage improvement. Clean divider line with 'Week 1' / 'Week 12' labels. Neutral background keeping focus on the subject. Credibility and proof are the design goal.",
   },
@@ -388,7 +397,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'One powerful phrase. Dark background. Athletic silhouette.',
     industryTags: ['fitness_gym', 'education_consulting', 'general_other'],
     gradient: ['#1a1a1a', '#cd1b78'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fitness/motivational_type.png',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fitness/motivational_type.png',
     promptFragment:
       'Large motivational quote or phrase as the visual centrepiece. Dark gradient or textured background (concrete, smoke, dark gradient). Single powerful phrase in massive bold uppercase condensed sans-serif typography. Athletic silhouette or action shot used as very low opacity background texture. Minimal colour: monochrome with one strong accent. TED-talk-slide meets gym locker-room poster.',
   },
@@ -398,7 +408,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Nike/Adidas-inspired. Premium sportswear feel. Minimal.',
     industryTags: ['fitness_gym', 'fashion_ecommerce'],
     gradient: ['#f8f8f8', '#222222'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/fitness/clean_athletic.jpg',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/fitness/clean_athletic.jpg',
     promptFragment:
       'Premium sportswear aesthetic inspired by Nike and Adidas campaigns. Clean white or light grey background with athlete or product as the sole focus. Perfect studio lighting revealing fabric texture and product quality. Minimal typography: one word or tagline in bold sans-serif. No decorative elements. The product and athlete speak for themselves. Aspirational and premium.',
   },
@@ -411,7 +422,7 @@ export const STYLES: StyleTemplate[] = [
     industryTags: ['real_estate'],
     gradient: ['#1a6fa8', '#90c8f0'],
     image:
-      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/real-estate/property_showcase.jpg',
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/real-estate/property_showcase.jpg',
     promptFragment:
       'Professional real estate photography. Wide-angle interior or exterior shot with HDR-style clarity and brightness. Deep blue sky, well-manicured lawn, clean architectural lines. Interior shots show warm inviting lighting with natural light flooding through windows. Clean info bar at the bottom: bedroom count, bathrooms, price, and neighbourhood. Sans-serif typography in dark overlay bar. The property looks its absolute best.',
   },
@@ -421,7 +432,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Twilight exteriors. Gold serif type. Exclusivity.',
     industryTags: ['real_estate'],
     gradient: ['#1a1000', '#c8960c'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/real-estate/luxury_listing.jpg',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/real-estate/luxury_listing.jpg',
     promptFragment:
       "Luxury property listing aesthetic. Twilight exterior photography: warm interior lights glowing against deep blue dusk sky. Gold or champagne serif typography for property name and key details. Dark overlay at bottom for text readability. Premium finishes highlighted in close-up detail shots. Exclusivity, aspiration, and discretion in every element. Sotheby's-level presentation.",
   },
@@ -432,7 +444,7 @@ export const STYLES: StyleTemplate[] = [
     industryTags: ['real_estate'],
     gradient: ['#3d6b4f', '#90c8a0'],
     image:
-      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/real-estate/neighbourhood_life.jpg',
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/real-estate/neighbourhood_life.jpg',
     promptFragment:
       'Community lifestyle photography emphasising neighbourhood quality of life. Families walking, children playing, cafés and parks, tree-lined streets. Warm natural golden-hour lighting. Candid, authentic, unposed moments. Sans-serif caption text in clean overlay. The message is: this is where you want to live. Human connection and community belonging as the primary visual story.',
   },
@@ -443,7 +455,7 @@ export const STYLES: StyleTemplate[] = [
     industryTags: ['real_estate'],
     gradient: ['#0d2040', '#1a4080'],
     image:
-      'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/real-estate/blueprint_modern.jpg',
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/real-estate/blueprint_modern.jpg',
     promptFragment:
       'Architectural blueprint aesthetic. Deep navy or dark slate background with white technical line drawings. Floor plan outlines, elevation sketches, and site layouts as decorative graphic elements. Clean technical sans-serif typography with precise grid-based layout. Property dimensions or room labels incorporated as design elements. Modern, precise, and developer-grade professional presentation.',
   },
@@ -453,7 +465,8 @@ export const STYLES: StyleTemplate[] = [
     description: 'Drone-style overhead photography. Wide context. Clean info overlay.',
     industryTags: ['real_estate'],
     gradient: ['#1a6fa8', '#4ab8e0'],
-    image: 'https://res.cloudinary.com/df8ckaeam/image/upload/uri-social/style-library/real-estate/aerial_clean.jpg',
+    image:
+      'https://uri-social-media-dev.s3.eu-west-1.amazonaws.com/uri-social/style-library/real-estate/aerial_clean.jpg',
     promptFragment:
       'Drone-style aerial or high-angle photography of property and surroundings. Wide contextual view showing the property within its neighbourhood, proximity to landmarks, roads, and green spaces. Clear blue sky, sharp shadow detail from above. Clean white semi-transparent overlay at bottom with property details in dark sans-serif. Conveys location value and neighbourhood context clearly.',
   },
