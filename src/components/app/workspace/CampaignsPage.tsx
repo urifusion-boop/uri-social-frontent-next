@@ -192,6 +192,17 @@ interface SelectedMedia {
 const provenanceFields = (m: SelectedMedia | null | undefined) => m?.provenance ?? {};
 
 const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
+
+/** Jane's reasoning, minus the questions she wrote into it. A plan card states the
+ *  plan; "Does this align with where your clients come from?" there has nowhere to be
+ *  answered and reads as if the plan is still undecided. */
+const withoutQuestions = (text: string) =>
+  text
+    .split(/(?<=[.?!])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s && !s.endsWith('?'))
+    .join(' ');
+
 const uid = () => Math.random().toString(36).slice(2);
 
 const GREETING_TEXT =
@@ -3011,7 +3022,7 @@ export function ChooseCreativeSource({
   const sub: React.CSSProperties = { fontSize: 11, fontWeight: 500, color: '#a06', opacity: 0.85 };
   return (
     <div>
-      <JaneBubble>Great — how would you like to handle the image for this ad?</JaneBubble>
+      <JaneBubble>Great — how should we make your ad?</JaneBubble>
       <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 40 }}>
         <button onClick={onGenerate} style={optionBtn}>
           ✨ Let Jane create one<span style={sub}>I&apos;ll design a visual for you</span>
@@ -4171,22 +4182,37 @@ export function ResultCard({
                 : undefined;
               return <UsedStyleTag format={usedFormat} fallbackFrom={fallbackFrom} />;
             })()}
-          {plan?.explanation && (
-            <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#888', fontStyle: 'italic', lineHeight: 1.5 }}>
-              &ldquo;{plan.explanation}&rdquo;
-            </p>
+          {plan?.explanation && withoutQuestions(plan.explanation) && (
+            <div style={{ margin: '0 0 12px' }}>
+              <p
+                style={{
+                  margin: '0 0 4px',
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  letterSpacing: 0.6,
+                  textTransform: 'uppercase',
+                  color: '#999',
+                }}
+              >
+                Why this plan
+              </p>
+              <p style={{ margin: 0, fontSize: 13, color: '#555', lineHeight: 1.55 }}>
+                {withoutQuestions(plan.explanation)}
+              </p>
+            </div>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
             {plan?.platforms?.map((p, i) => (
               <span
                 key={i}
                 style={{
-                  fontSize: 11,
+                  fontSize: 11.5,
                   fontWeight: 700,
-                  padding: '3px 9px',
+                  padding: '4px 10px',
                   borderRadius: 20,
                   background: '#fce4ec',
                   color: PINK,
+                  lineHeight: 1.3,
                 }}
               >
                 {naira(p.budget_ngn)} · {p.days} {p.days === 1 ? 'day' : 'days'}
@@ -4195,15 +4221,19 @@ export function ResultCard({
             {plan?.geo?.pins?.length && plan.platforms?.[0]?.platform !== 'tiktok' ? (
               <span
                 style={{
-                  fontSize: 11,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 11.5,
                   fontWeight: 600,
-                  padding: '3px 9px',
+                  padding: '4px 10px',
                   borderRadius: 20,
                   background: '#f0eded',
                   color: '#666',
+                  lineHeight: 1.3,
                 }}
               >
-                <MapPin size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+                <MapPin size={12} strokeWidth={2} style={{ flexShrink: 0 }} />
                 {plan.geo.pins.map((x) => x.name).join(', ')}
               </span>
             ) : null}
