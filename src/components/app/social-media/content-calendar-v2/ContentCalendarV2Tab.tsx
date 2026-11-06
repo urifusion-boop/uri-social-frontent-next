@@ -1035,6 +1035,13 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
   const [generating, setGenerating] = useState(false);
   const [platforms, setPlatforms] = useState<string[]>(['facebook', 'instagram']);
   const [selectedItem, setSelectedItem] = useState<CalendarV2Item | null>(null);
+  // When the generate/regenerate REQUEST itself fails (not a pipeline failure
+  // reported later via status='failed', but the initial call throwing or
+  // coming back with status: false), the old plan was never replaced, so the
+  // page kept looking exactly like nothing had happened — a toast alone is
+  // easy to miss. This renders a real, dismiss-to-clear banner right by the
+  // button that was just clicked.
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -1115,6 +1122,7 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
       return;
     }
     setGenerating(true);
+    setGenerateError(null);
     try {
       const res = await SocialMediaAgentService.generateCalendarPlanV2(platforms, force);
       if (res.status && res.responseData) {
@@ -1128,11 +1136,20 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
           setGenerating(false);
         }
       } else {
-        ToastService.showToast(res.responseMessage || 'Generation failed', ToastTypeEnum.Error);
+        const msg = res.responseMessage || 'Generation failed';
+        ToastService.showToast(msg, ToastTypeEnum.Error);
+        setGenerateError(msg);
         setGenerating(false);
       }
-    } catch {
-      ToastService.showToast('Could not start generation — try again', ToastTypeEnum.Error);
+    } catch (err) {
+      // The old plan is still sitting in state at this point, unchanged — if
+      // this error goes unnoticed, the page looks identical to before the
+      // click, which is exactly what read as "it loads but returns to the
+      // initial one."
+      const detail = (err as { data?: { detail?: string } })?.data?.detail;
+      const msg = detail || 'Could not start generation — try again';
+      ToastService.showToast(msg, ToastTypeEnum.Error);
+      setGenerateError(msg);
       setGenerating(false);
     }
   };
@@ -1344,6 +1361,37 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
                 )}
               </div>
             </div>
+
+            {generateError && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  padding: '10px 14px',
+                  borderRadius: 9,
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                }}
+              >
+                <span style={{ fontSize: 12.5, color: '#991B1B', fontWeight: 600 }}>⚠️ {generateError}</span>
+                <button
+                  onClick={() => setGenerateError(null)}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    color: '#991B1B',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
           </div>
 
           <div
