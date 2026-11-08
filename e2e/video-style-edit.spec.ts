@@ -3,7 +3,9 @@
  *  - the chip is a plain label until "Edit" is clicked, then a list of the video styles;
  *  - picking another style and regenerating sends that style with the edited direction;
  *  - regenerating without touching the list keeps the style the AI chose;
- *  - Cancel leaves the style as it was.
+ *  - Cancel leaves the style as it was;
+ *  - after a page reload the storyboard comes back with its brief, so Regenerate still sends one (the server
+ *    refuses an empty brief, which showed as "Something went wrong").
  *
  * Local dev server, auth faked, every backend call mocked.
  */
@@ -32,6 +34,20 @@ const STORYBOARD = {
 const ok = (responseData: object) => ({
   json: { status: true, responseCode: 200, responseMessage: 'ok', responseData },
 });
+
+async function openDescribe(page: Page) {
+  await page.goto('/workspace/');
+  // After a reload the dashboard also has a Content Studio card, ahead of the sidebar entry.
+  await page.getByText('Content Studio', { exact: true }).last().click();
+  await page
+    .locator('button', { hasText: /🎬\s*Video/ })
+    .first()
+    .click();
+  await page
+    .getByRole('button', { name: /🎬 Generate Videos$/ })
+    .first()
+    .click();
+}
 
 async function setup(page: Page) {
   const sent: Request[] = [];
@@ -79,16 +95,7 @@ async function setup(page: Page) {
     )
   );
 
-  await page.goto('/workspace/');
-  await page.getByText('Content Studio', { exact: true }).click();
-  await page
-    .locator('button', { hasText: /🎬\s*Video/ })
-    .first()
-    .click();
-  await page
-    .getByRole('button', { name: /🎬 Generate Videos$/ })
-    .first()
-    .click();
+  await openDescribe(page);
   await page.getByPlaceholder(/A founder explains why they built this product/).fill(BRIEF);
   await page.getByRole('button', { name: 'Generate Storyboard · 1 credit' }).click();
   await expect(page.getByText('Style: Clean Commercial')).toBeVisible();
@@ -134,5 +141,19 @@ test.describe('Describe It: changing the style while editing the direction', () 
     await page.getByText('✎ Edit').click();
     await expect(styleList(page)).toHaveValue('clean_commercial');
     expect(sent).toHaveLength(1);
+  });
+
+  test('after a reload Regenerate still sends the brief the storyboard was written from', async ({ page }) => {
+    const { sent } = await setup(page);
+    await page.reload();
+    await openDescribe(page);
+    await expect(page.getByText('Style: Clean Commercial')).toBeVisible();
+    await page.getByText('✎ Edit').click();
+    await styleList(page).selectOption('viral_fast_cut');
+    await regenerate(page).click();
+    await expect.poll(() => sent.length).toBe(2);
+    const body = sent[1].postDataJSON();
+    expect(body.brief).toBe(BRIEF);
+    expect(body.video_style).toBe('viral_fast_cut');
   });
 });

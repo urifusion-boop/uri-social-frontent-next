@@ -176,6 +176,8 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
   const SESSION_KEY = 'uri:dvg:session';
 
   type DVGSession = {
+    // The brief the storyboard was written from: "Regenerate" sends it again, and the server refuses an empty one.
+    brief: string;
     storyboard: Storyboard | null;
     platform: string;
     duration: number;
@@ -225,6 +227,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
       }
 
       if (saved.storyboard) setStoryboard(saved.storyboard);
+      if (saved.brief) setBrief(saved.brief);
       if (saved.platform) setPlatform(saved.platform);
       if (saved.duration) setDuration(saved.duration);
       if (saved.selectedOutcome) setSelectedOutcome(saved.selectedOutcome);
@@ -532,9 +535,12 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random()}`;
+      // A rewrite from an edited direction can come after the brief was lost (an older saved session has none):
+      // the direction is the brief then, rather than sending an empty one the server refuses.
+      const briefForRun = brief.trim() || opts?.creativeDirectionOverride || '';
       const jobRes = await SocialMediaAgentService.generateCreativeStoryboard(
         {
-          brief: brief.trim(),
+          brief: briefForRun,
           reference_images: images.map((img) => img.dataUrl),
           target_platform: platform,
           target_duration_seconds: duration,
@@ -553,7 +559,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
         setStoryboardBilling(jobRes.responseData.billing);
         void refreshCreditBalance(); // the header balance drops straight away
       }
-      saveSession({ storyboardJobId: jobRes.responseData.job_id });
+      saveSession({ storyboardJobId: jobRes.responseData.job_id, brief: briefForRun });
       const result = await pollStoryboardJob(jobRes.responseData.job_id);
       if (!result) {
         setError('Storyboard generation is taking much longer than expected. Please try again.');
