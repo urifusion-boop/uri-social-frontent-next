@@ -77,6 +77,9 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
   // editing it would be misleading.
   const [editingDirection, setEditingDirection] = useState(false);
   const [editedDirection, setEditedDirection] = useState('');
+  // The style the AI picked can be swapped for any VIDEO_STYLES entry while editing; it only applies once
+  // "Regenerate" is clicked, like the edited text.
+  const [editedStyle, setEditedStyle] = useState('');
   const [regeneratingDirection, setRegeneratingDirection] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -635,7 +638,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
     setRegeneratingDirection(true);
     try {
       const succeeded = await runStoryboardGeneration({
-        videoStyleOverride: storyboard?.video_style,
+        videoStyleOverride: editedStyle || storyboard?.video_style,
         creativeDirectionOverride: editedDirection.trim(),
       });
       // Stay in edit mode on failure — the edited text (and the error above)
@@ -754,7 +757,6 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
       alive = false;
       clearTimeout(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storyboard, selectedOutcome, selectedVoice, videoJob?.status]);
 
   // Once a charged job ends, what came back is on the job: refresh the header balance to match.
@@ -1097,7 +1099,31 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
                   Creative Direction
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {storyboard.video_style && (
+                  {storyboard.video_style && editingDirection ? (
+                    <select
+                      aria-label="Video style"
+                      value={editedStyle}
+                      onChange={(e) => setEditedStyle(e.target.value)}
+                      disabled={regeneratingDirection}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: PRIMARY,
+                        background: '#fff',
+                        border: `1px solid #FBCFE8`,
+                        borderRadius: 8,
+                        padding: '3px 8px',
+                        fontFamily: 'inherit',
+                        cursor: regeneratingDirection ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {VIDEO_STYLES.map((s) => (
+                        <option key={s.slug} value={s.slug}>
+                          {s.name} — {s.vibe}
+                        </option>
+                      ))}
+                    </select>
+                  ) : storyboard.video_style ? (
                     <span
                       style={{
                         fontSize: 10.5,
@@ -1112,11 +1138,12 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
                       Style:{' '}
                       {VIDEO_STYLES.find((s) => s.slug === storyboard.video_style)?.name ?? storyboard.video_style}
                     </span>
-                  )}
+                  ) : null}
                   {!editingDirection && !regeneratingDirection && (
                     <button
                       onClick={() => {
                         setEditedDirection(storyboard.creative_direction || '');
+                        setEditedStyle(storyboard.video_style || '');
                         setEditingDirection(true);
                       }}
                       style={{
@@ -1207,7 +1234,11 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
                   </div>
                   {regeneratingDirection && (
                     <p style={{ fontSize: 11, color: GREY, margin: '8px 0 0' }}>
-                      Rewriting the script to match this direction — new scenes and images are coming.
+                      Rewriting the script to match this direction
+                      {editedStyle && editedStyle !== storyboard.video_style
+                        ? ` in the ${VIDEO_STYLES.find((s) => s.slug === editedStyle)?.name ?? 'new'} style`
+                        : ''}{' '}
+                      — new scenes and images are coming.
                     </p>
                   )}
                 </div>
