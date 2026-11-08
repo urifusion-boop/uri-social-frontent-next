@@ -2254,7 +2254,7 @@ export function SceneCard({
                 title={clip.warning || undefined}
               >
                 {clip.warning ? '⚠ Fallback · ' : ''}
-                {clip.cost_usd != null ? `Done · $${clip.cost_usd.toFixed(3)}` : 'Done'}
+                Done
               </span>
             )}
             {clip.error && (
