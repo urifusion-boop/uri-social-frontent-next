@@ -4238,11 +4238,37 @@ export function ResultCard({
               </span>
             ) : null}
           </div>
-          {result.whatsapp_number && (
-            <p style={{ margin: '0 0 12px', fontSize: 12, color: '#666' }}>
-              💬 Leads message <strong>+{result.whatsapp_number}</strong> on WhatsApp
-            </p>
-          )}
+          {(() => {
+            // Where taps land follows the destination the client chose. The brand's saved
+            // WhatsApp number is on file for every campaign, so printing it unconditionally
+            // told website/link campaigns their leads went to WhatsApp.
+            const dest = result.destination_type || 'whatsapp';
+            const line: React.CSSProperties = { margin: '0 0 12px', fontSize: 12, color: '#666' };
+            if (dest === 'whatsapp') {
+              return result.whatsapp_number ? (
+                <p style={line}>
+                  💬 Leads message <strong>+{result.whatsapp_number}</strong> on WhatsApp
+                </p>
+              ) : null;
+            }
+            const label =
+              dest === 'website'
+                ? '🌐 Taps open your website'
+                : dest === 'instagram_dm'
+                  ? '📩 Taps land in your Instagram DMs'
+                  : '🔗 Taps open your link';
+            return (
+              <p style={line}>
+                {label}
+                {result.destination_link ? (
+                  <>
+                    {' '}
+                    — <strong>{result.destination_link}</strong>
+                  </>
+                ) : null}
+              </p>
+            );
+          })()}
           {(result.warnings ?? []).map((w) => (
             <div
               key={w}

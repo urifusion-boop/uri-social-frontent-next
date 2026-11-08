@@ -117,6 +117,29 @@ async function mockApi(page: Page, opts: MockOpts = {}) {
     if (/\/jane-ads\/meta\/plan\/[^/]+\/fields$/.test(path)) {
       return route.fulfill({ json: { plan_id: 'plan_tt', fields: PLAN_FIELDS } });
     }
+    // The plan's pre-launch checks. Un-stubbed it answers {} and the checks panel reads
+    // `blocking` off nothing, which crashes the whole page.
+    if (/\/jane-ads\/meta\/plan\/[^/]+\/checks$/.test(path)) {
+      return route.fulfill({
+        json: {
+          issues: [],
+          blocking: [],
+          structure: {
+            campaigns: 1,
+            ad_sets: 1,
+            ads_per_ad_set: 1,
+            budget_type: 'ABO',
+            daily_ngn: 20000,
+            days: 1,
+            total_ngn: 20000,
+            why: '',
+          },
+          brief_missing: [],
+          confidence: 'normal',
+          can_launch: true,
+        },
+      });
+    }
     if (path.includes('/plan-from-message')) {
       opts.planBodies?.push(route.request().postDataJSON());
       return route.fulfill({ json: opts.planResponse ?? TIKTOK_PLAN });
@@ -230,6 +253,32 @@ test.describe('TikTok ads — mocked', () => {
     });
     expect(visibleText).not.toMatch(META_LEAK);
     expect(facebookConnect).toEqual([]);
+  });
+
+  // The brand's WhatsApp number is on file for every campaign. Live-reported on prod: a
+  // plan that goes to the client's website still said "Leads message +234… on WhatsApp".
+  for (const [destination_type, destination_link, expected] of [
+    ['website', 'https://www.urisocial.com/', 'Taps open your website'],
+    ['custom', 'https://forms.gle/VmFAZvpBR8Makf3i7', 'Taps open your link'],
+  ] as const) {
+    test(`a ${destination_type} plan says where taps land, not WhatsApp`, async ({ page }) => {
+      await mockApi(page, { planResponse: { ...TIKTOK_PLAN, destination_type, destination_link } });
+      await openCampaigns(page);
+      await chooseTikTokAndSend(page, 'promote my webinar, budget 20000');
+
+      await expect(page.getByText(expected)).toBeVisible();
+      await expect(page.getByText(destination_link)).toBeVisible();
+      await expect(page.getByText(/Leads message/)).toHaveCount(0);
+    });
+  }
+
+  test('a WhatsApp plan still shows the number its leads message', async ({ page }) => {
+    await mockApi(page, { planResponse: { ...TIKTOK_PLAN, destination_type: 'whatsapp' } });
+    await openCampaigns(page);
+    await chooseTikTokAndSend(page, 'promote my webinar, budget 20000');
+
+    await expect(page.getByText(/Leads message/)).toBeVisible();
+    await expect(page.getByText('+2348031234567')).toBeVisible();
   });
 
   test('a launch refused for goal and destination does not ask for a WhatsApp number', async ({ page }) => {
