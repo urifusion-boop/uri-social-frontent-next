@@ -334,6 +334,8 @@ const ItemDetailModal = ({
   onClose,
   onPlanUpdated,
   onGenerated,
+  onRegeneratePlan,
+  regeneratingPlan,
 }: {
   item: CalendarV2Item;
   planId: string;
@@ -346,6 +348,12 @@ const ItemDetailModal = ({
   onClose: () => void;
   onPlanUpdated: (p: ContentCalendarV2Plan) => void;
   onGenerated: () => void;
+  /** Kicks off the same background 30-day-plan regeneration the main tab's
+   * own "↻ Regenerate 30-day plan" button runs — given to this modal so a
+   * platform mismatch can be fixed right where it's flagged, instead of
+   * just being told to go find that button elsewhere on the page. */
+  onRegeneratePlan: () => void;
+  regeneratingPlan: boolean;
 }) => {
   const [regenerating, setRegenerating] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -875,8 +883,36 @@ const ItemDetailModal = ({
           >
             ⚠️ This plan was written for <strong>{plan.platforms.join(', ')}</strong>, but you now have{' '}
             <strong>{selectedPlatforms.join(', ') || 'nothing'}</strong> selected above. Creating a draft here would
-            still target {plan.platforms.join(', ')} — click <strong>“↻ Regenerate 30-day plan”</strong> first to get
-            ideas written for your current platforms.
+            still target {plan.platforms.join(', ')} — regenerate the 30-day plan to get ideas written for your current
+            platforms.
+            <div style={{ marginTop: 10 }}>
+              <button
+                onClick={() => {
+                  onRegeneratePlan();
+                  onClose();
+                  ToastService.showToast(
+                    'Regenerating your 30-day plan for the new platforms — this takes a few minutes, reopen this day once it’s ready.',
+                    ToastTypeEnum.Success
+                  );
+                }}
+                disabled={regeneratingPlan}
+                style={{
+                  background: '#92400E',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 7,
+                  padding: '7px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: regeneratingPlan ? 'not-allowed' : 'pointer',
+                  opacity: regeneratingPlan ? 0.6 : 1,
+                }}
+              >
+                {regeneratingPlan
+                  ? 'Regenerating…'
+                  : `↻ Regenerate 30-day plan for ${selectedPlatforms.join(', ') || 'current platforms'}`}
+              </button>
+            </div>
           </div>
         )}
 
@@ -1422,6 +1458,8 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
             if (refreshed) setSelectedItem(refreshed);
           }}
           onGenerated={onGenerated}
+          onRegeneratePlan={() => handleGenerate(true)}
+          regeneratingPlan={generating}
         />
       )}
     </div>
