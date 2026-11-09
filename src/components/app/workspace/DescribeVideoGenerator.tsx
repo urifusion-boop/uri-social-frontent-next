@@ -19,6 +19,9 @@ import {
   PLATFORMS,
   DURATIONS,
   VIDEO_OUTCOMES,
+  SELECTABLE_OUTCOMES,
+  DEFAULT_OUTCOME,
+  toSelectableOutcome,
   AvatarVoicePicker,
   MODEL_LABELS,
   Section,
@@ -107,7 +110,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
   }, []);
 
   // Video generation state
-  const [selectedOutcome, setSelectedOutcome] = useState('quick_video');
+  const [selectedOutcome, setSelectedOutcome] = useState(DEFAULT_OUTCOME);
   const [outcomeSuggestionReason, setOutcomeSuggestionReason] = useState('');
   const [suggestedOutcome, setSuggestedOutcome] = useState(''); // what was suggested, even after the customer picks another
   const [selectedVoice, setSelectedVoice] = useState('Sarah');
@@ -237,7 +240,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
       if (saved.brief) setBrief(saved.brief);
       if (saved.platform) setPlatform(saved.platform);
       if (saved.duration) setDuration(saved.duration);
-      if (saved.selectedOutcome) setSelectedOutcome(saved.selectedOutcome);
+      if (saved.selectedOutcome) setSelectedOutcome(toSelectableOutcome(saved.selectedOutcome));
       if (saved.selectedVoice) setSelectedVoice(saved.selectedVoice);
       if (saved.mergedUrl) setMergedUrl(saved.mergedUrl);
       if (saved.draftCaption) setDraftCaption(saved.draftCaption);
@@ -1567,7 +1570,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
                     Video Outcome
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                    {VIDEO_OUTCOMES.map((o) => {
+                    {SELECTABLE_OUTCOMES.map((o) => {
                       const active = selectedOutcome === o.value;
                       const framesReady = storyboard ? storyboard.scenes.every((s) => frameMap[s.scene_number]) : false;
                       const blocked = !framesReady;

@@ -35,7 +35,7 @@ const FRAMES = {
   3: 'https://fake-cdn.test/f3.png',
 };
 
-const CREDITS_BY_OUTCOME: Record<string, number> = { quick_video: 3, high_quality: 4 };
+const CREDITS_BY_OUTCOME: Record<string, number> = { high_quality: 3, complex_cinematic: 5 };
 
 async function setup(
   page: Page,
@@ -62,7 +62,7 @@ async function setup(
       storyboard: STORYBOARD,
       platform: 'tiktok',
       duration: 15,
-      selectedOutcome: 'quick_video',
+      selectedOutcome: 'high_quality',
       selectedVoice: 'Sarah',
       storyboardJobId: null,
       frameJobId: null,
@@ -110,7 +110,7 @@ async function setup(
           job_id: 'J1',
           status: 'queued',
           total_scenes: 3,
-          outcome: 'quick_video',
+          outcome: 'high_quality',
           model: 'm',
           current_scene: 0,
           clips: [],
@@ -187,10 +187,10 @@ test.describe('Describe It: paying for a video', () => {
 
   test('the price follows the video type', async ({ page }) => {
     const { quoted } = await setup(page);
-    await page.getByRole('button', { name: /High Quality/ }).click();
-    await expect(page.getByTestId('video-price')).toContainText('4 credits');
-    await expect(page.getByRole('button', { name: 'Generate Videos · 4 credits' })).toBeVisible();
-    expect(quoted.map((q) => q.outcome)).toContain('high_quality');
+    await page.getByRole('button', { name: /Complex \/ Cinematic/ }).click();
+    await expect(page.getByTestId('video-price')).toContainText('5 credits');
+    await expect(page.getByRole('button', { name: 'Generate Videos · 5 credits' })).toBeVisible();
+    expect(quoted.map((q) => q.outcome)).toContain('complex_cinematic');
   });
 
   test('the customer confirms the price, and the request carries an idempotency key', async ({ page }) => {
@@ -209,7 +209,7 @@ test.describe('Describe It: paying for a video', () => {
     const key = started[0].headers()['idempotency-key'];
     expect(key).toBeTruthy();
     expect(key.length).toBeGreaterThan(8);
-    expect((started[0].postDataJSON() as { outcome: string }).outcome).toBe('quick_video');
+    expect((started[0].postDataJSON() as { outcome: string }).outcome).toBe('high_quality');
   });
 
   test('not enough credits disables the button and offers a top-up', async ({ page }) => {

@@ -75,6 +75,19 @@ export const VIDEO_OUTCOMES = [
   { value: 'advanced_references', label: 'Advanced References', description: 'Reference-driven, brand-critical' },
 ];
 
+// The only outcomes offered as buttons for now. The rest still exist on the server (and old jobs and saved drafts may
+// name them, so VIDEO_OUTCOMES keeps them all for labels), but they are hidden until they are ready.
+export const SELECTABLE_OUTCOME_VALUES = ['high_quality', 'complex_cinematic'];
+export const SELECTABLE_OUTCOMES = VIDEO_OUTCOMES.filter((o) => SELECTABLE_OUTCOME_VALUES.includes(o.value));
+export const DEFAULT_OUTCOME = 'high_quality';
+
+/** What a hidden outcome becomes: anything involving people speaking or references goes to Complex / Cinematic (which
+ *  has the people speak the script's lines); everything else is plain premium footage. */
+export function toSelectableOutcome(value: string | null | undefined): string {
+  if (value && SELECTABLE_OUTCOME_VALUES.includes(value)) return value;
+  return value === 'talking_dialogue' || value === 'advanced_references' ? 'complex_cinematic' : DEFAULT_OUTCOME;
+}
+
 // Which outcome fits a storyboard's own video_style when nothing stronger
 // (actual scripted dialogue) overrides it — each mapping grounded in that
 // style's own "best_for"/vibe against the outcome's own description in
@@ -105,29 +118,36 @@ export function suggestOutcome(storyboard: Storyboard): { outcome: string; reaso
   const hasDialogue = storyboard.scenes.some((s) => s.dialogue && s.dialogue.trim());
   if (hasDialogue) {
     return {
-      outcome: 'talking_dialogue',
-      reason:
-        'This script has spoken dialogue — only Talking / Dialogue actually turns it into audible, lip-synced speech. Every other outcome would animate the same frame silently.',
+      outcome: 'complex_cinematic',
+      reason: 'This script has spoken dialogue — Complex / Cinematic has the people on screen speak the lines.',
     };
   }
   // The script writer reads the whole creative direction and picks the cheapest type that fits it (and has
   // already been checked server-side: it never suggests talking without speech, or references without any).
+  // Only some outcomes are offered for now, so a pick that is hidden is replaced by the nearest one that is shown,
+  // and then its reason (which was written for the hidden one) no longer fits.
   const written = storyboard.suggested_outcome;
-  if (written && written !== 'talking_dialogue' && VIDEO_OUTCOMES.some((o) => o.value === written)) {
+  if (written && VIDEO_OUTCOMES.some((o) => o.value === written)) {
+    const outcome = toSelectableOutcome(written);
     return {
-      outcome: written,
-      reason: storyboard.outcome_reason?.trim() || 'It suits this creative direction.',
+      outcome,
+      reason:
+        outcome === written
+          ? storyboard.outcome_reason?.trim() || 'It suits this creative direction.'
+          : outcome === 'complex_cinematic'
+            ? 'This concept has motion that suits a cinematic look.'
+            : 'A polished, premium look suits this concept.',
     };
   }
   const styleSlug = storyboard.video_style;
   const styleName = VIDEO_STYLES.find((s) => s.slug === styleSlug)?.name;
-  const mapped = (styleSlug && STYLE_TO_OUTCOME[styleSlug]) || 'quick_video';
-  const mappedLabel = VIDEO_OUTCOMES.find((o) => o.value === mapped)?.label ?? mapped;
+  const outcome = toSelectableOutcome((styleSlug && STYLE_TO_OUTCOME[styleSlug]) || DEFAULT_OUTCOME);
+  const label = VIDEO_OUTCOMES.find((o) => o.value === outcome)?.label ?? outcome;
   return {
-    outcome: mapped,
+    outcome,
     reason: styleName
-      ? `No dialogue in this script — ${styleName}'s own look (${VIDEO_STYLES.find((s) => s.slug === styleSlug)?.vibe?.toLowerCase()}) matches ${mappedLabel} best.`
-      : `No dialogue in this script — defaulting to ${mappedLabel}, the general-purpose outcome.`,
+      ? `No dialogue in this script — ${label} gives ${styleName} its best result.`
+      : `No dialogue in this script — defaulting to ${label}.`,
   };
 }
 
@@ -380,7 +400,7 @@ export default function VideoStoryboardGenerator({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Video generation state
-  const [selectedOutcome, setSelectedOutcome] = useState('quick_video');
+  const [selectedOutcome, setSelectedOutcome] = useState(DEFAULT_OUTCOME);
   const [outcomeSuggestionReason, setOutcomeSuggestionReason] = useState('');
   const [selectedVoice, setSelectedVoice] = useState('Sarah');
   const [videoJob, setVideoJob] = useState<VideoJob | null>(null);
@@ -1442,7 +1462,7 @@ export default function VideoStoryboardGenerator({
                         Video Outcome
                       </p>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                        {VIDEO_OUTCOMES.map((o) => {
+                        {SELECTABLE_OUTCOMES.map((o) => {
                           const active = selectedOutcome === o.value;
                           // Every outcome routes to an image-to-video model (fal.ai) — none of
                           // them can run before frame generation finishes.
