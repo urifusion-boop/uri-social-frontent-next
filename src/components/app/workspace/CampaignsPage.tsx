@@ -426,6 +426,25 @@ export default function CampaignsPage({
           ...(preferredPlatformRef.current === 'google' ? { google_placement: googlePlacementRef.current } : {}),
         }
       : {};
+  // Run the same brief on several platforms at once — a toggle on the single-select
+  // PLATFORM row above, not a replacement for it. Each selected platform becomes its
+  // own independent plan/launch (see sendMultiPlatform below); nothing here touches
+  // the single-platform preferredPlatform state or flow.
+  const [multiPlatformMode, setMultiPlatformMode] = useState(false);
+  const [selectedPlatformsMulti, setSelectedPlatformsMulti] = useState<Set<'meta' | 'tiktok' | 'google'>>(new Set());
+  const toggleMultiPlatform = (p: 'meta' | 'tiktok' | 'google') => {
+    setSelectedPlatformsMulti((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  };
+  // Captured directly rather than left in the brief's free text — the NL layer
+  // reads budget out of the message for a single-platform plan, but a multi-platform
+  // submission needs the real number client-side to split it evenly per platform.
+  const [multiTotalBudget, setMultiTotalBudget] = useState('');
+  const [multiDays, setMultiDays] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -879,6 +898,117 @@ export default function CampaignsPage({
     } finally {
       setBusy(false);
     }
+  };
+
+  // Same brief, run independently on every platform the client checked — each its
+  // own single-platform plan/launch through the exact pipeline send() already uses
+  // one platform at a time, just fired in parallel with an even budget split and a
+  // shared campaign_group_id tying the siblings together. No new backend behaviour:
+  // creative generation, launch, billing and the adapters are untouched — only
+  // budget_ngn_override/days_override/campaign_group_id are new, additive fields.
+  const sendMultiPlatform = async () => {
+    const text = input.trim();
+    if (!text || busy) return;
+    const platforms = Array.from(selectedPlatformsMulti);
+    if (platforms.length < 2) {
+      ToastService.showToast('Pick at least 2 platforms to run this on.', ToastTypeEnum.Error);
+      return;
+    }
+    const totalBudget = Number(multiTotalBudget);
+    const days = Number(multiDays);
+    if (!totalBudget || totalBudget <= 0) {
+      ToastService.showToast('Enter a total budget to split across the platforms.', ToastTypeEnum.Error);
+      return;
+    }
+    if (!days || days <= 0) {
+      ToastService.showToast('Enter how many days this should run.', ToastTypeEnum.Error);
+      return;
+    }
+    const perPlatformBudget = totalBudget / platforms.length;
+
+    setInput('');
+    const attachedMedia = media;
+    const carouselImageUrls =
+      attachedMedia?.source === 'upload' && !attachedMedia.isVideo && carouselExtraUrls.length > 0
+        ? [attachedMedia.url, ...carouselExtraUrls]
+        : [];
+    const combinedMessage = briefSoFar ? `${briefSoFar}. ${text}` : text;
+    setBusy(true);
+    const threadId = await ensureThread();
+    const userMsg: ChatMsg = { id: uid(), role: 'user', text };
+    setMessages((m) => [...m, userMsg]);
+    saveMsg(userMsg);
+
+    const campaignGroupId = uid();
+    const sharedFields = (platform: 'meta' | 'tiktok' | 'google') => ({
+      preferred_platform: platform,
+      ...(platform === 'google' ? { google_placement: googlePlacementRef.current } : {}),
+      ...(objectiveRef.current ? { objective: objectiveRef.current } : {}),
+      ...(carouselImageUrls.length >= 2 ? { carousel_image_urls: carouselImageUrls } : {}),
+      message: combinedMessage,
+      thread_id: threadId,
+      budget_ngn_override: perPlatformBudget,
+      days_override: days,
+      campaign_group_id: campaignGroupId,
+      ...(chosenVariantRef.current
+        ? {
+            selected_plan_variant: chosenVariantRef.current.variant,
+            variant_group_id: chosenVariantRef.current.variantGroupId,
+          }
+        : {}),
+      ...(ownAudienceRef.current ? { target_audience: ownAudienceRef.current } : {}),
+      ...(attachedMedia?.source === 'upload'
+        ? {
+            creative_source: 'upload' as const,
+            reference_image_url: attachedMedia.url,
+            is_video: attachedMedia.isVideo,
+            asset_attestation: attachedMedia.assetAttestation,
+            ...provenanceFields(attachedMedia),
+          }
+        : attachedMedia?.source === 'draft'
+          ? { creative_source: 'draft' as const, draft_id: attachedMedia.draftId }
+          : lastCreativeRef.current
+            ? { reuse_image_url: lastCreativeRef.current }
+            : { creative_source: creativeChoiceRef.current ?? ('ask' as const) }),
+    });
+
+    const introMsg: ChatMsg = {
+      id: uid(),
+      role: 'jane',
+      kind: 'text',
+      text: `Here's a plan for each platform — ₦${perPlatformBudget.toLocaleString()} each, ${days} day${days === 1 ? '' : 's'}:`,
+    };
+    setMessages((m) => [...m, introMsg]);
+    saveMsg(introMsg);
+
+    const outcomes = await Promise.allSettled(platforms.map((p) => CampaignService.planFromMessage(sharedFields(p))));
+    outcomes.forEach((outcome, i) => {
+      const platform = platforms[i];
+      if (outcome.status === 'fulfilled') {
+        const result = outcome.value;
+        const resultMsg: ChatMsg = { id: uid(), role: 'jane', kind: 'result', result };
+        setMessages((m) => [...m, resultMsg]);
+        saveMsg(resultMsg);
+        if (result.creative?.image_url) lastCreativeRef.current = result.creative.image_url;
+      } else {
+        const msg = extractErrorMessage(
+          outcome.reason,
+          "We're experiencing some difficulties — please try again in a little while."
+        );
+        const errMsg: ChatMsg = {
+          id: uid(),
+          role: 'jane',
+          kind: 'text',
+          text: `${platformChoice(platform).label}: ${msg}`,
+        };
+        setMessages((m) => [...m, errMsg]);
+        saveMsg(errMsg);
+      }
+    });
+
+    setBriefSoFar(combinedMessage);
+    refreshThreads();
+    setBusy(false);
   };
 
   // Answer the need_whatsapp step: send the brand's WhatsApp number (stored server-side
@@ -2296,48 +2426,108 @@ export default function CampaignsPage({
                   )}
                 </div>
               )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#888' }}>PLATFORM</span>
-                {PLATFORM_CHOICES.map((c) => {
-                  const on = preferredPlatformUi === c.value;
-                  return (
-                    <button
-                      key={c.value || 'auto'}
-                      type="button"
-                      data-testid={`platform-chip-${c.value || 'auto'}`}
-                      aria-pressed={on}
-                      onClick={() => setPreferredPlatform(c.value)}
-                      title={c.hint}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        padding: '4px 11px',
-                        borderRadius: 20,
-                        border: `1.5px solid ${on ? PINK : '#e0dcd9'}`,
-                        background: on ? PINK : '#fff',
-                        color: on ? '#fff' : '#666',
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        boxShadow: on ? '0 2px 8px rgba(194,24,91,.25)' : 'none',
-                      }}
-                    >
-                      {on && <Check size={12} strokeWidth={3} />}
-                      {c.value === 'tiktok' && !on && <Music2 size={12} strokeWidth={2} />}
-                      {c.label}
-                    </button>
-                  );
-                })}
+                {!multiPlatformMode &&
+                  PLATFORM_CHOICES.map((c) => {
+                    const on = preferredPlatformUi === c.value;
+                    return (
+                      <button
+                        key={c.value || 'auto'}
+                        type="button"
+                        data-testid={`platform-chip-${c.value || 'auto'}`}
+                        aria-pressed={on}
+                        onClick={() => setPreferredPlatform(c.value)}
+                        title={c.hint}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          padding: '4px 11px',
+                          borderRadius: 20,
+                          border: `1.5px solid ${on ? PINK : '#e0dcd9'}`,
+                          background: on ? PINK : '#fff',
+                          color: on ? '#fff' : '#666',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: on ? '0 2px 8px rgba(194,24,91,.25)' : 'none',
+                        }}
+                      >
+                        {on && <Check size={12} strokeWidth={3} />}
+                        {c.value === 'tiktok' && !on && <Music2 size={12} strokeWidth={2} />}
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                {multiPlatformMode &&
+                  (['meta', 'tiktok', 'google'] as const).map((p) => {
+                    const on = selectedPlatformsMulti.has(p);
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        data-testid={`multi-platform-chip-${p}`}
+                        aria-pressed={on}
+                        onClick={() => toggleMultiPlatform(p)}
+                        title={platformChoice(p).hint}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          padding: '4px 11px',
+                          borderRadius: 20,
+                          border: `1.5px solid ${on ? PINK : '#e0dcd9'}`,
+                          background: on ? PINK : '#fff',
+                          color: on ? '#fff' : '#666',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: on ? '0 2px 8px rgba(194,24,91,.25)' : 'none',
+                        }}
+                      >
+                        {on && <Check size={12} strokeWidth={3} />}
+                        {p === 'tiktok' && !on && <Music2 size={12} strokeWidth={2} />}
+                        {platformChoice(p).label}
+                      </button>
+                    );
+                  })}
+                {/* Run on several platforms at once, one brief, an even budget split per
+                    platform — each becomes its own independent plan/launch (sendMultiPlatform),
+                    reviewed and launched separately. A toggle, not a replacement for the
+                    single-select row above: Jane's own single-platform picks still work exactly
+                    as before when this is off. */}
+                <button
+                  type="button"
+                  onClick={() => setMultiPlatformMode((v) => !v)}
+                  style={{
+                    marginLeft: 'auto',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '4px 11px',
+                    borderRadius: 20,
+                    border: `1.5px solid ${multiPlatformMode ? PINK : '#e0dcd9'}`,
+                    background: multiPlatformMode ? '#FDF2F8' : '#fff',
+                    color: multiPlatformMode ? PINK : '#888',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {multiPlatformMode ? '✓ Multiple platforms' : 'Run on multiple platforms'}
+                </button>
               </div>
-              <p style={{ margin: '5px 0 8px', fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>
-                {preferredPlatformUi === 'google'
-                  ? `This campaign will run on ${placementLabel(googlePlacementUi)}. ${
-                      GOOGLE_PLACEMENTS.find((g) => g.value === googlePlacementUi)?.where ?? ''
-                    } Pick where:`
-                  : platformChoice(preferredPlatformUi).hint}
-              </p>
-              {preferredPlatformUi === 'google' && (
+              {!multiPlatformMode && (
+                <p style={{ margin: '5px 0 8px', fontSize: 11.5, color: '#777', lineHeight: 1.4 }}>
+                  {preferredPlatformUi === 'google'
+                    ? `This campaign will run on ${placementLabel(googlePlacementUi)}. ${
+                        GOOGLE_PLACEMENTS.find((g) => g.value === googlePlacementUi)?.where ?? ''
+                      } Pick where:`
+                    : platformChoice(preferredPlatformUi).hint}
+                </p>
+              )}
+              {!multiPlatformMode && preferredPlatformUi === 'google' && (
                 <GooglePlacementPicker
                   value={googlePlacementUi}
                   onChange={setGooglePlacement}
@@ -2349,6 +2539,55 @@ export default function CampaignsPage({
                   }}
                 />
               )}
+              {multiPlatformMode && (
+                <div style={{ display: 'flex', gap: 10, margin: '5px 0 8px', flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: 11.5, color: '#777' }}>
+                    Total budget (₦)
+                    <input
+                      type="number"
+                      min={0}
+                      value={multiTotalBudget}
+                      onChange={(e) => setMultiTotalBudget(e.target.value)}
+                      placeholder="e.g. 60000"
+                      disabled={busy}
+                      style={{
+                        display: 'block',
+                        marginTop: 3,
+                        width: 140,
+                        border: '1.5px solid #e0dcd9',
+                        borderRadius: 10,
+                        padding: '7px 10px',
+                        fontSize: 13,
+                      }}
+                    />
+                  </label>
+                  <label style={{ fontSize: 11.5, color: '#777' }}>
+                    Days
+                    <input
+                      type="number"
+                      min={1}
+                      value={multiDays}
+                      onChange={(e) => setMultiDays(e.target.value)}
+                      placeholder="e.g. 7"
+                      disabled={busy}
+                      style={{
+                        display: 'block',
+                        marginTop: 3,
+                        width: 90,
+                        border: '1.5px solid #e0dcd9',
+                        borderRadius: 10,
+                        padding: '7px 10px',
+                        fontSize: 13,
+                      }}
+                    />
+                  </label>
+                  {selectedPlatformsMulti.size >= 2 && Number(multiTotalBudget) > 0 && (
+                    <p style={{ fontSize: 11, color: '#999', alignSelf: 'flex-end', margin: 0 }}>
+                      ≈ ₦{(Number(multiTotalBudget) / selectedPlatformsMulti.size).toLocaleString()} per platform
+                    </p>
+                  )}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                 <textarea
                   value={input}
@@ -2356,13 +2595,16 @@ export default function CampaignsPage({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      send();
+                      if (multiPlatformMode) sendMultiPlatform();
+                      else send();
                     }
                   }}
                   placeholder={
-                    preferredPlatformUi === 'google'
-                      ? `Tell Jane what to promote on ${placementLabel(googlePlacementUi)}…`
-                      : platformChoice(preferredPlatformUi).placeholder
+                    multiPlatformMode
+                      ? 'Describe what to promote — Jane will plan it for each platform you picked…'
+                      : preferredPlatformUi === 'google'
+                        ? `Tell Jane what to promote on ${placementLabel(googlePlacementUi)}…`
+                        : platformChoice(preferredPlatformUi).placeholder
                   }
                   rows={1}
                   disabled={busy}
@@ -2379,17 +2621,31 @@ export default function CampaignsPage({
                   }}
                 />
                 <button
-                  onClick={() => send()}
-                  disabled={busy || !input.trim()}
+                  onClick={() => (multiPlatformMode ? sendMultiPlatform() : send())}
+                  disabled={
+                    busy ||
+                    !input.trim() ||
+                    (multiPlatformMode && (selectedPlatformsMulti.size < 2 || !multiTotalBudget || !multiDays))
+                  }
                   style={{
                     padding: '11px 20px',
                     border: 'none',
                     borderRadius: 12,
-                    background: busy || !input.trim() ? '#ddd' : `linear-gradient(135deg,${PINK},#8E1545)`,
+                    background:
+                      busy ||
+                      !input.trim() ||
+                      (multiPlatformMode && (selectedPlatformsMulti.size < 2 || !multiTotalBudget || !multiDays))
+                        ? '#ddd'
+                        : `linear-gradient(135deg,${PINK},#8E1545)`,
                     color: '#fff',
                     fontWeight: 800,
                     fontSize: 14,
-                    cursor: busy || !input.trim() ? 'default' : 'pointer',
+                    cursor:
+                      busy ||
+                      !input.trim() ||
+                      (multiPlatformMode && (selectedPlatformsMulti.size < 2 || !multiTotalBudget || !multiDays))
+                        ? 'default'
+                        : 'pointer',
                     whiteSpace: 'nowrap',
                   }}
                 >

@@ -825,6 +825,14 @@ export class CampaignService {
     // how a photo-only business reaches TikTok without shooting a video. Ignored
     // entirely for a Meta-bound plan, and ignored here too unless there are 2+ URLs.
     carousel_image_urls?: string[];
+    // Multi-platform campaigns: an explicit real number instead of folding it into
+    // `message` for the NL layer to re-parse — safer for a money-critical field.
+    // Applied deterministically server-side, overriding whatever the brief text says.
+    budget_ngn_override?: number;
+    days_override?: number;
+    // Ties this plan to its sibling plans launched for the SAME brief on other
+    // platforms (one id generated client-side per multi-platform submission).
+    campaign_group_id?: string;
   }): Promise<LaunchFromMessageResult> {
     const res = await UriHttpClient.getClient().post('/jane-ads/meta/plan-from-message', payload, { timeout: 240000 });
     return res.data as LaunchFromMessageResult;
