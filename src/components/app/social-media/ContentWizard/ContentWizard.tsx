@@ -27,9 +27,10 @@ type StepState = 'current' | 'done' | 'todo';
 interface ContentWizardProps {
   onGenerated: () => void;
   requireEmailVerification: (callback?: () => void) => boolean;
+  onSwitchToVideo?: () => void;
 }
 
-export default function ContentWizard({ onGenerated, requireEmailVerification }: ContentWizardProps) {
+export default function ContentWizard({ onGenerated, requireEmailVerification, onSwitchToVideo }: ContentWizardProps) {
   const [step, setStep] = useState(0);
   const wizard = useContentWizardState(requireEmailVerification);
 
@@ -95,7 +96,7 @@ export default function ContentWizard({ onGenerated, requireEmailVerification }:
               })}
             </Box>
 
-            {step === 0 && <StepContent wizard={wizard} />}
+            {step === 0 && <StepContent wizard={wizard} onSwitchToVideo={onSwitchToVideo} />}
             {step === 1 && <StepPlatformFormat wizard={wizard} />}
             {step === 2 && <StepGenerate wizard={wizard} />}
           </Box>

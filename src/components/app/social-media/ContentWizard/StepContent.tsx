@@ -1,7 +1,7 @@
 'use client';
 
 import { Box, Typography } from '@mui/material';
-import { MdEdit, MdUpload } from 'react-icons/md';
+import { MdEdit, MdUpload, MdArrowForward, MdVideocam } from 'react-icons/md';
 import StepBrief from './StepBrief';
 import StepUploadBrief from './StepUploadBrief';
 import { ContentSource, ContentWizardState } from './useContentWizardState';
@@ -23,10 +23,16 @@ const SOURCES: Array<{ key: ContentSource; icon: React.ReactNode; label: string;
   },
 ];
 
-export default function StepContent({ wizard }: { wizard: ContentWizardState }) {
+export default function StepContent({
+  wizard,
+  onSwitchToVideo,
+}: {
+  wizard: ContentWizardState;
+  onSwitchToVideo?: () => void;
+}) {
   return (
     <Box>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25, mb: 3 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25, mb: 1.5 }}>
         {SOURCES.map((s) => {
           const active = wizard.contentSource === s.key;
           return (
@@ -73,6 +79,32 @@ export default function StepContent({ wizard }: { wizard: ContentWizardState }) 
           );
         })}
       </Box>
+
+      {onSwitchToVideo && (
+        <Box
+          onClick={onSwitchToVideo}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.75,
+            mb: 3,
+            cursor: 'pointer',
+            width: 'fit-content',
+          }}
+        >
+          <MdVideocam size={14} color="#6B7280" />
+          <Typography fontSize="12px" color="#6B7280">
+            Making a video instead?
+          </Typography>
+          <Box
+            component="span"
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.25, fontSize: '12px', fontWeight: 700, color: PINK }}
+          >
+            Switch to Video Creation
+            <MdArrowForward size={12} />
+          </Box>
+        </Box>
+      )}
 
       {wizard.contentSource === 'prompt' ? <StepBrief wizard={wizard} /> : <StepUploadBrief wizard={wizard} />}
     </Box>

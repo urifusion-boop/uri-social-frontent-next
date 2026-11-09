@@ -1688,7 +1688,11 @@ const ContentManagerPage = ({
                     isGenerating={janeGenerating}
                   />
                 )}
-                <ContentWizard onGenerated={handleGenerated} requireEmailVerification={requireEmailVerification} />
+                <ContentWizard
+                  onGenerated={handleGenerated}
+                  requireEmailVerification={requireEmailVerification}
+                  onSwitchToVideo={() => setActiveTab('video')}
+                />
               </>
             )}
 
@@ -11088,17 +11092,9 @@ export default function WorkspaceDashboard() {
       active: nav === 'schedule' && contentStudioNav.tab === 'calendar-v2',
       onClick: () => goToContentStudioTab('calendar-v2'),
     },
-    {
-      id: 'auto',
-      icon: 'sparkle',
-      label: 'Auto-Generate',
-      // Orphaned by the restructure — AutoGenerateTab (daily/weekly drafts
-      // from the brand profile + top-performer analysis) had no nav path
-      // at all after the classic tab-scroll row was dropped. Real, working
-      // feature; re-linking it here instead of leaving it a dead end.
-      active: nav === 'schedule' && contentStudioNav.tab === 'auto',
-      onClick: () => goToContentStudioTab('auto'),
-    },
+    // Auto-Generate removed from this nav per staging feedback (item 5) —
+    // AutoGenerateTab itself is untouched and still reachable via
+    // goToContentStudioTab('auto') if it needs a home again later.
     {
       id: 'video',
       icon: 'video',
