@@ -1842,7 +1842,7 @@ const ContentManagerPage = ({
         {janeEverMounted && (
           <div style={{ display: isJaneActive ? undefined : 'none' }}>
             <JaneVideoChat
-              onSaveToDrafts={() => setActiveTab('drafts')}
+              onSaveToDrafts={() => setActiveTab('library')}
               isMobile={isMobile}
               // Both undefined outside the Jane Ads hand-off, so this chat's
               // normal flow renders exactly as it always has.
@@ -1856,7 +1856,7 @@ const ContentManagerPage = ({
           <>
             {videoTab === 'generate' && (
               <>
-                <DescribeVideoGenerator onGoToDrafts={() => setActiveTab('drafts')} />
+                <DescribeVideoGenerator onGoToDrafts={() => setActiveTab('library')} />
               </>
             )}
             {videoTab === 'produce' && (
@@ -1868,17 +1868,17 @@ const ContentManagerPage = ({
                 }}
                 onSaveToDrafts={() => {
                   setPendingProduceUrl(null);
-                  setActiveTab('drafts');
+                  setActiveTab('library');
                 }}
               />
             )}
-            {videoTab === 'submagic' && <SubmagicProductionForm onSaveToDrafts={() => setActiveTab('drafts')} />}
+            {videoTab === 'submagic' && <SubmagicProductionForm onSaveToDrafts={() => setActiveTab('library')} />}
             {videoTab === 'zapcap' && (
               <ZapCapProductionForm
                 sourceUrl={pendingProduceUrl}
                 onSaveToDrafts={() => {
                   setPendingProduceUrl(null);
-                  setActiveTab('drafts');
+                  setActiveTab('library');
                 }}
               />
             )}
