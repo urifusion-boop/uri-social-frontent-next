@@ -71,14 +71,10 @@ export default function GoogleAdsModePicker({ mode, uriReady, ownReady, onChange
     }
   };
 
-  // "Run by URI" needs a free account in URI's own pool — there's only ever a
-  // handful of those and they're first-come, first-served, so most brands hit
-  // "not ready" here. Rather than let a brand pick it and then discover that,
-  // only a brand that already has a working URI account (uriReady) can still
-  // select/keep it; everyone else sees it as "Coming soon" and is steered to
-  // the option that reliably works for any brand right now.
-  const uriSelectable = uriReady;
-
+  // URI's own account pool is tiny and first-come-first-served — it's not
+  // being offered at all right now, full stop, regardless of any one brand's
+  // individual status. "My own Google Ads account" is the only option shown
+  // as choosable; "Run by URI" is always greyed out and unclickable.
   const options: {
     value: Mode;
     title: string;
@@ -89,18 +85,6 @@ export default function GoogleAdsModePicker({ mode, uriReady, ownReady, onChange
     status: React.ReactNode;
   }[] = [
     {
-      value: 'uri',
-      title: 'Run by URI',
-      tag: uriSelectable ? undefined : 'Coming soon',
-      tagTone: 'grey',
-      disabled: !uriSelectable,
-      lines: [
-        'Nothing to connect — Jane runs your ads in URI’s Google Ads account.',
-        'You pay only from your URI wallet. No Google bill.',
-      ],
-      status: uriReady ? <Pill ok>Ready</Pill> : <Pill ok={false}>Being set up</Pill>,
-    },
-    {
       value: 'own',
       title: 'My own Google Ads account',
       tag: 'Recommended',
@@ -110,6 +94,18 @@ export default function GoogleAdsModePicker({ mode, uriReady, ownReady, onChange
         'Google bills your card for the ad spend; your URI wallet pays only URI’s fee.',
       ],
       status: ownReady ? <Pill ok>Connected</Pill> : <Pill ok={false}>Not connected</Pill>,
+    },
+    {
+      value: 'uri',
+      title: 'Run by URI',
+      tag: 'Coming soon',
+      tagTone: 'grey',
+      disabled: true,
+      lines: [
+        'Nothing to connect — Jane runs your ads in URI’s Google Ads account.',
+        'You pay only from your URI wallet. No Google bill.',
+      ],
+      status: <Pill ok={false}>Coming soon</Pill>,
     },
   ];
 
