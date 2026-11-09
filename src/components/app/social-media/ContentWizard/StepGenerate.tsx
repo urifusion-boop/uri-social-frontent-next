@@ -85,7 +85,11 @@ export default function StepGenerate({ wizard }: { wizard: ContentWizardState })
         }}
         onCancel={() => {
           wizard.setNoImageConfirmOpen(false);
-          ToastService.showToast('Turn on the image toggle to include an AI-generated image.', ToastTypeEnum.Warning);
+          // The toggle lives visually on step 1, but its state is on the shared
+          // wizard object reachable from every step — flip it here instead of
+          // sending the user back to find it themselves.
+          wizard.setIncludeImages(true);
+          ToastService.showToast('AI image turned on — hit Generate again when ready.', ToastTypeEnum.Success);
         }}
       />
 
