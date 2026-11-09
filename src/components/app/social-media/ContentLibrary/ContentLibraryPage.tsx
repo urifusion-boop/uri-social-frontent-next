@@ -257,6 +257,21 @@ export default function ContentLibraryPage() {
     }
   };
 
+  // Archived (denied / replaced / publish_failed) has no edit-and-retry path for
+  // denied/replaced items, and no way at all to just back out of Failed without
+  // re-attempting the publish — this sends it back to Draft instead, same as
+  // unscheduling, so it can be edited and resubmitted like any other draft.
+  const handleRestore = async (id: string) => {
+    setMenuFor(null);
+    try {
+      await SocialMediaAgentService.restoreDraft(id);
+      ToastService.showToast('Restored to Draft.', ToastTypeEnum.Success);
+      load();
+    } catch {
+      ToastService.showToast('Could not restore — try again.', ToastTypeEnum.Error);
+    }
+  };
+
   const selectedItems = items.filter((d) => selected.has(d.id ?? d.draft_id ?? ''));
 
   // Same connected-platform gate DraftCard applies per draft — here applied
@@ -379,6 +394,21 @@ export default function ContentLibraryPage() {
     }
   };
 
+  const handleBulkRestore = async () => {
+    setBulkBusy(true);
+    try {
+      await Promise.all(selectedItems.map((d) => SocialMediaAgentService.restoreDraft(d.draft_id ?? d.id ?? '')));
+      ToastService.showToast(`${selectedItems.length} restored to Draft.`, ToastTypeEnum.Success);
+      setSelected(new Set());
+      load();
+    } catch {
+      ToastService.showToast('Some restores failed — refreshing to show what remains.', ToastTypeEnum.Error);
+      load();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     setBulkBusy(true);
     try {
@@ -486,6 +516,25 @@ export default function ContentLibraryPage() {
         </Box>
       </Box>
 
+      {tab === 'archived' && (
+        <Box
+          sx={{
+            background: '#FFF7ED',
+            border: '1px solid #FED7AA',
+            borderRadius: '10px',
+            px: 1.5,
+            py: 1,
+            mb: 2,
+          }}
+        >
+          <Typography fontSize="12px" color="#9A3412">
+            Nothing is archived on purpose here — a post lands in this tab only if it was <strong>denied</strong>,{' '}
+            <strong>replaced</strong> by a newer scheduled post, or <strong>failed to publish</strong>. Open a row's
+            menu to <strong>Restore to Draft</strong> and try again, or Edit it directly to retry.
+          </Typography>
+        </Box>
+      )}
+
       {selected.size > 0 && (
         <Box
           display="flex"
@@ -498,15 +547,26 @@ export default function ContentLibraryPage() {
             {selected.size} selected
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, ml: 'auto', flexWrap: 'wrap' }}>
-            <BulkBtn onClick={handleBulkPublishNow} disabled={bulkBusy}>
-              Publish Now
-            </BulkBtn>
-            <BulkBtn onClick={() => setBulkScheduleOpen(true)} disabled={bulkBusy}>
-              Schedule
-            </BulkBtn>
-            <BulkBtn onClick={() => setBulkDenyOpen(true)} disabled={bulkBusy}>
-              Deny
-            </BulkBtn>
+            {tab === 'archived' ? (
+              // Publish Now / Schedule / Deny don't make sense on denied, replaced,
+              // or failed-to-publish content — Restore sends it back to Draft so it
+              // can be edited and resubmitted like any other draft.
+              <BulkBtn onClick={handleBulkRestore} disabled={bulkBusy}>
+                Restore to Draft
+              </BulkBtn>
+            ) : (
+              <>
+                <BulkBtn onClick={handleBulkPublishNow} disabled={bulkBusy}>
+                  Publish Now
+                </BulkBtn>
+                <BulkBtn onClick={() => setBulkScheduleOpen(true)} disabled={bulkBusy}>
+                  Schedule
+                </BulkBtn>
+                <BulkBtn onClick={() => setBulkDenyOpen(true)} disabled={bulkBusy}>
+                  Deny
+                </BulkBtn>
+              </>
+            )}
             {selected.size >= 2 && (
               <BulkBtn onClick={() => setSyncImageOpen(true)} disabled={bulkBusy}>
                 Sync Image
@@ -805,6 +865,12 @@ export default function ContentLibraryPage() {
         >
           Edit
         </MenuItem>
+        {menuFor &&
+          categorize(items.find((x) => (x.id ?? x.draft_id) === menuFor.id) ?? ({} as ContentDraft)) === 'archived' && (
+            <MenuItem onClick={() => menuFor && handleRestore(menuFor.id)} sx={{ color: PINK }}>
+              Restore to Draft
+            </MenuItem>
+          )}
         <MenuItem onClick={() => menuFor && handleDelete(menuFor.id)} sx={{ color: '#DC2626' }}>
           Delete
         </MenuItem>
