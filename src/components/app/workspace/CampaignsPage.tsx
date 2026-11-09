@@ -1823,6 +1823,14 @@ export default function CampaignsPage({
                       // quality check) counts as newer still, even before it becomes a
                       // message of its own.
                       stale={inTransientPrompt || i !== lastInteractiveIndex}
+                      // Only the one live, non-stale card can be the thing a busy
+                      // request is actually about — passing it to every card would
+                      // flash "Setting up…" on an already-answered one too.
+                      busy={!inTransientPrompt && i === lastInteractiveIndex && busy}
+                      onPickPlatform={(p) => {
+                        setPreferredPlatform(p);
+                        send('Use this platform instead.');
+                      }}
                       onResultChange={(r) => updateResultMessage(m.id, r)}
                       onLaunched={() => {
                         // Campaign is live — this brief is done. Clear it so the next message
@@ -2834,12 +2842,14 @@ export function ChooseDestination({
   selected,
   error,
   onSubmit,
+  busy,
 }: {
   options: DestinationOption[];
   ctaChoices: CtaChoice[];
   selected?: { destination_type: string; destination_cta: string };
   error?: string;
   onSubmit: (answer: { destination_type: string; destination_value: string; destination_cta: string }) => void;
+  busy?: boolean;
 }) {
   const [type, setType] = useState(selected?.destination_type || options[0]?.value || 'whatsapp');
   const active = options.find((o) => o.value === type) || options[0];
@@ -2854,7 +2864,7 @@ export function ChooseDestination({
   };
   // A blank input is allowed only when the brand already has a value saved for this
   // type — that's "keep what I have, just change the button".
-  const canSubmit = Boolean(value.trim() || active?.current);
+  const canSubmit = Boolean(value.trim() || active?.current) && !busy;
   const submit = () => {
     if (canSubmit) onSubmit({ destination_type: type, destination_value: value.trim(), destination_cta: cta });
   };
@@ -2938,7 +2948,7 @@ export function ChooseDestination({
                 opacity: canSubmit ? 1 : 0.5,
               }}
             >
-              Use this
+              {busy ? 'Setting up…' : 'Use this'}
             </button>
           </div>
 
@@ -3755,6 +3765,8 @@ export function ResultCard({
   onChooseOwnAudience,
   onChooseDestination,
   stale,
+  busy,
+  onPickPlatform,
 }: {
   result: LaunchFromMessageResult;
   adFormats: AdFormat[];
@@ -3786,6 +3798,17 @@ export function ResultCard({
   }) => void;
   // True for every result card except the newest — see PromptCard above.
   stale?: boolean;
+  // The chat-level in-flight flag — threaded down to ChooseDestination so its
+  // "Use this" button can show it's actually working instead of sitting there
+  // unchanged while the request runs in the background (the only other
+  // feedback is a typing-dots bubble the viewport auto-scrolls to, far from
+  // where the user just clicked).
+  busy?: boolean;
+  // Lets the "Runs on X — Not right?" line on an already-generated plan
+  // actually switch platforms, instead of just saying "ask again" with
+  // nothing to click. Sets the same preferred-platform state the composer's
+  // own PLATFORM chips use, then resends the brief so Jane replans with it.
+  onPickPlatform?: (platform: '' | 'meta' | 'tiktok' | 'google') => void;
 }) {
   const [launching, setLaunching] = useState(false);
   const [planChecks, setPlanChecks] = useState<PlanChecksState>({
@@ -3825,6 +3848,7 @@ export function ResultCard({
             selected={result.selected}
             error={result.error}
             onSubmit={onChooseDestination}
+            busy={busy}
           />
         </div>
       );
@@ -4124,10 +4148,38 @@ export function ResultCard({
             <strong style={{ fontWeight: 800 }}>
               {runsOnLabel(plan.platforms[0].platform, plan.google_keyword_context?.placement)}
             </strong>
-            {result.stage === 'planned' && (
-              <span style={{ marginLeft: 'auto', opacity: 0.7, fontSize: 11.5 }}>
-                Not right? Pick another platform below and ask again.
-              </span>
+            {/* Used to just say "pick another platform below and ask again" with
+                nothing actually below it to pick — the only way to change it was
+                typing a fresh message and hoping Jane's NL parse caught the intent.
+                These call the same setPreferredPlatform the composer's own PLATFORM
+                chips use, then resend the brief so Jane replans with it explicitly. */}
+            {result.stage === 'planned' && onPickPlatform && (
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ opacity: 0.7, fontSize: 11.5 }}>Not right?</span>
+                {(['meta', 'tiktok', 'google'] as const)
+                  .filter((p) => p !== plan.platforms[0].platform)
+                  .map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onPickPlatform(p)}
+                      style={{
+                        background: 'rgba(255,255,255,0.12)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: '#fff',
+                        borderRadius: 20,
+                        padding: '3px 10px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: busy ? 'default' : 'pointer',
+                        opacity: busy ? 0.5 : 1,
+                      }}
+                    >
+                      {platformChoice(p).label}
+                    </button>
+                  ))}
+              </div>
             )}
           </div>
         )}
