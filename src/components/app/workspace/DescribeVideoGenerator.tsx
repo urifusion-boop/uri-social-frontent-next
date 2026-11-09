@@ -68,6 +68,13 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
   const [confirmedImageRights, setConfirmedImageRights] = useState(false);
   const [platform, setPlatform] = useState('instagram_reels');
   const [duration, setDuration] = useState(15);
+  // "Expand with Jane" — same pattern as the social Content Wizard's StepBrief/
+  // useContentWizardState, ported here with its own video-shaped backend prompt
+  // (prompt_expander.expand_video) since a video brief needs a narrative arc and a
+  // hook, not image-generation/caption/hashtag guidance.
+  const [expanding, setExpanding] = useState(false);
+  const [briefBeforeExpand, setBriefBeforeExpand] = useState<string | null>(null);
+  const [expandedFrom, setExpandedFrom] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [error, setError] = useState('');
@@ -421,6 +428,34 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
   const removeImage = (idx: number) => {
     setImages((prev) => prev.filter((_, i) => i !== idx));
     setConfirmedImageRights(false);
+  };
+
+  const handleExpandBrief = async () => {
+    const idea = brief.trim();
+    if (idea.length < 3 || expanding) return;
+    setExpanding(true);
+    try {
+      const res = await SocialMediaAgentService.expandVideoPrompt({ idea, platform, duration_seconds: duration });
+      if (res.status && res.responseData?.expanded_prompt) {
+        setBriefBeforeExpand(idea);
+        setBrief(res.responseData.expanded_prompt);
+        setExpandedFrom(res.responseData.used ?? []);
+      } else {
+        ToastService.showToast(res.responseMessage || "Jane couldn't expand that — try again.", ToastTypeEnum.Error);
+      }
+    } catch (err) {
+      const detail = (err as { data?: { detail?: string } })?.data?.detail;
+      ToastService.showToast(detail || "Jane couldn't expand that — try again.", ToastTypeEnum.Error);
+    } finally {
+      setExpanding(false);
+    }
+  };
+
+  const undoExpandBrief = () => {
+    if (briefBeforeExpand === null) return;
+    setBrief(briefBeforeExpand);
+    setBriefBeforeExpand(null);
+    setExpandedFrom([]);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -795,6 +830,31 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
       <Section
         title="What's the video about?"
         subtitle="Describe the story, product, or message — this drives everything below"
+        action={
+          <button
+            type="button"
+            onClick={handleExpandBrief}
+            disabled={expanding || brief.trim().length < 3}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              border: 'none',
+              borderRadius: 999,
+              padding: '5px 12px',
+              fontSize: 12,
+              fontWeight: 600,
+              color: PRIMARY,
+              background: 'rgba(205,27,120,0.08)',
+              cursor: expanding || brief.trim().length < 3 ? 'default' : 'pointer',
+              opacity: expanding || brief.trim().length < 3 ? 0.6 : 1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span aria-hidden>✨</span>
+            {expanding ? 'Expanding…' : 'Expand with Jane'}
+          </button>
+        }
       >
         <textarea
           value={brief}
@@ -802,6 +862,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
           placeholder="e.g. A founder explains why they built this product, speaking directly to camera, ending with a confident call to action."
           rows={4}
           maxLength={2000}
+          disabled={expanding}
           style={{
             width: '100%',
             border: `1.5px solid ${BORDER}`,
@@ -817,6 +878,19 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
           }}
         />
         <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0', textAlign: 'right' }}>{brief.length}/2000</p>
+        {briefBeforeExpand !== null && (
+          <p style={{ fontSize: 12, color: GREY, margin: '4px 0 0' }}>
+            ✨ Expanded with your Brand Playbook{expandedFrom.length ? ` (${expandedFrom.slice(0, 4).join(', ')})` : ''}{' '}
+            — edit anything before generating.{' '}
+            <button
+              type="button"
+              onClick={undoExpandBrief}
+              style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: PRIMARY }}
+            >
+              Undo
+            </button>
+          </p>
+        )}
       </Section>
 
       {/* Optional reference images */}

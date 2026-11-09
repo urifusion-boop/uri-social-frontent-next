@@ -2027,12 +2027,29 @@ export default function VideoStoryboardGenerator({
   );
 }
 
-export function Section({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+export function Section({
+  title,
+  subtitle,
+  children,
+  action,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+  // An optional control rendered top-right of the title (e.g. DescribeVideoGenerator's
+  // "Expand with Jane" button) — undefined keeps every existing caller unchanged.
+  action?: React.ReactNode;
+}) {
   return (
     <div style={{ marginBottom: 24 }}>
-      <div style={{ marginBottom: 10 }}>
-        <p style={{ fontSize: 13.5, fontWeight: 700, color: DARK, margin: 0 }}>{title}</p>
-        <p style={{ fontSize: 12, color: GREY, margin: '2px 0 0' }}>{subtitle}</p>
+      <div
+        style={{ marginBottom: 10, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}
+      >
+        <div>
+          <p style={{ fontSize: 13.5, fontWeight: 700, color: DARK, margin: 0 }}>{title}</p>
+          <p style={{ fontSize: 12, color: GREY, margin: '2px 0 0' }}>{subtitle}</p>
+        </div>
+        {action}
       </div>
       {children}
     </div>

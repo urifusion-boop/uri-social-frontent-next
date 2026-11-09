@@ -500,6 +500,12 @@ export interface ExpandedPrompt {
   used: string[];
 }
 
+export interface ExpandVideoPromptPayload {
+  idea: string;
+  platform?: string;
+  duration_seconds?: number;
+}
+
 export interface ContentDraft {
   id?: string;
   draft_id?: string;
@@ -722,6 +728,16 @@ export class SocialMediaAgentService {
   static async expandPrompt(payload: ExpandPromptPayload): Promise<UriResponse<ExpandedPrompt>> {
     const response: Awaited<AxiosResponse<UriResponse<ExpandedPrompt>>> = await UriHttpClient.getClient().post(
       socialMediaAgentRoutes.expandPrompt,
+      payload,
+      { timeout: 60000 }
+    );
+    return response.data;
+  }
+
+  // Same job as expandPrompt above, for the "Describe it" video flow's own brief box.
+  static async expandVideoPrompt(payload: ExpandVideoPromptPayload): Promise<UriResponse<ExpandedPrompt>> {
+    const response: Awaited<AxiosResponse<UriResponse<ExpandedPrompt>>> = await UriHttpClient.getClient().post(
+      socialMediaAgentRoutes.expandVideoPrompt,
       payload,
       { timeout: 60000 }
     );

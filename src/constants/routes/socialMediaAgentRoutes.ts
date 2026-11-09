@@ -15,6 +15,7 @@ type ISocialMediaAgentApi =
   | 'instagramDirectFinalizePending'
   | 'generateContent'
   | 'expandPrompt'
+  | 'expandVideoPrompt'
   | 'uploadUserContent'
   | 'downloadUrl'
   | 'generateStoryboard'
@@ -120,6 +121,7 @@ const rawSocialMediaAgentRoutes: Record<ISocialMediaAgentApi, string> = {
   instagramDirectFinalizePending: '/connect/instagram-direct/finalize-pending',
   generateContent: '/generate-content',
   expandPrompt: '/expand-prompt',
+  expandVideoPrompt: '/expand-video-prompt',
   uploadUserContent: '/upload-user-content',
   downloadUrl: '/download-url',
   generateStoryboard: '/generate-storyboard',
