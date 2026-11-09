@@ -71,17 +71,29 @@ export default function GoogleAdsModePicker({ mode, uriReady, ownReady, onChange
     }
   };
 
+  // "Run by URI" needs a free account in URI's own pool — there's only ever a
+  // handful of those and they're first-come, first-served, so most brands hit
+  // "not ready" here. Rather than let a brand pick it and then discover that,
+  // only a brand that already has a working URI account (uriReady) can still
+  // select/keep it; everyone else sees it as "Coming soon" and is steered to
+  // the option that reliably works for any brand right now.
+  const uriSelectable = uriReady;
+
   const options: {
     value: Mode;
     title: string;
     tag?: string;
+    tagTone: 'blue' | 'grey';
+    disabled?: boolean;
     lines: string[];
     status: React.ReactNode;
   }[] = [
     {
       value: 'uri',
       title: 'Run by URI',
-      tag: 'Recommended',
+      tag: uriSelectable ? undefined : 'Coming soon',
+      tagTone: 'grey',
+      disabled: !uriSelectable,
       lines: [
         'Nothing to connect — Jane runs your ads in URI’s Google Ads account.',
         'You pay only from your URI wallet. No Google bill.',
@@ -91,6 +103,8 @@ export default function GoogleAdsModePicker({ mode, uriReady, ownReady, onChange
     {
       value: 'own',
       title: 'My own Google Ads account',
+      tag: 'Recommended',
+      tagTone: 'blue',
       lines: [
         'Your ads run in your account, and you see them in Google Ads too.',
         'Google bills your card for the ad spend; your URI wallet pays only URI’s fee.',
@@ -112,13 +126,15 @@ export default function GoogleAdsModePicker({ mode, uriReady, ownReady, onChange
         {options.map((o) => {
           // The one just clicked shows as chosen straight away; it reverts if saving fails.
           const on = (saving || mode) === o.value;
+          const isDisabled = !!saving || !!o.disabled;
           return (
             <button
               key={o.value}
               type="button"
               role="radio"
               aria-checked={on}
-              disabled={!!saving}
+              aria-disabled={o.disabled || undefined}
+              disabled={isDisabled}
               onClick={() => choose(o.value)}
               style={{
                 ...font,
@@ -126,10 +142,10 @@ export default function GoogleAdsModePicker({ mode, uriReady, ownReady, onChange
                 padding: '12px 14px',
                 borderRadius: 12,
                 border: `1.5px solid ${on ? G.blue : G.line}`,
-                background: on ? '#fff' : '#fbfcff',
+                background: o.disabled ? G.panel : on ? '#fff' : '#fbfcff',
                 boxShadow: on ? '0 4px 14px rgba(26,115,232,.12)' : 'none',
-                cursor: saving ? 'default' : 'pointer',
-                opacity: saving && saving !== o.value ? 0.6 : 1,
+                cursor: isDisabled ? 'default' : 'pointer',
+                opacity: o.disabled ? 0.65 : saving && saving !== o.value ? 0.6 : 1,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -154,8 +170,8 @@ export default function GoogleAdsModePicker({ mode, uriReady, ownReady, onChange
                     style={{
                       fontSize: 10,
                       fontWeight: 800,
-                      color: G.blue,
-                      background: G.blueSoft,
+                      color: o.tagTone === 'grey' ? G.faint : G.blue,
+                      background: o.tagTone === 'grey' ? G.line : G.blueSoft,
                       padding: '1px 7px',
                       borderRadius: 999,
                     }}
@@ -197,8 +213,8 @@ export default function GoogleAdsModePicker({ mode, uriReady, ownReady, onChange
             lineHeight: 1.5,
           }}
         >
-          Google ads run by URI are being set up and will be ready soon. Want to start now? Choose{' '}
-          <b>My own Google Ads account</b> and connect it.
+          Google ads run by URI aren’t available for your brand yet. Choose <b>My own Google Ads account</b> and connect
+          it to start now.
         </div>
       )}
       {note && (

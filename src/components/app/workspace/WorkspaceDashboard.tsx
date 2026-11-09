@@ -4740,7 +4740,7 @@ const ConnectionsPage = ({
                       }}
                     >
                       <GoogleAdsModePicker
-                        mode={s?.google_mode === 'own' ? 'own' : 'uri'}
+                        mode={s?.google_mode === 'uri' ? 'uri' : 'own'}
                         uriReady={!!s?.google_uri_managed}
                         ownReady={s?.google_connection_state === 'ready'}
                         onChanged={loadStatuses}
