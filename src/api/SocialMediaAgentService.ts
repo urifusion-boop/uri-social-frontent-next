@@ -140,6 +140,10 @@ export interface VideoClip {
   // (Veo) has no scripted-speech guarantee, so a "Done" clip routed there can
   // still be materially different from what was asked for.
   warning?: string | null;
+  // True while fal.ai is still rendering this clip after the usual wait: it will arrive on its own, the customer
+  // is notified, and `late` is set once it has.
+  pending?: boolean;
+  late?: boolean;
   latency_seconds?: number;
   error?: string;
 }

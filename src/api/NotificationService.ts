@@ -23,6 +23,7 @@ export interface Notification {
     | 'trending_topic'
     | 'calendar_refill'
     | 'engagement_spike'
+    | 'video_clip_ready'
     | 'connection_disconnected';
   channel: 'email' | 'whatsapp' | 'sms' | 'push' | 'slack' | 'telegram' | 'dashboard';
   status: 'pending' | 'sent' | 'failed' | 'rate_limited';

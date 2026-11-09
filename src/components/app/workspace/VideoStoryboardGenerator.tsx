@@ -2299,7 +2299,7 @@ export function SceneCard({
                   padding: '2px 7px',
                 }}
               >
-                Generating…
+                {clip.pending ? 'Still rendering…' : 'Generating…'}
               </span>
             )}
           </div>

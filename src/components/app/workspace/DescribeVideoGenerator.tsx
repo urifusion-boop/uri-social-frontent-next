@@ -1507,6 +1507,12 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
                     Each scene takes ~30–90 seconds. This page will update automatically.
                   </p>
                 )}
+                {videoJob.clips?.some((c) => c.pending) && (
+                  <p data-testid="late-clip-note" style={{ fontSize: 11.5, color: '#B45309', margin: '6px 0 0' }}>
+                    A clip is taking longer than usual. You can leave this page, and we&apos;ll notify you when
+                    it&apos;s ready. Then come back and merge your clips.
+                  </p>
+                )}
                 <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
               </div>
             )}

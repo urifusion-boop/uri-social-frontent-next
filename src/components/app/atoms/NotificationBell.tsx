@@ -86,6 +86,9 @@ export default function NotificationBell({
       setOpen(false);
       // An expired login is fixed in Connected Accounts; anything else, on the post itself.
       router.push(n.metadata?.reconnect ? '/workspace/?tab=connections' : '/workspace/?tab=content');
+    } else if (n.type === 'video_clip_ready') {
+      setOpen(false);
+      router.push('/workspace/?tab=schedule'); // the Video page: the clip is ready to merge
     } else if (n.type === 'inbox_needs_reply') {
       setOpen(false);
       router.push('/workspace/?tab=messages');
