@@ -11,6 +11,7 @@ import { parseApiDate } from '@/src/utils/apiDate.util';
 import { PLATFORM_META, firstSlideImage, mediaMeta, isImagePending } from './GeneratedContentCard';
 import CanvasEditor from './canvas-editor/CanvasEditor';
 import LogoRepositionModal from './LogoRepositionModal';
+import DescribeImageEditControls from './DescribeImageEditControls';
 import { UriHttpClient } from '@/src/configs/http.config';
 
 const PINK = '#CD1B78';
@@ -109,6 +110,23 @@ export default function DraftDetailView({
     return `${base}${url}`;
   };
   const activeLogoPlacement = isCarousel ? currentSlide?.logo_placement : draft.logo_placement;
+  const currentImageVersion = isCarousel ? currentSlide?.image_version : draft.image_version;
+
+  // Same carousel/non-carousel merge Canvas/Move Logo already use below —
+  // a describe-edit result only ever touches the one slide it targeted.
+  const applyImageUpdate = (data: { image_url: string; version?: number; slide_index?: number | null }) => {
+    setDraft((prev) =>
+      isCarousel && data.slide_index != null
+        ? {
+            ...prev,
+            slides: (prev.slides ?? []).map((s, i) =>
+              i === data.slide_index ? { ...s, image_url: data.image_url, image_version: data.version } : s
+            ),
+          }
+        : { ...prev, image_url: data.image_url, image_version: data.version }
+    );
+    onRefresh();
+  };
 
   const doApprove = async (option: 'immediate' | 'schedule', datetime?: string) => {
     if (!isConnected) {
@@ -487,6 +505,15 @@ export default function DraftDetailView({
             </Button>
 
             <Box display="flex" gap={1} flexWrap="wrap" justifyContent="flex-end">
+              {previewImage && (
+                <DescribeImageEditControls
+                  draftId={id}
+                  imageUrl={previewImage}
+                  currentVersion={currentImageVersion}
+                  slideIndex={isCarousel ? safeSlideIndex : undefined}
+                  onUpdated={applyImageUpdate}
+                />
+              )}
               {/* Canvas Editor — only for a draft with a layered document, same gate DraftCard uses. */}
               {'document' in draft && draft.document ? (
                 <Button

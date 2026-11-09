@@ -81,6 +81,10 @@ export default function StepReviewSchedule({ wizard, onGenerated, onStartOver }:
             onViewDetails={setViewingDraft}
             onRefresh={wizard.refreshGeneratedDrafts}
             onApproved={handleApproved}
+            // Every card in a batch reads as one preview size, not whatever each
+            // platform's own aspect ratio happens to be — Facebook's ratio since
+            // that was picked as the shared one.
+            uniformAspect="1200 / 630"
           />
         ))}
       </Box>

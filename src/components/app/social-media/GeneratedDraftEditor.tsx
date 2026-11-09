@@ -13,13 +13,20 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { MdChevronLeft, MdChevronRight, MdClose } from 'react-icons/md';
-import { ContentDraft, SocialMediaAgentService, TikTokPostSettings } from '@/src/api/SocialMediaAgentService';
+import { MdChevronLeft, MdChevronRight, MdClose, MdOpenWith } from 'react-icons/md';
+import {
+  ContentDraft,
+  LogoPlacement,
+  SocialMediaAgentService,
+  TikTokPostSettings,
+} from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { describePublishJob, queuedNotice, queuedPublish, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
 import TikTokPostDialog from '../workspace/TikTokPostDialog';
 import { PLATFORM_META, firstSlideImage, mediaMeta } from './GeneratedContentCard';
+import LogoRepositionModal from './LogoRepositionModal';
+import DescribeImageEditControls from './DescribeImageEditControls';
 
 const PINK = '#CD1B78';
 
@@ -36,11 +43,13 @@ interface GeneratedDraftEditorProps {
 // The on-brand counterpart to the classic DraftCard editor — used wherever a
 // freshly generated/library draft is opened for a quick caption tweak and
 // publish decision (the wizard's Review & Schedule step, Content Library's
-// "Edit" action). Deliberately NOT a port of DraftCard's full feature set
-// (image regenerate, CanvasEditor, logo reposition, deny) — Canvas/Move Logo
-// now live on DraftDetailView instead (Content Library's "View details"),
-// since that's the actual "click a post, see the image" surface; this one
-// stays a lightweight caption-and-publish dialog on purpose.
+// "Edit" action). Move Logo + the "describe what to change" image edit are
+// wired in below (via DescribeImageEditControls, shared with DraftDetailView)
+// since this is also the only editor the wizard's last review step ever
+// opens — without them there was no image-edit path at all between
+// generating a draft and it landing in Content Library. The full layered
+// CanvasEditor and deny still live on DraftDetailView only; this stays a
+// caption-and-publish-first dialog otherwise.
 export default function GeneratedDraftEditor({
   draft: initialDraft,
   connectedPlatforms,
@@ -63,6 +72,7 @@ export default function GeneratedDraftEditor({
   const [tiktokDialogOpen, setTiktokDialogOpen] = useState(false);
   // Set while the Post to TikTok screen is open for Schedule rather than Publish Now: the picked time.
   const [tiktokScheduleAt, setTiktokScheduleAt] = useState<string | null>(null);
+  const [logoRepositionOpen, setLogoRepositionOpen] = useState(false);
 
   const id = draft.draft_id ?? draft.id ?? '';
   const platformKey = (draft.platform || '').toLowerCase();
@@ -78,6 +88,30 @@ export default function GeneratedDraftEditor({
   const isConnected =
     connectedPlatforms === null || connectedPlatforms.map((p) => p.toLowerCase()).includes(platformKey);
   const isTiktokPhoto = platformKey === 'tiktok' && !draft.video_url;
+  const activeLogoPlacement = isCarousel ? currentSlide?.logo_placement : draft.logo_placement;
+  const currentImageVersion = isCarousel ? currentSlide?.image_version : draft.image_version;
+  const resolveMediaUrl = (url: string) => {
+    if (!url.startsWith('/')) return url;
+    const base = process.env.NEXT_PUBLIC_URI_API_BASE_URL || process.env.NEXT_PUBLIC_URI_API_BASE_URL_DEV || '';
+    return `${base}${url}`;
+  };
+
+  // Shared merge for both the describe-edit result and a logo reposition save —
+  // same carousel/non-carousel split DraftCard/DraftDetailView use, since a
+  // carousel edit only ever touches its own slide.
+  const applyImageUpdate = (data: { image_url: string; version?: number; slide_index?: number | null }) => {
+    setDraft((prev) =>
+      isCarousel && data.slide_index != null
+        ? {
+            ...prev,
+            slides: (prev.slides ?? []).map((s, i) =>
+              i === data.slide_index ? { ...s, image_url: data.image_url, image_version: data.version } : s
+            ),
+          }
+        : { ...prev, image_url: data.image_url, image_version: data.version }
+    );
+    onRefresh();
+  };
 
   const handleSave = async () => {
     const hashtags = hashtagInput
@@ -476,6 +510,36 @@ export default function GeneratedDraftEditor({
             </>
           )}
         </Box>
+
+        {previewImage && (
+          <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
+            <DescribeImageEditControls
+              draftId={id}
+              imageUrl={previewImage}
+              currentVersion={currentImageVersion}
+              slideIndex={isCarousel ? safeSlideIndex : undefined}
+              onUpdated={applyImageUpdate}
+            />
+            {activeLogoPlacement && (
+              <Button
+                size="small"
+                startIcon={<MdOpenWith size={14} />}
+                onClick={() => setLogoRepositionOpen(true)}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
+                  color: '#C2185B',
+                  border: '1px solid #F3C7DA',
+                  borderRadius: '8px',
+                }}
+              >
+                Move Logo
+              </Button>
+            )}
+          </Box>
+        )}
+
         {isCarousel && currentSlide && (currentSlide.headline || currentSlide.body) && (
           <Box sx={{ p: 1.25, mb: 2, borderRadius: '8px', border: '1px solid #E5E7EB', background: '#FAFAFA' }}>
             {currentSlide.headline && (
@@ -722,6 +786,42 @@ export default function GeneratedDraftEditor({
           </Box>
         </Dialog>
       )}
+
+      {logoRepositionOpen && activeLogoPlacement ? (
+        <LogoRepositionModal
+          open={logoRepositionOpen}
+          onClose={() => setLogoRepositionOpen(false)}
+          imageUrl={resolveMediaUrl(
+            (isCarousel ? currentSlide?.background_image_url : draft.background_image_url) || ''
+          )}
+          initialPlacement={activeLogoPlacement as LogoPlacement}
+          onSave={async (placement) => {
+            const response = await SocialMediaAgentService.repositionDraftLogo(
+              id,
+              placement,
+              isCarousel ? safeSlideIndex : undefined
+            );
+            if (!response.status || !response.responseData) {
+              throw new Error(response.responseMessage || 'Could not save the new logo position.');
+            }
+            const { image_url: newImageUrl, logo_placement: newPlacement } = response.responseData;
+            setDraft((prev) => {
+              if (isCarousel) {
+                const updatedSlides = [...(prev.slides || [])];
+                updatedSlides[safeSlideIndex] = {
+                  ...updatedSlides[safeSlideIndex],
+                  image_url: newImageUrl,
+                  logo_placement: newPlacement,
+                };
+                return { ...prev, slides: updatedSlides };
+              }
+              return { ...prev, image_url: newImageUrl, logo_placement: newPlacement };
+            });
+            ToastService.showToast('✅ Logo position updated!', ToastTypeEnum.Success);
+            onRefresh();
+          }}
+        />
+      ) : null}
     </Dialog>
   );
 }

@@ -26,6 +26,7 @@ import { parseApiDate } from '@/src/utils/apiDate.util';
 import GeneratedContentCard, { firstSlideImage } from '../GeneratedContentCard';
 import GeneratedDraftEditor from '../GeneratedDraftEditor';
 import DraftDetailView from '../DraftDetailView';
+import SyncImageDialog from '../SyncImageDialog';
 
 const PINK = '#CD1B78';
 
@@ -156,14 +157,16 @@ export default function ContentLibraryPage() {
   const [bulkDenyOpen, setBulkDenyOpen] = useState(false);
   const [bulkDenyReason, setBulkDenyReason] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [syncImageOpen, setSyncImageOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
     setError(false);
     try {
-      const [calendarRes, scheduledRes] = await Promise.all([
+      const [calendarRes, scheduledRes, videoRes] = await Promise.all([
         SocialMediaAgentService.getContentCalendar(),
         SocialMediaAgentService.getScheduled(),
+        SocialMediaAgentService.listVideoDrafts(),
       ]);
       const fromCalendar = calendarRes.responseData?.drafts ?? [];
       const fromScheduled = scheduledRes.responseData?.scheduled_drafts ?? [];
@@ -171,6 +174,24 @@ export default function ContentLibraryPage() {
       for (const d of [...fromCalendar, ...fromScheduled]) {
         const id = d.id ?? d.draft_id;
         if (id) byId.set(id, d);
+      }
+      // Video drafts (Describe Video / Produce / Compose) never land in the
+      // content calendar at all — without this merge they only ever showed up
+      // in the old, now-nav-less Drafts tab, invisible here. Same dedup-by-id
+      // the old tab's own fetchDrafts used.
+      for (const vd of videoRes.responseData ?? []) {
+        if (byId.has(vd.id)) continue;
+        byId.set(vd.id, {
+          id: vd.id,
+          draft_id: vd.id,
+          platform: (vd.platforms ?? [])[0] ?? 'instagram',
+          content: vd.content,
+          video_url: vd.video_url,
+          post_type: 'reel',
+          status: vd.status as ContentDraft['status'],
+          created_at: vd.created_at,
+          has_image: false,
+        });
       }
       setItems(Array.from(byId.values()));
     } catch {
@@ -486,6 +507,11 @@ export default function ContentLibraryPage() {
             <BulkBtn onClick={() => setBulkDenyOpen(true)} disabled={bulkBusy}>
               Deny
             </BulkBtn>
+            {selected.size >= 2 && (
+              <BulkBtn onClick={() => setSyncImageOpen(true)} disabled={bulkBusy}>
+                Sync Image
+              </BulkBtn>
+            )}
             <BulkBtn onClick={handleBulkDelete} disabled={bulkBusy} danger>
               Delete
             </BulkBtn>
@@ -865,6 +891,19 @@ export default function ContentLibraryPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {syncImageOpen && (
+        <SyncImageDialog
+          drafts={items}
+          selectedIds={selected}
+          onClose={() => setSyncImageOpen(false)}
+          onDone={() => {
+            setSyncImageOpen(false);
+            setSelected(new Set());
+            load();
+          }}
+        />
+      )}
     </Box>
   );
 }
