@@ -784,6 +784,9 @@ export class CampaignService {
     reference_image_url?: string;
     is_video?: boolean;
     draft_id?: string;
+    // "Make several ads" — Jane generates this many distinct concepts instead of
+    // one, each its own credit. Only meaningful with creative_source: 'generate'.
+    concepts?: number;
     // VSG-01 v3 (§1.2/§6) — what reference_image_url actually shows, per the user's own
     // confirmation collected right after upload/recomposite. Undefined ("Skip") means
     // exactly what it always meant: use the photo as-is, no format-selection attempt.

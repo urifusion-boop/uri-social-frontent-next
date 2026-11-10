@@ -9,14 +9,15 @@
  */
 'use client';
 import { useEffect, useState } from 'react';
-import { AssetAttestation, CampaignService, DraftSummary } from '@/src/api/CampaignService';
+import { AssetAttestation, CampaignService, CreativeProvenanceInput, DraftSummary } from '@/src/api/CampaignService';
+import { useCreativePaths, VideoWhoPrompt } from '../CreativePathControls';
 import WizardAssetAttestation from './WizardAssetAttestation';
 
 const PINK = '#C2185B';
 
 export type WizardCreativeChoice =
   | { creative_source: 'generate' }
-  | {
+  | ({
       creative_source: 'upload';
       reference_image_url: string;
       is_video: boolean;
@@ -29,7 +30,7 @@ export type WizardCreativeChoice =
       // after upload, same as the chat flow; undefined for "Skip" or for a video
       // (attestation is a photo-only question there too).
       asset_attestation?: AssetAttestation;
-    }
+    } & Partial<CreativeProvenanceInput>) // "who's in this video" — video uploads only
   | { creative_source: 'draft'; draft_id: string; previewUrl: string };
 
 function OptionCard({
@@ -92,6 +93,9 @@ export default function WizardCreativeStep({
   // actually becomes the chosen creative — same gate the chat flow applies to
   // every real-photo entry point (CampaignsPage.tsx's pendingAssetAttestation).
   const [pendingAttestation, setPendingAttestation] = useState<string | null>(null);
+  // Same idea for a real video — "who's in it?" (CampaignsPage.tsx's pendingVideoWho).
+  const [pendingVideoWho, setPendingVideoWho] = useState<string | null>(null);
+  const creativePaths = useCreativePaths('');
 
   const mode = value?.creative_source ?? null;
 
@@ -111,7 +115,7 @@ export default function WizardCreativeStep({
     try {
       const { url, is_video } = await CampaignService.uploadMedia(file);
       if (is_video) {
-        onChange({ creative_source: 'upload', reference_image_url: url, is_video, previewUrl: url });
+        setPendingVideoWho(url);
       } else {
         setPendingAttestation(url);
       }
@@ -132,6 +136,19 @@ export default function WizardCreativeStep({
       is_video: false,
       previewUrl: url,
       asset_attestation,
+    });
+  };
+
+  const resolveVideoWho = (provenance?: CreativeProvenanceInput) => {
+    const url = pendingVideoWho;
+    if (!url) return;
+    setPendingVideoWho(null);
+    onChange({
+      creative_source: 'upload',
+      reference_image_url: url,
+      is_video: true,
+      previewUrl: url,
+      ...(provenance ?? {}),
     });
   };
 
@@ -233,6 +250,22 @@ export default function WizardCreativeStep({
           )}
         </OptionCard>
         {pendingAttestation && <WizardAssetAttestation previewUrl={pendingAttestation} onAnswer={resolveAttestation} />}
+        {pendingVideoWho && (
+          <div
+            style={{
+              background: '#faf7f6',
+              border: '1px solid #ece8e6',
+              borderRadius: 12,
+              padding: 12,
+              marginTop: -4,
+            }}
+          >
+            <p style={{ margin: '0 0 10px', fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
+              Who&rsquo;s in this video?
+            </p>
+            <VideoWhoPrompt info={creativePaths} onAnswer={resolveVideoWho} />
+          </div>
+        )}
         {/* TikTok Carousel Ads — only once a real base photo is attached and TikTok
             is the chosen platform; a video makes this irrelevant (TikTok already
             accepts that directly), and Meta has no carousel path here. Kept as a

@@ -25,10 +25,12 @@ import {
   AdFormat,
   AssetAttestation,
   CampaignService,
+  CreativeProvenanceInput,
   LaunchFromMessageResult,
   PlanVariant,
 } from '@/src/api/CampaignService';
 import { QuickReplyChips, ResultCard, uid } from '../CampaignsPage';
+import { useCreativePaths, VideoWhoPrompt } from '../CreativePathControls';
 import type { GooglePlacement } from '../GooglePlacementPreview';
 import type { WizardObjectiveValue } from './WizardObjectiveStep';
 import type { WizardAudienceValue } from './WizardAudienceStep';
@@ -158,6 +160,10 @@ export default function WizardReviewStep({
   const startedRef = useRef(false); // guards React Strict Mode's double-invoked mount effect
 
   const message = `${audience.description.trim()} in ${audience.city.trim()}. Budget: ₦${budget.amountNgn} over ${budget.days} days.`;
+  // Which creative paths (AI video / filmed video) are open for this brand+brief —
+  // same hook the chat flow's own ChooseCreativeSource card uses, so the wizard's
+  // mid-flow card gets the exact same options instead of always hiding them.
+  const creativePaths = useCreativePaths(message);
 
   useEffect(() => {
     CampaignService.getAdFormats()
@@ -182,6 +188,15 @@ export default function WizardReviewStep({
         ? { creative_source: 'recomposite', reference_image_url: pending.url, asset_attestation }
         : { creative_source: 'upload', reference_image_url: pending.url, is_video: false, asset_attestation }
     );
+  };
+  // Same gate for a real video — "who's in it?" — only reachable via "Upload my
+  // own" (recompose is image-only, rejected before this point).
+  const [pendingVideoWho, setPendingVideoWho] = useState<string | null>(null);
+  const resolveVideoWho = (provenance?: CreativeProvenanceInput) => {
+    const url = pendingVideoWho;
+    if (!url) return;
+    setPendingVideoWho(null);
+    void submitSingle({ creative_source: 'upload', reference_image_url: url, is_video: true, ...(provenance ?? {}) });
   };
 
   const submitSingle = async (extra: Partial<PlanFromMessagePayload> = {}) => {
@@ -227,6 +242,11 @@ export default function WizardReviewStep({
     url: string;
     forRecompose: boolean;
   } | null>(null);
+  // Same "who's in it?" gate as single-platform, scoped to whichever tab started it.
+  const [multiPendingVideoWho, setMultiPendingVideoWho] = useState<{
+    platform: MultiWizardPlatform;
+    url: string;
+  } | null>(null);
 
   const submitMulti = async (p: MultiWizardPlatform, extra: Partial<PlanFromMessagePayload> = {}) => {
     const refs = (multiRefs.current[p] ??= { chosenVariant: null, ownAudience: null });
@@ -267,6 +287,18 @@ export default function WizardReviewStep({
         ? { creative_source: 'recomposite', reference_image_url: pending.url, asset_attestation }
         : { creative_source: 'upload', reference_image_url: pending.url, is_video: false, asset_attestation }
     );
+  };
+
+  const resolveMultiVideoWho = (provenance?: CreativeProvenanceInput) => {
+    const pending = multiPendingVideoWho;
+    if (!pending) return;
+    setMultiPendingVideoWho(null);
+    void submitMulti(pending.platform, {
+      creative_source: 'upload',
+      reference_image_url: pending.url,
+      is_video: true,
+      ...(provenance ?? {}),
+    });
   };
 
   useEffect(() => {
@@ -435,7 +467,7 @@ export default function WizardReviewStep({
                 setPendingAttestation({ url, forRecompose: false });
                 return;
               }
-              void submitSingle({ creative_source: 'upload', reference_image_url: url, is_video });
+              setPendingVideoWho(url);
             }}
           />
           <ResultCard
@@ -456,6 +488,7 @@ export default function WizardReviewStep({
               void submitSingle({ whatsapp_number: number });
             }}
             onChooseGenerate={() => void submitSingle({ creative_source: 'generate' })}
+            onChooseConcepts={(n) => void submitSingle({ creative_source: 'generate', concepts: n })}
             onChooseUpload={() => {
               uploadForRef.current = 'upload';
               fileInputRef.current?.click();
@@ -465,6 +498,11 @@ export default function WizardReviewStep({
               fileInputRef.current?.click();
             }}
             onChooseDraft={(draftId) => void submitSingle({ creative_source: 'draft', draft_id: draftId })}
+            onChooseAiVideo={(url, provenance: CreativeProvenanceInput) =>
+              void submitSingle({ creative_source: 'upload', reference_image_url: url, is_video: true, ...provenance })
+            }
+            creativePaths={creativePaths}
+            briefText={message}
             onChooseVariants={(variants, groupId) => {
               ownAudienceRef.current = null;
               chosenVariantRef.current = { variant: variants[0], variantGroupId: groupId };
@@ -481,6 +519,14 @@ export default function WizardReviewStep({
           />
           {pendingAttestation && (
             <WizardAssetAttestation previewUrl={pendingAttestation.url} onAnswer={resolveAttestation} />
+          )}
+          {pendingVideoWho && (
+            <div style={{ background: '#faf7f6', border: '1px solid #ece8e6', borderRadius: 12, padding: 12 }}>
+              <p style={{ margin: '0 0 10px', fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
+                Who&rsquo;s in this video?
+              </p>
+              <VideoWhoPrompt info={creativePaths} onAnswer={resolveVideoWho} />
+            </div>
           )}
           {tiktokFloor && (
             <QuickReplyChips
@@ -646,7 +692,7 @@ export default function WizardReviewStep({
                   setMultiPendingAttestation({ platform: active, url, forRecompose: false });
                   return;
                 }
-                void submitMulti(active, { creative_source: 'upload', reference_image_url: url, is_video });
+                setMultiPendingVideoWho({ platform: active, url });
               }}
             />
             <ResultCard
@@ -662,6 +708,7 @@ export default function WizardReviewStep({
                 void submitMulti(active, { whatsapp_number: number });
               }}
               onChooseGenerate={() => void submitMulti(active, { creative_source: 'generate' })}
+              onChooseConcepts={(n) => void submitMulti(active, { creative_source: 'generate', concepts: n })}
               onChooseUpload={() => {
                 uploadForRef.current = 'upload';
                 fileInputRef.current?.click();
@@ -671,6 +718,16 @@ export default function WizardReviewStep({
                 fileInputRef.current?.click();
               }}
               onChooseDraft={(draftId) => void submitMulti(active, { creative_source: 'draft', draft_id: draftId })}
+              onChooseAiVideo={(url, provenance: CreativeProvenanceInput) =>
+                void submitMulti(active, {
+                  creative_source: 'upload',
+                  reference_image_url: url,
+                  is_video: true,
+                  ...provenance,
+                })
+              }
+              creativePaths={creativePaths}
+              briefText={message}
               onChooseVariants={(variants, groupId) => {
                 const refs = (multiRefs.current[active] ??= { chosenVariant: null, ownAudience: null });
                 refs.ownAudience = null;
@@ -688,6 +745,14 @@ export default function WizardReviewStep({
             />
             {multiPendingAttestation?.platform === active && (
               <WizardAssetAttestation previewUrl={multiPendingAttestation.url} onAnswer={resolveMultiAttestation} />
+            )}
+            {multiPendingVideoWho?.platform === active && (
+              <div style={{ background: '#faf7f6', border: '1px solid #ece8e6', borderRadius: 12, padding: 12 }}>
+                <p style={{ margin: '0 0 10px', fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
+                  Who&rsquo;s in this video?
+                </p>
+                <VideoWhoPrompt info={creativePaths} onAnswer={resolveMultiVideoWho} />
+              </div>
             )}
             {active === 'tiktok' &&
               tiktokFloorChip(activeSlot.result) &&
