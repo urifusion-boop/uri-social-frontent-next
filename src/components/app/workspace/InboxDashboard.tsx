@@ -640,10 +640,28 @@ export default function InboxDashboard({ isMobile }: { isMobile: boolean }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // ?view=connections is where a Meta connect started from the inbox lands back.
+  // The sidebar's own Automated Messaging dropdown (Connections/Insights/Brand
+  // Voice/AI Usage/Inbox Settings) links here the same way, so every sub-view
+  // — not just connections — needs to be reachable from this same param.
   const searchParams = useSearchParams();
-  const [subView, setSubView] = useState<'inbox' | 'connections' | 'insights' | 'settings' | 'voice' | 'usage'>(() =>
-    searchParams?.get('view') === 'connections' ? 'connections' : 'inbox'
-  );
+  const VALID_SUBVIEWS = ['inbox', 'connections', 'insights', 'settings', 'voice', 'usage'] as const;
+  const [subView, setSubView] = useState<(typeof VALID_SUBVIEWS)[number]>(() => {
+    const v = searchParams?.get('view');
+    return (VALID_SUBVIEWS as readonly string[]).includes(v ?? '') ? (v as (typeof VALID_SUBVIEWS)[number]) : 'inbox';
+  });
+  // The lazy useState above only runs on first mount — it doesn't help when
+  // the sidebar dropdown is clicked while this page is already open (the
+  // common case: Automated Messaging is already the active tab, so the
+  // param changes but this component never remounts). Re-derive subView
+  // whenever the param itself actually changes, without fighting the
+  // in-page rail buttons, which set subView directly and never touch the URL.
+  useEffect(() => {
+    const v = searchParams?.get('view');
+    if (v && (VALID_SUBVIEWS as readonly string[]).includes(v)) {
+      setSubView(v as (typeof VALID_SUBVIEWS)[number]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams?.get('view')]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { notifications, fetchNotifications, markAsRead } = useNotifications();
   useEffect(() => {

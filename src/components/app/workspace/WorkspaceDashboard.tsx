@@ -11280,37 +11280,102 @@ export default function WorkspaceDashboard() {
     },
   ];
 
+  // Automated Messaging (InboxDashboard) has had these same six sub-views —
+  // Inbox, Connections, Insights, Brand Voice, AI Usage, Inbox Settings — as
+  // its own in-page left rail for a while, but never got the sidebar
+  // dropdown every other section here has, so there was no "jump straight to
+  // Brand Voice" from outside the page. InboxDashboard's `view` param
+  // already handled `connections` (a Meta OAuth redirect lands back there);
+  // reusing the same param for the rest keeps this a one-line change there.
+  const goToMessagesView = (view: string) => {
+    setNav('messages');
+    router.replace(`/workspace/?tab=messages&view=${view}`, {
+      scroll: false,
+    } as Parameters<typeof router.replace>[1]);
+  };
+
+  const messagesSubNav = [
+    {
+      id: 'messages-inbox',
+      icon: 'inbox',
+      label: 'Inbox',
+      active: false,
+      onClick: () => goToMessagesView('inbox'),
+    },
+    {
+      id: 'messages-connections',
+      icon: 'share',
+      label: 'Connections',
+      active: false,
+      onClick: () => goToMessagesView('connections'),
+    },
+    {
+      id: 'messages-insights',
+      icon: 'chart',
+      label: 'Insights',
+      active: false,
+      onClick: () => goToMessagesView('insights'),
+    },
+    {
+      id: 'messages-voice',
+      icon: 'mic',
+      label: 'Brand Voice',
+      active: false,
+      onClick: () => goToMessagesView('voice'),
+    },
+    {
+      id: 'messages-usage',
+      icon: 'trending',
+      label: 'AI Usage',
+      active: false,
+      onClick: () => goToMessagesView('usage'),
+    },
+    {
+      id: 'messages-settings',
+      icon: 'settings',
+      label: 'Inbox Settings',
+      active: false,
+      onClick: () => goToMessagesView('settings'),
+    },
+  ];
+
   // Which contextual sidebar (if any) the current nav value belongs to.
   // A nav id not claimed by any zone falls through to the flat PRIMARY_NAV
   // sidebar instead — this is also why reusing a PRIMARY_NAV-owned id in a
   // sub-item (Performance, Connected Accounts) is safe: clicking it is
   // meant to pop back out to the top-level view, not fake a dedicated page.
-  const activeSection: 'content-studio' | 'campaign-manager' | 'performance' | 'settings' | 'connections' | null = [
-    'schedule',
-    'blog',
-    'visual-engine-v2',
-  ].includes(nav)
+  const activeSection:
+    | 'content-studio'
+    | 'campaign-manager'
+    | 'messages'
+    | 'performance'
+    | 'settings'
+    | 'connections'
+    | null = ['schedule', 'blog', 'visual-engine-v2'].includes(nav)
     ? 'content-studio'
     : ['campaigns', 'billing'].includes(nav)
       ? 'campaign-manager'
-      : ['performance', 'market-intelligence'].includes(nav)
-        ? 'performance'
-        : // 'playbook' moved here from content-studio's list — it has no item in
-          // that sidebar (deliberately moved into Settings, see SettingsPage's own
-          // comment on why), so it belongs with 'settings' and 'agency' now that
-          // both of those have real Settings sub-nav entries too. 'billing' stays
-          // with campaign-manager above (Budget & Billing already owns it there);
-          // Settings' own Billing entry below still works, it just won't be the
-          // one keeping this particular accordion open.
-          ['settings', 'playbook', 'agency'].includes(nav)
-          ? 'settings'
-          : nav === 'connections'
-            ? 'connections'
-            : null;
+      : nav === 'messages'
+        ? 'messages'
+        : ['performance', 'market-intelligence'].includes(nav)
+          ? 'performance'
+          : // 'playbook' moved here from content-studio's list — it has no item in
+            // that sidebar (deliberately moved into Settings, see SettingsPage's own
+            // comment on why), so it belongs with 'settings' and 'agency' now that
+            // both of those have real Settings sub-nav entries too. 'billing' stays
+            // with campaign-manager above (Budget & Billing already owns it there);
+            // Settings' own Billing entry below still works, it just won't be the
+            // one keeping this particular accordion open.
+            ['settings', 'playbook', 'agency'].includes(nav)
+            ? 'settings'
+            : nav === 'connections'
+              ? 'connections'
+              : null;
 
   const SECTION_META: Record<string, { label: string; subNav: typeof contentStudioSubNav }> = {
     'content-studio': { label: 'Content Studio', subNav: contentStudioSubNav },
     'campaign-manager': { label: 'Campaign Manager', subNav: campaignManagerSubNav },
+    messages: { label: 'Automated Messaging', subNav: messagesSubNav },
     performance: { label: 'Performance', subNav: performanceSubNav },
     settings: { label: 'Settings', subNav: settingsSubNav },
     connections: { label: 'Connected Accounts', subNav: connectionsSubNav },
@@ -11320,14 +11385,18 @@ export default function WorkspaceDashboard() {
   // a single flat list and the owning row grows its own sub-items beneath
   // it (accordion), rather than swapping the whole list out for a
   // section-only view.
-  const ZONE_BY_PRIMARY_ID: Record<string, 'content-studio' | 'campaign-manager' | 'performance' | 'connections'> = {
+  const ZONE_BY_PRIMARY_ID: Record<
+    string,
+    'content-studio' | 'campaign-manager' | 'messages' | 'performance' | 'connections'
+  > = {
     schedule: 'content-studio',
     campaigns: 'campaign-manager',
+    messages: 'messages',
     performance: 'performance',
     connections: 'connections',
   };
   const [expandedSection, setExpandedSection] = useState<
-    'content-studio' | 'campaign-manager' | 'performance' | 'settings' | 'connections' | null
+    'content-studio' | 'campaign-manager' | 'messages' | 'performance' | 'settings' | 'connections' | null
   >(activeSection);
   useEffect(() => {
     if (activeSection) setExpandedSection(activeSection);
