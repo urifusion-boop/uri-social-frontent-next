@@ -3419,6 +3419,7 @@ export function PlanVariantCards({
     () => new Set(variantSet.variants.map((v) => v.rank))
   );
   const [selectedRanks, setSelectedRanks] = useState<number[]>([]);
+  const creditCount = Math.max(selectedRanks.length, 1);
   // Guards against a duplicate build from a second tap (see the Build button below).
   const [confirmed, setConfirmed] = useState(false);
   // "None of these" — the client's own audience, in their words. Picking a card and
@@ -3484,7 +3485,9 @@ export function PlanVariantCards({
               >
                 <div>
                   <span style={label}>Plan {v.rank}</span>
-                  <p style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 800, color: '#1a0a12' }}>{v.who_its_for}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 800, color: '#1a0a12' }}>
+                    {v.who_its_for.charAt(0).toUpperCase() + v.who_its_for.slice(1)}
+                  </p>
                 </div>
                 {v.recommended && (
                   <span style={{ fontSize: 10.5, fontWeight: 800, color: PINK, whiteSpace: 'nowrap' }}>
@@ -3561,8 +3564,7 @@ export function PlanVariantCards({
       {maxSelectable > 1 && (
         <p style={{ margin: '10px 0 0 40px', fontSize: 11.5, color: '#888', maxWidth: 520 }}>
           ℹ️ Picking more than one means a separate ad for each — since they need different messages, one shared ad
-          would end up vague. That's {Math.max(selectedRanks.length, 1)} creative credit
-          {selectedRanks.length === 1 ? '' : 's'}.
+          would end up vague. That's {creditCount} creative credit{creditCount === 1 ? '' : 's'}.
         </p>
       )}
       {/* None of these — the business knows its own customers better than any generated
