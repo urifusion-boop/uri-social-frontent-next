@@ -20,7 +20,13 @@ import { CampaignRow, CampaignService, DraftSummary } from '@/src/api/CampaignSe
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import CampaignWizard from './CampaignWizard';
-import { clearWizardDraft, fetchRemoteWizardDraft, loadWizardDraft, WizardDraft } from './wizardDraft';
+import {
+  deleteWizardDraft,
+  fetchRemoteWizardDrafts,
+  loadWizardDrafts,
+  mergeWizardDrafts,
+  WizardDraft,
+} from './wizardDraft';
 
 const PINK = '#C2185B';
 
@@ -30,6 +36,27 @@ function extractErrorMessage(e: unknown, fallback: string): string {
   if (typeof detail === 'string' && detail) return detail;
   if (e instanceof Error && e.message) return e.message;
   return fallback;
+}
+
+function platformLabel(draft: WizardDraft): string {
+  if (draft.platform.mode === 'single') {
+    return PLATFORM_CHOICES.find((p) => p.value === draft.platform.single)?.label ?? 'a platform';
+  }
+  return `${draft.platform.multi.length} platforms`;
+}
+
+/** The first generated image this draft has, if Jane got that far — a photo
+ *  does more to say "this is the ad you already built" than any text summary. */
+function draftThumbnail(draft: WizardDraft): string | undefined {
+  if (draft.results?.single?.creative?.image_url) return draft.results.single.creative.image_url;
+  for (const r of Object.values(draft.results?.multi ?? {})) {
+    if (r?.creative?.image_url) return r.creative.image_url;
+  }
+  return undefined;
+}
+
+function draftHasPlan(draft: WizardDraft): boolean {
+  return Boolean(draft.results?.single) || Object.keys(draft.results?.multi ?? {}).length > 0;
 }
 
 export default function CampaignBuilderPage({
@@ -52,10 +79,12 @@ export default function CampaignBuilderPage({
   // scratch, this seeds the wizard's own steps directly from the row's fields —
   // same "tweak and relaunch" starting point, in the wizard's own vocabulary.
   const [pendingDuplicate, setPendingDuplicate] = useState<CampaignRow | null>(null);
-  // An autosaved unfinished run (wizardDraft.ts) — read fresh every time the list
-  // page is actually shown, since that's exactly when a run from a moment ago
-  // (Cancel, a closed tab, "All campaigns" mid-build) would have just landed here.
-  const [draft, setDraft] = useState<WizardDraft | null>(null);
+  // Every autosaved unfinished run (wizardDraft.ts) — read fresh every time the
+  // list page is actually shown, since that's exactly when a run from a moment
+  // ago (Cancel, a closed tab, "All campaigns" mid-build) would have just landed
+  // here. Live-reported: a single slot silently discarded an earlier unfinished
+  // run the moment a second one started — every draft now keeps its own slot.
+  const [drafts, setDrafts] = useState<WizardDraft[]>([]);
   const [pendingResume, setPendingResume] = useState<WizardDraft | null>(null);
 
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
@@ -80,14 +109,13 @@ export default function CampaignBuilderPage({
   useEffect(() => {
     if (mode !== 'list') return;
     void load();
-    const local = loadWizardDraft();
-    setDraft(local);
+    const local = loadWizardDrafts();
+    setDrafts(local);
     // Checked in the background, never blocking this page on a round trip — only
-    // replaces what's shown when the backend actually has something newer (this
-    // browser's own copy missing or older, e.g. a different device or a cleared
-    // browser).
-    void fetchRemoteWizardDraft().then((remote) => {
-      if (remote && (!local || remote.savedAt > local.savedAt)) setDraft(remote);
+    // merged in once it lands (a different device's drafts, or this browser's
+    // own copy having been cleared).
+    void fetchRemoteWizardDrafts().then((remote) => {
+      if (remote.length) setDrafts((current) => mergeWizardDrafts(current, remote));
     });
   }, [mode, load]);
 
@@ -106,9 +134,9 @@ export default function CampaignBuilderPage({
     setPendingResume(d);
     startWizard();
   };
-  const discardDraft = () => {
-    clearWizardDraft();
-    setDraft(null);
+  const discardDraft = (id: string) => {
+    deleteWizardDraft(id);
+    setDrafts((current) => current.filter((d) => d.id !== id));
   };
 
   if (mode === 'wizard') {
@@ -156,66 +184,95 @@ export default function CampaignBuilderPage({
           </button>
         </div>
 
-        {draft && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              flexWrap: 'wrap',
-              background: '#FCE7F3',
-              border: `1px solid #f5c2d8`,
-              borderRadius: 14,
-              padding: '12px 16px',
-              marginBottom: 16,
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1a0a12' }}>
-                You have an unfinished campaign
-              </p>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#7a7270' }}>
-                {draft.objective.label || draft.objective.value} on{' '}
-                {draft.platform.mode === 'single'
-                  ? (PLATFORM_CHOICES.find((p) => p.value === draft.platform.single)?.label ?? 'a platform')
-                  : `${draft.platform.multi.length} platforms`}
-                {draft.audience.city ? ` · ${draft.audience.city}` : ''}
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              <button
-                type="button"
-                onClick={discardDraft}
-                style={{
-                  border: 'none',
-                  background: 'none',
-                  color: '#7a7270',
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  padding: '8px 4px',
-                }}
-              >
-                Discard
-              </button>
-              <button
-                type="button"
-                onClick={() => resume(draft)}
-                style={{
-                  border: 'none',
-                  background: PINK,
-                  color: '#fff',
-                  borderRadius: 9,
-                  padding: '8px 16px',
-                  fontSize: 12.5,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Resume
-              </button>
+        {drafts.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ margin: '0 0 10px', fontSize: 12.5, fontWeight: 800, color: '#1a0a12' }}>
+              {drafts.length === 1
+                ? 'You have an unfinished campaign'
+                : `You have ${drafts.length} unfinished campaigns`}
+            </p>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {drafts.map((d) => {
+                const thumb = draftThumbnail(d);
+                const hasPlan = draftHasPlan(d);
+                return (
+                  <div
+                    key={d.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      background: '#FCE7F3',
+                      border: '1px solid #f5c2d8',
+                      borderRadius: 14,
+                      padding: '12px 16px',
+                    }}
+                  >
+                    {thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={thumb}
+                        alt=""
+                        style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 10,
+                          background: '#fff',
+                          border: '1px solid #f5c2d8',
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1a0a12' }}>
+                        {d.objective.label || d.objective.value} on {platformLabel(d)}
+                      </p>
+                      <p style={{ margin: '2px 0 0', fontSize: 12, color: '#7a7270' }}>
+                        {d.audience.city ? `${d.audience.city} · ` : ''}
+                        {hasPlan ? 'Ad already built — ready to review' : 'Still filling in the details'}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => discardDraft(d.id)}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          color: '#7a7270',
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: '8px 4px',
+                        }}
+                      >
+                        Discard
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => resume(d)}
+                        style={{
+                          border: 'none',
+                          background: PINK,
+                          color: '#fff',
+                          borderRadius: 9,
+                          padding: '8px 16px',
+                          fontSize: 12.5,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Resume
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

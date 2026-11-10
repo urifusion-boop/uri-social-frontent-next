@@ -38,7 +38,7 @@ import type { WizardBudgetValue } from './WizardBudgetStep';
 import type { WizardCreativeChoice } from './WizardCreativeStep';
 import type { MultiWizardPlatform, WizardPlatformValue } from './WizardPlatformStep';
 import WizardAssetAttestation from './WizardAssetAttestation';
-import { clearWizardDraft } from './wizardDraft';
+import { WizardReviewSnapshot } from './wizardDraft';
 
 const PINK = '#C2185B';
 
@@ -128,6 +128,9 @@ export default function WizardReviewStep({
   googlePlacement,
   onCreateAnother,
   onStatusChange,
+  initialResults,
+  onResultsChange,
+  onAnyLaunched,
 }: {
   objective: WizardObjectiveValue;
   audience: WizardAudienceValue;
@@ -148,6 +151,19 @@ export default function WizardReviewStep({
    *  read "Finalize" while still deciding and "Review" only once there's really
    *  just a look-over-and-launch left to do. */
   onStatusChange?: (ready: boolean) => void;
+  /** Resuming a saved draft that already got this far — the exact plan/creative
+   *  Jane built last time, so this picks the conversation back up instead of
+   *  firing a brand-new planFromMessage call that could generate something
+   *  different from the same inputs. Undefined/empty means a genuinely fresh
+   *  run, same as before this existed. */
+  initialResults?: WizardReviewSnapshot;
+  /** Fires on every result change (single or multi) so the parent can keep the
+   *  autosaved draft's snapshot current — the thing initialResults restores. */
+  onResultsChange?: (snapshot: WizardReviewSnapshot) => void;
+  /** Fires once there's nothing left unlaunched (the one platform, or every
+   *  platform in a multi-platform run) — the parent's cue to stop offering this
+   *  draft as "resume", since there's nothing unfinished left to resume. */
+  onAnyLaunched?: () => void;
 }) {
   const isMulti = platform.mode === 'multi' && platform.multi.length >= 2;
   const platforms: MultiWizardPlatform[] = isMulti ? platform.multi : [];
@@ -173,7 +189,9 @@ export default function WizardReviewStep({
   }, []);
 
   // ===================== single platform =====================
-  const [slot, setSlot] = useState<SlotState>(emptySlot());
+  const [slot, setSlot] = useState<SlotState>(() =>
+    initialResults?.single ? { result: initialResults.single, loading: false, working: false, error: '' } : emptySlot()
+  );
   const chosenVariantRef = useRef<{ variant: PlanVariant; variantGroupId: string } | null>(null);
   const ownAudienceRef = useRef<string | null>(null);
   // "What does this photo actually show?" — asked for any real photo picked via the
@@ -227,7 +245,13 @@ export default function WizardReviewStep({
   };
 
   // ===================== multi platform =====================
-  const [slots, setSlots] = useState<Partial<Record<MultiWizardPlatform, SlotState>>>({});
+  const [slots, setSlots] = useState<Partial<Record<MultiWizardPlatform, SlotState>>>(() => {
+    const seeded: Partial<Record<MultiWizardPlatform, SlotState>> = {};
+    for (const [p, result] of Object.entries(initialResults?.multi ?? {})) {
+      if (result) seeded[p as MultiWizardPlatform] = { result, loading: false, working: false, error: '' };
+    }
+    return seeded;
+  });
   const multiRefs = useRef<
     Record<
       string,
@@ -307,8 +331,13 @@ export default function WizardReviewStep({
     startedRef.current = true;
     if (isMulti) {
       setActiveTab(platforms[0]);
-      platforms.forEach((p) => void submitMulti(p));
-    } else {
+      // A platform already seeded from a resumed draft (initialResults) picks
+      // the conversation back up where it was instead of firing a fresh call —
+      // only the ones with nothing saved start from scratch.
+      platforms.forEach((p) => {
+        if (!initialResults?.multi?.[p]) void submitMulti(p);
+      });
+    } else if (!initialResults?.single) {
       void submitSingle();
     }
     // Runs once, on entry to this step — every later call is a user-driven follow-up.
@@ -323,6 +352,24 @@ export default function WizardReviewStep({
   useEffect(() => {
     onStatusChange?.(ready);
   }, [ready, onStatusChange]);
+
+  // Keeps the autosaved draft's snapshot current — whatever's actually on
+  // screen right now, so a resume later picks up from here, not from scratch.
+  useEffect(() => {
+    if (!onResultsChange) return;
+    if (isMulti) {
+      const multi: Partial<Record<MultiWizardPlatform, LaunchFromMessageResult>> = {};
+      for (const p of platforms) {
+        if (slots[p]?.result) multi[p] = slots[p]!.result!;
+      }
+      onResultsChange({ multi });
+    } else {
+      onResultsChange({ single: slot.result });
+    }
+    // platforms is derived fresh from platform/isMulti every render; including
+    // the whole array would re-fire this on every render for no reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMulti, slot.result, slots, onResultsChange]);
 
   const launchedCount = isMulti
     ? platforms.filter((p) => slots[p]?.result?.stage === 'launched').length
@@ -476,11 +523,11 @@ export default function WizardReviewStep({
             adFormats={adFormats}
             onResultChange={(r) => setSlot((s) => ({ ...s, result: r }))}
             onLaunched={() => {
-              // The autosaved draft (wizardDraft.ts) is done once something real has
-              // launched from it — "Create another campaign" (below) is still the
-              // explicit, user-chosen way back to a fresh wizard; this only stops a
-              // finished run from being offered as "resume" on the list page.
-              clearWizardDraft();
+              // The autosaved draft is done once something real has launched from
+              // it — "Create another campaign" (below) is still the explicit,
+              // user-chosen way back to a fresh wizard; this only stops a finished
+              // run from being offered as "resume" on the list page.
+              onAnyLaunched?.();
             }}
             onQuickReply={(text) => void submitSingle({ message: `${message} ${text}` })}
             onTopUp={() => window.open('/workspace/?tab=campaigns', '_blank')}
@@ -701,7 +748,13 @@ export default function WizardReviewStep({
               result={activeSlot.result}
               adFormats={adFormats}
               onResultChange={(r) => setSlots((s) => ({ ...s, [active]: { ...s[active]!, result: r } }))}
-              onLaunched={() => clearWizardDraft()}
+              onLaunched={() => {
+                // Only once EVERY selected platform has launched — clearing on the
+                // first one would stop offering the still-unfinished others as
+                // "resume" while they're still genuinely in progress.
+                const others = platforms.filter((p) => p !== active);
+                if (others.every((p) => slots[p]?.result?.stage === 'launched')) onAnyLaunched?.();
+              }}
               onQuickReply={(text) => void submitMulti(active, { message: `${message} ${text}` })}
               onTopUp={() => window.open('/workspace/?tab=campaigns', '_blank')}
               onSubmitWhatsapp={(number) => void submitMulti(active, { whatsapp_number: number })}

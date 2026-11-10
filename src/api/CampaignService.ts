@@ -1284,20 +1284,25 @@ export class CampaignService {
   }
 
   /** Backstop for the Campaign Builder wizard's autosave (campaign-wizard/
-   *  wizardDraft.ts) — one opaque slot per brand, behind the wizard's own
-   *  (faster, free) localStorage copy. Never typed on this side either: the
-   *  backend stores and returns the payload exactly as sent. */
-  static async saveWizardDraft(payload: Record<string, unknown>): Promise<void> {
-    await UriHttpClient.getClient().post('/jane-ads/wizard-draft', { payload });
+   *  wizardDraft.ts) — every in-progress run, each its own slot by draft_id,
+   *  behind the wizard's own (faster, free) localStorage copy. Never typed on
+   *  this side either: the backend stores and returns each payload exactly as
+   *  sent. */
+  static async saveWizardDraft(draftId: string, payload: Record<string, unknown>): Promise<void> {
+    await UriHttpClient.getClient().post(`/jane-ads/wizard-draft/${draftId}`, { payload });
   }
 
-  static async getWizardDraft(): Promise<{ payload: Record<string, unknown> | null; updated_at: string | null }> {
-    const res = await UriHttpClient.getClient().get('/jane-ads/wizard-draft');
-    return res.data as { payload: Record<string, unknown> | null; updated_at: string | null };
+  static async listWizardDrafts(): Promise<{
+    drafts: { draft_id: string; payload: Record<string, unknown> | null; updated_at: string | null }[];
+  }> {
+    const res = await UriHttpClient.getClient().get('/jane-ads/wizard-drafts');
+    return res.data as {
+      drafts: { draft_id: string; payload: Record<string, unknown> | null; updated_at: string | null }[];
+    };
   }
 
-  static async clearWizardDraftRemote(): Promise<void> {
-    await UriHttpClient.getClient().delete('/jane-ads/wizard-draft');
+  static async deleteWizardDraftRemote(draftId: string): Promise<void> {
+    await UriHttpClient.getClient().delete(`/jane-ads/wizard-draft/${draftId}`);
   }
 
   /** The active brand's saved WhatsApp number (where ad leads route), or '' if unset. */

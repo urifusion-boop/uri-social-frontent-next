@@ -1,41 +1,57 @@
 /**
- * Autosave for an in-progress wizard run. localStorage is the fast path — one
- * slot per brand, synchronous, free, written on every change — and covers the
- * common case (closed tab, "All campaigns" mid-build, back tomorrow on the same
- * browser). It does not survive a cleared browser, a different device, or a
- * different browser; CampaignService.saveWizardDraft/getWizardDraft/
- * clearWizardDraftRemote (jane-ads/wizard-draft on the backend) is the backstop
- * for that, debounced separately and failing silently since it's still a
- * convenience layered on top of the wizard, never something it depends on.
+ * Autosave for every in-progress wizard run. localStorage is the fast path —
+ * synchronous, free, written on every change — and covers the common case
+ * (closed tab, "All campaigns" mid-build, back tomorrow on the same browser).
+ * It does not survive a cleared browser, a different device, or a different
+ * browser; CampaignService.saveWizardDraft/listWizardDrafts/
+ * deleteWizardDraftRemote (jane-ads/wizard-draft(s) on the backend) is the
+ * backstop for that, debounced separately and failing silently since it's
+ * still a convenience layered on top of the wizard, never something it
+ * depends on.
  *
- * One slot per brand, not a list — the ask was "don't lose my unfinished work,"
- * not a drafts inbox. Starting a new run overwrites it the moment the new run
- * reaches the same "worth saving" bar (an objective picked); the old one was
- * already offered for resume on the list page before that could happen.
+ * Live-reported: an earlier version kept one slot per brand — starting a
+ * second unfinished run silently discarded the first ("I left more than one,
+ * why am I only seeing one"). Every run now keeps its own slot by draft_id,
+ * and `results` additionally remembers the actual plan/creative Jane already
+ * built (by platform) so resuming shows what was really there instead of
+ * regenerating a possibly-different ad from the same inputs.
  */
-import { CampaignService } from '@/src/api/CampaignService';
+import { CampaignService, LaunchFromMessageResult } from '@/src/api/CampaignService';
 import { UriHttpClient } from '@/src/configs/http.config';
 import type { GooglePlacement } from '../GooglePlacementPreview';
 import type { WizardAudienceValue } from './WizardAudienceStep';
 import type { WizardBudgetValue } from './WizardBudgetStep';
 import type { WizardCreativeChoice } from './WizardCreativeStep';
 import type { WizardObjectiveValue } from './WizardObjectiveStep';
-import type { WizardPlatformValue } from './WizardPlatformStep';
+import type { MultiWizardPlatform, WizardPlatformValue } from './WizardPlatformStep';
+
+/** The last plan/creative Jane actually built for this run, per platform (or
+ *  just 'single') — not re-interpreted here, only carried so WizardReviewStep
+ *  can show it again on resume instead of starting a fresh conversation. */
+export interface WizardReviewSnapshot {
+  single?: LaunchFromMessageResult | null;
+  multi?: Partial<Record<MultiWizardPlatform, LaunchFromMessageResult>>;
+}
 
 export interface WizardDraft {
+  id: string;
   objective: WizardObjectiveValue;
   platform: WizardPlatformValue;
   googlePlacement: GooglePlacement;
   audience: WizardAudienceValue;
   budget: WizardBudgetValue;
   creative: WizardCreativeChoice | null;
+  results?: WizardReviewSnapshot;
   savedAt: number;
 }
 
-const KEY_PREFIX = '@URI@WIZARD_DRAFT@';
+const KEY_PREFIX = '@URI@WIZARD_DRAFTS@';
 // Stale enough that it's almost certainly irrelevant (prices, offers, the brand's
 // own plans have likely moved on) — drop it rather than resurface it forever.
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+// A bound, not a product decision — just here so a habit of starting and
+// abandoning runs can't grow this list forever. Oldest drops first.
+const MAX_DRAFTS = 12;
 
 function storageKey(): string {
   let brandId = 'default';
@@ -43,85 +59,106 @@ function storageKey(): string {
     brandId = localStorage.getItem(UriHttpClient.ACTIVE_BRAND_KEY) || 'default';
   } catch {
     // Private-mode/storage-disabled — fall through to the shared default key for
-    // this tab's lifetime; saveWizardDraft's own try/catch handles the rest.
+    // this tab's lifetime; every call below has its own try/catch regardless.
   }
   return `${KEY_PREFIX}${brandId}`;
 }
 
-// Debounced, not instant — the audience textarea fires onChange per keystroke, and
-// a write per keystroke is wasted work for a value nobody has asked to read until
-// the tab closes or the list page is revisited. The remote save gets its own,
-// longer debounce: it's a network call, so it's worth coalescing harder than the
-// free local write.
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
-let remoteSaveTimer: ReturnType<typeof setTimeout> | null = null;
-
-export function saveWizardDraft(draft: Omit<WizardDraft, 'savedAt'>): void {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(storageKey(), JSON.stringify({ ...draft, savedAt: Date.now() }));
-    } catch {
-      // Quota exceeded or storage unavailable — resuming is a convenience on top
-      // of the wizard, never a requirement for it, so this fails silently.
-    }
-  }, 400);
-
-  if (remoteSaveTimer) clearTimeout(remoteSaveTimer);
-  remoteSaveTimer = setTimeout(() => {
-    CampaignService.saveWizardDraft(draft as unknown as Record<string, unknown>).catch(() => {
-      // Offline, or the request failed outright — the next edit schedules another
-      // attempt, and the local copy already has this version regardless.
-    });
-  }, 1500);
-}
-
-export function loadWizardDraft(): WizardDraft | null {
+function readAll(): WizardDraft[] {
   try {
     const raw = localStorage.getItem(storageKey());
-    if (!raw) return null;
-    const draft = JSON.parse(raw) as WizardDraft;
-    if (!draft.savedAt || Date.now() - draft.savedAt > MAX_AGE_MS) {
-      localStorage.removeItem(storageKey());
-      return null;
-    }
-    return draft;
+    if (!raw) return [];
+    const list = JSON.parse(raw) as WizardDraft[];
+    return Array.isArray(list) ? list.filter((d) => d.savedAt && Date.now() - d.savedAt <= MAX_AGE_MS) : [];
   } catch {
-    return null;
+    return [];
   }
 }
 
-/** The backend's copy, if any — checked in the background after the instant
- *  local read above, and used only when it's actually newer (a different
- *  device, or this browser's own local copy having been cleared). Never
- *  blocks the list page on a network round trip for the common case. */
-export async function fetchRemoteWizardDraft(): Promise<WizardDraft | null> {
+function writeAll(drafts: WizardDraft[]): void {
   try {
-    const { payload, updated_at } = await CampaignService.getWizardDraft();
-    if (!payload || !updated_at) return null;
-    const savedAt = new Date(updated_at).getTime();
-    if (!savedAt || Date.now() - savedAt > MAX_AGE_MS) return null;
-    return { ...(payload as unknown as Omit<WizardDraft, 'savedAt'>), savedAt };
+    localStorage.setItem(storageKey(), JSON.stringify(drafts.slice(0, MAX_DRAFTS)));
   } catch {
-    return null;
+    // Quota exceeded or storage unavailable — resuming is a convenience on top
+    // of the wizard, never a requirement for it, so this fails silently.
   }
 }
 
-export function clearWizardDraft(): void {
-  if (saveTimer) {
-    clearTimeout(saveTimer);
-    saveTimer = null;
-  }
-  if (remoteSaveTimer) {
-    clearTimeout(remoteSaveTimer);
-    remoteSaveTimer = null;
-  }
+// Debounced per draft id, not instant — the audience textarea fires onChange
+// per keystroke, and a write per keystroke is wasted work for a value nobody
+// has asked to read until the tab closes or the list page is revisited. The
+// remote save gets its own, longer debounce per id: it's a network call, so
+// it's worth coalescing harder than the free local write.
+const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const remoteSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+export function saveWizardDraft(id: string, draft: Omit<WizardDraft, 'id' | 'savedAt'>): void {
+  const existing = saveTimers.get(id);
+  if (existing) clearTimeout(existing);
+  saveTimers.set(
+    id,
+    setTimeout(() => {
+      const rest = readAll().filter((d) => d.id !== id);
+      writeAll([{ ...draft, id, savedAt: Date.now() }, ...rest].sort((a, b) => b.savedAt - a.savedAt));
+    }, 400)
+  );
+
+  const existingRemote = remoteSaveTimers.get(id);
+  if (existingRemote) clearTimeout(existingRemote);
+  remoteSaveTimers.set(
+    id,
+    setTimeout(() => {
+      CampaignService.saveWizardDraft(id, draft as unknown as Record<string, unknown>).catch(() => {
+        // Offline, or the request failed outright — the next edit schedules another
+        // attempt, and the local copy already has this version regardless.
+      });
+    }, 1500)
+  );
+}
+
+export function loadWizardDrafts(): WizardDraft[] {
+  return readAll().sort((a, b) => b.savedAt - a.savedAt);
+}
+
+/** The backend's copies, if any — checked in the background after the instant
+ *  local read above, merged in rather than replacing it (a different device's
+ *  drafts should show up alongside this browser's own, not instead of them). */
+export async function fetchRemoteWizardDrafts(): Promise<WizardDraft[]> {
   try {
-    localStorage.removeItem(storageKey());
+    const { drafts } = await CampaignService.listWizardDrafts();
+    return drafts
+      .filter((d) => d.payload && d.updated_at)
+      .map((d) => {
+        const savedAt = new Date(d.updated_at as string).getTime();
+        return { ...(d.payload as unknown as Omit<WizardDraft, 'id' | 'savedAt'>), id: d.draft_id, savedAt };
+      })
+      .filter((d) => d.savedAt && Date.now() - d.savedAt <= MAX_AGE_MS);
   } catch {
-    // Nothing to clean up if storage was never reachable in the first place.
+    return [];
   }
-  CampaignService.clearWizardDraftRemote().catch(() => {
+}
+
+/** Local + remote, one entry per id (whichever copy is newer wins) — the list
+ *  page's actual source of truth once the background remote check lands. */
+export function mergeWizardDrafts(local: WizardDraft[], remote: WizardDraft[]): WizardDraft[] {
+  const byId = new Map<string, WizardDraft>();
+  for (const d of [...local, ...remote]) {
+    const prior = byId.get(d.id);
+    if (!prior || d.savedAt > prior.savedAt) byId.set(d.id, d);
+  }
+  return Array.from(byId.values()).sort((a, b) => b.savedAt - a.savedAt);
+}
+
+export function deleteWizardDraft(id: string): void {
+  const existing = saveTimers.get(id);
+  if (existing) clearTimeout(existing);
+  saveTimers.delete(id);
+  const existingRemote = remoteSaveTimers.get(id);
+  if (existingRemote) clearTimeout(existingRemote);
+  remoteSaveTimers.delete(id);
+
+  writeAll(readAll().filter((d) => d.id !== id));
+  CampaignService.deleteWizardDraftRemote(id).catch(() => {
     // Same reasoning as the save path — a convenience layer, not a dependency.
   });
 }

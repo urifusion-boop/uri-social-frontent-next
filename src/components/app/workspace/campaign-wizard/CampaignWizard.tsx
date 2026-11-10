@@ -7,9 +7,10 @@
  * integration. See the plan at ~/.claude/plans/lovely-prancing-seahorse.md.
  */
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CampaignRow, DraftSummary } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
+import { uid } from '../CampaignsPage';
 import { GooglePlacement } from '../GooglePlacementPreview';
 import WizardObjectiveStep, { WizardObjectiveValue } from './WizardObjectiveStep';
 import WizardPlatformStep, { WizardPlatformValue } from './WizardPlatformStep';
@@ -18,7 +19,7 @@ import WizardAudienceStep, { WizardAudienceValue } from './WizardAudienceStep';
 import WizardBudgetStep, { WizardBudgetValue } from './WizardBudgetStep';
 import WizardCreativeStep, { WizardCreativeChoice } from './WizardCreativeStep';
 import WizardReviewStep from './WizardReviewStep';
-import { saveWizardDraft, WizardDraft } from './wizardDraft';
+import { deleteWizardDraft, saveWizardDraft, WizardDraft, WizardReviewSnapshot } from './wizardDraft';
 
 const PINK = '#C2185B';
 
@@ -83,6 +84,10 @@ export default function CampaignWizard({
   onResumeConsumed?: () => void;
 }) {
   const isMobile = useIsMobile();
+  // One id per wizard instance, for the whole run's life — resuming a saved
+  // draft reuses ITS id (so autosave keeps updating that same slot instead of
+  // creating a second one); starting fresh mints a new one.
+  const draftId = useRef(pendingResume?.id ?? uid()).current;
   const [stepKey, setStepKey] = useState<StepKey>('objective');
 
   const [objective, setObjective] = useState<WizardObjectiveValue | null>(null);
@@ -153,6 +158,16 @@ export default function CampaignWizard({
   }, [pendingDuplicate]);
 
   const [resumed, setResumed] = useState(false);
+  // Whatever plan/creative Jane had already built, if this draft got that far —
+  // seeds WizardReviewStep so resuming shows the ad that's actually there
+  // instead of generating a fresh (possibly different) one from the same inputs.
+  const [results, setResults] = useState<WizardReviewSnapshot | undefined>(undefined);
+  // Tracks which {objective, platform, ...} combination `results` actually
+  // belongs to — if those fields change later (went back and edited Audience
+  // after already reaching Finalize once), the saved plan no longer matches
+  // what's being asked for and must not be autosaved as if it still does.
+  const lastResultsKeyRef = useRef<string | null>(null);
+  const skipNextInvalidationRef = useRef(false);
   useEffect(() => {
     if (!pendingResume) return;
     setObjective(pendingResume.objective);
@@ -161,11 +176,46 @@ export default function CampaignWizard({
     setAudience(pendingResume.audience);
     setBudget(pendingResume.budget);
     setCreative(pendingResume.creative);
+    setResults(pendingResume.results);
+    // The invalidation effect below must not see this as "the fields changed
+    // out from under the saved plan" — it's the plan's own fields arriving.
+    lastResultsKeyRef.current = JSON.stringify({
+      objective: pendingResume.objective,
+      platform: pendingResume.platform,
+      googlePlacement: pendingResume.googlePlacement,
+      audience: pendingResume.audience,
+      budget: pendingResume.budget,
+      creative: pendingResume.creative,
+    });
+    skipNextInvalidationRef.current = true;
+    // Landed on Finalize/Review before and built something there — go straight
+    // back to it (marking every earlier step reached) rather than making
+    // "resume" mean "click Next six times again through what's already filled in".
+    const hadReachedReview =
+      pendingResume.results?.single || Object.keys(pendingResume.results?.multi ?? {}).length > 0;
+    if (hadReachedReview) {
+      setReachedKeys(new Set(buildSteps(pendingResume.platform).map((s) => s.key)));
+      setStepKey('review');
+    }
     setResumed(true);
     onResumeConsumed?.();
     // Runs once per hand-off, same reasoning as the pendingDraft effect above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingResume]);
+
+  const resultsKey = JSON.stringify({ objective, platform, googlePlacement, audience, budget, creative });
+  useEffect(() => {
+    if (skipNextInvalidationRef.current) {
+      // The resume effect just set both `results` and this same key together —
+      // this run is that arrival landing, not a later edit, so leave both alone.
+      skipNextInvalidationRef.current = false;
+      return;
+    }
+    if (lastResultsKeyRef.current !== null && lastResultsKeyRef.current !== resultsKey) {
+      setResults(undefined);
+    }
+    lastResultsKeyRef.current = resultsKey;
+  }, [resultsKey]);
 
   // Autosave — only once there's something worth coming back to (an objective
   // picked is the same "real progress" bar the list page's resume banner implies).
@@ -173,8 +223,8 @@ export default function CampaignWizard({
   // keystroke (the audience textarea) costs nothing extra here.
   useEffect(() => {
     if (!objective) return;
-    saveWizardDraft({ objective, platform, googlePlacement, audience, budget, creative });
-  }, [objective, platform, googlePlacement, audience, budget, creative]);
+    saveWizardDraft(draftId, { objective, platform, googlePlacement, audience, budget, creative, results });
+  }, [draftId, objective, platform, googlePlacement, audience, budget, creative, results]);
 
   const canAdvance = (): boolean => {
     if (step === 'objective') return Boolean(objective);
@@ -379,6 +429,9 @@ export default function CampaignWizard({
               // "create another" needs; no manual state reset required here.
               onCreateAnother={onBack}
               onStatusChange={setReviewReady}
+              initialResults={results}
+              onResultsChange={setResults}
+              onAnyLaunched={() => deleteWizardDraft(draftId)}
             />
           )}
         </div>
