@@ -4860,7 +4860,7 @@ function fmtTxnDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function WalletTab({
+export function WalletTab({
   wallet,
   loading,
   onFunded,
@@ -5072,7 +5072,7 @@ function WalletTab({
   );
 }
 
-function BillingTab() {
+export function BillingTab() {
   const [data, setData] = useState<BillingSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

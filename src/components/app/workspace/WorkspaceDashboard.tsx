@@ -89,6 +89,10 @@ import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
 import CampaignBuilderPage from '@/src/components/app/workspace/campaign-wizard/CampaignBuilderPage';
+import CampaignOverviewPage from '@/src/components/app/workspace/campaign-wizard/CampaignOverviewPage';
+import CampaignGrowthPage from '@/src/components/app/workspace/campaign-wizard/CampaignGrowthPage';
+import CampaignWalletPage from '@/src/components/app/workspace/campaign-wizard/CampaignWalletPage';
+import CampaignRevenuePage from '@/src/components/app/workspace/campaign-wizard/CampaignRevenuePage';
 import CreativesLibraryPage from '@/src/components/app/workspace/CreativesLibraryPage';
 import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
@@ -11140,6 +11144,42 @@ export default function WorkspaceDashboard() {
       onClick: () => goTo('campaign-wizard'),
     },
     {
+      id: 'campaign-overview',
+      icon: 'chart',
+      // Was an internal tab on the chat page being retired (CampaignsPage.tsx's
+      // 'home') — a real sidebar destination now, same as everything else here.
+      label: 'Overview',
+      active: nav === 'campaign-overview',
+      onClick: () => goTo('campaign-overview'),
+    },
+    {
+      id: 'campaign-growth',
+      icon: 'eye',
+      label: 'Growth',
+      active: nav === 'campaign-growth',
+      onClick: () => goTo('campaign-growth'),
+    },
+    {
+      id: 'campaign-wallet',
+      icon: 'trending',
+      // Not the same balance as "Budget & Billing" below — this is what Jane
+      // spends on Meta/TikTok/Google, Budget & Billing is the app subscription.
+      label: 'Ad Wallet',
+      active: nav === 'campaign-wallet',
+      onClick: () => goTo('campaign-wallet'),
+    },
+    ...(isAdsAdmin
+      ? [
+          {
+            id: 'campaign-revenue',
+            icon: 'settings',
+            label: 'Revenue',
+            active: nav === 'campaign-revenue',
+            onClick: () => goTo('campaign-revenue'),
+          },
+        ]
+      : []),
+    {
       id: 'ad-accounts',
       icon: 'share',
       label: 'Ad Accounts',
@@ -11353,7 +11393,15 @@ export default function WorkspaceDashboard() {
     | 'connections'
     | null = ['schedule', 'blog', 'visual-engine-v2'].includes(nav)
     ? 'content-studio'
-    : ['campaigns', 'billing'].includes(nav)
+    : [
+          'campaigns',
+          'campaign-wizard',
+          'billing',
+          'campaign-overview',
+          'campaign-growth',
+          'campaign-wallet',
+          'campaign-revenue',
+        ].includes(nav)
       ? 'campaign-manager'
       : nav === 'messages'
         ? 'messages'
@@ -11887,6 +11935,10 @@ export default function WorkspaceDashboard() {
     'campaign-wizard': (
       <CampaignBuilderPage pendingDraft={pendingWizardDraft} onDraftConsumed={() => setPendingWizardDraft(null)} />
     ),
+    'campaign-overview': <CampaignOverviewPage onNavigate={goTo} />,
+    'campaign-growth': <CampaignGrowthPage />,
+    'campaign-wallet': <CampaignWalletPage />,
+    'campaign-revenue': <CampaignRevenuePage />,
     creatives: <CreativesLibraryPage onUseInWizard={handleUseDraftInWizard} />,
     'market-intelligence': <MarketIntelligencePage />,
     admin: <AdminUsersPage onBack={goWorkspace} />,
