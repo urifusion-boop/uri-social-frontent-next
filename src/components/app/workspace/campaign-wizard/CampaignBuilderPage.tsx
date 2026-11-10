@@ -20,7 +20,7 @@ import { CampaignRow, CampaignService, DraftSummary } from '@/src/api/CampaignSe
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import CampaignWizard from './CampaignWizard';
-import { clearWizardDraft, loadWizardDraft, WizardDraft } from './wizardDraft';
+import { clearWizardDraft, fetchRemoteWizardDraft, loadWizardDraft, WizardDraft } from './wizardDraft';
 
 const PINK = '#C2185B';
 
@@ -80,7 +80,15 @@ export default function CampaignBuilderPage({
   useEffect(() => {
     if (mode !== 'list') return;
     void load();
-    setDraft(loadWizardDraft());
+    const local = loadWizardDraft();
+    setDraft(local);
+    // Checked in the background, never blocking this page on a round trip — only
+    // replaces what's shown when the backend actually has something newer (this
+    // browser's own copy missing or older, e.g. a different device or a cleared
+    // browser).
+    void fetchRemoteWizardDraft().then((remote) => {
+      if (remote && (!local || remote.savedAt > local.savedAt)) setDraft(remote);
+    });
   }, [mode, load]);
 
   const startWizard = () => {
