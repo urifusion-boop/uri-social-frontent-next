@@ -104,6 +104,20 @@ export default function CampaignWizard({
   }, [stepKey]);
 
   const steps = buildSteps(platform);
+  // Live-reported bug: changing platform on the way back through (say Meta ->
+  // Google) inserts a new, never-visited "Google placement" step ahead of
+  // Audience/Budget/Creative/Review — steps that WERE already visited under the
+  // old platform and so stayed freely jumpable. Jumping straight to any of them
+  // skipped Google placement entirely, silently launching on whatever it
+  // defaulted to (Search) with no chance to pick. The fix: a step is only a free
+  // jump if every step before it in the CURRENT list has also been visited, not
+  // just the step itself — so a newly-inserted gap blocks everything past it
+  // until it's actually been seen, exactly like it was never free to skip on a
+  // first run through either.
+  const firstUnvisitedIndex = (() => {
+    const i = steps.findIndex((s) => !reachedKeys.has(s.key));
+    return i === -1 ? steps.length : i;
+  })();
   const stepIndex = Math.max(
     steps.findIndex((s) => s.key === stepKey),
     0
@@ -252,7 +266,7 @@ export default function CampaignWizard({
             // before the current step"), so jumping backward from Finalize to
             // Platform doesn't make Audience/Budget/Creative look unfilled when
             // they aren't.
-            const reachable = reachedKeys.has(s.key) && !isActive;
+            const reachable = reachedKeys.has(s.key) && !isActive && i <= firstUnvisitedIndex;
             const isDone = reachable;
             const label = s.key === 'review' ? (reviewReady ? 'Review' : 'Finalize') : s.label;
             return (
