@@ -1,6 +1,9 @@
 /**
- * The real top-level page behind "New Campaign Builder" — previously that nav entry
- * dropped straight into step 1 of CampaignWizard with no way to see what you'd
+ * The real top-level page behind the sidebar's "Campaigns" entry (nav id
+ * 'campaign-wizard' — named "New Campaign Builder" while the old chat-driven
+ * 'campaigns' page was still a visible, reachable-for-comparison tab; that page is
+ * now hidden from the menu, so this took back the plain name). Previously that nav
+ * entry dropped straight into step 1 of CampaignWizard with no way to see what you'd
  * already launched, the one thing the old chat flow's "Campaign Manager" tab (see
  * CampaignsPage.tsx's tab === 'manage', CampaignCard) already did well. Reuses that
  * exact same CampaignRow data (CampaignService.listCampaigns) and that exact same

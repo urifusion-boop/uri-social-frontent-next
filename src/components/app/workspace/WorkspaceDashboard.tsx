@@ -10805,7 +10805,7 @@ const MOBILE_TABS = [
 // Every NAV id that the bottom bar has no room for lives here, so mobile can
 // still reach all of them — MOBILE_TABS only holds the five primary destinations.
 const MORE_NAV = [
-  { id: 'campaigns', icon: 'megaphone', label: 'Campaigns' },
+  { id: 'campaign-overview', icon: 'megaphone', label: 'Campaigns' },
   { id: 'blog', icon: 'book', label: 'Blog' },
   { id: 'market-intelligence', icon: 'eye', label: 'Market Intelligence' },
   // Business Pulse moved inside Brand Playbook — no longer its own destination.
@@ -11129,29 +11129,26 @@ export default function WorkspaceDashboard() {
 
   const campaignManagerSubNav = [
     {
-      id: 'campaigns',
-      icon: 'megaphone',
-      label: 'Campaigns',
-      active: nav === 'campaigns',
-      onClick: () => goTo('campaigns'),
+      id: 'campaign-overview',
+      icon: 'chart',
+      // Was an internal tab on the chat page being retired (CampaignsPage.tsx's
+      // 'home') — a real sidebar destination now, same as everything else here,
+      // and the first thing you see entering Campaign Manager.
+      label: 'Overview',
+      active: nav === 'campaign-overview',
+      onClick: () => goTo('campaign-overview'),
     },
     {
       id: 'campaign-wizard',
       icon: 'edit',
-      // Step-by-step alternative to the chat-driven flow above, built alongside it
-      // (not replacing it) so both stay reachable to compare.
-      label: 'New Campaign Builder',
+      // Was "New Campaign Builder" — that name only existed to distinguish it
+      // from the old chat-driven 'campaigns' page while both were reachable for
+      // comparison. That page is now hidden from this menu (still reachable by
+      // deep link for the hand-offs that still depend on it — ad-test/video-
+      // polish resume), so this is simply "Campaigns" now.
+      label: 'Campaigns',
       active: nav === 'campaign-wizard',
       onClick: () => goTo('campaign-wizard'),
-    },
-    {
-      id: 'campaign-overview',
-      icon: 'chart',
-      // Was an internal tab on the chat page being retired (CampaignsPage.tsx's
-      // 'home') — a real sidebar destination now, same as everything else here.
-      label: 'Overview',
-      active: nav === 'campaign-overview',
-      onClick: () => goTo('campaign-overview'),
     },
     {
       id: 'campaign-growth',
@@ -12094,7 +12091,11 @@ export default function WorkspaceDashboard() {
                             // instead of being a no-op that only another tab's click
                             // could undo.
                             if (zone) setExpandedSection((prev) => (prev === zone ? null : zone));
-                            goTo(n.id);
+                            // Campaign Manager's own id is still 'campaigns' (the
+                            // hidden chat page) purely so ZONE_BY_PRIMARY_ID/
+                            // activeSection keep recognizing this row — clicking the
+                            // row itself now lands on Overview, not that page.
+                            goTo(n.id === 'campaigns' ? 'campaign-overview' : n.id);
                           }}
                           style={{
                             display: 'flex',
@@ -12631,7 +12632,7 @@ export default function WorkspaceDashboard() {
                       >
                         {[
                           { id: 'schedule', icon: 'edit', label: 'New post' },
-                          { id: 'campaigns', icon: 'megaphone', label: 'New campaign' },
+                          { id: 'campaign-wizard', icon: 'megaphone', label: 'New campaign' },
                           { id: 'blog', icon: 'book', label: 'New blog post' },
                         ].map((opt) => (
                           <button
@@ -12772,7 +12773,7 @@ export default function WorkspaceDashboard() {
                   ad spend), and it now moves during normal use because launching a
                   campaign debits it. Hidden on mobile, where header room is tight and
                   the credit badge is the one that must survive. */}
-              {!isMobile && <WorkspaceAdWalletBadge onClick={() => goTo('campaigns')} />}
+              {!isMobile && <WorkspaceAdWalletBadge onClick={() => goTo('campaign-wallet')} />}
 
               {/* Profile Dropdown */}
               <WorkspaceProfileDropdown onNavigate={goTo} onLogout={logoutUser} />
