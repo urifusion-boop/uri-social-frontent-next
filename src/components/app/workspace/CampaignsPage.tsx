@@ -191,7 +191,7 @@ interface SelectedMedia {
 
 const provenanceFields = (m: SelectedMedia | null | undefined) => m?.provenance ?? {};
 
-const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
+export const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
 
 /** Jane's reasoning, minus the questions she wrote into it. A plan card states the
  *  plan; "Does this align with where your clients come from?" there has nowhere to be
@@ -203,7 +203,7 @@ const withoutQuestions = (text: string) =>
     .filter((s) => s && !s.endsWith('?'))
     .join(' ');
 
-const uid = () => Math.random().toString(36).slice(2);
+export const uid = () => Math.random().toString(36).slice(2);
 
 const GREETING_TEXT =
   "Hi! Tell me what you'd like to promote, and I'll plan and launch a campaign for you. " +
@@ -2980,7 +2980,7 @@ function JaneBubble({ children }: { children: React.ReactNode }) {
   );
 }
 
-function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: string) => void }) {
+export function QuickReplyChips({ chips, onPick }: { chips: string[]; onPick: (text: string) => void }) {
   return (
     <div className="camp-indent" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginLeft: 40 }}>
       {chips.map((chip) => (
@@ -5238,7 +5238,7 @@ function TotalCard({ label, value, accent }: { label: string; value: string; acc
   );
 }
 
-type PlatformChoice = {
+export type PlatformChoice = {
   value: '' | 'meta' | 'tiktok' | 'google';
   label: string;
   hint: string;
@@ -5249,13 +5249,13 @@ type PlatformChoice = {
 // no fee on it, so the stated budget is the ad spend: ₦31,000 buys about a day, each further
 // ₦31,000 adds a day up to 7 (₦217,000), and anything bigger is simply spent faster each day.
 // Mirrors the backend's HARD_FLOOR_DAILY_NGN["tiktok"] and MAX_CAMPAIGN_DAYS — change together.
-const TIKTOK_DAILY_FLOOR_NGN = 31_000;
-const TIKTOK_MAX_DAYS = 7;
+export const TIKTOK_DAILY_FLOOR_NGN = 31_000;
+export const TIKTOK_MAX_DAYS = 7;
 const TIKTOK_BUDGET_HINT =
   `Budget: at least ${naira(TIKTOK_DAILY_FLOOR_NGN)} (about 1 day). Each extra ${naira(TIKTOK_DAILY_FLOOR_NGN)} ` +
   `adds a day, up to ${TIKTOK_MAX_DAYS} days (${naira(TIKTOK_DAILY_FLOOR_NGN * TIKTOK_MAX_DAYS)}).`;
 
-const PLATFORM_CHOICES: PlatformChoice[] = [
+export const PLATFORM_CHOICES: PlatformChoice[] = [
   {
     value: '',
     label: 'Jane picks',
@@ -5282,7 +5282,7 @@ const PLATFORM_CHOICES: PlatformChoice[] = [
   },
 ];
 
-const platformChoice = (v: string) => PLATFORM_CHOICES.find((c) => c.value === v) ?? PLATFORM_CHOICES[0];
+export const platformChoice = (v: string) => PLATFORM_CHOICES.find((c) => c.value === v) ?? PLATFORM_CHOICES[0];
 
 /** Where a planned or launched campaign actually runs, in plain words. */
 function runsOnLabel(platform?: string, googlePlacement?: string): string {

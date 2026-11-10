@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import type { DraftSummary } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import WizardObjectiveStep, { WizardObjectiveValue } from './WizardObjectiveStep';
+import WizardPlatformStep, { WizardPlatformValue } from './WizardPlatformStep';
 import WizardAudienceStep, { WizardAudienceValue } from './WizardAudienceStep';
 import WizardBudgetStep, { WizardBudgetValue } from './WizardBudgetStep';
 import WizardCreativeStep, { WizardCreativeChoice } from './WizardCreativeStep';
@@ -18,14 +19,17 @@ import WizardReviewStep from './WizardReviewStep';
 
 const PINK = '#C2185B';
 
-type StepKey = 'objective' | 'audience' | 'budget' | 'creative' | 'review';
+type StepKey = 'objective' | 'platform' | 'audience' | 'budget' | 'creative' | 'review';
 const STEPS: { key: StepKey; label: string }[] = [
   { key: 'objective', label: 'Objective' },
+  { key: 'platform', label: 'Platform' },
   { key: 'audience', label: 'Audience' },
   { key: 'budget', label: 'Budget' },
   { key: 'creative', label: 'Creative' },
   { key: 'review', label: 'Review' },
 ];
+
+const DEFAULT_PLATFORM: WizardPlatformValue = { mode: 'single', single: '', multi: [] };
 
 export default function CampaignWizard({
   onBack,
@@ -43,10 +47,15 @@ export default function CampaignWizard({
   const step = STEPS[stepIndex].key;
 
   const [objective, setObjective] = useState<WizardObjectiveValue | null>(null);
+  const [platform, setPlatform] = useState<WizardPlatformValue>(DEFAULT_PLATFORM);
   const [audience, setAudience] = useState<WizardAudienceValue>({ description: '', city: '' });
   const [budget, setBudget] = useState<WizardBudgetValue>({ amountNgn: '', days: 7 });
   const [creative, setCreative] = useState<WizardCreativeChoice | null>(null);
   const [prefilledFromLibrary, setPrefilledFromLibrary] = useState(false);
+  // Bumped on every "Create another campaign" so WizardReviewStep (keyed on it)
+  // fully remounts — a fresh plan/launch cycle, not the previous one's state
+  // carried over by a component React would otherwise just re-render in place.
+  const [reviewKey, setReviewKey] = useState(0);
 
   useEffect(() => {
     if (!pendingDraft) return;
@@ -60,6 +69,7 @@ export default function CampaignWizard({
 
   const canAdvance = (): boolean => {
     if (step === 'objective') return Boolean(objective);
+    if (step === 'platform') return platform.mode === 'single' || platform.multi.length >= 2;
     if (step === 'audience') return Boolean(audience.description.trim() && audience.city.trim());
     if (step === 'budget') return typeof budget.amountNgn === 'number' && budget.amountNgn > 0;
     if (step === 'creative') return Boolean(creative);
@@ -68,6 +78,21 @@ export default function CampaignWizard({
 
   const goNext = () => setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
   const goBack = () => (stepIndex === 0 ? onBack() : setStepIndex((i) => i - 1));
+
+  // Same brief-clearing job the chat flow's own onLaunched does (CampaignsPage.tsx:
+  // "Campaign is live — this brief is done. Clear it so the next message starts a
+  // fresh campaign") — here that means resetting every step's state and going back
+  // to step 1, without leaving this page the way the old onLaunched={onBack} did.
+  const createAnother = () => {
+    setObjective(null);
+    setPlatform(DEFAULT_PLATFORM);
+    setAudience({ description: '', city: '' });
+    setBudget({ amountNgn: '', days: 7 });
+    setCreative(null);
+    setPrefilledFromLibrary(false);
+    setReviewKey((k) => k + 1);
+    setStepIndex(0);
+  };
 
   return (
     // Same dedicated-page gradient as Content Studio's Library/Calendar/Auto/Video
@@ -161,16 +186,25 @@ export default function CampaignWizard({
           }}
         >
           {step === 'objective' && <WizardObjectiveStep selected={objective?.value ?? ''} onPick={setObjective} />}
+          {step === 'platform' && <WizardPlatformStep value={platform} onChange={setPlatform} />}
           {step === 'audience' && <WizardAudienceStep value={audience} onChange={setAudience} />}
-          {step === 'budget' && <WizardBudgetStep value={budget} onChange={setBudget} />}
+          {step === 'budget' && (
+            <WizardBudgetStep
+              value={budget}
+              onChange={setBudget}
+              platformCount={platform.mode === 'multi' ? Math.max(platform.multi.length, 1) : 1}
+            />
+          )}
           {step === 'creative' && <WizardCreativeStep value={creative} onChange={setCreative} />}
           {step === 'review' && objective && creative && (
             <WizardReviewStep
+              key={reviewKey}
               objective={objective}
               audience={audience}
               budget={{ ...budget, amountNgn: typeof budget.amountNgn === 'number' ? budget.amountNgn : 0 }}
               creative={creative}
-              onLaunched={onBack}
+              platform={platform}
+              onCreateAnother={createAnother}
             />
           )}
         </div>
