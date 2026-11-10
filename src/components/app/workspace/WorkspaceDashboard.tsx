@@ -11202,13 +11202,12 @@ export default function WorkspaceDashboard() {
     // Accounts just got dropped — it jumped to the standalone Performance
     // section (which already has its own proper sidebar entry) rather than
     // opening anything of its own, and could never show as "active" here.
-    {
-      id: 'budget',
-      icon: 'trending',
-      label: 'Budget & Billing',
-      active: nav === 'billing',
-      onClick: () => goTo('billing'),
-    },
+    //
+    // "Budget & Billing" used to live here too — a second entry point to the
+    // exact same page as Settings' own "Billing & Subscription" below, under
+    // a different label. Live-reported: this is app subscription billing, not
+    // ad spend (that's Ad Wallet, above, and it stays) — dropped the duplicate
+    // rather than keep two sidebar paths to the one page.
   ];
 
   const performanceSubNav = [
@@ -11388,7 +11387,6 @@ export default function WorkspaceDashboard() {
     : [
           'campaigns',
           'campaign-wizard',
-          'billing',
           'campaign-overview',
           'campaign-growth',
           'campaign-wallet',
@@ -11402,11 +11400,10 @@ export default function WorkspaceDashboard() {
           : // 'playbook' moved here from content-studio's list — it has no item in
             // that sidebar (deliberately moved into Settings, see SettingsPage's own
             // comment on why), so it belongs with 'settings' and 'agency' now that
-            // both of those have real Settings sub-nav entries too. 'billing' stays
-            // with campaign-manager above (Budget & Billing already owns it there);
-            // Settings' own Billing entry below still works, it just won't be the
-            // one keeping this particular accordion open.
-            ['settings', 'playbook', 'agency'].includes(nav)
+            // both of those have real Settings sub-nav entries too. 'billing' moved
+            // here too once Campaign Manager's own duplicate "Budget & Billing" entry
+            // was dropped — Settings' "Billing & Subscription" is the only path to it now.
+            ['settings', 'playbook', 'agency', 'billing'].includes(nav)
             ? 'settings'
             : nav === 'connections'
               ? 'connections'
@@ -12217,20 +12214,25 @@ export default function WorkspaceDashboard() {
                             gap: 10,
                             width: zone ? 'calc(100% - 20px)' : undefined,
                             margin: '0 10px',
-                            padding: '8px 12px',
+                            // Matches every other accordion row above (Content Studio,
+                            // Campaign Manager, etc.) — this used to be a fainter,
+                            // differently-colored highlight, the one thing that made
+                            // Settings look like a different kind of nav item instead
+                            // of the same pattern everything else here already uses.
+                            padding: '9px 12px',
                             borderRadius: 9,
-                            background: active ? 'rgba(194,24,91,.15)' : 'transparent',
+                            background: active ? '#C2185B' : 'transparent',
                             border: 'none',
                             fontFamily: 'var(--wf)',
-                            fontSize: 12.5,
-                            color: active ? '#fce4ec' : 'rgba(255,255,255,.4)',
-                            fontWeight: active ? 600 : 400,
+                            fontSize: 13,
+                            color: active ? '#fff' : 'rgba(255,255,255,.55)',
+                            fontWeight: active ? 700 : 500,
                             cursor: 'pointer',
                             textAlign: 'left',
                             transition: 'all .12s',
                           }}
                         >
-                          <I n={n.icon} s={14} c={active ? '#C2185B' : 'rgba(255,255,255,.3)'} />
+                          <I n={n.icon} s={15} c={active ? '#fff' : 'rgba(255,255,255,.4)'} />
                           <span style={{ flex: 1 }}>{n.label}</span>
                           {zone && (
                             <span
@@ -12240,7 +12242,7 @@ export default function WorkspaceDashboard() {
                                 transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
                               }}
                             >
-                              <I n="chevronRight" s={11} c={active ? '#fce4ec' : 'rgba(255,255,255,.3)'} />
+                              <I n="chevronRight" s={12} c={active ? '#fff' : 'rgba(255,255,255,.35)'} />
                             </span>
                           )}
                         </button>
@@ -12270,15 +12272,15 @@ export default function WorkspaceDashboard() {
                                     background: sn.active ? 'rgba(194,24,91,.18)' : 'transparent',
                                     border: 'none',
                                     fontFamily: 'var(--wf)',
-                                    fontSize: 12,
-                                    color: sn.active ? '#fff' : 'rgba(255,255,255,.4)',
+                                    fontSize: 12.5,
+                                    color: sn.active ? '#fff' : 'rgba(255,255,255,.5)',
                                     fontWeight: sn.active ? 700 : 500,
                                     cursor: 'pointer',
                                     textAlign: 'left',
                                     transition: 'all .12s',
                                   }}
                                 >
-                                  <I n={sn.icon} s={12} c={sn.active ? '#fff' : 'rgba(255,255,255,.3)'} />
+                                  <I n={sn.icon} s={13} c={sn.active ? '#fff' : 'rgba(255,255,255,.35)'} />
                                   <span style={{ flex: 1 }}>{sn.label}</span>
                                 </button>
                               </BrandTooltip>
