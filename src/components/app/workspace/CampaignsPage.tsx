@@ -4907,22 +4907,24 @@ export function WalletTab({
   };
 
   return (
-    <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
-        <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <p style={{ margin: 0, color: '#7a7270', fontSize: 12.5 }}>
           Your prepaid wallet. Campaigns spend from this balance — top up before you launch.
         </p>
         <button
           onClick={onFunded}
           style={{
             marginLeft: 'auto',
-            background: 'none',
-            border: '1px solid #e0dcd9',
-            borderRadius: 8,
-            padding: '6px 12px',
+            flexShrink: 0,
+            background: '#fff',
+            border: '1px solid #ece8e6',
+            borderRadius: 10,
+            padding: '7px 14px',
             fontSize: 12,
+            fontWeight: 700,
             cursor: 'pointer',
-            color: '#555',
+            color: '#1a0a12',
           }}
         >
           <RotateCw size={12} strokeWidth={2} style={{ verticalAlign: '-2px', marginRight: 5 }} />
@@ -4937,18 +4939,26 @@ export function WalletTab({
           borderRadius: 16,
           padding: '22px 24px',
           color: '#fff',
-          marginBottom: 20,
+          marginBottom: 16,
         }}
       >
-        <div style={{ fontSize: 12.5, opacity: 0.85, fontWeight: 600, letterSpacing: 0.3 }}>CURRENT BALANCE</div>
-        <div style={{ fontSize: 34, fontWeight: 800, marginTop: 4 }}>
+        <div style={{ fontSize: 12, opacity: 0.85, fontWeight: 700, letterSpacing: 0.3 }}>CURRENT BALANCE</div>
+        <div style={{ fontSize: 32, fontWeight: 800, marginTop: 4 }}>
           {loading && !wallet ? '…' : naira(wallet?.balance_ngn ?? 0)}
         </div>
       </div>
 
       {/* Top up */}
-      <div style={{ border: '1px solid #eee', borderRadius: 14, padding: 18, marginBottom: 20, background: '#fff' }}>
-        <p style={{ margin: '0 0 12px', fontWeight: 700, fontSize: 14, color: '#1a0a12' }}>Add money</p>
+      <div
+        style={{
+          border: '1px solid #ece8e6',
+          borderRadius: 16,
+          padding: 18,
+          marginBottom: 16,
+          background: '#fff',
+        }}
+      >
+        <p style={{ margin: '0 0 12px', fontWeight: 800, fontSize: 13.5, color: '#1a0a12' }}>Add money</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           {presets.map((p) => (
             <button
@@ -4978,12 +4988,12 @@ export function WalletTab({
               display: 'flex',
               alignItems: 'center',
               flex: 1,
-              border: '1.5px solid #e0dcd9',
-              borderRadius: 12,
+              border: '1px solid #ece8e6',
+              borderRadius: 10,
               padding: '0 12px',
             }}
           >
-            <span style={{ color: '#888', fontSize: 15, fontWeight: 700 }}>₦</span>
+            <span style={{ color: '#7a7270', fontSize: 15, fontWeight: 700 }}>₦</span>
             <input
               type="number"
               min={min}
@@ -4998,7 +5008,7 @@ export function WalletTab({
                 padding: '11px 8px',
                 fontSize: 15,
                 width: '100%',
-                color: '#111',
+                color: '#1a0a12',
                 fontFamily: 'inherit',
               }}
             />
@@ -5009,37 +5019,37 @@ export function WalletTab({
             style={{
               padding: '11px 22px',
               border: 'none',
-              borderRadius: 12,
+              borderRadius: 10,
               whiteSpace: 'nowrap',
-              background: funding ? '#ddd' : `linear-gradient(135deg,${PINK},#8E1545)`,
+              background: funding ? '#f0c6d6' : PINK,
               color: '#fff',
               fontWeight: 800,
-              fontSize: 14,
+              fontSize: 13.5,
               cursor: funding ? 'default' : 'pointer',
             }}
           >
             {funding ? 'Starting…' : 'Top up'}
           </button>
         </div>
-        <p style={{ margin: '8px 0 0', fontSize: 11.5, color: error ? '#c62828' : '#aaa' }}>
+        <p style={{ margin: '8px 0 0', fontSize: 11.5, color: error ? '#b91c1c' : '#9a9090' }}>
           {error || `Minimum ${naira(min)}. Secured by Squad — you'll be taken to a payment page.`}
         </p>
       </div>
 
       {/* Ledger */}
-      <p style={{ margin: '0 0 10px', fontWeight: 700, fontSize: 13, color: '#1a0a12' }}>Recent activity</p>
+      <p style={{ margin: '0 0 10px', fontWeight: 800, fontSize: 13.5, color: '#1a0a12' }}>Recent activity</p>
       {loading && !wallet ? (
-        <p style={{ color: '#aaa', fontSize: 13 }}>Loading…</p>
+        <p style={{ color: '#9a9090', fontSize: 13 }}>Loading…</p>
       ) : !wallet?.transactions?.length ? (
-        <p style={{ color: '#aaa', fontSize: 13 }}>No activity yet. Top up to get started.</p>
+        <p style={{ color: '#9a9090', fontSize: 13 }}>No activity yet. Top up to get started.</p>
       ) : (
         <div
           style={{
             display: 'grid',
             gap: 1,
-            background: '#eee',
-            border: '1px solid #eee',
-            borderRadius: 12,
+            background: '#ece8e6',
+            border: '1px solid #ece8e6',
+            borderRadius: 16,
             overflow: 'hidden',
           }}
         >
@@ -5051,14 +5061,14 @@ export function WalletTab({
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: '#fff' }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>{walletTxnLabel(t)}</div>
-                  <div style={{ fontSize: 11.5, color: '#aaa' }}>{fmtTxnDate(t.created_at)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1a0a12' }}>{walletTxnLabel(t)}</div>
+                  <div style={{ fontSize: 11.5, color: '#9a9090' }}>{fmtTxnDate(t.created_at)}</div>
                 </div>
                 <div
                   style={{
                     fontSize: 13.5,
-                    fontWeight: 700,
-                    color: credit ? '#1e7e34' : '#c62828',
+                    fontWeight: 800,
+                    color: credit ? '#15803d' : '#b91c1c',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -5113,28 +5123,28 @@ export function BillingTab() {
 
   const t = data?.totals;
   const dateInput: React.CSSProperties = {
-    border: '1.5px solid #e0dcd9',
+    border: '1px solid #ece8e6',
     borderRadius: 10,
     padding: '8px 10px',
     fontSize: 13,
     fontFamily: 'inherit',
-    color: '#111',
+    color: '#1a0a12',
   };
 
   return (
     <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
-      <p style={{ margin: '0 0 14px', color: '#888', fontSize: 13 }}>
+      <p style={{ margin: '0 0 14px', color: '#7a7270', fontSize: 12.5 }}>
         What each customer has spent on ads, what we billed them, and our margin. Numbers fill in as campaigns deliver.
       </p>
 
       {/* Filters */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end', marginBottom: 18 }}>
-        <label style={{ fontSize: 11.5, color: '#888' }}>
+        <label style={{ fontSize: 11.5, color: '#7a7270' }}>
           From
           <br />
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={dateInput} />
         </label>
-        <label style={{ fontSize: 11.5, color: '#888' }}>
+        <label style={{ fontSize: 11.5, color: '#7a7270' }}>
           To
           <br />
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={dateInput} />
@@ -5146,10 +5156,10 @@ export function BillingTab() {
             border: 'none',
             borderRadius: 10,
             padding: '9px 18px',
-            fontWeight: 700,
+            fontWeight: 800,
             fontSize: 13,
             cursor: 'pointer',
-            background: `linear-gradient(135deg,${PINK},#8E1545)`,
+            background: PINK,
             color: '#fff',
           }}
         >
@@ -5184,33 +5194,37 @@ export function BillingTab() {
         </div>
       )}
 
-      {error && <p style={{ fontSize: 12.5, color: '#c62828' }}>{error}</p>}
+      {error && <p style={{ fontSize: 12.5, color: '#b91c1c' }}>{error}</p>}
 
       {/* Table */}
       {loading && !data ? (
-        <p style={{ color: '#aaa', fontSize: 13 }}>Loading…</p>
+        <p style={{ color: '#9a9090', fontSize: 13 }}>Loading…</p>
       ) : !data?.per_user?.length ? (
-        <p style={{ color: '#aaa', fontSize: 13 }}>No ad spend recorded yet for this period.</p>
+        <p style={{ color: '#9a9090', fontSize: 13 }}>No ad spend recorded yet for this period.</p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: 'auto', border: '1px solid #ece8e6', borderRadius: 16 }}>
           <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 640, fontSize: 12.5 }}>
             <thead>
-              <tr style={{ textAlign: 'left', color: '#888', borderBottom: '1px solid #eee' }}>
-                <th style={{ padding: '8px 10px' }}>Customer</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Campaigns</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Real ad spend</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Billed</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right' }}>Margin</th>
+              <tr style={{ textAlign: 'left', color: '#7a7270', borderBottom: '1px solid #ece8e6' }}>
+                <th style={{ padding: '10px 14px' }}>Customer</th>
+                <th style={{ padding: '10px 14px', textAlign: 'right' }}>Campaigns</th>
+                <th style={{ padding: '10px 14px', textAlign: 'right' }}>Real ad spend</th>
+                <th style={{ padding: '10px 14px', textAlign: 'right' }}>Billed</th>
+                <th style={{ padding: '10px 14px', textAlign: 'right' }}>Margin</th>
               </tr>
             </thead>
             <tbody>
               {data.per_user.map((r) => (
                 <tr key={r.business_id} style={{ borderBottom: '1px solid #f4f2f0' }}>
-                  <td style={{ padding: '9px 10px', color: '#333' }}>{r.label || r.business_id}</td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right', color: '#666' }}>{r.campaigns}</td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right', color: '#333' }}>{naira(r.real_spend_ngn)}</td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right', color: '#333' }}>{naira(r.billed_ngn)}</td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700, color: '#1e7e34' }}>
+                  <td style={{ padding: '10px 14px', color: '#1a0a12', fontWeight: 700 }}>
+                    {r.label || r.business_id}
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', color: '#7a7270' }}>{r.campaigns}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', color: '#1a0a12' }}>
+                    {naira(r.real_spend_ngn)}
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', color: '#1a0a12' }}>{naira(r.billed_ngn)}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#15803d' }}>
                     {naira(r.margin_ngn)}
                   </td>
                 </tr>
@@ -5227,15 +5241,15 @@ function TotalCard({ label, value, accent }: { label: string; value: string; acc
   return (
     <div
       style={{
-        border: '1px solid #eee',
+        border: `1px solid ${accent ? '#bbf0cf' : '#ece8e6'}`,
         borderRadius: 12,
         padding: '12px 16px',
         minWidth: 130,
-        background: accent ? '#f6fbf6' : '#fff',
+        background: accent ? '#ecfdf5' : '#fff',
       }}
     >
-      <div style={{ fontSize: 10.5, color: '#aaa', textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, color: accent ? '#1e7e34' : '#1a0a12', marginTop: 2 }}>{value}</div>
+      <div style={{ fontSize: 10.5, color: '#9a9090', textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: accent ? '#15803d' : '#1a0a12', marginTop: 2 }}>{value}</div>
     </div>
   );
 }

@@ -34,8 +34,7 @@ import { CampaignService, type DashboardHome } from '@/src/api/CampaignService';
 const PINK = '#C2185B';
 const AMBER = '#a15c00';
 
-const naira = (n: number | null | undefined) =>
-  typeof n === 'number' ? `₦${Math.round(n).toLocaleString()}` : '—';
+const naira = (n: number | null | undefined) => (typeof n === 'number' ? `₦${Math.round(n).toLocaleString()}` : '—');
 
 /** "Tuesday" for a recent visit, a date for an older one — §4.1 wants a human
  *  reference point, not a timestamp. */
@@ -81,12 +80,12 @@ export default function HomePanel({ onNavigate }: HomePanelProps) {
   }, [load]);
 
   if (loading) {
-    return <div style={{ padding: 24, color: '#888', fontSize: 13 }}>Loading…</div>;
+    return <div style={{ padding: 24, color: '#9a9090', fontSize: 13 }}>Loading…</div>;
   }
   if (error) {
     return (
       <div style={{ padding: 24 }}>
-        <div style={{ fontSize: 13, color: '#c62828', marginBottom: 10 }}>{error}</div>
+        <div style={{ fontSize: 13, color: '#b91c1c', marginBottom: 10 }}>{error}</div>
         <button type="button" onClick={load} style={btn}>
           Try again
         </button>
@@ -104,8 +103,8 @@ export default function HomePanel({ onNavigate }: HomePanelProps) {
         <section style={card}>
           <h2 style={h2}>Let&rsquo;s get your first campaign running</h2>
           <p style={muted}>
-            Tell Jane what you want to promote. She writes the copy, designs the visual and
-            sets it up — you approve before anything goes live.
+            Tell Jane what you want to promote. She writes the copy, designs the visual and sets it up — you approve
+            before anything goes live.
           </p>
           <button type="button" onClick={() => onNavigate?.('campaigns')} style={btn}>
             Start a campaign
@@ -116,20 +115,18 @@ export default function HomePanel({ onNavigate }: HomePanelProps) {
           {/* §4.1 — a delta, not a total. "147 conversations" tells a weekly visitor
               nothing; "12 since Tuesday" is immediately interpretable. */}
           <section style={card}>
-            <div style={label}>
-              {delta.since ? `Since ${sinceLabel(delta.since)}` : 'So far'}
-            </div>
+            <div style={label}>{delta.since ? `Since ${sinceLabel(delta.since)}` : 'So far'}</div>
             {delta.people_messaged !== null ? (
-              <div style={{ fontSize: 26, fontWeight: 700, marginTop: 2 }}>
+              <div style={{ fontSize: 26, fontWeight: 800, marginTop: 2, color: '#1a0a12' }}>
                 {delta.people_messaged}{' '}
-                <span style={{ fontSize: 15, fontWeight: 500, color: '#555' }}>
+                <span style={{ fontSize: 15, fontWeight: 600, color: '#7a7270' }}>
                   {delta.people_messaged === 1 ? 'person messaged you' : 'people messaged you'}
                 </span>
               </div>
             ) : (
               // NOT "0 people messaged you" — we cannot see these, which is a
               // different thing and must never be reported as failure.
-              <div style={{ fontSize: 14, color: '#555', marginTop: 4, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 14, color: '#7a7270', marginTop: 4, lineHeight: 1.5 }}>
                 We can&rsquo;t count messages from your ads yet.
               </div>
             )}
@@ -143,11 +140,9 @@ export default function HomePanel({ onNavigate }: HomePanelProps) {
               {suggestions.map((s) => (
                 <div key={`${s.kind}-${s.campaign_id}`} style={suggestionRow}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{s.text}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: '#1a0a12' }}>{s.text}</div>
                     {s.detail && (
-                      <div style={{ fontSize: 11.5, color: '#777', marginTop: 2, lineHeight: 1.5 }}>
-                        {s.detail}
-                      </div>
+                      <div style={{ fontSize: 11.5, color: '#7a7270', marginTop: 2, lineHeight: 1.5 }}>{s.detail}</div>
                     )}
                   </div>
                   <button type="button" onClick={() => onNavigate?.(s.action)} style={smallBtn}>
@@ -172,16 +167,15 @@ export default function HomePanel({ onNavigate }: HomePanelProps) {
             ) : (
               live.map((c) => (
                 <div key={c.campaign_id} style={{ marginTop: 10 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.name}</div>
-                  <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: '#1a0a12' }}>{c.name}</div>
+                  <div style={{ fontSize: 12, color: '#7a7270', marginTop: 2 }}>
                     {naira(c.spent_ngn)} of {naira(c.budget_ngn)} spent
                     {c.ends_at ? ` · ${daysLeft(c.ends_at)}` : ''}
                   </div>
                   {/* Suppressed rather than zeroed — see the module note. */}
                   {c.people_messaged !== null && (
-                    <div style={{ fontSize: 12.5, color: '#1a7f37', marginTop: 2 }}>
-                      {c.people_messaged}{' '}
-                      {c.people_messaged === 1 ? 'person messaged' : 'people messaged'}
+                    <div style={{ fontSize: 12.5, color: '#15803d', marginTop: 2, fontWeight: 600 }}>
+                      {c.people_messaged} {c.people_messaged === 1 ? 'person messaged' : 'people messaged'}
                     </div>
                   )}
                   <ProgressBar spent={c.spent_ngn} budget={c.budget_ngn} />
@@ -194,15 +188,13 @@ export default function HomePanel({ onNavigate }: HomePanelProps) {
           <section style={card}>
             <div style={label}>Money</div>
             <div style={{ fontSize: 14, marginTop: 2 }}>
-              <span style={{ fontWeight: 700, color: money.low ? AMBER : '#111' }}>
-                {naira(money.wallet_ngn)}
-              </span>{' '}
-              <span style={{ color: '#777' }}>ad wallet</span>
+              <span style={{ fontWeight: 800, color: money.low ? AMBER : '#1a0a12' }}>{naira(money.wallet_ngn)}</span>{' '}
+              <span style={{ color: '#7a7270' }}>ad wallet</span>
               {money.credits !== null && (
                 <>
-                  <span style={{ color: '#ccc' }}> · </span>
-                  <span style={{ fontWeight: 700 }}>{money.credits}</span>{' '}
-                  <span style={{ color: '#777' }}>credits</span>
+                  <span style={{ color: '#9a9090' }}> · </span>
+                  <span style={{ fontWeight: 800, color: '#1a0a12' }}>{money.credits}</span>{' '}
+                  <span style={{ color: '#7a7270' }}>credits</span>
                 </>
               )}
             </div>
@@ -227,7 +219,7 @@ function ProgressBar({ spent, budget }: { spent: number | null; budget: number |
   if (typeof spent !== 'number' || typeof budget !== 'number' || budget <= 0) return null;
   const pct = Math.min(100, Math.round((spent / budget) * 100));
   return (
-    <div style={{ height: 6, background: '#eee', borderRadius: 3, marginTop: 6, overflow: 'hidden' }}>
+    <div style={{ height: 6, background: '#ece8e6', borderRadius: 3, marginTop: 6, overflow: 'hidden' }}>
       <div style={{ width: `${pct}%`, height: '100%', background: PINK }} />
     </div>
   );
@@ -235,38 +227,38 @@ function ProgressBar({ spent, budget }: { spent: number | null; budget: number |
 
 const card: React.CSSProperties = {
   background: '#fff',
-  border: '1px solid #ece8e5',
-  borderRadius: 12,
+  border: '1px solid #ece8e6',
+  borderRadius: 16,
   padding: '14px 16px',
   marginBottom: 12,
 };
-const h2: React.CSSProperties = { fontSize: 16, fontWeight: 700, margin: '0 0 6px' };
+const h2: React.CSSProperties = { fontSize: 15, fontWeight: 800, margin: '0 0 6px', color: '#1a0a12' };
 const label: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: '#888',
+  color: '#9a9090',
   textTransform: 'uppercase',
   letterSpacing: 0.4,
 };
-const muted: React.CSSProperties = { fontSize: 12.5, color: '#777', margin: '4px 0 10px', lineHeight: 1.55 };
+const muted: React.CSSProperties = { fontSize: 12.5, color: '#7a7270', margin: '4px 0 10px', lineHeight: 1.55 };
 const btn: React.CSSProperties = {
   background: PINK,
   color: '#fff',
   border: 'none',
-  borderRadius: 20,
+  borderRadius: 10,
   padding: '9px 18px',
   fontSize: 13,
-  fontWeight: 600,
+  fontWeight: 800,
   cursor: 'pointer',
 };
 const smallBtn: React.CSSProperties = {
   background: '#fff',
   color: PINK,
   border: `1.5px solid ${PINK}`,
-  borderRadius: 16,
+  borderRadius: 10,
   padding: '6px 14px',
   fontSize: 12,
-  fontWeight: 600,
+  fontWeight: 700,
   cursor: 'pointer',
   whiteSpace: 'nowrap',
   flexShrink: 0,
@@ -277,7 +269,7 @@ const linkBtn: React.CSSProperties = {
   padding: 0,
   color: PINK,
   fontSize: 'inherit',
-  fontWeight: 600,
+  fontWeight: 700,
   cursor: 'pointer',
   textDecoration: 'underline',
 };
