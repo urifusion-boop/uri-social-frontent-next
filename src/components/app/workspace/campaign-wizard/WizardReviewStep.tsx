@@ -98,6 +98,90 @@ const PLATFORM_LABEL: Record<MultiWizardPlatform, string> = {
   google: 'Google',
 };
 
+/** Live-reported: resuming a draft mid-negotiation (a follow-up question already
+ *  asked, not yet a finished plan) drops you back into just that one open
+ *  question with nothing above it — this step has never kept a visible history
+ *  of the turns that already happened, unlike the old chat page's own scrolling
+ *  transcript. Rather than build that transcript (a much bigger change, and a
+ *  risk to ResultCard's single-result assumptions), a compact recap of what's
+ *  already decided — the exact inputs this plan was built from, all of them
+ *  already sitting in this step's own props — answers the same "what did I
+ *  already set up?" question without it. */
+function RecapStrip({
+  objective,
+  platform,
+  audience,
+  budget,
+  creative,
+}: {
+  objective: WizardObjectiveValue;
+  platform: WizardPlatformValue;
+  audience: WizardAudienceValue;
+  budget: WizardBudgetValue;
+  creative: WizardCreativeChoice;
+}) {
+  const platformText =
+    platform.mode === 'multi'
+      ? platform.multi.map((p) => PLATFORM_LABEL[p]).join(', ')
+      : platform.single
+        ? PLATFORM_LABEL[platform.single as MultiWizardPlatform]
+        : "Jane's pick";
+  const creativeText =
+    creative.creative_source === 'generate'
+      ? 'Jane-generated creative'
+      : creative.creative_source === 'draft'
+        ? 'Creative from a past draft'
+        : creative.is_video
+          ? 'Your uploaded video'
+          : 'Your uploaded photo';
+  const items = [
+    objective.label || objective.value,
+    platformText,
+    audience.city.trim() || null,
+    typeof budget.amountNgn === 'number' && budget.amountNgn > 0
+      ? `₦${budget.amountNgn.toLocaleString()} over ${budget.days}d`
+      : null,
+    creativeText,
+  ].filter((x): x is string => Boolean(x));
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 14,
+        paddingBottom: 12,
+        borderBottom: '1px solid #ece8e6',
+      }}
+    >
+      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#9a9090', textTransform: 'uppercase', marginRight: 2 }}>
+        So far
+      </span>
+      {items.map((it, i) => (
+        <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#1a0a12',
+              background: '#faf7f6',
+              border: '1px solid #ece8e6',
+              borderRadius: 999,
+              padding: '3px 10px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {it}
+          </span>
+          {i < items.length - 1 && <span style={{ color: '#d8d2cf', fontSize: 11 }}>·</span>}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // TikTok rejects an ad group under its own daily floor and says so in plain words
 // (router.py's _tiktok_budget_too_low_message) — but as a free-text `need_more`
 // question, not a field flagged "missing", so ResultCard's own budget quick-replies
@@ -479,6 +563,7 @@ export default function WizardReviewStep({
 
     return (
       <div>
+        <RecapStrip objective={objective} platform={platform} audience={audience} budget={budget} creative={creative} />
         {slot.working && workingBanner('Updating your plan…')}
         {slot.error && slot.result && errorBanner(slot.error, () => void submitSingle())}
         <div
@@ -615,6 +700,7 @@ export default function WizardReviewStep({
 
   return (
     <div>
+      <RecapStrip objective={objective} platform={platform} audience={audience} budget={budget} creative={creative} />
       <div
         style={{
           display: 'flex',
