@@ -88,7 +88,7 @@ import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
 import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
-import CampaignWizard from '@/src/components/app/workspace/campaign-wizard/CampaignWizard';
+import CampaignBuilderPage from '@/src/components/app/workspace/campaign-wizard/CampaignBuilderPage';
 import CreativesLibraryPage from '@/src/components/app/workspace/CreativesLibraryPage';
 import InboxDashboard from '@/src/components/app/workspace/InboxDashboard';
 import RecordsPanel from '@/src/components/app/workspace/RecordsPanel';
@@ -11885,11 +11885,7 @@ export default function WorkspaceDashboard() {
       />
     ),
     'campaign-wizard': (
-      <CampaignWizard
-        onBack={() => goTo('campaigns')}
-        pendingDraft={pendingWizardDraft}
-        onDraftConsumed={() => setPendingWizardDraft(null)}
-      />
+      <CampaignBuilderPage pendingDraft={pendingWizardDraft} onDraftConsumed={() => setPendingWizardDraft(null)} />
     ),
     creatives: <CreativesLibraryPage onUseInWizard={handleUseDraftInWizard} />,
     'market-intelligence': <MarketIntelligencePage />,

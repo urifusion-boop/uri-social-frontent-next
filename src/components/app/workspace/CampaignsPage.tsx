@@ -5327,7 +5327,7 @@ function formatEnds(endsAt: string | null | undefined) {
 // 'ad paused' = the campaign is on but its ads are off; resuming turns them back on.
 const _TOGGLABLE_STATUSES = new Set(['active', 'paused', 'ad paused']);
 
-function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void }) {
+export function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void }) {
   const [working, setWorking] = useState(false);
   // Campaign Management PRD §19 "Audience or geography edit" — the only post-launch
   // change Uri can make itself. Everything else there is still Ads Manager's job.

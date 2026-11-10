@@ -32,7 +32,7 @@ const QUICK_ACTIONS = [
     shadow: 'rgba(194,24,91,.13)',
   },
   {
-    id: 'campaigns',
+    id: 'campaign-wizard',
     icon: Megaphone,
     title: 'Run Campaigns',
     description: 'Launch and manage ads across multiple platforms.',

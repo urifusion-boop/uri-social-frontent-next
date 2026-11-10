@@ -26,10 +26,15 @@ const STEPS: { key: StepKey; label: string }[] = [
   { key: 'audience', label: 'Audience' },
   { key: 'budget', label: 'Budget' },
   { key: 'creative', label: 'Creative' },
-  { key: 'review', label: 'Review' },
+  // Label flips from "Finalize" to "Review" once there's nothing left to decide —
+  // see reviewReady below. Review is meant to be the stage where you look things
+  // over and launch, not where follow-up questions (destination, audience variant,
+  // a connection problem) keep getting asked; while any of that is still open this
+  // step reads as "Finalize" instead, so it stops looking like Review is stuck.
+  { key: 'review', label: 'Finalize' },
 ];
 
-const DEFAULT_PLATFORM: WizardPlatformValue = { mode: 'single', single: '', multi: [] };
+const DEFAULT_PLATFORM: WizardPlatformValue = { mode: 'single', single: '', multi: [], touched: false };
 
 export default function CampaignWizard({
   onBack,
@@ -52,10 +57,9 @@ export default function CampaignWizard({
   const [budget, setBudget] = useState<WizardBudgetValue>({ amountNgn: '', days: 7 });
   const [creative, setCreative] = useState<WizardCreativeChoice | null>(null);
   const [prefilledFromLibrary, setPrefilledFromLibrary] = useState(false);
-  // Bumped on every "Create another campaign" so WizardReviewStep (keyed on it)
-  // fully remounts — a fresh plan/launch cycle, not the previous one's state
-  // carried over by a component React would otherwise just re-render in place.
-  const [reviewKey, setReviewKey] = useState(0);
+  // Flips once every selected platform has a finished, launch-ready plan with no
+  // open question left — see the STEPS comment above.
+  const [reviewReady, setReviewReady] = useState(false);
 
   useEffect(() => {
     if (!pendingDraft) return;
@@ -69,7 +73,7 @@ export default function CampaignWizard({
 
   const canAdvance = (): boolean => {
     if (step === 'objective') return Boolean(objective);
-    if (step === 'platform') return platform.mode === 'single' || platform.multi.length >= 2;
+    if (step === 'platform') return platform.mode === 'single' ? platform.touched : platform.multi.length >= 2;
     if (step === 'audience') return Boolean(audience.description.trim() && audience.city.trim());
     if (step === 'budget') return typeof budget.amountNgn === 'number' && budget.amountNgn > 0;
     if (step === 'creative') return Boolean(creative);
@@ -78,21 +82,6 @@ export default function CampaignWizard({
 
   const goNext = () => setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
   const goBack = () => (stepIndex === 0 ? onBack() : setStepIndex((i) => i - 1));
-
-  // Same brief-clearing job the chat flow's own onLaunched does (CampaignsPage.tsx:
-  // "Campaign is live — this brief is done. Clear it so the next message starts a
-  // fresh campaign") — here that means resetting every step's state and going back
-  // to step 1, without leaving this page the way the old onLaunched={onBack} did.
-  const createAnother = () => {
-    setObjective(null);
-    setPlatform(DEFAULT_PLATFORM);
-    setAudience({ description: '', city: '' });
-    setBudget({ amountNgn: '', days: 7 });
-    setCreative(null);
-    setPrefilledFromLibrary(false);
-    setReviewKey((k) => k + 1);
-    setStepIndex(0);
-  };
 
   return (
     // Same dedicated-page gradient as Content Studio's Library/Calendar/Auto/Video
@@ -113,6 +102,25 @@ export default function CampaignWizard({
         }}
       >
         <div style={{ marginBottom: 14 }}>
+          <button
+            type="button"
+            onClick={onBack}
+            style={{
+              border: 'none',
+              background: 'none',
+              padding: 0,
+              marginBottom: 6,
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#7a7270',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            ← All campaigns
+          </button>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Create Campaign</h2>
           <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#7a7270' }}>
             Launch ads across multiple platforms and reach the right audience.
@@ -137,6 +145,7 @@ export default function CampaignWizard({
           {STEPS.map((s, i) => {
             const isDone = i < stepIndex;
             const isActive = i === stepIndex;
+            const label = s.key === 'review' ? (reviewReady ? 'Review' : 'Finalize') : s.label;
             return (
               <div key={s.key} style={{ display: 'flex', alignItems: 'center', flex: isMobile ? '0 0 auto' : 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -165,7 +174,7 @@ export default function CampaignWizard({
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {s.label}
+                    {label}
                   </span>
                 </div>
                 {i < STEPS.length - 1 && !isMobile && (
@@ -198,13 +207,16 @@ export default function CampaignWizard({
           {step === 'creative' && <WizardCreativeStep value={creative} onChange={setCreative} />}
           {step === 'review' && objective && creative && (
             <WizardReviewStep
-              key={reviewKey}
               objective={objective}
               audience={audience}
               budget={{ ...budget, amountNgn: typeof budget.amountNgn === 'number' ? budget.amountNgn : 0 }}
               creative={creative}
               platform={platform}
-              onCreateAnother={createAnother}
+              // CampaignBuilderPage unmounts this whole wizard and mounts a fresh
+              // one on "+ New Campaign" — so returning to the list (onBack) is all
+              // "create another" needs; no manual state reset required here.
+              onCreateAnother={onBack}
+              onStatusChange={setReviewReady}
             />
           )}
         </div>

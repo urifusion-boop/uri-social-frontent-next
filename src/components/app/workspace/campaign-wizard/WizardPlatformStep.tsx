@@ -21,6 +21,13 @@ export interface WizardPlatformValue {
   mode: WizardPlatformMode;
   single: SingleWizardPlatform;
   multi: MultiWizardPlatform[];
+  /** True once the person has actually clicked a card here — including "Jane
+   *  picks". Distinguishes a deliberate "let Jane decide" from the untouched
+   *  starting state, which also has single === '' but must NOT be good enough
+   *  to advance: that was silently defaulting straight past this step with no
+   *  platform chosen at all, which is how a single-platform launch kept landing
+   *  on Google with nobody having picked it. */
+  touched: boolean;
 }
 
 const ICON: Record<string, { Icon: LucideIcon; tint: string; fg: string }> = {
@@ -38,10 +45,14 @@ export default function WizardPlatformStep({
   onChange: (next: WizardPlatformValue) => void;
 }) {
   const setMode = (mode: WizardPlatformMode) => onChange({ ...value, mode });
-  const pickSingle = (p: SingleWizardPlatform) => onChange({ ...value, single: p });
+  const pickSingle = (p: SingleWizardPlatform) => onChange({ ...value, single: p, touched: true });
   const toggleMulti = (p: MultiWizardPlatform) => {
     const has = value.multi.includes(p);
-    onChange({ ...value, multi: has ? value.multi.filter((x) => x !== p) : [...value.multi, p] });
+    onChange({
+      ...value,
+      multi: has ? value.multi.filter((x) => x !== p) : [...value.multi, p],
+      touched: true,
+    });
   };
 
   const cards = value.mode === 'single' ? PLATFORM_CHOICES : PLATFORM_CHOICES.filter((c) => c.value !== '');
@@ -90,7 +101,11 @@ export default function WizardPlatformStep({
         {cards.map((c) => {
           const { Icon, tint, fg } = ICON[c.value] ?? ICON[''];
           const isOn =
-            value.mode === 'single' ? value.single === c.value : value.multi.includes(c.value as MultiWizardPlatform);
+            value.mode === 'single'
+              ? // '' is both "untouched" and "explicitly let Jane pick" — only show it as
+                // selected once the person has actually clicked it, never as a silent default.
+                value.single === c.value && (c.value !== '' || value.touched)
+              : value.multi.includes(c.value as MultiWizardPlatform);
           return (
             <button
               key={c.value || 'auto'}

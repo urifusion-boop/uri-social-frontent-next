@@ -106,16 +106,24 @@ export default function WizardReviewStep({
   creative,
   platform,
   onCreateAnother,
+  onStatusChange,
 }: {
   objective: WizardObjectiveValue;
   audience: WizardAudienceValue;
   budget: WizardBudgetValue;
   creative: WizardCreativeChoice;
   platform: WizardPlatformValue;
-  /** Resets the whole wizard back to step 1 — lets someone launch campaigns back to
-   *  back without leaving this page, the same way the chat flow's onLaunched just
-   *  clears its own refs and lets the next typed message start fresh. */
+  /** Returns to the campaigns list (CampaignBuilderPage), which just launched this
+   *  exact campaign into — unmounting this wizard, so the NEXT "+ New Campaign"
+   *  mounts a completely fresh one. Lets someone launch campaigns back to back
+   *  without ever leaving the Campaign Builder section. */
   onCreateAnother: () => void;
+  /** Fires with true once every selected platform has reached 'planned' or
+   *  'launched' — nothing left to decide — and false again if a later edit (e.g.
+   *  switching platform) reopens a question. Lets the parent stepper's last pip
+   *  read "Finalize" while still deciding and "Review" only once there's really
+   *  just a look-over-and-launch left to do. */
+  onStatusChange?: (ready: boolean) => void;
 }) {
   const isMulti = platform.mode === 'multi' && platform.multi.length >= 2;
   const platforms: MultiWizardPlatform[] = isMulti ? platform.multi : [];
@@ -212,6 +220,15 @@ export default function WizardReviewStep({
     // Runs once, on entry to this step — every later call is a user-driven follow-up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const decided = (stage: LaunchFromMessageResult['stage'] | undefined) => stage === 'planned' || stage === 'launched';
+  const ready = isMulti
+    ? platforms.length > 0 && platforms.every((p) => decided(slots[p]?.result?.stage))
+    : decided(slot.result?.stage);
+
+  useEffect(() => {
+    onStatusChange?.(ready);
+  }, [ready, onStatusChange]);
 
   const launchedCount = isMulti
     ? platforms.filter((p) => slots[p]?.result?.stage === 'launched').length
@@ -328,7 +345,9 @@ export default function WizardReviewStep({
           style={slot.working ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
         >
           <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#7a7270' }}>
-            Here&rsquo;s what Jane&rsquo;s put together — adjust anything before you launch.
+            {ready
+              ? "Here's what Jane's put together — adjust anything before you launch."
+              : 'A couple of quick questions to finish this plan before you review it.'}
           </p>
           <input
             ref={fileInputRef}
