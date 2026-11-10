@@ -11,6 +11,7 @@ import {
   TikTokPostSettings,
 } from '@/src/api/SocialMediaAgentService';
 import TikTokPostDialog from './TikTokPostDialog';
+import { useBrandLogo, logoPlacement, LOGO_WIDTH_PERCENT, type BrandLogo } from './useBrandLogo';
 import { describePublishJob, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
 import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
@@ -2105,6 +2106,8 @@ export function StoryboardResult({
   clipMap: Record<number, VideoClip>;
   frameMap: Record<number, string>;
 }) {
+  // The owner's logo is always on the finished video when their Brand Playbook has one; the cards preview it.
+  const logo = useBrandLogo();
   // Calculate cumulative start time per scene
   const scenesWithTime = storyboard.scenes.reduce<{ scene: StoryboardScene; start: number }[]>((acc, scene) => {
     const start = acc.length > 0 ? acc[acc.length - 1].start + acc[acc.length - 1].scene.duration_seconds : 0;
@@ -2129,6 +2132,11 @@ export function StoryboardResult({
         <Chip label="Scenes" value={String(storyboard.scenes.length)} />
         <Chip label="Aspect" value={storyboard.aspect_ratio} />
       </div>
+      {logo && (
+        <p data-testid="logo-note" style={{ fontSize: 11.5, color: '#6b7280', margin: '-8px 0 12px' }}>
+          Your logo from your Brand Playbook is added to the finished video.
+        </p>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {scenesWithTime.map(({ scene, start }) => (
           <SceneCard
@@ -2137,6 +2145,7 @@ export function StoryboardResult({
             startTime={start}
             clip={clipMap[scene.scene_number] ?? null}
             frameUrl={frameMap[scene.scene_number]}
+            logo={logo}
           />
         ))}
       </div>
@@ -2169,11 +2178,13 @@ export function SceneCard({
   startTime,
   clip,
   frameUrl,
+  logo,
 }: {
   scene: StoryboardScene;
   startTime: number;
   clip: VideoClip | null;
   frameUrl?: string;
+  logo?: BrandLogo | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const endTime = startTime + scene.duration_seconds;
@@ -2255,6 +2266,22 @@ export function SceneCard({
               'linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.72) 100%)',
           }}
         />
+
+        {/* The owner's logo, as it will sit on the finished video (the clip models are never given it) */}
+        {logo && bgSrc && (
+          <img
+            data-testid="scene-logo"
+            src={logo.url}
+            alt=""
+            style={{
+              position: 'absolute',
+              width: `${LOGO_WIDTH_PERCENT[logo.size]}%`,
+              height: 'auto',
+              pointerEvents: 'none',
+              ...logoPlacement(logo.position),
+            }}
+          />
+        )}
 
         {/* Top-left: scene number + shot type + time */}
         <div style={{ position: 'absolute', top: 10, left: 12 }}>
