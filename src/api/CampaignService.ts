@@ -340,7 +340,7 @@ export interface LaunchFromMessageResult {
     behaviour: string;
     explanation: string;
     platforms: CampaignPlatform[];
-    geo?: { pins?: { name: string; reason?: string }[]; explanation?: string } | null;
+    geo?: { pins?: { name: string; reason?: string }[]; explanation?: string; fallback_area?: string } | null;
     trace?: string[];
     /** Google only: where it runs (placement) and the business name the ad shows. */
     google_keyword_context?: { placement?: string; business_name?: string } | null;

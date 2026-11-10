@@ -4361,6 +4361,11 @@ export function ResultCard({
   };
 
   const { plan, creative, launch, wallet } = result;
+  const geoLabel = plan?.geo?.pins?.length
+    ? plan.geo.pins.map((x) => x.name).join(', ')
+    : plan?.geo?.fallback_area
+      ? `All of ${plan.geo.fallback_area}`
+      : '';
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
       <div
@@ -4528,7 +4533,7 @@ export function ResultCard({
                 {naira(p.budget_ngn)} · {p.days} {p.days === 1 ? 'day' : 'days'}
               </span>
             ))}
-            {plan?.geo?.pins?.length && plan.platforms?.[0]?.platform !== 'tiktok' ? (
+            {geoLabel && plan?.platforms?.[0]?.platform !== 'tiktok' ? (
               <span
                 style={{
                   display: 'inline-flex',
@@ -4544,7 +4549,7 @@ export function ResultCard({
                 }}
               >
                 <MapPin size={12} strokeWidth={2} style={{ flexShrink: 0 }} />
-                {plan.geo.pins.map((x) => x.name).join(', ')}
+                {geoLabel}
               </span>
             ) : null}
           </div>
