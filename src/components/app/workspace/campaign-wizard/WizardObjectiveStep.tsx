@@ -10,6 +10,7 @@ import { Megaphone, MousePointerClick, MessageCircle, Users, ShoppingCart, Lucid
 import { useEffect, useState } from 'react';
 
 import { CampaignObjectiveChoice, CampaignService } from '@/src/api/CampaignService';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
 
 const PINK = '#C2185B';
 
@@ -51,6 +52,7 @@ export default function WizardObjectiveStep({
   const [choices, setChoices] = useState<CampaignObjectiveChoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     let alive = true;
@@ -82,7 +84,12 @@ export default function WizardObjectiveStep({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+        // Fixed 3-up on desktop — the original, intended layout (see this
+        // file's own top comment). Only collapses to fewer columns on mobile,
+        // where 3 fixed columns had no room to breathe; auto-fit for every
+        // width also let 5 cards fit in one row on a wide desktop screen,
+        // which wasn't the ask.
+        gridTemplateColumns: isMobile ? 'repeat(auto-fit, minmax(150px, 1fr))' : 'repeat(3, 1fr)',
         gap: 10,
       }}
     >
