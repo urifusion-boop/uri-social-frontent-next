@@ -11179,17 +11179,14 @@ export default function WorkspaceDashboard() {
           },
         ]
       : []),
-    {
-      id: 'ad-accounts',
-      icon: 'share',
-      label: 'Ad Accounts',
-      // Real destination, reused rather than duplicated — your ad platform
-      // connections (Facebook Ads/Google Ads) already live on Connected
-      // Accounts, under its own "Ad Accounts" heading now. Same
-      // goToConnectionsAnchor Connected Accounts' own sub-nav uses.
-      active: false,
-      onClick: () => goToConnectionsAnchor('ads'),
-    },
+    // "Ad Accounts" used to live here too, as a link that silently jumped out
+    // to Connected Accounts' own "Ad Accounts" heading — confusing precisely
+    // because it looked like a Campaign Manager destination (it even sat in
+    // this list) but never actually stayed one; `active` here was hard-coded
+    // false because it could never truthfully highlight as "you are here".
+    // Connected Accounts already has its own real nav entry for this, so
+    // dropped rather than kept as a second, misleading path to the same page.
+    //
     // "Audiences" used to live here too — dropped rather than left as a stub.
     // Unlike Creatives below, there's no reusable-audience concept on the
     // backend to give a real page to: Jane computes audience strategy fresh
@@ -11203,13 +11200,10 @@ export default function WorkspaceDashboard() {
       active: nav === 'creatives',
       onClick: () => goTo('creatives'),
     },
-    {
-      id: 'performance',
-      icon: 'chart',
-      label: 'Performance',
-      active: false,
-      onClick: () => goTo('performance'),
-    },
+    // "Performance" used to live here too, for the exact same reason Ad
+    // Accounts just got dropped — it jumped to the standalone Performance
+    // section (which already has its own proper sidebar entry) rather than
+    // opening anything of its own, and could never show as "active" here.
     {
       id: 'budget',
       icon: 'trending',
