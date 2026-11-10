@@ -10848,7 +10848,11 @@ const PRIMARY_NAV = [
   {
     id: 'messages',
     icon: 'inbox',
-    label: 'Automated Messaging',
+    // Was "Automated Messaging" — live-reported: that text alone needs more
+    // width than this row has at 13px bold, so it wrapped to two lines and
+    // threw off the row's height next to every other section's one-liner.
+    // The tooltip already says what it does in full.
+    label: 'Messaging',
     tooltip: 'Reply to DMs and comments across Instagram, Facebook, WhatsApp and TikTok — all in one inbox',
   },
   {
@@ -11318,54 +11322,67 @@ export default function WorkspaceDashboard() {
   // Brand Voice" from outside the page. InboxDashboard's `view` param
   // already handled `connections` (a Meta OAuth redirect lands back there);
   // reusing the same param for the rest keeps this a one-line change there.
+  // Live-reported: none of these ever highlighted — `view` lives in the URL,
+  // not in `nav`, and nothing here was reading it back. Tried reading it
+  // straight off searchParams (reactive the same way elsewhere in this
+  // component for OAuth redirect params) first, but router.replace's actual
+  // effect on useSearchParams() lands on its own async schedule — clicking
+  // through the submenu could show last click's highlight, or two at once,
+  // for anywhere from nothing to over a second. Plain state, set synchronously
+  // in the same click as the navigation (same pattern `nav` itself already
+  // uses), has no such lag — the URL still carries the view for deep links
+  // and the back button; it's just not this state's own source of truth.
+  const [messagesViewState, setMessagesViewState] = useState(() => searchParams?.get('view') || 'inbox');
   const goToMessagesView = (view: string) => {
     setNav('messages');
+    setMessagesViewState(view);
     router.replace(`/workspace/?tab=messages&view=${view}`, {
       scroll: false,
     } as Parameters<typeof router.replace>[1]);
   };
+  const messagesView = nav === 'messages' ? messagesViewState : null;
 
   const messagesSubNav = [
     {
       id: 'messages-inbox',
       icon: 'inbox',
       label: 'Inbox',
-      active: false,
+      active: messagesView === 'inbox',
       onClick: () => goToMessagesView('inbox'),
     },
     {
       id: 'messages-connections',
       icon: 'share',
       label: 'Connections',
-      active: false,
+      active: messagesView === 'connections',
       onClick: () => goToMessagesView('connections'),
     },
     {
       id: 'messages-insights',
       icon: 'chart',
       label: 'Insights',
-      active: false,
+      active: messagesView === 'insights',
       onClick: () => goToMessagesView('insights'),
     },
     {
       id: 'messages-voice',
       icon: 'mic',
       label: 'Brand Voice',
-      active: false,
+      active: messagesView === 'voice',
       onClick: () => goToMessagesView('voice'),
     },
     {
       id: 'messages-usage',
       icon: 'trending',
       label: 'AI Usage',
-      active: false,
+      active: messagesView === 'usage',
       onClick: () => goToMessagesView('usage'),
     },
     {
       id: 'messages-settings',
       icon: 'settings',
       label: 'Inbox Settings',
-      active: false,
+      active: messagesView === 'settings',
       onClick: () => goToMessagesView('settings'),
     },
   ];
@@ -12093,6 +12110,12 @@ export default function WorkspaceDashboard() {
                             // activeSection keep recognizing this row — clicking the
                             // row itself now lands on Overview, not that page.
                             goTo(n.id === 'campaigns' ? 'campaign-overview' : n.id);
+                            // goTo drops the `view` query param entirely (lands on
+                            // plain ?tab=messages) — reset the submenu's own state to
+                            // match, same as the page itself defaulting to Inbox with
+                            // no view param, so the sidebar highlight doesn't keep
+                            // showing whatever sub-view was open last time.
+                            if (n.id === 'messages') setMessagesViewState('inbox');
                           }}
                           style={{
                             display: 'flex',
@@ -12114,7 +12137,9 @@ export default function WorkspaceDashboard() {
                           }}
                         >
                           <I n={n.icon} s={15} c={parentActive ? '#fff' : 'rgba(255,255,255,.4)'} />
-                          <span style={{ flex: 1 }}>{n.label}</span>
+                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {n.label}
+                          </span>
                           {zone && (
                             <span
                               style={{
@@ -12164,7 +12189,16 @@ export default function WorkspaceDashboard() {
                                     }}
                                   >
                                     <I n={sn.icon} s={13} c={childActive ? '#fff' : 'rgba(255,255,255,.35)'} />
-                                    <span style={{ flex: 1 }}>{sn.label}</span>
+                                    <span
+                                      style={{
+                                        flex: 1,
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                      }}
+                                    >
+                                      {sn.label}
+                                    </span>
                                   </button>
                                 </BrandTooltip>
                               );
@@ -12233,7 +12267,9 @@ export default function WorkspaceDashboard() {
                           }}
                         >
                           <I n={n.icon} s={15} c={active ? '#fff' : 'rgba(255,255,255,.4)'} />
-                          <span style={{ flex: 1 }}>{n.label}</span>
+                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {n.label}
+                          </span>
                           {zone && (
                             <span
                               style={{
@@ -12281,7 +12317,16 @@ export default function WorkspaceDashboard() {
                                   }}
                                 >
                                   <I n={sn.icon} s={13} c={sn.active ? '#fff' : 'rgba(255,255,255,.35)'} />
-                                  <span style={{ flex: 1 }}>{sn.label}</span>
+                                  <span
+                                    style={{
+                                      flex: 1,
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                  >
+                                    {sn.label}
+                                  </span>
                                 </button>
                               </BrandTooltip>
                             ))}
@@ -13367,7 +13412,9 @@ export default function WorkspaceDashboard() {
                     }}
                   >
                     <I n={n.icon} s={18} c={nav === n.id ? '#C2185B' : '#888'} />
-                    <span style={{ flex: 1 }}>{n.label}</span>
+                    <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {n.label}
+                    </span>
                     {badge != null && badge > 0 && (
                       <span
                         style={{
