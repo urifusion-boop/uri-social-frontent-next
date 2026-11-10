@@ -23,6 +23,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AdFormat, CampaignService, LaunchFromMessageResult, PlanVariant } from '@/src/api/CampaignService';
 import { QuickReplyChips, ResultCard, uid } from '../CampaignsPage';
+import type { GooglePlacement } from '../GooglePlacementPreview';
 import type { WizardObjectiveValue } from './WizardObjectiveStep';
 import type { WizardAudienceValue } from './WizardAudienceStep';
 import type { WizardBudgetValue } from './WizardBudgetStep';
@@ -105,6 +106,7 @@ export default function WizardReviewStep({
   budget,
   creative,
   platform,
+  googlePlacement,
   onCreateAnother,
   onStatusChange,
 }: {
@@ -113,6 +115,9 @@ export default function WizardReviewStep({
   budget: WizardBudgetValue;
   creative: WizardCreativeChoice;
   platform: WizardPlatformValue;
+  /** Where on Google, set on the dedicated Google placement step (shown only when
+   *  Google's in play) — mirrors the chat flow's googlePlacementRef exactly. */
+  googlePlacement: GooglePlacement;
   /** Returns to the campaigns list (CampaignBuilderPage), which just launched this
    *  exact campaign into — unmounting this wizard, so the NEXT "+ New Campaign"
    *  mounts a completely fresh one. Lets someone launch campaigns back to back
@@ -152,6 +157,7 @@ export default function WizardReviewStep({
         objective: objective.value,
         message,
         ...(platform.single ? { preferred_platform: platform.single } : {}),
+        ...(platform.single === 'google' ? { google_placement: googlePlacement } : {}),
         ...creativePayload(creative),
         ...(chosenVariantRef.current
           ? {
@@ -194,6 +200,7 @@ export default function WizardReviewStep({
         budget_ngn_override: perPlatformBudget,
         days_override: budget.days,
         campaign_group_id: campaignGroupId.current,
+        ...(p === 'google' ? { google_placement: googlePlacement } : {}),
         ...creativePayload(creative),
         ...(refs.chosenVariant
           ? { selected_plan_variant: refs.chosenVariant.variant, variant_group_id: refs.chosenVariant.variantGroupId }

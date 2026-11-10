@@ -10,8 +10,10 @@
 import { useEffect, useState } from 'react';
 import type { DraftSummary } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
+import { GooglePlacement } from '../GooglePlacementPreview';
 import WizardObjectiveStep, { WizardObjectiveValue } from './WizardObjectiveStep';
 import WizardPlatformStep, { WizardPlatformValue } from './WizardPlatformStep';
+import WizardGooglePlacementStep from './WizardGooglePlacementStep';
 import WizardAudienceStep, { WizardAudienceValue } from './WizardAudienceStep';
 import WizardBudgetStep, { WizardBudgetValue } from './WizardBudgetStep';
 import WizardCreativeStep, { WizardCreativeChoice } from './WizardCreativeStep';
@@ -19,20 +21,35 @@ import WizardReviewStep from './WizardReviewStep';
 
 const PINK = '#C2185B';
 
-type StepKey = 'objective' | 'platform' | 'audience' | 'budget' | 'creative' | 'review';
-const STEPS: { key: StepKey; label: string }[] = [
-  { key: 'objective', label: 'Objective' },
-  { key: 'platform', label: 'Platform' },
-  { key: 'audience', label: 'Audience' },
-  { key: 'budget', label: 'Budget' },
-  { key: 'creative', label: 'Creative' },
-  // Label flips from "Finalize" to "Review" once there's nothing left to decide —
-  // see reviewReady below. Review is meant to be the stage where you look things
-  // over and launch, not where follow-up questions (destination, audience variant,
-  // a connection problem) keep getting asked; while any of that is still open this
-  // step reads as "Finalize" instead, so it stops looking like Review is stuck.
-  { key: 'review', label: 'Finalize' },
-];
+type StepKey = 'objective' | 'platform' | 'googlePlacement' | 'audience' | 'budget' | 'creative' | 'review';
+
+const usesGoogle = (platform: WizardPlatformValue) =>
+  platform.mode === 'single' ? platform.single === 'google' : platform.multi.includes('google');
+
+/** The step list depends on what was picked in Platform — "Google placement" only
+ *  exists at all once Google is actually in play, same as the chat flow only ever
+ *  shows its own placement picker once Google is the preferred platform. Steps are
+ *  tracked by key rather than index everywhere below, precisely so this list can
+ *  grow/shrink as platform changes without corrupting where "current" points. */
+function buildSteps(platform: WizardPlatformValue): { key: StepKey; label: string }[] {
+  const steps: { key: StepKey; label: string }[] = [
+    { key: 'objective', label: 'Objective' },
+    { key: 'platform', label: 'Platform' },
+  ];
+  if (usesGoogle(platform)) steps.push({ key: 'googlePlacement', label: 'Google placement' });
+  steps.push(
+    { key: 'audience', label: 'Audience' },
+    { key: 'budget', label: 'Budget' },
+    { key: 'creative', label: 'Creative' },
+    // Label flips from "Finalize" to "Review" once there's nothing left to decide —
+    // see reviewReady below. Review is meant to be the stage where you look things
+    // over and launch, not where follow-up questions (destination, audience variant,
+    // a connection problem) keep getting asked; while any of that is still open this
+    // step reads as "Finalize" instead, so it stops looking like Review is stuck.
+    { key: 'review', label: 'Finalize' }
+  );
+  return steps;
+}
 
 const DEFAULT_PLATFORM: WizardPlatformValue = { mode: 'single', single: '', multi: [], touched: false };
 
@@ -48,11 +65,11 @@ export default function CampaignWizard({
   onDraftConsumed?: () => void;
 }) {
   const isMobile = useIsMobile();
-  const [stepIndex, setStepIndex] = useState(0);
-  const step = STEPS[stepIndex].key;
+  const [stepKey, setStepKey] = useState<StepKey>('objective');
 
   const [objective, setObjective] = useState<WizardObjectiveValue | null>(null);
   const [platform, setPlatform] = useState<WizardPlatformValue>(DEFAULT_PLATFORM);
+  const [googlePlacement, setGooglePlacement] = useState<GooglePlacement>('search');
   const [audience, setAudience] = useState<WizardAudienceValue>({ description: '', city: '' });
   const [budget, setBudget] = useState<WizardBudgetValue>({ amountNgn: '', days: 7 });
   const [creative, setCreative] = useState<WizardCreativeChoice | null>(null);
@@ -60,13 +77,20 @@ export default function CampaignWizard({
   // Flips once every selected platform has a finished, launch-ready plan with no
   // open question left — see the STEPS comment above.
   const [reviewReady, setReviewReady] = useState(false);
-  // How far forward this run has ever gotten — every step up to here stays a free,
-  // two-way jump (click the pip, Back button), the ones past it stay locked until
-  // their prerequisites are actually filled in, same as Next already enforces.
-  const [maxReached, setMaxReached] = useState(0);
+  // Every step key visited this run stays a free, two-way jump (click the pip, Back
+  // button) — a Set of keys rather than "every index up to N", because the step
+  // list itself can grow/shrink (Google placement) as platform changes.
+  const [reachedKeys, setReachedKeys] = useState<Set<StepKey>>(new Set(['objective']));
   useEffect(() => {
-    setMaxReached((m) => Math.max(m, stepIndex));
-  }, [stepIndex]);
+    setReachedKeys((prev) => (prev.has(stepKey) ? prev : new Set(prev).add(stepKey)));
+  }, [stepKey]);
+
+  const steps = buildSteps(platform);
+  const stepIndex = Math.max(
+    steps.findIndex((s) => s.key === stepKey),
+    0
+  );
+  const step = steps[stepIndex].key;
 
   useEffect(() => {
     if (!pendingDraft) return;
@@ -87,8 +111,8 @@ export default function CampaignWizard({
     return true;
   };
 
-  const goNext = () => setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
-  const goBack = () => (stepIndex === 0 ? onBack() : setStepIndex((i) => i - 1));
+  const goNext = () => setStepKey(steps[Math.min(stepIndex + 1, steps.length - 1)].key);
+  const goBack = () => (stepIndex === 0 ? onBack() : setStepKey(steps[stepIndex - 1].key));
 
   return (
     // Same dedicated-page gradient as Content Studio's Library/Calendar/Auto/Video
@@ -149,22 +173,23 @@ export default function CampaignWizard({
             overflowX: isMobile ? 'auto' : undefined,
           }}
         >
-          {STEPS.map((s, i) => {
-            const isActive = i === stepIndex;
+          {steps.map((s, i) => {
+            const isActive = s.key === stepKey;
             // Any step already reached this run is a free jump both ways — the
             // point being able to come straight back to Finalize/Review after
             // changing something earlier, without re-clicking Next through every
-            // step in between. "Done" follows the same rule (not just i <
-            // stepIndex), so jumping backward from Finalize to Platform doesn't
-            // make Audience/Budget/Creative look unfilled when they aren't.
-            const reachable = i <= maxReached && i !== stepIndex;
+            // step in between. "Done" follows the same rule (not just "comes
+            // before the current step"), so jumping backward from Finalize to
+            // Platform doesn't make Audience/Budget/Creative look unfilled when
+            // they aren't.
+            const reachable = reachedKeys.has(s.key) && !isActive;
             const isDone = reachable;
             const label = s.key === 'review' ? (reviewReady ? 'Review' : 'Finalize') : s.label;
             return (
               <div key={s.key} style={{ display: 'flex', alignItems: 'center', flex: isMobile ? '0 0 auto' : 1 }}>
                 <button
                   type="button"
-                  onClick={() => reachable && setStepIndex(i)}
+                  onClick={() => reachable && setStepKey(s.key)}
                   disabled={!reachable}
                   style={{
                     display: 'flex',
@@ -204,7 +229,7 @@ export default function CampaignWizard({
                     {label}
                   </span>
                 </button>
-                {i < STEPS.length - 1 && !isMobile && (
+                {i < steps.length - 1 && !isMobile && (
                   <span style={{ flex: 1, height: 1, background: isDone ? PINK : '#ece8e6', margin: '0 10px' }} />
                 )}
               </div>
@@ -223,6 +248,13 @@ export default function CampaignWizard({
         >
           {step === 'objective' && <WizardObjectiveStep selected={objective?.value ?? ''} onPick={setObjective} />}
           {step === 'platform' && <WizardPlatformStep value={platform} onChange={setPlatform} />}
+          {step === 'googlePlacement' && (
+            <WizardGooglePlacementStep
+              value={googlePlacement}
+              onChange={setGooglePlacement}
+              previewImageUrl={creative && creative.creative_source !== 'generate' ? creative.previewUrl : undefined}
+            />
+          )}
           {step === 'audience' && <WizardAudienceStep value={audience} onChange={setAudience} />}
           {step === 'budget' && (
             <WizardBudgetStep
@@ -239,12 +271,13 @@ export default function CampaignWizard({
               // switched Meta to Google. Visiting this step again with nothing changed
               // keeps the same key, so it does NOT needlessly redo Jane's work or lose
               // an in-progress plan just because you looked at an earlier step.
-              key={JSON.stringify({ objective, platform, audience, budget, creative })}
+              key={JSON.stringify({ objective, platform, googlePlacement, audience, budget, creative })}
               objective={objective}
               audience={audience}
               budget={{ ...budget, amountNgn: typeof budget.amountNgn === 'number' ? budget.amountNgn : 0 }}
               creative={creative}
               platform={platform}
+              googlePlacement={googlePlacement}
               // CampaignBuilderPage unmounts this whole wizard and mounts a fresh
               // one on "+ New Campaign" — so returning to the list (onBack) is all
               // "create another" needs; no manual state reset required here.
