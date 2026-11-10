@@ -16,7 +16,7 @@
  * built (by platform) so resuming shows what was really there instead of
  * regenerating a possibly-different ad from the same inputs.
  */
-import { CampaignService, LaunchFromMessageResult } from '@/src/api/CampaignService';
+import { CampaignService, LaunchFromMessageResult, PlanVariant } from '@/src/api/CampaignService';
 import { UriHttpClient } from '@/src/configs/http.config';
 import type { GooglePlacement } from '../GooglePlacementPreview';
 import type { WizardAudienceValue } from './WizardAudienceStep';
@@ -25,12 +25,27 @@ import type { WizardCreativeChoice } from './WizardCreativeStep';
 import type { WizardObjectiveValue } from './WizardObjectiveStep';
 import type { MultiWizardPlatform, WizardPlatformValue } from './WizardPlatformStep';
 
+/** Whichever audience answer Jane's stateless /plan-from-message call needs
+ *  resent on every later turn — a chosen plan variant, or the client's own
+ *  typed-in audience. Neither is part of the result itself (it's an input TO
+ *  the next call, not an output of the last one), so without carrying it
+ *  forward, resuming past the question that first set it forgets it existed:
+ *  the next answer goes back with no audience chosen, and Jane can reopen
+ *  earlier-resolved questions (including creative) trying to resolve it. */
+export interface WizardReviewChoice {
+  variant?: PlanVariant;
+  variantGroupId?: string;
+  ownAudience?: string;
+}
+
 /** The last plan/creative Jane actually built for this run, per platform (or
  *  just 'single') — not re-interpreted here, only carried so WizardReviewStep
  *  can show it again on resume instead of starting a fresh conversation. */
 export interface WizardReviewSnapshot {
   single?: LaunchFromMessageResult | null;
   multi?: Partial<Record<MultiWizardPlatform, LaunchFromMessageResult>>;
+  singleChoice?: WizardReviewChoice;
+  multiChoice?: Partial<Record<MultiWizardPlatform, WizardReviewChoice>>;
 }
 
 export interface WizardDraft {

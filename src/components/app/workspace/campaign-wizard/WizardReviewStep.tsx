@@ -38,7 +38,7 @@ import type { WizardBudgetValue } from './WizardBudgetStep';
 import type { WizardCreativeChoice } from './WizardCreativeStep';
 import type { MultiWizardPlatform, WizardPlatformValue } from './WizardPlatformStep';
 import WizardAssetAttestation from './WizardAssetAttestation';
-import { WizardReviewSnapshot } from './wizardDraft';
+import { WizardReviewChoice, WizardReviewSnapshot } from './wizardDraft';
 
 const PINK = '#C2185B';
 
@@ -276,8 +276,20 @@ export default function WizardReviewStep({
   const [slot, setSlot] = useState<SlotState>(() =>
     initialResults?.single ? { result: initialResults.single, loading: false, working: false, error: '' } : emptySlot()
   );
-  const chosenVariantRef = useRef<{ variant: PlanVariant; variantGroupId: string } | null>(null);
-  const ownAudienceRef = useRef<string | null>(null);
+  // Seeded from initialResults on resume — live-reported: resuming past the
+  // choose_plan_variant/choose_own_audience question that first set these and
+  // answering the NEXT question (e.g. choose_destination) sent a request with
+  // neither resent, since a fresh mount otherwise starts both at null. Jane's
+  // /plan-from-message call is stateless (every call resends the full picture,
+  // not just this turn's answer), so without this the backend lost track of
+  // the already-settled audience and reopened earlier questions — including,
+  // confusingly, re-asking about creative.
+  const chosenVariantRef = useRef<{ variant: PlanVariant; variantGroupId: string } | null>(
+    initialResults?.singleChoice?.variant && initialResults.singleChoice.variantGroupId
+      ? { variant: initialResults.singleChoice.variant, variantGroupId: initialResults.singleChoice.variantGroupId }
+      : null
+  );
+  const ownAudienceRef = useRef<string | null>(initialResults?.singleChoice?.ownAudience ?? null);
   // "What does this photo actually show?" — asked for any real photo picked via the
   // mid-flow choose_creative_source card (upload or recompose), same as every other
   // real-photo entry point. See WizardAssetAttestation.tsx.
@@ -341,7 +353,21 @@ export default function WizardReviewStep({
       string,
       { chosenVariant: { variant: PlanVariant; variantGroupId: string } | null; ownAudience: string | null }
     >
-  >({});
+  >(
+    // Same seeding as chosenVariantRef/ownAudienceRef above, per platform.
+    Object.fromEntries(
+      Object.entries(initialResults?.multiChoice ?? {}).map(([p, choice]) => [
+        p,
+        {
+          chosenVariant:
+            choice?.variant && choice.variantGroupId
+              ? { variant: choice.variant, variantGroupId: choice.variantGroupId }
+              : null,
+          ownAudience: choice?.ownAudience ?? null,
+        },
+      ])
+    )
+  );
   const campaignGroupId = useRef(uid());
   const [activeTab, setActiveTab] = useState<MultiWizardPlatform | null>(null);
   // Same attestation gate as the single-platform path, scoped to whichever tab the
@@ -439,16 +465,36 @@ export default function WizardReviewStep({
 
   // Keeps the autosaved draft's snapshot current — whatever's actually on
   // screen right now, so a resume later picks up from here, not from scratch.
+  // Carries the chosen-variant/own-audience refs alongside the result itself —
+  // see chosenVariantRef/ownAudienceRef's own comment above for why those also
+  // have to survive a resume, not just the result they led to.
   useEffect(() => {
     if (!onResultsChange) return;
     if (isMulti) {
       const multi: Partial<Record<MultiWizardPlatform, LaunchFromMessageResult>> = {};
+      const multiChoice: Partial<Record<MultiWizardPlatform, WizardReviewChoice>> = {};
       for (const p of platforms) {
         if (slots[p]?.result) multi[p] = slots[p]!.result!;
+        const refs = multiRefs.current[p];
+        if (refs?.chosenVariant || refs?.ownAudience) {
+          multiChoice[p] = {
+            variant: refs.chosenVariant?.variant,
+            variantGroupId: refs.chosenVariant?.variantGroupId,
+            ownAudience: refs.ownAudience ?? undefined,
+          };
+        }
       }
-      onResultsChange({ multi });
+      onResultsChange({ multi, multiChoice });
     } else {
-      onResultsChange({ single: slot.result });
+      const singleChoice: WizardReviewChoice | undefined =
+        chosenVariantRef.current || ownAudienceRef.current
+          ? {
+              variant: chosenVariantRef.current?.variant,
+              variantGroupId: chosenVariantRef.current?.variantGroupId,
+              ownAudience: ownAudienceRef.current ?? undefined,
+            }
+          : undefined;
+      onResultsChange({ single: slot.result, singleChoice });
     }
     // platforms is derived fresh from platform/isMulti every render; including
     // the whole array would re-fire this on every render for no reason.
@@ -462,9 +508,18 @@ export default function WizardReviewStep({
       : 0;
 
   // ---- shared pieces ----
+  // Live-reported: clicking a button near the bottom of a long card (e.g. "Use
+  // this" on the destination question) dimmed everything with no visible sign
+  // anything was happening — this banner was only ever rendered at the very
+  // top of the card, off-screen above wherever the user had actually scrolled
+  // to. Sticky keeps it pinned in view regardless of scroll position, right
+  // where the click just happened.
   const workingBanner = (label: string) => (
     <div
       style={{
+        position: 'sticky',
+        top: 8,
+        zIndex: 5,
         display: 'flex',
         alignItems: 'center',
         gap: 10,
@@ -476,6 +531,7 @@ export default function WizardReviewStep({
         fontSize: 12.5,
         color: '#8a1249',
         fontWeight: 600,
+        boxShadow: '0 4px 14px rgba(0,0,0,.08)',
       }}
     >
       <span
