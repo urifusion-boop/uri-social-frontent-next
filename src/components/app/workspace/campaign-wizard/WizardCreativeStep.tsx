@@ -351,7 +351,7 @@ export default function WizardCreativeStep({
                 <span style={{ fontSize: 12, color: '#7a7270' }}>No drafts yet — try another option.</span>
               )}
               {!draftsLoading && drafts && drafts.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 6 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
                   {drafts.map((d) => {
                     const isSelected = value?.creative_source === 'draft' && value.draft_id === d.draft_id;
                     return (
