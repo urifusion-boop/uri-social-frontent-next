@@ -36,9 +36,17 @@ export interface WizardObjectiveValue {
 export default function WizardObjectiveStep({
   selected,
   onPick,
+  platform = 'meta',
 }: {
   selected: string;
   onPick: (choice: WizardObjectiveValue) => void;
+  /** Mirrors the chat flow's own `ObjectivePicker` call exactly — objectives'
+   *  blurbs/caveats legitimately differ by platform (CampaignService.getObjectives
+   *  hits /jane-ads/objectives?platform=...). Objective is step 1, before Platform
+   *  is chosen, so this is 'meta' on first visit same as the chat page's own
+   *  default; revisiting this step after picking TikTok on Platform refetches with
+   *  TikTok's own set. */
+  platform?: 'meta' | 'tiktok';
 }) {
   const [choices, setChoices] = useState<CampaignObjectiveChoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +54,9 @@ export default function WizardObjectiveStep({
 
   useEffect(() => {
     let alive = true;
-    CampaignService.getObjectives('meta')
+    setLoading(true);
+    setFailed(false);
+    CampaignService.getObjectives(platform)
       .then((c) => {
         if (alive) setChoices(c);
       })
@@ -59,7 +69,7 @@ export default function WizardObjectiveStep({
     return () => {
       alive = false;
     };
-  }, []);
+  }, [platform]);
 
   if (loading) {
     return <p style={{ fontSize: 13, color: '#8a8080' }}>Loading objectives…</p>;

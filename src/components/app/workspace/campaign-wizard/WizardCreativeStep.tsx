@@ -15,7 +15,16 @@ const PINK = '#C2185B';
 
 export type WizardCreativeChoice =
   | { creative_source: 'generate' }
-  | { creative_source: 'upload'; reference_image_url: string; is_video: boolean; previewUrl: string }
+  | {
+      creative_source: 'upload';
+      reference_image_url: string;
+      is_video: boolean;
+      previewUrl: string;
+      // TikTok Carousel Ads only — extra slides beyond the base photo
+      // (reference_image_url is reused as slide 1), mirrors CampaignsPage.tsx's
+      // own carouselExtraUrls exactly.
+      carouselExtraUrls?: string[];
+    }
   | { creative_source: 'draft'; draft_id: string; previewUrl: string };
 
 function OptionCard({
@@ -59,12 +68,18 @@ function OptionCard({
 export default function WizardCreativeStep({
   value,
   onChange,
+  isTikTok = false,
 }: {
   value: WizardCreativeChoice | null;
   onChange: (next: WizardCreativeChoice) => void;
+  /** Mirrors the chat flow's own `preferredPlatformUi === 'tiktok'` gate on the
+   *  carousel picker — single-platform TikTok only, same scope as the old page
+   *  (it never offers carousel slides in multi-platform mode either). */
+  isTikTok?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [carouselUploading, setCarouselUploading] = useState(false);
   const [drafts, setDrafts] = useState<DraftSummary[] | null>(null);
   const [draftsLoading, setDraftsLoading] = useState(false);
   const [showDrafts, setShowDrafts] = useState(false);
@@ -98,6 +113,61 @@ export default function WizardCreativeStep({
     if (mode === 'draft') loadDrafts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
+
+  // TikTok Carousel Ads — extra slides beyond the base photo. Same direct-upload
+  // shape as CampaignsPage.tsx's handleCarouselExtraFileChosen: multi-select
+  // uploads every picked file in parallel and adds every good photo in one go,
+  // caps the carousel at 35 slides total (base photo included), and skips a
+  // stray video rather than failing the whole batch.
+  const addCarouselSlides = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (!files.length || value?.creative_source !== 'upload') return;
+    const existing = value.carouselExtraUrls ?? [];
+
+    const remainingSlots = Math.max(0, 35 - 1 - existing.length);
+    const toUpload = files.slice(0, remainingSlots);
+    const dropped = files.length - toUpload.length;
+
+    setUploadError('');
+    if (!toUpload.length) {
+      setUploadError("This carousel is already at TikTok's 35-photo limit.");
+      return;
+    }
+
+    setCarouselUploading(true);
+    try {
+      const results = await Promise.allSettled(toUpload.map((file) => CampaignService.uploadMedia(file)));
+      const uploaded: string[] = [];
+      let videoSkipped = 0;
+      let failed = 0;
+      for (const result of results) {
+        if (result.status !== 'fulfilled') {
+          failed += 1;
+          continue;
+        }
+        if (result.value.is_video) {
+          videoSkipped += 1;
+          continue;
+        }
+        uploaded.push(result.value.url);
+      }
+      if (uploaded.length) onChange({ ...value, carouselExtraUrls: [...existing, ...uploaded] });
+
+      const notes: string[] = [];
+      if (dropped > 0) notes.push(`${dropped} skipped — TikTok carousels max out at 35 photos`);
+      if (videoSkipped > 0) notes.push(`${videoSkipped} skipped — carousel slides are photos, not video`);
+      if (failed > 0) notes.push(`${failed} failed to upload`);
+      if (notes.length) setUploadError(notes.join('; ') + '.');
+    } finally {
+      setCarouselUploading(false);
+    }
+  };
+
+  const removeCarouselSlide = (i: number) => {
+    if (value?.creative_source !== 'upload') return;
+    onChange({ ...value, carouselExtraUrls: (value.carouselExtraUrls ?? []).filter((_, idx) => idx !== i) });
+  };
 
   return (
     <div>
@@ -136,6 +206,78 @@ export default function WizardCreativeStep({
             </span>
           )}
         </OptionCard>
+        {/* TikTok Carousel Ads — only once a real base photo is attached and TikTok
+            is the chosen platform; a video makes this irrelevant (TikTok already
+            accepts that directly), and Meta has no carousel path here. Kept as a
+            sibling, not nested inside the OptionCard button above, which is itself
+            a <button> — a <button> can't legally contain other buttons (and this
+            one needs its own "+ Add" and "×" buttons). */}
+        {isTikTok && mode === 'upload' && value?.creative_source === 'upload' && !value.is_video && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: -4 }}>
+            <input
+              id="wizard-carousel-upload-input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => void addCarouselSlides(e)}
+            />
+            <button
+              type="button"
+              onClick={() => document.getElementById('wizard-carousel-upload-input')?.click()}
+              disabled={carouselUploading}
+              title="TikTok Carousel Ads need 2+ photos — select as many as you want at once"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#f6f5f3',
+                border: '1px solid #e0dcd9',
+                borderRadius: 20,
+                padding: '6px 12px',
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: '#555',
+                cursor: carouselUploading ? 'default' : 'pointer',
+              }}
+            >
+              + {carouselUploading ? 'Uploading…' : 'Add carousel photos'}
+            </button>
+            {(value.carouselExtraUrls ?? []).map((url, i) => (
+              <div
+                key={url + i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: '#fce4ec',
+                  border: '1px solid #f5c2d8',
+                  borderRadius: 20,
+                  padding: '4px 6px 4px 4px',
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }} />
+                <span style={{ fontSize: 12, color: PINK, fontWeight: 600 }}>Slide {i + 2}</span>
+                <button
+                  type="button"
+                  onClick={() => removeCarouselSlide(i)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: PINK,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    padding: '0 4px',
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <OptionCard
           title="Use a past draft"
           subtitle="Reuse an image from something you've already created."

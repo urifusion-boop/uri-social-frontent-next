@@ -44,10 +44,18 @@ function extractErrorMessage(e: unknown, fallback: string): string {
 
 function creativePayload(creative: WizardCreativeChoice): Partial<PlanFromMessagePayload> {
   if (creative.creative_source === 'upload') {
+    // TikTok Carousel Ads — base photo is slide 1, same as CampaignsPage.tsx's own
+    // carouselImageUrls composition; only sent once there's a real carousel (2+
+    // slides), same >= 2 gate the chat flow uses.
+    const carouselUrls =
+      creative.carouselExtraUrls && creative.carouselExtraUrls.length > 0
+        ? [creative.reference_image_url, ...creative.carouselExtraUrls]
+        : undefined;
     return {
       creative_source: 'upload',
       reference_image_url: creative.reference_image_url,
       is_video: creative.is_video,
+      ...(carouselUrls ? { carousel_image_urls: carouselUrls } : {}),
     };
   }
   if (creative.creative_source === 'draft') {

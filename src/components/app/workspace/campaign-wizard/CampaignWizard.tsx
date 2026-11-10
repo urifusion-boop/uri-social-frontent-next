@@ -246,7 +246,13 @@ export default function CampaignWizard({
             padding: isMobile ? 14 : 18,
           }}
         >
-          {step === 'objective' && <WizardObjectiveStep selected={objective?.value ?? ''} onPick={setObjective} />}
+          {step === 'objective' && (
+            <WizardObjectiveStep
+              selected={objective?.value ?? ''}
+              onPick={setObjective}
+              platform={platform.mode === 'single' && platform.single === 'tiktok' ? 'tiktok' : 'meta'}
+            />
+          )}
           {step === 'platform' && <WizardPlatformStep value={platform} onChange={setPlatform} />}
           {step === 'googlePlacement' && (
             <WizardGooglePlacementStep
@@ -263,7 +269,13 @@ export default function CampaignWizard({
               platformCount={platform.mode === 'multi' ? Math.max(platform.multi.length, 1) : 1}
             />
           )}
-          {step === 'creative' && <WizardCreativeStep value={creative} onChange={setCreative} />}
+          {step === 'creative' && (
+            <WizardCreativeStep
+              value={creative}
+              onChange={setCreative}
+              isTikTok={platform.mode === 'single' && platform.single === 'tiktok'}
+            />
+          )}
           {step === 'review' && objective && creative && (
             <WizardReviewStep
               // Remounts (and re-asks Jane from scratch) whenever anything the plan is
