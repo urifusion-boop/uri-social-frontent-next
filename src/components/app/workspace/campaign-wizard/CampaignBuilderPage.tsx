@@ -46,7 +46,15 @@ export function platformLabel(draft: WizardDraft): string {
   if (draft.platform.mode === 'single') {
     return PLATFORM_CHOICES.find((p) => p.value === draft.platform.single)?.label ?? 'a platform';
   }
-  return `${draft.platform.multi.length} platforms`;
+  // Live-reported: this draft was left right after switching to "Multiple
+  // platforms" mode but before actually picking any — multi is genuinely []
+  // (the wizard won't let Next past Platform with fewer than 2, but leaving
+  // via "All campaigns"/closing the tab mid-pick still autosaves exactly
+  // where it was). "0 platforms" read like a bug rather than the real,
+  // honest "nothing picked yet" state it is.
+  const n = draft.platform.multi.length;
+  if (n === 0) return 'no platform picked yet';
+  return n === 1 ? '1 platform' : `${n} platforms`;
 }
 
 /** The first generated image this draft has, if Jane got that far — a photo
