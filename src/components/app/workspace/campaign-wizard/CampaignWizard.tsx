@@ -253,11 +253,13 @@ export default function CampaignWizard({
         style={{
           maxWidth: 900,
           margin: '0 auto',
-          // Extra bottom clearance on mobile — the site-wide bottom tab bar plus the
-          // floating "Report a bug" button it clears (see BugReportButton.tsx) sit
-          // right where this footer's own Next button would otherwise land once
-          // scrolled to the end, partly covering it.
-          padding: isMobile ? '14px 12px 140px' : '18px 20px 28px',
+          // Extra bottom clearance — the floating "Report a bug" button
+          // (BugReportButton.tsx, fixed bottom-right on every screen size) sits
+          // right where this footer's own Back/Next row would otherwise land once
+          // a long Review-step conversation is scrolled to the end, partly
+          // covering it. Mobile needs more: that button also clears the site-wide
+          // bottom tab bar there, pushing it further up the screen.
+          padding: isMobile ? '14px 12px 140px' : '18px 20px 110px',
         }}
       >
         <div style={{ marginBottom: 14 }}>

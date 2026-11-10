@@ -89,6 +89,7 @@ import ScheduledCard from '@/src/components/app/social-media/ScheduledCard';
 import BillingPage from '@/src/components/app/workspace/BillingPage';
 import CampaignsPage from '@/src/components/app/workspace/CampaignsPage';
 import CampaignBuilderPage from '@/src/components/app/workspace/campaign-wizard/CampaignBuilderPage';
+import type { WizardDraft } from '@/src/components/app/workspace/campaign-wizard/wizardDraft';
 import CampaignOverviewPage from '@/src/components/app/workspace/campaign-wizard/CampaignOverviewPage';
 import CampaignGrowthPage from '@/src/components/app/workspace/campaign-wizard/CampaignGrowthPage';
 import CampaignWalletPage from '@/src/components/app/workspace/campaign-wizard/CampaignWalletPage';
@@ -11508,6 +11509,20 @@ export default function WorkspaceDashboard() {
     [goTo]
   );
 
+  // "Resume" on a draft from the Overview page — same hand-off shape as
+  // pendingWizardDraft above. Without this, Overview's Resume button could only
+  // land on the Campaign Builder's list (it has no way to open CampaignBuilderPage's
+  // own internal "wizard" mode directly), making the user click Resume a second
+  // time once they got there — live-reported as confusing double-navigation.
+  const [pendingWizardResumeDraft, setPendingWizardResumeDraft] = useState<WizardDraft | null>(null);
+  const handleResumeDraftFromOverview = useCallback(
+    (draft: WizardDraft) => {
+      setPendingWizardResumeDraft(draft);
+      goTo('campaign-wizard');
+    },
+    [goTo]
+  );
+
   // A Listening opportunity card recommended as an ad test lands here with a
   // real draft thread already created server-side (POST /listening/cards/
   // {id}/create already opened it and built the seed message) — this just
@@ -11927,9 +11942,14 @@ export default function WorkspaceDashboard() {
       />
     ),
     'campaign-wizard': (
-      <CampaignBuilderPage pendingDraft={pendingWizardDraft} onDraftConsumed={() => setPendingWizardDraft(null)} />
+      <CampaignBuilderPage
+        pendingDraft={pendingWizardDraft}
+        onDraftConsumed={() => setPendingWizardDraft(null)}
+        pendingResumeDraft={pendingWizardResumeDraft}
+        onResumeDraftConsumed={() => setPendingWizardResumeDraft(null)}
+      />
     ),
-    'campaign-overview': <CampaignOverviewPage onNavigate={goTo} />,
+    'campaign-overview': <CampaignOverviewPage onNavigate={goTo} onResumeDraft={handleResumeDraftFromOverview} />,
     'campaign-growth': <CampaignGrowthPage />,
     'campaign-wallet': <CampaignWalletPage />,
     'campaign-revenue': <CampaignRevenuePage />,

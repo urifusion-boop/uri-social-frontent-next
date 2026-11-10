@@ -63,13 +63,21 @@ export function draftHasPlan(draft: WizardDraft): boolean {
 export default function CampaignBuilderPage({
   pendingDraft,
   onDraftConsumed,
+  pendingResumeDraft,
+  onResumeDraftConsumed,
 }: {
   /** "Use in Campaign Builder" from the Creatives library — skip the list and land
    *  straight in the wizard with this draft preloaded, same as before. */
   pendingDraft?: DraftSummary | null;
   onDraftConsumed?: () => void;
+  /** "Resume" clicked from the Overview page — same hand-off shape as pendingDraft
+   *  above, so it lands straight in the wizard on THIS exact draft instead of on
+   *  the list (live-reported: Overview's Resume used to just open the list, making
+   *  the user click Resume a second time once they got there). */
+  pendingResumeDraft?: WizardDraft | null;
+  onResumeDraftConsumed?: () => void;
 }) {
-  const [mode, setMode] = useState<'list' | 'wizard'>(pendingDraft ? 'wizard' : 'list');
+  const [mode, setMode] = useState<'list' | 'wizard'>(pendingDraft || pendingResumeDraft ? 'wizard' : 'list');
   // Forces a fresh CampaignWizard mount every time "+ New Campaign" is clicked —
   // without this, clicking it twice in a row (list -> wizard -> list -> wizard)
   // would reuse the same component instance and its stale state.
@@ -86,7 +94,7 @@ export default function CampaignBuilderPage({
   // here. Live-reported: a single slot silently discarded an earlier unfinished
   // run the moment a second one started — every draft now keeps its own slot.
   const [drafts, setDrafts] = useState<WizardDraft[]>([]);
-  const [pendingResume, setPendingResume] = useState<WizardDraft | null>(null);
+  const [pendingResume, setPendingResume] = useState<WizardDraft | null>(pendingResumeDraft ?? null);
 
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +115,17 @@ export default function CampaignBuilderPage({
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!pendingResumeDraft) return;
+    wizardKey.current += 1;
+    setPendingResume(pendingResumeDraft);
+    setMode('wizard');
+    onResumeDraftConsumed?.();
+    // Runs once per hand-off — onResumeDraftConsumed clears pendingResumeDraft
+    // right after, so this can't re-fire from its own effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingResumeDraft]);
 
   useEffect(() => {
     if (mode !== 'list') return;

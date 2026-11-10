@@ -164,7 +164,16 @@ function PageShell({ children, isMobile }: { children: React.ReactNode; isMobile
   );
 }
 
-export default function CampaignOverviewPage({ onNavigate }: { onNavigate: (id: string) => void }) {
+export default function CampaignOverviewPage({
+  onNavigate,
+  onResumeDraft,
+}: {
+  onNavigate: (id: string) => void;
+  /** Lands straight back in the wizard on this exact draft — live-reported:
+   *  without this, Resume here only opened the Campaign Builder's list, making
+   *  the user click Resume a second time once they got there. */
+  onResumeDraft: (draft: WizardDraft) => void;
+}) {
   const [data, setData] = useState<DashboardHome | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -377,7 +386,7 @@ export default function CampaignOverviewPage({ onNavigate }: { onNavigate: (id: 
                           {draftHasPlan(d) ? 'Ad already built' : 'Still filling in'}
                         </div>
                       </div>
-                      <button type="button" onClick={goToCampaigns} style={smallBtn}>
+                      <button type="button" onClick={() => onResumeDraft(d)} style={smallBtn}>
                         Resume
                       </button>
                     </div>
