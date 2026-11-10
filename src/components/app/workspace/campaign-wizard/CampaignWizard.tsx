@@ -18,6 +18,7 @@ import WizardAudienceStep, { WizardAudienceValue } from './WizardAudienceStep';
 import WizardBudgetStep, { WizardBudgetValue } from './WizardBudgetStep';
 import WizardCreativeStep, { WizardCreativeChoice } from './WizardCreativeStep';
 import WizardReviewStep from './WizardReviewStep';
+import { saveWizardDraft, WizardDraft } from './wizardDraft';
 
 const PINK = '#C2185B';
 
@@ -59,6 +60,8 @@ export default function CampaignWizard({
   onDraftConsumed,
   pendingDuplicate,
   onDuplicateConsumed,
+  pendingResume,
+  onResumeConsumed,
 }: {
   onBack: () => void;
   /** "Use in Campaign Builder" from the Creatives library lands here — same
@@ -73,6 +76,11 @@ export default function CampaignWizard({
    *  attestation isn't a sound default. */
   pendingDuplicate?: CampaignRow | null;
   onDuplicateConsumed?: () => void;
+  /** "Resume" on the list page's draft banner — a full rehydrate of a previously
+   *  autosaved run (wizardDraft.ts), unlike pendingDuplicate's partial seed from a
+   *  CampaignRow. Lands on step 1 with everything already filled in, same pattern. */
+  pendingResume?: WizardDraft | null;
+  onResumeConsumed?: () => void;
 }) {
   const isMobile = useIsMobile();
   const [stepKey, setStepKey] = useState<StepKey>('objective');
@@ -129,6 +137,30 @@ export default function CampaignWizard({
     // Runs once per hand-off, same reasoning as the pendingDraft effect above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingDuplicate]);
+
+  const [resumed, setResumed] = useState(false);
+  useEffect(() => {
+    if (!pendingResume) return;
+    setObjective(pendingResume.objective);
+    setPlatform(pendingResume.platform);
+    setGooglePlacement(pendingResume.googlePlacement);
+    setAudience(pendingResume.audience);
+    setBudget(pendingResume.budget);
+    setCreative(pendingResume.creative);
+    setResumed(true);
+    onResumeConsumed?.();
+    // Runs once per hand-off, same reasoning as the pendingDraft effect above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingResume]);
+
+  // Autosave — only once there's something worth coming back to (an objective
+  // picked is the same "real progress" bar the list page's resume banner implies).
+  // Debounced inside saveWizardDraft itself, so this effect firing on every
+  // keystroke (the audience textarea) costs nothing extra here.
+  useEffect(() => {
+    if (!objective) return;
+    saveWizardDraft({ objective, platform, googlePlacement, audience, budget, creative });
+  }, [objective, platform, googlePlacement, audience, budget, creative]);
 
   const canAdvance = (): boolean => {
     if (step === 'objective') return Boolean(objective);
@@ -192,6 +224,11 @@ export default function CampaignWizard({
           {prefilledFromDuplicate && (
             <p style={{ margin: '8px 0 0', fontSize: 12, color: PINK, fontWeight: 600 }}>
               ✓ Started from that campaign — review each step and pick a creative, then relaunch.
+            </p>
+          )}
+          {resumed && (
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: PINK, fontWeight: 600 }}>
+              ✓ Picked up where you left off.
             </p>
           )}
         </div>

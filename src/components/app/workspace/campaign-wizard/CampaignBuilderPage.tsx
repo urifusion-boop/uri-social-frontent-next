@@ -15,11 +15,12 @@
  */
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CampaignCard, uid } from '../CampaignsPage';
+import { CampaignCard, PLATFORM_CHOICES, uid } from '../CampaignsPage';
 import { CampaignRow, CampaignService, DraftSummary } from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import CampaignWizard from './CampaignWizard';
+import { clearWizardDraft, loadWizardDraft, WizardDraft } from './wizardDraft';
 
 const PINK = '#C2185B';
 
@@ -51,6 +52,11 @@ export default function CampaignBuilderPage({
   // scratch, this seeds the wizard's own steps directly from the row's fields —
   // same "tweak and relaunch" starting point, in the wizard's own vocabulary.
   const [pendingDuplicate, setPendingDuplicate] = useState<CampaignRow | null>(null);
+  // An autosaved unfinished run (wizardDraft.ts) — read fresh every time the list
+  // page is actually shown, since that's exactly when a run from a moment ago
+  // (Cancel, a closed tab, "All campaigns" mid-build) would have just landed here.
+  const [draft, setDraft] = useState<WizardDraft | null>(null);
+  const [pendingResume, setPendingResume] = useState<WizardDraft | null>(null);
 
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +78,9 @@ export default function CampaignBuilderPage({
   }, []);
 
   useEffect(() => {
-    if (mode === 'list') void load();
+    if (mode !== 'list') return;
+    void load();
+    setDraft(loadWizardDraft());
   }, [mode, load]);
 
   const startWizard = () => {
@@ -86,6 +94,14 @@ export default function CampaignBuilderPage({
     setPendingDuplicate(c);
     startWizard();
   };
+  const resume = (d: WizardDraft) => {
+    setPendingResume(d);
+    startWizard();
+  };
+  const discardDraft = () => {
+    clearWizardDraft();
+    setDraft(null);
+  };
 
   if (mode === 'wizard') {
     return (
@@ -96,6 +112,8 @@ export default function CampaignBuilderPage({
         onDraftConsumed={onDraftConsumed}
         pendingDuplicate={pendingDuplicate}
         onDuplicateConsumed={() => setPendingDuplicate(null)}
+        pendingResume={pendingResume}
+        onResumeConsumed={() => setPendingResume(null)}
       />
     );
   }
@@ -129,6 +147,70 @@ export default function CampaignBuilderPage({
             + New Campaign
           </button>
         </div>
+
+        {draft && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap',
+              background: '#FCE7F3',
+              border: `1px solid #f5c2d8`,
+              borderRadius: 14,
+              padding: '12px 16px',
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1a0a12' }}>
+                You have an unfinished campaign
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#7a7270' }}>
+                {draft.objective.label || draft.objective.value} on{' '}
+                {draft.platform.mode === 'single'
+                  ? (PLATFORM_CHOICES.find((p) => p.value === draft.platform.single)?.label ?? 'a platform')
+                  : `${draft.platform.multi.length} platforms`}
+                {draft.audience.city ? ` · ${draft.audience.city}` : ''}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={discardDraft}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  color: '#7a7270',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  padding: '8px 4px',
+                }}
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={() => resume(draft)}
+                style={{
+                  border: 'none',
+                  background: PINK,
+                  color: '#fff',
+                  borderRadius: 9,
+                  padding: '8px 16px',
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Resume
+              </button>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div

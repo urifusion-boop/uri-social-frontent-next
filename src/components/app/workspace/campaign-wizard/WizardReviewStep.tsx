@@ -38,6 +38,7 @@ import type { WizardBudgetValue } from './WizardBudgetStep';
 import type { WizardCreativeChoice } from './WizardCreativeStep';
 import type { MultiWizardPlatform, WizardPlatformValue } from './WizardPlatformStep';
 import WizardAssetAttestation from './WizardAssetAttestation';
+import { clearWizardDraft } from './wizardDraft';
 
 const PINK = '#C2185B';
 
@@ -475,10 +476,11 @@ export default function WizardReviewStep({
             adFormats={adFormats}
             onResultChange={(r) => setSlot((s) => ({ ...s, result: r }))}
             onLaunched={() => {
-              /* no-op: the Launch success already shows inline via result.stage ===
-                 'launched' in ResultCard; "Create another campaign" (below) is the
-                 explicit, user-chosen way back to a fresh wizard — launching alone
-                 never navigates away. */
+              // The autosaved draft (wizardDraft.ts) is done once something real has
+              // launched from it — "Create another campaign" (below) is still the
+              // explicit, user-chosen way back to a fresh wizard; this only stops a
+              // finished run from being offered as "resume" on the list page.
+              clearWizardDraft();
             }}
             onQuickReply={(text) => void submitSingle({ message: `${message} ${text}` })}
             onTopUp={() => window.open('/workspace/?tab=campaigns', '_blank')}
@@ -699,7 +701,7 @@ export default function WizardReviewStep({
               result={activeSlot.result}
               adFormats={adFormats}
               onResultChange={(r) => setSlots((s) => ({ ...s, [active]: { ...s[active]!, result: r } }))}
-              onLaunched={() => {}}
+              onLaunched={() => clearWizardDraft()}
               onQuickReply={(text) => void submitMulti(active, { message: `${message} ${text}` })}
               onTopUp={() => window.open('/workspace/?tab=campaigns', '_blank')}
               onSubmitWhatsapp={(number) => void submitMulti(active, { whatsapp_number: number })}
