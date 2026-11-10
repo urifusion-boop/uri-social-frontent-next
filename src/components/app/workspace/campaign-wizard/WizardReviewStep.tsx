@@ -21,7 +21,13 @@
  */
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { AdFormat, CampaignService, LaunchFromMessageResult, PlanVariant } from '@/src/api/CampaignService';
+import {
+  AdFormat,
+  AssetAttestation,
+  CampaignService,
+  LaunchFromMessageResult,
+  PlanVariant,
+} from '@/src/api/CampaignService';
 import { QuickReplyChips, ResultCard, uid } from '../CampaignsPage';
 import type { GooglePlacement } from '../GooglePlacementPreview';
 import type { WizardObjectiveValue } from './WizardObjectiveStep';
@@ -29,6 +35,7 @@ import type { WizardAudienceValue } from './WizardAudienceStep';
 import type { WizardBudgetValue } from './WizardBudgetStep';
 import type { WizardCreativeChoice } from './WizardCreativeStep';
 import type { MultiWizardPlatform, WizardPlatformValue } from './WizardPlatformStep';
+import WizardAssetAttestation from './WizardAssetAttestation';
 
 const PINK = '#C2185B';
 
@@ -56,6 +63,7 @@ function creativePayload(creative: WizardCreativeChoice): Partial<PlanFromMessag
       reference_image_url: creative.reference_image_url,
       is_video: creative.is_video,
       ...(carouselUrls ? { carousel_image_urls: carouselUrls } : {}),
+      ...(creative.asset_attestation ? { asset_attestation: creative.asset_attestation } : {}),
     };
   }
   if (creative.creative_source === 'draft') {
@@ -142,6 +150,11 @@ export default function WizardReviewStep({
   const platforms: MultiWizardPlatform[] = isMulti ? platform.multi : [];
   const [adFormats, setAdFormats] = useState<AdFormat[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Which button opened the (shared) hidden file input — "Upload my own" vs "Use my
+  // product photo" on the mid-flow choose_creative_source card — so the file picked
+  // back is tagged with the right creative_source, not always 'upload'. Mirrors
+  // CampaignsPage.tsx's own uploadForChoiceRef.
+  const uploadForRef = useRef<'upload' | 'recompose'>('upload');
   const startedRef = useRef(false); // guards React Strict Mode's double-invoked mount effect
 
   const message = `${audience.description.trim()} in ${audience.city.trim()}. Budget: ₦${budget.amountNgn} over ${budget.days} days.`;
@@ -156,6 +169,20 @@ export default function WizardReviewStep({
   const [slot, setSlot] = useState<SlotState>(emptySlot());
   const chosenVariantRef = useRef<{ variant: PlanVariant; variantGroupId: string } | null>(null);
   const ownAudienceRef = useRef<string | null>(null);
+  // "What does this photo actually show?" — asked for any real photo picked via the
+  // mid-flow choose_creative_source card (upload or recompose), same as every other
+  // real-photo entry point. See WizardAssetAttestation.tsx.
+  const [pendingAttestation, setPendingAttestation] = useState<{ url: string; forRecompose: boolean } | null>(null);
+  const resolveAttestation = (asset_attestation: AssetAttestation | undefined) => {
+    const pending = pendingAttestation;
+    if (!pending) return;
+    setPendingAttestation(null);
+    void submitSingle(
+      pending.forRecompose
+        ? { creative_source: 'recomposite', reference_image_url: pending.url, asset_attestation }
+        : { creative_source: 'upload', reference_image_url: pending.url, is_video: false, asset_attestation }
+    );
+  };
 
   const submitSingle = async (extra: Partial<PlanFromMessagePayload> = {}) => {
     const isFirst = !slot.result;
@@ -193,6 +220,13 @@ export default function WizardReviewStep({
   >({});
   const campaignGroupId = useRef(uid());
   const [activeTab, setActiveTab] = useState<MultiWizardPlatform | null>(null);
+  // Same attestation gate as the single-platform path, scoped to whichever tab the
+  // upload/recompose was started from.
+  const [multiPendingAttestation, setMultiPendingAttestation] = useState<{
+    platform: MultiWizardPlatform;
+    url: string;
+    forRecompose: boolean;
+  } | null>(null);
 
   const submitMulti = async (p: MultiWizardPlatform, extra: Partial<PlanFromMessagePayload> = {}) => {
     const refs = (multiRefs.current[p] ??= { chosenVariant: null, ownAudience: null });
@@ -221,6 +255,18 @@ export default function WizardReviewStep({
       const msg = extractErrorMessage(e, "We're experiencing some difficulties — please try again in a little while.");
       setSlots((s) => ({ ...s, [p]: { result: prior?.result ?? null, loading: false, working: false, error: msg } }));
     }
+  };
+
+  const resolveMultiAttestation = (asset_attestation: AssetAttestation | undefined) => {
+    const pending = multiPendingAttestation;
+    if (!pending) return;
+    setMultiPendingAttestation(null);
+    void submitMulti(
+      pending.platform,
+      pending.forRecompose
+        ? { creative_source: 'recomposite', reference_image_url: pending.url, asset_attestation }
+        : { creative_source: 'upload', reference_image_url: pending.url, is_video: false, asset_attestation }
+    );
   };
 
   useEffect(() => {
@@ -374,6 +420,21 @@ export default function WizardReviewStep({
               e.target.value = '';
               if (!file) return;
               const { url, is_video } = await CampaignService.uploadMedia(file);
+              if (uploadForRef.current === 'recompose') {
+                if (is_video) {
+                  setSlot((s) => ({
+                    ...s,
+                    error: 'Recompositing works with a photo, not a video — please choose an image.',
+                  }));
+                  return;
+                }
+                setPendingAttestation({ url, forRecompose: true });
+                return;
+              }
+              if (!is_video) {
+                setPendingAttestation({ url, forRecompose: false });
+                return;
+              }
               void submitSingle({ creative_source: 'upload', reference_image_url: url, is_video });
             }}
           />
@@ -395,8 +456,14 @@ export default function WizardReviewStep({
               void submitSingle({ whatsapp_number: number });
             }}
             onChooseGenerate={() => void submitSingle({ creative_source: 'generate' })}
-            onChooseUpload={() => fileInputRef.current?.click()}
-            onChooseRecomposite={() => fileInputRef.current?.click()}
+            onChooseUpload={() => {
+              uploadForRef.current = 'upload';
+              fileInputRef.current?.click();
+            }}
+            onChooseRecomposite={() => {
+              uploadForRef.current = 'recompose';
+              fileInputRef.current?.click();
+            }}
             onChooseDraft={(draftId) => void submitSingle({ creative_source: 'draft', draft_id: draftId })}
             onChooseVariants={(variants, groupId) => {
               ownAudienceRef.current = null;
@@ -412,6 +479,9 @@ export default function WizardReviewStep({
             onChooseDestination={(answer) => void submitSingle(answer as Partial<PlanFromMessagePayload>)}
             onPickPlatform={(p) => void submitSingle({ preferred_platform: p || undefined })}
           />
+          {pendingAttestation && (
+            <WizardAssetAttestation previewUrl={pendingAttestation.url} onAnswer={resolveAttestation} />
+          )}
           {tiktokFloor && (
             <QuickReplyChips
               chips={[`Use ₦${tiktokFloor} instead`]}
@@ -558,6 +628,24 @@ export default function WizardReviewStep({
                 e.target.value = '';
                 if (!file) return;
                 const { url, is_video } = await CampaignService.uploadMedia(file);
+                if (uploadForRef.current === 'recompose') {
+                  if (is_video) {
+                    setSlots((s) => ({
+                      ...s,
+                      [active]: {
+                        ...s[active]!,
+                        error: 'Recompositing works with a photo, not a video — please choose an image.',
+                      },
+                    }));
+                    return;
+                  }
+                  setMultiPendingAttestation({ platform: active, url, forRecompose: true });
+                  return;
+                }
+                if (!is_video) {
+                  setMultiPendingAttestation({ platform: active, url, forRecompose: false });
+                  return;
+                }
                 void submitMulti(active, { creative_source: 'upload', reference_image_url: url, is_video });
               }}
             />
@@ -574,8 +662,14 @@ export default function WizardReviewStep({
                 void submitMulti(active, { whatsapp_number: number });
               }}
               onChooseGenerate={() => void submitMulti(active, { creative_source: 'generate' })}
-              onChooseUpload={() => fileInputRef.current?.click()}
-              onChooseRecomposite={() => fileInputRef.current?.click()}
+              onChooseUpload={() => {
+                uploadForRef.current = 'upload';
+                fileInputRef.current?.click();
+              }}
+              onChooseRecomposite={() => {
+                uploadForRef.current = 'recompose';
+                fileInputRef.current?.click();
+              }}
               onChooseDraft={(draftId) => void submitMulti(active, { creative_source: 'draft', draft_id: draftId })}
               onChooseVariants={(variants, groupId) => {
                 const refs = (multiRefs.current[active] ??= { chosenVariant: null, ownAudience: null });
@@ -592,6 +686,9 @@ export default function WizardReviewStep({
               }}
               onChooseDestination={(answer) => void submitMulti(active, answer as Partial<PlanFromMessagePayload>)}
             />
+            {multiPendingAttestation?.platform === active && (
+              <WizardAssetAttestation previewUrl={multiPendingAttestation.url} onAnswer={resolveMultiAttestation} />
+            )}
             {active === 'tiktok' &&
               tiktokFloorChip(activeSlot.result) &&
               (() => {

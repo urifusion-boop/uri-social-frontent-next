@@ -3,13 +3,14 @@
  * `creative_source` contract (CampaignService.ContinueChoice / ContinueChoice at
  * CampaignsPage.tsx:119) — generate/upload/draft are each a real, already-supported
  * path, so this step produces exactly what planFromMessage expects without any new
- * backend work. "Recomposite" (keep the real product, build a new scene) is left to
- * the chat flow for now — it's a refinement move on an existing image, which doesn't
- * fit a fresh wizard run.
+ * backend work. "Recomposite" (keep the real product, build a new scene) is a
+ * follow-up choice Jane offers mid-conversation, never an initial attach-time option
+ * even in the chat flow — see WizardReviewStep.tsx, which reuses it via ResultCard.
  */
 'use client';
 import { useEffect, useState } from 'react';
-import { CampaignService, DraftSummary } from '@/src/api/CampaignService';
+import { AssetAttestation, CampaignService, DraftSummary } from '@/src/api/CampaignService';
+import WizardAssetAttestation from './WizardAssetAttestation';
 
 const PINK = '#C2185B';
 
@@ -24,6 +25,10 @@ export type WizardCreativeChoice =
       // (reference_image_url is reused as slide 1), mirrors CampaignsPage.tsx's
       // own carouselExtraUrls exactly.
       carouselExtraUrls?: string[];
+      // What the photo actually shows, per VSG-01 v3 §1.2/§6 — collected right
+      // after upload, same as the chat flow; undefined for "Skip" or for a video
+      // (attestation is a photo-only question there too).
+      asset_attestation?: AssetAttestation;
     }
   | { creative_source: 'draft'; draft_id: string; previewUrl: string };
 
@@ -83,6 +88,10 @@ export default function WizardCreativeStep({
   const [drafts, setDrafts] = useState<DraftSummary[] | null>(null);
   const [draftsLoading, setDraftsLoading] = useState(false);
   const [showDrafts, setShowDrafts] = useState(false);
+  // A real (non-video) photo waits here for "what does this show?" before it
+  // actually becomes the chosen creative — same gate the chat flow applies to
+  // every real-photo entry point (CampaignsPage.tsx's pendingAssetAttestation).
+  const [pendingAttestation, setPendingAttestation] = useState<string | null>(null);
 
   const mode = value?.creative_source ?? null;
 
@@ -101,12 +110,29 @@ export default function WizardCreativeStep({
     setUploading(true);
     try {
       const { url, is_video } = await CampaignService.uploadMedia(file);
-      onChange({ creative_source: 'upload', reference_image_url: url, is_video, previewUrl: url });
+      if (is_video) {
+        onChange({ creative_source: 'upload', reference_image_url: url, is_video, previewUrl: url });
+      } else {
+        setPendingAttestation(url);
+      }
     } catch {
       setUploadError("Couldn't upload that file — try again.");
     } finally {
       setUploading(false);
     }
+  };
+
+  const resolveAttestation = (asset_attestation: AssetAttestation | undefined) => {
+    const url = pendingAttestation;
+    if (!url) return;
+    setPendingAttestation(null);
+    onChange({
+      creative_source: 'upload',
+      reference_image_url: url,
+      is_video: false,
+      previewUrl: url,
+      asset_attestation,
+    });
   };
 
   useEffect(() => {
@@ -206,6 +232,7 @@ export default function WizardCreativeStep({
             </span>
           )}
         </OptionCard>
+        {pendingAttestation && <WizardAssetAttestation previewUrl={pendingAttestation} onAnswer={resolveAttestation} />}
         {/* TikTok Carousel Ads — only once a real base photo is attached and TikTok
             is the chosen platform; a video makes this irrelevant (TikTok already
             accepts that directly), and Meta has no carousel path here. Kept as a
