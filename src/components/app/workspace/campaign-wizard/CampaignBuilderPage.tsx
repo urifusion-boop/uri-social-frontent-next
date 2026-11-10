@@ -38,7 +38,7 @@ function extractErrorMessage(e: unknown, fallback: string): string {
   return fallback;
 }
 
-function platformLabel(draft: WizardDraft): string {
+export function platformLabel(draft: WizardDraft): string {
   if (draft.platform.mode === 'single') {
     return PLATFORM_CHOICES.find((p) => p.value === draft.platform.single)?.label ?? 'a platform';
   }
@@ -47,7 +47,7 @@ function platformLabel(draft: WizardDraft): string {
 
 /** The first generated image this draft has, if Jane got that far — a photo
  *  does more to say "this is the ad you already built" than any text summary. */
-function draftThumbnail(draft: WizardDraft): string | undefined {
+export function draftThumbnail(draft: WizardDraft): string | undefined {
   if (draft.results?.single?.creative?.image_url) return draft.results.single.creative.image_url;
   for (const r of Object.values(draft.results?.multi ?? {})) {
     if (r?.creative?.image_url) return r.creative.image_url;
@@ -55,7 +55,7 @@ function draftThumbnail(draft: WizardDraft): string | undefined {
   return undefined;
 }
 
-function draftHasPlan(draft: WizardDraft): boolean {
+export function draftHasPlan(draft: WizardDraft): boolean {
   return Boolean(draft.results?.single) || Object.keys(draft.results?.multi ?? {}).length > 0;
 }
 
