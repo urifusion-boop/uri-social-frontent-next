@@ -558,6 +558,12 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
     // it below, instead of the whole section disappearing mid-regenerate.
     if (!opts) {
       setStoryboard(null);
+      // A fresh storyboard must not inherit an open "Edit direction" panel: it would keep showing the PREVIOUS
+      // storyboard's direction and style, and "Regenerate with this direction" would send that stale text back as an
+      // override and overwrite the new video.
+      setEditingDirection(false);
+      setEditedDirection('');
+      setEditedStyle('');
     }
     setVideoJob(null);
     setVideoError('');

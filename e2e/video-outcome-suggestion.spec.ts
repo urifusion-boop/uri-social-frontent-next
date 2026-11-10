@@ -158,3 +158,28 @@ test.describe('Describe It: the preselected video type', () => {
     await expect(page.getByText('You can pick a different type below.')).toBeVisible();
   });
 });
+
+test.describe('Describe It: a new storyboard does not inherit an open direction edit', () => {
+  test('the old direction and style do not stay on screen, and cannot be regenerated over the new video', async ({
+    page,
+  }) => {
+    const storyboard = board({
+      video_style: 'testimonial_style',
+      creative_direction: 'FIRST: a woman at her kitchen table shares a delivery win.',
+    }) as { creative_direction: string; video_style: string };
+    await setup(page, storyboard);
+
+    // Open "Edit" on the first storyboard's direction.
+    await page.getByRole('button', { name: '✎ Edit' }).click();
+    await expect(page.getByRole('button', { name: /Regenerate with this direction/ })).toBeVisible();
+
+    // The customer rewrites the idea and generates a brand-new storyboard.
+    storyboard.creative_direction = 'SECOND: a can of juice bursts open in slow motion.';
+    storyboard.video_style = 'product_explosion';
+    await page.getByRole('button', { name: 'Generate Storyboard' }).click();
+
+    await expect(page.getByText('SECOND: a can of juice bursts open in slow motion.')).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole('button', { name: /Regenerate with this direction/ })).toHaveCount(0);
+    await expect(page.getByText('FIRST: a woman at her kitchen table shares a delivery win.')).toHaveCount(0);
+  });
+});
