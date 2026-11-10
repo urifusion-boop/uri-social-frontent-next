@@ -4875,6 +4875,7 @@ export function WalletTab({
   const [amount, setAmount] = useState<number>(min);
   const [funding, setFunding] = useState(false);
   const [error, setError] = useState('');
+  const isMobile = useIsMobile();
 
   const presets = [5000, 10000, 20000, 50000];
 
@@ -4907,15 +4908,15 @@ export function WalletTab({
   };
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-        <p style={{ margin: 0, color: '#7a7270', fontSize: 12.5 }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '14px 12px' : '18px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+        <p style={{ margin: 0, color: '#7a7270', fontSize: 12.5, minWidth: 0, flex: '1 1 200px' }}>
           Your prepaid wallet. Campaigns spend from this balance — top up before you launch.
         </p>
         <button
           onClick={onFunded}
           style={{
-            marginLeft: 'auto',
+            marginLeft: isMobile ? 0 : 'auto',
             flexShrink: 0,
             background: '#fff',
             border: '1px solid #ece8e6',
@@ -4937,7 +4938,7 @@ export function WalletTab({
         style={{
           background: `linear-gradient(135deg,${PINK},#8E1545)`,
           borderRadius: 16,
-          padding: '22px 24px',
+          padding: isMobile ? '18px 16px' : '22px 24px',
           color: '#fff',
           marginBottom: 16,
         }}
@@ -4982,12 +4983,12 @@ export function WalletTab({
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              flex: 1,
+              flex: '1 1 160px',
               border: '1px solid #ece8e6',
               borderRadius: 10,
               padding: '0 12px',
@@ -5131,8 +5132,10 @@ export function BillingTab() {
     color: '#1a0a12',
   };
 
+  const isMobile = useIsMobile();
+
   return (
-    <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+    <div className="camp-pane" style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '14px 12px' : '18px 24px' }}>
       <p style={{ margin: '0 0 14px', color: '#7a7270', fontSize: 12.5 }}>
         What each customer has spent on ads, what we billed them, and our margin. Numbers fill in as campaigns deliver.
       </p>

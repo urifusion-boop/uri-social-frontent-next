@@ -615,7 +615,15 @@ export default function WizardReviewStep({
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16, borderBottom: '1px solid #ece8e6' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 6,
+          marginBottom: 16,
+          borderBottom: '1px solid #ece8e6',
+          overflowX: 'auto',
+        }}
+      >
         {platforms.map((p) => {
           const st = slots[p];
           const status: PlatformStatus = st?.result ? statusForStage(st.result.stage) : st?.error ? 'attn' : 'decide';
@@ -637,6 +645,8 @@ export default function WizardReviewStep({
                 borderBottom: p === active ? `2px solid ${PINK}` : '2px solid transparent',
                 cursor: 'pointer',
                 marginBottom: -1,
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
             >
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[status] }} />
@@ -652,6 +662,7 @@ export default function WizardReviewStep({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'wrap',
             gap: 10,
             background: '#ecfdf5',
             border: '1px solid #bbf0cf',

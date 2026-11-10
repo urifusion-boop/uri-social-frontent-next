@@ -15,6 +15,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { FileEdit, Megaphone, MessageCircle, Sparkles, Wallet as WalletIcon } from 'lucide-react';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { CampaignService, type DashboardHome } from '@/src/api/CampaignService';
 import { draftHasPlan, draftThumbnail, platformLabel } from './CampaignBuilderPage';
 import { fetchRemoteWizardDrafts, loadWizardDrafts, mergeWizardDrafts, WizardDraft } from './wizardDraft';
@@ -149,10 +150,10 @@ const smallBtn: React.CSSProperties = {
   flexShrink: 0,
 };
 
-function PageShell({ children }: { children: React.ReactNode }) {
+function PageShell({ children, isMobile }: { children: React.ReactNode; isMobile: boolean }) {
   return (
     <div style={{ minHeight: '100%', background: 'linear-gradient(180deg, #FCE4EC 0%, #FBF8F7 40%, #FAFAF8 100%)' }}>
-      <div style={{ maxWidth: 1040, margin: '0 auto', padding: '18px 20px 28px' }}>
+      <div style={{ maxWidth: 1040, margin: '0 auto', padding: isMobile ? '14px 12px 28px' : '18px 20px 28px' }}>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Overview</h2>
         <p style={{ margin: '2px 0 16px', fontSize: 12.5, color: '#7a7270' }}>
           What&rsquo;s happening across your campaigns, at a glance.
@@ -168,6 +169,7 @@ export default function CampaignOverviewPage({ onNavigate }: { onNavigate: (id: 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [drafts, setDrafts] = useState<WizardDraft[]>([]);
+  const isMobile = useIsMobile();
 
   const load = useCallback(async () => {
     setError('');
@@ -194,14 +196,14 @@ export default function CampaignOverviewPage({ onNavigate }: { onNavigate: (id: 
 
   if (loading) {
     return (
-      <PageShell>
+      <PageShell isMobile={isMobile}>
         <div style={{ color: '#9a9090', fontSize: 13 }}>Loading…</div>
       </PageShell>
     );
   }
   if (error) {
     return (
-      <PageShell>
+      <PageShell isMobile={isMobile}>
         <div style={{ fontSize: 13, color: '#b91c1c', marginBottom: 10 }}>{error}</div>
         <button type="button" onClick={() => void load()} style={primaryBtn}>
           Try again
@@ -217,7 +219,7 @@ export default function CampaignOverviewPage({ onNavigate }: { onNavigate: (id: 
   // next step than the generic "let's get started" CTA — resuming it.
   if (is_first_run && drafts.length === 0) {
     return (
-      <PageShell>
+      <PageShell isMobile={isMobile}>
         <div style={{ ...card, maxWidth: 560 }}>
           <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 6px', color: '#1a0a12' }}>
             Let&rsquo;s get your first campaign running
@@ -235,7 +237,7 @@ export default function CampaignOverviewPage({ onNavigate }: { onNavigate: (id: 
   }
 
   return (
-    <PageShell>
+    <PageShell isMobile={isMobile}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Stat row — the four things this page is actually for, at a glance. */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
@@ -301,7 +303,8 @@ export default function CampaignOverviewPage({ onNavigate }: { onNavigate: (id: 
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: live.length > 0 && drafts.length > 0 ? 'minmax(0,1.5fr) minmax(0,1fr)' : '1fr',
+            gridTemplateColumns:
+              !isMobile && live.length > 0 && drafts.length > 0 ? 'minmax(0,1.5fr) minmax(0,1fr)' : '1fr',
             gap: 16,
             alignItems: 'start',
           }}

@@ -15,6 +15,7 @@
  */
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { CampaignCard, PLATFORM_CHOICES, uid } from '../CampaignsPage';
 import { CampaignRow, CampaignService, DraftSummary } from '@/src/api/CampaignService';
 import { ToastService } from '@/src/utils/toast.util';
@@ -90,6 +91,7 @@ export default function CampaignBuilderPage({
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
   const loadedOnce = useRef(false);
+  const isMobile = useIsMobile();
 
   const load = useCallback(async () => {
     if (!loadedOnce.current) setLoading(true);
@@ -156,8 +158,17 @@ export default function CampaignBuilderPage({
 
   return (
     <div style={{ minHeight: '100%', background: 'linear-gradient(180deg, #FCE4EC 0%, #FBF8F7 40%, #FAFAF8 100%)' }}>
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '18px 20px 28px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: isMobile ? '14px 12px 28px' : '18px 20px 28px' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'stretch' : 'flex-start',
+            justifyContent: 'space-between',
+            gap: 12,
+            marginBottom: 16,
+          }}
+        >
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Campaigns</h2>
             <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#7a7270' }}>
@@ -178,6 +189,7 @@ export default function CampaignBuilderPage({
               fontWeight: 800,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
+              width: isMobile ? '100%' : undefined,
             }}
           >
             + New Campaign
@@ -200,7 +212,8 @@ export default function CampaignBuilderPage({
                     key={d.id}
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
+                      flexDirection: isMobile ? 'column' : 'row',
+                      alignItems: isMobile ? 'stretch' : 'center',
                       gap: 12,
                       background: '#FCE7F3',
                       border: '1px solid #f5c2d8',
@@ -208,35 +221,44 @@ export default function CampaignBuilderPage({
                       padding: '12px 16px',
                     }}
                   >
-                    {thumb ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={thumb}
-                        alt=""
-                        style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: 10,
-                          background: '#fff',
-                          border: '1px solid #f5c2d8',
-                          flexShrink: 0,
-                        }}
-                      />
-                    )}
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1a0a12' }}>
-                        {d.objective.label || d.objective.value} on {platformLabel(d)}
-                      </p>
-                      <p style={{ margin: '2px 0 0', fontSize: 12, color: '#7a7270' }}>
-                        {d.audience.city ? `${d.audience.city} · ` : ''}
-                        {hasPlan ? 'Ad already built — ready to review' : 'Still filling in the details'}
-                      </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                      {thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={thumb}
+                          alt=""
+                          style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 10,
+                            background: '#fff',
+                            border: '1px solid #f5c2d8',
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1a0a12' }}>
+                          {d.objective.label || d.objective.value} on {platformLabel(d)}
+                        </p>
+                        <p style={{ margin: '2px 0 0', fontSize: 12, color: '#7a7270' }}>
+                          {d.audience.city ? `${d.audience.city} · ` : ''}
+                          {hasPlan ? 'Ad already built — ready to review' : 'Still filling in the details'}
+                        </p>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 8,
+                        flexShrink: 0,
+                        justifyContent: isMobile ? 'flex-end' : undefined,
+                      }}
+                    >
                       <button
                         type="button"
                         onClick={() => discardDraft(d.id)}

@@ -8,6 +8,7 @@
  */
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { CampaignService, WalletInfo } from '@/src/api/CampaignService';
 import { WalletTab } from '../CampaignsPage';
 
@@ -15,6 +16,7 @@ export default function CampaignWalletPage() {
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const loadedOnce = useRef(false);
+  const isMobile = useIsMobile();
 
   const load = useCallback(async () => {
     if (!loadedOnce.current) setLoading(true);
@@ -37,7 +39,7 @@ export default function CampaignWalletPage() {
       {/* WalletTab brings its own padding (shared with the chat page's wallet tab,
           which has no wrapper of its own to supply it) — only the heading gets this
           page's usual max-width/side padding, so the two don't stack. */}
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '18px 20px 0' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: isMobile ? '14px 12px 0' : '18px 20px 0' }}>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a0a12' }}>Ad Wallet</h2>
         <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#7a7270' }}>
           Fund what Jane spends on Meta, TikTok and Google — separate from your Uri Social subscription.

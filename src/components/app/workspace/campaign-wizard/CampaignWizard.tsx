@@ -253,7 +253,11 @@ export default function CampaignWizard({
         style={{
           maxWidth: 900,
           margin: '0 auto',
-          padding: isMobile ? '14px 12px 28px' : '18px 20px 28px',
+          // Extra bottom clearance on mobile — the site-wide bottom tab bar plus the
+          // floating "Report a bug" button it clears (see BugReportButton.tsx) sit
+          // right where this footer's own Next button would otherwise land once
+          // scrolled to the end, partly covering it.
+          padding: isMobile ? '14px 12px 140px' : '18px 20px 28px',
         }}
       >
         <div style={{ marginBottom: 14 }}>
