@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarPlus, Check, Loader2, MapPin, Music2, Pause, Pencil, Play, RotateCw } from 'lucide-react';
+import { CalendarPlus, Check, Copy, Loader2, MapPin, Music2, Pause, Pencil, Play, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AdFormat,
@@ -5327,7 +5327,20 @@ function formatEnds(endsAt: string | null | undefined) {
 // 'ad paused' = the campaign is on but its ads are off; resuming turns them back on.
 const _TOGGLABLE_STATUSES = new Set(['active', 'paused', 'ad paused']);
 
-export function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () => void }) {
+export function CampaignCard({
+  c,
+  onChanged,
+  onDuplicate,
+}: {
+  c: CampaignRow;
+  onChanged: () => void;
+  // The chat flow's own "duplicate a launched campaign into a fresh draft" (its
+  // ThreadRail's duplicateThread) needs a thread_id CampaignRow doesn't carry, so it
+  // can't be reused as-is here — undefined (the chat page's own usage) keeps this
+  // button off entirely there, unchanged from before. The Campaign Builder passes a
+  // real handler that seeds a fresh wizard run from this row's own fields instead.
+  onDuplicate?: (c: CampaignRow) => void;
+}) {
   const [working, setWorking] = useState(false);
   // Campaign Management PRD §19 "Audience or geography edit" — the only post-launch
   // change Uri can make itself. Everything else there is still Ads Manager's job.
@@ -5669,8 +5682,30 @@ export function CampaignCard({ c, onChanged }: { c: CampaignRow; onChanged: () =
             </a>
           )}
         </div>
-        {(canToggle || canDelete || canEditTargeting) && (
+        {(canToggle || canDelete || canEditTargeting || onDuplicate) && (
           <div style={{ display: 'flex', gap: 8, alignSelf: 'center', flexShrink: 0 }}>
+            {onDuplicate && (
+              <button
+                onClick={() => onDuplicate(c)}
+                title="Duplicate — start a new campaign prefilled from this one"
+                aria-label="Duplicate this campaign"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  border: '1px solid #e0dcd9',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  color: '#555',
+                }}
+              >
+                <Copy size={14} strokeWidth={2} />
+              </button>
+            )}
             {canEditTargeting && (
               <button
                 onClick={() => {

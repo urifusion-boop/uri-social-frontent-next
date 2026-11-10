@@ -8,7 +8,7 @@
  */
 'use client';
 import { useEffect, useState } from 'react';
-import type { DraftSummary } from '@/src/api/CampaignService';
+import type { CampaignRow, DraftSummary } from '@/src/api/CampaignService';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { GooglePlacement } from '../GooglePlacementPreview';
 import WizardObjectiveStep, { WizardObjectiveValue } from './WizardObjectiveStep';
@@ -57,12 +57,22 @@ export default function CampaignWizard({
   onBack,
   pendingDraft,
   onDraftConsumed,
+  pendingDuplicate,
+  onDuplicateConsumed,
 }: {
   onBack: () => void;
   /** "Use in Campaign Builder" from the Creatives library lands here — same
    *  one-shot hand-off pattern as WorkspaceDashboard's pendingResumeVideo. */
   pendingDraft?: DraftSummary | null;
   onDraftConsumed?: () => void;
+  /** "Duplicate" on a launched campaign (CampaignBuilderPage) — seeds Objective,
+   *  Platform, Audience and Budget from it so the run starts "tweak and relaunch"
+   *  instead of blank, same spirit as the chat flow's own duplicateThread. Creative
+   *  is deliberately left for the person to choose fresh, same as duplicateThread
+   *  resetting it there too — reusing the old ad's exact asset without re-asking
+   *  attestation isn't a sound default. */
+  pendingDuplicate?: CampaignRow | null;
+  onDuplicateConsumed?: () => void;
 }) {
   const isMobile = useIsMobile();
   const [stepKey, setStepKey] = useState<StepKey>('objective');
@@ -101,6 +111,24 @@ export default function CampaignWizard({
     // this can't re-fire from its own effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingDraft]);
+
+  const [prefilledFromDuplicate, setPrefilledFromDuplicate] = useState(false);
+  useEffect(() => {
+    if (!pendingDuplicate) return;
+    const c = pendingDuplicate;
+    // Only `.value` of this ever reaches the backend (WizardReviewStep sends
+    // objective.value alone) — label/blurb/caveat are cosmetic and get filled back
+    // in correctly once WizardObjectiveStep fetches the real list and finds this
+    // value already selected, so a placeholder here is harmless.
+    setObjective({ value: c.goal, label: c.goal, blurb: '', caveat: '' });
+    setPlatform({ mode: 'single', single: c.platform, multi: [], touched: true });
+    setAudience({ description: c.primary_text || c.headline || '', city: c.city || '' });
+    setBudget({ amountNgn: c.budget_ngn ?? '', days: 7 });
+    setPrefilledFromDuplicate(true);
+    onDuplicateConsumed?.();
+    // Runs once per hand-off, same reasoning as the pendingDraft effect above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDuplicate]);
 
   const canAdvance = (): boolean => {
     if (step === 'objective') return Boolean(objective);
@@ -159,6 +187,11 @@ export default function CampaignWizard({
           {prefilledFromLibrary && (
             <p style={{ margin: '8px 0 0', fontSize: 12, color: PINK, fontWeight: 600 }}>
               ✓ Using the creative you picked from your library — it's already set on the Creative step.
+            </p>
+          )}
+          {prefilledFromDuplicate && (
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: PINK, fontWeight: 600 }}>
+              ✓ Started from that campaign — review each step and pick a creative, then relaunch.
             </p>
           )}
         </div>

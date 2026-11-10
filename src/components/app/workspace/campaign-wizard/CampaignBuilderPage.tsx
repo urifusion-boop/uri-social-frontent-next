@@ -45,6 +45,12 @@ export default function CampaignBuilderPage({
   // without this, clicking it twice in a row (list -> wizard -> list -> wizard)
   // would reuse the same component instance and its stale state.
   const wizardKey = useRef(0);
+  // "Duplicate" on a CampaignCard — the chat flow's own equivalent
+  // (duplicateThread) needs a thread_id this list's CampaignRow data doesn't have,
+  // so instead of resending a reconstructed text brief for Jane to replan from
+  // scratch, this seeds the wizard's own steps directly from the row's fields —
+  // same "tweak and relaunch" starting point, in the wizard's own vocabulary.
+  const [pendingDuplicate, setPendingDuplicate] = useState<CampaignRow | null>(null);
 
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +82,10 @@ export default function CampaignBuilderPage({
   const backToList = () => {
     setMode('list');
   };
+  const duplicate = (c: CampaignRow) => {
+    setPendingDuplicate(c);
+    startWizard();
+  };
 
   if (mode === 'wizard') {
     return (
@@ -84,6 +94,8 @@ export default function CampaignBuilderPage({
         onBack={backToList}
         pendingDraft={pendingDraft}
         onDraftConsumed={onDraftConsumed}
+        pendingDuplicate={pendingDuplicate}
+        onDuplicateConsumed={() => setPendingDuplicate(null)}
       />
     );
   }
@@ -181,7 +193,7 @@ export default function CampaignBuilderPage({
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
               {campaigns.map((c) => (
-                <CampaignCard key={c.campaign_id || uid()} c={c} onChanged={load} />
+                <CampaignCard key={c.campaign_id || uid()} c={c} onChanged={load} onDuplicate={duplicate} />
               ))}
             </div>
           </>
