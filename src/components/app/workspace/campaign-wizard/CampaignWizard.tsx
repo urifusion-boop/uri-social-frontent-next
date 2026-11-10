@@ -60,6 +60,13 @@ export default function CampaignWizard({
   // Flips once every selected platform has a finished, launch-ready plan with no
   // open question left — see the STEPS comment above.
   const [reviewReady, setReviewReady] = useState(false);
+  // How far forward this run has ever gotten — every step up to here stays a free,
+  // two-way jump (click the pip, Back button), the ones past it stay locked until
+  // their prerequisites are actually filled in, same as Next already enforces.
+  const [maxReached, setMaxReached] = useState(0);
+  useEffect(() => {
+    setMaxReached((m) => Math.max(m, stepIndex));
+  }, [stepIndex]);
 
   useEffect(() => {
     if (!pendingDraft) return;
@@ -143,12 +150,32 @@ export default function CampaignWizard({
           }}
         >
           {STEPS.map((s, i) => {
-            const isDone = i < stepIndex;
             const isActive = i === stepIndex;
+            // Any step already reached this run is a free jump both ways — the
+            // point being able to come straight back to Finalize/Review after
+            // changing something earlier, without re-clicking Next through every
+            // step in between. "Done" follows the same rule (not just i <
+            // stepIndex), so jumping backward from Finalize to Platform doesn't
+            // make Audience/Budget/Creative look unfilled when they aren't.
+            const reachable = i <= maxReached && i !== stepIndex;
+            const isDone = reachable;
             const label = s.key === 'review' ? (reviewReady ? 'Review' : 'Finalize') : s.label;
             return (
               <div key={s.key} style={{ display: 'flex', alignItems: 'center', flex: isMobile ? '0 0 auto' : 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <button
+                  type="button"
+                  onClick={() => reachable && setStepIndex(i)}
+                  disabled={!reachable}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    border: 'none',
+                    background: 'none',
+                    padding: 0,
+                    cursor: reachable ? 'pointer' : 'default',
+                  }}
+                >
                   <span
                     style={{
                       width: 24,
@@ -176,7 +203,7 @@ export default function CampaignWizard({
                   >
                     {label}
                   </span>
-                </div>
+                </button>
                 {i < STEPS.length - 1 && !isMobile && (
                   <span style={{ flex: 1, height: 1, background: isDone ? PINK : '#ece8e6', margin: '0 10px' }} />
                 )}
@@ -207,6 +234,12 @@ export default function CampaignWizard({
           {step === 'creative' && <WizardCreativeStep value={creative} onChange={setCreative} />}
           {step === 'review' && objective && creative && (
             <WizardReviewStep
+              // Remounts (and re-asks Jane from scratch) whenever anything the plan is
+              // actually built from changes — e.g. coming back from Platform having
+              // switched Meta to Google. Visiting this step again with nothing changed
+              // keeps the same key, so it does NOT needlessly redo Jane's work or lose
+              // an in-progress plan just because you looked at an earlier step.
+              key={JSON.stringify({ objective, platform, audience, budget, creative })}
               objective={objective}
               audience={audience}
               budget={{ ...budget, amountNgn: typeof budget.amountNgn === 'number' ? budget.amountNgn : 0 }}
@@ -221,26 +254,28 @@ export default function CampaignWizard({
           )}
         </div>
 
-        {/* Footer nav — the Review step owns its own Launch button inside ResultCard,
-          so this footer stops being shown once a plan is in progress there. */}
-        {step !== 'review' && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
-            <button
-              type="button"
-              onClick={goBack}
-              style={{
-                border: '1px solid #ece8e6',
-                background: '#fff',
-                color: '#1a0a12',
-                borderRadius: 10,
-                padding: '10px 20px',
-                fontSize: 13.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              {stepIndex === 0 ? 'Cancel' : 'Back'}
-            </button>
+        {/* Footer nav — Back always works, including from Finalize/Review (the one
+          place it was missing before: there was no way off that step except closing
+          the wizard entirely). Next disappears on review since there's no step after
+          it — the Launch button inside ResultCard is this step's own "next". */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={goBack}
+            style={{
+              border: '1px solid #ece8e6',
+              background: '#fff',
+              color: '#1a0a12',
+              borderRadius: 10,
+              padding: '10px 20px',
+              fontSize: 13.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {stepIndex === 0 ? 'Cancel' : 'Back'}
+          </button>
+          {step !== 'review' && (
             <button
               type="button"
               disabled={!canAdvance()}
@@ -258,8 +293,8 @@ export default function CampaignWizard({
             >
               Next →
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
