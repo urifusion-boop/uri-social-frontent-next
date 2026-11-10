@@ -72,7 +72,7 @@ function creativePayload(creative: WizardCreativeChoice): Partial<PlanFromMessag
   if (creative.creative_source === 'draft') {
     return { creative_source: 'draft', draft_id: creative.draft_id };
   }
-  return { creative_source: 'generate' };
+  return { creative_source: 'generate', ...(creative.concepts ? { concepts: creative.concepts } : {}) };
 }
 
 /** A stage bucketed into what it means for a status dot / tab ordering — not a new
@@ -128,7 +128,9 @@ function RecapStrip({
         : "Jane's pick";
   const creativeText =
     creative.creative_source === 'generate'
-      ? 'Jane-generated creative'
+      ? creative.concepts && creative.concepts >= 2
+        ? `${creative.concepts} ad concepts (Meta tests)`
+        : 'Jane-generated creative'
       : creative.creative_source === 'draft'
         ? 'Creative from a past draft'
         : creative.is_video

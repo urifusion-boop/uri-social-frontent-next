@@ -16,7 +16,14 @@ import WizardAssetAttestation from './WizardAssetAttestation';
 const PINK = '#C2185B';
 
 export type WizardCreativeChoice =
-  | { creative_source: 'generate' }
+  | {
+      creative_source: 'generate';
+      // "Make several ads" — Meta-only (see this file's own isMeta gate below),
+      // mirrors the chat flow's onChooseConcepts/ContinueChoice.concepts exactly.
+      // Backend (_concepts_allowed, router.py) clamps to 1 for any other platform
+      // regardless of what's sent, so there's no client-side validation to duplicate.
+      concepts?: number;
+    }
   | ({
       creative_source: 'upload';
       reference_image_url: string;
@@ -75,6 +82,7 @@ export default function WizardCreativeStep({
   value,
   onChange,
   isTikTok = false,
+  isMeta = false,
 }: {
   value: WizardCreativeChoice | null;
   onChange: (next: WizardCreativeChoice) => void;
@@ -82,8 +90,13 @@ export default function WizardCreativeStep({
    *  carousel picker — single-platform TikTok only, same scope as the old page
    *  (it never offers carousel slides in multi-platform mode either). */
   isTikTok?: boolean;
+  /** Gates "Make several ads" (Meta's dynamic-creative test) — true when Meta is
+   *  one of the platforms this plan will actually run on, single or multi mode.
+   *  Mirrors the backend's own Meta-only restriction (_concepts_allowed). */
+  isMeta?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [testOpen, setTestOpen] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [carouselUploading, setCarouselUploading] = useState(false);
   const [drafts, setDrafts] = useState<DraftSummary[] | null>(null);
@@ -98,6 +111,7 @@ export default function WizardCreativeStep({
   const creativePaths = useCreativePaths('');
 
   const mode = value?.creative_source ?? null;
+  const isTestMode = value?.creative_source === 'generate' && typeof value.concepts === 'number' && value.concepts >= 2;
 
   const loadDrafts = () => {
     setShowDrafts(true);
@@ -221,9 +235,77 @@ export default function WizardCreativeStep({
         <OptionCard
           title="Let Jane generate it"
           subtitle="On-brand AI creative built from your objective and audience — no asset needed."
-          isOn={mode === 'generate'}
+          isOn={mode === 'generate' && !isTestMode}
           onClick={() => onChange({ creative_source: 'generate' })}
         />
+        {isMeta && (
+          // A sibling block, not nested inside OptionCard's own <button> — same
+          // reason the carousel picker below is a sibling: a <button> can't
+          // legally contain the number-pill <button>s.
+          <div
+            style={{
+              border: isTestMode ? `1.5px solid ${PINK}` : '1px solid #ece8e6',
+              background: isTestMode ? 'rgba(194,24,91,.05)' : '#fff',
+              borderRadius: 12,
+              padding: '14px 16px',
+              width: '100%',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setTestOpen(true)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: 4,
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                width: '100%',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: 13.5, fontWeight: 800, color: isTestMode ? PINK : '#1a0a12' }}>
+                Make several ads
+              </span>
+              <span style={{ fontSize: 12, color: '#7a7270', lineHeight: 1.45 }}>
+                Different styles, Meta finds the best — 1 credit each.
+              </span>
+            </button>
+            {(testOpen || isTestMode) && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                <span style={{ fontSize: 12.5, color: '#555', fontWeight: 700 }}>How many ads should Jane make?</span>
+                {[2, 3, 4, 5, 6].map((n) => {
+                  const picked = value?.creative_source === 'generate' && value.concepts === n;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      aria-label={`Make ${n} ads`}
+                      aria-pressed={picked}
+                      onClick={() => onChange({ creative_source: 'generate', concepts: n })}
+                      style={{
+                        minWidth: 36,
+                        padding: '6px 10px',
+                        borderRadius: 10,
+                        border: picked ? `1.5px solid ${PINK}` : '1px solid #ece8e6',
+                        background: picked ? 'rgba(194,24,91,.08)' : '#fff',
+                        color: PINK,
+                        fontWeight: 700,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         <OptionCard
           title="Upload my own"
           subtitle="Use a photo or video you already have."

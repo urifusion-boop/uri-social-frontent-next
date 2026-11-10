@@ -414,6 +414,7 @@ export default function CampaignWizard({
               value={creative}
               onChange={setCreative}
               isTikTok={platform.mode === 'single' && platform.single === 'tiktok'}
+              isMeta={platform.mode === 'single' ? platform.single === 'meta' : platform.multi.includes('meta')}
             />
           )}
           {step === 'review' && objective && creative && (
