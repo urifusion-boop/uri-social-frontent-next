@@ -2638,15 +2638,15 @@ function AdWalletManagement({
   user: AdminUserDetails;
   onUserUpdated: (userId: string, updates: Partial<AdminUser>) => void;
 }) {
-  const brands = user.brand_profiles;
-  const [brandId, setBrandId] = useState(brands[0]?.id ?? '');
+  const brands = user.ad_wallets ?? [];
+  const [brandId, setBrandId] = useState(brands[0]?.brand_id ?? '');
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   if (!brands.length) return null;
-  const selected = brands.find((b) => b.id === brandId) ?? brands[0];
+  const selected = brands.find((b) => b.brand_id === brandId) ?? brands[0];
 
   const inputStyle: React.CSSProperties = {
     padding: '8px 10px',
@@ -2662,12 +2662,12 @@ function AdWalletManagement({
     setBusy(true);
     setMessage(null);
     try {
-      const res = await AdminService.creditBrandAdWallet(user.id, selected.id, value, reason || undefined);
+      const res = await AdminService.creditBrandAdWallet(user.id, selected.brand_id, value, reason || undefined);
       const details = await AdminService.getUserDetails(user.id);
       onUserUpdated(user.id, details);
       setMessage({
         type: 'ok',
-        text: `Added ₦${value.toLocaleString()} to ${selected.brand_name || 'this brand'}. Balance: ₦${res.ad_wallet_ngn.toLocaleString()}.`,
+        text: `Added ₦${value.toLocaleString()} to ${selected.name}. Balance: ₦${res.ad_wallet_ngn.toLocaleString()}.`,
       });
       setAmount('');
       setReason('');
@@ -2696,13 +2696,13 @@ function AdWalletManagement({
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Brand</span>
           <select
-            value={selected.id}
+            value={selected.brand_id}
             onChange={(e) => setBrandId(e.target.value)}
             style={{ ...inputStyle, minWidth: 160 }}
           >
             {brands.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.brand_name || 'Unnamed Brand'}
+              <option key={b.brand_id} value={b.brand_id}>
+                {b.name}
               </option>
             ))}
           </select>

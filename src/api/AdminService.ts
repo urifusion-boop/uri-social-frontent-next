@@ -22,6 +22,7 @@ export interface AdminUser {
 
 export interface AdminUserDetails extends AdminUser {
   brand_profiles: BrandProfile[];
+  ad_wallets?: AdWallet[];
   content_count: number;
   workspaces: Workspace[];
 }
@@ -31,7 +32,12 @@ export interface BrandProfile {
   brand_name?: string;
   industry?: string;
   created_at?: string;
-  ad_wallet_ngn?: number;
+}
+
+export interface AdWallet {
+  brand_id: string;
+  name: string;
+  ad_wallet_ngn: number;
 }
 
 export interface Workspace {
