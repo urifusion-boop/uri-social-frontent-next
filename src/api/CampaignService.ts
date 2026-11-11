@@ -466,6 +466,8 @@ export interface CampaignRow {
   detached?: boolean;
   /** Google only: Google's own reason a campaign isn't showing, in plain words. */
   serving_note?: string;
+  /** The budget a prepaid campaign didn't spend: back in the wallet, on its way, or due when it ends. */
+  refund?: { state: 'done' | 'pending' | 'on_end'; amount_ngn: number; ends_at?: string } | null;
   /** Google only: search | display | demand_gen | pmax. */
   placement?: string;
 }

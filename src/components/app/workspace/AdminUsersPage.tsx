@@ -2406,6 +2406,8 @@ function UserDetailsModal({
           {/* Credit & Trial Management */}
           <CreditTrialManagement user={user} onUserUpdated={onUserUpdated} />
 
+          <AdWalletManagement user={user} onUserUpdated={onUserUpdated} />
+
           {/* Trial Info */}
           {user.trial_end && (
             <div style={{ marginBottom: 24 }}>
@@ -2623,6 +2625,131 @@ function AdminAccessManagement({
         onConfirm={performToggle}
         onCancel={() => setConfirmRevokeOpen(false)}
       />
+    </div>
+  );
+}
+
+// Ad Wallet — add money to one of the user's brand ad wallets (what campaigns are paid
+// from), instead of crediting it by hand on the backend.
+function AdWalletManagement({
+  user,
+  onUserUpdated,
+}: {
+  user: AdminUserDetails;
+  onUserUpdated: (userId: string, updates: Partial<AdminUser>) => void;
+}) {
+  const brands = user.brand_profiles;
+  const [brandId, setBrandId] = useState(brands[0]?.id ?? '');
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  if (!brands.length) return null;
+  const selected = brands.find((b) => b.id === brandId) ?? brands[0];
+
+  const inputStyle: React.CSSProperties = {
+    padding: '8px 10px',
+    fontSize: 13,
+    border: '1px solid rgba(0,0,0,.12)',
+    borderRadius: 8,
+    outline: 'none',
+  };
+
+  const handleAdd = async () => {
+    const value = Number(amount);
+    if (!value || value <= 0) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await AdminService.creditBrandAdWallet(user.id, selected.id, value, reason || undefined);
+      const details = await AdminService.getUserDetails(user.id);
+      onUserUpdated(user.id, details);
+      setMessage({
+        type: 'ok',
+        text: `Added ₦${value.toLocaleString()} to ${selected.brand_name || 'this brand'}. Balance: ₦${res.ad_wallet_ngn.toLocaleString()}.`,
+      });
+      setAmount('');
+      setReason('');
+    } catch (error) {
+      console.error('Failed to credit ad wallet:', error);
+      setMessage({ type: 'err', text: 'Failed to add to the ad wallet.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px', color: '#1a1a1a' }}>Ad Wallet</h3>
+      <div
+        style={{
+          padding: 16,
+          background: 'rgba(0,0,0,.02)',
+          border: '1px solid rgba(0,0,0,.06)',
+          borderRadius: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Brand</span>
+          <select
+            value={selected.id}
+            onChange={(e) => setBrandId(e.target.value)}
+            style={{ ...inputStyle, minWidth: 160 }}
+          >
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.brand_name || 'Unnamed Brand'}
+              </option>
+            ))}
+          </select>
+          <span style={{ fontSize: 13, color: '#1a1a1a' }}>
+            Balance: <strong>₦{(selected.ad_wallet_ngn ?? 0).toLocaleString()}</strong>
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#666', minWidth: 100 }}>Add money</span>
+          <input
+            type="number"
+            min={1}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Amount (₦)"
+            style={{ ...inputStyle, width: 130 }}
+          />
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason (optional)"
+            style={{ ...inputStyle, flex: 1, minWidth: 140 }}
+          />
+          <button
+            onClick={handleAdd}
+            disabled={busy || !(Number(amount) > 0)}
+            style={{
+              padding: '8px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'white',
+              background: '#AD1457',
+              border: 'none',
+              borderRadius: 8,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              opacity: busy || !(Number(amount) > 0) ? 0.6 : 1,
+            }}
+          >
+            {busy ? 'Adding…' : 'Add'}
+          </button>
+        </div>
+        {message && (
+          <div style={{ fontSize: 12, color: message.type === 'ok' ? '#2E7D32' : '#C62828' }}>{message.text}</div>
+        )}
+      </div>
     </div>
   );
 }

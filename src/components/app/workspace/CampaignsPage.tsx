@@ -193,6 +193,20 @@ const provenanceFields = (m: SelectedMedia | null | undefined) => m?.provenance 
 
 export const naira = (n?: number | null) => (n == null ? 'N/A' : '₦' + Number(n).toLocaleString());
 
+const refundNote = (c: CampaignRow): string => {
+  const r = c.refund;
+  if (!r || r.amount_ngn <= 0) return '';
+  const amount = naira(Math.round(r.amount_ngn));
+  if (r.state === 'done') return `${amount} this campaign didn't spend is back in your ad wallet.`;
+  if (r.state === 'pending')
+    return `This campaign has ended. The ${amount} it didn't spend comes back to your ad wallet within about an hour.`;
+  if (c.status.toLowerCase().includes('paused') && r.ends_at) {
+    const end = new Date(r.ends_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    return `Paused. If it stays paused, the ${amount} it hasn't spent comes back to your ad wallet about an hour after it ends on ${end}.`;
+  }
+  return '';
+};
+
 /** Jane's reasoning, minus the questions she wrote into it. A plan card states the
  *  plan; "Does this align with where your clients come from?" there has nowhere to be
  *  answered and reads as if the plan is still undecided. */
@@ -5674,6 +5688,23 @@ export function CampaignCard({
           )}
           {detachedNote && (
             <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#666', lineHeight: 1.45 }}>{detachedNote}</p>
+          )}
+          {refundNote(c) && (
+            <p
+              role="status"
+              style={{
+                margin: '8px 0 0',
+                padding: '7px 10px',
+                borderRadius: 8,
+                background: '#EEF7F0',
+                border: '1px solid #CBE6D2',
+                fontSize: 12,
+                color: '#1f5f33',
+                lineHeight: 1.45,
+              }}
+            >
+              {refundNote(c)}
+            </p>
           )}
           {justToggled && (
             <p

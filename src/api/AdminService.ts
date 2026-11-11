@@ -31,6 +31,7 @@ export interface BrandProfile {
   brand_name?: string;
   industry?: string;
   created_at?: string;
+  ad_wallet_ngn?: number;
 }
 
 export interface Workspace {
@@ -248,6 +249,20 @@ export class AdminService {
       amount,
       reason,
     });
+    return response.data;
+  }
+
+  /** Add money to one of the user's brand ad wallets (no payment; recorded in the ledger). */
+  static async creditBrandAdWallet(
+    userId: string,
+    brandId: string,
+    amountNgn: number,
+    reason?: string
+  ): Promise<{ brand_id: string; ad_wallet_ngn: number }> {
+    const response = await UriHttpClient.getClient().post(
+      `/api/admin/users/${userId}/brands/${brandId}/ad-wallet/credit`,
+      { amount_ngn: amountNgn, reason }
+    );
     return response.data;
   }
 
