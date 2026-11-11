@@ -32,7 +32,7 @@ export default function StepContent({
 }) {
   return (
     <Box>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25, mb: 1.5 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25, mb: 3 }}>
         {SOURCES.map((s) => {
           const active = wizard.contentSource === s.key;
           return (
@@ -78,33 +78,59 @@ export default function StepContent({
             </Box>
           );
         })}
-      </Box>
 
-      {onSwitchToVideo && (
-        <Box
-          onClick={onSwitchToVideo}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.75,
-            mb: 3,
-            cursor: 'pointer',
-            width: 'fit-content',
-          }}
-        >
-          <MdVideocam size={14} color="#6B7280" />
-          <Typography fontSize="12px" color="#6B7280">
-            Making a video instead?
-          </Typography>
+        {/* Live-reported: this used to be a plain inline text link below the
+         * two cards above, easy to miss next to real buttons — now a third
+         * card in the same grid/style, never "active" since picking it
+         * navigates away from this step entirely rather than setting a
+         * content source. */}
+        {onSwitchToVideo && (
           <Box
-            component="span"
-            sx={{ display: 'flex', alignItems: 'center', gap: 0.25, fontSize: '12px', fontWeight: 700, color: PINK }}
+            onClick={onSwitchToVideo}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.25,
+              border: '1.5px solid #E5E7EB',
+              borderRadius: '12px',
+              p: 1.5,
+              cursor: 'pointer',
+              background: '#fff',
+              transition: 'all 0.15s',
+            }}
           >
-            Switch to Video Creation
-            <MdArrowForward size={12} />
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: '9px',
+                flexShrink: 0,
+                background: '#F3F4F6',
+                color: '#9CA3AF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <MdVideocam size={15} />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                fontSize="13px"
+                fontWeight={700}
+                color={PINK}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}
+              >
+                Switch to Video Creation
+                <MdArrowForward size={12} />
+              </Typography>
+              <Typography fontSize="11px" color="#6B7280" sx={{ lineHeight: 1.3 }}>
+                Making a video instead? Jane writes the script and storyboard.
+              </Typography>
+            </Box>
           </Box>
-        </Box>
-      )}
+        )}
+      </Box>
 
       {wizard.contentSource === 'prompt' ? <StepBrief wizard={wizard} /> : <StepUploadBrief wizard={wizard} />}
     </Box>

@@ -10394,13 +10394,17 @@ const SettingsPage = ({
             Brand Profile
           </h3>
           <button
-            // Live-reported (Gloria, staging): plain /social-media/brand-setup/
-            // is the first-run onboarding wizard — its own init effect
-            // redirects straight back to /workspace/ once onboarding is
-            // already done, which it always is for an account that has this
-            // Settings page at all. ?edit=1 tells that page to skip that
-            // redirect and open pre-filled on its summary step instead.
-            onClick={() => router.push('/social-media/brand-setup/?edit=1')}
+            // Live-reported (Gloria, staging), twice now: this used to push to
+            // /social-media/brand-setup/ (the first-run onboarding wizard,
+            // which redirects straight back to /workspace/ once onboarding
+            // is done — always true here), then to a ?edit=1 bypass on that
+            // same page. Both were the wrong destination: "edit your brand"
+            // means Brand Playbook (voice, content pillars, formats,
+            // guardrails, audience — the actual onboarding-wizard fields,
+            // all with their own inline editing there already), not this
+            // card's few identity fields. Matches the "Open Brand Playbook"
+            // button just below.
+            onClick={() => onNavChange('playbook')}
             style={{
               padding: '6px 12px',
               borderRadius: 7,
@@ -10828,16 +10832,18 @@ const MORE_NAV: { id: string; icon: string; label: string; href?: string; target
     id: 'brand-setup',
     icon: 'edit',
     label: 'Edit Brand Setup',
-    // Live-reported (Gloria, staging): this used to push to the standalone
-    // /social-media/brand-setup/ route — that page is the first-run
-    // onboarding wizard, and its own init effect immediately
+    // Live-reported (Gloria, staging), twice now: this used to push to the
+    // standalone /social-media/brand-setup/ route — the first-run
+    // onboarding wizard, whose own init effect immediately
     // router.replace('/workspace/') once onboarding_completed is true, i.e.
-    // for every account that can actually reach this nav item. Desktop
-    // solved the same "edit your brand profile" need correctly, as a section
-    // of the one Settings page (goToSettingsAnchor('brand')), not a separate
-    // route — mirrored here instead of re-pointing at the broken page.
-    target: 'settings',
-    anchor: 'brand',
+    // for every account that can actually reach this nav item. First fix
+    // routed this to Settings > Brand Profile instead, which was still
+    // wrong — "Brand Setup" means the Brand Playbook (voice, content
+    // pillars, formats, guardrails, audience, the actual onboarding-wizard
+    // fields), not the few identity fields Settings' own Brand Profile
+    // card shows. Brand Playbook already has full inline editing for every
+    // one of those fields, so this goes straight there now.
+    target: 'playbook',
   },
   { id: 'visual-engine-v2', icon: 'grid', label: '🧪 Visual Engine V2' },
 ];
@@ -12786,9 +12792,11 @@ export default function WorkspaceDashboard() {
                       // /social-media/brand-setup/ is the first-run onboarding
                       // wizard and bounces straight to /workspace/ once
                       // onboarding is done, which it always is by the time
-                      // this toolbar is even visible.
-                      setNav('settings');
-                      router.replace('/workspace/?tab=settings&anchor=brand', {
+                      // this toolbar is even visible. Live-reported twice:
+                      // routing to Settings > Brand Profile (first fix) was
+                      // also wrong — "Brand Setup" means Brand Playbook.
+                      setNav('playbook');
+                      router.replace('/workspace/?tab=playbook', {
                         scroll: false,
                       } as Parameters<typeof router.replace>[1]);
                     }}
