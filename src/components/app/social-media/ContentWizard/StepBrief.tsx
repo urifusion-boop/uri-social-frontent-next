@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -16,7 +16,6 @@ import {
   Typography,
 } from '@mui/material';
 import { MdAdd, MdClose, MdImage, MdInfoOutline, MdUpload } from 'react-icons/md';
-import { V3Service } from '@/src/api/V3Service';
 import { getStyle } from '@/src/data/styleLibrary';
 import TellJane from '../../workspace/TellJane';
 import { ContentWizardState, MAX_REFERENCE_IMAGES } from './useContentWizardState';
@@ -27,17 +26,7 @@ export default function StepBrief({ wizard }: { wizard: ContentWizardState }) {
   const [showTellJane, setShowTellJane] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [assignMenu, setAssignMenu] = useState<{ anchorEl: HTMLElement; slideIndex: number } | null>(null);
-  const [v3, setV3] = useState<{ use_v3_prompts: boolean; prompt_system: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Re-fetched on this step mounting, not just once — fixes the old form's
-  // gap where toggling V3 on the Playbook page never reflected back here
-  // without a hard reload.
-  useEffect(() => {
-    V3Service.getStatus()
-      .then((res) => res.responseData && setV3(res.responseData))
-      .catch(() => {});
-  }, []);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -56,30 +45,11 @@ export default function StepBrief({ wizard }: { wizard: ContentWizardState }) {
 
   return (
     <Box>
-      {v3 && (
-        <Box
-          display="flex"
-          alignItems="center"
-          gap={1}
-          mb={2}
-          sx={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', px: 1.5, py: 1 }}
-        >
-          <Typography fontSize="12px" fontWeight={600} color={v3.use_v3_prompts ? PINK : '#6B7280'}>
-            {v3.use_v3_prompts ? '✨ V3 Enabled' : 'V2 Standard'}
-          </Typography>
-          <Typography fontSize="11.5px" color="#9CA3AF">
-            {v3.prompt_system} prompt system
-          </Typography>
-          <Typography
-            component="a"
-            href="/workspace?tab=playbook"
-            sx={{ ml: 'auto', fontSize: '12px', fontWeight: 600, color: PINK, textDecoration: 'none' }}
-          >
-            {v3.use_v3_prompts ? 'Manage' : 'Enable V3'}
-          </Typography>
-        </Box>
-      )}
-
+      {/* Live-reported: the V2/V3 prompt-system strip here duplicated the
+       * same toggle Brand Playbook already has ("Enhanced Image Prompts
+       * (V3)" under Settings), one more surface for the same setting right
+       * at the top of every single post someone writes. Removed — Manage/
+       * Enable V3 is still one click away from Brand Playbook. */}
       <Box display="flex" alignItems="center" gap={0.75} mb={1}>
         <Typography fontSize="14px" color="#374151" fontWeight={500}>
           Your Brief
