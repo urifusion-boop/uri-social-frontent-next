@@ -4,16 +4,11 @@ import { UriHttpClient } from '@/src/configs/http.config';
 // methods return the raw response bodies. Auth + X-Brand-Id are attached automatically
 // by the UriHttpClient request interceptor.
 
-const VIDEO_CHUNK_BYTES = 6 * 1024 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
 
-interface CloudinarySignedUpload {
-  cloud_name: string;
-  api_key: string;
-  timestamp: number;
-  signature: string;
-  public_id: string;
-  folder: string;
+interface PresignedUpload {
+  put_url: string;
+  public_url: string;
 }
 
 export interface UnderstoodFields {
@@ -719,34 +714,20 @@ export class CampaignService {
   }
 
   /** A phone video relayed through our API on a slow connection outlasts the request
-   *  timeout, so videos go straight to Cloudinary in chunks with params we sign. */
+   *  timeout, so it goes straight to S3 instead — one PUT of the raw file body to a
+   *  presigned URL the backend signs for us, not a multipart POST with signed form
+   *  fields the way the old Cloudinary chunked-upload flow worked. S3's presigned PUT
+   *  has no per-request size ceiling to chunk around (unlike Cloudinary's), so this
+   *  is now a single request regardless of file size. */
   private static async uploadVideoDirect(file: File): Promise<string> {
     if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
       throw new Error(`Video must be under ${MAX_VIDEO_UPLOAD_BYTES / (1024 * 1024)} MB.`);
     }
     const res = await UriHttpClient.getClient().post('/jane-ads/creative/upload-signature');
-    const signed = res.data as CloudinarySignedUpload;
-    const uploadId = `${signed.public_id}-${Date.now()}`;
-    let result: { secure_url?: string; done?: boolean } = {};
-    for (let start = 0; start < file.size; start += VIDEO_CHUNK_BYTES) {
-      const end = Math.min(start + VIDEO_CHUNK_BYTES, file.size) - 1;
-      const form = new FormData();
-      form.append('file', file.slice(start, end + 1), file.name);
-      form.append('api_key', signed.api_key);
-      form.append('timestamp', String(signed.timestamp));
-      form.append('signature', signed.signature);
-      form.append('public_id', signed.public_id);
-      form.append('folder', signed.folder);
-      const chunk = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloud_name}/video/upload`, {
-        method: 'POST',
-        body: form,
-        headers: { 'X-Unique-Upload-Id': uploadId, 'Content-Range': `bytes ${start}-${end}/${file.size}` },
-      });
-      if (!chunk.ok) throw new Error(`Video upload failed (${chunk.status}).`);
-      result = await chunk.json();
-    }
-    if (!result.secure_url) throw new Error('Video upload failed.');
-    return result.secure_url;
+    const signed = res.data as PresignedUpload;
+    const upload = await fetch(signed.put_url, { method: 'PUT', body: file });
+    if (!upload.ok) throw new Error(`Video upload failed (${upload.status}).`);
+    return signed.public_url;
   }
 
   /** Recent drafts (with images) the user already created, to reuse as campaign media. */
