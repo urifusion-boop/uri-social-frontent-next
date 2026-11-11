@@ -1070,23 +1070,41 @@ function BrandSetupPageContent() {
   };
 
   // ─── Init ────────────────────────────────────────────────────
+  // This page doubles as both the first-run onboarding wizard (redirect to
+  // /workspace/ once done — nothing to set up here any more) AND, with
+  // ?edit=1, the only place a completed profile's fields can be changed —
+  // every "Edit Brand Setup"/"Edit Profile" entry point in the app
+  // (WorkspaceDashboard.tsx's Settings > Brand Profile, its mobile More
+  // menu, its chat-page toolbar) links here with that flag. Live-reported
+  // (Gloria, staging): without it, every one of those always bounced back
+  // to /workspace/ for any already-onboarded account — this page had no
+  // actual edit path at all before now.
+  const editMode = searchParams?.get('edit') === '1';
+
   useEffect(() => {
     if (!userDetails?.userId) return;
 
     BrandProfileService.get()
       .then((res) => {
         const profile = res.status ? res.responseData : null;
-        if (profile?.onboarding_completed) {
+        if (profile?.onboarding_completed && !editMode) {
           router.replace('/workspace/');
           return;
         }
         if (profile) {
           hydrateFromProfile(profile);
-          const savedStep = profile.onboarding_current_step as Step | undefined;
-          const stepIndex = savedStep ? STEPS.indexOf(savedStep) : -1;
-          if (stepIndex > 0) {
-            setStep(stepIndex);
-            setResumedFromStep(savedStep as Step);
+          if (editMode && profile.onboarding_completed) {
+            // Land on the summary, not back at "welcome" — Back still
+            // reaches every real step from there, pre-filled.
+            setStep(STEPS.length - 1);
+            setResumedFromStep('preview');
+          } else {
+            const savedStep = profile.onboarding_current_step as Step | undefined;
+            const stepIndex = savedStep ? STEPS.indexOf(savedStep) : -1;
+            if (stepIndex > 0) {
+              setStep(stepIndex);
+              setResumedFromStep(savedStep as Step);
+            }
           }
         }
         setCheckingExisting(false);

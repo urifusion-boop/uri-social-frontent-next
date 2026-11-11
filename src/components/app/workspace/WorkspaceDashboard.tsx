@@ -10394,7 +10394,13 @@ const SettingsPage = ({
             Brand Profile
           </h3>
           <button
-            onClick={() => router.push('/social-media/brand-setup/')}
+            // Live-reported (Gloria, staging): plain /social-media/brand-setup/
+            // is the first-run onboarding wizard — its own init effect
+            // redirects straight back to /workspace/ once onboarding is
+            // already done, which it always is for an account that has this
+            // Settings page at all. ?edit=1 tells that page to skip that
+            // redirect and open pre-filled on its summary step instead.
+            onClick={() => router.push('/social-media/brand-setup/?edit=1')}
             style={{
               padding: '6px 12px',
               borderRadius: 7,
@@ -10804,7 +10810,7 @@ const MOBILE_TABS = [
 
 // Every NAV id that the bottom bar has no room for lives here, so mobile can
 // still reach all of them — MOBILE_TABS only holds the five primary destinations.
-const MORE_NAV = [
+const MORE_NAV: { id: string; icon: string; label: string; href?: string; target?: string; anchor?: string }[] = [
   { id: 'campaign-overview', icon: 'megaphone', label: 'Campaigns' },
   { id: 'blog', icon: 'book', label: 'Blog' },
   { id: 'market-intelligence', icon: 'eye', label: 'Market Intelligence' },
@@ -10812,8 +10818,27 @@ const MORE_NAV = [
   { id: 'connections', icon: 'share', label: 'Connected Accounts' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'billing', icon: 'trending', label: 'Billing' },
-  { id: 'social-accounts', icon: 'globe', label: 'Social Accounts', href: '/settings/social-accounts/' },
-  { id: 'brand-setup', icon: 'edit', label: 'Edit Brand Setup', href: '/social-media/brand-setup/' },
+  // Live-reported (Gloria, staging): this used to be its own entry pointing at
+  // /settings/social-accounts/ — that route is itself nothing but a redirect
+  // shim straight back to ?tab=connections (see that page's own source), i.e.
+  // a pure duplicate of "Connected Accounts" above. Removed rather than kept
+  // as dead weight; desktop's own Connected Accounts page already exposes
+  // "Social Accounts" as a section within that one page, same destination.
+  {
+    id: 'brand-setup',
+    icon: 'edit',
+    label: 'Edit Brand Setup',
+    // Live-reported (Gloria, staging): this used to push to the standalone
+    // /social-media/brand-setup/ route — that page is the first-run
+    // onboarding wizard, and its own init effect immediately
+    // router.replace('/workspace/') once onboarding_completed is true, i.e.
+    // for every account that can actually reach this nav item. Desktop
+    // solved the same "edit your brand profile" need correctly, as a section
+    // of the one Settings page (goToSettingsAnchor('brand')), not a separate
+    // route — mirrored here instead of re-pointing at the broken page.
+    target: 'settings',
+    anchor: 'brand',
+  },
   { id: 'visual-engine-v2', icon: 'grid', label: '🧪 Visual Engine V2' },
 ];
 
@@ -12756,7 +12781,17 @@ export default function WorkspaceDashboard() {
                     <I n="settings" s={14} c="#666" />
                   </button>
                   <button
-                    onClick={() => router.push('/social-media/brand-setup/')}
+                    onClick={() => {
+                      // Same fix as MORE_NAV's own "Edit Brand Setup" above —
+                      // /social-media/brand-setup/ is the first-run onboarding
+                      // wizard and bounces straight to /workspace/ once
+                      // onboarding is done, which it always is by the time
+                      // this toolbar is even visible.
+                      setNav('settings');
+                      router.replace('/workspace/?tab=settings&anchor=brand', {
+                        scroll: false,
+                      } as Parameters<typeof router.replace>[1]);
+                    }}
                     title="Edit Brand Setup"
                     onMouseEnter={(e) => (e.currentTarget.style.background = '#f7f6f5')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
@@ -13383,12 +13418,22 @@ export default function WorkspaceDashboard() {
               {/* More nav items */}
               {MORE_NAV.map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : undefined;
+                // 'brand-setup' really lands on the Settings page (see its own
+                // `target` above) — highlight against where it actually goes,
+                // not its own list-only id.
+                const activeId = n.target ?? n.id;
+                const isActive = nav === activeId;
                 return (
                   <button
                     key={n.id}
                     onClick={() => {
-                      if ('href' in n && n.href) {
+                      if (n.href) {
                         router.push(n.href);
+                      } else if (n.target) {
+                        setNav(n.target);
+                        router.replace(`/workspace/?tab=${n.target}${n.anchor ? `&anchor=${n.anchor}` : ''}`, {
+                          scroll: false,
+                        } as Parameters<typeof router.replace>[1]);
                       } else {
                         goTo(n.id);
                       }
@@ -13400,18 +13445,18 @@ export default function WorkspaceDashboard() {
                       alignItems: 'center',
                       gap: 12,
                       padding: '14px 18px',
-                      background: nav === n.id ? 'rgba(194,24,91,.05)' : 'none',
+                      background: isActive ? 'rgba(194,24,91,.05)' : 'none',
                       border: 'none',
-                      borderLeft: nav === n.id ? '3px solid #E91E63' : '3px solid transparent',
+                      borderLeft: isActive ? '3px solid #E91E63' : '3px solid transparent',
                       cursor: 'pointer',
                       fontFamily: 'var(--wf)',
                       fontSize: 14,
-                      fontWeight: nav === n.id ? 600 : 500,
-                      color: nav === n.id ? '#C2185B' : '#333',
+                      fontWeight: isActive ? 600 : 500,
+                      color: isActive ? '#C2185B' : '#333',
                       textAlign: 'left',
                     }}
                   >
-                    <I n={n.icon} s={18} c={nav === n.id ? '#C2185B' : '#888'} />
+                    <I n={n.icon} s={18} c={isActive ? '#C2185B' : '#888'} />
                     <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {n.label}
                     </span>
