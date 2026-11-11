@@ -11,7 +11,8 @@ import {
   TikTokPostSettings,
 } from '@/src/api/SocialMediaAgentService';
 import TikTokPostDialog from './TikTokPostDialog';
-import { useBrandLogo, logoPlacement, LOGO_WIDTH_PERCENT, type BrandLogo } from './useBrandLogo';
+import { useBrandLogo, useLogoChoice, logoPlacement, LOGO_WIDTH_PERCENT, type BrandLogo } from './useBrandLogo';
+import LogoToggle from './LogoToggle';
 import { describePublishJob, resumeTimeMs } from '@/src/utils/publishJobMessage.util';
 import { VIDEO_STYLES, DEFAULT_STYLE_SLUG } from '@/src/data/videoStyles';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
@@ -390,6 +391,8 @@ export default function VideoStoryboardGenerator({
   reloadKey = 0,
 }: { draftsOnly?: boolean; reloadKey?: number } = {}) {
   const [images, setImages] = useState<UploadedImage[]>([]);
+  const brandLogo = useBrandLogo();
+  const [logoOn, setLogoOn] = useLogoChoice();
   const [optionalText, setOptionalText] = useState('');
   const [platform, setPlatform] = useState('instagram_reels');
   const [duration, setDuration] = useState(15);
@@ -651,7 +654,7 @@ export default function VideoStoryboardGenerator({
     setMergedUrl('');
     setSavedDraft(null);
     try {
-      const res = await SocialMediaAgentService.mergeVideoJob(videoJob.job_id);
+      const res = await SocialMediaAgentService.mergeVideoJob(videoJob.job_id, { useLogo: logoOn && !!brandLogo });
       if (res.status && res.responseData) {
         setMergedUrl(res.responseData.merged_video_url);
         clearSession();
@@ -1234,6 +1237,8 @@ export default function VideoStoryboardGenerator({
             </div>
           </Section>
 
+          <LogoToggle logo={brandLogo} on={logoOn} onChange={setLogoOn} />
+
           {error && (
             <div
               style={{
@@ -1286,7 +1291,12 @@ export default function VideoStoryboardGenerator({
                   <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{frameError}</p>
                 </div>
               )}
-              <StoryboardResult storyboard={storyboard} clipMap={clipMap} frameMap={frameMap} />
+              <StoryboardResult
+                storyboard={storyboard}
+                clipMap={clipMap}
+                frameMap={frameMap}
+                logo={logoOn ? brandLogo : null}
+              />
 
               {/* Video generation section */}
               <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${BORDER}` }}>
@@ -2101,13 +2111,14 @@ export function StoryboardResult({
   storyboard,
   clipMap,
   frameMap,
+  logo = null,
 }: {
   storyboard: Storyboard;
   clipMap: Record<number, VideoClip>;
   frameMap: Record<number, string>;
+  /** The logo to preview on each scene card: null when the owner has none or switched it off. */
+  logo?: BrandLogo | null;
 }) {
-  // The owner's logo is always on the finished video when their Brand Playbook has one; the cards preview it.
-  const logo = useBrandLogo();
   // Calculate cumulative start time per scene
   const scenesWithTime = storyboard.scenes.reduce<{ scene: StoryboardScene; start: number }[]>((acc, scene) => {
     const start = acc.length > 0 ? acc[acc.length - 1].start + acc[acc.length - 1].scene.duration_seconds : 0;
@@ -2132,11 +2143,6 @@ export function StoryboardResult({
         <Chip label="Scenes" value={String(storyboard.scenes.length)} />
         <Chip label="Aspect" value={storyboard.aspect_ratio} />
       </div>
-      {logo && (
-        <p data-testid="logo-note" style={{ fontSize: 11.5, color: '#6b7280', margin: '-8px 0 12px' }}>
-          Your logo from your Brand Playbook is added to the finished video.
-        </p>
-      )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {scenesWithTime.map(({ scene, start }) => (
           <SceneCard

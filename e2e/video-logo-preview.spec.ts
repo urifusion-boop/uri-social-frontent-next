@@ -31,7 +31,7 @@ const ok = (responseData: unknown) => ({
   json: { status: true, responseCode: 200, responseMessage: 'ok', responseData },
 });
 
-async function open(page: Page, profile: object | 'broken') {
+async function open(page: Page, profile: object | 'broken', beforeGenerate?: (page: Page) => Promise<void>) {
   await page.addInitScript(() => {
     localStorage.setItem('@URI@AUTHENTICATED', 'true');
     localStorage.setItem('@URI@USER_TOKENS', JSON.stringify({ accessToken: 'test', refreshToken: 'test' }));
@@ -88,6 +88,7 @@ async function open(page: Page, profile: object | 'broken') {
     .first()
     .click();
   await page.getByPlaceholder(/A founder explains why they built this product/).fill('A short product video');
+  await beforeGenerate?.(page);
   await page.getByRole('button', { name: 'Generate Storyboard' }).click();
   await expect(page.getByText('1. medium')).toBeVisible({ timeout: 20000 });
 }
@@ -107,7 +108,7 @@ test.describe('Describe It: the brand logo on the storyboard', () => {
       return { width: s.width, left: s.left, top: s.top };
     });
     expect(style).toEqual({ width: '20%', left: '5%', top: '8%' });
-    await expect(page.getByTestId('logo-note')).toBeVisible();
+    await expect(page.getByTestId('logo-toggle')).toHaveAttribute('aria-checked', 'true');
   });
 
   test('a logo with no position or size set is small and bottom-right', async ({ page }) => {
@@ -125,12 +126,48 @@ test.describe('Describe It: the brand logo on the storyboard', () => {
   test('no logo in the playbook shows nothing', async ({ page }) => {
     await open(page, { brand_name: 'No logo yet' });
     await expect(page.getByTestId('scene-logo')).toHaveCount(0);
-    await expect(page.getByTestId('logo-note')).toHaveCount(0);
+    await expect(page.getByTestId('logo-toggle-row')).toHaveCount(0);
   });
 
   test('an unreadable playbook shows nothing and the storyboard still works', async ({ page }) => {
     await open(page, 'broken');
     await expect(page.getByTestId('scene-logo')).toHaveCount(0);
     await expect(page.getByText('2. medium')).toBeVisible();
+  });
+
+  test('the logo switch is there before the storyboard is generated, and off means no logo on the cards', async ({
+    page,
+  }) => {
+    await open(page, { logo_url: 'https://fake-cdn.test/logo.png' }, async (p) => {
+      const toggle = p.getByTestId('logo-toggle');
+      await expect(toggle).toBeVisible();
+      await expect(toggle).toHaveAttribute('aria-checked', 'true');
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    });
+    // the cards have their pictures (a logo only goes on a picture), and still no logo is on them
+    await expect(page.locator('img[src="https://fake-cdn.test/f1.png"]').first()).toBeVisible();
+    await expect(page.locator('img[src="https://fake-cdn.test/f2.png"]').first()).toBeVisible();
+    await expect(page.getByTestId('scene-logo')).toHaveCount(0);
+    // it can be switched back on afterwards and the cards follow
+    await page.getByTestId('logo-toggle').click();
+    await expect(page.getByTestId('scene-logo')).toHaveCount(2);
+  });
+
+  test('the choice is remembered for the next video', async ({ page }) => {
+    await open(page, { logo_url: 'https://fake-cdn.test/logo.png' }, async (p) => {
+      await p.getByTestId('logo-toggle').click();
+    });
+    await page.reload();
+    await page.getByText('Content Studio', { exact: true }).click();
+    await page
+      .locator('button', { hasText: /🎬\s*Video/ })
+      .first()
+      .click();
+    await page
+      .getByRole('button', { name: /🎬 Generate Videos$/ })
+      .first()
+      .click();
+    await expect(page.getByTestId('logo-toggle')).toHaveAttribute('aria-checked', 'false');
   });
 });

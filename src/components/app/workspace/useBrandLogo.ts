@@ -55,3 +55,26 @@ export function logoPlacement(position: string): CSSProperties {
       return { right: side, bottom };
   }
 }
+
+const LOGO_CHOICE_KEY = 'uri:video:use-logo';
+
+/** Whether the logo goes on the video: on unless the owner switched it off. Remembered for next time. */
+export function useLogoChoice(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(LOGO_CHOICE_KEY) === 'off') setOn(false);
+    } catch {
+      /* storage unavailable — stay on */
+    }
+  }, []);
+  const choose = (next: boolean) => {
+    setOn(next);
+    try {
+      localStorage.setItem(LOGO_CHOICE_KEY, next ? 'on' : 'off');
+    } catch {
+      /* ignore */
+    }
+  };
+  return [on, choose];
+}

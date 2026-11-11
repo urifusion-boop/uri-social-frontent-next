@@ -29,6 +29,8 @@ import {
   StoryboardResult,
   suggestOutcome,
 } from '@/src/components/app/workspace/VideoStoryboardGenerator';
+import { useBrandLogo, useLogoChoice } from '@/src/components/app/workspace/useBrandLogo';
+import LogoToggle from '@/src/components/app/workspace/LogoToggle';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import ConfirmDialog from '@/src/components/app/workspace/ConfirmDialog';
@@ -63,6 +65,8 @@ interface UploadedImage {
 
 export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?: () => void } = {}) {
   const [brief, setBrief] = useState('');
+  const brandLogo = useBrandLogo();
+  const [logoOn, setLogoOn] = useLogoChoice();
   const [images, setImages] = useState<UploadedImage[]>([]);
   // Required (not just a disclaimer the user can ignore) whenever reference
   // images are attached — an uploaded photo goes to gpt-image-2/fal.ai, so
@@ -370,7 +374,7 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
     setMergedUrl('');
     setSavedDraft(null);
     try {
-      const res = await SocialMediaAgentService.mergeVideoJob(videoJob.job_id);
+      const res = await SocialMediaAgentService.mergeVideoJob(videoJob.job_id, { useLogo: logoOn && !!brandLogo });
       if (res.status && res.responseData) {
         setMergedUrl(res.responseData.merged_video_url);
         saveSession({ mergedUrl: res.responseData.merged_video_url });
@@ -1117,6 +1121,8 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
         </div>
       )}
 
+      <LogoToggle logo={brandLogo} on={logoOn} onChange={setLogoOn} />
+
       {(() => {
         const needsRightsConfirm = images.length > 0 && !confirmedImageRights;
         const isDisabled = !brief.trim() || loading || needsRightsConfirm || storyboardCantAfford;
@@ -1350,7 +1356,12 @@ export default function DescribeVideoGenerator({ onGoToDrafts }: { onGoToDrafts?
               <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{frameError}</p>
             </div>
           )}
-          <StoryboardResult storyboard={storyboard} clipMap={clipMap} frameMap={frameMap} />
+          <StoryboardResult
+            storyboard={storyboard}
+            clipMap={clipMap}
+            frameMap={frameMap}
+            logo={logoOn ? brandLogo : null}
+          />
 
           {/* Video generation section — identical pattern to VideoStoryboardGenerator's,
               since it talks to the exact same outcome-routed pipeline underneath. */}

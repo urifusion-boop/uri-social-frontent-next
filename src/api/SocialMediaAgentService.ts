@@ -1095,10 +1095,30 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
-  static async mergeVideoJob(jobId: string): Promise<UriResponse<{ merged_video_url: string }>> {
-    const response: Awaited<AxiosResponse<UriResponse<{ merged_video_url: string }>>> =
-      await UriHttpClient.getClient().post(`${socialMediaAgentRoutes.mergeVideoJob}/${jobId}`, {}, { timeout: 180000 });
-    return response.data;
+  static async mergeVideoJob(
+    jobId: string,
+    options: { useLogo?: boolean } = {}
+  ): Promise<UriResponse<{ merged_video_url: string }>> {
+    const send = async () => {
+      const response: Awaited<AxiosResponse<UriResponse<{ merged_video_url: string }>>> =
+        await UriHttpClient.getClient().post(
+          `${socialMediaAgentRoutes.mergeVideoJob}/${jobId}`,
+          { use_logo: options.useLogo ?? true },
+          { timeout: 180000 }
+        );
+      return response.data;
+    };
+    // Merging costs nothing and changes nothing until it succeeds, so one more try is safe. It covers a request that
+    // was cut off (a server restart or a dropped connection shows up here as a network error, with no response) or
+    // a server error; a 4xx means the request itself is wrong and is not repeated.
+    try {
+      return await send();
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status !== undefined && status < 500) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return send();
+    }
   }
 
   static async saveVideoDraft(payload: {
