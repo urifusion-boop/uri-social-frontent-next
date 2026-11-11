@@ -89,11 +89,51 @@ export default function DraftDetailView({
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [canvasEditorOpen, setCanvasEditorOpen] = useState(false);
+  const [confirmUnschedule, setConfirmUnschedule] = useState(false);
 
   // scheduled_date (see the type's own comment) is what a scheduled draft
   // actually carries once the backend has it — scheduled_datetime is a
   // request-only field, never present on what this view reads.
   const scheduledAt = draft.scheduled_date ?? draft.scheduled_datetime ?? null;
+  // Live-reported: this view used to offer neither "move the scheduled time"
+  // nor "take it back off the schedule" once a post was scheduled — both
+  // existed before (ScheduledCard.tsx still has Unschedule; the backend's
+  // own POST /drafts/{id}/unschedule was never wired in here at all).
+  const isScheduledLike = ['scheduled', 'staging_scheduled', 'ready_to_publish', 'confirming'].includes(
+    draft.status ?? ''
+  );
+  const handleUnschedule = async () => {
+    if (!confirmUnschedule) {
+      setConfirmUnschedule(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await SocialMediaAgentService.unscheduleDraft(id);
+      if (response.status) {
+        ToastService.showToast('Post moved back to Drafts', ToastTypeEnum.Success);
+        onRefresh();
+        onClose();
+      } else {
+        ToastService.showToast(response.responseMessage || 'Failed to unschedule', ToastTypeEnum.Error);
+        setConfirmUnschedule(false);
+      }
+    } catch {
+      ToastService.showToast('Failed to unschedule', ToastTypeEnum.Error);
+      setConfirmUnschedule(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // datetime-local wants the viewer's own wall-clock reading of the moment,
+  // not its UTC one — parseApiDate already resolves the backend's
+  // no-zone-means-UTC value to the right real moment; this just reads that
+  // moment back out in local Y-M-DTH:m, the same thing the native picker
+  // itself produces when a person picks a time by hand.
+  const toLocalInputValue = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
   // Compact on purpose — this sits in a header row that's already tight on a
   // phone, next to a status pill and a close button; "Scheduled for Nov 10,
   // 2026, 3:30 PM" left almost nothing for noWrap to work with and ellipsized
@@ -524,10 +564,37 @@ export default function DraftDetailView({
               >
                 Edit
               </Button>
+              {isScheduledLike && (
+                <Button
+                  size="small"
+                  disabled={busy}
+                  onClick={handleUnschedule}
+                  onBlur={() => setConfirmUnschedule(false)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    color: confirmUnschedule ? '#fff' : '#DC2626',
+                    background: confirmUnschedule ? '#DC2626' : 'transparent',
+                    border: '1px solid',
+                    borderColor: '#FCA5A5',
+                    borderRadius: '8px',
+                    '&:hover': { background: confirmUnschedule ? '#B91C1C' : 'rgba(220,38,38,.06)' },
+                  }}
+                >
+                  {confirmUnschedule ? 'Confirm unschedule?' : 'Unschedule'}
+                </Button>
+              )}
               <Button
                 size="small"
                 disabled={busy}
-                onClick={() => setScheduleOpen(true)}
+                onClick={() => {
+                  // Pre-fill with the current scheduled time so this reads as
+                  // "change the time", not "pick one from scratch" with no
+                  // visibility into what it's currently set to.
+                  setScheduleAt(scheduledAt ? toLocalInputValue(parseApiDate(scheduledAt)) : '');
+                  setScheduleOpen(true);
+                }}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 700,
@@ -537,7 +604,7 @@ export default function DraftDetailView({
                   borderRadius: '8px',
                 }}
               >
-                Schedule
+                {isScheduledLike ? 'Change time' : 'Schedule'}
               </Button>
               <Button
                 size="small"
@@ -564,7 +631,7 @@ export default function DraftDetailView({
       <Dialog open={scheduleOpen} onClose={() => setScheduleOpen(false)} maxWidth="xs" fullWidth>
         <Box sx={{ p: 2.5 }}>
           <Typography fontSize="15px" fontWeight={700} mb={1.5}>
-            Schedule this post
+            {isScheduledLike ? 'Change scheduled time' : 'Schedule this post'}
           </Typography>
           <TextField
             type="datetime-local"
@@ -603,7 +670,7 @@ export default function DraftDetailView({
               }}
               sx={{ textTransform: 'none', background: PINK, '&:hover': { background: '#A01560' } }}
             >
-              Confirm
+              {isScheduledLike ? 'Update' : 'Confirm'}
             </Button>
           </Box>
         </Box>
