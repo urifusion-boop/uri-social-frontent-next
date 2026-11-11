@@ -14,9 +14,14 @@ import { UriHttpClient } from '@/src/configs/http.config';
 
 const PINK = '#CD1B78';
 
+// Live-reported: "Needs Review" removed entirely, same reasoning as
+// ContentLibraryPage.tsx's own categorize() — no deliberate review step
+// ever moved a draft into pending_approval, every draft just started
+// there. No entry here for it at all: the lookup below already falls back
+// to STATUS_BADGE.draft on a miss, so a draft with that old status now
+// reads as Draft with no other change needed.
 const STATUS_BADGE: Record<string, { bg: string; color: string; label: string }> = {
   draft: { bg: '#F3F4F6', color: '#374151', label: 'Draft' },
-  pending_approval: { bg: '#FEF3C7', color: '#92400E', label: 'Needs Review' },
   scheduled: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },
   // What "scheduled" is called outside production — see the type's own comment.
   staging_scheduled: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },

@@ -23,6 +23,7 @@ import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { queuedNotice } from '@/src/utils/publishJobMessage.util';
 import { parseApiDate } from '@/src/utils/apiDate.util';
+import { useIsMobile } from '@/src/hooks/useIsMobile';
 import GeneratedContentCard, { firstSlideImage } from '../GeneratedContentCard';
 import GeneratedDraftEditor from '../GeneratedDraftEditor';
 import DraftDetailView from '../DraftDetailView';
@@ -30,12 +31,21 @@ import SyncImageDialog from '../SyncImageDialog';
 
 const PINK = '#CD1B78';
 
-type LibraryTab = 'all' | 'draft' | 'needs_review' | 'scheduled' | 'published' | 'archived';
+// Live-reported: "Needs Review" used to be its own bucket here, but nothing
+// in this codebase ever moved a draft into that state as a deliberate review
+// step — submit_for_approval (approval_workflow_service.py, backend) is dead
+// code, no router calls it — so every draft Jane ever generated landed there
+// by default, with no way to tell "needs review" apart from "just made,
+// untouched". Removed entirely, not just stopped feeding: categorize() below
+// folds pending_approval into 'draft' so any already-existing draft with
+// that old status (this is a display-only reclassification, no backend data
+// changes) shows up exactly where "approve it from Drafts" already expects
+// it, same as the old product worked.
+type LibraryTab = 'all' | 'draft' | 'scheduled' | 'published' | 'archived';
 
 const TABS: { key: LibraryTab; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'draft', label: 'Drafts' },
-  { key: 'needs_review', label: 'Needs Review' },
   { key: 'scheduled', label: 'Scheduled' },
   { key: 'published', label: 'Published' },
   { key: 'archived', label: 'Archived' },
@@ -52,7 +62,6 @@ const PLATFORM_ICON: Record<string, { icon: React.ReactNode; color: string }> = 
 
 const STATUS_BADGE: Record<string, { bg: string; color: string; label: string }> = {
   draft: { bg: '#F3F4F6', color: '#374151', label: 'Draft' },
-  needs_review: { bg: '#FEF3C7', color: '#92400E', label: 'Needs Review' },
   scheduled: { bg: '#DBEAFE', color: '#1E40AF', label: 'Scheduled' },
   published: { bg: '#D1FAE5', color: '#065F46', label: 'Published' },
   archived: { bg: '#FEE2E2', color: '#991B1B', label: 'Archived' },
@@ -96,7 +105,7 @@ function categorize(d: ContentDraft): LibraryTab {
     case 'ready_to_publish':
       return 'scheduled';
     case 'pending_approval':
-      return 'needs_review';
+      return 'draft';
     case 'denied':
     case 'replaced':
     case 'publish_failed':
@@ -132,6 +141,7 @@ function titleAndExcerpt(content: string): { title: string; excerpt: string } {
 }
 
 export default function ContentLibraryPage() {
+  const isMobile = useIsMobile();
   const [items, setItems] = useState<ContentDraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -212,7 +222,6 @@ export default function ContentLibraryPage() {
     const c: Record<LibraryTab, number> = {
       all: items.length,
       draft: 0,
-      needs_review: 0,
       scheduled: 0,
       published: 0,
       archived: 0,
@@ -701,11 +710,123 @@ export default function ContentLibraryPage() {
           onMonthChange={setCalendarMonth}
           onSelect={setViewingDraft}
         />
+      ) : isMobile ? (
+        // Live-reported ("pay attention to mobile view"): the desktop table
+        // below needs a 720px-wide row to fit Content/Platform/Format/Status/
+        // Date side by side, so on a phone it only ever worked by scrolling
+        // horizontally — and scrolling far enough to see Status/Date scrolls
+        // the Content column (the only way to tell WHICH post that status
+        // belongs to) off the other edge. Nothing here is cut off by width;
+        // everything about one post stacks in the same card instead.
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {filtered.map((d) => {
+            const id = d.id ?? d.draft_id ?? '';
+            const cat = categorize(d);
+            const badge = badgeFor(d, cat);
+            const { title, excerpt } = titleAndExcerpt(d.content || '');
+            const platformKey = (d.platform || '').toLowerCase();
+            const pIcon = PLATFORM_ICON[platformKey];
+            const formatKey = d.post_type || 'feed';
+            const dt = dateFor(d);
+            const thumb = d.image_url ?? firstSlideImage(d);
+
+            return (
+              <Box
+                key={id}
+                sx={{
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '12px',
+                  background: '#fff',
+                  p: 1.25,
+                  cursor: 'pointer',
+                }}
+                onClick={() => setViewingDraft(d)}
+              >
+                <Box display="flex" alignItems="flex-start" gap={1}>
+                  <Checkbox
+                    size="small"
+                    checked={selected.has(id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => toggleSelected(id)}
+                    sx={{ p: 0, mt: 0.25, '&.Mui-checked': { color: PINK } }}
+                  />
+                  <Box
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '8px',
+                      flexShrink: 0,
+                      background: thumb ? `url(${thumb}) center/cover` : '#F3F4F6',
+                    }}
+                  />
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography fontSize="13.5px" fontWeight={600} color="#111827" noWrap>
+                      {title}
+                    </Typography>
+                    <Typography fontSize="11.5px" color="#9CA3AF" noWrap>
+                      {excerpt}
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    aria-label="More actions"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuFor({ anchor: e.currentTarget, id });
+                    }}
+                    sx={{ mt: -0.5, mr: -0.5 }}
+                  >
+                    <MdMoreVert size={16} />
+                  </IconButton>
+                </Box>
+                <Box
+                  display="flex"
+                  alignItems="center"
+                  flexWrap="wrap"
+                  gap={1}
+                  sx={{ mt: 1, pl: `${24 + 8 + 44 + 8}px` }}
+                >
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    {pIcon?.icon}
+                    <Typography fontSize="11.5px" color="#374151" sx={{ textTransform: 'capitalize' }}>
+                      {platformKey || '—'}
+                    </Typography>
+                  </Box>
+                  <Typography fontSize="11.5px" color="#9CA3AF">
+                    ·
+                  </Typography>
+                  <Typography fontSize="11.5px" color="#374151">
+                    {FORMAT_LABEL[formatKey] ?? formatKey}
+                  </Typography>
+                  <Typography fontSize="11.5px" color="#9CA3AF">
+                    ·
+                  </Typography>
+                  <Typography fontSize="11.5px" color="#6B7280">
+                    {dt ? formatDateTime(dt) : '—'}
+                  </Typography>
+                  <Box
+                    component="span"
+                    sx={{
+                      ml: 'auto',
+                      background: badge.bg,
+                      color: badge.color,
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      px: 1,
+                      py: 0.4,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {badge.label}
+                  </Box>
+                </Box>
+              </Box>
+            );
+          })}
+        </Box>
       ) : (
         <Box sx={{ border: '1px solid #E5E7EB', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
-          {/* Fixed-width columns don't reflow on a phone — scroll horizontally
-              within this card instead of crushing them or breaking the page
-              layout. */}
           <Box sx={{ overflowX: 'auto' }}>
             <Box sx={{ minWidth: 720 }}>
               <Box

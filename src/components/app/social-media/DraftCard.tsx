@@ -65,7 +65,10 @@ const platformChip: Record<string, { icon: ReactElement; color: string; bg: stri
 
 const statusColors: Record<string, { bg: string; color: string }> = {
   draft: { bg: '#F3F4F6', color: '#374151' },
-  pending_approval: { bg: '#FEF3C7', color: '#92400E' },
+  // Real, reachable: /approve's "Save as Draft" option (approval_workflow_
+  // service.py's approve_content) writes this literal status — unlike
+  // pending_approval below it, which only the dead submit_for_approval ever
+  // wrote.
   approved: { bg: '#D1FAE5', color: '#065F46' },
   published: { bg: '#DBEAFE', color: '#1E40AF' },
   denied: { bg: '#FEE2E2', color: '#991B1B' },
@@ -824,7 +827,13 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
           sx={{ background: pc.bg, color: pc.color, fontWeight: 600, fontSize: '11px', height: 24 }}
         />
         <Chip
-          label={(draft.status ?? draft.approval_status ?? 'pending').replace('_', ' ')}
+          // Live-reported: approval_status is only ever "pending" or
+          // "approved" on the backend (confirmed — no code path writes
+          // anything else), neither a real user-facing state; it used to
+          // leak straight into this label as raw text ("pending"/"approved")
+          // whenever a draft had no real status yet. A draft with no status
+          // is just a draft.
+          label={(draft.status ?? 'draft').replace('_', ' ')}
           size="small"
           sx={{ background: sc.bg, color: sc.color, fontWeight: 600, fontSize: '11px', height: 24 }}
         />

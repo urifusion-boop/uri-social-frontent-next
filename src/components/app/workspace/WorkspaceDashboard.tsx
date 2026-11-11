@@ -1311,8 +1311,8 @@ const ContentManagerPage = ({
   };
 
   // Drafts / Saved / Scheduled dropped from this visible row — Content
-  // Library's own filter tabs (All/Drafts/Needs Review/Scheduled/Published/
-  // Archived) already cover the exact same states in one table. The
+  // Library's own filter tabs (All/Drafts/Scheduled/Published/Archived)
+  // already cover the exact same states in one table. The
   // underlying 'drafts' tab view is untouched and still real — programmatic
   // redirects (e.g. "Save to Drafts" from the video flow) still land on it
   // correctly, it just no longer has its own pill in this row. Calendar DOES
