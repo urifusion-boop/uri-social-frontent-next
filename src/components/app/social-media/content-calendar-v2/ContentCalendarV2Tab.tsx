@@ -1096,7 +1096,18 @@ export default function ContentCalendarV2Tab({ onGenerated }: Props) {
         const res = await SocialMediaAgentService.getCalendarPlanV2();
         if (res.status && res.responseData) {
           setPlan(res.responseData);
-          setPlatforms(playbookPlatforms.length ? playbookPlatforms : res.responseData.platforms);
+          // Live-reported (Gloria, staging): this used to always prefer the
+          // brand's Playbook target_platforms here, even once a real plan
+          // already existed — so every remount (e.g. navigating away mid
+          // "Regenerate 30-day plan" and coming back) silently reset the
+          // pills back to the Playbook's set, regardless of what was just
+          // selected and regenerated for. That made an already-correct plan
+          // look like it had "lost" the selection and needed regenerating
+          // again (the "— changed from X; regenerate to apply" banner below
+          // is driven by this same `platforms` state). An existing plan's
+          // own platforms are the ground truth for what it actually covers;
+          // the Playbook default only makes sense before any plan exists.
+          setPlatforms(res.responseData.platforms.length ? res.responseData.platforms : playbookPlatforms);
         } else if (playbookPlatforms.length) {
           setPlatforms(playbookPlatforms);
         }

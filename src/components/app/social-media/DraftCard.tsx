@@ -2134,11 +2134,16 @@ const DraftCard = ({ draft: initialDraft, onRefresh, selectable, selected, onSel
         <DialogTitle>Edit Image</DialogTitle>
         <DialogContent>
           <Typography fontSize="12px" color="#6B7280" mb={2}>
-            Describe what you want to change. For example: "Change price to ₦5,000", "Make background darker", "Add our
-            phone number"
+            {/* Live-reported (Gloria, staging): same mismatch as
+             * DescribeImageEditControls — the "Text" button pre-fills this
+             * field with the image's actual current text to edit directly,
+             * not a change to describe, so the copy needs to say that. */}
+            {editForceCategory === 'text_edit'
+              ? "This is the text currently on the image — edit it directly: fix a word, change a price, or delete a line you don't want."
+              : 'Describe what you want to change. For example: "Change price to ₦5,000", "Make background darker", "Add our phone number"'}
           </Typography>
           <TextField
-            placeholder="What would you like to change?"
+            placeholder={editForceCategory === 'text_edit' ? 'The image’s text' : 'What would you like to change?'}
             fullWidth
             multiline
             rows={3}

@@ -177,15 +177,22 @@ export default function DescribeImageEditControls({
         <DialogTitle sx={{ fontSize: '15px', fontWeight: 600 }}>Edit Image</DialogTitle>
         <DialogContent>
           <Typography fontSize="12px" color="#6B7280" mb={1.5}>
-            Describe what you want to change. For example: &quot;Change price to ₦5,000&quot;, &quot;Make background
-            darker&quot;, &quot;Add our phone number&quot;
+            {/* Live-reported (Gloria, staging): this description always said
+             * "describe what you want to change" even when the field below is
+             * pre-filled with the image's actual current text (the "Edit Text"
+             * entry point) — a real sentence to edit directly, not a change to
+             * describe. Each entry point now gets wording that matches what's
+             * actually in the box. */}
+            {forceCategory === 'text_edit'
+              ? "This is the text currently on the image — edit it directly: fix a word, change a price, or delete a line you don't want."
+              : 'Describe what you want to change. For example: "Change price to ₦5,000", "Make background darker", "Add our phone number"'}
           </Typography>
           <TextField
             autoFocus
             fullWidth
             multiline
             rows={3}
-            placeholder="What would you like to change?"
+            placeholder={forceCategory === 'text_edit' ? 'The image’s text' : 'What would you like to change?'}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             disabled={editLoading || feedback === 'Extracting text from image...'}

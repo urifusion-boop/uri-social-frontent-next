@@ -146,6 +146,16 @@ export default function SyncImageDialog({ drafts, selectedIds, onClose, onDone }
           padding: 28,
           width: 560,
           maxWidth: '92vw',
+          // Live-reported (Gloria, staging): with no maxHeight/overflow here,
+          // 3 real platform image cards stacked (each its own photo, not a
+          // placeholder) made this dialog taller than the viewport — and
+          // since the backdrop centers it with no scroll affordance of its
+          // own, the dialog overflowed equally off the top AND bottom of a
+          // mobile screen with no way to reach either end, including the
+          // "Apply to all selected" button. Same maxHeight/overflowY the
+          // sibling day-detail modal in ContentCalendarV2Tab already uses.
+          maxHeight: '88vh',
+          overflowY: 'auto',
           boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
         }}
         onClick={(e) => e.stopPropagation()}
