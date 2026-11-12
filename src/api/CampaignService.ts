@@ -1075,17 +1075,29 @@ export class CampaignService {
     if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
       throw new Error(`Video must be under ${MAX_VIDEO_UPLOAD_BYTES / (1024 * 1024)} MB.`);
     }
-    const res = await UriHttpClient.getClient().post('/jane-ads/creative/upload-signature', null, {
-      params: { content_type: file.type || 'video/mp4' },
-    });
-    const signed = res.data as S3SignedUpload;
-    const put = await fetch(signed.put_url, {
-      method: 'PUT',
-      body: file,
-      headers: { 'Content-Type': file.type || 'video/mp4' },
-    });
-    if (!put.ok) throw new Error(`Video upload failed (${put.status}).`);
-    return signed.public_url;
+    const contentType = file.type || 'video/mp4';
+    // One retry with a fresh link: a phone/office connection dropping mid-upload is the
+    // usual failure, and the second try often goes through.
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await UriHttpClient.getClient().post('/jane-ads/creative/upload-signature', null, {
+        params: { content_type: contentType },
+      });
+      const signed = res.data as S3SignedUpload;
+      let put: Response;
+      try {
+        put = await fetch(signed.put_url, { method: 'PUT', body: file, headers: { 'Content-Type': contentType } });
+      } catch {
+        lastError = new Error('The upload was interrupted — check your connection and try again.');
+        continue;
+      }
+      if (put.ok) return signed.public_url;
+      lastError = new Error(
+        `The video upload was refused (${put.status}). Try again, or contact support if it keeps happening.`
+      );
+      if (put.status < 500) break;
+    }
+    throw lastError ?? new Error("Couldn't upload that video — try again.");
   }
 
   /** Recent drafts (with images) the user already created, to reuse as campaign media. */

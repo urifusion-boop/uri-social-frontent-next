@@ -133,8 +133,12 @@ export default function WizardCreativeStep({
       } else {
         setPendingAttestation(url);
       }
-    } catch {
-      setUploadError("Couldn't upload that file — try again.");
+    } catch (err) {
+      // Say why when we know (too large, connection dropped, refused) — a bare
+      // "try again" gave the person, and us, nothing to go on.
+      const e = err as { message?: string; response?: { data?: { detail?: string } } };
+      const known = e?.response?.data?.detail || (e && !e.response ? e.message : '');
+      setUploadError(known && known.length < 200 ? known : "Couldn't upload that file — try again.");
     } finally {
       setUploading(false);
     }
