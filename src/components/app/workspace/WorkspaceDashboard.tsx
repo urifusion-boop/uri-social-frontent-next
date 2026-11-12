@@ -2696,7 +2696,7 @@ const PLATFORMS = [
     label: 'Facebook',
     color: '#1877F2',
     bg: '#E7F0FD',
-    flow: 'outstand_oauth',
+    flow: 'facebook_direct_oauth',
     tooltip: 'Connect your Facebook page to publish posts and pull engagement analytics directly into URI Social',
   },
   {
@@ -2713,16 +2713,12 @@ const PLATFORMS = [
     label: 'TikTok',
     color: '#010101',
     bg: '#F0F0F0',
-    // TikTok can be connected two ways, offered side by side on this card (see the
-    // two buttons below): through Outstand ('outstand_oauth', the default flow here),
-    // or directly with TikTok login ('tiktok_direct_oauth', /connect/tiktok-direct/*,
-    // with the pending->finalize step on return). Posting follows whichever is
-    // connected — a direct connection posts with the Content Posting API itself,
-    // an Outstand one posts through Outstand — and both go through the Post to
-    // TikTok screen.
-    flow: 'outstand_oauth',
-    tooltip:
-      'Connect your TikTok account to publish images and videos. Choose how: through Outstand, or directly with TikTok login. Posts are sent the way the account is connected.',
+    // Outstand is no longer offered for new connections: TikTok connects with TikTok
+    // login only ('tiktok_direct_oauth', /connect/tiktok-direct/*, with the
+    // pending->finalize step on return). Accounts already connected through Outstand
+    // keep posting that way and are labelled "via Outstand" below.
+    flow: 'tiktok_direct_oauth',
+    tooltip: 'Connect your TikTok account to publish images and videos directly to TikTok.',
   },
   // Ad platforms grouped together at the end (not interleaved with the organic
   // ones above) so the page can show them under their own "Ad Accounts" heading
@@ -4458,33 +4454,34 @@ const ConnectionsPage = ({
                           )}
                         </button>
                       ) : p.id === 'facebook' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleConnect('facebook', 'facebook_direct_oauth')}
+                          disabled={isBusy}
+                          title="Log in with Meta. Posts are sent straight to your Facebook Page."
+                          style={{
+                            padding: '5px 14px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: p.color,
+                            fontSize: 12,
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontFamily: 'var(--wf)',
+                            opacity: isBusy ? 0.5 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {connecting === p.id ? 'Connecting...' : 'Connect'}
+                        </button>
+                      ) : p.id === 'tiktok' ? (
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                           <button
                             type="button"
-                            onClick={() => handleConnect('facebook', 'outstand_oauth')}
+                            onClick={() => handleConnect('tiktok', 'tiktok_direct_oauth')}
                             disabled={isBusy}
-                            title="Connect through Outstand. Posts are sent through Outstand."
-                            style={{
-                              padding: '5px 12px',
-                              borderRadius: 7,
-                              border: '1px solid #edecea',
-                              background: '#fff',
-                              fontSize: 12,
-                              color: '#333',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                              fontFamily: 'var(--wf)',
-                              opacity: isBusy ? 0.5 : 1,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleConnect('facebook', 'facebook_direct_oauth')}
-                            disabled={isBusy}
-                            title="Log in with Meta directly. Posts are sent straight to your Facebook Page."
+                            title="Log in with TikTok directly. Posts are sent straight to TikTok."
                             style={{
                               padding: '5px 12px',
                               borderRadius: 7,
@@ -4499,55 +4496,8 @@ const ConnectionsPage = ({
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {connecting === p.id ? 'Connecting...' : 'Connect with Meta'}
+                            {connecting === p.id ? 'Connecting...' : 'Connect'}
                           </button>
-                        </div>
-                      ) : p.id === 'tiktok' ? (
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleConnect('tiktok', 'outstand_oauth')}
-                            disabled={isBusy}
-                            title="Connect through Outstand. Posts are sent through Outstand."
-                            style={{
-                              padding: '5px 12px',
-                              borderRadius: 7,
-                              border: '1px solid #edecea',
-                              background: '#fff',
-                              fontSize: 12,
-                              color: '#333',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                              fontFamily: 'var(--wf)',
-                              opacity: isBusy ? 0.5 : 1,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {connecting === p.id ? 'Connecting...' : 'Connect via Outstand'}
-                          </button>
-                          {!IS_PRODUCTION && (
-                            <button
-                              type="button"
-                              onClick={() => handleConnect('tiktok', 'tiktok_direct_oauth')}
-                              disabled={isBusy}
-                              title="Log in with TikTok directly. Posts are sent straight to TikTok."
-                              style={{
-                                padding: '5px 12px',
-                                borderRadius: 7,
-                                border: 'none',
-                                background: p.color,
-                                fontSize: 12,
-                                color: '#fff',
-                                cursor: 'pointer',
-                                fontWeight: 600,
-                                fontFamily: 'var(--wf)',
-                                opacity: isBusy ? 0.5 : 1,
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {connecting === p.id ? 'Connecting...' : 'Connect with TikTok login'}
-                            </button>
-                          )}
                         </div>
                       ) : (
                         <button
