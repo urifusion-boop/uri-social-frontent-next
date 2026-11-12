@@ -11075,6 +11075,10 @@ export default function WorkspaceDashboard() {
   }, []);
 
   // Keep URL in sync with nav so that router.push('/workspace/?tab=X') always triggers a URL change.
+  // Overview -> open one running campaign on the Campaigns page (scrolled to + highlighted).
+  const [focusCampaignId, setFocusCampaignId] = useState<string | null>(null);
+  const clearFocusCampaign = useCallback(() => setFocusCampaignId(null), []);
+
   const goTo = useCallback(
     (id: string) => {
       setNav(id);
@@ -12011,9 +12015,20 @@ export default function WorkspaceDashboard() {
         onDraftConsumed={() => setPendingWizardDraft(null)}
         pendingResumeDraft={pendingWizardResumeDraft}
         onResumeDraftConsumed={() => setPendingWizardResumeDraft(null)}
+        focusCampaignId={focusCampaignId}
+        onFocusConsumed={clearFocusCampaign}
       />
     ),
-    'campaign-overview': <CampaignOverviewPage onNavigate={goTo} onResumeDraft={handleResumeDraftFromOverview} />,
+    'campaign-overview': (
+      <CampaignOverviewPage
+        onNavigate={goTo}
+        onResumeDraft={handleResumeDraftFromOverview}
+        onOpenCampaign={(id) => {
+          setFocusCampaignId(id);
+          goTo('campaign-wizard');
+        }}
+      />
+    ),
     'campaign-growth': <CampaignGrowthPage />,
     'campaign-wallet': <CampaignWalletPage />,
     'campaign-revenue': <CampaignRevenuePage />,

@@ -167,8 +167,12 @@ function PageShell({ children, isMobile }: { children: React.ReactNode; isMobile
 export default function CampaignOverviewPage({
   onNavigate,
   onResumeDraft,
+  onOpenCampaign,
 }: {
   onNavigate: (id: string) => void;
+  /** Open this campaign on the Campaigns page (scrolled to and highlighted there),
+   *  where all its actions live. Falls back to just opening Campaigns. */
+  onOpenCampaign?: (campaignId: string) => void;
   /** Lands straight back in the wizard on this exact draft — live-reported:
    *  without this, Resume here only opened the Campaign Builder's list, making
    *  the user click Resume a second time once they got there. */
@@ -179,6 +183,29 @@ export default function CampaignOverviewPage({
   const [error, setError] = useState('');
   const [drafts, setDrafts] = useState<WizardDraft[]>([]);
   const isMobile = useIsMobile();
+  // Pause / Resume straight from "Running now". A paused campaign drops out of this
+  // list on the next load, so its new state is kept here until then (with Resume).
+  const [rowStatus, setRowStatus] = useState<Record<string, 'active' | 'paused'>>({});
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [confirmResume, setConfirmResume] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<Record<string, string>>({});
+
+  const setLive = async (campaignId: string, active: boolean) => {
+    setRowBusy(campaignId);
+    setRowError((e) => ({ ...e, [campaignId]: '' }));
+    try {
+      await CampaignService.setCampaignStatus(campaignId, active);
+      setRowStatus((m) => ({ ...m, [campaignId]: active ? 'active' : 'paused' }));
+      setConfirmResume(null);
+    } catch {
+      setRowError((e) => ({
+        ...e,
+        [campaignId]: active ? "Couldn't resume it. Try again shortly." : "Couldn't pause it. Try again shortly.",
+      }));
+    } finally {
+      setRowBusy(null);
+    }
+  };
 
   const load = useCallback(async () => {
     setError('');
@@ -329,33 +356,101 @@ export default function CampaignOverviewPage({
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {live.map((c) => (
-                  <div key={c.campaign_id} style={{ display: 'flex', gap: 10 }}>
-                    {c.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={c.image_url}
-                        alt=""
-                        style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
-                      />
-                    ) : (
-                      <div style={{ width: 44, height: 44, borderRadius: 10, background: '#f6f3f2', flexShrink: 0 }} />
-                    )}
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#1a0a12' }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: '#7a7270', marginTop: 2 }}>
-                        {naira(c.spent_ngn)} of {naira(c.budget_ngn)} spent
-                        {c.ends_at ? ` · ${daysLeft(c.ends_at)}` : ''}
-                      </div>
-                      {c.people_messaged !== null && (
-                        <div style={{ fontSize: 12, color: '#15803d', marginTop: 2, fontWeight: 600 }}>
-                          {c.people_messaged} {c.people_messaged === 1 ? 'person messaged' : 'people messaged'}
-                        </div>
+                {live.map((c) => {
+                  const paused = rowStatus[c.campaign_id] === 'paused';
+                  const busy = rowBusy === c.campaign_id;
+                  const stop = (e: React.MouseEvent) => e.stopPropagation();
+                  return (
+                    <div
+                      key={c.campaign_id}
+                      role="button"
+                      tabIndex={0}
+                      title="Open this campaign"
+                      onClick={() => (onOpenCampaign ? onOpenCampaign(c.campaign_id) : goToCampaigns())}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') onOpenCampaign ? onOpenCampaign(c.campaign_id) : goToCampaigns();
+                      }}
+                      style={{ display: 'flex', gap: 10, cursor: 'pointer', borderRadius: 10, padding: 4, margin: -4 }}
+                    >
+                      {c.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.image_url}
+                          alt=""
+                          style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
+                        />
+                      ) : (
+                        <div
+                          style={{ width: 44, height: 44, borderRadius: 10, background: '#f6f3f2', flexShrink: 0 }}
+                        />
                       )}
-                      <ProgressBar spent={c.spent_ngn} budget={c.budget_ngn} />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#1a0a12', flex: 1, minWidth: 0 }}>
+                            {c.name}
+                            {paused && (
+                              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: AMBER }}>Paused</span>
+                            )}
+                          </div>
+                          {confirmResume === c.campaign_id ? (
+                            <span onClick={stop} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11.5, color: '#7a7270' }}>Start spending again?</span>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={(e) => {
+                                  stop(e);
+                                  void setLive(c.campaign_id, true);
+                                }}
+                                style={{ ...smallBtn, padding: '4px 10px', opacity: busy ? 0.6 : 1 }}
+                              >
+                                {busy ? 'Resuming…' : 'Yes, resume'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  stop(e);
+                                  setConfirmResume(null);
+                                }}
+                                style={{ ...smallBtn, padding: '4px 10px', color: '#7a7270', borderColor: '#e5e1df' }}
+                              >
+                                Cancel
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={(e) => {
+                                stop(e);
+                                if (paused) setConfirmResume(c.campaign_id);
+                                else void setLive(c.campaign_id, false);
+                              }}
+                              style={{ ...smallBtn, padding: '4px 12px', opacity: busy ? 0.6 : 1 }}
+                            >
+                              {busy ? (paused ? 'Resuming…' : 'Pausing…') : paused ? 'Resume' : 'Pause'}
+                            </button>
+                          )}
+                        </div>
+                        {rowError[c.campaign_id] && (
+                          <div style={{ fontSize: 11.5, color: '#c62828', marginTop: 2 }}>
+                            {rowError[c.campaign_id]}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 12, color: '#7a7270', marginTop: 2 }}>
+                          {naira(c.spent_ngn)} of {naira(c.budget_ngn)} spent
+                          {c.ends_at ? ` · ${daysLeft(c.ends_at)}` : ''}
+                        </div>
+                        {c.people_messaged !== null && (
+                          <div style={{ fontSize: 12, color: '#15803d', marginTop: 2, fontWeight: 600 }}>
+                            {c.people_messaged} {c.people_messaged === 1 ? 'person messaged' : 'people messaged'}
+                          </div>
+                        )}
+                        <ProgressBar spent={c.spent_ngn} budget={c.budget_ngn} />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

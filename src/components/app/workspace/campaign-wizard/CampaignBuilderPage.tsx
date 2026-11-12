@@ -76,6 +76,8 @@ export default function CampaignBuilderPage({
   onDraftConsumed,
   pendingResumeDraft,
   onResumeDraftConsumed,
+  focusCampaignId,
+  onFocusConsumed,
 }: {
   /** "Use in Campaign Builder" from the Creatives library — skip the list and land
    *  straight in the wizard with this draft preloaded, same as before. */
@@ -87,6 +89,10 @@ export default function CampaignBuilderPage({
    *  the user click Resume a second time once they got there). */
   pendingResumeDraft?: WizardDraft | null;
   onResumeDraftConsumed?: () => void;
+  /** A running campaign clicked on the Overview page — scroll its card into view
+   *  and highlight it, so its pause/resume, targeting and other actions are right there. */
+  focusCampaignId?: string | null;
+  onFocusConsumed?: () => void;
 }) {
   const [mode, setMode] = useState<'list' | 'wizard'>(pendingDraft || pendingResumeDraft ? 'wizard' : 'list');
   // Forces a fresh CampaignWizard mount every time "+ New Campaign" is clicked —
@@ -111,6 +117,30 @@ export default function CampaignBuilderPage({
   const [loading, setLoading] = useState(true);
   const loadedOnce = useRef(false);
   const isMobile = useIsMobile();
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // Overview -> "open this campaign": once the list has loaded, bring that card into
+  // view and briefly highlight it.
+  useEffect(() => {
+    if (loading || !focusCampaignId) return;
+    if (!campaigns.some((c) => c.campaign_id === focusCampaignId)) {
+      onFocusConsumed?.();
+      return;
+    }
+    setMode('list');
+    const t1 = window.setTimeout(() => {
+      document
+        .getElementById(`campaign-card-${focusCampaignId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightId(focusCampaignId);
+      onFocusConsumed?.();
+    }, 50);
+    const t2 = window.setTimeout(() => setHighlightId(null), 2600);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [loading, focusCampaignId, campaigns, onFocusConsumed]);
 
   const load = useCallback(async () => {
     if (!loadedOnce.current) setLoading(true);
@@ -392,7 +422,19 @@ export default function CampaignBuilderPage({
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
               {campaigns.map((c) => (
-                <CampaignCard key={c.campaign_id || uid()} c={c} onChanged={load} onDuplicate={duplicate} />
+                <div
+                  key={c.campaign_id || uid()}
+                  id={c.campaign_id ? `campaign-card-${c.campaign_id}` : undefined}
+                  style={{
+                    borderRadius: 14,
+                    outline:
+                      highlightId && highlightId === c.campaign_id ? '2px solid #C2185B' : '2px solid transparent',
+                    outlineOffset: 3,
+                    transition: 'outline-color 0.4s',
+                  }}
+                >
+                  <CampaignCard c={c} onChanged={load} onDuplicate={duplicate} />
+                </div>
               ))}
             </div>
           </>
