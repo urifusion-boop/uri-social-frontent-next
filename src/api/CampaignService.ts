@@ -1021,6 +1021,17 @@ export class CampaignService {
       .data as PlanAdsState;
   }
 
+  /** Where a plan's launch actually stands — the launch request can outlast the
+   *  connection (a TikTok video is re-encoded first), so its own answer isn't final. */
+  static async getPlanStatus(planId: string): Promise<{
+    status: 'pending' | 'launching' | 'launched' | 'expired' | string;
+    campaign_id: string;
+    platform: string;
+    last_launch_error: string;
+  }> {
+    return (await UriHttpClient.getClient().get(`/jane-ads/meta/plan/${planId}/status`)).data;
+  }
+
   static async launchPlan(planId: string, allowOutOfArea = false): Promise<LaunchFromMessageResult> {
     // 4 minutes, matching planFromMessage. A launch does real work on Meta's side
     // (creative upload, then campaign -> ad set -> creative -> ad) and 2 minutes was

@@ -242,6 +242,18 @@ const OBJECTIVE_REPLY_CHIPS = ['Product', 'Service', 'Discount/Promo', 'Event', 
 // unwrapped response (`e.data.detail`). The earlier code only checked the first
 // shape, so every jane-ads error (which comes through the interceptor) silently
 // fell back to the generic text.
+/** The launch request ended without a final answer, but the launch itself may still be
+ *  running (or already done): the connection timed out / dropped / hit the gateway's
+ *  limit, or the server says this plan is already launching or launched. */
+function launchStillRunning(e: unknown): boolean {
+  const err = e as { response?: { status?: number; data?: { detail?: unknown } }; code?: string } | null;
+  const status = err?.response?.status;
+  if (!err?.response) return true; // timeout or dropped connection
+  if (status === 502 || status === 503 || status === 504) return true;
+  const detail = String(err.response.data?.detail ?? '').toLowerCase();
+  return status === 409 && (detail.includes('being launched') || detail.includes('already launched'));
+}
+
 function extractErrorMessage(e: unknown, fallback: string): string {
   const obj = e as { response?: { data?: { detail?: unknown } }; data?: { detail?: unknown } } | null;
   const detail = obj?.response?.data?.detail ?? obj?.data?.detail;
@@ -4093,6 +4105,81 @@ export function ResultCard({
   // now would run Jane's original ad while the screen shows the client's version.
   const [unsavedEdits, setUnsavedEdits] = useState(false);
   const [launchError, setLaunchError] = useState('');
+  // A launch still being worked on server-side (a video ad is prepared first and can
+  // take minutes — longer than the connection lasts). While true the card says so and
+  // follows the plan's real status, instead of calling it failed / "already launched".
+  const [followingLaunch, setFollowingLaunch] = useState(false);
+  const followTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (followTimer.current) clearTimeout(followTimer.current);
+    },
+    []
+  );
+  const followLaunch = (planId: string, startedAt = Date.now()) => {
+    if (followTimer.current) clearTimeout(followTimer.current);
+    setFollowingLaunch(true);
+    setLaunchError('');
+    const tick = async () => {
+      let st: Awaited<ReturnType<typeof CampaignService.getPlanStatus>> | null = null;
+      try {
+        st = await CampaignService.getPlanStatus(planId);
+      } catch {
+        st = null; // a blip — keep following
+      }
+      if (st?.status === 'launched') {
+        setFollowingLaunch(false);
+        window.dispatchEvent(new Event('ad-wallet-changed'));
+        onResultChange({
+          ...result,
+          stage: 'launched',
+          launch: {
+            campaign_id: st.campaign_id,
+            status: 'paused',
+            note: 'It is now with the platform for its usual ad review before it starts showing.',
+            ads_manager_url: '',
+            platform: (st.platform || undefined) as 'tiktok' | 'meta' | 'google' | undefined,
+          },
+        });
+        onLaunched();
+        return;
+      }
+      if (st && st.status !== 'launching') {
+        setFollowingLaunch(false);
+        if (st.status === 'pending') {
+          setLaunchError(
+            st.last_launch_error
+              ? `The launch didn't go through: ${st.last_launch_error} Nothing was charged — you can launch again.`
+              : "The launch didn't go through. Nothing was charged — you can launch again."
+          );
+        } else if (st.status === 'expired') {
+          setLaunchError('This plan has expired — describe the campaign to Jane again to make a fresh one.');
+        }
+        return;
+      }
+      if (Date.now() - startedAt > 15 * 60 * 1000) {
+        setFollowingLaunch(false);
+        setLaunchError(
+          "This is taking longer than usual. Check Campaign Manager → Campaigns in a few minutes — don't launch again, so it isn't created twice."
+        );
+        return;
+      }
+      followTimer.current = setTimeout(() => void tick(), 8000);
+    };
+    void tick();
+  };
+  // Coming back to a plan whose launch is underway or already done (a refresh, a
+  // resumed draft): show where it really stands rather than offering Launch again.
+  useEffect(() => {
+    if (result.stage !== 'planned' || !result.plan_id) return;
+    const planId = result.plan_id;
+    CampaignService.getPlanStatus(planId)
+      .then((st) => {
+        if (st.status === 'launched' || st.status === 'launching') followLaunch(planId);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.plan_id]);
   // Pre-existing rules-of-hooks bug: these two were declared after several early
   // returns below (meta_connection_ads_no_whatsapp, choose_creative_source, etc.),
   // meaning React skipped them whenever an earlier stage matched — moved up here
@@ -4325,7 +4412,7 @@ export function ResultCard({
   if (prompt) return <PromptCard stale={stale}>{prompt}</PromptCard>;
 
   const confirmLaunch = async () => {
-    if (launching || !result.plan_id || launchBlocked) return;
+    if (launching || followingLaunch || !result.plan_id || launchBlocked) return;
     setLaunchError('');
     setLaunching(true);
     try {
@@ -4335,6 +4422,10 @@ export function ResultCard({
       onResultChange(launched);
       onLaunched();
     } catch (e) {
+      if (launchStillRunning(e)) {
+        followLaunch(result.plan_id);
+        return;
+      }
       const msg = extractErrorMessage(e, 'Could not launch this campaign, please try again.');
       setLaunchError(msg);
       // Meta's own pre-flight rejection when the number Jane has on file isn't actually
@@ -4675,7 +4766,7 @@ export function ResultCard({
               )}
               <button
                 onClick={confirmLaunch}
-                disabled={launching || unsavedEdits || launchBlocked}
+                disabled={launching || followingLaunch || unsavedEdits || launchBlocked}
                 title={
                   unsavedEdits
                     ? 'Save your changes first — otherwise the original ad launches'
@@ -4694,13 +4785,17 @@ export function ResultCard({
                   padding: '10px 14px',
                   fontWeight: 700,
                   fontSize: 13,
-                  cursor: launching || unsavedEdits || launchBlocked ? 'default' : 'pointer',
+                  cursor: launching || followingLaunch || unsavedEdits || launchBlocked ? 'default' : 'pointer',
                   background:
-                    launching || unsavedEdits || launchBlocked ? '#eee' : `linear-gradient(135deg,${PINK},#8E1545)`,
-                  color: launching || unsavedEdits || launchBlocked ? '#999' : '#fff',
+                    launching || followingLaunch || unsavedEdits || launchBlocked
+                      ? '#eee'
+                      : `linear-gradient(135deg,${PINK},#8E1545)`,
+                  color: launching || followingLaunch || unsavedEdits || launchBlocked ? '#999' : '#fff',
                 }}
               >
-                {launching ? (
+                {followingLaunch ? (
+                  'Launching… video ads can take a few minutes'
+                ) : launching ? (
                   'Launching…'
                 ) : unsavedEdits ? (
                   'Save your changes first'
@@ -4761,7 +4856,7 @@ export function ResultCard({
               )}
             </div>
           ) : null}
-          {result.stage === 'planned' && result.plan_id && (
+          {result.stage === 'planned' && result.plan_id && !followingLaunch && (
             <PlanReviewPanel
               planId={result.plan_id}
               // TikTok names states and cities, not neighbourhoods, so the pockets Jane
