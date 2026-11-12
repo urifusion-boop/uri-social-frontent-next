@@ -40,7 +40,7 @@ export interface ReferenceImage {
   removeBackground?: boolean;
 }
 
-function friendlyGenerationError(msg?: string): string {
+function friendlyGenerationError(msg?: string, showSpecific = false): string {
   if (!msg) return 'Something went wrong — if the issue persists, contact support.';
   const lower = msg.toLowerCase();
   if (
@@ -53,7 +53,24 @@ function friendlyGenerationError(msg?: string): string {
     lower.includes('timed out')
   )
     return 'We are experiencing high demand right now, please try again in a few minutes — if the issue persists, contact support.';
+  // Upload's server messages are written to be shown (e.g. "Unsupported file type:
+  // image/heic. Use PNG, JPG, WEBP, MP4, MOV.") and tell the person what to fix.
+  if (showSpecific) return /contact support/i.test(msg) ? msg : `${msg} — if the issue persists, contact support.`;
   return 'Something went wrong — if the issue persists, contact support.';
+}
+
+/** What to tell the person when the upload never got an answer — the connection dropped
+ *  mid-upload or the browser gave up waiting. Those never reach the server's logs, so a
+ *  vague "something went wrong" left nothing to go on. */
+export function uploadTransportError(err: unknown): string | null {
+  const e = err as { response?: unknown; code?: string; message?: string };
+  if (!e || e.response) return null;
+  const msg = (e.message || '').toLowerCase();
+  if (e.code === 'ECONNABORTED' || e.code === 'ETIMEDOUT' || msg.includes('timeout'))
+    return 'This is taking longer than usual. Your caption may still appear in Content Library in a minute — check there before trying again.';
+  if (e.code === 'ERR_NETWORK' || msg.includes('network'))
+    return "Your upload didn't reach us — check your internet connection and try again. Large videos upload faster on Wi-Fi.";
+  return null;
 }
 
 // Everything ContentGeneratorForm.tsx owns, ported as a hook so the wizard's
@@ -262,15 +279,19 @@ export function useContentWizardState(requireEmailVerification: (callback?: () =
           posthog.capture('out_of_credits', { source: 'upload_content' });
           setOutOfCreditsOpen(true);
         } else {
-          ToastService.showToast(friendlyGenerationError(response.responseMessage), ToastTypeEnum.Error);
+          ToastService.showToast(friendlyGenerationError(response.responseMessage, true), ToastTypeEnum.Error);
         }
       }
     } catch (err: unknown) {
-      const error = err as { response?: { status?: number; data?: { responseMessage?: string } } };
+      const error = err as { response?: { status?: number; data?: { responseMessage?: string; detail?: string } } };
       if (error?.response?.status === 402) {
         setOutOfCreditsOpen(true);
       } else {
-        ToastService.showToast(friendlyGenerationError(error?.response?.data?.responseMessage), ToastTypeEnum.Error);
+        const message = error?.response?.data?.responseMessage || error?.response?.data?.detail;
+        ToastService.showToast(
+          uploadTransportError(err) ?? friendlyGenerationError(message, true),
+          ToastTypeEnum.Error
+        );
       }
     } finally {
       setLoading(false);
