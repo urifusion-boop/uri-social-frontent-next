@@ -28,6 +28,7 @@ import {
   deleteWizardDraft,
   fetchRemoteWizardDrafts,
   loadWizardDrafts,
+  pruneLaunchedDrafts,
   mergeWizardDrafts,
   WizardDraft,
 } from './wizardDraft';
@@ -59,12 +60,25 @@ export function platformLabel(draft: WizardDraft): string {
 
 /** The first generated image this draft has, if Jane got that far — a photo
  *  does more to say "this is the ad you already built" than any text summary. */
-export function draftThumbnail(draft: WizardDraft): string | undefined {
-  if (draft.results?.single?.creative?.image_url) return draft.results.single.creative.image_url;
+function draftCreative(draft: WizardDraft) {
+  if (draft.results?.single?.creative?.image_url) return draft.results.single.creative;
   for (const r of Object.values(draft.results?.multi ?? {})) {
-    if (r?.creative?.image_url) return r.creative.image_url;
+    if (r?.creative?.image_url) return r.creative;
   }
   return undefined;
+}
+
+/** True when the draft's media is a video — an <img> can't show one (it rendered as a
+ *  broken-image icon), so callers show a video placeholder instead. */
+export function draftIsVideo(draft: WizardDraft): boolean {
+  const c = draftCreative(draft);
+  return Boolean(c && (c.is_video || /\.(mov|mp4|m4v|webm)(\?|$)/i.test(c.image_url ?? '')));
+}
+
+/** An image to show for the draft — never a video URL (see draftIsVideo). */
+export function draftThumbnail(draft: WizardDraft): string | undefined {
+  if (draftIsVideo(draft)) return undefined;
+  return draftCreative(draft)?.image_url ?? undefined;
 }
 
 export function draftHasPlan(draft: WizardDraft): boolean {
@@ -167,6 +181,18 @@ export default function CampaignBuilderPage({
     // right after, so this can't re-fire from its own effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingResumeDraft]);
+
+  // Drop drafts whose plans already launched (a launch that finished after the page
+  // stopped waiting never cleared its draft). Each draft is checked once per visit.
+  const draftsChecked = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const fresh = drafts.filter((d) => !draftsChecked.current.has(d.id));
+    if (!fresh.length) return;
+    fresh.forEach((d) => draftsChecked.current.add(d.id));
+    void pruneLaunchedDrafts(fresh).then((gone) => {
+      if (gone.length) setDrafts((current) => current.filter((d) => !gone.includes(d.id)));
+    });
+  }, [drafts]);
 
   useEffect(() => {
     if (mode !== 'list') return;
@@ -305,7 +331,7 @@ export default function CampaignBuilderPage({
                           }}
                           aria-hidden
                         >
-                          📣
+                          {draftIsVideo(d) ? '🎬' : '📣'}
                         </div>
                       )}
                       <div style={{ minWidth: 0, flex: 1 }}>

@@ -13,15 +13,16 @@
  * side by side instead of a single column of near-identical cards.
  */
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileEdit, Megaphone, MessageCircle, Sparkles, Wallet as WalletIcon } from 'lucide-react';
 import { useIsMobile } from '@/src/hooks/useIsMobile';
 import { CampaignService, type DashboardHome } from '@/src/api/CampaignService';
-import { draftHasPlan, draftThumbnail, platformLabel } from './CampaignBuilderPage';
+import { draftHasPlan, draftIsVideo, draftThumbnail, platformLabel } from './CampaignBuilderPage';
 import {
   deleteWizardDraft,
   fetchRemoteWizardDrafts,
   loadWizardDrafts,
+  pruneLaunchedDrafts,
   mergeWizardDrafts,
   WizardDraft,
 } from './wizardDraft';
@@ -230,6 +231,18 @@ export default function CampaignOverviewPage({
       setLoading(false);
     }
   }, []);
+
+  // Drop drafts whose plans already launched (a launch that finished after the page
+  // stopped waiting never cleared its draft). Each draft is checked once per visit.
+  const draftsChecked = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const fresh = drafts.filter((d) => !draftsChecked.current.has(d.id));
+    if (!fresh.length) return;
+    fresh.forEach((d) => draftsChecked.current.add(d.id));
+    void pruneLaunchedDrafts(fresh).then((gone) => {
+      if (gone.length) setDrafts((current) => current.filter((d) => !gone.includes(d.id)));
+    });
+  }, [drafts]);
 
   useEffect(() => {
     void load();
@@ -484,7 +497,22 @@ export default function CampaignOverviewPage({
                           style={{ width: 36, height: 36, borderRadius: 9, objectFit: 'cover', flexShrink: 0 }}
                         />
                       ) : (
-                        <div style={{ width: 36, height: 36, borderRadius: 9, background: '#FCE7F3', flexShrink: 0 }} />
+                        <div
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 9,
+                            background: '#FCE7F3',
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 17,
+                          }}
+                          aria-hidden
+                        >
+                          {draftIsVideo(d) ? '🎬' : '📣'}
+                        </div>
                       )}
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1a0a12' }}>
