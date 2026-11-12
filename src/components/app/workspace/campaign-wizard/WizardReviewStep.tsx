@@ -172,7 +172,8 @@ function RecapStrip({
               border: '1px solid #ece8e6',
               borderRadius: 999,
               padding: '3px 10px',
-              whiteSpace: 'nowrap',
+              maxWidth: '100%',
+              overflowWrap: 'anywhere',
             }}
           >
             {it}

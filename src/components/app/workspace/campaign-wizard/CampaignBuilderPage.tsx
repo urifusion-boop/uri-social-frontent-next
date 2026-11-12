@@ -420,7 +420,9 @@ export default function CampaignBuilderPage({
                 Refresh
               </button>
             </div>
-            <div style={{ display: 'grid', gap: 12 }}>
+            {/* minmax(0, 1fr): one long unbreakable value (a link, an area list) must never
+                widen the column past the screen on a phone. */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
               {campaigns.map((c) => (
                 <div
                   key={c.campaign_id || uid()}
