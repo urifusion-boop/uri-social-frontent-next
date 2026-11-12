@@ -281,7 +281,7 @@ export default function CampaignBuilderPage({
                       padding: '12px 16px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
                       {thumb ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -298,8 +298,15 @@ export default function CampaignBuilderPage({
                             background: '#fff',
                             border: '1px solid #f5c2d8',
                             flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 20,
                           }}
-                        />
+                          aria-hidden
+                        >
+                          📣
+                        </div>
                       )}
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1a0a12' }}>
