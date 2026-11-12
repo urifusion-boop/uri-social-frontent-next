@@ -4559,6 +4559,11 @@ const ConnectionsPage = ({
                         {(s?.accounts ?? []).map((account, idx) => {
                           const accountKey = account.outstand_account_id || account.id || String(idx);
                           const rowBusy = disconnecting === `${p.id}:${accountKey}`;
+                          // Outstand is no longer used, so an account still connected through
+                          // it can't publish — prompt a direct reconnect (Meta / TikTok login).
+                          const viaOutstand =
+                            (p.id === 'tiktok' || p.id === 'facebook') &&
+                            !account.connected_via?.startsWith(`${p.id}_direct`);
                           return (
                             <div
                               key={accountKey}
@@ -4585,6 +4590,19 @@ const ConnectionsPage = ({
                                       : 'via Outstand'}
                                   </span>
                                 )}
+                                {viaOutstand && (
+                                  <span
+                                    style={{
+                                      display: 'block',
+                                      color: '#a15c00',
+                                      fontWeight: 600,
+                                      fontSize: 11.5,
+                                      marginTop: 2,
+                                    }}
+                                  >
+                                    Connected through Outstand, which URI no longer uses — reconnect to keep publishing.
+                                  </span>
+                                )}
                                 {/* is_active is only ever explicitly false when Outstand itself
                                   has flagged this connection unhealthy — undefined/null means
                                   Outstand didn't report a status at all and must not be shown
@@ -4593,6 +4611,33 @@ const ConnectionsPage = ({
                                   <span style={{ color: '#c62828', fontWeight: 700 }}> — needs reconnecting</span>
                                 )}
                               </span>
+                              {viaOutstand && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleConnect(
+                                      p.id,
+                                      p.id === 'tiktok' ? 'tiktok_direct_oauth' : 'facebook_direct_oauth'
+                                    )
+                                  }
+                                  disabled={isBusy}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: 6,
+                                    border: 'none',
+                                    background: p.color,
+                                    fontSize: 11.5,
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    fontFamily: 'var(--wf)',
+                                    opacity: isBusy ? 0.5 : 1,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  Reconnect
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() =>
