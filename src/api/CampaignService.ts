@@ -1058,12 +1058,26 @@ export class CampaignService {
   /** Upload the user's own photo or video to use as the campaign media. */
   static async uploadMedia(file: File): Promise<{ url: string; is_video: boolean }> {
     if (file.type.startsWith('video/')) {
-      return { url: await CampaignService.uploadVideoDirect(file), is_video: true };
+      try {
+        return { url: await CampaignService.uploadVideoDirect(file), is_video: true };
+      } catch (direct) {
+        // The browser can be barred from uploading straight to storage (e.g. the page is
+        // on www.urisocial.com and storage only lists urisocial.com) — that shows up as a
+        // network error, never reaching storage at all. Our own API takes the same video.
+        if ((direct as Error)?.message?.startsWith('Video must be under')) throw direct;
+        console.warn('[uploadMedia] direct video upload failed, sending through API', direct);
+        return CampaignService.uploadViaApi(file, 600000);
+      }
     }
+    return CampaignService.uploadViaApi(file);
+  }
+
+  private static async uploadViaApi(file: File, timeout?: number): Promise<{ url: string; is_video: boolean }> {
     const form = new FormData();
     form.append('file', file);
     const res = await UriHttpClient.getClient().post('/jane-ads/creative/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      ...(timeout ? { timeout } : {}),
     });
     return res.data as { url: string; is_video: boolean };
   }
