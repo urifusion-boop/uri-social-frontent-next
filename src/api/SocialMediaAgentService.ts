@@ -1959,6 +1959,13 @@ export interface PerformancePost {
   impressions: number;
   reach: number;
   engagement_rate: number;
+  // Present when the platform reports them (Instagram saves, Facebook link clicks) or the post
+  // could be matched to its live post (TikTok / Instagram / Facebook direct connections).
+  saves?: number;
+  clicks?: number;
+  post_url?: string | null;
+  cover_url?: string | null;
+  duration?: number | null;
 }
 
 export interface PerformancePlatformSummary {
@@ -1969,6 +1976,25 @@ export interface PerformancePlatformSummary {
   comments: number;
   shares: number;
   avg_engagement_rate: number;
+  views?: number;
+  saves?: number;
+}
+
+// One connected account's share of the range (a brand can have several Instagram accounts,
+// Facebook Pages or TikTok accounts). `account_id` is null for posts whose account could not be
+// told, which the backend groups as "unattributed" rather than guessing.
+export interface PerformanceAccountSummary extends PerformancePlatformSummary {
+  account_id: string | null;
+  account_name: string;
+  platform: string;
+}
+
+// Something the user can fix to get fuller numbers — e.g. a TikTok connection made before
+// analytics access was requested has to be reconnected once.
+export interface PerformanceNotice {
+  platform: string;
+  code: string;
+  message: string;
 }
 
 export interface PerformanceData {
@@ -1983,12 +2009,15 @@ export interface PerformanceData {
     total_comments: number;
     total_shares: number;
     total_views: number;
+    total_saves?: number;
     avg_engagement_rate: number;
     insights_available?: boolean;
     insights_note?: string | null;
   };
   by_platform: Record<string, PerformancePlatformSummary>;
+  by_account?: PerformanceAccountSummary[];
   top_posts: PerformancePost[];
+  notices?: PerformanceNotice[];
 }
 
 export interface VideoIdea {
@@ -2186,19 +2215,57 @@ export interface AccountMetricItem {
   following_count: number | null;
   posts_count: number | null;
   engagement: {
-    views: number;
-    likes: number;
-    comments: number;
-    shares: number;
-    reposts: number;
-    quotes: number;
+    views: number | null;
+    likes: number | null;
+    comments: number | null;
+    shares: number | null;
+    reposts: number | null;
+    quotes: number | null;
+    // Direct Meta / TikTok connections add these (each only where the platform reports it).
+    reach?: number | null;
+    profile_views?: number | null;
+    saves?: number | null;
+    accounts_engaged?: number | null;
+    profile_link_taps?: number | null;
+    post_engagements?: number | null;
+    new_follows?: number | null;
+    videos_in_period?: number | null;
   } | null;
   engagement_note?: string;
-  platform_specific: Record<string, unknown>;
+  // TikTok direct: the connection predates analytics access and must be reconnected once.
+  needs_reconnect?: boolean;
+  platform_specific: AccountPlatformSpecific;
   period: {
     since: number;
     until: number;
   };
+}
+
+export interface DailyPoint {
+  date: string;
+  value: number;
+}
+
+export interface TikTokRecentVideo {
+  id: string;
+  title: string;
+  cover_url?: string | null;
+  share_url?: string | null;
+  created_at?: number;
+  duration?: number | null;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+}
+
+export interface AccountPlatformSpecific {
+  profile_picture_url?: string | null;
+  daily_reach?: DailyPoint[];
+  daily_views?: DailyPoint[];
+  total_likes_received?: number | null;
+  recent_videos?: TikTokRecentVideo[];
+  [key: string]: unknown;
 }
 
 export interface AccountMetricsData {
