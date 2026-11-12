@@ -1,5 +1,6 @@
 'use client';
 
+import { isComingSoonPlatform, withoutComingSoon } from '@/src/constants/comingSoonPlatforms';
 import { useEffect, useRef, useState } from 'react';
 import posthog from 'posthog-js';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
@@ -69,7 +70,8 @@ export function useContentWizardState(requireEmailVerification: (callback?: () =
   const platformsTouched = useRef(false);
   useEffect(() => {
     BrandProfileService.getTargetPlatformKeys().then((keys) => {
-      if (keys.length && !platformsTouched.current) setSelectedPlatforms(keys);
+      const usable = withoutComingSoon(keys);
+      if (usable.length && !platformsTouched.current) setSelectedPlatforms(usable);
     });
   }, []);
 
@@ -77,8 +79,8 @@ export function useContentWizardState(requireEmailVerification: (callback?: () =
     const handed = takeContentSeed();
     if (!handed?.seed) return;
     setSeedContent(handed.seed);
-    const known = handed.platforms?.filter((p) =>
-      ['facebook', 'instagram', 'linkedin', 'twitter', 'tiktok'].includes(p)
+    const known = handed.platforms?.filter(
+      (p) => ['facebook', 'instagram', 'linkedin', 'twitter', 'tiktok'].includes(p) && !isComingSoonPlatform(p)
     );
     if (known?.length) {
       platformsTouched.current = true;
@@ -329,6 +331,7 @@ export function useContentWizardState(requireEmailVerification: (callback?: () =
 
   const togglePlatform = (key: string) => {
     platformsTouched.current = true;
+    if (isComingSoonPlatform(key)) return;
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
   };
 

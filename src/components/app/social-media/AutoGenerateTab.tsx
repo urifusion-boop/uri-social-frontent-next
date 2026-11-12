@@ -1,5 +1,6 @@
 'use client';
 
+import { isComingSoonPlatform, withoutComingSoon } from '@/src/constants/comingSoonPlatforms';
 import { AutoGenerateSettings, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
 import { ToastService } from '@/src/utils/toast.util';
@@ -42,7 +43,9 @@ interface AutoGenerateTabProps {
 
 const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDrafts }: AutoGenerateTabProps) => {
   const [enabled, setEnabled] = useState(settings?.enabled ?? false);
-  const [platforms, setPlatforms] = useState<string[]>(settings?.platforms ?? ['facebook', 'instagram']);
+  const [platforms, setPlatforms] = useState<string[]>(
+    withoutComingSoon(settings?.platforms ?? ['facebook', 'instagram'])
+  );
   const [frequency, setFrequency] = useState<'daily' | 'weekly'>(settings?.frequency ?? 'daily');
   const [includeImages, setIncludeImages] = useState(settings?.include_images ?? false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -60,8 +63,10 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
   const autoPublishes = ['auto', 'auto-publish', 'auto publish', 'hybrid'].includes(playbookApproval);
   const [triggering, setTriggering] = useState(false);
 
-  const togglePlatform = (key: string) =>
+  const togglePlatform = (key: string) => {
+    if (isComingSoonPlatform(key)) return;
     setPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
+  };
 
   const handleSaveSettings = async () => {
     if (platforms.length === 0) {
@@ -184,11 +189,13 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
         <Box display="flex" flexWrap="wrap" gap={1} mb={2.5}>
           {PLATFORMS.map(({ key, label, color, icon: Icon }) => {
             const selected = platforms.includes(key);
+            const soon = isComingSoonPlatform(key);
             const chip = (
               <button
                 key={key}
                 type="button"
-                disabled={!enabled}
+                disabled={!enabled || soon}
+                title={soon ? 'Coming soon' : undefined}
                 onClick={() => togglePlatform(key)}
                 style={{
                   display: 'flex',
@@ -202,13 +209,14 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
                   fontSize: 13,
                   fontWeight: selected ? 700 : 500,
                   fontFamily: 'var(--wf)',
-                  cursor: enabled ? 'pointer' : 'not-allowed',
-                  opacity: enabled ? 1 : 0.5,
+                  cursor: enabled && !soon ? 'pointer' : 'not-allowed',
+                  opacity: enabled && !soon ? 1 : 0.5,
                   transition: 'all .15s',
                 }}
               >
                 <Icon size={14} color={selected ? color : '#9CA3AF'} />
                 {label}
+                {soon && <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF' }}>· Coming soon</span>}
               </button>
             );
             return key === 'tiktok' ? (

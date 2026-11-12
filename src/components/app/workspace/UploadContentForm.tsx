@@ -1,5 +1,6 @@
 'use client';
 
+import { isComingSoonPlatform, withoutComingSoon } from '@/src/constants/comingSoonPlatforms';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { BillingService } from '@/src/api/BillingService';
 import posthog from 'posthog-js';
@@ -93,7 +94,8 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
   const platformsTouched = useRef(false);
   useEffect(() => {
     BrandProfileService.getTargetPlatformKeys().then((keys) => {
-      if (keys.length && !platformsTouched.current) setSelectedPlatforms(keys);
+      const usable = withoutComingSoon(keys);
+      if (usable.length && !platformsTouched.current) setSelectedPlatforms(usable);
     });
   }, []);
   const [loading, setLoading] = useState(false);
@@ -202,6 +204,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
 
   const togglePlatform = (key: string) => {
     platformsTouched.current = true;
+    if (isComingSoonPlatform(key)) return;
     setSelectedPlatforms((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]));
   };
 
@@ -779,6 +782,7 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
           {PLATFORMS.map((platform) => (
             <FormControlLabel
               key={platform.key}
+              disabled={isComingSoonPlatform(platform.key)}
               control={
                 <Checkbox
                   checked={selectedPlatforms.includes(platform.key)}
@@ -793,6 +797,9 @@ const UploadContentForm = ({ onGenerated, requireEmailVerification }: UploadCont
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                   {platform.icon}
                   <Typography sx={{ fontSize: 13 }}>{platform.label}</Typography>
+                  {isComingSoonPlatform(platform.key) && (
+                    <Typography sx={{ fontSize: 11, color: '#9CA3AF' }}>· Coming soon</Typography>
+                  )}
                 </Box>
               }
             />

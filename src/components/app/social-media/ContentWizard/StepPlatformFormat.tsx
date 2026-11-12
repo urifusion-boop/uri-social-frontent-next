@@ -1,5 +1,6 @@
 'use client';
 
+import { isComingSoonPlatform } from '@/src/constants/comingSoonPlatforms';
 import { Box, Typography } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { FaFacebook, FaInstagram, FaLinkedin, FaTiktok, FaTwitter } from 'react-icons/fa';
@@ -139,6 +140,8 @@ export default function StepPlatformFormat({ wizard }: { wizard: ContentWizardSt
             icon={PLATFORM_BADGE[key].icon}
             iconBg={PLATFORM_BADGE[key].bg}
             label={label}
+            subtitle={isComingSoonPlatform(key) ? 'Coming soon' : undefined}
+            disabled={isComingSoonPlatform(key)}
             active={wizard.selectedPlatforms.includes(key)}
             onClick={() => wizard.togglePlatform(key)}
           />
