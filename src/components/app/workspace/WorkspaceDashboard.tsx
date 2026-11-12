@@ -4117,7 +4117,7 @@ const ConnectionsPage = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {/* WhatsApp connect isn't in use right now — hidden in production only,
              left visible in dev/staging so it can still be tested there. */}
-          {PLATFORMS.filter((p) => !((p.id === 'whatsapp' || p.id === 'google_ads') && IS_PRODUCTION)).map((p) => {
+          {PLATFORMS.filter((p) => !(p.id === 'whatsapp' && IS_PRODUCTION)).map((p) => {
             const s = statuses[p.id];
             const linked = s?.linked ?? false;
             const isBusy = disconnecting === p.id || connecting === p.id;
