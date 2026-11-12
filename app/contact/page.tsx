@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useEffect } from 'react';
 import { ScrollReveal } from '@/components/ScrollReveal';
 import { Mail, MapPin } from 'lucide-react';
+import { PublicFormsService } from '@/src/api/PublicFormsService';
 
 const contacts = [
   { label: 'General', email: 'hello@urisocial.com' },
@@ -14,7 +15,33 @@ const contacts = [
 ];
 
 const Contact = () => {
-  const [formData, setFormData] = useState({ name: '', email: '', subject: 'General Inquiry', message: '' });
+  const emptyForm = { name: '', email: '', subject: 'General Inquiry', message: '' };
+  const [formData, setFormData] = useState(emptyForm);
+  const [honeypot, setHoneypot] = useState('');
+  const [sending, setSending] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (sending) return;
+    setSending(true);
+    setFeedback(null);
+    try {
+      const res = await PublicFormsService.sendContactMessage({ ...formData, website: honeypot });
+      setFeedback({ ok: true, text: res.responseMessage || 'Message sent.' });
+      setFormData(emptyForm);
+    } catch (err) {
+      setFeedback({
+        ok: false,
+        text: PublicFormsService.errorMessage(
+          err,
+          "We couldn't send your message. Please try again, or email hello@urisocial.com."
+        ),
+      });
+    } finally {
+      setSending(false);
+    }
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -188,13 +215,26 @@ const Contact = () => {
                 <h3 className="text-base font-black uppercase mb-6" style={{ color: 'hsl(330 40% 7%)' }}>
                   Send a message
                 </h3>
-                <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                <form className="space-y-4" onSubmit={handleSubmit}>
+                  {/* Honeypot: invisible to people, bots fill it in and get dropped server-side. */}
+                  <input
+                    type="text"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                    style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
+                  />
                   <div>
                     <label className="text-sm font-black uppercase block mb-1" style={{ color: 'hsl(330 40% 7%)' }}>
                       Name
                     </label>
                     <input
                       type="text"
+                      required
+                      maxLength={100}
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="w-full rounded-lg px-4 py-2.5 text-sm font-bold focus:outline-none"
@@ -213,6 +253,7 @@ const Contact = () => {
                     </label>
                     <input
                       type="email"
+                      required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="w-full rounded-lg px-4 py-2.5 text-sm font-bold focus:outline-none"
@@ -254,6 +295,8 @@ const Contact = () => {
                     </label>
                     <textarea
                       rows={5}
+                      required
+                      maxLength={5000}
                       value={formData.message}
                       onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                       className="w-full rounded-lg px-4 py-2.5 text-sm font-bold resize-none focus:outline-none"
@@ -266,9 +309,19 @@ const Contact = () => {
                       onBlur={(e) => (e.target.style.borderColor = 'hsl(330 40% 7%)')}
                     />
                   </div>
+                  {feedback && (
+                    <p
+                      role={feedback.ok ? 'status' : 'alert'}
+                      className="text-sm font-bold"
+                      style={{ color: feedback.ok ? 'hsl(142 60% 28%)' : 'hsl(0 70% 45%)' }}
+                    >
+                      {feedback.text}
+                    </p>
+                  )}
                   <button
                     type="submit"
-                    className="px-6 py-3 rounded-lg text-sm w-full font-bold uppercase transition-all"
+                    disabled={sending}
+                    className="px-6 py-3 rounded-lg text-sm w-full font-bold uppercase transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{
                       backgroundColor: 'hsl(340 74% 42%)',
                       color: 'hsl(0 0% 100%)',
@@ -293,7 +346,7 @@ const Contact = () => {
                       e.currentTarget.style.transform = 'translate(0, 0)';
                     }}
                   >
-                    Send Message →
+                    {sending ? 'Sending…' : 'Send Message →'}
                   </button>
                 </form>
               </div>
