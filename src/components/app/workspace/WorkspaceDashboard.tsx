@@ -11098,6 +11098,15 @@ export default function WorkspaceDashboard() {
     tab: 'create',
     seq: 0,
   });
+
+  // Mobile sub-menu tab row: bring the current page's tab into view when the page changes.
+  useEffect(() => {
+    if (!isMobile) return;
+    const id = window.requestAnimationFrame(() => {
+      document.querySelector('[data-subnav-active="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [nav, isMobile, contentStudioNav]);
   const goToContentStudioTab = useCallback(
     (tab: ContentTab) => {
       setContentStudioNav((prev) => ({ tab, seq: prev.seq + 1 }));
@@ -12917,6 +12926,50 @@ export default function WorkspaceDashboard() {
               creditsRemaining={userDetails.trialCreditsRemaining ?? 0}
               onDismiss={() => setTrialEndingDismissed(true)}
             />
+          )}
+
+          {/* Mobile: the current section's sub-pages as an always-visible, scrollable tab
+              row (same list the desktop sidebar and the title drawer use), so nobody has
+              to discover that the page title opens a menu. */}
+          {isMobile && activeSection && (SECTION_META[activeSection]?.subNav.length ?? 0) > 1 && (
+            <div
+              className="tab-scroll"
+              style={{
+                display: 'flex',
+                gap: 8,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                padding: '8px 14px',
+                background: '#fff',
+                borderBottom: '1px solid #f0eeea',
+                flexShrink: 0,
+              }}
+            >
+              {SECTION_META[activeSection].subNav.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  data-subnav-active={n.active ? 'true' : undefined}
+                  onClick={n.onClick}
+                  style={{
+                    flexShrink: 0,
+                    padding: '7px 14px',
+                    borderRadius: 999,
+                    border: n.active ? 'none' : '1px solid #E5E7EB',
+                    background: n.active ? '#C2185B' : '#fff',
+                    color: n.active ? '#fff' : '#4B5563',
+                    fontSize: 12.5,
+                    fontWeight: n.active ? 700 : 600,
+                    fontFamily: 'var(--wf)',
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {n.label}
+                </button>
+              ))}
+            </div>
           )}
 
           {/* Page content */}
