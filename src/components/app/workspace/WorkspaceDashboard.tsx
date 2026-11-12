@@ -2783,11 +2783,6 @@ const ConnectionsPage = ({
   // Google Ads account-selection panel (needs_account_selection state) — the extra
   // step Meta's ads connection doesn't have: after OAuth, the brand still has to
   // link an existing Google Ads account or create one fresh under URI's MCC.
-  const [googleAccountChoice, setGoogleAccountChoice] = useState<'none' | 'existing' | 'create'>('none');
-  const [googleCustomerIdInput, setGoogleCustomerIdInput] = useState('');
-  const [googleAccountNameInput, setGoogleAccountNameInput] = useState('');
-  const [googleAccountSubmitting, setGoogleAccountSubmitting] = useState(false);
-  const [googleAccountError, setGoogleAccountError] = useState('');
 
   // Facebook/Instagram OAuth callback state
   const [phase, setPhase] = useState<'idle' | 'pending' | 'finalizing'>('idle');
@@ -3465,44 +3460,6 @@ const ConnectionsPage = ({
       }
     } finally {
       setConnecting(null);
-    }
-  };
-
-  const handleGoogleLinkExisting = async () => {
-    if (!googleCustomerIdInput.trim()) return;
-    setGoogleAccountError('');
-    setGoogleAccountSubmitting(true);
-    try {
-      const res = await CampaignService.googleLinkExistingAccount(googleCustomerIdInput.trim());
-      if (res.manager_link_status === 'refused') {
-        setGoogleAccountError(res.detail || 'That account is already linked to another manager.');
-      } else {
-        ToastService.showToast('Link request sent — accept it in your Google Ads account.', ToastTypeEnum.Success);
-        setGoogleAccountChoice('none');
-        setGoogleCustomerIdInput('');
-        loadStatuses();
-      }
-    } catch {
-      setGoogleAccountError('Could not send the link request. Check the account ID and try again.');
-    } finally {
-      setGoogleAccountSubmitting(false);
-    }
-  };
-
-  const handleGoogleCreateAccount = async () => {
-    if (!googleAccountNameInput.trim()) return;
-    setGoogleAccountError('');
-    setGoogleAccountSubmitting(true);
-    try {
-      await CampaignService.googleCreateAccount(googleAccountNameInput.trim());
-      ToastService.showToast('Google Ads account created!', ToastTypeEnum.Success);
-      setGoogleAccountChoice('none');
-      setGoogleAccountNameInput('');
-      loadStatuses();
-    } catch {
-      setGoogleAccountError('Could not create the account. Please try again.');
-    } finally {
-      setGoogleAccountSubmitting(false);
     }
   };
 
@@ -12967,12 +12924,6 @@ export default function WorkspaceDashboard() {
                   campaign debits it. Hidden on mobile, where header room is tight and
                   the credit badge is the one that must survive. */}
               {!isMobile && <WorkspaceAdWalletBadge onClick={() => goTo('campaign-wallet')} />}
-
-              {/* Ad wallet balance — a different currency from credits (this funds real
-                  ad spend), and it now moves during normal use because launching a
-                  campaign debits it. Hidden on mobile, where header room is tight and
-                  the credit badge is the one that must survive. */}
-              {!isMobile && <WorkspaceAdWalletBadge onClick={() => goTo('campaigns')} />}
 
               {/* Profile Dropdown */}
               <WorkspaceProfileDropdown onNavigate={goTo} onLogout={logoutUser} />
