@@ -3668,7 +3668,7 @@ const ConnectionsPage = ({
           </div>
           <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
             {pickerPlatform === 'facebook'
-              ? 'You manage more than one Facebook Page — select the one(s) you want to post to.'
+              ? 'Select the Facebook Page(s) you want to post to.'
               : 'More than one of your Facebook Pages has a linked Instagram Business account — select one or more to connect.'}{' '}
             {
               'Don\u2019t see one? Tap Connect again and choose \u201cEdit access\u201d on Facebook\u2019s screen to share it.'
