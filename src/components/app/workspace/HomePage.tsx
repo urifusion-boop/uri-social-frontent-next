@@ -6,6 +6,7 @@ import { useAuth } from '@/src/providers/AuthProvider';
 import { SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { CampaignService } from '@/src/api/CampaignService';
 import { InboxService } from '@/src/api/InboxService';
+import { IS_PRODUCTION } from '@/src/configs/env.config';
 
 type PeriodDays = 7 | 30;
 
@@ -286,7 +287,8 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           marginBottom: 20,
         }}
       >
-        {QUICK_ACTIONS.map((action) => {
+        {/* Messages is hidden on prod. */}
+        {QUICK_ACTIONS.filter((a) => !(IS_PRODUCTION && a.id === 'messages')).map((action) => {
           const Icon = action.icon;
           return (
             <button
@@ -398,52 +400,60 @@ export default function HomePage({ onNavigate }: { onNavigate: (id: string) => v
           <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12.5, color: '#9CA3AF' }}>Loading…</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
-            {tiles.map((tile) => {
-              const Icon = tile.icon;
-              return (
-                <div
-                  key={tile.label}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 10,
-                    border: '1px solid #EDECEA',
-                    borderRadius: 14,
-                    padding: 18,
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        background: tile.bg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 11,
-                      }}
-                    >
-                      <Icon size={15} color={tile.color} />
-                    </div>
-                    <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6, whiteSpace: 'nowrap' }}>
-                      {tile.label}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-                      <span
-                        style={{ fontSize: 22, fontWeight: 800, color: '#1A1523', fontVariantNumeric: 'tabular-nums' }}
+            {tiles
+              // Customer Messages is hidden on prod, so its stat tile is too.
+              .filter((tile) => !(IS_PRODUCTION && tile.label === 'Customer Messages'))
+              .map((tile) => {
+                const Icon = tile.icon;
+                return (
+                  <div
+                    key={tile.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      border: '1px solid #EDECEA',
+                      borderRadius: 14,
+                      padding: 18,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          background: tile.bg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: 11,
+                        }}
                       >
-                        {tile.value}
-                      </span>
-                      <InlineTrend value={tile.change} />
+                        <Icon size={15} color={tile.color} />
+                      </div>
+                      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 6, whiteSpace: 'nowrap' }}>
+                        {tile.label}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+                        <span
+                          style={{
+                            fontSize: 22,
+                            fontWeight: 800,
+                            color: '#1A1523',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {tile.value}
+                        </span>
+                        <InlineTrend value={tile.change} />
+                      </div>
                     </div>
+                    <MiniBars current={tile.current} previous={tile.previous} color={tile.color} />
                   </div>
-                  <MiniBars current={tile.current} previous={tile.previous} color={tile.color} />
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         )}
       </div>

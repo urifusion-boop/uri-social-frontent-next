@@ -918,7 +918,10 @@ const ContentManagerPage = ({
   // as a safety net — `contentWizardEnabled` is always true now, so it's
   // unreachable rather than removed.
   const contentWizardEnabled = true;
-  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>('chat');
+  const [videoTab, setVideoTab] = useState<'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'>(
+    // Edit Videos is hidden on prod, so prod opens on Generate.
+    IS_PRODUCTION ? 'generate' : 'chat'
+  );
   // The Generate tab is Describe It (DescribeVideoGenerator.tsx): a free-text brief with optional
   // reference images, then script -> scene images -> outcome-routed video. The older upload-first
   // generator is no longer offered; only its Saved Video Drafts list is kept (see below), because
@@ -1819,27 +1822,30 @@ const ContentManagerPage = ({
                   // { key: 'zapcap', label: '⚡ Produce my video' },
                   // { key: 'compose', label: '🎞 Compose' },
                 ] as { key: 'generate' | 'produce' | 'submagic' | 'zapcap' | 'compose' | 'chat'; label: string }[]
-              ).map((vt) => (
-                <button
-                  key={vt.key}
-                  onClick={() => setVideoTab(vt.key)}
-                  style={{
-                    flexShrink: 0,
-                    padding: isMobile ? '8px 14px' : '8px 18px',
-                    borderRadius: 10,
-                    border: videoTab === vt.key ? 'none' : '1.5px solid #E5E7EB',
-                    background: videoTab === vt.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
-                    color: videoTab === vt.key ? '#fff' : '#6B7280',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {vt.label}
-                </button>
-              ))}
+              )
+                // Edit Videos hidden on prod.
+                .filter((vt) => !(IS_PRODUCTION && vt.key === 'chat'))
+                .map((vt) => (
+                  <button
+                    key={vt.key}
+                    onClick={() => setVideoTab(vt.key)}
+                    style={{
+                      flexShrink: 0,
+                      padding: isMobile ? '8px 14px' : '8px 18px',
+                      borderRadius: 10,
+                      border: videoTab === vt.key ? 'none' : '1.5px solid #E5E7EB',
+                      background: videoTab === vt.key ? 'linear-gradient(135deg, #CD1B78 0%, #A01560 100%)' : '#fff',
+                      color: videoTab === vt.key ? '#fff' : '#6B7280',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {vt.label}
+                  </button>
+                ))}
             </div>
           </>
         )}
@@ -5230,28 +5236,30 @@ const PerformancePage = ({
           marginBottom: 14,
         }}
       >
-        {(['posts', 'accounts', 'intel'] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            style={{
-              padding: '5px 16px',
-              borderRadius: 18,
-              border: 'none',
-              background: view === v ? '#fff' : 'transparent',
-              color: view === v ? '#C2185B' : '#888',
-              fontSize: 12.5,
-              fontWeight: view === v ? 700 : 500,
-              cursor: 'pointer',
-              fontFamily: 'var(--wf)',
-              boxShadow: view === v ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
-              transition: 'all 0.15s',
-              textTransform: 'capitalize',
-            }}
-          >
-            {v === 'posts' ? 'Posts' : v === 'accounts' ? 'Accounts' : 'Market Intel'}
-          </button>
-        ))}
+        {(['posts', 'accounts', 'intel'] as const)
+          .filter((v) => !isHiddenOnProd(v))
+          .map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              style={{
+                padding: '5px 16px',
+                borderRadius: 18,
+                border: 'none',
+                background: view === v ? '#fff' : 'transparent',
+                color: view === v ? '#C2185B' : '#888',
+                fontSize: 12.5,
+                fontWeight: view === v ? 700 : 500,
+                cursor: 'pointer',
+                fontFamily: 'var(--wf)',
+                boxShadow: view === v ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
+                transition: 'all 0.15s',
+                textTransform: 'capitalize',
+              }}
+            >
+              {v === 'posts' ? 'Posts' : v === 'accounts' ? 'Accounts' : 'Market Intel'}
+            </button>
+          ))}
       </div>
 
       {/* Range selector (not shown for Market Intel) */}
@@ -10935,8 +10943,11 @@ const PRIMARY_NAV = [
   },
 ];
 
-// Customer Messages is hidden on prod (as it was before this release) — dev keeps it.
-const VISIBLE_PRIMARY_NAV = PRIMARY_NAV.filter((n) => !(IS_PRODUCTION && n.id === 'messages'));
+// Pages hidden on prod only (dev keeps them all): Customer Messages / Onebox,
+// Market Intelligence (+ the Performance page's intel view), and Blog.
+const PROD_HIDDEN_NAV = new Set(['messages', 'market-intelligence', 'intel', 'blog']);
+const isHiddenOnProd = (id: string) => IS_PRODUCTION && PROD_HIDDEN_NAV.has(id);
+const VISIBLE_PRIMARY_NAV = PRIMARY_NAV.filter((n) => !isHiddenOnProd(n.id));
 
 const LOWER_NAV = [
   {
@@ -11198,7 +11209,7 @@ export default function WorkspaceDashboard() {
     // its own top-of-file doc comment) — the restructure gave it a
     // prominent all-user button it was never meant to have. It's still
     // reachable exactly as before: mobile's "More" tab (MORE_NAV above).
-  ];
+  ].filter((n) => !isHiddenOnProd(n.id));
 
   const campaignManagerSubNav = [
     {
@@ -11298,7 +11309,7 @@ export default function WorkspaceDashboard() {
       active: nav === 'market-intelligence',
       onClick: () => goTo('market-intelligence'),
     },
-  ];
+  ].filter((n) => !isHiddenOnProd(n.id));
 
   // Account/Security/Brand Profile are sections of the one SettingsPage, not
   // separate pages — same "real destination, scroll straight to it" fix as
@@ -11569,7 +11580,9 @@ export default function WorkspaceDashboard() {
       .filter((n) => n.id !== 'audiences' && n.id !== 'creatives')
       .map((n) => ({ ...n, tooltip: n.label })),
     ...performanceSubNav.map((n) => ({ ...n, tooltip: n.label })),
-  ].filter((n, i, arr) => arr.findIndex((o) => o.id === n.id) === i);
+  ]
+    .filter((n) => !isHiddenOnProd(n.id))
+    .filter((n, i, arr) => arr.findIndex((o) => o.id === n.id) === i);
 
   // Jane Ads video-quality hand-off: a video uploaded in a campaign thread can be
   // sent here for polishing, then the finished clip comes back to that exact
@@ -11660,7 +11673,7 @@ export default function WorkspaceDashboard() {
   // from landing here directly, bypassing the sidebar entirely. This closes
   // that off at the route level instead of chasing every entry point.
   useEffect(() => {
-    if (IS_PRODUCTION && nav === 'messages') goTo('workspace');
+    if (isHiddenOnProd(nav)) goTo('workspace');
   }, [nav, goTo]);
 
   const closeTour = useCallback(
@@ -12772,34 +12785,36 @@ export default function WorkspaceDashboard() {
                           { id: 'schedule', icon: 'edit', label: 'New post' },
                           { id: 'campaign-wizard', icon: 'megaphone', label: 'New campaign' },
                           { id: 'blog', icon: 'book', label: 'New blog post' },
-                        ].map((opt) => (
-                          <button
-                            key={opt.id}
-                            onClick={() => {
-                              setCreateOpen(false);
-                              goTo(opt.id);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 9,
-                              width: '100%',
-                              padding: '9px 12px',
-                              border: 'none',
-                              background: 'transparent',
-                              cursor: 'pointer',
-                              fontFamily: 'var(--wf)',
-                              fontSize: 12.5,
-                              color: '#1A1523',
-                              textAlign: 'left',
-                            }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = '#F9F8F6')}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            <I n={opt.icon} s={13} c="#9CA3AF" />
-                            {opt.label}
-                          </button>
-                        ))}
+                        ]
+                          .filter((opt) => !isHiddenOnProd(opt.id))
+                          .map((opt) => (
+                            <button
+                              key={opt.id}
+                              onClick={() => {
+                                setCreateOpen(false);
+                                goTo(opt.id);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 9,
+                                width: '100%',
+                                padding: '9px 12px',
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                fontFamily: 'var(--wf)',
+                                fontSize: 12.5,
+                                color: '#1A1523',
+                                textAlign: 'left',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = '#F9F8F6')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <I n={opt.icon} s={13} c="#9CA3AF" />
+                              {opt.label}
+                            </button>
+                          ))}
                       </div>
                     </>
                   )}
@@ -13484,7 +13499,7 @@ export default function WorkspaceDashboard() {
                 </div>
               </div>
               {/* More nav items */}
-              {MORE_NAV.map((n) => {
+              {MORE_NAV.filter((n) => !isHiddenOnProd(n.id)).map((n) => {
                 const badge = n.id === 'notifications' ? unreadCount : undefined;
                 // 'brand-setup' really lands on the Settings page (see its own
                 // `target` above) — highlight against where it actually goes,
