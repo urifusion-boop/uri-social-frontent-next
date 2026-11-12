@@ -1,5 +1,6 @@
 'use client';
 
+import DraftLogoMover, { logoMoveTarget } from '../DraftLogoMover';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
@@ -155,6 +156,8 @@ export default function ContentLibraryPage() {
   const [menuFor, setMenuFor] = useState<{ anchor: HTMLElement; id: string } | null>(null);
   const [editingDraft, setEditingDraft] = useState<ContentDraft | null>(null);
   const [viewingDraft, setViewingDraft] = useState<ContentDraft | null>(null);
+  // Move Logo straight from a list row or grid card, before publishing.
+  const [logoDraft, setLogoDraft] = useState<ContentDraft | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -698,6 +701,7 @@ export default function ContentLibraryPage() {
               connectedPlatforms={connectedPlatforms}
               onEdit={setEditingDraft}
               onViewDetails={setViewingDraft}
+              onMoveLogo={setLogoDraft}
               onRefresh={load}
               uniformAspect="1 / 1"
             />
@@ -987,6 +991,20 @@ export default function ContentLibraryPage() {
           Edit
         </MenuItem>
         {menuFor &&
+          (() => {
+            const d = items.find((x) => (x.id ?? x.draft_id) === menuFor.id);
+            return d && logoMoveTarget(d) ? (
+              <MenuItem
+                onClick={() => {
+                  setMenuFor(null);
+                  setLogoDraft(d);
+                }}
+              >
+                Move Logo
+              </MenuItem>
+            ) : null;
+          })()}
+        {menuFor &&
           categorize(items.find((x) => (x.id ?? x.draft_id) === menuFor.id) ?? ({} as ContentDraft)) === 'archived' && (
             <MenuItem onClick={() => menuFor && handleRestore(menuFor.id)} sx={{ color: PINK }}>
               Restore to Draft
@@ -1003,6 +1021,18 @@ export default function ContentLibraryPage() {
           connectedPlatforms={connectedPlatforms}
           onClose={() => setEditingDraft(null)}
           onRefresh={load}
+        />
+      )}
+
+      {logoDraft && (
+        <DraftLogoMover
+          draft={logoDraft}
+          open
+          onClose={() => setLogoDraft(null)}
+          onSaved={() => {
+            setLogoDraft(null);
+            load();
+          }}
         />
       )}
 

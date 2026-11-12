@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { Box, Button, Dialog, IconButton, TextField, Typography } from '@mui/material';
-import { MdChevronLeft, MdChevronRight, MdClose, MdEdit } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdClose, MdEdit, MdOpenWith } from 'react-icons/md';
+import DraftLogoMover, { logoMoveTarget } from './DraftLogoMover';
 import { ContentDraft, SocialMediaAgentService } from '@/src/api/SocialMediaAgentService';
 import { ToastService } from '@/src/utils/toast.util';
 import { ToastTypeEnum } from '@/src/models/enum-models/ToastTypeEnum';
@@ -89,6 +90,9 @@ export default function DraftDetailView({
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [canvasEditorOpen, setCanvasEditorOpen] = useState(false);
+  // Move Logo here too, so the logo can be repositioned before publishing without
+  // going through Edit first.
+  const [moveLogoOpen, setMoveLogoOpen] = useState(false);
   const [confirmUnschedule, setConfirmUnschedule] = useState(false);
 
   // scheduled_date (see the type's own comment) is what a scheduled draft
@@ -547,6 +551,23 @@ export default function DraftDetailView({
                   Canvas ✨
                 </Button>
               ) : null}
+              {logoMoveTarget(draft, isCarousel ? safeSlideIndex : undefined) && (
+                <Button
+                  size="small"
+                  startIcon={<MdOpenWith size={14} />}
+                  onClick={() => setMoveLogoOpen(true)}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    color: '#C2185B',
+                    border: '1px solid #F5C2D6',
+                    borderRadius: '8px',
+                  }}
+                >
+                  Move Logo
+                </Button>
+              )}
               <Button
                 size="small"
                 onClick={() => {
@@ -708,6 +729,19 @@ export default function DraftDetailView({
         </Dialog>
       )}
 
+      {moveLogoOpen && (
+        <DraftLogoMover
+          draft={draft}
+          slideIndex={isCarousel ? safeSlideIndex : undefined}
+          open
+          onClose={() => setMoveLogoOpen(false)}
+          onSaved={(updated) => {
+            setDraft(updated);
+            setMoveLogoOpen(false);
+            onRefresh();
+          }}
+        />
+      )}
       {canvasEditorOpen && 'document' in draft && draft.document ? (
         <CanvasEditor
           draftId={id}
