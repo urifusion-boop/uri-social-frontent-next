@@ -3032,7 +3032,10 @@ const ConnectionsPage = ({
         SocialAccountService.finalizeInstagramDirect(igUserId)
           .then((res) => {
             if (res.status) {
-              ToastService.showToast(`Instagram @${igUsername} connected!`, ToastTypeEnum.Success);
+              ToastService.showToast(
+                `Instagram @${igUsername} connected! Want a different one? Tap Connect again and choose \u201cEdit access\u201d on Facebook\u2019s screen.`,
+                ToastTypeEnum.Success
+              );
               posthog.capture('social_account_connected', { platform: 'instagram', username: igUsername });
               try {
                 sessionStorage.removeItem('social_connections_cache');
@@ -3117,7 +3120,10 @@ const ConnectionsPage = ({
         SocialAccountService.finalizeFacebookDirect(fbPageId)
           .then((res) => {
             if (res.status) {
-              ToastService.showToast(`${pageName} connected!`, ToastTypeEnum.Success);
+              ToastService.showToast(
+                `${pageName} connected! Want a different one? Tap Connect again and choose \u201cEdit access\u201d on Facebook\u2019s screen.`,
+                ToastTypeEnum.Success
+              );
               posthog.capture('social_account_connected', { platform: 'facebook', page_name: pageName });
               loadStatuses();
               warnIfInboxBlocked();
@@ -3663,7 +3669,10 @@ const ConnectionsPage = ({
           <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
             {pickerPlatform === 'facebook'
               ? 'You manage more than one Facebook Page — select the one(s) you want to post to.'
-              : 'More than one of your Facebook Pages has a linked Instagram Business account — select one or more to connect.'}
+              : 'More than one of your Facebook Pages has a linked Instagram Business account — select one or more to connect.'}{' '}
+            {
+              'Don\u2019t see one? Tap Connect again and choose \u201cEdit access\u201d on Facebook\u2019s screen to share it.'
+            }
           </div>
           {igPickerLoading ? (
             <div style={{ fontSize: 12.5, color: '#9CA3AF' }}>Loading accounts...</div>
