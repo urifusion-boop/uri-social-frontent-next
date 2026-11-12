@@ -1,6 +1,5 @@
 'use client';
 
-import { MdOpenWith } from 'react-icons/md';
 import { logoMoveTarget } from './DraftLogoMover';
 import { useState } from 'react';
 import {
@@ -441,28 +440,7 @@ export default function GeneratedContentCard({
           </Box>
         </Box>
 
-        {canMoveLogo && (
-          <Button
-            size="small"
-            startIcon={<MdOpenWith size={13} />}
-            onClick={() => onMoveLogo?.(draft)}
-            sx={{
-              alignSelf: 'flex-start',
-              mt: 'auto',
-              mb: 0.75,
-              textTransform: 'none',
-              fontSize: '12px',
-              fontWeight: 700,
-              color: '#C2185B',
-              border: '1px solid #F5C2D6',
-              borderRadius: '8px',
-              px: 1.25,
-            }}
-          >
-            Move Logo
-          </Button>
-        )}
-        <Box display="flex" gap={0.75} sx={{ mt: canMoveLogo ? 0 : 'auto' }}>
+        <Box display="flex" gap={0.75} sx={{ mt: 'auto' }}>
           <Button
             size="small"
             onClick={() => onEdit(draft)}
