@@ -4580,16 +4580,7 @@ const ConnectionsPage = ({
                             >
                               <span style={{ fontSize: 12.5, color: '#333', fontWeight: 500, minWidth: 0 }}>
                                 {account.account_name || account.username || 'Connected page'}
-                                {(p.id === 'tiktok' || p.id === 'facebook') && (
-                                  <span style={{ color: '#888', fontWeight: 400 }}>
-                                    {' · '}
-                                    {account.connected_via?.startsWith(`${p.id}_direct`)
-                                      ? p.id === 'tiktok'
-                                        ? 'TikTok login'
-                                        : 'Meta login'
-                                      : 'via Outstand'}
-                                  </span>
-                                )}
+
                                 {viaOutstand && (
                                   <span
                                     style={{
@@ -4600,7 +4591,7 @@ const ConnectionsPage = ({
                                       marginTop: 2,
                                     }}
                                   >
-                                    Connected through Outstand, which URI no longer uses — reconnect to keep publishing.
+                                    This account needs to be reconnected to keep publishing.
                                   </span>
                                 )}
                                 {/* is_active is only ever explicitly false when Outstand itself

@@ -222,7 +222,7 @@ const AutoGenerateTab = ({ settings, onGenerated, onSettingsChange, onRefreshDra
             return key === 'tiktok' ? (
               <Tooltip
                 key={key}
-                title="Only generates TikTok drafts for accounts connected via Outstand — direct-connected TikTok needs video, which Auto doesn't generate yet, so no TikTok draft is created for those accounts."
+                title="Auto-Generate doesn't create TikTok posts yet — TikTok needs a video, which Auto doesn't make."
                 arrow
                 enterTouchDelay={0}
                 leaveTouchDelay={3000}
