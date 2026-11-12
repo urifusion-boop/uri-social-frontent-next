@@ -696,6 +696,28 @@ export class SocialMediaAgentService {
     return response.data;
   }
 
+  /** Facebook Pages awaiting the owner's pick after a Meta login that manages several Pages. */
+  static async getFacebookDirectPending(
+    token: string
+  ): Promise<
+    UriResponse<{ token: string; pages: Array<{ page_id: string; page_name?: string; profile_picture_url?: string }> }>
+  > {
+    const response = await UriHttpClient.getClient().get(`/social-media/connect/facebook-direct/pending/${token}`);
+    return response.data;
+  }
+
+  /** Connect the Facebook Page(s) the owner picked. */
+  static async finalizeFacebookDirectPending(
+    token: string,
+    pageIds: string[]
+  ): Promise<UriResponse<{ connected: Array<{ page_id: string; page_name?: string }>; total: number }>> {
+    const response = await UriHttpClient.getClient().post('/social-media/connect/facebook-direct/finalize-pending', {
+      token,
+      page_ids: pageIds,
+    });
+    return response.data;
+  }
+
   static async finalizeInstagramDirectPending(
     token: string,
     igUserIds: string[]

@@ -2810,6 +2810,9 @@ const ConnectionsPage = ({
   const [igPickerLoading, setIgPickerLoading] = useState(false);
   const [igFinalizing, setIgFinalizing] = useState(false);
   const [igSelected, setIgSelected] = useState<Set<string>>(new Set());
+  // The same picker also lists Facebook Pages after a Meta login that manages several
+  // Pages (candidate.ig_user_id then holds the Page id).
+  const [pickerPlatform, setPickerPlatform] = useState<'instagram' | 'facebook'>('instagram');
 
   const WA_CACHE_KEY = 'uri_wa_connection';
 
@@ -3051,6 +3054,7 @@ const ConnectionsPage = ({
       const igToken = searchParams.get('token');
       router.replace('/workspace/?tab=connections');
       if (igToken) {
+        setPickerPlatform('instagram');
         setIgPendingToken(igToken);
         setIgPickerLoading(true);
         SocialMediaAgentService.getInstagramDirectPending(igToken)
@@ -3069,6 +3073,38 @@ const ConnectionsPage = ({
           })
           .catch(() => {
             ToastService.showToast('Could not load Instagram accounts. Please try again.', ToastTypeEnum.Error);
+            setIgPendingToken(null);
+          })
+          .finally(() => setIgPickerLoading(false));
+      }
+    } else if (connected === 'facebook_pending') {
+      // The Meta login manages several Pages — let the owner choose which to connect.
+      const fbToken = searchParams.get('token');
+      router.replace('/workspace/?tab=connections');
+      if (fbToken) {
+        setPickerPlatform('facebook');
+        setIgPendingToken(fbToken);
+        setIgPickerLoading(true);
+        SocialMediaAgentService.getFacebookDirectPending(fbToken)
+          .then((res) => {
+            if (res.status && res.responseData) {
+              const candidates = (res.responseData.pages ?? []).map((p) => ({
+                ig_user_id: p.page_id,
+                page_name: p.page_name,
+                profile_picture_url: p.profile_picture_url,
+              }));
+              setIgCandidates(candidates);
+              setIgSelected(new Set());
+            } else {
+              ToastService.showToast(
+                res.responseMessage || 'Could not load your Facebook Pages. Please try again.',
+                ToastTypeEnum.Error
+              );
+              setIgPendingToken(null);
+            }
+          })
+          .catch(() => {
+            ToastService.showToast('Could not load your Facebook Pages. Please try again.', ToastTypeEnum.Error);
             setIgPendingToken(null);
           })
           .finally(() => setIgPickerLoading(false));
@@ -3246,14 +3282,23 @@ const ConnectionsPage = ({
     setIgFinalizing(true);
     try {
       const ids = Array.from(igSelected);
-      const res = await SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids);
+      const isFb = pickerPlatform === 'facebook';
+      const res = isFb
+        ? await SocialMediaAgentService.finalizeFacebookDirectPending(igPendingToken, ids)
+        : await SocialMediaAgentService.finalizeInstagramDirectPending(igPendingToken, ids);
       if (res.status) {
         const count = res.responseData?.total ?? ids.length;
         ToastService.showToast(
-          count > 1 ? `${count} Instagram accounts connected!` : 'Instagram account connected!',
+          isFb
+            ? count > 1
+              ? `${count} Facebook Pages connected!`
+              : 'Facebook Page connected!'
+            : count > 1
+              ? `${count} Instagram accounts connected!`
+              : 'Instagram account connected!',
           ToastTypeEnum.Success
         );
-        posthog.capture('social_account_connected', { platform: 'instagram', count });
+        posthog.capture('social_account_connected', { platform: isFb ? 'facebook' : 'instagram', count });
         setIgPendingToken(null);
         setIgCandidates([]);
         setIgSelected(new Set());
@@ -3611,11 +3656,14 @@ const ConnectionsPage = ({
           }}
         >
           <div style={{ fontSize: 13.5, fontWeight: 700, color: '#111', marginBottom: 6 }}>
-            Choose which Instagram account(s) to connect
+            {pickerPlatform === 'facebook'
+              ? 'Choose which Facebook Page(s) to connect'
+              : 'Choose which Instagram account(s) to connect'}
           </div>
           <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
-            More than one of your Facebook Pages has a linked Instagram Business account — select one or more to
-            connect, just like when connecting Facebook Pages.
+            {pickerPlatform === 'facebook'
+              ? 'You manage more than one Facebook Page — select the one(s) you want to post to.'
+              : 'More than one of your Facebook Pages has a linked Instagram Business account — select one or more to connect.'}
           </div>
           {igPickerLoading ? (
             <div style={{ fontSize: 12.5, color: '#9CA3AF' }}>Loading accounts...</div>
@@ -3671,12 +3719,14 @@ const ConnectionsPage = ({
                           fontSize: 16,
                         }}
                       >
-                        📷
+                        {pickerPlatform === 'facebook' ? '📘' : '📷'}
                       </div>
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                        {c.username ? `@${c.username}` : c.page_name || 'Instagram account'}
+                        {c.username
+                          ? `@${c.username}`
+                          : c.page_name || (pickerPlatform === 'facebook' ? 'Facebook Page' : 'Instagram account')}
                       </div>
                       {c.page_name && c.username && (
                         <div style={{ fontSize: 11.5, color: '#9CA3AF' }}>via {c.page_name}</div>
@@ -3705,7 +3755,11 @@ const ConnectionsPage = ({
                 fontFamily: 'var(--wf)',
               }}
             >
-              {igFinalizing ? 'Connecting...' : igSelected.size > 1 ? `Connect ${igSelected.size} accounts` : 'Connect'}
+              {igFinalizing
+                ? 'Connecting...'
+                : igSelected.size > 1
+                  ? `Connect ${igSelected.size} ${pickerPlatform === 'facebook' ? 'Pages' : 'accounts'}`
+                  : 'Connect'}
             </button>
             <button
               type="button"
